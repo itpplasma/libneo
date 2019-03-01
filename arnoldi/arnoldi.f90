@@ -5,32 +5,29 @@
     real(kind=real_kind) :: tol
     complex(kind=complex_kind), dimension(:,:), allocatable :: eigvecs
   end module arnoldi_mod
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
+
+!> Computes m Ritz eigenvalues (approximations to extreme eigenvalues)
+!> of the iteration procedure of the vector with dimension n.
+!> Eigenvalues are computed by means of Arnoldi iterations.
+!> Optionally computes Ritz vectors (approximation to eigenvectors).
+!>
+!> Input  parameters:
+!> Formal:             n              - system dimension
+!>                     m              - number of Ritz eigenvalues
+!> Module arnoldi_mod: ieigen         - flag to compute eigenvectors (1 - yes,
+!>                                      0 - no), module is initialized with 0
+!>                     tol            - eigenvectors are not computed for
+!>                                      eigenvalues smaller than this numer
+!> External:           next_iteration - routine computing next iteration
+!>                                      of the solution from the previous
+!> Output parameters:
+!> Formal:             ritznum        - Ritz eigenvalues
+!> Module arnoldi_mod: ngrow          - number of eigenvalues larger or equal
+!>                                      to TOL
+!>                     eigvecs        - array of eigenvectors, size - (m,ngrow)
+!>                     ierr           - error code (0 - normal work, 1 - error)
   subroutine arnoldi(n,m,ritznum,next_iteration)
-!
-! Computes m Ritz eigenvalues (approximations to extreme eigenvalues)
-! of the iteration procedure of the vector with dimension n.
-! Eigenvalues are computed by means of Arnoldi iterations.
-! Optionally computes Ritz vectors (approximation to eigenvectors).
-!
-! Input  parameters:
-! Formal:             n              - system dimension
-!                     m              - number of Ritz eigenvalues
-! Module arnoldi_mod: ieigen         - flag to compute eigenvectors (1 - yes,
-!                                      0 - no), module is initialized with 0
-!                     tol            - eigenvectors are not computed for 
-!                                      eigenvalues smaller than this numer 
-! External:           next_iteration - routine computing next iteration
-!                                      of the solution from the previous
-! Output parameters:
-! Formal:             ritznum        - Ritz eigenvalues
-! Module arnoldi_mod: ngrow          - number of eigenvalues larger or equal
-!                                      to TOL
-!                     eigvecs        - array of eigenvectors, size - (m,ngrow) 
-!                     ierr           - error code (0 - normal work, 1 - error)
-!
+
   use arnoldi_mod, only : ieigen,ngrow,tol,eigvecs,ierr
   use for_mpi, only : mype, mpi_p_root
 #ifdef PARALLEL
@@ -100,25 +97,22 @@
   deallocate(fold,fnew,fzero)
 !
   end subroutine arnoldi
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
+
+!> Computes eigenvalues, ritznum, of the upper Hessenberg matrix hmat
+!> of the dimension (m,m), orders eigenvelues into the decreasing by module
+!> sequence and computes the eigenvectors, eigh, for eigenvalues exceeding
+!> the tolerance tol (number of these eigenvalues is ngrow)
+!>
+!> Input arguments:
+!>          Formal: m        - matrix size
+!>                  tol      - tolerance
+!>                  hmat     - upper Hessenberg matrix
+!> Output arguments:
+!>          Formal: ngrow    - number of exceeding the tolerance
+!>                  ritznum  - eigenvalues
+!>                  eigh     - eigenvectors
+!>                  ierr     - error code (0 - normal work)
   subroutine try_eigvecvals(m,tol,hmat,ngrow,ritznum,eigh,ierr)
-!
-! Computes eigenvalues, ritznum, of the upper Hessenberg matrix hmat 
-! of the dimension (m,m), orders eigenvelues into the decreasing by module 
-! sequence and computes the eigenvectors, eigh, for eigenvalues exceeding 
-! the tolerance tol (number of these eigenvalues is ngrow)
-!
-! Input arguments:
-!          Formal: m        - matrix size
-!                  tol      - tolerance
-!                  hmat     - upper Hessenberg matrix
-! Output arguments:
-!          Formal: ngrow    - number of exceeding the tolerance
-!                  ritznum  - eigenvalues
-!                  eigh     - eigenvectors
-!                  ierr     - error code (0 - normal work)
 !
   implicit none
 !
