@@ -1,10 +1,11 @@
 !
-  module arnoldi_mod
+module arnoldi_mod
     integer :: ieigen=0
     integer :: ngrow,ierr
     real(kind=real_kind) :: tol
     complex(kind=complex_kind), dimension(:,:), allocatable :: eigvecs
-  end module arnoldi_mod
+
+contains
 
 !> Computes m Ritz eigenvalues (approximations to extreme eigenvalues)
 !> of the iteration procedure of the vector with dimension n.
@@ -220,5 +221,5 @@ print *,'ierr = ',ierr
   deallocate(hmat_work,work,rwork,selec,rnum,ifailr)
 !
   end subroutine try_eigvecvals
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+end module arnoldi_mod
