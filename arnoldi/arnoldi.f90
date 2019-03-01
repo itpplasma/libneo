@@ -1,5 +1,7 @@
 
 module arnoldi_mod
+  use libneo_kinds, only : real_kind, complex_kind
+
   integer :: ieigen=0
   integer :: ngrow,ierr
   real(kind=real_kind) :: tol
@@ -31,6 +33,7 @@ contains
 
     use arnoldi_mod, only : ieigen,ngrow,tol,eigvecs,ierr
     use for_mpi, only : mype, mpi_p_root
+    use libneo_kinds, only : real_kind, complex_kind
 #ifdef PARALLEL
     use mpi
 #endif
@@ -114,6 +117,7 @@ contains
   !>                  eigh     - eigenvectors
   !>                  ierr     - error code (0 - normal work)
   subroutine try_eigvecvals(m,tol,hmat,ngrow,ritznum,eigh,ierr)
+    use libneo_kinds, only : real_kind, complex_kind
 
     implicit none
 
