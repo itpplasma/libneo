@@ -67,13 +67,13 @@ contains
     nok=0
     nbad=0
     kount=0
-    do 11 i=1,nvar
+    do i=1,nvar
       y(i)=ystart(i)
-11  continue
+    end do
 
     if (kmax.gt.0) xsav=x-2.*dxsav
 
-    do 16 nstp=1,MAXSTP
+    do nstp=1,MAXSTP
       call derivs(x,y,dydx)
 
       if (ierrfield.ne.0) then
@@ -83,17 +83,17 @@ contains
         return
       end if
 
-      do 12 i=1,nvar
+      do i=1,nvar
         yscal(i)=abs(y(i))+abs(h*dydx(i))+TINY
-12    continue
+      end do
       if (kmax.gt.0) then
         if (abs(x-xsav).gt.abs(dxsav)) then
           if (kount.lt.kmax-1) then
             kount=kount+1
             xp(kount)=x
-            do 13 i=1,nvar
+            do i=1,nvar
               yp(i,kount)=y(i)
-13          continue
+            end do
             xsav=x
           end if
         end if
@@ -114,15 +114,15 @@ contains
         nbad=nbad+1
       end if
       if ((x-x2)*(x2-x1).ge.0.) then
-        do 14 i=1,nvar
+        do i=1,nvar
           ystart(i)=y(i)
-14      continue
+        end do
         if (kmax.ne.0) then
           kount=kount+1
           xp(kount)=x
-          do 15 i=1,nvar
+          do i=1,nvar
             yp(i,kount)=y(i)
-15        continue
+          end do
         end if
         ialloc=0
         call alloc_odeint(nvar)
@@ -136,7 +136,7 @@ contains
       end if
 
       h=hnext
-16  continue
+    end do
 
     print*,'too many steps in odeint'
     write(99,*)'to many steps in odeint, stop'
@@ -174,47 +174,48 @@ contains
      *DC3=C3-18575.d0/48384.d0,DC4=C4-13525.d0/55296.d0,
      *DC5=-277.d0/14336.d0,
      *DC6=C6-.25d0)
-    do 11 i=1,n
+    do i=1,n
       ytemp(i)=y(i)+B21*h*dydx(i)
-11  continue
+    end do
     call derivs(x+A2*h,ytemp,ak2)
 
     if (ierrfield.ne.0) return
 
-    do 12 i=1,n
+    do i=1,n
       ytemp(i)=y(i)+h*(B31*dydx(i)+B32*ak2(i))
-12  continue
+    end do
     call derivs(x+A3*h,ytemp,ak3)
 
     if (ierrfield.ne.0) return
 
-    do 13 i=1,n
+    do i=1,n
       ytemp(i)=y(i)+h*(B41*dydx(i)+B42*ak2(i)+B43*ak3(i))
-13  continue
+    end do
     call derivs(x+A4*h,ytemp,ak4)
 
     if (ierrfield.ne.0) return
 
-    do 14 i=1,n
+    do i=1,n
       ytemp(i)=y(i)+h*(B51*dydx(i)+B52*ak2(i)+B53*ak3(i)+B54*ak4(i))
-14  continue
+    end do
     call derivs(x+A5*h,ytemp,ak5)
 
     if (ierrfield.ne.0) return
 
-    do 15 i=1,n
+    do i=1,n
       ytemp(i)=y(i)+h*(B61*dydx(i)+B62*ak2(i)+B63*ak3(i)+B64*ak4(i)+B65*ak5(i))
-15  continue
+    end do
     call derivs(x+A6*h,ytemp,ak6)
 
     if (ierrfield.ne.0) return
 
-    do 16 i=1,n
+    do i=1,n
       yout(i)=y(i)+h*(C1*dydx(i)+C3*ak3(i)+C4*ak4(i)+C6*ak6(i))
-16  continue
-    do 17 i=1,n
+    end do
+    do i=1,n
       yerr(i)=h*(DC1*dydx(i)+DC3*ak3(i)+DC4*ak4(i)+DC5*ak5(i)+DC6*ak6(i))
-17  continue
+    end do
+
     return
   end subroutine
 
@@ -232,9 +233,9 @@ contains
     h=htry
 1   call rkck(y,dydx,n,x,h,ytemp1,yerr,derivs)
     errmax=0.
-    do 11 i=1,n
+    do i=1,n
       errmax=max(errmax,abs(yerr(i)/yscal(i)))
-11  continue
+    end do
     errmax=errmax/eps
     if (errmax.gt.1.) then
       htemp=SAFETY*h*(errmax**PSHRNK)
@@ -257,9 +258,9 @@ contains
       endif
       hdid=h
       x=x+h
-      do 12 i=1,n
+      do i=1,n
         y(i)=ytemp1(i)
-12    continue
+      end do
       return
     end if
   end subroutine rkqs
@@ -282,31 +283,31 @@ contains
     call DERIVS(X,Y,DYDX)
     if(ierrfield.ne.0) return
 
-    do 11 I=1,N
+    do I=1,N
       YT(I)=Y(I)+HH*DYDX(I)
-11  continue
+    end do
 
     call DERIVS(XH,YT,DYT)
     if (ierrfield.ne.0) return
 
-    do 12 I=1,N
+    do I=1,N
       YT(I)=Y(I)+HH*DYT(I)
-12  continue
+    end do
 
     call DERIVS(XH,YT,DYM)
     if (ierrfield.ne.0) return
 
-    do 13 I=1,N
+    do I=1,N
       YT(I)=Y(I)+H*DYM(I)
       DYM(I)=DYT(I)+DYM(I)
-13  continue
+    end do
 
     call DERIVS(X+H,YT,DYT)
     if (ierrfield.ne.0) return
 
-    do 14 I=1,N
+    do I=1,N
       Y(I)=Y(I)+H6*(DYDX(I)+DYT(I)+2.d0*DYM(I))
-14  continue
+    end do
 
     return
   end subroutine RK4b
