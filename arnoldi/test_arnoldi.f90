@@ -19,9 +19,9 @@ program test_arnoldi
   
 #ifdef PARALLEL
   call MPI_INIT(ierr)
-  if(ierr .ne. MPI_SUCCESS) then 
-     write(*,*)'MPI init. err.'
-     stop 1
+  if (ierr .ne. MPI_SUCCESS) then
+    write(*,*)'MPI init. err.'
+    stop 1
   endif
   call MPI_COMM_SIZE(MPI_COMM_WORLD,npes,ierr)
   call MPI_COMM_RANK(MPI_COMM_WORLD,mype,ierr)
@@ -48,14 +48,14 @@ program test_arnoldi
 
   call zgesv(nsize,1,amat,nsize,ipiv,bvec,nsize,info)
         !
-  if(info.ne.0) then
-     if(info.gt.0) then
-        print *,'iterator: singular matrix in zgesv'
-     else
-        print *,'iterator: argument ',-info,' has illegal value in zgesv'
-     endif
-     return
-  endif
+  if (info.ne.0) then
+    if (info.gt.0) then
+      print *,'iterator: singular matrix in zgesv'
+    else
+      print *,'iterator: argument ',-info,' has illegal value in zgesv'
+    end if
+    return
+  end if
 
   xsol = bvec ! reference solution
 
@@ -66,9 +66,9 @@ program test_arnoldi
   ! direct iteration
   xold = (0d0,0d0)
   do kit = 1,maxit
-     call next_iteration(nsize, xold, xnew)
-     xold = xnew
-     print *, NORM2([NORM2(real(xnew-xsol)),NORM2(aimag(xnew-xsol))]) 
+    call next_iteration(nsize, xold, xnew)
+    xold = xnew
+    print *, NORM2([NORM2(real(xnew-xsol)),NORM2(aimag(xnew-xsol))])
   end do
   
   ! Arnoldi
@@ -77,47 +77,47 @@ program test_arnoldi
   tol = 0.7d0
   call arnoldi(nsize, nritz, ritznum, next_iteration)    
   do kit = 1, ngrow
-     print *, ritznum(kit)
+    print *, ritznum(kit)
   end do
 
   print *, "Solving subsystem in eigenbasis"
   allocate(amat2(ngrow,ngrow),bvec2(ngrow,ngrow),coefren(ngrow))
   bvec2=(0.d0,0.d0)
   do i=1,ngrow
-     bvec2(i,i)=(1.d0,0.d0)
-     do j=1,ngrow
-        amat2(i,j)=sum(conjg(eigvecs(:,i))*eigvecs(:,j))*(ritznum(j)-(1.d0,0.d0))
-     enddo
-  enddo
+    bvec2(i,i)=(1.d0,0.d0)
+    do j=1,ngrow
+      amat2(i,j)=sum(conjg(eigvecs(:,i))*eigvecs(:,j))*(ritznum(j)-(1.d0,0.d0))
+    end do
+  end do
   !
   call zgesv(ngrow,ngrow,amat2,ngrow,ipiv,bvec2,ngrow,info)
   !
-  if(info.ne.0) then
-     if(info.gt.0) then
-        print *,'iterator: singular matrix in zgesv'
-     else
-        print *,'iterator: argument ',-info,' has illigal value in zgesv'
-     endif
+  if (info.ne.0) then
+    if (info.gt.0) then
+      print *,'iterator: singular matrix in zgesv'
+    else
+      print *,'iterator: argument ',-info,' has illigal value in zgesv'
+    end if
      !deallocate(coefren,amat,bvec,ipiv)
      !deallocate(eigvecs)
-     return
-  endif
-  
+    return
+  end if
+
   xold = (0d0,0d0)
   do kit = 1,maxit
-     call next_iteration(nsize, xold, xnew)
-     
-     do j=1,ngrow
-        coefren(j)=ritznum(j)*sum(bvec2(j,:)                           &
-             *matmul(transpose(conjg(eigvecs(:,1:ngrow))),xnew-xold))
-     enddo
-     xnew = xnew - matmul(eigvecs(:,1:ngrow),coefren(1:ngrow))
-     xold = xnew
-     print *, NORM2([NORM2(real(xnew-xsol)),NORM2(aimag(xnew-xsol))]) 
+    call next_iteration(nsize, xold, xnew)
+
+    do j=1,ngrow
+      coefren(j)=ritznum(j)*sum(bvec2(j,:)                           &
+           *matmul(transpose(conjg(eigvecs(:,1:ngrow))),xnew-xold))
+    end do
+    xnew = xnew - matmul(eigvecs(:,1:ngrow),coefren(1:ngrow))
+    xold = xnew
+    print *, NORM2([NORM2(real(xnew-xsol)),NORM2(aimag(xnew-xsol))])
   end do
+
 contains
 
-  
   subroutine next_iteration(n, hold, hnew)
     use libneo_kinds, only : real_kind, complex_kind
 
@@ -131,6 +131,5 @@ contains
     call zgemv('N',n,n,alpha,mmat,n,x,1,beta,y,1)
     hnew = y
   end subroutine next_iteration
-  
-  
+
 end program test_arnoldi
