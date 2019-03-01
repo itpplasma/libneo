@@ -1,0 +1,7 @@
+# This file provides the list of source files for libneo.
+# The file CMakeLists.txt contains the main configuration code.
+
+
+set(SOURCE_FILES
+    src/io.f90
+)
