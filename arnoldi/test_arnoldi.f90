@@ -1,20 +1,21 @@
 program test_arnoldi
   use arnoldi_mod, only: ieigen,ngrow,tol,eigvecs,arnoldi_ierr=>ierr
   use for_mpi, only: mype, npes, mpi_p_root
+  use libneo_kinds, only : complex_kind
 
   integer :: ierr, info
   integer, parameter :: nsize = 10
   integer ipiv(nsize)
-  double complex :: amat(nsize,nsize), mmat(nsize,nsize)
-  double complex :: bvec(nsize), yvec(nsize), xsol(nsize), xold(nsize), xnew(nsize)
-  double complex :: cdummy(nsize)
+  complex(kind=complex_kind) :: amat(nsize,nsize), mmat(nsize,nsize)
+  complex(kind=complex_kind) :: bvec(nsize), yvec(nsize), xsol(nsize), xold(nsize), xnew(nsize)
+  complex(kind=complex_kind) :: cdummy(nsize)
   integer :: kit, maxit = 20
 
   ! for Arnoldi
   integer, parameter :: nritz = 8  ! for Arnoldi iterations
-  double complex, dimension(nritz) :: ritznum
-  double complex, allocatable, dimension(:) :: coefren
-  double complex, allocatable, dimension(:,:) :: amat2, bvec2
+  complex(kind=complex_kind), dimension(nritz) :: ritznum
+  complex(kind=complex_kind), allocatable, dimension(:) :: coefren
+  complex(kind=complex_kind), allocatable, dimension(:,:) :: amat2, bvec2
   
 #ifdef PARALLEL
   call MPI_INIT(ierr)
@@ -118,9 +119,11 @@ contains
 
   
   subroutine next_iteration(n, hold, hnew)
+    use libneo_kinds, only : real_kind, complex_kind
+
     integer :: n
-    double complex :: hold(n), hnew(n), x(n), y(n)
-    double complex :: alpha, beta
+    complex(kind=complex_kind) :: hold(n), hnew(n), x(n), y(n)
+    complex(kind=complex_kind) :: alpha, beta
     x = hold+yvec
     y = cmplx(0d0,0d0)
     alpha = cmplx(1d0,0d0)
