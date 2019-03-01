@@ -1,3 +1,14 @@
 # Ignore directories for building the code.
 [Bb]uild/*
 [Bb]uild-*/*
+
+# Ignore error files and log files.
+*.err
+*.log
+
+# Ignore folders created by documentation tool.
+doc/html/
+doc/latex/
+
+# Ignore files that are created by the make process.
+*.pdf
