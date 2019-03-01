@@ -4,4 +4,5 @@
 
 set(SOURCE_FILES
     src/io.f90
+    src/libneo_kinds.f90
 )
