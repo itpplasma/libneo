@@ -7,6 +7,8 @@
 !> formats, like efit and boozer. Note that the input is just read, not
 !> processed.
 module io
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   private
@@ -23,17 +25,17 @@ module io
     integer :: nwEQD, nhEQD
     integer :: n_bndyxy, nlimEQD
 
-    real :: psiSep, bt0, rzero
+    real(kind=real_kind) :: psiSep, bt0, rzero
 
-    real, dimension(:), allocatable :: fpol, pres
-    real, dimension(:), allocatable :: ffprim
-    real, dimension(:), allocatable :: pprime
-    real, dimension(:), allocatable :: qpsi, rad
-    real, dimension(:,:), allocatable :: psiRZ
-    real, dimension(:), allocatable :: LCFS, limEQD
+    real(kind=real_kind), dimension(:), allocatable :: fpol, pres
+    real(kind=real_kind), dimension(:), allocatable :: ffprim
+    real(kind=real_kind), dimension(:), allocatable :: pprime
+    real(kind=real_kind), dimension(:), allocatable :: qpsi, rad
+    real(kind=real_kind), dimension(:,:), allocatable :: psiRZ
+    real(kind=real_kind), dimension(:), allocatable :: LCFS, limEQD
 
-    real :: xdim,zdim,r1,zmid,rmaxis,zmaxis
-    real :: plas_cur, psiAxis
+    real(kind=real_kind) :: xdim,zdim,r1,zmid,rmaxis,zmaxis
+    real(kind=real_kind) :: plas_cur, psiAxis
 
     character(len=10) :: dummy(6)
   contains
@@ -108,6 +110,8 @@ contains
   !> \param nwEQD, nhEQD: output, the dimensions read from the file.
   subroutine read_data_of_efit_file(this, filename)
 
+    use libneo_kinds, only : real_kind
+
     implicit none
 
     class(efit_data_type), intent(inout) :: this
@@ -120,7 +124,7 @@ contains
     ! File unit.
     integer :: gunit
 
-    real (kind=8) :: xdum
+    real (kind=real_kind) :: xdum
     integer :: idum
 
     gunit = get_free_unit()
