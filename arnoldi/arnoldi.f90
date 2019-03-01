@@ -2,8 +2,8 @@
   module arnoldi_mod
     integer :: ieigen=0
     integer :: ngrow,ierr
-    double precision :: tol
-    double complex, dimension(:,:), allocatable :: eigvecs
+    real(kind=real_kind) :: tol
+    complex(kind=complex_kind), dimension(:,:), allocatable :: eigvecs
   end module arnoldi_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -41,14 +41,15 @@
 !
   external :: next_iteration
   integer                                       :: n,m,k,j,lwork,info
-  double complex                                :: tmp
-  double complex,   dimension(m)                :: ritznum
+  complex(kind=complex_kind)                    :: tmp
+  complex(kind=complex_kind), dimension(m)      :: ritznum
   logical,          dimension(:),   allocatable :: select
   integer,          dimension(:),   allocatable :: ifailr
-  double precision, dimension(:),   allocatable :: rwork
-  double complex,   dimension(:),   allocatable :: fold,fnew,fzero,work,rnum
-  double complex,   dimension(:,:), allocatable :: qvecs,hmat,eigh
-  double complex,   dimension(:,:), allocatable :: qvecs_save
+  real(kind=real_kind), dimension(:),   allocatable :: rwork
+
+  complex(kind=complex_kind), dimension(:),   allocatable :: fold,fnew,fzero,work,rnum
+  complex(kind=complex_kind), dimension(:,:), allocatable :: qvecs,hmat,eigh
+  complex(kind=complex_kind), dimension(:,:), allocatable :: qvecs_save
 
   allocate(fold(n),fnew(n),fzero(n))
   fold=(0.d0,0.d0)
@@ -123,17 +124,17 @@
 !
   integer :: m,ngrow,ierr,k,j,lwork,info
 !
-  double precision :: tol
-  double complex   :: tmp
+  real(kind=real_kind) :: tol
+  complex(kind=complex_kind)   :: tmp
 !
-  double complex, dimension(m)   :: ritznum
-  double complex, dimension(m,m) :: hmat,eigh
+  complex(kind=complex_kind), dimension(m)   :: ritznum
+  complex(kind=complex_kind), dimension(m,m) :: hmat,eigh
 !
   logical,          dimension(:),   allocatable :: selec
   integer,          dimension(:),   allocatable :: ifailr
-  double precision, dimension(:),   allocatable :: rwork
-  double complex,   dimension(:),   allocatable :: work,rnum
-  double complex,   dimension(:,:), allocatable :: hmat_work
+  real(kind=real_kind), dimension(:),   allocatable :: rwork
+  complex(kind=complex_kind),   dimension(:),   allocatable :: work,rnum
+  complex(kind=complex_kind),   dimension(:,:), allocatable :: hmat_work
 !
 print *,size(hmat)
 print *,size(ritznum)
