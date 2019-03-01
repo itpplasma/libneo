@@ -13,7 +13,7 @@ module odeint_mod
 
 contains
 
-  SUBROUTINE odeint_allroutines(y,nvar,x1,x2,eps,derivs)
+  subroutine odeint_allroutines(y,nvar,x1,x2,eps,derivs)
 
     implicit none
 
@@ -28,9 +28,9 @@ contains
     call odeint(y,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
 
     return
-  END SUBROUTINE odeint_allroutines
+  end subroutine odeint_allroutines
 
-  SUBROUTINE alloc_odeint(nvar)
+  subroutine alloc_odeint(nvar)
     use odeint_mod
 
     if (ialloc.eq.1) then
@@ -45,9 +45,9 @@ contains
       deallocate(yerr,ytemp1)
     end if
 
-  END SUBROUTINE alloc_odeint
+  end subroutine alloc_odeint
 
-  SUBROUTINE odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
+  subroutine odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
 
     use odeint_mod, only : kmax,kount,ialloc,dxsav,dydx,xp,y,yscal,yp
 
@@ -56,11 +56,11 @@ contains
 
     implicit double precision (a-h,o-z)
 
-    INTEGER nbad,nok,nvar,KMAXX,MAXSTP
+    integer nbad,nok,nvar,KMAXX,MAXSTP
     double precision eps,h1,hmin,x1,x2,ystart(nvar),TINY
-    EXTERNAL derivs,rkqs
-    PARAMETER (MAXSTP=1000000,TINY=1.e-30)
-    INTEGER i,nstp
+    external derivs,rkqs
+    parameter (MAXSTP=1000000,TINY=1.e-30)
+    integer i,nstp
     double precision h,hdid,hnext,x,xsav
 
     ialloc=1
@@ -150,9 +150,9 @@ contains
     ialloc=0
     call alloc_odeint(nvar)
     return
-  END subroutine odeint
+  end subroutine odeint
 
-  SUBROUTINE rkck(y,dydx,n,x,h,yout,yerr,derivs)
+  subroutine rkck(y,dydx,n,x,h,yout,yerr,derivs)
 
     use odeint_mod, only : ak2,ak3,ak4,ak5,ak6,ytemp
 
@@ -160,14 +160,14 @@ contains
 
     implicit double precision (a-h,o-z)
 
-    INTEGER n
+    integer n
     double precision h,x,dydx(n),y(n),yerr(n),yout(n)
-    EXTERNAL derivs
+    external derivs
 
-    INTEGER i
+    integer i
     double precision A2,A3,A4,A5,A6,B21,B31,B32,B41,B42,B43,B51,B52,B53, &
       & B54,B61,B62,B63,B64,B65,C1,C3,C4,C6,DC1,DC3,DC4,DC5,DC6
-    PARAMETER (A2=.2d0,A3=.3d0,A4=.6d0,A5=1.d0,A6=.875d0,
+    parameter (A2=.2d0,A3=.3d0,A4=.6d0,A5=1.d0,A6=.875d0,
      *B21=.2d0,B31=3.d0/40.d0,
      *B32=9.d0/40.d0,B41=.3d0,B42=-.9d0,B43=1.2d0,
      *B51=-11.d0/54.d0,B52=2.5d0,
@@ -222,21 +222,21 @@ contains
       yerr(i)=h*(DC1*dydx(i)+DC3*ak3(i)+DC4*ak4(i)+DC5*ak5(i)+DC6*ak6(i))
 17  continue
     return
-  END subroutine
+  end subroutine
 
-  SUBROUTINE rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
+  subroutine rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
 
     use odeint_mod, only : yerr,ytemp1
 
     implicit double precision (a-h,o-z)
 
-    INTEGER n
+    integer n
     double precision eps,hdid,hnext,htry,x,dydx(n),y(n),yscal(n)
-    EXTERNAL derivs
+    external derivs
 
-    INTEGER i
+    integer i
     double precision :: errmax,h,htemp,xnew,SAFETY,PGROW, PSHRNK,ERRCON
-    PARAMETER (SAFETY=0.9d0,PGROW=-.2d0,PSHRNK=-.25d0,  ERRCON=1.89d-4)
+    parameter (SAFETY=0.9d0,PGROW=-.2d0,PSHRNK=-.25d0,  ERRCON=1.89d-4)
     h=htry
 1   call rkck(y,dydx,n,x,h,ytemp1,yerr,derivs)
     errmax=0.
@@ -270,53 +270,53 @@ contains
 12    continue
       return
     end if
-  END subroutine rkqs
+  end subroutine rkqs
 
 
-  SUBROUTINE RK4b(Y,N,X,H,DERIVS)
+  subroutine RK4b(Y,N,X,H,DERIVS)
 
     use gbpi_mod
 
     implicit double precision (a-h,o-z)
     external derivs
-    PARAMETER (NMAX=12)
-    DIMENSION Y(N),DYDX(NMAX),YT(NMAX),DYT(NMAX),DYM(NMAX)
+    parameter (NMAX=12)
+    dimension Y(N),DYDX(NMAX),YT(NMAX),DYT(NMAX),DYM(NMAX)
 
     HH=H*0.5d0
 
     H6=H/6.0d0
     XH=X+HH
 
-    CALL DERIVS(X,Y,DYDX)
+    call DERIVS(X,Y,DYDX)
     if(ierrfield.ne.0) return
 
-    DO 11 I=1,N
+    do 11 I=1,N
       YT(I)=Y(I)+HH*DYDX(I)
-11  CONTINUE
+11  continue
 
-    CALL DERIVS(XH,YT,DYT)
+    call DERIVS(XH,YT,DYT)
     if (ierrfield.ne.0) return
 
-    DO 12 I=1,N
+    do 12 I=1,N
       YT(I)=Y(I)+HH*DYT(I)
-12  CONTINUE
+12  continue
 
-    CALL DERIVS(XH,YT,DYM)
+    call DERIVS(XH,YT,DYM)
     if (ierrfield.ne.0) return
 
-    DO 13 I=1,N
+    do 13 I=1,N
       YT(I)=Y(I)+H*DYM(I)
       DYM(I)=DYT(I)+DYM(I)
-13  CONTINUE
+13  continue
 
-    CALL DERIVS(X+H,YT,DYT)
+    call DERIVS(X+H,YT,DYT)
     if (ierrfield.ne.0) return
 
-    DO 14 I=1,N
+    do 14 I=1,N
       Y(I)=Y(I)+H6*(DYDX(I)+DYT(I)+2.d0*DYM(I))
-14  CONTINUE
+14  continue
 
-    RETURN
-  END subroutine RK4b
+    return
+  end subroutine RK4b
 
 end module odeint_mod
