@@ -9,6 +9,15 @@ module odeint_mod
   real(kind=real_kind), dimension(:),   allocatable :: ak6,ytemp
   real(kind=real_kind), dimension(:),   allocatable :: yerr,ytemp1
 
+  abstract interface
+    subroutine compute_derivative(x, y, dydx)
+      use libneo_kinds, only : real_kind
+      real(kind=real_kind), intent(in) :: x(:)
+      real(kind=real_kind), intent(in) :: y(:)
+      real(kind=real_kind), intent(out) :: dydx(:)
+    end subroutine compute_derivative
+  end interface
+
 !$omp threadprivate(kmax, kount, kmaxx, ialloc, dxsav, dydx, xp, y)
 !$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
 !$omp threadprivate(ytemp1)
@@ -20,7 +29,7 @@ contains
 
     implicit none
 
-    external :: derivs,rkqs
+    procedure(compute_derivative) :: derivs
     integer :: nvar,nok,nbad
     real(kind=real_kind) :: x1,x2,eps,h1,hmin
     real(kind=real_kind), dimension(nvar) :: y
@@ -28,7 +37,7 @@ contains
     h1=x2-x1
     hmin=0.d0
 
-    call odeint(y,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
+    call odeint(y,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs)
 
     return
   end subroutine odeint_allroutines
@@ -49,14 +58,14 @@ contains
 
   end subroutine alloc_odeint
 
-  subroutine odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
+  subroutine odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs)
 
     use gbpi_mod, only : ierrfield
     use libneo_kinds, only : real_kind
 
     implicit none
 
-    external derivs,rkqs
+    procedure(compute_derivative) :: derivs
 
     integer, parameter :: MAXSTP=1000000
     integer :: nbad,nok,nvar,KMAXX
@@ -162,7 +171,7 @@ contains
 
     implicit none
 
-    external derivs
+    procedure(compute_derivative) :: derivs
 
     integer :: i, n
     real(kind=real_kind), parameter :: A2=0.2d0, A3=0.3d0, A4=0.6d0, &
@@ -227,7 +236,7 @@ contains
 
     implicit none
 
-    external derivs
+    procedure(compute_derivative) :: derivs
 
     integer :: i, n
     real(kind=real_kind), parameter :: SAFETY=0.9d0,PGROW=-.2d0, &
@@ -278,9 +287,14 @@ contains
 
     implicit none
 
-    external derivs
+    procedure(compute_derivative) :: derivs
+
+    integer, intent(in) :: N
+    real(kind=real_kind), intent(in) :: X(N), H(N)
+    real(kind=real_kind), intent(inout) :: Y(N)
+
     integer, parameter :: NMAX=12
-    real(kind=real_kind) :: Y(N),DYDX(NMAX),YT(NMAX),DYT(NMAX),DYM(NMAX)
+    real(kind=real_kind) :: DYDX(NMAX), YT(NMAX), DYT(NMAX), DYM(NMAX)
 
     HH=H*0.5d0
 
@@ -288,7 +302,7 @@ contains
     XH=X+HH
 
     call DERIVS(X,Y,DYDX)
-    if(ierrfield.ne.0) return
+    if (ierrfield.ne.0) return
 
     do I=1,N
       YT(I)=Y(I)+HH*DYDX(I)
