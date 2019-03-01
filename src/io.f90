@@ -176,6 +176,7 @@ contains
 
   end subroutine read_data_of_efit_file
 
+  !> \brief Destructor for efit class.
   subroutine finalize_efit_class_object(this)
     type (efit_data_type) :: this
 
