@@ -31,7 +31,6 @@ contains
   end subroutine odeint_allroutines
 
   subroutine alloc_odeint(nvar)
-    use odeint_mod
 
     if (ialloc.eq.1) then
       allocate(dydx(nvar),xp(kmaxx),y(nvar))
@@ -48,9 +47,6 @@ contains
   end subroutine alloc_odeint
 
   subroutine odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
-
-    use odeint_mod, only : kmax,kount,ialloc,dxsav,dydx,xp,y,yscal,yp
-
 
     use gbpi_mod, only : ierrfield
 
@@ -154,8 +150,6 @@ contains
 
   subroutine rkck(y,dydx,n,x,h,yout,yerr,derivs)
 
-    use odeint_mod, only : ak2,ak3,ak4,ak5,ak6,ytemp
-
     use gbpi_mod
 
     implicit double precision (a-h,o-z)
@@ -225,8 +219,6 @@ contains
   end subroutine
 
   subroutine rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
-
-    use odeint_mod, only : yerr,ytemp1
 
     implicit double precision (a-h,o-z)
 
