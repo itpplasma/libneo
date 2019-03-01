@@ -10,7 +10,7 @@
 !
       h1=x2-x1
       hmin=0.d0
-! 
+!
       call odeint(y,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
 ! 17.07.2016      call RK4b(y,nvar,x1,h1,derivs)
 !
@@ -158,7 +158,7 @@
       SUBROUTINE rkck(y,dydx,n,x,h,yout,yerr,derivs)
 !
       use odeint_mod, only : ak2,ak3,ak4,ak5,ak6,ytemp
-! 18.07.2016 
+! 18.07.2016
       use gbpi_mod
 ! 18.07.2016 end
 !
@@ -169,7 +169,7 @@
       EXTERNAL derivs
 CU    USES derivs
       INTEGER i
-      double precision 
+      double precision
      *A2,A3,A4,A5,A6,B21,B31,B32,B41,B42,B43,B51,B52,B53,
      *B54,B61,B62,B63,B64,B65,C1,C3,C4,C6,DC1,DC3,DC4,DC5,DC6
       PARAMETER (A2=.2d0,A3=.3d0,A4=.6d0,A5=1.d0,A6=.875d0,
@@ -259,7 +259,7 @@ CU    USES derivs,rkck
         h=sign(max(abs(htemp),0.1*abs(h)),h)
         xnew=x+h
 !        if(xnew.eq.x) pause 'stepsize underflow in rkqs'
-        if(xnew.eq.x) then 
+        if(xnew.eq.x) then
           print *,'stepsize underflow in rkqs, x,y = ',x,y
 ! 17.02.2016
           write(99,*)'stepsize underflow in rkqs, x,y = ',x,y
@@ -329,4 +329,3 @@ CU    USES derivs,rkck
       RETURN
       END
 ! 28.03.2016
-
