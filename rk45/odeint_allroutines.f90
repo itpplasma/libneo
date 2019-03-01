@@ -1,11 +1,13 @@
 module odeint_mod
+  use libneo_kinds, only : real_kind
+
   integer :: kmax=0, kount=0, kmaxx=200, ialloc
-  double precision :: dxsav=0.d0
-  double precision, dimension(:),   allocatable :: dydx,xp,y,yscal
-  double precision, dimension(:,:), allocatable :: yp
-  double precision, dimension(:),   allocatable :: ak2,ak3,ak4,ak5
-  double precision, dimension(:),   allocatable :: ak6,ytemp
-  double precision, dimension(:),   allocatable :: yerr,ytemp1
+  real(kind=real_kind) :: dxsav=0.d0
+  real(kind=real_kind), dimension(:),   allocatable :: dydx,xp,y,yscal
+  real(kind=real_kind), dimension(:,:), allocatable :: yp
+  real(kind=real_kind), dimension(:),   allocatable :: ak2,ak3,ak4,ak5
+  real(kind=real_kind), dimension(:),   allocatable :: ak6,ytemp
+  real(kind=real_kind), dimension(:),   allocatable :: yerr,ytemp1
 
 !$omp threadprivate(kmax, kount, kmaxx, ialloc, dxsav, dydx, xp, y)
 !$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
@@ -14,13 +16,14 @@ module odeint_mod
 contains
 
   subroutine odeint_allroutines(y,nvar,x1,x2,eps,derivs)
+    use libneo_kinds, only : real_kind
 
     implicit none
 
     external :: derivs,rkqs
     integer :: nvar,nok,nbad
-    double precision :: x1,x2,eps,h1,hmin
-    double precision, dimension(nvar) :: y
+    real(kind=real_kind) :: x1,x2,eps,h1,hmin
+    real(kind=real_kind), dimension(nvar) :: y
 
     h1=x2-x1
     hmin=0.d0
@@ -49,15 +52,16 @@ contains
   subroutine odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs,rkqs)
 
     use gbpi_mod, only : ierrfield
+    use libneo_kinds, only : real_kind
 
-    implicit double precision (a-h,o-z)
+    implicit real(kind=real_kind) (a-h,o-z)
 
     integer nbad,nok,nvar,KMAXX,MAXSTP
-    double precision eps,h1,hmin,x1,x2,ystart(nvar),TINY
+    real(kind=real_kind) eps,h1,hmin,x1,x2,ystart(nvar),TINY
     external derivs,rkqs
     parameter (MAXSTP=1000000,TINY=1.e-30)
     integer i,nstp
-    double precision h,hdid,hnext,x,xsav
+    real(kind=real_kind) h,hdid,hnext,x,xsav
 
     ialloc=1
     call alloc_odeint(nvar)
@@ -151,15 +155,16 @@ contains
   subroutine rkck(y,dydx,n,x,h,yout,yerr,derivs)
 
     use gbpi_mod
+    use libneo_kinds, only : real_kind
 
-    implicit double precision (a-h,o-z)
+    implicit real(kind=real_kind) (a-h,o-z)
 
     integer n
-    double precision h,x,dydx(n),y(n),yerr(n),yout(n)
+    real(kind=real_kind) h,x,dydx(n),y(n),yerr(n),yout(n)
     external derivs
 
     integer i
-    double precision A2,A3,A4,A5,A6,B21,B31,B32,B41,B42,B43,B51,B52,B53, &
+    real(kind=real_kind) A2,A3,A4,A5,A6,B21,B31,B32,B41,B42,B43,B51,B52,B53, &
       & B54,B61,B62,B63,B64,B65,C1,C3,C4,C6,DC1,DC3,DC4,DC5,DC6
     parameter (A2=.2d0,A3=.3d0,A4=.6d0,A5=1.d0,A6=.875d0,
      *B21=.2d0,B31=3.d0/40.d0,
@@ -220,15 +225,16 @@ contains
   end subroutine
 
   subroutine rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
+    use libneo_kinds, only : real_kind
 
-    implicit double precision (a-h,o-z)
+    implicit real(kind=real_kind) (a-h,o-z)
 
     integer n
-    double precision eps,hdid,hnext,htry,x,dydx(n),y(n),yscal(n)
+    real(kind=real_kind) eps,hdid,hnext,htry,x,dydx(n),y(n),yscal(n)
     external derivs
 
     integer i
-    double precision :: errmax,h,htemp,xnew,SAFETY,PGROW, PSHRNK,ERRCON
+    real(kind=real_kind) :: errmax,h,htemp,xnew,SAFETY,PGROW, PSHRNK,ERRCON
     parameter (SAFETY=0.9d0,PGROW=-.2d0,PSHRNK=-.25d0,  ERRCON=1.89d-4)
     h=htry
 1   call rkck(y,dydx,n,x,h,ytemp1,yerr,derivs)
@@ -269,8 +275,9 @@ contains
   subroutine RK4b(Y,N,X,H,DERIVS)
 
     use gbpi_mod
+    use libneo_kinds, only : real_kind
 
-    implicit double precision (a-h,o-z)
+    implicit real(kind=real_kind) (a-h,o-z)
     external derivs
     parameter (NMAX=12)
     dimension Y(N),DYDX(NMAX),YT(NMAX),DYT(NMAX),DYM(NMAX)
