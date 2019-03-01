@@ -1,4 +1,16 @@
-!
+      module odeint_mod
+        integer :: kmax=0, kount=0, kmaxx=200, ialloc
+        double precision :: dxsav=0.d0
+        double precision, dimension(:),   allocatable :: dydx,xp,y,yscal
+        double precision, dimension(:,:), allocatable :: yp
+        double precision, dimension(:),   allocatable :: ak2,ak3,ak4,ak5
+        double precision, dimension(:),   allocatable :: ak6,ytemp
+        double precision, dimension(:),   allocatable :: yerr,ytemp1
+!$omp threadprivate(kmax, kount, kmaxx, ialloc, dxsav, dydx, xp, y)
+!$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
+!$omp threadprivate(ytemp1)
+      end module odeint_mod
+
       SUBROUTINE odeint_allroutines(y,nvar,x1,x2,eps,derivs)
 !
       implicit none
@@ -18,18 +30,7 @@
       END SUBROUTINE odeint_allroutines
 !
 !------------------------------------------------------------------------------
-      module odeint_mod
-        integer :: kmax=0, kount=0, kmaxx=200, ialloc
-        double precision :: dxsav=0.d0
-        double precision, dimension(:),   allocatable :: dydx,xp,y,yscal
-        double precision, dimension(:,:), allocatable :: yp
-        double precision, dimension(:),   allocatable :: ak2,ak3,ak4,ak5
-        double precision, dimension(:),   allocatable :: ak6,ytemp
-        double precision, dimension(:),   allocatable :: yerr,ytemp1
-!$omp threadprivate(kmax, kount, kmaxx, ialloc, dxsav, dydx, xp, y)
-!$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
-!$omp threadprivate(ytemp1)
-      end module odeint_mod
+
 !
 !------------------------------------------------------------------------------
       SUBROUTINE alloc_odeint(nvar)
