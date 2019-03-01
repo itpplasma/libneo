@@ -54,14 +54,17 @@ contains
     use gbpi_mod, only : ierrfield
     use libneo_kinds, only : real_kind
 
-    implicit real(kind=real_kind) (a-h,o-z)
+    implicit none
 
-    integer nbad,nok,nvar,KMAXX,MAXSTP
-    real(kind=real_kind) eps,h1,hmin,x1,x2,ystart(nvar),TINY
     external derivs,rkqs
-    parameter (MAXSTP=1000000,TINY=1.e-30)
-    integer i,nstp
-    real(kind=real_kind) h,hdid,hnext,x,xsav
+
+    integer, parameter :: MAXSTP=1000000
+    integer :: nbad,nok,nvar,KMAXX
+    integer :: i,nstp
+
+    real(kind=real_kind), parameter :: TINY_VALUE=1.e-30
+    real(kind=real_kind) :: eps,h1,hmin,x1,x2,ystart(nvar)
+    real(kind=real_kind) :: h,hdid,hnext,x,xsav
 
     ialloc=1
     call alloc_odeint(nvar)
@@ -88,7 +91,7 @@ contains
       end if
 
       do i=1,nvar
-        yscal(i)=abs(y(i))+abs(h*dydx(i))+TINY
+        yscal(i)=abs(y(i))+abs(h*dydx(i))+TINY_VALUE
       end do
       if (kmax.gt.0) then
         if (abs(x-xsav).gt.abs(dxsav)) then
@@ -157,28 +160,23 @@ contains
     use gbpi_mod
     use libneo_kinds, only : real_kind
 
-    implicit real(kind=real_kind) (a-h,o-z)
+    implicit none
 
-    integer n
-    real(kind=real_kind) h,x,dydx(n),y(n),yerr(n),yout(n)
     external derivs
 
-    integer i
-    real(kind=real_kind) A2,A3,A4,A5,A6,B21,B31,B32,B41,B42,B43,B51,B52,B53, &
-      & B54,B61,B62,B63,B64,B65,C1,C3,C4,C6,DC1,DC3,DC4,DC5,DC6
-    parameter (A2=.2d0,A3=.3d0,A4=.6d0,A5=1.d0,A6=.875d0,
-     *B21=.2d0,B31=3.d0/40.d0,
-     *B32=9.d0/40.d0,B41=.3d0,B42=-.9d0,B43=1.2d0,
-     *B51=-11.d0/54.d0,B52=2.5d0,
-     *B53=-70.d0/27.d0,B54=35.d0/27.d0,B61=1631.d0/55296.d0,
-     *B62=175.d0/512.d0,
-     *B63=575.d0/13824.d0,B64=44275.d0/110592.d0,B65=253.d0/4096.d0,
-     *C1=37.d0/378.d0,
-     *C3=250.d0/621.d0,C4=125.d0/594.d0,C6=512.d0/1771.d0,
-     *DC1=C1-2825.d0/27648.d0,
-     *DC3=C3-18575.d0/48384.d0,DC4=C4-13525.d0/55296.d0,
-     *DC5=-277.d0/14336.d0,
-     *DC6=C6-.25d0)
+    integer :: i, n
+    real(kind=real_kind), parameter :: A2=0.2d0, A3=0.3d0, A4=0.6d0, &
+      & A5=1.d0, A6=0.875d0, &
+      & B21=0.2d0, B31=3.d0/40.d0, B32=9.d0/40.d0, B41=.3d0, B42=-.9d0, &
+      & B43=1.2d0, B51=-11.d0/54.d0, B52=2.5d0, B53=-70.d0/27.d0, &
+      & B54=35.d0/27.d0, B61=1631.d0/55296.d0, B62=175.d0/512.d0, &
+      & B63=575.d0/13824.d0, B64=44275.d0/110592.d0, B65=253.d0/4096.d0, &
+      & C1=37.d0/378.d0, C3=250.d0/621.d0, C4=125.d0/594.d0, &
+      & C6=512.d0/1771.d0,
+      & DC1=C1-2825.d0/27648.d0, DC3=C3-18575.d0/48384.d0, &
+      & DC4=C4-13525.d0/55296.d0, DC5=-277.d0/14336.d0, DC6=C6-.25d0
+    real(kind=real_kind) :: h,x,dydx(n),y(n),yerr(n),yout(n)
+
     do i=1,n
       ytemp(i)=y(i)+B21*h*dydx(i)
     end do
@@ -227,15 +225,16 @@ contains
   subroutine rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
     use libneo_kinds, only : real_kind
 
-    implicit real(kind=real_kind) (a-h,o-z)
+    implicit none
 
-    integer n
-    real(kind=real_kind) eps,hdid,hnext,htry,x,dydx(n),y(n),yscal(n)
     external derivs
 
-    integer i
-    real(kind=real_kind) :: errmax,h,htemp,xnew,SAFETY,PGROW, PSHRNK,ERRCON
-    parameter (SAFETY=0.9d0,PGROW=-.2d0,PSHRNK=-.25d0,  ERRCON=1.89d-4)
+    integer :: i, n
+    real(kind=real_kind), parameter :: SAFETY=0.9d0,PGROW=-.2d0, &
+      & PSHRNK=-.25d0,  ERRCON=1.89d-4
+    real(kind=real_kind) :: eps,hdid,hnext,htry,x,dydx(n),y(n),yscal(n)
+    real(kind=real_kind) :: errmax,h,htemp,xnew
+
     h=htry
 1   call rkck(y,dydx,n,x,h,ytemp1,yerr,derivs)
     errmax=0.
@@ -277,10 +276,11 @@ contains
     use gbpi_mod
     use libneo_kinds, only : real_kind
 
-    implicit real(kind=real_kind) (a-h,o-z)
+    implicit none
+
     external derivs
-    parameter (NMAX=12)
-    dimension Y(N),DYDX(NMAX),YT(NMAX),DYT(NMAX),DYM(NMAX)
+    integer, parameter :: NMAX=12
+    real(kind=real_kind) :: Y(N),DYDX(NMAX),YT(NMAX),DYT(NMAX),DYM(NMAX)
 
     HH=H*0.5d0
 
