@@ -1,4 +1,4 @@
-!
+
 module arnoldi_mod
     integer :: ieigen=0
     integer :: ngrow,ierr
@@ -34,9 +34,9 @@ contains
 #ifdef PARALLEL
   use mpi
 #endif
-!
+
   implicit none
-!
+
   external :: next_iteration
   integer                                       :: n,m,k,j,lwork,info
   complex(kind=complex_kind)                    :: tmp
@@ -60,7 +60,7 @@ contains
      hmat=(0.d0,0.d0)
      qvecs(:,1)=fnew/sqrt(sum(conjg(fnew)*fnew))
   endif
-!
+
   do k=2,m
      if (mype == mpi_p_root) fold=qvecs(:,k-1)
 #ifdef PARALLEL
@@ -79,7 +79,7 @@ contains
         qvecs(:,k)=qvecs(:,k)/hmat(k,k-1)
      endif
   enddo
-!
+
   if (mype == mpi_p_root) then
      tol=0.7d0
      allocate(eigh(m,m))
@@ -87,16 +87,16 @@ contains
      print *,m,size(hmat,1),size(hmat,2),size(ritznum),size(eigh,1),size(eigh,2)
      call try_eigvecvals(m,tol,hmat,ngrow,ritznum,eigh,ierr)
      print *,'out',m,ngrow
-!
+
      if(allocated(eigvecs)) deallocate(eigvecs)
      allocate(eigvecs(n,ngrow))
-!
+
      eigvecs=matmul(qvecs,eigh(:,1:ngrow))
-!
+
      deallocate(qvecs,hmat,eigh)
   endif
   deallocate(fold,fnew,fzero)
-!
+
   end subroutine arnoldi
 
 !> Computes eigenvalues, ritznum, of the upper Hessenberg matrix hmat
@@ -114,37 +114,37 @@ contains
 !>                  eigh     - eigenvectors
 !>                  ierr     - error code (0 - normal work)
   subroutine try_eigvecvals(m,tol,hmat,ngrow,ritznum,eigh,ierr)
-!
+
   implicit none
-!
+
   integer :: m,ngrow,ierr,k,j,lwork,info
-!
+
   real(kind=real_kind) :: tol
   complex(kind=complex_kind)   :: tmp
-!
+
   complex(kind=complex_kind), dimension(m)   :: ritznum
   complex(kind=complex_kind), dimension(m,m) :: hmat,eigh
-!
+
   logical,          dimension(:),   allocatable :: selec
   integer,          dimension(:),   allocatable :: ifailr
   real(kind=real_kind), dimension(:),   allocatable :: rwork
   complex(kind=complex_kind),   dimension(:),   allocatable :: work,rnum
   complex(kind=complex_kind),   dimension(:,:), allocatable :: hmat_work
-!
+
 print *,size(hmat)
 print *,size(ritznum)
 print *,size(eigh)
   ierr=0
-!
+
   allocate(hmat_work(m,m))
-!
+
   hmat_work=hmat
-!
+
   allocate(work(1))
   lwork=-1
-!
+
   call zhseqr('E','N',m,1,m,hmat_work,m,ritznum,hmat_work,m,work,lwork,info)
-!
+
   if(info.ne.0) then
     if(info.gt.0) then
       print *,'arnoldi: zhseqr failed to compute all eigenvalues'
@@ -155,14 +155,14 @@ print *,size(eigh)
     ierr=1
     return
   endif
-!
+
   lwork=work(1)
   deallocate(work)
   allocate(work(lwork))
 print *,'lwork = ',lwork
-!
+
   call zhseqr('E','N',m,1,m,hmat_work,m,ritznum,hmat_work,m,work,lwork,info)
-!
+
   if(info.ne.0) then
     if(info.gt.0) then
       print *,'arnoldi: zhseqr failed to compute all eigenvalues'
@@ -173,7 +173,7 @@ print *,'lwork = ',lwork
     ierr=1
     return
   endif
-!
+
   do k=1,m
     info=0
     do j=2,m
@@ -186,10 +186,10 @@ print *,'lwork = ',lwork
     enddo
     if(info.eq.0) exit
   enddo
-!
-!
+
+
 ! compute how many eigenvalues exceed the tolerance (TOL):
-!
+
   allocate(selec(m),rnum(m))
   selec=.false.
   ngrow=0
@@ -203,10 +203,10 @@ print *,'lwork = ',lwork
   deallocate(work)
   allocate(work(m*m),rwork(m),ifailr(m))
   eigh=(0.d0,0.d0)
-!
+
   call zhsein('R','Q','N',selec,m,hmat_work,m,rnum,rnum,1,eigh(:,1:ngrow),m,  &
               ngrow,ngrow,work,rwork,ifailr,ifailr,info)
-!
+
   if(info.ne.0) then
     if(info.gt.0) then
       print *,'arnoldi: ',info,' eigenvectors not converged in zhsein'
@@ -215,11 +215,11 @@ print *,'lwork = ',lwork
     endif
     ierr=1
   endif
-!
+
 print *,'ierr = ',ierr
 
   deallocate(hmat_work,work,rwork,selec,rnum,ifailr)
-!
+
   end subroutine try_eigvecvals
 
 end module arnoldi_mod
