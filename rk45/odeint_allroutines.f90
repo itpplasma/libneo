@@ -9,7 +9,8 @@
 !$omp threadprivate(kmax, kount, kmaxx, ialloc, dxsav, dydx, xp, y)
 !$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
 !$omp threadprivate(ytemp1)
-      end module odeint_mod
+
+contains
 
       SUBROUTINE odeint_allroutines(y,nvar,x1,x2,eps,derivs)
 !
@@ -330,3 +331,4 @@ CU    USES derivs,rkck
       RETURN
       END
 ! 28.03.2016
+      end module odeint_mod
