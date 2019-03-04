@@ -31,7 +31,6 @@ contains
   !>                     ierr           - error code (0 - normal work, 1 - error)
   subroutine arnoldi(n,m,ritznum,next_iteration)
 
-    use arnoldi_mod, only : ieigen,ngrow,tol,eigvecs,ierr
     use for_mpi, only : mype, mpi_p_root
     use libneo_kinds, only : real_kind, complex_kind
 #ifdef PARALLEL
