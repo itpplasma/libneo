@@ -49,6 +49,15 @@ module io
     procedure :: read_data => read_data_of_efit_file
     procedure :: read_dimension => read_dimension_of_efit_file
 
+    procedure :: get_nwEQD => get_nwEQD_
+    procedure :: get_nhEQD => get_nhEQD_
+    procedure :: get_psiSep => get_psiSep_
+    procedure :: get_bt0 => get_bt0_
+    procedure :: get_rzero => get_rzero_
+    procedure :: get_rad => get_rad_
+    procedure :: get_zet => get_zet_
+    procedure :: get_psiRZ => get_psiRZ_
+
     final :: finalize_efit_class_object
   end type efit_data_type
 
@@ -186,6 +195,98 @@ contains
     250   print *, 'Error in read_data_of_efit_file: Error reading ',trim(filename); STOP
 
   end subroutine read_data_of_efit_file
+
+  function get_nwEQD_(this)
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    integer :: get_nwEQD_
+
+    get_nwEQD_ = this%nwEQD
+  end function get_nwEQD_
+
+  function get_nhEQD_(this)
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    integer :: get_nhEQD_
+
+    get_nhEQD_ = this%nhEQD
+  end function get_nhEQD_
+
+  function get_psiSep_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_psiSep_
+
+    get_psiSep_ = this%psiSep
+  end function get_psiSep_
+
+  function get_bt0_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_bt0_
+
+    get_bt0_ = this%bt0
+  end function get_bt0_
+
+  function get_rzero_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_rzero_
+
+    get_rzero_ = this%rzero
+  end function get_rzero_
+
+  function get_rad_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_rad_(this%nwEQD)
+
+    get_rad_ = this%rad
+  end function get_rad_
+
+  function get_zet_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_zet_(this%nhEQD)
+
+    get_zet_ = this%zet
+  end function get_zet_
+
+  function get_psiRZ_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(efit_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_psiRZ_(this%nwEQD,this%nhEQD)
+
+    get_psiRZ_ = this%psiRZ
+  end function get_psiRZ_
 
   !> The array will contain values from origin up to origin+width (end
   !> points included).
