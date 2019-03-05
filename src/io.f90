@@ -18,7 +18,7 @@ module io
   !> Storing last used file unit number. Used for getting a free one.
   integer, save :: iunit=100
 
-
+  !> \brief Class representing efit data (-file).
   type efit_data_type
     private
 
@@ -39,6 +39,11 @@ module io
     real(kind=real_kind) :: xdim,zdim,r1,zmid,rmaxis,zmaxis
     real(kind=real_kind) :: plas_cur, psiAxis
 
+    !> This array of strings collects the part at the beginning of the
+    !> first line. It is not clear if this contains some relevant
+    !> information or not, so we store it to be save (it is just 60
+    !> bytes per file and it is not expected that there will be more
+    !> than one or two around).
     character(len=10) :: dummy(6)
   contains
     procedure :: read_data => read_data_of_efit_file
