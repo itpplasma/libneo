@@ -10,8 +10,9 @@ module odeint_mod
   real(kind=real_kind), dimension(:),   allocatable :: yerr,ytemp1
 
   abstract interface
-    subroutine compute_derivative(x, y, dydx)
+    subroutine compute_derivative(x, y, dydx, ierr)
       use libneo_kinds, only : real_kind
+      integer, intent(out) :: ierr
       real(kind=real_kind), intent(in) :: x
       real(kind=real_kind), intent(in) :: y(:)
       real(kind=real_kind), intent(out) :: dydx(:)
@@ -60,7 +61,6 @@ contains
 
   subroutine odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs)
 
-    use gbpi_mod, only : ierrfield
     use libneo_kinds, only : real_kind
 
     implicit none
@@ -70,6 +70,7 @@ contains
     integer, parameter :: MAXSTP=1000000
     integer :: nbad,nok,nvar,KMAXX
     integer :: i,nstp
+    integer :: ierr
 
     real(kind=real_kind), parameter :: TINY_VALUE=1.e-30
     real(kind=real_kind) :: eps,h1,hmin,x1,x2,ystart(nvar)
@@ -90,10 +91,9 @@ contains
     if (kmax.gt.0) xsav=x-2.*dxsav
 
     do nstp=1,MAXSTP
-      call derivs(x,y,dydx)
-
-      if (ierrfield.ne.0) then
-        print*,ierrfield,'=ierrfield, derivs, odeint'
+      call derivs(x,y,dydx,ierr)
+      if (ierr.ne.0) then
+        print*,ierr,'=ierrfield, derivs, odeint'
         ialloc=0
         call alloc_odeint(nvar)
         return
@@ -116,13 +116,6 @@ contains
       end if
       if ((x+h-x2)*(x+h-x1).gt.0.) h=x2-x
       call rkqs(y,dydx,nvar,x,h,eps,yscal,hdid,hnext,derivs)
-
-      if (ierrfield.ne.0) then
-        print*,ierrfield,'=ierrfield, rkqs, odeint'
-        ialloc=0
-        call alloc_odeint(nvar)
-        return
-      end if
 
       if (hdid.eq.h) then
         nok=nok+1
@@ -166,14 +159,13 @@ contains
 
   subroutine rkck(y,dydx,n,x,h,yout,yerr,derivs)
 
-    use gbpi_mod
     use libneo_kinds, only : real_kind
 
     implicit none
 
     procedure(compute_derivative) :: derivs
 
-    integer :: i, n
+    integer :: i, n, ierr
     real(kind=real_kind), parameter :: A2=0.2d0, A3=0.3d0, A4=0.6d0, &
       & A5=1.d0, A6=0.875d0, &
       & B21=0.2d0, B31=3.d0/40.d0, B32=9.d0/40.d0, B41=0.3d0, B42=-0.9d0, &
@@ -189,37 +181,32 @@ contains
     do i=1,n
       ytemp(i)=y(i)+B21*h*dydx(i)
     end do
-    call derivs(x+A2*h,ytemp,ak2)
-
-    if (ierrfield.ne.0) return
+    call derivs(x+A2*h,ytemp,ak2, ierr)
+    if (ierr.ne.0) return
 
     do i=1,n
       ytemp(i)=y(i)+h*(B31*dydx(i)+B32*ak2(i))
     end do
-    call derivs(x+A3*h,ytemp,ak3)
-
-    if (ierrfield.ne.0) return
+    call derivs(x+A3*h,ytemp,ak3,ierr)
+    if (ierr.ne.0) return
 
     do i=1,n
       ytemp(i)=y(i)+h*(B41*dydx(i)+B42*ak2(i)+B43*ak3(i))
     end do
-    call derivs(x+A4*h,ytemp,ak4)
-
-    if (ierrfield.ne.0) return
+    call derivs(x+A4*h,ytemp,ak4,ierr)
+    if (ierr.ne.0) return
 
     do i=1,n
       ytemp(i)=y(i)+h*(B51*dydx(i)+B52*ak2(i)+B53*ak3(i)+B54*ak4(i))
     end do
-    call derivs(x+A5*h,ytemp,ak5)
-
-    if (ierrfield.ne.0) return
+    call derivs(x+A5*h,ytemp,ak5,ierr)
+    if (ierr.ne.0) return
 
     do i=1,n
       ytemp(i)=y(i)+h*(B61*dydx(i)+B62*ak2(i)+B63*ak3(i)+B64*ak4(i)+B65*ak5(i))
     end do
-    call derivs(x+A6*h,ytemp,ak6)
-
-    if (ierrfield.ne.0) return
+    call derivs(x+A6*h,ytemp,ak6,ierr)
+    if (ierr.ne.0) return
 
     do i=1,n
       yout(i)=y(i)+h*(C1*dydx(i)+C3*ak3(i)+C4*ak4(i)+C6*ak6(i))
@@ -228,8 +215,7 @@ contains
       yerr(i)=h*(DC1*dydx(i)+DC3*ak3(i)+DC4*ak4(i)+DC5*ak5(i)+DC6*ak6(i))
     end do
 
-    return
-  end subroutine
+  end subroutine rkck
 
   subroutine rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
     use libneo_kinds, only : real_kind
@@ -279,10 +265,8 @@ contains
     end if
   end subroutine rkqs
 
-
   subroutine RK4b(Y,N,X,H,DERIVS)
 
-    use gbpi_mod
     use libneo_kinds, only : real_kind
 
     implicit none
@@ -294,7 +278,7 @@ contains
     real(kind=real_kind), intent(inout) :: Y(N)
 
     integer, parameter :: NMAX=12
-    integer :: i
+    integer :: i, ierr
     real(kind=real_kind) :: DYDX(NMAX), YT(NMAX), DYT(NMAX), DYM(NMAX)
     real(kind=real_kind) :: XH, HH, H6
 
@@ -303,36 +287,35 @@ contains
     H6=H/6.0d0
     XH=X+HH
 
-    call DERIVS(X,Y,DYDX)
-    if (ierrfield.ne.0) return
+    call DERIVS(X,Y,DYDX, ierr)
+    if (ierr.ne.0) return
 
     do I=1,N
       YT(I)=Y(I)+HH*DYDX(I)
     end do
 
-    call DERIVS(XH,YT,DYT)
-    if (ierrfield.ne.0) return
+    call DERIVS(XH,YT,DYT, ierr)
+    if (ierr.ne.0) return
 
     do I=1,N
       YT(I)=Y(I)+HH*DYT(I)
     end do
 
-    call DERIVS(XH,YT,DYM)
-    if (ierrfield.ne.0) return
+    call DERIVS(XH,YT,DYM, ierr)
+    if (ierr.ne.0) return
 
     do I=1,N
       YT(I)=Y(I)+H*DYM(I)
       DYM(I)=DYT(I)+DYM(I)
     end do
 
-    call DERIVS(X+H,YT,DYT)
-    if (ierrfield.ne.0) return
+    call DERIVS(X+H,YT,DYT, ierr)
+    if (ierr.ne.0) return
 
     do I=1,N
       Y(I)=Y(I)+H6*(DYDX(I)+DYT(I)+2.d0*DYM(I))
     end do
 
-    return
   end subroutine RK4b
 
 end module odeint_mod
