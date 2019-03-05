@@ -30,9 +30,11 @@ module io
     real(kind=real_kind), dimension(:), allocatable :: fpol, pres
     real(kind=real_kind), dimension(:), allocatable :: ffprim
     real(kind=real_kind), dimension(:), allocatable :: pprime
-    real(kind=real_kind), dimension(:), allocatable :: qpsi, rad
+    real(kind=real_kind), dimension(:), allocatable :: qpsi
     real(kind=real_kind), dimension(:,:), allocatable :: psiRZ
     real(kind=real_kind), dimension(:), allocatable :: LCFS, limEQD
+    ! These two are for storing the grid coordinates. Regular -> only one dimension.
+    real(kind=real_kind), dimension(:), allocatable :: rad, zet
 
     real(kind=real_kind) :: xdim,zdim,r1,zmid,rmaxis,zmaxis
     real(kind=real_kind) :: plas_cur, psiAxis
@@ -162,6 +164,10 @@ contains
 
     close(gunit)
 
+    call set_array_equidistant(this%nwEQD, this%xdim, this%r1, this%rad)
+
+    call set_array_equidistant(this%nhEQD, this%zdim, this%zmid - this%zdim/2.0, this%zet)
+
     ! Without the return, the print statements for the error labels
     ! would lead to compiler errors.
     return
@@ -175,6 +181,26 @@ contains
     250   print *, 'Error in read_data_of_efit_file: Error reading ',trim(filename); STOP
 
   end subroutine read_data_of_efit_file
+
+  !> The array will contain values from origin up to origin+width (end
+  !> points included).
+  !> \note It is called origin as offset is a keyword.
+  subroutine set_array_equidistant(number_of_points, width, origin, array)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    integer, intent(in) :: number_of_points
+    real(kind=real_kind), intent(in) :: width, origin
+    real(kind=real_kind), intent(out) :: array(number_of_points)
+
+    integer :: j
+
+    do j=1, number_of_points
+      array(j) = origin + (j-1)*(width/(number_of_points-1))
+    end do
+
+  end subroutine set_array_equidistant
 
   !> \brief Destructor for efit class.
   subroutine finalize_efit_class_object(this)
