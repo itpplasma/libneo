@@ -12,7 +12,7 @@ module odeint_mod
   abstract interface
     subroutine compute_derivative(x, y, dydx)
       use libneo_kinds, only : real_kind
-      real(kind=real_kind), intent(in) :: x(:)
+      real(kind=real_kind), intent(in) :: x
       real(kind=real_kind), intent(in) :: y(:)
       real(kind=real_kind), intent(out) :: dydx(:)
     end subroutine compute_derivative
@@ -176,12 +176,12 @@ contains
     integer :: i, n
     real(kind=real_kind), parameter :: A2=0.2d0, A3=0.3d0, A4=0.6d0, &
       & A5=1.d0, A6=0.875d0, &
-      & B21=0.2d0, B31=3.d0/40.d0, B32=9.d0/40.d0, B41=.3d0, B42=-.9d0, &
+      & B21=0.2d0, B31=3.d0/40.d0, B32=9.d0/40.d0, B41=0.3d0, B42=-0.9d0, &
       & B43=1.2d0, B51=-11.d0/54.d0, B52=2.5d0, B53=-70.d0/27.d0, &
       & B54=35.d0/27.d0, B61=1631.d0/55296.d0, B62=175.d0/512.d0, &
       & B63=575.d0/13824.d0, B64=44275.d0/110592.d0, B65=253.d0/4096.d0, &
       & C1=37.d0/378.d0, C3=250.d0/621.d0, C4=125.d0/594.d0, &
-      & C6=512.d0/1771.d0,
+      & C6=512.0d0/1771.0d0, &
       & DC1=C1-2825.d0/27648.d0, DC3=C3-18575.d0/48384.d0, &
       & DC4=C4-13525.d0/55296.d0, DC5=-277.d0/14336.d0, DC6=C6-.25d0
     real(kind=real_kind) :: h,x,dydx(n),y(n),yerr(n),yout(n)
@@ -290,11 +290,13 @@ contains
     procedure(compute_derivative) :: derivs
 
     integer, intent(in) :: N
-    real(kind=real_kind), intent(in) :: X(N), H(N)
+    real(kind=real_kind), intent(in) :: X, H
     real(kind=real_kind), intent(inout) :: Y(N)
 
     integer, parameter :: NMAX=12
+    integer :: i
     real(kind=real_kind) :: DYDX(NMAX), YT(NMAX), DYT(NMAX), DYM(NMAX)
+    real(kind=real_kind) :: XH, HH, H6
 
     HH=H*0.5d0
 
