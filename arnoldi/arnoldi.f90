@@ -7,6 +7,14 @@ module arnoldi_mod
   real(kind=real_kind) :: tol
   complex(kind=complex_kind), dimension(:,:), allocatable :: eigvecs
 
+  abstract interface
+    subroutine interface_next_iteration(n, old, new)
+      use libneo_kinds, only : complex_kind
+      integer, intent(in) :: n
+      complex(kind=complex_kind), dimension(n), intent(in) :: old
+      complex(kind=complex_kind), dimension(n), intent(out) :: new
+    end subroutine interface_next_iteration
+  end interface
 contains
 
   !> Computes m Ritz eigenvalues (approximations to extreme eigenvalues)
@@ -17,12 +25,12 @@ contains
   !> Input  parameters:
   !> Formal:             n              - system dimension
   !>                     m              - number of Ritz eigenvalues
+  !> (Subroutine)        next_iteration - routine computing next iteration
+  !>                                      of the solution from the previous
   !> Module arnoldi_mod: ieigen         - flag to compute eigenvectors (1 - yes,
   !>                                      0 - no), module is initialized with 0
   !>                     tol            - eigenvectors are not computed for
-  !>                                      eigenvalues smaller than this numer
-  !> External:           next_iteration - routine computing next iteration
-  !>                                      of the solution from the previous
+  !>                                      eigenvalues smaller than this number
   !> Output parameters:
   !> Formal:             ritznum        - Ritz eigenvalues
   !> Module arnoldi_mod: ngrow          - number of eigenvalues larger or equal
@@ -39,17 +47,14 @@ contains
 
     implicit none
 
-    external :: next_iteration
-    integer                                       :: n,m,k,j,lwork,info
-    complex(kind=complex_kind)                    :: tmp
-    complex(kind=complex_kind), dimension(m)      :: ritznum
-    logical,          dimension(:),   allocatable :: select
-    integer,          dimension(:),   allocatable :: ifailr
-    real(kind=real_kind), dimension(:),   allocatable :: rwork
+    procedure(interface_next_iteration) :: next_iteration
+    integer, intent(in) :: n,m
+    complex(kind=complex_kind), dimension(m), intent(out) :: ritznum
 
-    complex(kind=complex_kind), dimension(:),   allocatable :: fold,fnew,fzero,work,rnum
+    integer :: k,j
+
+    complex(kind=complex_kind), dimension(:),   allocatable :: fold,fnew,fzero
     complex(kind=complex_kind), dimension(:,:), allocatable :: qvecs,hmat,eigh
-    complex(kind=complex_kind), dimension(:,:), allocatable :: qvecs_save
 
     allocate(fold(n),fnew(n),fzero(n))
     fold=(0.d0,0.d0)
@@ -120,14 +125,15 @@ contains
 
     implicit none
 
-    integer :: m,ngrow,ierr,k,j,lwork,info
+    integer, intent(in) :: m
+    integer, intent(out) :: ierr, ngrow
+    real(kind=real_kind), intent(in) :: tol
+    complex(kind=complex_kind), dimension(m), intent(out) :: ritznum
+    complex(kind=complex_kind), dimension(m,m), intent(in) :: hmat
+    complex(kind=complex_kind), dimension(m,m), intent(out) :: eigh
 
-    real(kind=real_kind) :: tol
+    integer :: k,j,lwork,info
     complex(kind=complex_kind)   :: tmp
-
-    complex(kind=complex_kind), dimension(m)   :: ritznum
-    complex(kind=complex_kind), dimension(m,m) :: hmat,eigh
-
     logical,          dimension(:),   allocatable :: selec
     integer,          dimension(:),   allocatable :: ifailr
     real(kind=real_kind), dimension(:),   allocatable :: rwork
