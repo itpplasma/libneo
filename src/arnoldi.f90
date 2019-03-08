@@ -1,4 +1,11 @@
-
+!> \brief Module for arnoldi algorithm for computation of Ritz eigenvalues.
+!>
+!> This module implements an arnoldi algorithm for the computation of
+!> Ritz eigenvlues.
+!> Parameters can be set via a namelist 'arnoldi', see subroutine
+!> arnoldi_namelist. This routine is also responsible for initializing
+!> the module.
+!> Main work is done by the subroutine arnoldi.
 module arnoldi_mod
   use libneo_kinds, only : real_kind, complex_kind
 
