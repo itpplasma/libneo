@@ -102,7 +102,7 @@ contains
   !>                     ierr           - error code (0 - normal work, 1 - error)
   subroutine arnoldi(n,m,ritznum,next_iteration)
 
-    use for_mpi, only : mype, mpi_p_root
+    use mpiprovider_module, only : mpro
     use libneo_kinds, only : real_kind, complex_kind
 #ifdef PARALLEL
     use mpi
@@ -115,6 +115,7 @@ contains
     complex(kind=complex_kind), dimension(m), intent(out) :: ritznum
 
     integer :: k,j
+    integer, parameter :: mpi_p_root = 0
 
     complex(kind=complex_kind), dimension(:),   allocatable :: fold,fnew,fzero
     complex(kind=complex_kind), dimension(:,:), allocatable :: qvecs,hmat,eigh
@@ -124,7 +125,7 @@ contains
     call next_iteration(n,fold,fnew)
     fzero=fnew
 
-    if (mype == mpi_p_root) then
+    if (mpro%isMaster()) then
       ierr=0
       allocate(qvecs(n,m),hmat(m,m))
       hmat=(0.d0,0.d0)
@@ -132,14 +133,14 @@ contains
     end if
 
     do k=2,m
-      if (mype == mpi_p_root) fold=qvecs(:,k-1)
+      if (mpro%isMaster()) fold=qvecs(:,k-1)
 #ifdef PARALLEL
       call MPI_BCAST(fold, n, MPI_DOUBLE_COMPLEX, mpi_p_root, MPI_COMM_WORLD, ierr)
 #endif
       !print *, mype, sum(fold)
       call next_iteration(n,fold,fnew)
       !print *, mype, sum(fnew)
-      if (mype == mpi_p_root) then
+      if (mpro%isMaster()) then
         qvecs(:,k)=fnew-fzero
         do j=1,k-1
           hmat(j,k-1)=sum(conjg(qvecs(:,j))*qvecs(:,k))
@@ -150,8 +151,7 @@ contains
       end if
     end do
 
-    if (mype == mpi_p_root) then
-      tol=0.7d0
+    if (mpro%isMaster()) then
       allocate(eigh(m,m))
       print *,'in'
       print *,m,size(hmat,1),size(hmat,2),size(ritznum),size(eigh,1),size(eigh,2)
