@@ -1,14 +1,14 @@
 program test_arnoldi
-  use arnoldi_mod, only: ieigen,ngrow,tol,eigvecs,arnoldi_ierr=>ierr
-  use for_mpi, only: mype, npes, mpi_p_root
+  use mpiprovider_module, only : mpro
+
+  use arnoldi_mod, only: arnoldi, leigen,ngrow,tol,eigvecs
   use libneo_kinds, only : complex_kind
 
-  integer :: ierr, info
+  integer :: info
   integer, parameter :: nsize = 10
   integer ipiv(nsize)
   complex(kind=complex_kind) :: amat(nsize,nsize), mmat(nsize,nsize)
   complex(kind=complex_kind) :: bvec(nsize), yvec(nsize), xsol(nsize), xold(nsize), xnew(nsize)
-  complex(kind=complex_kind) :: cdummy(nsize)
   integer :: kit, maxit = 20
 
   ! for Arnoldi
@@ -18,16 +18,7 @@ program test_arnoldi
   complex(kind=complex_kind), allocatable, dimension(:,:) :: amat2, bvec2
   
 #ifdef PARALLEL
-  call MPI_INIT(ierr)
-  if (ierr .ne. MPI_SUCCESS) then
-    write(*,*)'MPI init. err.'
-    stop 1
-  endif
-  call MPI_COMM_SIZE(MPI_COMM_WORLD,npes,ierr)
-  call MPI_COMM_RANK(MPI_COMM_WORLD,mype,ierr)
-#else
-  npes = 1
-  mype = 0
+  call mpro%init()
 #endif
   
   open(1,file='amat.dat')
@@ -47,7 +38,7 @@ program test_arnoldi
   close(1)
 
   call zgesv(nsize,1,amat,nsize,ipiv,bvec,nsize,info)
-        !
+
   if (info.ne.0) then
     if (info.gt.0) then
       print *,'iterator: singular matrix in zgesv'
@@ -73,7 +64,7 @@ program test_arnoldi
   
   ! Arnoldi
   print *, "Finding eigenvalues"
-  ieigen=1
+  leigen= .true.
   tol = 0.7d0
   call arnoldi(nsize, nritz, ritznum, next_iteration)    
   do kit = 1, ngrow
@@ -89,18 +80,17 @@ program test_arnoldi
       amat2(i,j)=sum(conjg(eigvecs(:,i))*eigvecs(:,j))*(ritznum(j)-(1.d0,0.d0))
     end do
   end do
-  !
+
   call zgesv(ngrow,ngrow,amat2,ngrow,ipiv,bvec2,ngrow,info)
-  !
+
   if (info.ne.0) then
     if (info.gt.0) then
       print *,'iterator: singular matrix in zgesv'
     else
-      print *,'iterator: argument ',-info,' has illigal value in zgesv'
+      print *,'iterator: argument ',-info,' has illegal value in zgesv'
     end if
-     !deallocate(coefren,amat,bvec,ipiv)
-     !deallocate(eigvecs)
-    return
+
+    stop
   end if
 
   xold = (0d0,0d0)
@@ -121,9 +111,14 @@ contains
   subroutine next_iteration(n, hold, hnew)
     use libneo_kinds, only : real_kind, complex_kind
 
-    integer :: n
-    complex(kind=complex_kind) :: hold(n), hnew(n), x(n), y(n)
-    complex(kind=complex_kind) :: alpha, beta
+    implicit none
+
+    integer, intent(in) :: n
+    complex(kind=complex_kind), intent(in) :: hold(n)
+    complex(kind=complex_kind), intent(out) :: hnew(n)
+
+    complex(kind=complex_kind) :: alpha, beta, x(n), y(n)
+
     x = hold+yvec
     y = cmplx(0d0,0d0)
     alpha = cmplx(1d0,0d0)
