@@ -2,9 +2,9 @@
 module arnoldi_mod
   use libneo_kinds, only : real_kind, complex_kind
 
-  integer :: ieigen=0
-  integer :: ngrow,ierr
-  real(kind=real_kind) :: tol
+  logical, save :: leigen=.false. !< Determines if eigenvectors should be calculated.
+  integer, save :: ngrow,ierr
+  real(kind=real_kind), save :: tol !< Tolerance below which eigenvectors are no longer calculated.
   complex(kind=complex_kind), dimension(:,:), allocatable :: eigvecs
 
   abstract interface
@@ -17,6 +17,70 @@ module arnoldi_mod
   end interface
 contains
 
+  !> \brief Init module, read/write namelist.
+  !> \author Rico Buchholz
+  !>
+  !> This subroutine serves three purposes (unfortunately, so far I have
+  !> no idea how to solve this better).
+  !> This routine initializes the module, and is responsible for reading
+  !> and writing of the settings from/to a namelist file.
+  !>
+  !> Reading from the namelist will be done if a file unit is given and
+  !> write_to_file_ is absent or false.
+  !> Writing to the namelist will be done if a file unit is given and
+  !> write_to_file_ is true.
+  !> Initializing will be done whenever write_to_file_ is absent or
+  !> false, i.e. you can not read from the namelist without the
+  !> initialization prozess.
+  !>
+  !> \note Reading/writing of the namelist are considered optional, so
+  !>   if reading/writing is not possible, the code will still continue.
+  !>
+  !> \note This subroutine does not call the arnoldi subroutine. Doxygen
+  !>   just thinks so, because the namelist has the same name.
+  !>
+  !> \param[in] namelist_file_unit_number
+  !>   Optional file unit, that corresponds to an open file.
+  !> \param[in] write_to_file_
+  !>   Optional logical, if it is present, true and also
+  !>   namelist_file_unit_number is present, then the namelist will be
+  !>   written to the file, instead of read.
+  subroutine arnoldi_namelist(namelist_file_unit_number, write_to_file_)
+    integer, intent(in), optional :: namelist_file_unit_number
+    logical, intent(in), optional :: write_to_file_
+
+    integer :: ios
+    logical :: write_to_file
+
+    namelist /arnoldi/  &
+      & leigen, tol
+
+    if (present(write_to_file_)) then
+      write_to_file = write_to_file_
+    end if
+
+    if (write_to_file) then
+      leigen = .false.
+      ngrow = 0
+      ierr = 0
+      tol = 0.7
+      write_to_file = .false.
+    end if
+
+    if (present(namelist_file_unit_number)) then
+      if (write_to_file) then
+        write(namelist_file_unit_number, nml=arnoldi, iostat=ios)
+      else
+        read(namelist_file_unit_number, nml=arnoldi, iostat=ios)
+      end if
+      if (ios .ne. 0) then
+        write(*,*) "WARNING: problem reading namelist 'arnoldi'."
+        write(*,*) "         Namelist is optional, i will continue."
+      end if
+    end if
+
+  end subroutine arnoldi_namelist
+
   !> Computes m Ritz eigenvalues (approximations to extreme eigenvalues)
   !> of the iteration procedure of the vector with dimension n.
   !> Eigenvalues are computed by means of Arnoldi iterations.
@@ -27,8 +91,7 @@ contains
   !>                     m              - number of Ritz eigenvalues
   !> (Subroutine)        next_iteration - routine computing next iteration
   !>                                      of the solution from the previous
-  !> Module arnoldi_mod: ieigen         - flag to compute eigenvectors (1 - yes,
-  !>                                      0 - no), module is initialized with 0
+  !> Module arnoldi_mod: leigen         - logical to compute eigenvectors
   !>                     tol            - eigenvectors are not computed for
   !>                                      eigenvalues smaller than this number
   !> Output parameters:
