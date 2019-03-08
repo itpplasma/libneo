@@ -151,7 +151,7 @@ contains
       end if
     end do
 
-    if (mpro%isMaster()) then
+    if (leigen .and. mpro%isMaster()) then
       allocate(eigh(m,m))
       print *,'in'
       print *,m,size(hmat,1),size(hmat,2),size(ritznum),size(eigh,1),size(eigh,2)
