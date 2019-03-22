@@ -16,23 +16,23 @@ program test_arnoldi
   complex(kind=complex_kind), dimension(nritz) :: ritznum
   complex(kind=complex_kind), allocatable, dimension(:) :: coefren
   complex(kind=complex_kind), allocatable, dimension(:,:) :: amat2, bvec2
-  
+
 #ifdef PARALLEL
   call mpro%init()
 #endif
-  
+
   open(1,file='amat.dat')
   read(1,*) amat
   close(1)
-  
+
   open(1,file='bvec.dat')
   read(1,*) bvec
   close(1)
-  
+
   open(1,file='mmat.dat')
   read(1,*) mmat
   close(1)
-  
+
   open(1,file='yvec.dat')
   read(1,*) yvec
   close(1)
@@ -61,12 +61,12 @@ program test_arnoldi
     xold = xnew
     print *, NORM2([NORM2(real(xnew-xsol)),NORM2(aimag(xnew-xsol))])
   end do
-  
+
   ! Arnoldi
   print *, "Finding eigenvalues"
   leigen= .true.
   tol = 0.7d0
-  call arnoldi(nsize, nritz, ritznum, next_iteration)    
+  call arnoldi(nsize, nritz, ritznum, next_iteration)
   do kit = 1, ngrow
     print *, ritznum(kit)
   end do
