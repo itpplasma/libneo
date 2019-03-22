@@ -5,6 +5,7 @@ program test_arnoldi
   use libneo_kinds, only : complex_kind
 
   integer :: info
+  integer :: ios
   integer, parameter :: nsize = 10
   integer ipiv(nsize)
   complex(kind=complex_kind) :: amat(nsize,nsize), mmat(nsize,nsize)
@@ -21,19 +22,23 @@ program test_arnoldi
   call mpro%init()
 #endif
 
-  open(1,file='amat.dat')
+  open(1,file='amat.dat', action='read', status='old', iostat=ios)
+  if (ios .ne. 0) stop 'Error while trying to open amat.dat'
   read(1,*) amat
   close(1)
 
-  open(1,file='bvec.dat')
+  open(1,file='bvec.dat', action='read', status='old', iostat=ios)
+  if (ios .ne. 0) stop 'Error while trying to open bvec.dat'
   read(1,*) bvec
   close(1)
 
-  open(1,file='mmat.dat')
+  open(1,file='mmat.dat', action='read', status='old', iostat=ios)
+  if (ios .ne. 0) stop 'Error while trying to open mmat.dat'
   read(1,*) mmat
   close(1)
 
-  open(1,file='yvec.dat')
+  open(1,file='yvec.dat', action='read', status='old', iostat=ios)
+  if (ios .ne. 0) stop 'Error while trying to open yvec.dat'
   read(1,*) yvec
   close(1)
 
