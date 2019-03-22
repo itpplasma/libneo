@@ -43,3 +43,5 @@ find_library(MyMPILib_lib MyMPILib ${MYMPILIB_PATH})
 add_library(libneo SHARED ${SOURCE_FILES})
 
 #set_target_properties(libneo PROPERTIES VERSION ${libneo_VERSION})
+
+add_subdirectory(tests)
