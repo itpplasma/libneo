@@ -15,6 +15,12 @@ set (libneo_VERSION_MINOR 1)
 enable_language(Fortran)
 enable_testing()
 
+#~ set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+
+if (EXISTS ${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
+  include (${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
+endif()
+
 find_package(MPI REQUIRED)
 
 # Include file for the sources.
