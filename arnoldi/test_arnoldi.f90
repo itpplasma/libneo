@@ -45,7 +45,7 @@ program test_arnoldi
     else
       print *,'iterator: argument ',-info,' has illegal value in zgesv'
     end if
-    return
+    stop
   end if
 
   xsol = bvec ! reference solution
