@@ -51,3 +51,5 @@ add_library(libneo SHARED ${SOURCE_FILES})
 #set_target_properties(libneo PROPERTIES VERSION ${libneo_VERSION})
 
 add_subdirectory(tests)
+
+ADD_TEST(Test_Build_Code "make")
