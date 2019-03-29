@@ -120,10 +120,11 @@ contains
 
   !> \brief Read content from a efit file with given filename.
   !>
+  !> Note that the two arrays LCFS and limEQD will only be allocated, if
+  !> the corresponding sizes are larger than zero.
   !>
   !> \param filename: input, name of the file from which to read the
   !>   data.
-  !> \param nwEQD, nhEQD: output, the dimensions read from the file.
   subroutine read_data_of_efit_file(this, filename)
 
     use libneo_kinds, only : real_kind
@@ -171,10 +172,16 @@ contains
 
     ! Boundary Data, first read size, allocate the arrays, last read the data.
     read(gunit,*,end=55,err=250) this%n_bndyxy, this%nlimEQD
-    allocate(this%LCFS(2*this%n_bndyxy))
-    allocate(this%limEQD(2*this%nlimEQD))
-    read(gunit,2010,end=55,err=250)(this%LCFS(i),i=1,2*this%n_bndyxy)
-    read(gunit,2010,end=55,err=250)(this%limEQD(i),i=1,2*this%nlimEQD)
+
+    if (this%n_bndyxy > 0) then
+      allocate(this%LCFS(2*this%n_bndyxy))
+      read(gunit,2010,end=55,err=250)(this%LCFS(i),i=1,2*this%n_bndyxy)
+    end if
+
+    if (this%nlimEQD > 0) then
+      allocate(this%limEQD(2*this%nlimEQD))
+      read(gunit,2010,end=55,err=250)(this%limEQD(i),i=1,2*this%nlimEQD)
+    end if
 
     close(gunit)
 
