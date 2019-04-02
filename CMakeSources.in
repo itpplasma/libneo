@@ -6,4 +6,10 @@ set(SOURCE_FILES
     src/io.f90
     src/libneo_kinds.f90
     src/odeint_allroutines.f90
+
+    # VMEC stuff
+    src/canonical_coordinates_mod.f90
+    src/nctools_module.f90
+    src/spline_vmec_data.f90
+    src/vmecinm_m.f90
 )
