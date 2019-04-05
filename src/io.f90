@@ -18,6 +18,10 @@ module io
   !> Storing last used file unit number. Used for getting a free one.
   integer, save :: iunit=100
 
+  ! Formats used for reading the data.
+  character(len=*), parameter :: format_efit_header = '(6a8,3i4)'
+  character(len=*), parameter :: format_five_rows_doubles = '(5(e16.9))'
+
   !> \brief Class representing efit data (-file).
   type efit_data_type
     private
@@ -149,13 +153,17 @@ contains
     open(unit=gunit,file=trim(filename),status='old',action='read')
 
     ! Read in first line with sizes.
-    read(gunit,fmt=2000) (this%dummy(i),i=1,6), idum, this%nwEQD, this%nhEQD
+    read(gunit,fmt=format_efit_header) (this%dummy(i),i=1,6), idum, this%nwEQD, this%nhEQD
 
     ! Read first four lines with values:
-    read(gunit,fmt=2010,end=55,err=250) this%xdim, this%zdim, this%rzero, this%r1, this%zmid
-    read(gunit,fmt=2010,end=55,err=250) this%rmaxis, this%zmaxis, this%psiAxis, this%psiSep, this%bt0
-    read(gunit,fmt=2010,end=55,err=250) this%plas_cur, this%psiAxis, xdum, this%rmaxis, xdum
-    read(gunit,fmt=2010,end=55,err=250) this%zmaxis, xdum, this%psiSep, xdum, xdum
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & this%xdim, this%zdim, this%rzero, this%r1, this%zmid
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & this%rmaxis, this%zmaxis, this%psiAxis, this%psiSep, this%bt0
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & this%plas_cur, this%psiAxis, xdum, this%rmaxis, xdum
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & this%zmaxis, xdum, this%psiSep, xdum, xdum
 
     ! Allocate first set of arrays. Done after reading first four lines,
     ! in case there was a problem, arrays are not already allocted.
@@ -163,24 +171,32 @@ contains
     allocate(this%pprime(this%nwEQD), this%qpsi(this%nwEQD))
     allocate(this%psiRZ(this%nwEQD,this%nhEQD))
 
-    read(gunit,fmt=2010,end=55,err=250) (this%fpol(i),i=1,this%nwEQD)
-    read(gunit,fmt=2010,end=55,err=250) (this%pres(i),i=1,this%nwEQD)
-    read(gunit,fmt=2010,end=55,err=250) (this%ffprim(i),i=1,this%nwEQD)
-    read(gunit,fmt=2010,end=55,err=250) (this%pprime(i),i=1,this%nwEQD)
-    read(gunit,fmt=2010,end=55,err=250) ((this%psiRZ(i,j),i=1,this%nwEQD),j=1,this%nhEQD)
-    read(gunit,fmt=2010,end=55,err=250) (this%qpsi(i),i=1,this%nwEQD)
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & (this%fpol(i),i=1,this%nwEQD)
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & (this%pres(i),i=1,this%nwEQD)
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & (this%ffprim(i),i=1,this%nwEQD)
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & (this%pprime(i),i=1,this%nwEQD)
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & ((this%psiRZ(i,j),i=1,this%nwEQD),j=1,this%nhEQD)
+    read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+      & (this%qpsi(i),i=1,this%nwEQD)
 
     ! Boundary Data, first read size, allocate the arrays, last read the data.
     read(gunit,*,end=55,err=250) this%n_bndyxy, this%nlimEQD
 
     if (this%n_bndyxy > 0) then
       allocate(this%LCFS(2*this%n_bndyxy))
-      read(gunit,2010,end=55,err=250)(this%LCFS(i),i=1,2*this%n_bndyxy)
+      read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+        & (this%LCFS(i),i=1,2*this%n_bndyxy)
     end if
 
     if (this%nlimEQD > 0) then
       allocate(this%limEQD(2*this%nlimEQD))
-      read(gunit,2010,end=55,err=250)(this%limEQD(i),i=1,2*this%nlimEQD)
+      read(gunit,fmt=format_five_rows_doubles,end=55,err=250) &
+        & (this%limEQD(i),i=1,2*this%nlimEQD)
     end if
 
     close(gunit)
@@ -192,10 +208,6 @@ contains
     ! Without the return, the print statements for the error labels
     ! would lead to compiler errors.
     return
-
-    ! Formats used for reading the data.
-    2000  format(6a8,3i4)
-    2010  format(5(e16.9))
 
     ! Error labels
     55    print *, 'Error in read_data_of_efit_file: Early EOF in ',trim(filename); STOP
