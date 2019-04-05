@@ -52,6 +52,7 @@ module io
   contains
     procedure :: read_data => read_data_of_efit_file
     procedure :: read_dimension => read_dimension_of_efit_file
+    procedure :: write_data => write_data_of_efit_file
 
     procedure :: get_nwEQD => get_nwEQD_
     procedure :: get_nhEQD => get_nhEQD_
@@ -214,6 +215,60 @@ contains
     250   print *, 'Error in read_data_of_efit_file: Error reading ',trim(filename); STOP
 
   end subroutine read_data_of_efit_file
+
+  subroutine write_data_of_efit_file(this, filename)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(efit_data_type), intent(inout) :: this
+
+    character(len=*), intent(in) :: filename
+
+    ! loop variables
+    integer :: i,j
+
+    ! File unit.
+    integer :: gunit
+
+    real (kind=real_kind), parameter :: xdum = 0.0
+    integer, parameter :: idum = 0
+
+    gunit = get_free_unit()
+
+    open(unit=gunit,file=trim(filename),status='replace',action='read')
+
+    write (gunit,fmt=format_efit_header) &
+      & (this%dummy(i),i=1,6), idum, this%nwEQD, this%nhEQD
+    write (gunit,fmt=format_five_rows_doubles) &
+      & this%xdim, this%zdim, this%rzero, this%r1, this%zmid
+    write (gunit,fmt=format_five_rows_doubles) &
+      & this%rmaxis, this%zmaxis, this%psiAxis, this%psiSep, this%bt0
+    write (gunit,fmt=format_five_rows_doubles) &
+      & this%plas_cur, this%psiAxis, xdum, this%rmaxis, xdum
+    write (gunit,fmt=format_five_rows_doubles) &
+      & this%zmaxis, xdum, this%psiSep, xdum, xdum
+    write (gunit,fmt=format_five_rows_doubles) &
+      & (this%fpol(i),i=1,this%nwEQD)
+    write (gunit,fmt=format_five_rows_doubles) &
+      & (this%pres(i),i=1,this%nwEQD)
+    write (gunit,fmt=format_five_rows_doubles) &
+      & (this%ffprim(i),i=1,this%nwEQD)
+    write (gunit,fmt=format_five_rows_doubles) &
+      & (this%pprime(i),i=1,this%nwEQD)
+    write (gunit,fmt=format_five_rows_doubles) &
+      & ((this%psirz(i,j),i=1,this%nwEQD),j=1,this%nhEQD)
+    write (gunit,fmt=format_five_rows_doubles) &
+      & (this%qpsi(i),i=1,this%nwEQD)
+    write (gunit,fmt='(2i5)') this%n_bndyxy, this%nlimEQD
+    write (gunit,fmt=format_five_rows_doubles) &
+      & (this%LCFS(i),i=1,2*this%n_bndyxy)
+    write (gunit,fmt=format_five_rows_doubles) &
+      (this%limEQD(i),i=1,2*this%nlimEQD)
+
+    close(gunit)
+
+  end subroutine write_data_of_efit_file
 
   function get_nwEQD_(this)
     implicit none
