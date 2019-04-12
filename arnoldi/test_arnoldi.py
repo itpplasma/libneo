@@ -36,26 +36,26 @@ xsol = np.linalg.solve(A,b)
 
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in M.T.flatten()]
 text = ' '.join(text)
-with open('../MC/RUN/mmat.dat','w') as f:
+with open('./mmat.dat','w') as f:
     f.write(text)
 
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in A.T.flatten()]
 text = ' '.join(text)
-with open('../MC/RUN/amat.dat','w') as f:
+with open('./amat.dat','w') as f:
     f.write(text)
     
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in y]
 text = ' '.join(text)
-with open('../MC/RUN/yvec.dat','w') as f:
+with open('./yvec.dat','w') as f:
     f.write(text)
     
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in b]
 text = ' '.join(text)
-with open('../MC/RUN/bvec.dat','w') as f:
+with open('./bvec.dat','w') as f:
     f.write(text)
     
     
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in xsol]
 text = ' '.join(text)
-with open('../MC/RUN/xsol.dat','w') as f:
+with open('./xsol.dat','w') as f:
     f.write(text)
