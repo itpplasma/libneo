@@ -16,8 +16,8 @@ Q = np.array([[1,1,0,0,0,0,0,0,0,0],[0,1,1j,0,0,0,0,0,0,0],\
               [0,0,0,0,1,1,0,0,0,0],[0,0,0,0,0,1,1,0,0,0],\
               [0,0,0,0,0,0,1,1j,0,0],[0,0,0,0,0,0,0,-1j,1,0],\
               [0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0]])
-    
-# case 1: spectral radius > 1, divergence          
+
+# case 1: spectral radius > 1, divergence
 L = np.diag([10+5j,.9-.01j,-.4+.2j,.3-.01j,3+2j,.2,.15j,.1,.123,.05j])
 
 # case 2: small spectral radius, fast convergence
@@ -43,18 +43,18 @@ text = ['({},{})'.format(np.real(n), np.imag(n)) for n in A.T.flatten()]
 text = ' '.join(text)
 with open('./amat.dat','w') as f:
     f.write(text)
-    
+
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in y]
 text = ' '.join(text)
 with open('./yvec.dat','w') as f:
     f.write(text)
-    
+
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in b]
 text = ' '.join(text)
 with open('./bvec.dat','w') as f:
     f.write(text)
-    
-    
+
+
 text = ['({},{})'.format(np.real(n), np.imag(n)) for n in xsol]
 text = ' '.join(text)
 with open('./xsol.dat','w') as f:
