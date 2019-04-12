@@ -21,7 +21,9 @@ if (EXISTS ${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
   include (${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
 endif()
 
-find_package(MPI REQUIRED)
+find_program (BASH_PROGRAM bash)
+
+find_package (MPI REQUIRED)
 
 # Include file for the sources.
 include(CMakeSources.in)
@@ -52,4 +54,12 @@ add_library(libneo SHARED ${SOURCE_FILES})
 
 add_subdirectory(tests)
 
-ADD_TEST(Test_Build_Code "make")
+add_test(Test_Build_Code make)
+# This requires an additional call to test_arnoldi.py, so use the script
+# instead of calling the executable directly.
+# \note Maybe this could be solved with test_arnoldi.py && test_arnoldi.x.
+# Afterwards fail condition is set: test will fail if the output
+# contains 'STOP'.
+add_test(NAME Test_arnoldi
+         COMMAND ${BASH_PROGRAM} ../tests/shell_scripts/test_wrapper.sh "./tests/test_arnoldi.x" "yes")
+set_tests_properties(Test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
