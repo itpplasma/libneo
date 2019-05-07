@@ -61,5 +61,8 @@ add_test(Test_Build_Code make)
 # Afterwards fail condition is set: test will fail if the output
 # contains 'STOP'.
 add_test(NAME Test_arnoldi
-         COMMAND ${BASH_PROGRAM} ../tests/shell_scripts/test_wrapper.sh "./tests/test_arnoldi.x" "yes")
+         COMMAND ../tests/python_scripts/test_arnoldi.py && tests/test_arnoldi.x)
 set_tests_properties(Test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+#~ # For testing purposes, e.g. printing the environment.
+#~ add_test(NAME run_xterm
+         #~ COMMAND xterm)
