@@ -315,26 +315,28 @@ classdef efit < handle
 
             switch var
                 case 'f'
-                    y = obj.fpol;
+                    y = obj.fpol; l = 'm T';
                 case 'p'
-                    y = obj.pres;
+                    y = obj.pres; l = 'N m^{-2}';
                 case 'ff'
-                    y = obj.ffprim;
+                    y = obj.ffprim; l = 'm T';
                 case 'pp'
-                    y = obj.pprime;
+                    y = obj.pprime; l = 'N m^{-2} Wb^{-1}';
                 case 'psi'
                     %index of the middle row/col of psi
                     ind = ceil(size(psi, 1)/2);
                     y = obj.psirz(ind, ind:end);
+                    l = 'Wb (= T m^2)';
                 case 'q'
                     y = obj.qpsi;
+                    l = '1';
             end
             
             x = linspace(obj.rcentr, obj.rleft + obj.rdim, obj.nw);
 
             plot(x, y, '-r', 'DisplayName', var);
             xlabel('r / m')
-            ylabel([var, ' / appropriate units'])
+            ylabel([var, ' / ', l])
             legend
         end
         
@@ -356,7 +358,7 @@ classdef efit < handle
             xlabel('r / m')
             ylabel('z / m')
             c = colorbar;
-            ylabel(c, '\psi / appropriate units')
+            ylabel(c, '\psi / Wb (= T m^2)')
             axis image
         end
         
