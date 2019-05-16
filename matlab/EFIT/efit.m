@@ -330,7 +330,7 @@ classdef efit < handle
                     y = obj.qpsi;
             end
             
-            x = linspace(obj.rleft, obj.rdim/2, obj.nw);
+            x = linspace(obj.rcentr, obj.rleft + obj.rdim, obj.nw);
 
             plot(x, y, '-r', 'DisplayName', var);
             xlabel('r / m')
@@ -347,7 +347,7 @@ classdef efit < handle
             % Plots the flux as 2d contour lines.
             %##############################################################
             
-            x = linspace(obj.rleft, obj.rdim, obj.nw);
+            x = linspace(obj.rleft, obj.rleft + obj.rdim, obj.nw);
             y = linspace(obj.zmid-obj.zdim, obj.zmid+obj.zdim, obj.nh);
 
             [X, Y] = meshgrid(x, y);
