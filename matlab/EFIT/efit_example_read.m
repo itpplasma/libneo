@@ -13,9 +13,9 @@
 %##########################################################################
 
 %fname = './out/g000000.0000.TEST';
-%fname = './example/g30835.3200_ed6';
+fname = './example/g30835.3200_ed6';
 %fname = './example/g000001.0001.TCFP';
-fname = './example/g147131.02300_DIIID_KEFIT';
+%fname = './example/g147131.02300_DIIID_KEFIT';
 
 %##########################################################################
 % create an instance and use it to read the file
@@ -27,12 +27,12 @@ e = efit(fname, [], []);
 e.read();
 
 %plot a single profile (1d)
-figure
-e.plot1d('q')
+%figure
+%e.plot1d('q')
 
 %plot 2d of psi-contours
-figure
-e.plot2d();
+%figure
+%e.plot2d();
 
 %plot OMFIT-style efit summary
 figure
