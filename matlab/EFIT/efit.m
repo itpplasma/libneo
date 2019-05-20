@@ -212,14 +212,26 @@ classdef efit < handle
             %##############################################################
 
             obj.check();
-
+            
+            %check if file, then extract path
+            if isfile(obj.fname)
+                [obj.fname, ~, ~] = fileparts(obj.fname);
+                obj.fname = [obj.fname, '/'];
+            end
+            %check if folder exists, otherwise create
+            if ~isfolder(obj.fname)
+                mkdir(obj.fname);
+            end
+            
             %generate filename without spaces
             name = ['g', erase(erase(obj.CASE{4}, ' '), '#'), '.',...
                              erase(erase(obj.CASE{5}, ' '), 'ms'),'.',...
                              erase(obj.CASE{1}, ' ')];
+            
+            %put together path+name
             obj.fname = [obj.fname, name];
-
-            %check if file exists and delete
+            
+            %check if file exists and delete if yes
             if isfile(obj.fname)
                 delete(obj.fname);
                 warning(['existing file <', obj.fname ,'> overwritten.']);
