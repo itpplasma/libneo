@@ -306,11 +306,11 @@ classdef efit < handle
             %write last block with bbbs and lim data
             [ll, obj.nbbbs, obj.limitr] = read2022(obj, ll);
             [ll, var] = read2020(obj, ll, 'matrix', [obj.nbbbs, 2]);
-            obj.rbbbs = var(:, 1);
-            obj.zbbbs = var(:, 1);
+            obj.rbbbs = var(1:2:end);
+            obj.zbbbs = var(2:2:end);
             [~, var]  = read2020(obj, ll, 'matrix', [obj.limitr, 2]);
-            obj.rlim  = var(:, 1);
-            obj.zlim  = var(:, 1);
+            obj.rlim  = var(1:2:end);
+            obj.zlim  = var(2:2:end);
         end
         
         function plot1d(obj, var)
@@ -361,17 +361,38 @@ classdef efit < handle
             % Plots the flux as 2d contour lines.
             %##############################################################
             
-            x = linspace(obj.rleft, obj.rleft + obj.rdim, obj.nw);
-            y = linspace(obj.zmid-obj.zdim, obj.zmid+obj.zdim, obj.nh);
-
+            %calculate contours
+            x = linspace(obj.rcentr - obj.rdim / 2, obj.rcentr + obj.rdim / 2, obj.nw);
+            y = linspace(obj.zmid - obj.zdim / 2, obj.zmid + obj.zdim / 2, obj.nh);
             [X, Y] = meshgrid(x, y);
             
-            contour(X, Y, obj.psirz')
+            %contourplot with colorbar
+            contour(X, Y, obj.psirz', 10)
+            c = colorbar;
+            
+            hold on
+            %get colormap of given plot
+            col = colormap;
+            
+            %search color for given boundary flux
+            lim = linspace(c.Limits(1), c.Limits(2), size(col, 1));
+            %get index for this color to use in plot
+            ind = find(obj.sibry >= [obj.sibry, lim(2:end)], 1, 'last');
+            
+            %plot boundary
+            plot(obj.rbbbs, obj.zbbbs, ':', 'Color', col(ind, :), 'LineWidth', 2)
+            %plot limiter
+            plot(obj.rlim, obj.zlim, 'k', 'LineWidth', 3)
+            hold off
+            
             xlabel('r / m')
             ylabel('z / m')
-            c = colorbar;
+            %label of colormap
             ylabel(c, '\psi / Wb (= T m^2)')
             axis image
+            
+            legend('\psi-contour', 'boundary', 'limiter', ...
+                   'Location', 'southoutside')
         end
         
         function plotsummary(obj)
