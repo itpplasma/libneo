@@ -238,7 +238,7 @@ contains
 
     gunit = get_free_unit()
 
-    open(unit=gunit,file=trim(filename),status='replace',action='read')
+    open(unit=gunit,file=trim(filename),status='replace',action='write')
 
     write (gunit,fmt=format_efit_header) &
       & (this%dummy(i),i=1,6), idum, this%nwEQD, this%nhEQD
