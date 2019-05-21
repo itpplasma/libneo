@@ -202,8 +202,10 @@ contains
 
     close(gunit)
 
+    allocate(this%rad(this%nwEQD))
     call set_array_equidistant(this%nwEQD, this%xdim, this%r1, this%rad)
 
+    allocate(this%zet(this%nhEQD))
     call set_array_equidistant(this%nhEQD, this%zdim, this%zmid - this%zdim/2.0, this%zet)
 
     ! Without the return, the print statements for the error labels
