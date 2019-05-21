@@ -13,7 +13,7 @@ module io
 
   private
 
-  public get_free_unit
+  public get_free_unit, efit_data_type
 
   !> Storing last used file unit number. Used for getting a free one.
   integer, save :: iunit=100
