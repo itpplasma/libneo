@@ -218,6 +218,9 @@ contains
 
   end subroutine read_data_of_efit_file
 
+  !> \brief Write data of efit class to file with given filename.
+  !>
+  !> \param filename: input, data is written to file with this name.
   subroutine write_data_of_efit_file(this, filename)
     use libneo_kinds, only : real_kind
 
