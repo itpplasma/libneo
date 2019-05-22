@@ -66,6 +66,9 @@ set_tests_properties(Test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 add_test(NAME Test_efit
          COMMAND tests/test_efit_class.x)
 set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+add_test(NAME Test_boozer
+         COMMAND tests/test_boozer_class.x)
+set_tests_properties(Test_boozer PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 #~ # For testing purposes, e.g. printing the environment.
 #~ add_test(NAME run_xterm
          #~ COMMAND xterm)

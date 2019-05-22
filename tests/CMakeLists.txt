@@ -45,3 +45,9 @@ target_link_libraries(test_efit_class.x
   ${MAIN_LIB}
   ${LINALG_LIBRARIES}
   )
+
+add_executable(test_boozer_class.x source/test_boozer_class.f90)
+target_link_libraries(test_boozer_class.x
+  ${MAIN_LIB}
+  ${LINALG_LIBRARIES}
+  )
