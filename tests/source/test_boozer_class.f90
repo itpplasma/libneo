@@ -20,8 +20,8 @@ program test_boozer_class
     error_found = .true.
   end if
 
-  if (boozer_file_orig%get_n0b() .le. 0) then
-    write(*,*) 'STOP size n0b equal or smaller than zero.'
+  if (boozer_file_orig%get_n0b() .lt. 0) then
+    write(*,*) 'STOP size n0b smaller than zero.'
     error_found = .true.
   end if
 
