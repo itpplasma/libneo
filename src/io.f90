@@ -13,7 +13,7 @@ module io
 
   private
 
-  public get_free_unit, efit_data_type
+  public get_free_unit, efit_data_type, boozer_data_type
 
   !> Storing last used file unit number. Used for getting a free one.
   integer, save :: iunit=100
@@ -65,6 +65,38 @@ module io
 
     final :: finalize_efit_class_object
   end type efit_data_type
+
+  !> \brief Class representing boozer data (-file).
+  type boozer_data_type
+    private
+
+    integer :: m0b, n0b, nsurf, nper
+    real(kind=real_kind) :: flux ![Tm^2]
+    real(kind=real_kind) :: a ![m]
+    real(kind=real_kind) :: R ![m]
+
+    real(kind=real_kind), dimension(:), allocatable :: s, iota
+    real(kind=real_kind), dimension(:), allocatable :: Jpol_nper ! [A]
+    real(kind=real_kind), dimension(:), allocatable :: Itor ![A]
+    real(kind=real_kind), dimension(:), allocatable :: pprime ![Pa]
+    real(kind=real_kind), dimension(:), allocatable :: sqrt_g00 !(dV/ds)/nper
+
+    real(kind=real_kind), dimension(:,:), allocatable :: m, n
+    real(kind=real_kind), dimension(:,:), allocatable :: rmnc, rmns, zmnc, zmns ! [m]
+    real(kind=real_kind), dimension(:,:), allocatable :: vmnc,vmns  ! [ ]
+    real(kind=real_kind), dimension(:,:), allocatable :: bmnc, bmns ! [T]
+  contains
+    procedure :: read_data => read_data_of_boozer_file
+    procedure :: write_data => write_data_of_boozer_file
+
+    procedure :: get_m0b => get_m0b_
+    procedure :: get_n0b => get_n0b_
+    procedure :: get_nsurf => get_nsurf_
+    procedure :: get_nper => get_nper_
+    procedure :: get_flux => get_flux_
+    procedure :: get_a => get_a_
+    procedure :: get_R => get_R_
+  end type boozer_data_type
 
 contains
 
@@ -401,5 +433,270 @@ contains
     if (allocated(this%LCFS)) deallocate(this%LCFS)
     if (allocated(this%limEQD)) deallocate(this%limEQD)
   end subroutine finalize_efit_class_object
+
+  !> \brief Read content from boozer file with given filename.
+  !>
+  !> \param filename: input, name of the file from whciht to read the
+  !>   data.
+  !> \param inp_swi_: optional input, switchin version/type of the
+  !>   boozer file. So far only values 8 and 9 (default) are supported.
+  subroutine read_data_of_boozer_file(this, filename, inp_swi_)
+
+    implicit none
+
+    class (boozer_data_type) :: this
+    character(len=*), intent(in) :: filename
+    integer, intent(in), optional :: inp_swi_
+
+    integer :: inp_swi
+    integer :: i, j
+    integer :: i_alloc
+    integer :: r_un
+    integer :: m_max_pert, n_max_pert, mnmax_pert
+    character(len=150) :: char_dummy
+
+    if (present(inp_swi_)) then
+      inp_swi = inp_swi_
+    else
+      inp_swi = 9
+    end if
+
+    r_un = get_free_unit()
+    open(unit=r_un,file=trim(filename),status='old',action='read')
+
+    ! Reads lines starting with 'CC' and the first line after these,
+    ! which should be the header for the global variables.
+    do
+      read (r_un,*) char_dummy
+      if (char_dummy(1:2) /= 'CC') then
+        exit
+      end if
+    end do
+    ! Read global variables array sizes/flux/radius
+    read (r_un,*) this%m0b, this%n0b, this%nsurf, this%nper, this%flux, &
+      & this%a, this%R
+
+    m_max_pert = this%m0b + 1
+    n_max_pert = this%n0b + 1
+    mnmax_pert = m_max_pert*n_max_pert
+
+    ! allocate storage arrays
+    allocate(this%m(this%nsurf, mnmax_pert), this%n(this%nsurf, mnmax_pert), stat = i_alloc)
+    if (i_alloc /= 0) then
+      stop "Allocation for the arrays containing the mode numbers&
+            & of the perturbation field failed!"
+    end if
+
+    allocate(this%s(this%nsurf), this%iota(this%nsurf), &
+        & this%Jpol_nper(this%nsurf), this%Itor(this%nsurf), &
+        & this%pprime(this%nsurf), this%sqrt_g00(this%nsurf), &
+        & stat = i_alloc)
+    if (i_alloc /= 0) then
+      stop "Allocation for the real arrays containing&
+           & the radial dependent fields failed!"
+    end if
+
+    allocate(this%rmnc(this%nsurf, mnmax_pert), this%zmnc(this%nsurf, mnmax_pert),&
+         this%vmnc(this%nsurf, mnmax_pert), this%bmnc(this%nsurf, mnmax_pert), stat = i_alloc)
+    if (i_alloc /= 0) then
+      stop "Allocation for the Fourier arrays for the perturbation field failed!"
+    end if
+
+    allocate(this%rmns(this%nsurf, mnmax_pert), this%zmns(this%nsurf, mnmax_pert),&
+         this%vmns(this%nsurf, mnmax_pert), this%bmns(this%nsurf, mnmax_pert), stat = i_alloc)
+    if (i_alloc /= 0) then
+      stop "Allocation for the Fourier arrays for the perturbation field failed!"
+    end if
+    ! Might not be set in the following loop, thus initialize them here.
+    this%rmns = 0
+    this%zmns = 0
+    this%vmns = 0
+    this%bmns = 0
+
+    ! read input arrays
+    do i =1, this%nsurf
+      read(r_un,*) char_dummy ! Header: variable names
+      read(r_un,*) char_dummy ! Header: units
+      read(r_un,*) this%s(i), this%iota(i), this%Jpol_nper(i), &
+        & this%Itor(i), this%pprime(i), this%sqrt_g00(i) ! Header: values
+      read(r_un,*) char_dummy ! variable names for block.
+
+      do j=1,mnmax_pert
+
+        ! If clause inside the loop is not efficient, but reduces code
+        ! doubling, also, this part is not considered time-sensitive.
+        if (inp_swi .EQ. 8) then ! NEW IPP TOKAMAK
+          read(r_un,*) this%m(i,j), this%n(i,j), &
+            & this%rmnc(i,j), this%zmnc(i,j), this%vmnc(i,j),&
+            & this%bmnc(i,j)
+        elseif (inp_swi .EQ. 9) then ! ASDEX-U (E. Strumberger)
+          read(r_un,*) this%m(i,j), this%n(i,j), &
+            & this%rmnc(i,j), this%rmns(i,j), this%zmnc(i,j), this%zmns(i,j),&
+            & this%vmnc(i,j), this%vmns(i,j), this%bmnc(i,j), this%bmns(i,j)
+        else
+          print *,'FATAL: There is yet no other input type for the perturbed field defined'
+          print *,'  possible values for inp_swi: 8, 9'
+          stop
+        end if
+      end do
+    end do
+
+    close(r_un)
+
+  end subroutine read_data_of_boozer_file
+
+  !> \brief Write data of boozer class to file with the given filename.
+  !>
+  !> \param filename: input, data is written to file with this name.
+  subroutine write_data_of_boozer_file(this, filename, inp_swi_)
+
+    implicit none
+
+    class (boozer_data_type) :: this
+    character(len=*), intent(in) :: filename
+    integer, intent(in), optional :: inp_swi_
+
+    integer :: inp_swi
+    integer :: i, j
+    integer :: i_alloc
+    integer :: r_un
+    integer :: m_max_pert, n_max_pert, mnmax_pert
+    character(len=80) :: char_dummy
+
+    if (present(inp_swi_)) then
+      inp_swi = inp_swi_
+    else
+      inp_swi = 9
+    end if
+
+    r_un = get_free_unit()
+    open(unit=r_un,file=trim(filename),status='replace',action='write')
+
+
+
+
+    write (r_un,*) 'CC Boozer-coordinate data file'
+    write (r_un,*) 'CC Version: 01'
+    write (r_un,*) 'CC Author:  neo-2'
+    write (r_un,*) 'CC shot:'
+    write (r_un,*) ' m0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'
+    write (r_un,*) this%m0b, this%n0b, this%nsurf, this%nper, this%flux, &
+      & this%a, this%R
+
+    m_max_pert = this%m0b + 1
+    n_max_pert = this%n0b + 1
+    mnmax_pert = m_max_pert*n_max_pert
+
+    ! read input arrays
+    do i =1, this%nsurf
+      write(r_un,*) '        s               iota           Jpol/nper&
+                    &          Itor            pprime         sqrt g(0,0)'
+      write(r_un,*) '                                          [A]&
+                    &           [A]             [Pa]         (dV/ds)/nper'
+      write(r_un,*) this%s(i), this%iota(i), this%Jpol_nper(i), &
+        & this%Itor(i), this%pprime(i), this%sqrt_g00(i) ! Header: values
+      write(r_un,*) '    m    n      rmnc [m]         rmns [m]         &
+                    &zmnc [m]         zmns [m]         vmnc [ ]         &
+                    &vmns [ ]         bmnc [T]         bmns [T]'
+
+      do j=1,mnmax_pert
+
+        ! If clause inside the loop is not efficient, but reduces code
+        ! doubling, also, this part is not considered time-sensitive.
+        if (inp_swi .EQ. 8) then ! NEW IPP TOKAMAK
+          write(r_un,*) this%m(i,j), this%n(i,j), &
+            & this%rmnc(i,j), this%zmnc(i,j), this%vmnc(i,j),&
+            & this%bmnc(i,j)
+        elseif (inp_swi .EQ. 9) then ! ASDEX-U (E. Strumberger)
+          write(r_un,*) this%m(i,j), this%n(i,j), &
+            & this%rmnc(i,j), this%rmns(i,j), this%zmnc(i,j), this%zmns(i,j),&
+            & this%vmnc(i,j), this%vmns(i,j), this%bmnc(i,j), this%bmns(i,j)
+        else
+          print *,'FATAL: There is yet no other input type for the perturbed field defined'
+          print *,'  possible values for inp_swi: 8, 9'
+          stop
+        end if
+      end do
+    end do
+
+    close(r_un)
+
+  end subroutine write_data_of_boozer_file
+
+  function get_m0b_(this)
+    implicit none
+
+    class(boozer_data_type), intent(in) :: this
+
+    integer :: get_m0b_
+
+    get_m0b_ = this%m0b
+  end function get_m0b_
+
+  function get_n0b_(this)
+    implicit none
+
+    class(boozer_data_type), intent(in) :: this
+
+    integer :: get_n0b_
+
+    get_n0b_ = this%n0b
+  end function get_n0b_
+
+  function get_nsurf_(this)
+    implicit none
+
+    class(boozer_data_type), intent(in) :: this
+
+    integer :: get_nsurf_
+
+    get_nsurf_ = this%nsurf
+  end function get_nsurf_
+
+  function get_nper_(this)
+    implicit none
+
+    class(boozer_data_type), intent(in) :: this
+
+    integer :: get_nper_
+
+    get_nper_ = this%nper
+  end function get_nper_
+
+  function get_flux_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(boozer_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_flux_
+
+    get_flux_ = this%flux
+  end function get_flux_
+
+  function get_a_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(boozer_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_a_
+
+    get_a_ = this%a
+  end function get_a_
+
+  function get_R_(this)
+    use libneo_kinds, only : real_kind
+
+    implicit none
+
+    class(boozer_data_type), intent(in) :: this
+
+    real(kind=real_kind) :: get_R_
+
+    get_R_ = this%R
+  end function get_R_
 
 end module io
