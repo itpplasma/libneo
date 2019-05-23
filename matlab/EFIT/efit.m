@@ -225,7 +225,7 @@ classdef efit < handle
             
             %generate filename without spaces
             name = ['g', erase(erase(obj.CASE{4}, ' '), '#'), '.',...
-                             erase(erase(obj.CASE{5}, ' '), 'ms'),'.',...
+                             erase(erase(obj.CASE{5}, ' '), 'ms'),'_',...
                              erase(obj.CASE{1}, ' ')];
             
             %put together path+name
@@ -434,18 +434,47 @@ classdef efit < handle
             end
 
             %check dimensions of vector-properties
-            tochk = {obj.fpol, obj.pres, obj.ffprim, obj.pprime, obj.qpsi};
-            for k = 1:numel(tochk)
-                if numel(tochk{k}) ~= obj.nw
-                    error('dim of "fpol, pres, ffprim, pprime or qpsi" does not match nw')
-                end
+            if numel(obj.fpol) ~= obj.nw
+                    error('dim of "fpol" does not match nw.')
             end
-
+            if numel(obj.pres) ~= obj.nw
+                    error('dim of "pres" does not match nw.')
+            end
+            if numel(obj.ffprim) ~= obj.nw
+                    error('dim of "ffprim" does not match nw.')
+            end
+            if numel(obj.pprime) ~= obj.nw
+                    error('dim of "pprime" does not match nw.')
+            end
+            if numel(obj.qpsi) ~= obj.nw
+                    error('dim of "qpsi" does not match nw.')
+            end
+            
             %check dimensions of matrix-properties
             if any(size(obj.psirz) ~= [obj.nw, obj.nh])
-                error('dim of "psirz" does not match nw, nh')
+                error('dim of "psirz" does not match nw, nh.')
             end
 
+            %check if nbbbs, limitr are empty
+            if any(isempty([obj.nbbbs, obj.limitr]))
+                error('nbbbs an limitr must not be empty!')
+            end
+            
+            %check dimensions of bbbs properties
+            if numel(obj.rbbbs) ~= obj.nbbbs
+                    error('dim of "rbbbs" does not match nbbbs.')
+            end
+            if numel(obj.zbbbs) ~= obj.nbbbs
+                    error('dim of "zbbbs" does not match nbbbs.')
+            end
+            
+            %check dimensions of limitr properties
+            if numel(obj.rlim) ~= obj.limitr
+                    error('dim of "rlim" does not match limitr.')
+            end
+            if numel(obj.zlim) ~= obj.limitr
+                    error('dim of "zlim" does not match limitr.')
+            end
         end
         function write2000(obj, varstr, varint)
             %2000 format (6a8,3i4)
