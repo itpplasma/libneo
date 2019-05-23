@@ -313,7 +313,7 @@ classdef efit < handle
             obj.zlim  = var(2:2:end);
         end
         
-        function plot1d(obj, var)
+        function plot1d(obj, var, argN, argV)
             %##############################################################
             %function plot1d(obj, var)
             %##############################################################
@@ -323,6 +323,8 @@ classdef efit < handle
             %##############################################################
             % var   ... name of the 1d variable as a string
             %           possibilities: f, p, ff, pp, psi, q
+            % argN  ... opt: argument name for plot (together with argV)
+            % argV  ... opt: argument value for plot (together with argN)
             %##############################################################
 
             switch var
@@ -336,8 +338,7 @@ classdef efit < handle
                     y = obj.pprime; l = 'N m^{-2} Wb^{-1}';
                 case 'psi'
                     %index of the middle row/col of psi
-                    ind = ceil(size(psi, 1)/2);
-                    y = obj.psirz(ind, ind:end);
+                    y = obj.psirz(ceil(obj.nw/2), ceil(obj.nh/2):end);
                     l = 'Wb (= T m^2)';
                 case 'q'
                     y = obj.qpsi;
@@ -345,8 +346,13 @@ classdef efit < handle
             end
             
             x = linspace(obj.rcentr, obj.rleft + obj.rdim, obj.nw);
-
-            plot(x, y, '-r', 'DisplayName', var);
+            fac = ceil(numel(x) / numel(y));
+            
+            if nargin < 3 || (isempty(argN) && isempty(argV))
+                plot(x(1:fac:end), y, '-r', 'DisplayName', var);
+            else
+                plot(x(1:fac:end), y, '-r', 'DisplayName', var, argN, argV);
+            end
             xlabel('r / m')
             ylabel([var, ' / ', l])
             legend
@@ -421,6 +427,121 @@ classdef efit < handle
             obj.plot1d('pp');
             subplot(2, 4, 8)
             obj.plot1d('ff');
+        end
+        
+        function obj2 = copy(obj)
+            %##############################################################
+            %function obj2 = copy(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % Copies the class into another object.
+            %##############################################################
+            % obj   ... object to copy
+            %##############################################################
+            % obj2  ... new object
+            %##############################################################
+
+            %init class
+            obj2 = efit(obj.fname, obj.nw, obj.nh);
+            
+            %copy all properties to new class
+            obj2.CASE       = obj.CASE;
+            obj2.idum       = obj.idum;
+            obj2.rdim       = obj.rdim;
+            obj2.zdim       = obj.zdim;
+            obj2.rleft      = obj.rleft;
+            obj2.zmid       = obj.zmid;
+            obj2.rmaxis     = obj.rmaxis;
+            obj2.zmaxis     = obj.zmaxis;
+            obj2.simag      = obj.simag;
+            obj2.sibry      = obj.sibry;
+            obj2.rcentr     = obj.rcentr;
+            obj2.bcentr     = obj.bcentr;
+            obj2.current    = obj.current;
+            obj2.xdum       = obj.xdum;
+            obj2.fpol       = obj.fpol;
+            obj2.pres       = obj.pres;
+            obj2.ffprim     = obj.ffprim;
+            obj2.pprime     = obj.pprime;
+            obj2.psirz      = obj.psirz;
+            obj2.qpsi       = obj.qpsi;
+            obj2.nbbbs      = obj.nbbbs;
+            obj2.limitr     = obj.limitr;
+            obj2.rbbbs      = obj.rbbbs;
+            obj2.zbbbs      = obj.zbbbs;
+            obj2.rlim       = obj.rlim;
+            obj2.zlim       = obj.zlim;
+        end
+        
+        function compareto(obj, obj2)
+            %##############################################################
+            %function compareto(obj, obj2)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % Compares 2 efit-classes: prints a summary table for the
+            % different scalar quantities and makes a summary plot of the
+            % relevant vector properties.
+            %##############################################################
+            % obj   ... object1 to compary with
+            % obj2  ... object2
+            %##############################################################
+
+            
+            %check if e is an object of efit class
+            if ~isa(obj2, class(obj))
+                error('e must be an object of class "efit".');
+            end
+            
+            %column of table
+            cols = {'FILE1', 'FILE2'};
+            %rows of table
+            rows = {'nw', 'nh', ...
+                    'rdim', 'zdim', 'rleft', 'zmid', ...
+                    'rmaxis', 'zmaxis', 'simag', 'sibry', ...
+                    'rcentr', 'bcentr', 'current', ...
+                    'nbbbs', 'limitr'};
+            
+            %data for 1st column
+            prop1 = {obj.nw, obj.nh, ...
+                     obj.rdim, obj.zdim, obj.rleft, obj.zmid, ...
+                     obj.rmaxis, obj.zmaxis, obj.simag, obj.sibry, ...
+                     obj.rcentr, obj.bcentr, obj.current, ...
+                     obj.nbbbs, obj.limitr}';
+            %data for 2nd column
+            prop2 = {obj2.nw, obj2.nh, ...
+                     obj2.rdim, obj2.zdim, obj2.rleft, obj2.zmid, ...
+                     obj2.rmaxis, obj2.zmaxis, obj2.simag, obj2.sibry, ...
+                     obj2.rcentr, obj2.bcentr, obj2.current, ...
+                     obj2.nbbbs, obj2.limitr}';
+            
+            %create table and display in console
+            t = table(prop1, prop2, 'VariableNames', cols, 'RowNames', rows);
+            disp(t)
+            
+            %copy the second object and set the geometric properties equal
+            %because otherwise the initial class would be changed (<handle)
+            obj3        = obj2.copy();
+            obj3.rcentr = obj.rcentr;
+            obj3.zmid   = obj3.zmid;
+            obj3.rmaxis = obj.rmaxis;
+            obj3.zmaxis = obj.zmaxis;
+            obj3.rleft  = obj.rleft;
+            obj3.rdim   = obj.rdim;
+            obj3.zdim   = obj.zdim;
+            
+            %make a 2x3 plot with all 6 relevant quantities
+            toplot = {'f','p','ff','pp','q','psi'}';
+            for k = 1:numel(toplot)
+                subplot(2,3,k)
+                obj.plot1d(toplot{k}, 'Color', 'r')
+                hold on
+                obj3.plot1d(toplot{k}, 'Color', 'b')
+                hold off
+                title(toplot{k})
+                legend('FILE 1', 'FILE 2')
+            end
         end
     end
 
