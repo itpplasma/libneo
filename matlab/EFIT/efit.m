@@ -345,7 +345,7 @@ classdef efit < handle
                     l = '1';
             end
             
-            x = linspace(obj.rcentr, obj.rleft + obj.rdim, obj.nw);
+            x = linspace(0, 1, obj.nw);
             fac = ceil(numel(x) / numel(y));
             
             if nargin < 3 || (isempty(argN) && isempty(argV))
@@ -353,7 +353,7 @@ classdef efit < handle
             else
                 plot(x(1:fac:end), y, '-r', 'DisplayName', var, argN, argV);
             end
-            xlabel('r / m')
+            xlabel('normalized flux surface label')
             ylabel([var, ' / ', l])
             legend
         end
@@ -520,24 +520,13 @@ classdef efit < handle
             t = table(prop1, prop2, 'VariableNames', cols, 'RowNames', rows);
             disp(t)
             
-            %copy the second object and set the geometric properties equal
-            %because otherwise the initial class would be changed (<handle)
-            obj3        = obj2.copy();
-            obj3.rcentr = obj.rcentr;
-            obj3.zmid   = obj3.zmid;
-            obj3.rmaxis = obj.rmaxis;
-            obj3.zmaxis = obj.zmaxis;
-            obj3.rleft  = obj.rleft;
-            obj3.rdim   = obj.rdim;
-            obj3.zdim   = obj.zdim;
-            
             %make a 2x3 plot with all 6 relevant quantities
             toplot = {'f','p','ff','pp','q','psi'}';
             for k = 1:numel(toplot)
                 subplot(2,3,k)
                 obj.plot1d(toplot{k}, 'Color', 'r')
                 hold on
-                obj3.plot1d(toplot{k}, 'Color', 'b')
+                obj2.plot1d(toplot{k}, 'Color', 'b')
                 hold off
                 title(toplot{k})
                 legend('FILE 1', 'FILE 2')
