@@ -23,6 +23,9 @@ module io
   character(len=*), parameter :: format_five_rows_doubles = '(5(e16.9))'
 
   !> \brief Class representing efit data (-file).
+  !>
+  !> Supports reading the data from a file, writing it to a file and
+  !> getting some of the scalars.
   type efit_data_type
     private
 
@@ -67,6 +70,9 @@ module io
   end type efit_data_type
 
   !> \brief Class representing boozer data (-file).
+  !>
+  !> Supports reading the data from a file, writing it to a file and
+  !> getting some of the scalars.
   type boozer_data_type
     private
 
