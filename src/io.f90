@@ -89,7 +89,7 @@ module io
     real(kind=real_kind), dimension(:), allocatable :: pprime ![Pa]
     real(kind=real_kind), dimension(:), allocatable :: sqrt_g00 !(dV/ds)/nper
 
-    real(kind=real_kind), dimension(:,:), allocatable :: m, n
+    integer(kind=real_kind), dimension(:,:), allocatable :: m, n
     real(kind=real_kind), dimension(:,:), allocatable :: rmnc, rmns, zmnc, zmns ! [m]
     real(kind=real_kind), dimension(:,:), allocatable :: vmnc,vmns  ! [ ]
     real(kind=real_kind), dimension(:,:), allocatable :: bmnc, bmns ! [T]
@@ -616,7 +616,7 @@ contains
             & this%rmnc(i,j), this%zmnc(i,j), this%vmnc(i,j),&
             & this%bmnc(i,j)
         elseif (inp_swi .EQ. 9) then ! ASDEX-U (E. Strumberger)
-          write(r_un,format_boozer_output_data) int(this%m(i,j)), int(this%n(i,j)), &
+          write(r_un,format_boozer_output_data) this%m(i,j), this%n(i,j), &
             & this%rmnc(i,j), this%rmns(i,j), this%zmnc(i,j), this%zmns(i,j),&
             & this%vmnc(i,j), this%vmns(i,j), this%bmnc(i,j), this%bmns(i,j)
         else
