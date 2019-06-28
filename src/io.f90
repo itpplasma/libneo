@@ -21,6 +21,8 @@ module io
   ! Formats used for reading the data.
   character(len=*), parameter :: format_efit_header = '(6a8,3i4)'
   character(len=*), parameter :: format_five_rows_doubles = '(5(e16.9))'
+  character(len=*), parameter :: format_boozer_output_data = &
+    & '(2(i4, 1X), 8(e16.9, 1X))'
 
   !> \brief Class representing efit data (-file).
   !>
@@ -610,11 +612,11 @@ contains
         ! If clause inside the loop is not efficient, but reduces code
         ! doubling, also, this part is not considered time-sensitive.
         if (inp_swi .EQ. 8) then ! NEW IPP TOKAMAK
-          write(r_un,*) this%m(i,j), this%n(i,j), &
+          write(r_un,format_boozer_output_data) this%m(i,j), this%n(i,j), &
             & this%rmnc(i,j), this%zmnc(i,j), this%vmnc(i,j),&
             & this%bmnc(i,j)
         elseif (inp_swi .EQ. 9) then ! ASDEX-U (E. Strumberger)
-          write(r_un,*) this%m(i,j), this%n(i,j), &
+          write(r_un,format_boozer_output_data) int(this%m(i,j)), int(this%n(i,j)), &
             & this%rmnc(i,j), this%rmns(i,j), this%zmnc(i,j), this%zmns(i,j),&
             & this%vmnc(i,j), this%vmns(i,j), this%bmnc(i,j), this%bmns(i,j)
         else
