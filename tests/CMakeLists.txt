@@ -51,3 +51,9 @@ target_link_libraries(test_boozer_class.x
   ${MAIN_LIB}
   ${LINALG_LIBRARIES}
   )
+
+add_executable(test_system_utility.x source/test_system_utility.f90)
+target_link_libraries(test_system_utility.x
+  ${MAIN_LIB}
+  ${LINALG_LIBRARIES}
+  )
