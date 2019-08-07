@@ -5,13 +5,11 @@ module rusage_type
 
   implicit none
 
-  type, bind(c) :: fortran_timeval
-    integer(c_long) :: seconds, microseconds
-  end type fortran_timeval
-
   type, bind(c) :: fortran_rusage
-    type(fortran_timeval) :: ru_utime !< user CPU time used
-    type(fortran_timeval) :: ru_stime !< system CPU time used
+    integer(c_long) :: ru_utimes !< user CPU time used, seconds
+    integer(c_long) :: ru_utimems !< user CPU time used, microseconds
+    integer(c_long) :: ru_stimes !< system CPU time used, seconds
+    integer(c_long) :: ru_stimems !< system CPU time used, microseconds
     integer(c_long) :: ru_maxrss !< maximum resident set size
     integer(c_long) :: ru_ixrss !< integral shared memory size
     integer(c_long) :: ru_idrss !< integral unshared data size
@@ -33,8 +31,8 @@ contains
   subroutine write_fortran_rusage(usage)
     type(fortran_rusage) :: usage
 
-    write(*,*) 'user CPU time used: ', usage%ru_utime%seconds
-    write(*,*) 'system CPU time used: ', usage%ru_stime%seconds
+    write(*,*) 'user CPU time used: ', usage%ru_utimes, 's ', usage%ru_utimems, ' us'
+    write(*,*) 'system CPU time used: ', usage%ru_stimes, 's ', usage%ru_stimems, ' us'
     write(*,*) 'maximum resident set size: ', usage%ru_maxrss
     write(*,*) 'integral shared memory size: ', usage%ru_ixrss
     write(*,*) 'integral unshared data size: ', usage%ru_idrss

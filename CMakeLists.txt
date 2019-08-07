@@ -69,6 +69,10 @@ set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 add_test(NAME Test_boozer
          COMMAND tests/test_boozer_class.x)
 set_tests_properties(Test_boozer PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+add_test(NAME Test_system_utility
+         COMMAND tests/test_system_utility.x)
+set_tests_properties(Test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
+
 #~ # For testing purposes, e.g. printing the environment.
 #~ add_test(NAME run_xterm
          #~ COMMAND xterm)
