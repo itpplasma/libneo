@@ -8,12 +8,11 @@ module system_utility
   end type fortran_timeval
 
   interface
-    integer(c_int) function getrusage(who, usage) bind(c)
+    integer(c_int) function getrusage_local(usage) bind(c)
       use iso_c_binding
       use rusage_type, only : fortran_rusage
-      integer(c_int) :: who
       type(fortran_rusage) :: usage(*)
-    end function getrusage
+    end function getrusage_local
   end interface
 
   private
@@ -76,7 +75,7 @@ contains
 
     res = 0
 
-    res = getrusage(0, rusage) ! \todo find better solution: RUSAGE_SELF should be passed.
+    res = getrusage_local(rusage)
 
     if (res /= 0) then
       write(*,*) 'WARNING: resource usage could not be determined.'
