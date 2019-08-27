@@ -1,0 +1,50 @@
+#Description of the zone:
+3.0         #r1 - minimum radius of the zone (center of the cylinder)
+center              #type of BC at r1 (center, infinity, idealwall, interface, antenna)
+flre                #type of the plasma model (vacuum, medium, imhd, rmhd, flre)
+0                   #code version for the model
+interface           #type of BC at r2 (center, infinity, idealwall, interface, antenna)
+67.0         #r2 - maximum radius of the zone (plasma radius)
+
+#Conductivity settings:
+1                   #order of FLR expansion: must match to sources used for conductivity
+1                   #highest cyclotron harmonic, normally should exceed the flre_order
+1                   #flag if correction term should be used in conductivity: use for flre_order=1 only!
+5                   #splines degree for C matrices, the degree for K matrices is computed in the code: NK = NC + N + 1.
+27001  #9001                #maximum dimension of the radial grid for conductivity martices: default=3001
+3.0                 #resonant layer width
+1.0e-6              #error parameter used for adaptive radial grid generation outside the resonant layer: default=1.0e-6
+1.0e-6              #error parameter used for adaptive radial grid generation in the resonant layer: default=1.0e-6
+0                   #flag if system of equations should be used in homogenious limit: for flre_order>1
+
+#ODE solver settings:
+100000              #max dimension of the radial grid for the solution: default=1e5
+1.0e-9              #relative accuracy of the solution by ODE solver: default=1e-8
+1.0e-9              #absolute accuracy of the solution by ODE solver: default=1e-8
+50000               #max number of the orthonormalization steps (ONS) for the solver: default=5e4
+1.0e2               #controlling factor for ONS by QR: norm_max/norm_min > norm_fac: default=1.0e3
+1.0e-3              #output grid step outside the resonance region for the ME solutions: default=1.0e-3
+1.0e-8              #output grid step inside  the resonance region for the ME solutions: default=1.0e-5
+2.0                 #width of the resonance region: default=1.0
+
+#Solution space out settings:
+5                   #degree of the polynomial used to space out the solution (by checking the accuracy of interpolation): default=3
+1.0e-12             #relative accuracy of the sparse solution: default=1e-8
+1.0e-12             #absolute accuracy of the sparse solution: default=1e-8
+0.1e0               #max grid step in the solution: default=0.1
+
+#Debugging settings:
+0                   #flag for debugging (additional checks are performed in the code): default=1
+
+#Collisions model settings:
+1                   #collisions model for ions:      0 - (N) = const, 1 - (n, E) = const, 2 - (N, P) = const, 3 - (N, P, E) = const, where N - number, E - energy, P - momentum
+1                   #collisions model for electrons: 0 - (N) = const, 1 - (n, E) = const, 2 - (N, P) = const, 3 - (N, P, E) = const, where N - number, E - energy, P - momentum
+
+#Comments:
+if flag for debugging mode is 1 then additional checks are performed in the code,
+if it is 2 then additional checks are made, if 0 - no checks.
+
+controlling factor for ONS is rather important parameter, default values are good only for the N=1 order,
+for higher orders of FLRE it might be neccesary to decrease it up to 3.0 or so and also increase
+accuracy of integration up to 1.0e-12. The quality of the solution can be checked by inspection of
+bp.dat file - the solution must be SMOOTH! The file poy_test_err.dat is also useful.
