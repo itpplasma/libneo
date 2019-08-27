@@ -1,0 +1,4 @@
+Easiest way:
+copy /proj/plasma/soft/KiLCA-2.4.2 into your home directory ~/KiLCA/.
+
+Otherwise you have to ask Martin or Sergei. Good Luck.
