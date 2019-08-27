@@ -12,9 +12,9 @@
 % choose a file to read
 %##########################################################################
 
-%fname = './example/g30835.3200_ed6';
+fname = './example/g30835.3200_ed6';
 %fname = './example/g000001.0001_TCFP';
-fname = './example/g147131.02300_DIIID_KEFIT';
+%fname = './example/g147131.02300_DIIID_KEFIT';
 
 %##########################################################################
 % create an instance and use it to read the file
