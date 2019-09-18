@@ -29,7 +29,17 @@ find_package (MPI REQUIRED)
 include(CMakeSources.in)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
-set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
+
+# Settings based on OS version (Debian 8 vs 9). \todo Find out how to get OS version directly.
+if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  if (CMAKE_Fortran_COMPILER_VERSION VERSION_EQUAL 8.3.0)
+    set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-gnu-8.3.0/)
+  else()
+    set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
+  endif()
+else()
+  set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
+endif()
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 

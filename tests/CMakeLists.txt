@@ -4,10 +4,9 @@ find_package(MPI REQUIRED)
 set (MAIN_LIB ${MAIN_LIB} libneo)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
-set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 include_directories(${PROJECT_BINARY_DIR})
-include_directories(${MYMPILIB_PATH}/OBJS)
+
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
@@ -19,11 +18,24 @@ elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
 endif ()
 
+# Settings based on OS version.
 ### Path to OpenBLAS
-set(OPEN_BLAS_PATH /usr/lib/openblas-base/)
+if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  if (CMAKE_Fortran_COMPILER_VERSION VERSION_EQUAL 8.3.0)
+    set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-gnu-8.3.0/)
+    set(OPEN_BLAS_PATH /usr/lib/openblas/ /usr/lib/x86_64-linux-gnu/)
+  else()
+    set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
+    set(OPEN_BLAS_PATH /usr/lib/openblas-base/ /usr/lib/x86_64-linux-gnu/)
+  endif()
+else()
+  set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
+  set(OPEN_BLAS_PATH /usr/lib/openblas-base/ /usr/lib/x86_64-linux-gnu/)
+endif()
 set(OPEN_BLAS_LAPACK_LIB ${OPEN_BLAS_PATH})
 set(OPEN_BLAS_LIB ${OPEN_BLAS_PATH})
 
+include_directories(${MYMPILIB_PATH}/OBJS)
 
 find_library(open_blas_lib blas ${OPEN_BLAS_LIB} NO_DEFAULT_PATH)
 find_library(open_blas_lapack_lib lapack ${OPEN_BLAS_LAPACK_LIB} NO_DEFAULT_PATH)
