@@ -1,10 +1,14 @@
 classdef KiLCA_interface < handle
-%classdef KiLCA_zone
+%classdef KiLCA_interface
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
-% class containing the information of a zone in KiLCA. Corresponds to a
-% zoneX.in file for KiLCA.
+% This class is intended to be used to use the code KiLCA within MATLAB. 
+% The only pre-requisite is a compiled version of the code as an executable
+% file. This class can then be used to create a setup, generate the file
+% structure the code needs, run the code and get the output of the KiLCA
+% including automatic plots of the most important quantities and radial 
+% profiles of those to be used in post processing.
 %##########################################################################
 % properties:
 %--------------------------------------------------------------------------

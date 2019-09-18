@@ -34,14 +34,14 @@ classdef KiLCA_zone_imhd < KiLCA_prototype_input
         %ME solver settings:
         
         rgrid_maxdim    = 1e6    %max dimension of the radial grid for the solution: default=1e5
-        relacc          = 1e-12  %relative accuracy of the solution: default=1e-8
-        absacc          = 1e-12  %absolute accuracy of the solution: default=1e-8
+        relacc          = 1e-10  %relative accuracy of the solution: default=1e-8
+        absacc          = 1e-10  %absolute accuracy of the solution: default=1e-8
         
         %ME solution space out settings:
         
         polydeg         = 3      %degree of the polynomial used to space out the solution (by checking the accuracy
-        sparse_relacc   = 1e-8   %relative accuracy of the sparse solution: default=1e-8
-        sparse_absacc   = 1e-8   %absolute accuracy of the sparse solution: default=1e-8
+        sparse_relacc   = 1e-10  %relative accuracy of the sparse solution: default=1e-8
+        sparse_absacc   = 1e-10  %absolute accuracy of the sparse solution: default=1e-8
         maxgridstep     = 0.1    %max grid step in the solution: default=0.1
         
         flag_deb        = 0      %flag for debugging mode (additional checks are performed in the code): default=1

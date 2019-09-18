@@ -287,13 +287,13 @@ classdef KiLCA_data_linear < KiLCA_prototype_output
             figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
             
             if nargin > 1 && strcmp(type, 'Re')
-                plot_triple(obj, 'Er_Re', 'Eth_Re', 'Ez_Re', 'E / F', varargin{:});
+                plot_triple(obj, 'Er_Re', 'Eth_Re', 'Ez_Re', 'E / statV cm^{-1}', varargin{:});
                 
             elseif nargin > 1 && strcmp(type, 'Im')
-                plot_triple(obj, 'Er_Im', 'Eth_Im', 'Ez_Im', 'E / F', varargin{:});
+                plot_triple(obj, 'Er_Im', 'Eth_Im', 'Ez_Im', 'E / statV cm^{-1}', varargin{:});
                 
             else
-                plot_triple(obj, 'Er_Abs', 'Eth_Abs', 'Ez_Abs', 'E / F', varargin{:});
+                plot_triple(obj, 'Er_Abs', 'Eth_Abs', 'Ez_Abs', 'E / statV cm^{-1}', varargin{:});
             end
         end
     end
