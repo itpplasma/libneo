@@ -37,14 +37,35 @@ end
 % SETUP KiLCA & RUN
 %##########################################################################
 
-path = [pwd(), '/test_newversion/'];
-type = 'flre';
+path = '~/KiLCA/test/interface/';
+type = 'imhd';
 
 kil = KiLCA_interface(path, type);
 
 kil.set_ASDEX(1);
-m = 3; n = 2;
+m = -3; n = 2;
 kil.modes.set(m, n);
+
+kil.antenna.I0 = 1e13;
+kil.antenna.flab(1) = 1;
+
+kil.background.Btor = 23176.46;
+kil.background.flag_recalc = -1;
+kil.background.vgalsys = 1e9;
+
+kil.zones{1}.r1 = 1e-1;
+kil.zones{1}.modelvers = 1;
+
+kil.zones{2}.vacuum.relacc = 1e-12;
+kil.zones{2}.vacuum.absacc = 1e-12;
+kil.zones{2}.vacuum.sparse_relacc = 1e-10;
+kil.zones{2}.vacuum.sparse_absacc = 1e-10;
+
+kil.zones{3}.vacuum.relacc = 1e-12;
+kil.zones{3}.vacuum.absacc = 1e-12;
+kil.zones{3}.vacuum.sparse_relacc = 1e-10;
+kil.zones{3}.vacuum.sparse_absacc = 1e-10;
+kil.zones{3}.vacuum.rgrid_maxdim = 100;
 
 kil.write();
 kil.run();
@@ -54,11 +75,11 @@ kil.run();
 %##########################################################################
 
 kil.backgrounddata.plotB();
-print('./test.old/out/background_B.svg', '-dsvg')
 
 %##########################################################################
 % PLOT LINEARDATA
 %##########################################################################
 
-kil.lineardata{1}.plotB();
-print('./test.old/out/linear_B.svg', '-dsvg')
+if strcmp(type, 'flre') || strcmp(type, 'imhd')
+    kil.lineardata{1}.plotB();
+end

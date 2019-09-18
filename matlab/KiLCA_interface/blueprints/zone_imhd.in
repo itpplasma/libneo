@@ -7,7 +7,7 @@ interface	#type of BC at r2 (center, infinity, interface, antenna)
 67.0         #r2 - maximum radius of the zone (first wall boundary)
 
 #ME solver settings:
-1000		#max dimension of the radial grid for the solution: default=1e5
+1e6		#max dimension of the radial grid for the solution: default=1e5
 1.0e-12		#relative accuracy of the solution: default=1e-8
 1.0e-12		#absolute accuracy of the solution: default=1e-8
 

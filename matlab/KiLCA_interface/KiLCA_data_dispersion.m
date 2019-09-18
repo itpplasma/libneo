@@ -115,18 +115,20 @@ classdef KiLCA_data_dispersion < KiLCA_prototype_output
             hold on
             for k=1:4
                 p = plot_single(obj, ['k', num2str(k), '_Re'], 'k / cm^{-1}', varargin{:});
-                set(p, 'LineStyle', 'none', 'Marker', 'o', 'MarkerSize', 2, 'MarkerFaceColor', get(p,'Color')); 
+                set(p, 'LineStyle', 'none', 'Marker', 'o', 'MarkerSize', 4, 'MarkerFaceColor', get(p,'Color'));
             end
             hold off
+            title('Re(k_r)')
             
             %plot imag parts
             subplot(1, 2, 2)
             hold on
             for k=1:4
                 p = plot_single(obj, ['k', num2str(k), '_Im'], 'k / cm^{-1}', varargin{:});
-                set(p, 'LineStyle', 'none', 'Marker', 'o', 'MarkerSize', 2, 'MarkerFaceColor', get(p,'Color')); 
+                set(p, 'LineStyle', 'none', 'Marker', 'o', 'MarkerSize', 4, 'MarkerFaceColor', get(p,'Color'));
             end
             hold off
+            title('Im(k_r)')
         end
     end
     

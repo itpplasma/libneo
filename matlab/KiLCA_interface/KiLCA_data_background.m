@@ -34,7 +34,8 @@ classdef KiLCA_data_background < KiLCA_prototype_output
     end
     
     properties (Dependent)
-        b0      %
+        R       %radius
+        b0      %absolute magnetic field b0 = sqrt(b0th^2+b0z^2)
         b0th    %magnetic field in theta direction
         b0z     %magnetic field in Z direction
         dPHI0   %
@@ -77,6 +78,10 @@ classdef KiLCA_data_background < KiLCA_prototype_output
     
     %get Access for dependent proobjties
     methods
+       function q = get.R(obj)
+           q = get_background_quantity(obj, 'b0');
+           q = q(:, 1);
+       end
        function q = get.b0(obj)
            q = get_background_quantity(obj, 'b0');
        end
