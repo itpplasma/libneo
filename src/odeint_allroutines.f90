@@ -1,13 +1,21 @@
-module odeint_mod
+module ode_integration
   use libneo_kinds, only : real_kind
 
-  integer :: kmax=0, kount=0, kmaxx=200, ialloc
-  real(kind=real_kind) :: dxsav=0.d0
+  implicit none
+
+  private
+
+  integer, parameter :: MAXSTP=1000000, kmax=0, kmaxx=200
+  real(kind=real_kind), parameter :: TINY_LOCAL=1.e-30
+  real(kind=real_kind), parameter :: SAFETY=0.9d0, PGROW=-.2d0, &
+      & PSHRNK=-.25d0, ERRCON=1.89d-4, dxsav=0.d0
   real(kind=real_kind), dimension(:),   allocatable :: dydx,xp,y,yscal
   real(kind=real_kind), dimension(:,:), allocatable :: yp
   real(kind=real_kind), dimension(:),   allocatable :: ak2,ak3,ak4,ak5
   real(kind=real_kind), dimension(:),   allocatable :: ak6,ytemp
   real(kind=real_kind), dimension(:),   allocatable :: yerr,ytemp1
+
+  integer, save :: kount=0, ialloc
 
   abstract interface
     subroutine compute_derivative(x, y, dydx, ierr)
@@ -19,9 +27,11 @@ module odeint_mod
     end subroutine compute_derivative
   end interface
 
-!$omp threadprivate(kmax, kount, kmaxx, ialloc, dxsav, dydx, xp, y)
-!$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
-!$omp threadprivate(ytemp1)
+  !$omp threadprivate(kount, ialloc, dxsav, dydx, xp, y)
+  !$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
+  !$omp threadprivate(ytemp1)
+
+  public :: odeint_allroutines
 
 contains
 
@@ -31,19 +41,24 @@ contains
     implicit none
 
     procedure(compute_derivative) :: derivs
-    integer :: nvar,nok,nbad
-    real(kind=real_kind) :: x1,x2,eps,h1,hmin
-    real(kind=real_kind), dimension(nvar) :: y
+    integer, intent(in) :: nvar
+    real(kind=real_kind), intent(in) :: x1, x2, eps
+    real(kind=real_kind), intent(inout) :: y(nvar)
+
+    integer :: nok,nbad
+    real(kind=real_kind) :: h1,hmin
 
     h1=x2-x1
     hmin=0.d0
 
     call odeint(y,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs)
 
-    return
   end subroutine odeint_allroutines
 
   subroutine alloc_odeint(nvar)
+    implicit none
+
+    integer, intent(in) :: nvar
 
     if (ialloc.eq.1) then
       allocate(dydx(nvar),xp(kmaxx),y(nvar))
@@ -59,7 +74,8 @@ contains
 
   end subroutine alloc_odeint
 
-  subroutine odeint(ystart,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs)
+  subroutine odeint(ystart, nvar, x1, x2, eps, h1, hmin, nok, nbad, &
+    & derivs)
 
     use libneo_kinds, only : real_kind
 
@@ -67,13 +83,16 @@ contains
 
     procedure(compute_derivative) :: derivs
 
-    integer, parameter :: MAXSTP=1000000
-    integer :: nbad,nok,nvar,KMAXX
+    integer, intent(in) :: nvar
+    integer, intent(out) :: nok, nbad
+    real(kind=real_kind), intent(in) :: x1, x2, eps, h1, hmin
+    real(kind=real_kind), intent(inout) :: ystart(nvar)
+
+    integer :: KMAXX
     integer :: i,nstp
     integer :: ierr
 
     real(kind=real_kind), parameter :: TINY_VALUE=1.e-30
-    real(kind=real_kind) :: eps,h1,hmin,x1,x2,ystart(nvar)
     real(kind=real_kind) :: h,hdid,hnext,x,xsav
 
     ialloc=1
@@ -157,7 +176,7 @@ contains
     return
   end subroutine odeint
 
-  subroutine rkck(y,dydx,n,x,h,yout,yerr,derivs)
+  subroutine rkck(y, dydx, n, x, h, yout, yerr, derivs)
 
     use libneo_kinds, only : real_kind
 
@@ -217,7 +236,7 @@ contains
 
   end subroutine rkck
 
-  subroutine rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
+  subroutine rkqs(y, dydx, n, x, htry, eps, yscal, hdid, hnext, derivs)
     use libneo_kinds, only : real_kind
 
     implicit none
@@ -318,4 +337,4 @@ contains
 
   end subroutine RK4b
 
-end module odeint_mod
+end module ode_integration
