@@ -6,7 +6,7 @@
 !> arnoldi_namelist. This routine is also responsible for initializing
 !> the module.
 !> Main work is done by the subroutine arnoldi.
-module arnoldi_mod
+module arnoldi
   use libneo_kinds, only : real_kind, complex_kind
 
   logical, save :: leigen=.false. !< Determines if eigenvectors should be calculated.
@@ -107,7 +107,7 @@ contains
   !>                                      to TOL
   !>                     eigvecs        - array of eigenvectors, size - (m,ngrow)
   !>                     ierr           - error code (0 - normal work, 1 - error)
-  subroutine arnoldi(n,m,ritznum,next_iteration)
+  subroutine calc_ritz_eigenvalues(n,m,ritznum,next_iteration)
 
     use libneo_kinds, only : real_kind, complex_kind
 
@@ -165,7 +165,7 @@ contains
     deallocate(qvecs,hmat)
     deallocate(fold,fnew,fzero)
 
-  end subroutine arnoldi
+  end subroutine calc_ritz_eigenvalues
 
   !> Computes eigenvalues, ritznum, of the upper Hessenberg matrix hmat
   !> of the dimension (m,m), orders eigenvelues into the decreasing by module
@@ -292,4 +292,4 @@ contains
 
   end subroutine try_eigvecvals
 
-end module arnoldi_mod
+end module arnoldi
