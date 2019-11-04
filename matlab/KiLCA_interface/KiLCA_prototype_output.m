@@ -15,7 +15,7 @@ classdef (Abstract) KiLCA_prototype_output < handle
 
 %author:   Philipp Ulbl
 %created:  21.08.2019
-%modified: 21.08.2019
+%modified: 04.11.2019
     
     properties
     end

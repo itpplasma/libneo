@@ -21,7 +21,7 @@ classdef KiLCA_data_dispersion < KiLCA_prototype_output
 
 %author:   Philipp Ulbl
 %created:  22.08.2019
-%modified: 22.08.2019
+%modified: 04.11.2019
         
     properties
         path        %path of modenumber subfolder containing EB.dat
@@ -114,7 +114,7 @@ classdef KiLCA_data_dispersion < KiLCA_prototype_output
             subplot(1, 2, 1)
             hold on
             for k=1:4
-                p = plot_single(obj, ['k', num2str(k), '_Re'], 'k / cm^{-1}', varargin{:});
+                p = plot_single(obj, ['k', num2str(k), '_Re'], 'k / cm^{-1}', 'Re', varargin{:});
                 set(p, 'LineStyle', 'none', 'Marker', 'o', 'MarkerSize', 4, 'MarkerFaceColor', get(p,'Color'));
             end
             hold off
@@ -124,7 +124,7 @@ classdef KiLCA_data_dispersion < KiLCA_prototype_output
             subplot(1, 2, 2)
             hold on
             for k=1:4
-                p = plot_single(obj, ['k', num2str(k), '_Im'], 'k / cm^{-1}', varargin{:});
+                p = plot_single(obj, ['k', num2str(k), '_Im'], 'k / cm^{-1}', 'Re', varargin{:});
                 set(p, 'LineStyle', 'none', 'Marker', 'o', 'MarkerSize', 4, 'MarkerFaceColor', get(p,'Color'));
             end
             hold off

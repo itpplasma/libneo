@@ -33,7 +33,7 @@ classdef KiLCA_interface < handle
 
     %author:   Philipp Ulbl
     %created:  05.02.2019
-    %modified: 22.08.2019
+    %modified: 04.11.2019
 
     properties (Access = public)
         
