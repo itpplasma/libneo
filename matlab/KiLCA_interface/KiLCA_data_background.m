@@ -27,7 +27,7 @@ classdef KiLCA_data_background < KiLCA_prototype_output
 
 %author:   Philipp Ulbl
 %created:  19.02.2019
-%modified: 22.08.2019
+%modified: 04.11.2019
         
     properties
         path    %path of background-data
