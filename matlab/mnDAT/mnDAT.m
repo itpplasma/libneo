@@ -29,6 +29,8 @@ classdef mnDAT < handle
 
     
     properties (SetAccess = private)
+        FORMAT = ' %22.15e'; %Format string used to write data: CONSTANT!
+        
         fname = {}; %name of file with path
         
         kilca;      %boolean: KiLCA type or not
@@ -41,17 +43,17 @@ classdef mnDAT < handle
     end
     
     methods
-        function obj = mnDAT(path, q, i, n, kilca)
+        function obj = mnDAT(path, I, i, n, kilca)
             %##############################################################
-            %function obj = mnDAT(path, q, i, n, kilca)
+            %function obj = mnDAT(path, I, i, n, kilca)
             %##############################################################
             % description:
             %--------------------------------------------------------------
             % creates an instance of the class.
             %##############################################################
             % path  ... path of the file
-            % q     ... quantitiy contained in mn. e.g.: B
-            % i     ... index of q. e.g.: r (-> B_r)
+            % I     ... quantitiy contained in mn. e.g.: B
+            % i     ... index of I. e.g.: r (-> B_r)
             % n     ... toroidal modenumber associated to this file
             % kilca ... boolean to indicate if this file is KiLCA-like
             %##############################################################
@@ -70,7 +72,7 @@ classdef mnDAT < handle
             end
             
             %construct path+name, add extension .dat
-            obj.fname = [p, '/', q, 'm', num2str(n), '_', i, k, '.dat'];
+            obj.fname = [p, '/', I, 'm', num2str(n), '_', i, k, '.dat'];
             
         end
         
@@ -100,7 +102,7 @@ classdef mnDAT < handle
                 error('number of rows in mn must be equal to numel of s.');
             end
             if(mod(mndim(2), 2) ~= 0)
-                error('mn must be odd in columns.');
+                error('mn must be even in columns.');
             end
             
             obj.s  = s;
@@ -117,7 +119,12 @@ classdef mnDAT < handle
             %--------------------------------------------------------------
             % writes the data in the class into a mnDAT file.
             %##############################################################
-                 
+            
+            %check if path exists
+            if ~isfolder(fileparts(obj.fname))
+                mkdir(fileparts(obj.fname));
+            end
+            
             %check if file exists and delete
             if isfile(obj.fname)
                 delete(obj.fname);
@@ -130,15 +137,10 @@ classdef mnDAT < handle
             %open file with option to append data
             fid = fopen(obj.fname, 'a');
             
-            %print header line
-            %head = {'psi', 'ni[m^-3]', 'ne[m^-3]', 'ti[eV]', 'te[eV]', 'we[rad/s]'};
-            %cellfun(@(s) fprintf(fid, '%16s ' , s), head);
-            
             %print each line
             for k = 1:numel(obj.s)
-                fmt = '%16.10e ';
                 fprintf(fid, '\n');
-                fprintf(fid, fmt, topr(k, :));
+                fprintf(fid, obj.FORMAT, topr(k, :));
             end
             
             %close file

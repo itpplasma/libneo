@@ -23,14 +23,14 @@ q = 1 + s.^2 .* 6;
 %create radial B
 Br = s * sqrt(m);
 %create mn matrix
-mn = [real(Br), imag(Br)];
+mn = [real(Br), -imag(Br)];
 
 %##########################################################################
 % create an instance of the class and use it
 %##########################################################################
 
 %construct class with path
-mndat = mnDAT('./out/', 'B', 'r', n, false);
+mndat = mnDAT('./out/', 'B', 'r', n, true);
 
 %set parameters
 mndat.set(s, q, mn);

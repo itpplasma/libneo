@@ -103,7 +103,7 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
             obj.ldata = parent.lineardata{imode};
             
             %calculate currents for linear data
-            obj.Calc_Currents();
+            obj.calc_Currents();
         end
         
         function plotB(obj, type, varargin)

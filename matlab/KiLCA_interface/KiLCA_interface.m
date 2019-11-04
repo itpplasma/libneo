@@ -29,6 +29,7 @@ classdef KiLCA_interface < handle
 % *) function set_ASDEX(obj, nmodes)
 % *) function write(obj)
 % *) function res = run(obj)
+% *) function post(obj, imode)
 %##########################################################################
 
     %author:   Philipp Ulbl
@@ -377,6 +378,69 @@ classdef KiLCA_interface < handle
             for k = 1:numel(imode)
                 obj.postprocessors{k} = KiLCA_postprocessor(obj, imode(k));
             end
+        end
+        
+        function Export2mnDAT(obj, quant, path)
+            
+            %check if class can be found in workspace
+            if(exist('mnDAT', 'class') == 0)
+                error('Class definition of mnDAT not found. Please addpath to workspace.');
+            end
+            
+            %default for path
+            if (nargin < 3 || isempty(path))
+                path = [obj.pathofrun, 'mnDAT/'];
+            end
+            
+            %check n
+            n = unique(obj.modes.n);
+            if (numel(n) > 1)
+                error('Export2mnDAT only works for single toroidal modenumbers n.')
+            end
+            
+            %check m
+            m = obj.modes.m;
+            if (any(m ~= -fliplr(m)))
+                error('Export2mnDAT only works for runs symmetric in poloidal modenumbers m.')
+            end
+            
+            %get quantity name and index name out of quant by separation of
+            %lower and uppercase: Br -> q=B, i=r
+            I = quant(isstrprop(quant,'upper'));
+            i = quant(isstrprop(quant,'lower'));
+            
+            %get r
+            r = unique(obj.lineardata{1}.R(obj.lineardata{1}.R <= obj.background.rpl));
+            %interp q
+            q = interp1(obj.backgrounddata.q_i(:, 1), obj.backgrounddata.q_i(:, 2), r);
+            
+            %get mn matrix
+            mn = zeros(numel(r), numel(m));
+            for k=1:(2 * numel(m)) %fill entries. 2* because first Re then Im
+                
+                %first fill real then imag party
+                if(k <= numel(m))
+                    type = '_Re';
+                else
+                    type = '_Im';
+                end
+                %name of property to write
+                name = [quant, type];
+                %index for linear data: 1...Nm, 1...Nm
+                lind = mod(k - 1, numel(m)) + 1;
+                
+                %get unique r values for this
+                [x, ind, ~] = unique(obj.lineardata{lind}.(name)(:, 1));
+                y = obj.lineardata{lind}.(name)(ind, 2);
+                
+                %interpolate on r
+                mn(:, k) = interp1(x, y, r);
+            end
+            
+            %create class instance
+            mnd = mnDAT(path, I, i, n, true);
+            mnd.set(r, q, mn);
+            mnd.write();
         end
     end
 end
