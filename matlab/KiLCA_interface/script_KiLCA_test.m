@@ -10,6 +10,9 @@
 
 PLOTPROF = false;
 
+%add class mndat to test export
+addpath('../mnDAT/');
+
 %##########################################################################
 % PLOT PROFILES
 %##########################################################################
@@ -42,8 +45,8 @@ type = 'flre';
 
 kil = KiLCA_interface(path, type);
 
-kil.set_ASDEX(1);
-m = 3; n = 2;
+m = [-7,-3,0,3,7]; n = 2 .* ones(size(m));
+kil.set_ASDEX(numel(m));
 kil.modes.set(m, n);
 
 %kil.antenna.I0 = 1e13;
@@ -84,5 +87,7 @@ if strcmp(type, 'flre')
     kil.lineardata{1}.plotB();
     
     kil.post(1);
-    kil.postprocessors{1}.plotJ();
+    kil.postprocessors{1}.plotJcyl();
+    
+    kil.Export2mnDAT('Br');
 end
