@@ -90,6 +90,8 @@ classdef KiLCA_interface < handle
         backgrounddata = [];    %result: backgrounddata
         lineardata = {};        %result: if run not vacuum: 1 element for each mode
         dispersiondata = {};    %result: if run not vacuum + output disp=2
+        
+        postprocessors = {};    %processes results for given mode
     end
     
     methods (Access = 'public')
@@ -346,6 +348,35 @@ classdef KiLCA_interface < handle
             end
             
             stat = obj.run_stat;
+        end
+        
+        function post(obj, imode)
+            %##############################################################
+            %function res = run(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % runs KiLCA if ready to run. deletes old output files and sets
+            % status variables in this class after run.
+            %##############################################################
+            % output:
+            %--------------------------------------------------------------
+            % stat   ... output status: 0 if no errors
+            %##############################################################
+            
+            if(numel(imode) > numel(obj.lineardata))
+                error('too many modes to process specified in imode.');
+            end
+            if(any(imode) < 1 || any(imode) > numel(obj.lineardata))
+                error('imode must contain valid indices of modes.');
+            end
+            if(obj.rdy_fromrun == false)
+                error('KiLCA must be run first to be able to postprocess.'); 
+            end
+            
+            for k = 1:numel(imode)
+                obj.postprocessors{k} = KiLCA_postprocessor(obj, imode(k));
+            end
         end
     end
 end

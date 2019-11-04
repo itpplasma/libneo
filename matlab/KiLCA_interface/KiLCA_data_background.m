@@ -234,7 +234,7 @@ classdef KiLCA_data_background < KiLCA_prototype_output
             
             figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
             %call superclass method
-            plot_triple(obj, 'b0', 'b0th', 'b0z', 'B / G', varargin{:});
+            plot_triple(obj, 'b0', 'b0th', 'b0z', 'B / G', 'Re', varargin{:});
         end
     end
     

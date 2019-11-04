@@ -255,13 +255,13 @@ classdef KiLCA_data_linear < KiLCA_prototype_output
             figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
             
             if nargin > 1 && strcmp(type, 'Re')
-                plot_triple(obj, 'Br_Re', 'Bth_Re', 'Bz_Re', 'B / G', varargin{:});
+                plot_triple(obj, 'Br_Re', 'Bth_Re', 'Bz_Re', 'B / G', type, varargin{:});
                 
             elseif nargin > 1 && strcmp(type, 'Im')
-                plot_triple(obj, 'Br_Im', 'Bth_Im', 'Bz_Im', 'B / G', varargin{:});
+                plot_triple(obj, 'Br_Im', 'Bth_Im', 'Bz_Im', 'B / G', type, varargin{:});
                 
             else
-                plot_triple(obj, 'Br_Abs', 'Bth_Abs', 'Bz_Abs', 'B / G', varargin{:});
+                plot_triple(obj, 'Br_Abs', 'Bth_Abs', 'Bz_Abs', 'B / G', 'Abs', varargin{:});
             end
         end
         
@@ -287,13 +287,13 @@ classdef KiLCA_data_linear < KiLCA_prototype_output
             figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
             
             if nargin > 1 && strcmp(type, 'Re')
-                plot_triple(obj, 'Er_Re', 'Eth_Re', 'Ez_Re', 'E / statV cm^{-1}', varargin{:});
+                plot_triple(obj, 'Er_Re', 'Eth_Re', 'Ez_Re', 'E / statV cm^{-1}', type, varargin{:});
                 
             elseif nargin > 1 && strcmp(type, 'Im')
-                plot_triple(obj, 'Er_Im', 'Eth_Im', 'Ez_Im', 'E / statV cm^{-1}', varargin{:});
+                plot_triple(obj, 'Er_Im', 'Eth_Im', 'Ez_Im', 'E / statV cm^{-1}', type, varargin{:});
                 
             else
-                plot_triple(obj, 'Er_Abs', 'Eth_Abs', 'Ez_Abs', 'E / statV cm^{-1}', varargin{:});
+                plot_triple(obj, 'Er_Abs', 'Eth_Abs', 'Ez_Abs', 'E / statV cm^{-1}', type, varargin{:});
             end
         end
     end
