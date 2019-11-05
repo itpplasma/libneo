@@ -81,7 +81,7 @@ classdef efit < handle
         zlim;     %Z of surrounding limiter contour in meter
     end
     properties (Access = private)
-
+        
     end
 
     methods (Access = public)
@@ -279,38 +279,42 @@ classdef efit < handle
                 error(['file <', obj.fname, '> does not exist.'])
             end
             
-            %line counter - is increased each time a line is read
-            ll = 0;
-            
-            %read 1st block: CASE strings, nw, nh and 4 lines of scalars
-            [ll, obj.CASE, var] = read2000(obj, ll);
-            [obj.idum, obj.nw, obj.nh] = deal(var{:});
-            
-            [ll, var] = read2020(obj, ll, 'line');
-            [obj.rdim, obj.zdim, obj.rcentr, obj.rleft, obj.zmid]      = deal(var{:});
-            [ll, var] = read2020(obj, ll, 'line');
-            [obj.rmaxis, obj.zmaxis, obj.simag, obj.sibry, obj.bcentr] = deal(var{:});
-            [ll, var] = read2020(obj, ll, 'line');
-            [obj.current, obj.simag, obj.xdum, obj.rmaxis, obj.xdum]   = deal(var{:});
-            [ll, var] = read2020(obj, ll, 'line');
-            [obj.zmaxis, obj.xdum, obj.sibry, obj.xdum, obj.xdum]      = deal(var{:});
-            
-            %read 2nd block: fpol, pres, ffprim, pprime, psirz, qpsi
-            [ll, obj.fpol]   = read2020(obj, ll, 'vector');
-            [ll, obj.pres]   = read2020(obj, ll, 'vector');
-            [ll, obj.ffprim] = read2020(obj, ll, 'vector');
-            [ll, obj.pprime] = read2020(obj, ll, 'vector');
-            [ll, obj.psirz]  = read2020(obj, ll, 'matrix', [obj.nw, obj.nh]);
-            [ll, obj.qpsi]   = read2020(obj, ll, 'vector');
-            
-            %write last block with bbbs and lim data
-            [ll, obj.nbbbs, obj.limitr] = read2022(obj, ll);
-            [ll, var] = read2020(obj, ll, 'matrix', [obj.nbbbs, 2]);
-            obj.rbbbs = var(1:2:end);
-            obj.zbbbs = var(2:2:end);
-            [~, var]  = read2020(obj, ll, 'matrix', [obj.limitr, 2]);
-            obj.rlim  = var(1:2:end);
-            obj.zlim  = var(2:2:end);
+            try
+                %line counter - is increased each time a line is read
+                ll = 0;
+
+                %read 1st block: CASE strings, nw, nh and 4 lines of scalars
+                [ll, obj.CASE, var] = read2000(obj, ll);
+                [obj.idum, obj.nw, obj.nh] = deal(var{:});
+
+                [ll, var] = read2020(obj, ll, 'line');
+                [obj.rdim, obj.zdim, obj.rcentr, obj.rleft, obj.zmid]      = deal(var{:});
+                [ll, var] = read2020(obj, ll, 'line');
+                [obj.rmaxis, obj.zmaxis, obj.simag, obj.sibry, obj.bcentr] = deal(var{:});
+                [ll, var] = read2020(obj, ll, 'line');
+                [obj.current, obj.simag, obj.xdum, obj.rmaxis, obj.xdum]   = deal(var{:});
+                [ll, var] = read2020(obj, ll, 'line');
+                [obj.zmaxis, obj.xdum, obj.sibry, obj.xdum, obj.xdum]      = deal(var{:});
+
+                %read 2nd block: fpol, pres, ffprim, pprime, psirz, qpsi
+                [ll, obj.fpol]   = read2020(obj, ll, 'vector');
+                [ll, obj.pres]   = read2020(obj, ll, 'vector');
+                [ll, obj.ffprim] = read2020(obj, ll, 'vector');
+                [ll, obj.pprime] = read2020(obj, ll, 'vector');
+                [ll, obj.psirz]  = read2020(obj, ll, 'matrix', [obj.nw, obj.nh]);
+                [ll, obj.qpsi]   = read2020(obj, ll, 'vector');
+
+                %write last block with bbbs and lim data
+                [ll, obj.nbbbs, obj.limitr] = read2022(obj, ll);
+                [ll, var] = read2020(obj, ll, 'matrix', [obj.nbbbs, 2]);
+                obj.rbbbs = var(1:2:end);
+                obj.zbbbs = var(2:2:end);
+                [~, var]  = read2020(obj, ll, 'matrix', [obj.limitr, 2]);
+                obj.rlim  = var(1:2:end);
+                obj.zlim  = var(2:2:end);
+            catch
+                error(['failed to read file <', obj.fname, '>. check if corrupted.']);
+            end
         end
         
         function plot1d(obj, var, argN, argV)
