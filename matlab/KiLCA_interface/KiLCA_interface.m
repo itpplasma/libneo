@@ -30,6 +30,7 @@ classdef KiLCA_interface < handle
 % *) function write(obj)
 % *) function res = run(obj)
 % *) function post(obj, imode)
+% *) function Export2mnDAT(obj, quant, path)
 %##########################################################################
 
     %author:   Philipp Ulbl
@@ -408,6 +409,10 @@ classdef KiLCA_interface < handle
             %lower and uppercase: Br -> q=B, i=r
             I = quant(isstrprop(quant,'upper'));
             i = quant(isstrprop(quant,'lower'));
+            %replace th subscript by theta for better meaning
+            if(strcmp(i, 'th'))
+                i = 'theta';
+            end
             
             %get r
             r = unique(obj.lineardata{1}.R(obj.lineardata{1}.R <= obj.background.rpl));
