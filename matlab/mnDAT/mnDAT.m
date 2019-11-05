@@ -139,8 +139,8 @@ classdef mnDAT < handle
             
             %print each line
             for k = 1:numel(obj.s)
-                fprintf(fid, '\n');
                 fprintf(fid, obj.FORMAT, topr(k, :));
+                fprintf(fid, '\n');
             end
             
             %close file

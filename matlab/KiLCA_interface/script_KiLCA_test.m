@@ -44,10 +44,13 @@ path = '~/KiLCA/test2/interface/';
 type = 'flre';
 
 kil = KiLCA_interface(path, type);
+kil.PROF_PATH = '~/TCFP/profiles/';
 
-m = [-7,-3,0,3,7]; n = 2 .* ones(size(m));
+m = -22; n = 2 .* ones(size(m));
 kil.set_ASDEX(numel(m));
 kil.modes.set(m, n);
+
+kil.background.vgalsys = 1e9;
 
 %kil.antenna.I0 = 1e13;
 %kil.antenna.flab(1) = 1;
@@ -84,10 +87,10 @@ kil.backgrounddata.plotB();
 %##########################################################################
 
 if strcmp(type, 'flre')
-    kil.lineardata{1}.plotB();
+    %kil.lineardata{1}.plotB();
     
     kil.post(1);
-    kil.postprocessors{1}.plotJcyl();
+    %kil.postprocessors{1}.plotJcyl();
     
-    kil.Export2mnDAT('Br');
+    %kil.Export2mnDAT('Br');
 end
