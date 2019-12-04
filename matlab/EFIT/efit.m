@@ -80,8 +80,17 @@ classdef efit < handle
         rlim;     %R of surrounding limiter contour in meter
         zlim;     %Z of surrounding limiter contour in meter
     end
-    properties (Access = private)
-        
+    properties (Dependent=true)
+        r;
+        psir;
+    end
+    methods
+        function q = get.r(obj)
+           q = linspace(obj.rcentr, obj.rcentr+obj.rdim/2, ceil(obj.nw/2));
+        end 
+        function q = get.psir(obj)
+           q = obj.psirz(ceil(obj.nh/2), ceil(obj.nw/2):end);
+        end 
     end
 
     methods (Access = public)
@@ -254,7 +263,7 @@ classdef efit < handle
             obj.write2020(obj.pres);
             obj.write2020(obj.ffprim);
             obj.write2020(obj.pprime);
-            obj.write2020(obj.psirz');
+            obj.write2020(obj.psirz);
             obj.write2020(obj.qpsi);
 
             %write last block with bbbs and lim data
@@ -285,8 +294,13 @@ classdef efit < handle
 
                 %read 1st block: CASE strings, nw, nh and 4 lines of scalars
                 [ll, obj.CASE, var] = read2000(obj, ll);
-                [obj.idum, obj.nw, obj.nh] = deal(var{:});
-
+                if(numel(var) == 3)
+                    [obj.idum, obj.nw, obj.nh] = deal(var{:});
+                else %some files do not contain idum...
+                    [obj.nw, obj.nh] = deal(var{:});
+                    warning('file does not match standard convention: idum missing')
+                end
+                
                 [ll, var] = read2020(obj, ll, 'line');
                 [obj.rdim, obj.zdim, obj.rcentr, obj.rleft, obj.zmid]      = deal(var{:});
                 [ll, var] = read2020(obj, ll, 'line');
@@ -301,7 +315,7 @@ classdef efit < handle
                 [ll, obj.pres]   = read2020(obj, ll, 'vector');
                 [ll, obj.ffprim] = read2020(obj, ll, 'vector');
                 [ll, obj.pprime] = read2020(obj, ll, 'vector');
-                [ll, obj.psirz]  = read2020(obj, ll, 'matrix', [obj.nw, obj.nh]);
+                [ll, obj.psirz]  = read2020(obj, ll, 'matrix', [obj.nh, obj.nw]);
                 [ll, obj.qpsi]   = read2020(obj, ll, 'vector');
 
                 %write last block with bbbs and lim data
@@ -342,7 +356,7 @@ classdef efit < handle
                     y = obj.pprime; l = 'N m^{-2} Wb^{-1}';
                 case 'psi'
                     %index of the middle row/col of psi
-                    y = obj.psirz(ceil(obj.nw/2), ceil(obj.nh/2):end);
+                    y = obj.psir;
                     l = 'Wb (= T m^2)';
                 case 'q'
                     y = obj.qpsi;
@@ -377,7 +391,7 @@ classdef efit < handle
             [X, Y] = meshgrid(x, y);
             
             %contourplot with colorbar
-            contour(X, Y, obj.psirz', 10)
+            contour(X, Y, obj.psirz, 10)
             c = colorbar;
             
             hold on
@@ -414,6 +428,7 @@ classdef efit < handle
             % Creates an OMFIT-style summary plot of the EFIT-file.
             %##############################################################
             
+            figure('units', 'normalized', 'outerposition', [0, 0, 0.8, 1]);
             %plot psi as 2d on the left
             subplot(1, 2, 1)
             obj.plot2d();
@@ -525,6 +540,7 @@ classdef efit < handle
             disp(t)
             
             %make a 2x3 plot with all 6 relevant quantities
+            figure('units', 'normalized', 'outerposition', [0, 0, 0.8, 1]);
             toplot = {'f','p','ff','pp','q','psi'}';
             for k = 1:numel(toplot)
                 subplot(2,3,k)
@@ -625,6 +641,8 @@ classdef efit < handle
 
             %matrix valued
             elseif all(size(var)>1)
+                %transpose var if psirz because row-majro in file!!!
+                if(size(var) == [obj.nh, obj.nw]), var = var'; end
                 for k = 1:5:numel(var) %inner-loop: 5-spacing to match format
                     fprintf(fid, fmt, var(k:(k + min(4, numel(var)-k))));
                     fprintf(fid, '\n');
@@ -707,6 +725,8 @@ classdef efit < handle
             %read a matrix
             elseif strcmp(type, 'matrix')
                 var = zeros(siz);
+                %transpose var if psirz because row-majro in file!!!
+                if(siz == [obj.nh, obj.nw]), var = var'; end
                 %calculate the number of rows (5 cols)
                 nlines = ceil(numel(var)/5);
                 %fill successivly 5 elements until the number of elements
@@ -715,6 +735,8 @@ classdef efit < handle
                     var(((k-1)*5+1):min(k*5, numel(var))) = ...
                         sscanf(fgetl(fid), '%e');
                 end
+                %transpose back
+                if(siz == [obj.nh, obj.nw]), var = var'; end
                 ll = ll + nlines;
                 
             else
