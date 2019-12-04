@@ -233,6 +233,19 @@ classdef KiLCA_data_linear < KiLCA_prototype_output
             obj.path = path;
         end
         
+        function plot_single(obj, a, u, type, varargin)
+            %adds to superclass method
+            
+            plot_single@KiLCA_prototype_output(obj, a, u, type, varargin{:});
+         
+            if(obj.res ~= 0)
+                %plot location of resonant layer
+                hold on
+                plot([obj.res, obj.res], ylim, ':m', 'LineWidth', 2, 'DisplayName', 'q = m/n');
+                hold off
+            end
+        end
+        
         function plotB(obj, type, varargin)
             %##############################################################
             %function plotB(obj, type, varargin)
@@ -293,7 +306,7 @@ classdef KiLCA_data_linear < KiLCA_prototype_output
                 plot_triple(obj, 'Er_Im', 'Eth_Im', 'Ez_Im', 'E / statV cm^{-1}', type, varargin{:});
                 
             else
-                plot_triple(obj, 'Er_Abs', 'Eth_Abs', 'Ez_Abs', 'E / statV cm^{-1}', type, varargin{:});
+                plot_triple(obj, 'Er_Abs', 'Eth_Abs', 'Ez_Abs', 'E / statV cm^{-1}', 'Abs', varargin{:});
             end
         end
     end
