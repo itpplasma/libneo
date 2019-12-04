@@ -94,6 +94,7 @@ classdef KiLCA_interface < handle
         dispersiondata = {};    %result: if run not vacuum + output disp=2
         
         postprocessors = {};    %processes results for given mode
+        multimode = {};         %multimode plots of postprocessor outputs
     end
     
     methods (Access = 'public')
@@ -354,17 +355,20 @@ classdef KiLCA_interface < handle
         
         function post(obj, imode)
             %##############################################################
-            %function res = run(obj)
+            %function post(obj, imode)
             %##############################################################
             % description:
             %--------------------------------------------------------------
-            % runs KiLCA if ready to run. deletes old output files and sets
-            % status variables in this class after run.
+            % postprocesses all modes specified by indices imode.
             %##############################################################
             % output:
             %--------------------------------------------------------------
-            % stat   ... output status: 0 if no errors
+            % imode  ... indices of modes to process (default = #modes)
             %##############################################################
+            
+            if(nargin < 2 || isempty(imode))
+                imode = 1:obj.antenna.nmod;
+            end
             
             if(numel(imode) > numel(obj.lineardata))
                 error('too many modes to process specified in imode.');
@@ -379,6 +383,8 @@ classdef KiLCA_interface < handle
             for k = 1:numel(imode)
                 obj.postprocessors{k} = KiLCA_postprocessor(obj, imode(k));
             end
+            
+            obj.multimode = KiLCA_multimode(obj.postprocessors);
         end
         
         function Export2mnDAT(obj, quant, path)
@@ -417,7 +423,7 @@ classdef KiLCA_interface < handle
             %get r
             r = unique(obj.lineardata{1}.R(obj.lineardata{1}.R <= obj.background.rpl));
             %interp q
-            q = interp1(obj.backgrounddata.q_i(:, 1), obj.backgrounddata.q_i(:, 2), r);
+            q = interp1(obj.backgrounddata.q_i(:, 1), obj.backgrounddata.q_i(:, 2), r, 'spline');
             
             %get mn matrix
             mn = zeros(numel(r), numel(m));
@@ -439,7 +445,7 @@ classdef KiLCA_interface < handle
                 y = obj.lineardata{lind}.(name)(ind, 2);
                 
                 %interpolate on r
-                mn(:, k) = interp1(x, y, r);
+                mn(:, k) = interp1(x, y, r, 'spline');
             end
             
             %create class instance

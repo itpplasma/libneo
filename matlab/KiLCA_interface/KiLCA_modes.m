@@ -15,6 +15,8 @@ classdef KiLCA_modes < KiLCA_prototype_input
 %--------------------------------------------------------------------------
 % *) function obj = KiLCA_modes(m, n)
 % *) function c = plain(obj)
+% *) function gen_modes(obj, mlim, nlim, qlim)
+% *) function write(obj, ~, path_to)
 %##########################################################################
 
 %author:   Philipp Ulbl
@@ -82,6 +84,58 @@ classdef KiLCA_modes < KiLCA_prototype_input
                 end
                 obj.n = n;
             end
+        end
+        
+        function gen_modes(obj, mlim, nlim, qlim)
+            %##############################################################
+            %function gen_modes(obj, mlim, nlim, qlim)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % generates all possible unique mode combinations of m between
+            % mlim(1) and mlim(2) and n between nlim(1) and nlim(2) with
+            % m/n greater than 1 and smaller than qlim. Sorts with
+            % ascending m/n. Sets m and n property of the class.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % mlim  ... 2-entry vector with min(m) and max(m)
+            % nlim  ... 2-entry vector with min(n) and max(n)
+            % qlim  ... maximum q (abs)
+            %##############################################################
+                       
+            %initialize vectors from lim(1) to lim(2)
+            m1 = mlim(1):mlim(2);
+            n1 = nlim(1):nlim(2);
+            
+            %generate all possible combinations and map to vectors again
+            [M, N] = meshgrid(m1, n1);
+            m1 = M(:);
+            n1 = N(:);
+            
+            %filter out all m <= n (because q always > 1)
+            I = find(m1<=n1);
+            m1(I) = [];
+            n1(I) = [];
+
+            %filter out repeating m/n combinations:
+            %e.g. (4,2) and (8,4)
+            [~, I] = unique(m1./n1);
+            m1 = m1(I);
+            n1 = n1(I);
+
+            %filter out all m/n combinations that are larger than qlim
+            I = m1./n1 <= qlim;
+            m1 = m1(I);
+            n1 = n1(I);
+
+            %sort according to m/n ascending
+            [~, I] = sort(m1./n1);
+            m1 = m1(I);
+            n1 = n1(I);
+
+            %set modes
+            obj.set(m1, n1)
         end
         
         function c = plain(obj)

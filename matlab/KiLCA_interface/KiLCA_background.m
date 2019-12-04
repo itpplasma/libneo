@@ -47,7 +47,7 @@ classdef KiLCA_background < KiLCA_prototype_input
         flag_recalc = 1             %1 - if background must be recalculated (7 input profiles are needed), 0 - otherwise (11 input profiles are needed), -1 - from interface
         flag_back = 'f' %flag for background ('f'-full, 'w'-wkb, 'h'-hom): default=f
         splinedeg = 9   %splines degree: >= NC + 2N+1, where N - order of flr expansion, NC - spl degree for C matrices, must be odd!!!
-        vgalsys = -0.5e7%V_gal_sys is a velocity (cm/c) of a moving frame: default=-0.5e7
+        vgalsys = -1e9%V_gal_sys is a velocity (cm/c) of a moving frame: default=-0.5e7
         vscale = 1      %V_scale: scale factor for the Vz velocity profile: Vz = V_scale*Vz - V_gal_sys
         mi = 2          %m_i: ions mass in units of proton mass: default=2
         ce = 1          %collisions coefficient for electrons: default=1.0

@@ -12,7 +12,7 @@ classdef KiLCA_data_background < KiLCA_prototype_output
 % *) path
 % *) b0, b0th, b0z
 % *) dPHI0, Er_i, hth, hz
-% *) j0p_m, j0s_m, j0th, j0th_m
+% *) j0p_m, j0s_m, j0th, j0th_m in units of c=1 !!!
 % *) ne_m, ne_p, n_i, ni_m, ni_p
 % *) nue, nui, q_i
 % *) Te_i, Te_m, Ti_i, Ti_m
@@ -23,6 +23,7 @@ classdef KiLCA_data_background < KiLCA_prototype_output
 %--------------------------------------------------------------------------
 % *) function obj = KiLCA_backgrounddata(path)
 % *) function plotB(obj, type, varargin)
+% *) function plotProf(obj, modes, varargin)
 %##########################################################################
 
 %author:   Philipp Ulbl
@@ -31,6 +32,10 @@ classdef KiLCA_data_background < KiLCA_prototype_output
         
     properties
         path    %path of background-data
+    end
+    
+    properties (Access = private)
+        c = 2.99792458e10;
     end
     
     properties (Dependent)
@@ -56,9 +61,9 @@ classdef KiLCA_data_background < KiLCA_prototype_output
         nue     %
         nui     %
         q_i     %safety factor (from input profiles)
-        Te_i    %electron temobjature (from input profiles)
+        Te_i    %electron temperature (from input profiles)
         Te_m    %
-        Ti_i    %ion temobjature (from input profiles)
+        Ti_i    %ion temperature (from input profiles)
         Ti_m    %
         Vpe_m   %
         Vpe_p   %
@@ -74,6 +79,9 @@ classdef KiLCA_data_background < KiLCA_prototype_output
         Vti_p   %
         Vz_i    %Z velocity (from input profiles)
         Vz_m    %
+        
+        %self defined
+        j0
     end
     
     %get Access for dependent proobjties
@@ -105,21 +113,27 @@ classdef KiLCA_data_background < KiLCA_prototype_output
        end
        function q = get.j0p_m(obj)
            q = get_background_quantity(obj, 'j0p_m');
+           q(:, 2) = q(:, 2) ./ obj.c;
        end
        function q = get.j0s_m(obj)
            q = get_background_quantity(obj, 'j0s_m');
+           q(:, 2) = q(:, 2) ./ obj.c;
        end
        function q = get.j0th(obj)
            q = get_background_quantity(obj, 'j0th');
+           q(:, 2) = q(:, 2) ./ obj.c;
        end
        function q = get.j0th_m(obj)
            q = get_background_quantity(obj, 'j0th_m');
+           q(:, 2) = q(:, 2) ./ obj.c;
        end
        function q = get.j0z(obj)
            q = get_background_quantity(obj, 'j0z');
+           q(:, 2) = q(:, 2) ./ obj.c;
        end
        function q = get.j0z_m(obj)
            q = get_background_quantity(obj, 'j0z_m');
+           q(:, 2) = q(:, 2) ./ obj.c;
        end
        function q = get.ne_m(obj)
            q = get_background_quantity(obj, 'ne_m');
@@ -199,6 +213,11 @@ classdef KiLCA_data_background < KiLCA_prototype_output
        function q = get.Vz_m(obj)
            q = get_background_quantity(obj, 'Vz_m');
        end
+       
+       %self defined
+       function q = get.j0(obj)
+           q = hypot(obj.j0th, obj.j0z);
+       end
     end
     
     methods (Access = public)
@@ -235,6 +254,92 @@ classdef KiLCA_data_background < KiLCA_prototype_output
             figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
             %call superclass method
             plot_triple(obj, 'b0', 'b0th', 'b0z', 'B / G', 'Re', varargin{:});
+        end
+        
+        function plotJ(obj, varargin)
+            %##############################################################
+            %function plotJ(obj, varargin)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % plots current density components as 3 subplots in a row
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % varargin  ... plot arguments
+            %##############################################################
+            
+            figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
+            %call superclass method
+            plot_triple(obj, 'j0', 'j0th_m', 'j0z_m', 'J / statA cm^{-2}', 'Re', varargin{:});
+        end
+        
+        function plotProf(obj, modes, varargin)
+            %##############################################################
+            %function plotProf(obj, modes, varargin)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % plots all relevant profiles together with the location of the
+            % resonant surfaces for all modes given in the input modes.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % modes     ... KiLCA_modes class
+            % varargin  ... plot arguments
+            %##############################################################
+            
+            figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
+            
+            hold on
+            
+            %plot rescaled perpendicular electron fluid velocity
+            vmax = -floor(log10(max(abs(obj.Vs0e_m(:, 2)))));
+            vs = sign(obj.Vs0e_m(1, 2));
+            if(vs > 0) 
+                s = ''; 
+            else
+                s = '-';
+            end
+            plot(obj.Vs0e_m(:, 1), vs .* 10^(vmax) .* obj.Vs0e_m(:, 2), ':', 'Color', [0.4660 0.6740 0.1880], 'LineWidth', 3, 'DisplayName', [s, 'v_{e,\perp} / 10^{', num2str(-vmax), '} cm s^{-1}']);
+            
+            %plot positive q
+            qs = sign(obj.q_i(1, 2));
+            if(qs > 0) 
+                s = ''; 
+            else
+                s = '-';
+            end
+            plot(obj.q_i(:, 1), qs .* obj.q_i(:, 2), 'k', 'LineWidth', 3, 'DisplayName', [s, 'q']);
+            
+            %plot rescaled density
+            nmax = -floor(log10(max(abs(obj.n_i(:, 2)))));
+            plot(obj.n_i(:, 1), 10^(nmax) .* obj.n_i(:, 2), '-.' , 'Color', [0.3010 0.7450 0.9330], 'LineWidth', 3,  'DisplayName', ['n / 10^{', num2str(-nmax), '} cm^{-3}']);
+            
+            %plot rescaled temperatures
+            Tmax = -floor(log10(max(abs(obj.Te_i(:, 2)))));
+            plot(obj.Ti_i(:, 1), 10^(Tmax) .* obj.Ti_i(:, 2), '--', 'Color', [0 0.4470 0.7410], 'LineWidth', 3,  'DisplayName', ['T_i / 10^{', num2str(-Tmax), '} keV']);
+            plot(obj.Te_i(:, 1), 10^(Tmax) .* obj.Te_i(:, 2), '-', 'Color', [0 0.4470 0.7410], 'LineWidth', 3,  'DisplayName', ['T_e / 10^{', num2str(-Tmax), '} keV']);
+            
+            %plot lines for modes
+            for k=1:numel(modes.m)
+                %calculate position of resonant surface
+                rres = interp1(obj.q_i(:, 2), obj.q_i(:, 1), -modes.m(k)/modes.n(k));
+                %plot line with resonant surface location
+                plot([rres, rres], ylim, ':m', 'LineWidth', 2, 'HandleVisibility','off');
+                %show modenumber on plot near the line (on pos/neg y alternating)
+                text(rres, 0.2, vec2str([modes.m(k),modes.n(k)], '%d'))
+            end
+            
+            %plot zero line
+            plot(xlim, [0, 0], '-k', 'LineWidth', 1, 'HandleVisibility','off');
+            
+            hold off
+            
+            legend('Location', 'NorthWest')
+            
+            xlabel('r / cm')
+            ylabel('rescaled profiles')
         end
     end
     

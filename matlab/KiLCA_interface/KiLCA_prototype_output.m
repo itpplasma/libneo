@@ -44,7 +44,7 @@ classdef (Abstract) KiLCA_prototype_output < handle
             %--------------------------------------------------------------
             % p         ... plot handle
             %##############################################################
-            
+                        
             dim = size(obj.(a));
             if(dim(2) > 1)
                 x = obj.(a)(:, 1);
@@ -62,7 +62,7 @@ classdef (Abstract) KiLCA_prototype_output < handle
                 y = abs(y);
             end
             
-            p = plot(x, y, varargin{:});
+            p = plot(x, y, 'DisplayName', u, varargin{:});
             title(obj.format_title(a, type))
             xlabel('r / cm')
             ylabel(u)
@@ -106,6 +106,12 @@ classdef (Abstract) KiLCA_prototype_output < handle
             
             if contains(a, '0')
                 a = strrep(a, '0', '_0');
+                if contains(a, 'b')
+                    a = strrep(a, 'b', 'B');
+                end
+                if contains(a, 'j')
+                    a = strrep(a, 'j', 'J');
+                end
             end
             
             if contains(a, 'par')
@@ -125,17 +131,31 @@ classdef (Abstract) KiLCA_prototype_output < handle
             
             %absolute symbol
             if contains(a, '_Abs') || strcmp(type, 'Abs')
-                s = erase(a, '_Abs');
-                a = ['|', s, '|'];
+                a = erase(a, '_Abs');
+                if(~contains(a, '0'))
+                    a = ['|', a, '|'];
+                end
             %real part
             elseif contains(a, '_Re') || strcmp(type, 'Re')
-                s = erase(a, '_Re');
-                a = ['Re(', s, ')'];
+                a = erase(a, '_Re');
+                if(~contains(a, '0'))
+                    a = ['Re(', a, ')'];
+                end
             %imag part
             elseif contains(a, '_Im') || strcmp(type, 'Im')
-                s = erase(a, '_Im');
-                a = ['Im(', s, ')'];
+                a = erase(a, '_Im');
+                if(~contains(a, '0'))
+                    a = ['Im(', a, ')'];
+                end
             end
+            
+            %erase not needed index
+            if contains(a, '_m')
+                a = erase(a, '_m');
+            elseif contains(a, '_p')
+                a = erase(a, '_p');
+            end
+            
         end
     end
 end
