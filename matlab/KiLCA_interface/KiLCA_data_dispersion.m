@@ -135,7 +135,7 @@ classdef KiLCA_data_dispersion < KiLCA_prototype_output
     methods (Access = private)
         function q = get_quantity(obj, col)
             %returns the quantity of the specified column in zone_0_kr.dat
-            q = importdata([obj.path, 'zone_0_kr.dat']);
+            q = load([obj.path, 'zone_0_kr.dat']);
             q = q(:, col);
         end
     end

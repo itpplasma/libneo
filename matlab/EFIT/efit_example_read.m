@@ -12,7 +12,8 @@
 % choose a file to read
 %##########################################################################
 
-fname = './example/g30835.3200_ed6';
+fname = './example/g33120.5500';
+%fname = './example/g30835.3200_ed6';
 %fname = './example/g000001.0001_TCFP';
 %fname = './example/g147131.02300_DIIID_KEFIT';
 
@@ -34,5 +35,4 @@ e.read();
 %e.plot2d();
 
 %plot OMFIT-style efit summary
-figure
 e.plotsummary();
