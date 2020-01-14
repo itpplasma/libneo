@@ -1,5 +1,5 @@
 classdef KiLCA_postprocessor < KiLCA_prototype_output
-%classdef KiLCA_interface
+%classdef KiLCA_postprocessor < KiLCA_prototype_output
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -35,7 +35,8 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
         
     properties
         
-        DEBUG = true;
+        DEBUG = true;       %flag for debug output
+        OUT_FURTH = false;  %flag to write result of furth ode check in subdir
         
         %------------------------------------------------------------------
         
@@ -372,12 +373,21 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
             
         end
         
-        function plotRes(obj, varargin)
+        function plotRes(obj, type, varargin)
+            
+            %check type if varargin used
+            if nargin > 2 && isempty(type)
+                error('type must be set if varargin is used.')
+            end
+            
+            if(nargin < 2 || isempty(type))
+                type = 'Abs';
+            end
             
             figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
             axis tight
             
-            plot_single(obj, 'residual', 'residual', 'Re', varargin{:});
+            plot_single(obj, 'residual', 'residual', type, varargin{:});
             title('Residual of Furths equation')
             
             if(~isempty(obj.d) && ~isnan(obj.d))
@@ -455,7 +465,7 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
 
             %calculate parallel and perpendicular current
             obj.Jpar = (obj.Jth .* obj.B0th + obj.Jz .* obj.B0z) ./ obj.B0;
-            obj.Jperp = obj.J - obj.Jpar; %WRONG!!!
+            obj.Jperp = nan; %WRONG!!!
             
             %check furths equation
             obj.check_furth();
@@ -497,13 +507,19 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
         function calc_Ipar(obj)
             
             %Method 1: direct integration
-            ind = (obj.r <= (obj.rres + obj.d)) & (obj.r >= (obj.rres - obj.d));
-            obj.Ipar = 2*pi*trapz(obj.r(ind), obj.Jpar(ind));
+            ind = (obj.r <= (obj.rres + obj.d / 2)) & (obj.r >= (obj.rres - obj.d / 2));
+            obj.Ipar = abs(2*pi*trapz(obj.r(ind), real(obj.Jpar(ind))));
             
             %Method 2: Sergeis estimation
-            Ipar2 = 0.5 * obj.rres * ...interp1(obj.r, obj.hz, obj.rres)^2 * ...
-                (interp1(obj.r, obj.Bth, obj.rres+obj.d/2) - ...
-                 interp1(obj.r, obj.Bth, obj.rres-obj.d/2));
+            term1 = interp1(obj.r, obj.hz, obj.rres, 'spline')^2 * ...
+                (interp1(obj.r, real(obj.Bth), obj.rres+obj.d/2, 'spline') - ...
+                 interp1(obj.r, real(obj.Bth), obj.rres-obj.d/2, 'spline'));
+            term2 = interp1(obj.r, obj.hz, obj.rres, 'spline') * ...
+                    interp1(obj.r, obj.hth, obj.rres, 'spline') * ...
+                   (interp1(obj.r, real(obj.Bz), obj.rres+obj.d/2, 'spline') - ...
+                    interp1(obj.r, real(obj.Bz), obj.rres-obj.d/2, 'spline'));
+            
+            Ipar2 = abs(0.5 * (term1 - term2));
             
             %Compare both
             if(obj.DEBUG == true)
@@ -529,11 +545,24 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
             
             %calculate left side of the equation
             EqTerm1 = gradient(obj.r .* obj.dBr ./ (obj.k.^2), obj.r);
-            EqTerm2 = obj.r.*obj.Br.*(1-gradient(1./(obj.r.*obj.k.^2))+Fp);
-            EqTerm3 = 4*pi.*obj.r./(1i.*obj.kth) .* obj.parent.antenna.I0;
+            EqTerm2 = -obj.r.*obj.Br.*(1-gradient(1./(obj.r.*obj.k.^2)));
+            EqTerm3 = -obj.r.*obj.Br.*Fp;
+            %no antenna current implemented by now: will need dirac-delta
+            %EqTerm4 = -4*pi.*obj.r./(1i.*obj.kth) .* obj.parent.antenna.I0;
+            
+            if(obj.OUT_FURTH == true)
+                system('mkdir -p furth');
+                data = [obj.r, real(EqTerm1), imag(EqTerm1), ...
+                               real(EqTerm2), imag(EqTerm2), ...
+                               real(EqTerm3), imag(EqTerm3)];
+                name = ['./furth/furth_', ...
+                        num2str(obj.mode(1)), '_', num2str(obj.mode(2)), ...
+                        '_', obj.parent.run_type, '.dat'];
+                save_file(data, name);
+            end
             
             %check equation
-            obj.residual = EqTerm1 - EqTerm2 - EqTerm3;
+            obj.residual = EqTerm1 + EqTerm2 + EqTerm3;% + EqTerm4;
         end
     end
 end

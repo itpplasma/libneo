@@ -222,14 +222,12 @@ classdef efit < handle
 
             obj.check();
             
-            %check if file, then extract path
-            if isfile(obj.fname)
-                [obj.fname, ~, ~] = fileparts(obj.fname);
-                obj.fname = [obj.fname, '/'];
-            end
+            %get name of directory
+            [dname, ~, ~] = fileparts(obj.fname);
+            dname = [dname, '/'];
             %check if folder exists, otherwise create
-            if ~isfolder(obj.fname)
-                mkdir(obj.fname);
+            if ~isfolder(dname)
+                mkdir(dname);
             end
             
             %generate filename without spaces
@@ -238,7 +236,7 @@ classdef efit < handle
                              erase(obj.CASE{1}, ' ')];
             
             %put together path+name
-            obj.fname = [obj.fname, name];
+            obj.fname = [dname, name];
             
             %check if file exists and delete if yes
             if isfile(obj.fname)
@@ -373,7 +371,7 @@ classdef efit < handle
             end
             xlabel('normalized flux surface label')
             ylabel([var, ' / ', l])
-            legend
+            title(var)
         end
         
         function plot2d(obj)
@@ -542,15 +540,16 @@ classdef efit < handle
             %make a 2x3 plot with all 6 relevant quantities
             figure('units', 'normalized', 'outerposition', [0, 0, 0.8, 1]);
             toplot = {'f','p','ff','pp','q','psi'}';
+            [~,fname1,~] = fileparts([obj.fname, '.dat']);
+            [~,fname2,~] = fileparts([obj2.fname, '.dat']);
             for k = 1:numel(toplot)
                 subplot(2,3,k)
                 obj.plot1d(toplot{k}, 'Color', 'r')
                 hold on
                 obj2.plot1d(toplot{k}, 'Color', 'b')
                 hold off
-                title(toplot{k})
-                legend('FILE 1', 'FILE 2')
             end
+            legend(strrep(fname1,'_',' '), strrep(fname2,'_',' '), 'Location', 'best')
         end
     end
 

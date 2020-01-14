@@ -247,10 +247,14 @@ classdef KiLCA_interface < handle
             system(['mkdir -p ', obj.pathofrun]);
 
             %make local copy of profiles
-            system(['cp ', obj.PROF_PATH, '* ', obj.pathofprofiles]);
+            system(['cp ', obj.PROF_PATH, '* ', obj.pathofprofiles, ' 2>/dev/null']); %supress warnings
             %delete all existing input files
-            system(['rm -f ', obj.path, '*.in']);
-            system(['rm -f ', obj.pathofrun, '*.in']);
+            system(['rm -f ', obj.path, 'background.in']);
+            system(['rm -f ', obj.path, 'eigmode.in']);
+            system(['rm -f ', obj.path, 'modes.in']);
+            system(['rm -f ', obj.path, 'output.in']);
+            system(['rm -f ', obj.pathofrun, 'antenna.in']);
+            system(['rm -f ', obj.pathofrun, 'zone*.in']);
             
             %create symbolic link to exe
             system(['ln -sf ', obj.EXEC_PATH, ' ', obj.pathofrun, 'run_local']);
@@ -323,9 +327,41 @@ classdef KiLCA_interface < handle
             disp('%######################################################')
             cd(obj.pathofmfile);
             
+            stat = obj.run_stat;
+            
             %if run successful
-            if obj.run_stat == 0
+            if(obj.run_stat == 0)
+                %ready from run
                 obj.rdy_fromrun = true; 
+                %load output
+                loadOutput(obj);
+            end
+        end
+        
+        function runExternal(obj)
+            %##############################################################
+            %function runExternal(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % tells the class a run has been made from an external source.
+            % (sets rdy_fromrun to true).
+            %##############################################################
+            
+            obj.rdy_fromrun = true; 
+        end
+        
+        function loadOutput(obj)
+            %##############################################################
+            %function loadOutput(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % loads output of KiLCA run.
+            %##############################################################
+            
+            %if ready from run
+            if(obj.rdy_fromrun == true)
                 %add result: background data to class
                 obj.backgrounddata = KiLCA_data_background([obj.pathofrun, '/background-data/']);
                 %add result: linear data to class (1 cell element for each mode)
@@ -349,8 +385,6 @@ classdef KiLCA_interface < handle
                     obj.dispersiondata{k} = KiLCA_data_dispersion([obj.pathofrun, 'dispersion-data/', dirname]);
                 end
             end
-            
-            stat = obj.run_stat;
         end
         
         function post(obj, imode)

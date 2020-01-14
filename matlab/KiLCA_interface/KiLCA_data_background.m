@@ -347,7 +347,7 @@ classdef KiLCA_data_background < KiLCA_prototype_output
         function q = get_background_quantity(obj, file)
             %returns the quantity of the specified file as a matrix with 
             %the radius in the 1st column and the quantity in the 2nd
-            q = importdata([obj.path, file, '.dat']);
+            q = load([obj.path, file, '.dat']);
         end
     end
 end

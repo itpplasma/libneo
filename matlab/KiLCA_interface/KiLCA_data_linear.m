@@ -184,31 +184,31 @@ classdef KiLCA_data_linear < KiLCA_prototype_output
         %fluxes
         
         function q = get.Fk0(obj)
-           q1 = importdata([obj.path, 'zone_0_kin_flux_0_e.dat']);
-           q2 = importdata([obj.path, 'zone_0_kin_flux_0_i.dat']);
-           q3 = importdata([obj.path, 'zone_0_kin_flux_0_t.dat']);
+           q1 = load([obj.path, 'zone_0_kin_flux_0_e.dat']);
+           q2 = load([obj.path, 'zone_0_kin_flux_0_i.dat']);
+           q3 = load([obj.path, 'zone_0_kin_flux_0_t.dat']);
            q = {q1(:,1), q1(:,2), q2(:,2), q3(:,2)};
         end
         function q = get.Fk1(obj)
-           q1 = importdata([obj.path, 'zone_0_kin_flux_1_e.dat']);
-           q2 = importdata([obj.path, 'zone_0_kin_flux_1_i.dat']);
-           q3 = importdata([obj.path, 'zone_0_kin_flux_1_t.dat']);
+           q1 = load([obj.path, 'zone_0_kin_flux_1_e.dat']);
+           q2 = load([obj.path, 'zone_0_kin_flux_1_i.dat']);
+           q3 = load([obj.path, 'zone_0_kin_flux_1_t.dat']);
            q = {q1(:,1), q1(:,2), q2(:,2), q3(:,2)};
         end
         function q = get.Fk2(obj)
-           q1 = importdata([obj.path, 'zone_0_kin_flux_2_e.dat']);
-           q2 = importdata([obj.path, 'zone_0_kin_flux_2_i.dat']);
-           q3 = importdata([obj.path, 'zone_0_kin_flux_2_t.dat']);
+           q1 = load([obj.path, 'zone_0_kin_flux_2_e.dat']);
+           q2 = load([obj.path, 'zone_0_kin_flux_2_i.dat']);
+           q3 = load([obj.path, 'zone_0_kin_flux_2_t.dat']);
            q = {q1(:,1), q1(:,2), q2(:,2), q3(:,2)};
         end
         
         function q = get.S(obj)
-           q = importdata([obj.path, 'zone_0_poy_flux.dat']);
+           q = load([obj.path, 'zone_0_poy_flux.dat']);
            q = [q(:,1), q(:,2)];
         end
         
         function q = get.Ftot(obj)
-           q = importdata([obj.path, 'zone_0_tot_flux.dat']);
+           q = load([obj.path, 'zone_0_tot_flux.dat']);
            q = [q(:,1), q(:,2)];
         end
         
@@ -314,7 +314,7 @@ classdef KiLCA_data_linear < KiLCA_prototype_output
     methods (Access = private)
         function q = get_EB_quantity(obj, col)
             %returns the quantity of the specified column in EB.dat
-            q = importdata([obj.path, 'EB.dat']);
+            q = load([obj.path, 'EB.dat']);
             q = q(:, col);
         end
     end
