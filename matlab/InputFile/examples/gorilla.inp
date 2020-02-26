@@ -1,0 +1,79 @@
+! INPUT FILE FOR GORILLA
+!
+! GORILLA CONFIGURATION NAMELIST 
+&GORILLANML
+!
+ !Grid options
+!
+ !Number of field period --> Should be read from input file
+ field_periodicity_hard_coded =  5 ,  		
+!    
+ !Grid Size
+ !Rectangular: nR, Field-aligned: nr
+ n1 = 100 ,
+ !Rectangular: nphi, Field-aligned: nphi                  			
+ n2 = 100 ,
+ !Rectangular: nZ, Field-aligned: ntheta                          		
+ n3 = 100 ,                            		
+!
+ !Grid kind
+ !1 ... rectangular grid for axisymmetric EFIT data
+ !2 ... field-aligned grid for axisymmetric EFIT data
+ !3 ... field-aligned grid for non-axisymmetric VMEC
+ grid_kind = 3 ,
+!
+ !Coordinate system
+ !1 ... (R,phi,Z) cylindrical coordinate system
+ !2 ... (s,theta,phi) symmetry flux coordinate system 
+ coord_system = 2 ,
+!
+!------------------------------------------------------------------------------------------------------------!
+!
+ !particle species
+ !1 ... electron, 2 ... deuterium ion, 3 ... alpha particle
+ ispecies = 2 ,
+!
+!------------------------------------------------------------------------------------------------------------!
+!
+ !Gorilla pusher options
+ !1...numerical RK pusher, 2 ... analytical polynomial pusher
+ ipusher = 2 ,
+!
+ !Numerical pusher options
+!
+ !accuracy for integration step:
+ !false ... RK4, true ... adaptive ODE45
+ boole_pusher_ode45 = .true. ,
+!
+ !Physical time - orbit parameter relation
+ !false ... dt_dtau is a linear function of position in each tetrahedron
+ !true ... dt_dtau is a constant averaged quantity in each tetrahedron
+ boole_dt_dtau = .true. ,
+!
+ !Precomputation for Newton iterations
+ !false ... Compute coefficients for 2nd order polynomial solution (Newton velocity and acceleration) in each tetrahedron (dzdtau) without precomputation
+ !true ... Use precomputation of coefficients for 2nd order polynomial solution (Newton velocity and acceleration)
+ boole_newton_precalc = .true. ,
+!
+ !Analytical polynomial pusher options
+!
+ !Polynomial order for orbit pusher
+ poly_order = 2 ,
+!
+ !Settings for precomputation of coefficients
+ !0 ... No precomputation: All coefficients are computed on the fly (power of matrices)
+ !1 ... Precomputation of coefficients and factorization of powers of perpinv
+ !2 ... Same as 1 but with further precomputation of operatorb in b
+ !3 ... Extended precomputation of coefficients for constant perpinv
+ !      (Precomputation is done for each tetrahedron for constant perpinv) NOT IMPLEMENTED YET
+ i_precomp = 0 , 
+!
+ !Face prediction with 2nd order polynomial
+ !true ... Face guessing algorithm is used, false ... NOT used
+ boole_guess = .true. ,
+!
+!------------------------------------------------------------------------------------------------------------!
+!    
+/
+
+
