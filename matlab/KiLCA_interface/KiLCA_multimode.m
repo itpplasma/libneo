@@ -16,7 +16,7 @@ classdef KiLCA_multimode < handle
 % *) function obj = KiLCA_multimode(post)
 % *) function plotResWidth(obj, varargin)
 % *) function plotQuant(obj, quant, label, type, varargin)
-% *) function plotVsVac(obj, vac, quant, label, type, varargin)
+% *) function plotVs(obj, obj2, quant, label, type, varargin)
 % *) function plotShielding(obj, vac, varargin)
 %##########################################################################
 
@@ -126,51 +126,42 @@ classdef KiLCA_multimode < handle
             end
         end
         
-        function plotVsVac(obj, vac, quant, label, type, varargin)
+        function plotVs(obj, obj2, quant, label, type, varargin)
             %##############################################################
-            %function plotVsVac(obj, vac, quant, label, type, varargin)
+            %function plotVs(obj, obj2, quant, label, type, varargin)
             %##############################################################
             % description:
             %--------------------------------------------------------------
             % Creates a plot with any quantity plotted for each mode in a
-            % subplot vs. the same quantity for a KiLCA vacuum run.
-            % Requires obj to be a flre KiLCA interface.
+            % subplot vs. the same quantity for another KiLCA run.
             % The corresponding location of the resonant surface
             % is included.
             %##############################################################
             % input:
             %--------------------------------------------------------------
-            % vac      ... KiLCA_interface for vacuum run
+            % obj2     ... 2nd KiLCA_interface
             % quant    ... quantity to plot: string matching a property in 
             %              KiLCA_postprocessor class.
             % label    ... ylabel of the plot       
             % type     ... type: Abs, Re or Im      
             % varargin ... plot arguments
             %##############################################################
-            
-            %check type of vac and obj
-            if(~strcmp(vac.run_type, 'vacuum'))
-                error('vac is not a vacuum run.')
-            end
-            if(~strcmp(obj.run_type, 'flre'))
-                error('obj is not a flre run.')
-            end
-            
-            %plot for vac first
-            vac.multimode.plotQuant(quant, label, type, 'DisplayName', 'vacuum', varargin{:})
+                        
+            %plot for obj2 first
+            obj2.multimode.plotQuant(quant, label, type, 'DisplayName', 'obj2', varargin{:})
 
             %include plots for flre
             for k=1:numel(obj.postprocessors)
                 post = obj.postprocessors{k};
                 subplot(obj.row, obj.col, k)
                 hold on
-                post.plot_single(quant, label, type, 'DisplayName', 'plasma', varargin{:})
+                post.plot_single(quant, label, type, 'DisplayName', 'obj', varargin{:})
                 hold off
                 ax = gca;
                 title([ax.Title.String, ' for ', vec2str(post.mode, '%d')])
             end
             
-            legend('vacuum', 'q=m/n', 'plasma')
+            legend('obj2', 'q=m/n', 'obj')
             legend('Location', 'NorthWest')
         end
         
@@ -193,9 +184,6 @@ classdef KiLCA_multimode < handle
             %check type of vac and obj
             if(~strcmp(vac.run_type, 'vacuum'))
                 error('vac is not a vacuum run.')
-            end
-            if(~strcmp(obj.run_type, 'flre'))
-                error('obj is not a flre run.')
             end
             
             figure('units', 'normalized', 'outerposition', [0, 0, 1, 0.65]);

@@ -508,7 +508,7 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
             
             %Method 1: direct integration
             ind = (obj.r <= (obj.rres + obj.d / 2)) & (obj.r >= (obj.rres - obj.d / 2));
-            obj.Ipar = abs(2*pi*trapz(obj.r(ind), real(obj.Jpar(ind))));
+            obj.Ipar = abs(2*pi*trapz(obj.r(ind), obj.r(ind) .* obj.Jpar(ind)));
             
             %Method 2: Sergeis estimation
             term1 = interp1(obj.r, obj.hz, obj.rres, 'spline')^2 * ...
@@ -519,7 +519,7 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
                    (interp1(obj.r, real(obj.Bz), obj.rres+obj.d/2, 'spline') - ...
                     interp1(obj.r, real(obj.Bz), obj.rres-obj.d/2, 'spline'));
             
-            Ipar2 = abs(0.5 * (term1 - term2));
+            Ipar2 = abs(obj.rres .* 0.5 * (term1 - term2));
             
             %Compare both
             if(obj.DEBUG == true)
