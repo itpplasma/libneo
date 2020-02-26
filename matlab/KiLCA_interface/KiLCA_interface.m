@@ -231,6 +231,41 @@ classdef KiLCA_interface < handle
             obj.set_zones(r, b, m);
         end
         
+        function obj2 = copy(obj)
+            %##############################################################
+            %function obj2 = copy(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % creates an exact copy of the class with a new handle
+            % (-> new value instance with same properties)
+            %##############################################################
+            % output:
+            %--------------------------------------------------------------
+            % obj2  ...  copy of obj
+            %##############################################################    
+            
+            %construct new class
+            obj2 = KiLCA_interface(obj.path, obj.run_type);
+            
+            %get metaclass object
+        	meta = metaclass(obj);
+            %iterate all properties in metaclass
+            for k = 1:length(meta.PropertyList)
+                %get the current property
+                prop = meta.PropertyList(k);
+                %skip properties that cant be set
+                if strcmp(prop.SetAccess, 'private') || ...
+                   strcmp(prop.SetAccess, 'none')
+                	continue; 
+                end
+                %copy property to 2nd object if prop is a property of it
+            	if isprop(obj2, prop.Name)
+                    obj2.(prop.Name) = obj.(prop.Name);
+            	end
+            end
+        end
+        
         function write(obj)
             %##############################################################
             %function write(obj)
