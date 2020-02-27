@@ -54,9 +54,11 @@ classdef InputFile < dynamicprops
             %##############################################################
             
             %get data
-            raw = importdata(obj.path); %CAN BE IMPROVED
+            raw = read_in(obj.path);
             %trim all lines
             raw = cellfun(@(x) strtrim(x), raw, 'UniformOutput', false);
+            %delete zero element lines
+            raw(cellfun(@(x) strcmp(x, ''), raw, 'UniformOutput', true)) = [];
             %delete comments
             raw(cellfun(@(x) strcmp(x(1), '!'), raw, 'UniformOutput', true)) = [];
             
