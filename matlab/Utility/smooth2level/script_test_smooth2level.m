@@ -18,7 +18,7 @@
 level = 2;
 
 %test data
-prof = './test/n.dat';
+prof = './test/Te.dat';
 [~, name, ~] = fileparts(prof);
 
 %initialize cell array
