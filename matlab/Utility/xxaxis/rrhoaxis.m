@@ -32,9 +32,9 @@ function rrhoaxis(a, b, r, rho, delta)
     
     %get spacing of uniform rho ticks by parameter or calculate
     if(nargin < 5 || isempty(delta))
-        delta_psi = delta;
-    else
         delta_psi = ceil((ticka_rho(end)-ticka_rho(end-1)) * 10) / 10;
+    else
+        delta_psi = delta;
     end
     %create uniform spacing in rho
     tickb_rho = tickb_rho(1):delta_psi:tickb_rho(end);
