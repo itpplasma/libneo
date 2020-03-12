@@ -205,10 +205,10 @@ classdef KiLCA_multimode < handle
                 ratio(k) = interp1(post.r, abs(post.Br), post.rres) / interp1(postv.r, abs(postv.Br), post.rres);
                 
                 %include text with m,n
-                text(res(k) + sum(xlim .* [0, 0.01]), ratio(k) + sum(ylim .* [0, 0.001]), vec2str(post.mode, '%d'))
+                text(res(k) + sum(xlim .* [0, 0.01]), ratio(k) + sum(ylim .* [0, 0.0001]), vec2str(post.mode, '%d'))
             end
             
-            plot(res, ratio, '-ob', 'MarkerSize', 5, 'MarkerFaceColor', 'b');
+            plot(res, ratio, '--ob', 'MarkerSize', 5, 'MarkerFaceColor', 'b', 'LineWidth', 2);
             hold off
 
             xlim([post.rmin, post.ra])    

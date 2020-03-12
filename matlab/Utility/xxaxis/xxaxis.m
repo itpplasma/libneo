@@ -27,7 +27,7 @@ function b = xxaxis(apos, bpos, height)
         height = 0.6;
     end
     if(nargin < 2 || isempty(bpos))
-        bpos = 0.15;
+        bpos = 0.05;
     end
     if(nargin < 1 || isempty(apos))
         apos = 0.3;
@@ -37,11 +37,11 @@ function b = xxaxis(apos, bpos, height)
     a=gca;
     set(a, 'Units', 'normalized');
     pos = get(a, 'Position');
-    set(a, 'Position', [pos(1), apos, pos(3), height])
+    set(a, 'Position', [pos(1), pos(2)+pos(4)*apos, pos(3), pos(4)*height])
     
     %create second axis with height = 1e-12 below 1st axis and remove
     %color
-    b=axes('Position', [pos(1), bpos, pos(3), 1e-12]);
+    b=axes('Position', [pos(1), pos(2)+pos(4)*bpos, pos(3), 1e-12]);
     set(b, 'Units', 'normalized');
     set(b, 'Color', 'none');
 end

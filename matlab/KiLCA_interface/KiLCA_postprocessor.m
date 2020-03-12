@@ -497,6 +497,24 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
             
             obj.d = real(5 * sqrt(beta(1)));
             
+            %plot for diag
+%             figure('units', 'normalized', 'outerposition', [0, 0, 1, 0.6]);
+%             axis tight
+%             plot(obj.r(ind), abs(obj.Jpar(ind)), '.', 'MarkerSize', 11, 'DisplayName', 'parallel current')
+%             hold on
+%             plot(obj.r(ind), model(beta, obj.r(ind)), '-', 'LineWidth', 3, 'DisplayName', 'nonlinear gaussian fit')
+%             xlim([obj.rres - 5 * obj.d, obj.rres + 5 * obj.d])
+%             plot(obj.rres .* [1, 1], ylim, '--m', 'LineWidth', 2, 'DisplayName', 'r_{res}')
+%             plot((obj.rres-obj.d) .* [1, 1], ylim, '-.r', 'LineWidth', 2, 'DisplayName', 'r_{res} \pm d')
+%             plot((obj.rres+obj.d) .* [1, 1], ylim, '-.r', 'LineWidth', 2, 'HandleVisibility', 'off')
+%             xlabel('r / cm')
+%             ylabel('J_{||} / statA cm^{-2} (c=1)')
+%             legend()
+%             title('Estimation of Resonant Layer Width')
+%             set(findall(gcf,'-property','FontSize'), 'FontSize', 18)
+%             print('./d_est.png', '-dpng', '-r200')
+%             print('./d_est.svg', '-dsvg')
+            
             %show value of d if debug is true
             if(obj.DEBUG == true)
                 disp(" ")

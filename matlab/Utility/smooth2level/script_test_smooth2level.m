@@ -11,14 +11,14 @@
 
 %NOTICE: smoothing to arbitrary level is not a good idea.
 %        you can try with Er.dat using level=1 and level=2 or with
-%        Te.dat using level=2 and level=3. datapoints themselves may get
+%        Te.dat using level=3 and level=4. datapoints themselves may get
 %        off the original ones if you use too high level
 
 %smoothing level
 level = 2;
 
 %test data
-prof = './test/Te.dat';
+prof = './test/Er.dat';
 [~, name, ~] = fileparts(prof);
 
 %initialize cell array
@@ -33,8 +33,8 @@ for k = 2:level+1
     quant{k} = gradient(quant{k-1}, x);
 end
 
-%use smoothing routine, 5% of datapoints, loess method
-quant_smooth = smooth2level(quant{1}, x, level, 0.5e-2, 'loess');
+%use smoothing routine, 0.5% of datapoints, loess method
+quant_smooth = smooth2level(quant{1}, x, level, 1e-2, 'loess');
 
 %plot figure
 figure('units', 'normalized', 'outerposition', [0, 0, 1, 1]);
