@@ -59,6 +59,9 @@ function out = smooth2level(y, x, level, span, method)
     %integrate back up to quantity
     for j = 1:level
         ind = level + 1 - j;
-        out{ind} = cumtrapz(x, out{ind+1}) + out{ind}(1);
+        old = out{ind};
+        out{ind} = cumtrapz(x, out{ind+1});
+        const = mean(out{ind} - old);
+        out{ind} = out{ind} - const;
     end
 end
