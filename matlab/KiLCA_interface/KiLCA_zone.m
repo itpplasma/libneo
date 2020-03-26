@@ -1,5 +1,5 @@
-classdef KiLCA_zone < KiLCA_prototype_input
-%classdef KiLCA_zone
+classdef KiLCA_zone < handle & blueprint
+%classdef KiLCA_zone < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -28,6 +28,8 @@ classdef KiLCA_zone < KiLCA_prototype_input
         INDICES         %indices of parameters in blueprint files
         BLUEPRINT       %name of blueprint file
         READY = false;  %flag: ready to run
+        
+        number          %zone number
     end
     
     properties
@@ -44,9 +46,9 @@ classdef KiLCA_zone < KiLCA_prototype_input
     end
     
     methods
-        function obj = KiLCA_zone(r1, b1, m, r2, b2)
+        function obj = KiLCA_zone(num, r1, b1, m, r2, b2)
             %##############################################################
-            %function obj = KiLCA_zone(r1, b1, m, r2, b2)
+            %function obj = KiLCA_zone(num, r1, b1, m, r2, b2)
             %##############################################################
             % description:
             %--------------------------------------------------------------
@@ -55,6 +57,7 @@ classdef KiLCA_zone < KiLCA_prototype_input
             %##############################################################
             % input:
             %--------------------------------------------------------------
+            % num   ... zone number
             % r1    ... inner radius 
             % b1    ... inner boundary type
             % m     ... model between borders
@@ -76,9 +79,9 @@ classdef KiLCA_zone < KiLCA_prototype_input
             obj.r2 = r2;
             obj.typeBC2 = b2;
             
-%             if strcmp(m, 'imhd') || strcmp(m, 'rmhd')
-%                error('imhd or rmhd support not yet available.') 
-%             end
+            if strcmp(m, 'imhd') || strcmp(m, 'rmhd')
+               error('imhd or rmhd support not yet available.') 
+            end
                         
             %choose which class represents the medium
             if strcmp(m, 'vacuum')
@@ -100,9 +103,10 @@ classdef KiLCA_zone < KiLCA_prototype_input
                 o = obj.flre;
             end
             
+            obj.number = num;
             %set INDICES and BLUEPRINT property
             obj.INDICES   = o.INDICES;
-            obj.BLUEPRINT = o.BLUEPRINT;
+            obj.BLUEPRINT = strrep(o.BLUEPRINT, 'zone', ['zone_', num2str(obj.number)]);
             
             obj.READY = true;
         end
@@ -124,7 +128,7 @@ classdef KiLCA_zone < KiLCA_prototype_input
             %##############################################################
             
             %use superclass method
-            c1 = plain@KiLCA_prototype_input(obj);
+            c1 = plain@blueprint(obj);
             c1(end) = []; % delete flre class
             c1(end) = []; % delete imhd class
             c1(end) = []; % delete vacuum class

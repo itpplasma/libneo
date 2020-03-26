@@ -1,5 +1,5 @@
-classdef KiLCA_zone_flre < KiLCA_prototype_input
-%classdef KiLCA_zone_flre
+classdef KiLCA_zone_flre < handle & blueprint
+%classdef KiLCA_zone_flre < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------

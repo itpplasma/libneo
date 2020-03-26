@@ -1,5 +1,5 @@
-classdef KiLCA_zone_vacuum < KiLCA_prototype_input
-%classdef KiLCA_zone_vacuum
+classdef KiLCA_zone_vacuum < handle & blueprint
+%classdef KiLCA_zone_vacuum < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------

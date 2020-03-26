@@ -1,5 +1,5 @@
-classdef KiLCA_antenna < KiLCA_prototype_input
-%classdef KiLCA_antenna
+classdef KiLCA_antenna < handle & blueprint
+%classdef KiLCA_antenna < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------

@@ -1,5 +1,5 @@
-classdef KiLCA_modes < KiLCA_prototype_input
-%classdef KiLCA_modes
+classdef KiLCA_modes < handle & blueprint
+%classdef KiLCA_modes < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------

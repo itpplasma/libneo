@@ -1,5 +1,5 @@
-classdef KiLCA_eigmode < KiLCA_prototype_input
-%classdef KiLCA_eigmode
+classdef KiLCA_eigmode < handle & blueprint
+%classdef KiLCA_eigmode < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -97,7 +97,7 @@ classdef KiLCA_eigmode < KiLCA_prototype_input
             %##############################################################
             
             %use superclass method
-            c = plain@KiLCA_prototype_input(obj);
+            c = plain@blueprint(obj);
             
             %modify last cell: split array into cell for each row
             
@@ -131,7 +131,7 @@ classdef KiLCA_eigmode < KiLCA_prototype_input
             end
             
             %continue with ordinary write of superclass
-            write@KiLCA_prototype_input(obj, path_from, path_to);
+            write@blueprint(obj, path_from, path_to);
         end
     end
 end
