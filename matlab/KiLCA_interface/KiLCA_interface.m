@@ -197,7 +197,7 @@ classdef KiLCA_interface < handle
             
             %create zones
             for k = 1:numel(m)
-                obj.zones{k} = KiLCA_zone(r(k), b{k}, m{k}, r(k+1), b{k+1}); 
+                obj.zones{k} = KiLCA_zone(k, r(k), b{k}, m{k}, r(k+1), b{k+1}); 
             end
         end
         
@@ -317,7 +317,7 @@ classdef KiLCA_interface < handle
             
             %create input file for each zone object
             for k = 1:numel(obj.zones)
-                obj.zones{k}.write(obj.BLUE_PATH, obj.pathofrun, k);
+                obj.zones{k}.write(obj.BLUE_PATH, obj.pathofrun);
             end
 
             %set flag

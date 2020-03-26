@@ -1,5 +1,5 @@
-classdef KiLCA_background < KiLCA_prototype_input
-%classdef KiLCA_background
+classdef KiLCA_background < handle & blueprint
+%classdef KiLCA_background < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
