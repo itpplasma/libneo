@@ -33,10 +33,10 @@ classdef KiLCA_background < handle & blueprint
 %created:  08.08.2019
 %modified: 21.08.2019
 
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES = [2:4, 7:15, 18];      %indices of parameters in blueprint files
         BLUEPRINT = 'background.in';    %name of blueprint file
-        READY = false;                  %flag: ready to run
+        SEP = '#'
     end
     
     properties

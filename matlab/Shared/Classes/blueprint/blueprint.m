@@ -20,7 +20,12 @@ classdef (Abstract) blueprint < handle
 %author:   Philipp Ulbl
 %created:  07.01.2020
     
-    properties (SetAccess = 'protected')
+    properties (Abstract, Transient, SetAccess = 'protected')
+        INDICES
+        BLUEPRINT
+        SEP
+    end
+    properties (Transient, SetAccess = 'protected')
         READY = false;  %flag: ready to run
     end
     
@@ -57,23 +62,46 @@ classdef (Abstract) blueprint < handle
             % path_to    ... path where the input file will be written
             %##############################################################
             
-            %check if class is meant to be written
-            if isprop(obj, 'INDICES') && obj.READY == 0
-                error('class is not able to be written into a file.')
-            end
+            %check for correct implementation of class
+            obj.validate();
             
             %check if class is ready to be written
-            if isprop(obj, 'READY') && obj.READY == 0
+            if obj.READY == 0
                 error('class is not ready to run.')
             end
             
             %read in blueprint
             raw = read_in([path_from, obj.BLUEPRINT]);
             %change options in cell array. sep = 2xspaces
-            raw = change_opts(raw, obj.INDICES, obj.plain(), '  ');
+            raw = change_opts(raw, obj.INDICES, obj.plain(), obj.SEP);
             
-            %for not KiLCA zone classes
+            %save file
             save_file(raw, [path_to, obj.BLUEPRINT]);
+        end
+    end
+    
+    methods (Access = 'public')
+        
+        function validate(obj)
+            %check for correct implementation of class
+            
+            %get metaclass object of object
+            prop = metaclass(obj);
+            %get metaclass object of blueprint
+            prop_blue = ?blueprint;
+            
+            %go through all properties in blueprint
+            for k = 1:numel(prop_blue.PropertyList)
+                %check only for transient
+                if (prop_blue.PropertyList(k).Transient == true)
+                    %get index of property that coincides with property k
+                    ind = arrayfun(@(a) strcmp(a.Name, prop_blue.PropertyList(k).Name), prop.PropertyList);
+                    %check if it is transient and throw error if not
+                    if any(prop.PropertyList(ind).Transient == false)
+                        error('implementations of transient properties of blueprint class must be transient.')
+                    end
+                end
+            end
         end
     end
 end

@@ -35,7 +35,7 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
         
     properties
         
-        DEBUG = true;       %flag for debug output
+        DEBUG = false;       %flag for debug output
         OUT_FURTH = false;  %flag to write result of furth ode check in subdir
         
         %------------------------------------------------------------------

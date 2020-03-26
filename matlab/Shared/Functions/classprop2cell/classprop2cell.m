@@ -5,7 +5,7 @@ function c = classprop2cell(obj)
 % description:
 %--------------------------------------------------------------
 % converts all class properties into a plain cell array
-% *only those which are NOT readonly
+% *only those which are NOT TRANSIENT
 %##############################################################
 % input:
 %--------------------------------------------------------------
@@ -26,9 +26,8 @@ function c = classprop2cell(obj)
      
      %propertylist of metaclass object contains names of all properties
      for k = 1:numel(prop.PropertyList)
-         %skip readonly properties
-         if strcmp(prop.PropertyList(k).SetAccess, 'private') || ...
-            strcmp(prop.PropertyList(k).SetAccess, 'none')
+         %skip transient properties
+         if (prop.PropertyList(k).Transient == true)
              continue; 
          end
          

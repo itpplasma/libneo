@@ -34,9 +34,10 @@ classdef KiLCA_zone_flre < handle & blueprint
     %created:  21.08.2019
     %modified: 21.08.2019
     
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES   = [2:7, 10:18, 21:28, 31:34, 37, 40:41];  %indices of parameters in blueprint files
         BLUEPRINT = 'zone_flre.in';                         %name of blueprint file
+        SEP = '#'
     end
     
     properties

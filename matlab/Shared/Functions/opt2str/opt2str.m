@@ -26,11 +26,11 @@ function s = opt2str(o)
         s = o;
     elseif isscalar(o)
         s = num2str(o, '%.8g');
-    elseif isvector(o) && ~iscell(o) %isvector is true also for cells
+    elseif isvector(o) && ~iscell(o) %isvector is true also for cells, so exclude
         s = vec2str(o, '%.8g');
 %     elseif iscell(o) %maybe change??? not used by now...
 %         s = o;
     else
-        error('type of option not supported (only char, scalar, vector).')
+        error(['type ', class(o), ' not supported (only char, scalar, vector).'])
     end
 end

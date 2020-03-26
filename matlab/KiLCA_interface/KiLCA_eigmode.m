@@ -27,10 +27,10 @@ classdef KiLCA_eigmode < handle & blueprint
 %created:  21.08.2019
 %modified: 21.08.2019
 
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES = [2, 5, 8:13, 16:19, 22, 25:26, 29:31, 34:40];  %indices of parameters in blueprint files
         BLUEPRINT = 'eigmode.in';                                %name of blueprint file
-        READY = true;                                            %flag: ready to run
+        SEP = '#'
     end
     
     properties
@@ -78,6 +78,8 @@ classdef KiLCA_eigmode < handle & blueprint
             %--------------------------------------------------------------
             % constructor of the eigmode class. empty.
             %##############################################################
+            
+            obj.READY = true;
         end
         
         function c = plain(obj)

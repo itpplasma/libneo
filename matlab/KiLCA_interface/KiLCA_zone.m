@@ -24,11 +24,12 @@ classdef KiLCA_zone < handle & blueprint
 %created:  05.02.2019
 %modified: 21.08.2019
     
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES         %indices of parameters in blueprint files
         BLUEPRINT       %name of blueprint file
-        READY = false;  %flag: ready to run
-        
+        SEP = '#'
+    end
+    properties (Transient, SetAccess = 'private')
         number          %zone number
     end
     
@@ -106,7 +107,7 @@ classdef KiLCA_zone < handle & blueprint
             obj.number = num;
             %set INDICES and BLUEPRINT property
             obj.INDICES   = o.INDICES;
-            obj.BLUEPRINT = strrep(o.BLUEPRINT, 'zone', ['zone_', num2str(obj.number)]);
+            obj.BLUEPRINT = o.BLUEPRINT;
             
             obj.READY = true;
         end
@@ -145,6 +146,36 @@ classdef KiLCA_zone < handle & blueprint
             end
             
             c = [c1, c2];
+        end
+        
+        function write(obj, path_from, path_to)
+            %##############################################################
+            %function write(obj, path_from, path_to)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % writes properties of the class into input files. Overrides
+            % superclass method because output file name is different from
+            % input file name.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % path_from  ... path where the blueprint is from
+            % path_to    ... path where the input file will be written
+            %##############################################################
+            
+            %check if class is ready to be written
+            if obj.READY == 0
+                error('class is not ready to run.')
+            end
+            
+            %read in blueprint
+            raw = read_in([path_from, obj.BLUEPRINT]);
+            %change options in cell array. sep = 2xspaces
+            raw = change_opts(raw, obj.INDICES, obj.plain(), obj.SEP);
+            
+            %save file
+            save_file(raw, [path_to, strrep(obj.BLUEPRINT, 'zone', ['zone_', num2str(obj.number)])]);
         end
     end
 end

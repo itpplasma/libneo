@@ -21,10 +21,10 @@ classdef KiLCA_antenna < handle & blueprint
 %created:  08.08.2019
 %modified: 21.08.2019
 
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES = 2:8;              %indices of parameters in blueprint files
         BLUEPRINT = 'antenna.in';   %name of blueprint file
-        READY = false;              %flag: ready to run
+        SEP = '#'
     end
 
     properties
