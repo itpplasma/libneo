@@ -40,7 +40,7 @@ classdef (Abstract) KiLCA_prototype_output < handle
             % type      ... type of plot: Re, Im or Abs (=empty)
             % varargin  ... plot arguments (if used, type must be non-empty!)
             %##############################################################
-            % input:
+            % output:
             %--------------------------------------------------------------
             % p         ... plot handle
             %##############################################################

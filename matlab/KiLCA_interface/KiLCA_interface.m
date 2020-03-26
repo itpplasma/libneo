@@ -522,5 +522,28 @@ classdef KiLCA_interface < handle
             mnd.set(r, q, mn);
             mnd.write();
         end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
+            
+            %export backgrounddata
+            obj.backgrounddata.export2HDF5(fname, [loc, 'background/']);
+            
+            %export postprocessors
+            for k=1:numel(obj.postprocessors)
+                obj.postprocessors{k}.export2HDF5(fname, [loc, 'postprocessor', num2str(k), '/']);
+            end  
+        end
     end
 end

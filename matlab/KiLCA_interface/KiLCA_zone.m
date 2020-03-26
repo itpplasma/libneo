@@ -22,7 +22,7 @@ classdef KiLCA_zone < handle & blueprint
 
 %author:   Philipp Ulbl
 %created:  05.02.2019
-%modified: 21.08.2019
+%modified: 26.03.2020
     
     properties (Transient, SetAccess = 'protected')
         INDICES         %indices of parameters in blueprint files

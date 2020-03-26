@@ -1,5 +1,5 @@
-classdef KiLCA_data_background < KiLCA_prototype_output
-%classdef KiLCA_data_background
+classdef KiLCA_data_background < KiLCA_prototype_output & hdf5_output
+%classdef KiLCA_data_background < KiLCA_prototype_output & hdf5_output
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -340,6 +340,68 @@ classdef KiLCA_data_background < KiLCA_prototype_output
             
             xlabel('r / cm')
             ylabel('rescaled profiles')
+        end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
+            
+            obj.writeHDF5(fname, loc, 'R', 'small radius vector', 'cm');
+            
+            obj.writeHDF5(fname, loc, 'b0', 'absolute magnetic field', 'G');
+            obj.writeHDF5(fname, loc, 'b0th', 'poloidal magnetic field', 'G');
+            obj.writeHDF5(fname, loc, 'b0z', 'toroidal magnetic field', 'G');
+            
+            obj.writeHDF5(fname, loc, 'j0', 'absolute current density', 'statA cm^{-2} c=1');
+            obj.writeHDF5(fname, loc, 'j0th', 'poloidal current density', 'statA cm^{-2} c=1');
+            obj.writeHDF5(fname, loc, 'j0z', 'toroidal current density', 'statA cm^{-2} c=1');
+        end
+    end
+    
+    methods (Access = protected)
+        function writeHDF5(obj, fname, loc, quant, desc, unit)
+            %##############################################################
+            %function writeHDF5(obj, fname, loc, quant, desc, unit)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % writes a single entry to hdf5 file. overrides superclass
+            % method.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname ... filename
+            % loc   ... location in tree
+            % quant ... name of quantitiy (class property)
+            % desc  ... short description of quantity
+            % unit  ... physical unit of quantity
+            %############################################################## 
+            
+            %if quantity is vector call superclass method
+            if(sum(size(obj.(quant)) == 1) == 1)
+                writeHDF5@hdf5_output(obj, fname, loc, quant, desc, unit);
+            %if quantity is matrix of type [R; quant]
+            else
+                data = obj.(quant);
+                %create entry with datatype of quantity
+                h5create(fname, [loc, quant], size(data), 'Datatype', class(data));
+                %write quantity
+                h5write(fname, [loc, quant], data);
+                %write description as attribute
+                h5writeatt(fname, [loc, quant], 'decription', desc);
+                %write unit as attribute
+                h5writeatt(fname, [loc, quant], 'unit', unit);
+            end
         end
     end
     

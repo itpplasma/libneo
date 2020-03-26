@@ -33,7 +33,7 @@ classdef KiLCA_output < handle & blueprint
 
 %author:   Philipp Ulbl
 %created:  08.08.2019
-%modified: 21.08.2019
+%modified: 26.03.2020
 
     properties (Transient, SetAccess = 'protected')
         INDICES = [2:5, 8, 11:18];  %indices of parameters in blueprint files
