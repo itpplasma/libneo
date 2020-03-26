@@ -1,0 +1,6 @@
+30        mpol     - number of poloidal modes
+3600      nstep    - number of integration steps
+10000     nsqpsi   - grid size over radial variable
+300       nlabel   - grid size over radial variable for 2D and 3D quantities
+400       ntheta   - grid size over poloidal angle
+10000     nsurfmax - number of starting points for separarix search

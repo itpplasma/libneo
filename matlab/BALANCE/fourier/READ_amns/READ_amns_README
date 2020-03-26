@@ -1,0 +1,2 @@
+this executable is for diagnostics. put in m,n into console and a file Br_jet is created
+(compiled .x file searches for amn.dat in ./)
