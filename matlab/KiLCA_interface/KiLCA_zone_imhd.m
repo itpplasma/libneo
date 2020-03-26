@@ -24,10 +24,10 @@ classdef KiLCA_zone_imhd < handle & blueprint
     %created:  21.08.2019
     %modified: 21.08.2019
     
-
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES   = [2:7, 10:12, 15:18, 21]; %indices of parameters in blueprint files
         BLUEPRINT = 'zone_imhd.in';            %name of blueprint file
+        SEP = '#'
     end
     
     properties

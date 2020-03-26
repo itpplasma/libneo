@@ -24,9 +24,10 @@ classdef KiLCA_zone_vacuum < handle & blueprint
     %created:  21.08.2019
     %modified: 21.08.2019
     
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES   = [2:7, 10, 13:15, 18:21, 24]; %indices of parameters in blueprint files
         BLUEPRINT = 'zone_vacuum.in';            %name of blueprint file
+        SEP = '#'
     end
     
     properties

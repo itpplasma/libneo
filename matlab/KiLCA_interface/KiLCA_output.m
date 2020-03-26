@@ -1,5 +1,5 @@
-classdef KiLCA_output < KiLCA_prototype_input
-%classdef KiLCA_output
+classdef KiLCA_output < handle & blueprint
+%classdef KiLCA_output < handle & blueprint
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -35,10 +35,10 @@ classdef KiLCA_output < KiLCA_prototype_input
 %created:  08.08.2019
 %modified: 21.08.2019
 
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
         INDICES = [2:5, 8, 11:18];  %indices of parameters in blueprint files
         BLUEPRINT = 'output.in';    %name of blueprint file
-        READY = true;               %flag: ready to run
+        SEP = '#'
     end
     
     properties
@@ -66,6 +66,8 @@ classdef KiLCA_output < KiLCA_prototype_input
             %--------------------------------------------------------------
             % constructor of the output class. empty.
             %##############################################################
+            
+            obj.READY = true;
         end
     end
 end

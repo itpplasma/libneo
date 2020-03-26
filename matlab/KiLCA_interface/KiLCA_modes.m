@@ -23,10 +23,12 @@ classdef KiLCA_modes < handle & blueprint
 %created:  08.08.2019
 %modified: 21.08.2019
 
-    properties (SetAccess = 'private')
+    properties (Transient, SetAccess = 'protected')
+        INDICES = [];
         BLUEPRINT = 'modes.in';   %name of blueprint file
-        READY = true;             %flag: ready to run
-        
+        SEP = '#'
+    end
+    properties (SetAccess = 'private')
         m = 3
         n = 2
     end
@@ -52,6 +54,7 @@ classdef KiLCA_modes < handle & blueprint
             elseif nargin == 1
                 obj.set(m, []);
             end
+            obj.READY = true;
         end
         
         function set(obj, m, n)
