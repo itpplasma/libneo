@@ -19,7 +19,7 @@ classdef KiLCA_antenna < handle & blueprint
 
 %author:   Philipp Ulbl
 %created:  08.08.2019
-%modified: 21.08.2019
+%modified: 26.03.2020
 
     properties (Transient, SetAccess = 'protected')
         INDICES = 2:8;              %indices of parameters in blueprint files

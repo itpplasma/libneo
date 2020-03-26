@@ -270,6 +270,26 @@ classdef profile_preprocessor < handle & hdf5_output
             
             obj.r_out = obj.Te.r_out;
         end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
+            
+            obj.writeHDF5(fname, loc, 'r', 'equivalent radius from equilibrium', 'cm');
+            obj.writeHDF5(fname, loc, 'q', 'safety factor from equilibrium', '1');
+            obj.writeHDF5(fname, loc, 'psi_pol_norm', 'normalized poloidal flux', '1');
+            
+        end
     end
     
     methods(Access = private)

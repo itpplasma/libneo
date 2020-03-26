@@ -25,7 +25,7 @@ classdef KiLCA_eigmode < handle & blueprint
 
 %author:   Philipp Ulbl
 %created:  21.08.2019
-%modified: 21.08.2019
+%modified: 26.03.2020
 
     properties (Transient, SetAccess = 'protected')
         INDICES = [2, 5, 8:13, 16:19, 22, 25:26, 29:31, 34:40];  %indices of parameters in blueprint files

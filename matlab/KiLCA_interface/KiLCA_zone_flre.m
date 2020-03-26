@@ -30,9 +30,9 @@ classdef KiLCA_zone_flre < handle & blueprint
 % bp.dat file - the solution must be SMOOTH! The file poy_test_err.dat is also useful.
 %##########################################################################
 
-    %author:   Philipp Ulbl
-    %created:  21.08.2019
-    %modified: 21.08.2019
+%author:   Philipp Ulbl
+%created:  21.08.2019
+%modified: 26.03.2020
     
     properties (Transient, SetAccess = 'protected')
         INDICES   = [2:7, 10:18, 21:28, 31:34, 37, 40:41];  %indices of parameters in blueprint files

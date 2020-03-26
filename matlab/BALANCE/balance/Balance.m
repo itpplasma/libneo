@@ -449,7 +449,7 @@ classdef Balance < handle & hdf5_output
             fid = fopen(logfile, 'w');
 
             disp(['Start of Balance at ', datestr(start_time)])
-            disp(['Shot: ', num2str(obj.shot), ', Time: ', num2str(obj.time), 'ms , Name: ', obj.name])
+            disp(['Shot: ', num2str(obj.shot), ', Time: ', num2str(obj.time), 'ms, Name: ', obj.name])
             for i = 1:numel(obj.m)
                 
                 %factors for this run
@@ -861,6 +861,7 @@ classdef Balance < handle & hdf5_output
             %DOES NOT WORK BECAUSE MATLAB HDF5 IS TOO STUPID TO ACCEPT STRINGS
             %ALTOUGH ITS WRITTEN IN THE HELP
             %obj.writeHDF5(fname, '/input/', 'name', obj.name, 'string');
+            
             obj.writeHDF5(fname, '/input/', 'shot', 'shot number', '1');
             obj.writeHDF5(fname, '/input/', 'time', 'shot time', 'ms');
             obj.writeHDF5(fname, '/input/', 'm', 'poloidal mode number', '1');
@@ -870,9 +871,8 @@ classdef Balance < handle & hdf5_output
             obj.writeHDF5(fname, '/input/', 'r_big', 'big torus radius', 'cm');
             obj.writeHDF5(fname, '/input/', 'r_sep_real', 'location of separatrix in equilibrium', 'cm');
             
-            obj.profiles.writeHDF5(fname, '/input/', 'r', 'equivalent radius from equilibrium', 'cm');
-            obj.profiles.writeHDF5(fname, '/input/', 'q', 'safety factor from equilibrium', '1');
-            obj.profiles.writeHDF5(fname, '/input/', 'psi_pol_norm', 'normalized poloidal flux', '1');
+            %export profile preprocessor data
+            obj.profiles.export2HDF5(fname, '/input/');
             
             %write profiles
             obj.profiles.writeHDF5(fname, '/profiles/', 'r_out', 'output radius vector', 'cm');
@@ -884,6 +884,9 @@ classdef Balance < handle & hdf5_output
             obj.profiles.qp.writeHDF5(fname, '/profiles/', 'y_out', 'safety factor profile', '1');
             obj.profiles.Er.writeHDF5(fname, '/profiles/', 'y_out', 'radial electric field profile', 'statV cm^{-1}');
         
+            %export KiLCA data
+            obj.kil_flre.export2HDF5(fname, '/KiLCA_flre/');
+            obj.kil_vac.export2HDF5(fname, '/KiLCA_vac/');
         end
         
         function export2CurTable(obj, path, name)

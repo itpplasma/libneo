@@ -1,5 +1,5 @@
-classdef KiLCA_postprocessor < KiLCA_prototype_output
-%classdef KiLCA_postprocessor < KiLCA_prototype_output
+classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
+%classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -27,11 +27,12 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
 % *) function plotJfield(obj, type, varargin)
 % *) function plotAll(obj, quant, varargin)
 % *) function plotRes(obj, varargin)
+% *) function export2HDF5(obj, fname, loc)
 %##########################################################################
 
     %author:   Philipp Ulbl
     %created:  04.11.2019
-    %modified: 04.11.2019
+    %modified: 26.03.2020
         
     properties
         
@@ -115,8 +116,8 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
         
         %------------------------------------------------------------------
         
-        d       %width of the resonant layer
-        Ipar    %total parallel current
+        d = nan    %width of the resonant layer
+        Ipar = nan %total parallel current
     end
     
     properties (Dependent=true)
@@ -187,7 +188,21 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
         end
         
         function plot_single(obj, a, u, type, varargin)
-            %adds to superclass method
+            %##############################################################
+            %function p = plot_single(obj, a, u, type, varargin)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % plots single property over radius given by name a
+            % --- adds to superclass method
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % a         ... property to be plot
+            % u         ... ylabel as text
+            % type      ... type of plot: Re, Im or Abs (=empty)
+            % varargin  ... plot arguments (if used, type must be non-empty!)
+            %##############################################################
             
             plot_single@KiLCA_prototype_output(obj, a, u, type, varargin{:});
          
@@ -374,6 +389,18 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
         end
         
         function plotRes(obj, type, varargin)
+            %##############################################################
+            %function plotRes(obj, type, varargin)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % plots residual of furths equation
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % type      ... type of plot: Re, Im or Abs (=empty)
+            % varargin  ... plot arguments (if used, type must be non-empty!)
+            %##############################################################
             
             %check type if varargin used
             if nargin > 2 && isempty(type)
@@ -398,6 +425,46 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output
             end
             
             legend()
+        end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
+            
+            obj.writeHDF5(fname, loc, 'r', 'small radius vector', 'cm');
+            obj.writeHDF5(fname, loc, 'rres', 'location of resonant surface', 'cm');
+            obj.writeHDF5(fname, loc, 'mode', 'modenumber (m, n)', '1');
+            
+            obj.writeHDF5(fname, loc, 'Er', 'complex radial electric field', 'statV cm^{-1}');
+            obj.writeHDF5(fname, loc, 'Eth', 'complex poloidal electric field', 'statV cm^{-1}');
+            obj.writeHDF5(fname, loc, 'Ez', 'complex toroidal electric field', 'statV cm^{-1}');
+            
+            obj.writeHDF5(fname, loc, 'Br', 'complex radial magnetic field', 'G');
+            obj.writeHDF5(fname, loc, 'Bth', 'complex poloidal magnetic field', 'G');
+            obj.writeHDF5(fname, loc, 'Bz', 'complex toroidal magnetic field', 'G');
+            
+            obj.writeHDF5(fname, loc, 'dBr', 'r-derivative of complex radial magnetic field', 'G cm^{-1}');
+            obj.writeHDF5(fname, loc, 'dBth', 'r-derivative of complex poloidal magnetic field', 'G cm^{-1}');
+            obj.writeHDF5(fname, loc, 'dBz', 'r-derivative of complex toroidal magnetic field', 'G cm^{-1}');
+        
+            obj.writeHDF5(fname, loc, 'Jr', 'complex radial current', 'statA cm^{-2} c=1');
+            obj.writeHDF5(fname, loc, 'Jth', 'complex poloidal current', 'statA cm^{-2} c=1');
+            obj.writeHDF5(fname, loc, 'Jz', 'complex toroidal current', 'statA cm^{-2} c=1');
+            obj.writeHDF5(fname, loc, 'Jpar', 'complex parallel current', 'statA cm^{-2} c=1');
+            
+            obj.writeHDF5(fname, loc, 'residual', 'residual of furths equation', 'G cm');
+            obj.writeHDF5(fname, loc, 'd', 'width of the resonant layer', 'cm');
+            obj.writeHDF5(fname, loc, 'Ipar', 'total parallel current', 'statA c=1');
         end
     end
     
