@@ -365,6 +365,17 @@ classdef KiLCA_data_background < KiLCA_prototype_output & hdf5_output
             obj.writeHDF5(fname, loc, 'j0', 'absolute current density', 'statA cm^{-2} c=1');
             obj.writeHDF5(fname, loc, 'j0th', 'poloidal current density', 'statA cm^{-2} c=1');
             obj.writeHDF5(fname, loc, 'j0z', 'toroidal current density', 'statA cm^{-2} c=1');
+            
+            loc = [loc, 'profiles/'];
+            
+            obj.writeHDF5(fname, loc, 'Er_i', 'radial electric field profile', 'statV cm^{-1}');
+            obj.writeHDF5(fname, loc, 'n_i', 'density profile', 'cm^{-3}');
+            obj.writeHDF5(fname, loc, 'q_i', 'safety factor profile', '1');
+            obj.writeHDF5(fname, loc, 'Te_i', 'electron temperature profile', 'eV');
+            obj.writeHDF5(fname, loc, 'Ti_i', 'ion temperature profile', 'eV');
+            obj.writeHDF5(fname, loc, 'Vth_i', 'poloidal velocity profile', 'cm s^{-1}');
+            obj.writeHDF5(fname, loc, 'Vz_i', 'toroidal velocity profile', 'cm s^{-1}');
+            
         end
     end
     
@@ -392,7 +403,7 @@ classdef KiLCA_data_background < KiLCA_prototype_output & hdf5_output
                 writeHDF5@hdf5_output(obj, fname, loc, quant, desc, unit);
             %if quantity is matrix of type [R; quant]
             else
-                data = obj.(quant);
+                data = obj.(quant)(:, 2);
                 %create entry with datatype of quantity
                 h5create(fname, [loc, quant], size(data), 'Datatype', class(data));
                 %write quantity
