@@ -858,9 +858,7 @@ classdef Balance < handle & hdf5_output
             obj.writeHDF5(fname, '/output/', 'De22_res_resc', 'resonant De22 rescaled with Cmn', 'cm^2 s^{-1}');
             
             %write input quantities
-            %DOES NOT WORK BECAUSE MATLAB HDF5 IS TOO STUPID TO ACCEPT STRINGS
-            %ALTOUGH ITS WRITTEN IN THE HELP
-            %obj.writeHDF5(fname, '/input/', 'name', obj.name, 'string');
+            obj.writeHDF5(fname, '/input/', 'name', obj.name, 'string');
             
             obj.writeHDF5(fname, '/input/', 'shot', 'shot number', '1');
             obj.writeHDF5(fname, '/input/', 'time', 'shot time', 'ms');

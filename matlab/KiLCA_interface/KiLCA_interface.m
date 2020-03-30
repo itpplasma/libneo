@@ -537,12 +537,21 @@ classdef KiLCA_interface < handle
             % loc    ... location of this sub-hierarchy in hdf5tree
             %##############################################################
             
+            %export antenna, background
+            obj.antenna.export2HDF5(fname, [loc, 'config/antenna/']);
+            obj.background.export2HDF5(fname, [loc, 'config/background/']);
+            
+            %export zones
+            for k=1:numel(obj.zones)
+                obj.zones{k}.export2HDF5(fname, [loc, 'config/zone', num2str(k), '/']);
+            end  
+            
             %export backgrounddata
-            obj.backgrounddata.export2HDF5(fname, [loc, 'background/']);
+            obj.backgrounddata.export2HDF5(fname, [loc, 'output/background/']);
             
             %export postprocessors
             for k=1:numel(obj.postprocessors)
-                obj.postprocessors{k}.export2HDF5(fname, [loc, 'postprocessor', num2str(k), '/']);
+                obj.postprocessors{k}.export2HDF5(fname, [loc, 'output/postprocessor', num2str(k), '/']);
             end  
         end
     end

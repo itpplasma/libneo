@@ -1,5 +1,5 @@
-classdef KiLCA_antenna < handle & blueprint
-%classdef KiLCA_antenna < handle & blueprint
+classdef KiLCA_antenna < handle & blueprint & hdf5_output
+%classdef KiLCA_antenna < handle & blueprint & hdf5_output
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -55,6 +55,25 @@ classdef KiLCA_antenna < handle & blueprint
             obj.nmod = n;
             
             obj.READY = true;
+        end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
+            
+            obj.writeHDF5(fname, loc, 'ra', 'small radius of antenna location', 'cm');
+            obj.writeHDF5(fname, loc, 'I0', 'antenna coil current constant', 'statA');
+            obj.writeHDF5(fname, loc, 'flab', 'complex frequency in the laboratory frame', 's^{-1}');
         end
     end
 end

@@ -1,5 +1,5 @@
-classdef KiLCA_background < handle & blueprint
-%classdef KiLCA_background < handle & blueprint
+classdef KiLCA_background < handle & blueprint & hdf5_output
+%classdef KiLCA_background < handle & blueprint & hdf5_output
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -73,6 +73,26 @@ classdef KiLCA_background < handle & blueprint
             obj.rpl = r;
             
             obj.READY = true;
+        end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
+            
+            obj.writeHDF5(fname, loc, 'Rtor', 'big torus radius', 'cm');
+            obj.writeHDF5(fname, loc, 'rpl', 'plasma radius (LCFS)', 'cm');
+            obj.writeHDF5(fname, loc, 'Btor', 'toroidal magnetic field at the center', 'G');
+            obj.writeHDF5(fname, loc, 'vgalsys', 'velocity of the moving frame', 'cm s^{-1}');
         end
     end
 end

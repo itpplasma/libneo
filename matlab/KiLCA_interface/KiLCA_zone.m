@@ -1,5 +1,5 @@
-classdef KiLCA_zone < handle & blueprint
-%classdef KiLCA_zone < handle & blueprint
+classdef KiLCA_zone < handle & blueprint & hdf5_output
+%classdef KiLCA_zone < handle & blueprint & hdf5_output
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -35,10 +35,10 @@ classdef KiLCA_zone < handle & blueprint
     
     properties
         r1 = [];        %r1 - minimum radius of the zone (plasma radius)
-        typeBC1 = [];   %type of BC at r1 (center, infinity, interface, antenna)
+        typeBC1 = [];   %type of BC at r1 (center, infinity, interface, antenna, idealwall)
         model =[];      %type of the plasma model (vacuum, medium, imhd, rmhd, flre)
         modelvers = 0;  %code version for the model: MHD model (0 - incompressible and flowless, 1 - compressible with flows)
-        typeBC2 = [];   %type of BC at r2 (center, infinity, interface, antenna)
+        typeBC2 = [];   %type of BC at r2 (center, infinity, interface, antenna, idealwall)
         r2 = [];        %r2 - maximum radius of the zone (first wall boundary)
         
         vacuum          %contains vacuum information about the zone
@@ -46,6 +46,23 @@ classdef KiLCA_zone < handle & blueprint
         flre            %contains flre information about the zone
     end
     
+    properties (Dependent, Transient)
+        typeBC1_num;    %numeric type of BC at r1 (center=0, infinity=1, interface=2, antenna=3, idealwall=4)
+        model_num;      %numeric type of the plasma model (vacuum=0, medium=1, imhd=2, rmhd=3, flre=4)
+        typeBC2_num;    %numeric type of BC at r1 (center=0, infinity=1, interface=2, antenna=3, idealwall=4)
+    end
+    
+    methods %getter
+       function q = get.typeBC1_num(obj)
+           q = obj.BC_num('typeBC1');
+       end
+       function q = get.typeBC2_num(obj)
+           q = obj.BC_num('typeBC2');
+       end
+       function q = get.model_num(obj)
+           q = obj.MD_num('model');
+       end
+    end
     methods
         function obj = KiLCA_zone(num, r1, b1, m, r2, b2)
             %##############################################################
@@ -176,6 +193,58 @@ classdef KiLCA_zone < handle & blueprint
             
             %save file
             save_file(raw, [path_to, strrep(obj.BLUEPRINT, 'zone', ['zone_', num2str(obj.number)])]);
+        end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
+            
+            obj.writeHDF5(fname, loc, 'r1', 'minimum radius of the zone', 'cm');
+            obj.writeHDF5(fname, loc, 'r2', 'maximum radius of the zone', 'cm');
+            obj.writeHDF5(fname, loc, 'typeBC1_num', 'numeric type of BC at r1', '(center=0, infinity=1, interface=2, antenna=3, idealwall=4)');
+            obj.writeHDF5(fname, loc, 'typeBC2_num', 'numeric type of BC at r2', '(center=0, infinity=1, interface=2, antenna=3, idealwall=4)');
+            obj.writeHDF5(fname, loc, 'model_num', 'numeric type of the plasma model', '(vacuum=0, medium=1, imhd=2, rmhd=3, flre=4)');
+        end
+    end
+    
+    methods (Access = private)
+        function q = BC_num(obj, prop)
+           %returns numeric type of BC property
+           if(strcmp(obj.(prop), 'center'))
+               q=0;
+           elseif (strcmp(obj.(prop), 'infinity'))
+               q=1;
+           elseif (strcmp(obj.(prop), 'interface'))
+               q=2;
+           elseif (strcmp(obj.(prop), 'antenna'))
+               q=3;
+           elseif (strcmp(obj.(prop), 'idealwall'))
+               q=4;
+           end
+        end
+        function q = MD_num(obj, prop)
+            %returns numeric type of model property
+            if(strcmp(obj.(prop), 'vacuum'))
+                q=0;
+            elseif (strcmp(obj.(prop), 'medium'))
+                q=1;
+            elseif (strcmp(obj.(prop), 'imhd'))
+                q=2;
+            elseif (strcmp(obj.(prop), 'rmhd'))
+                q=3;
+            elseif (strcmp(obj.(prop), 'flre'))
+                q=4;
+            end
         end
     end
 end
