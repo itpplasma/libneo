@@ -51,7 +51,7 @@ classdef profile_preprocessor < handle & hdf5_output
         Jth_inf = 0; %no current in vacuum
         Jz_inf = 0;  %no current in vacuum
     end
-    properties(SetAccess = public)
+    properties(SetAccess = private)
         LIB_BALANCE     %path to libbalance
     
         profpath        %path to profile output
@@ -175,7 +175,7 @@ classdef profile_preprocessor < handle & hdf5_output
             obj.r = obj.equilrqpsi(:, 1); %equivalent radius
             obj.q = obj.equilrqpsi(:, 2); %safety factor
             obj.psi_pol_norm = obj.equilrqpsi(:, 3)./obj.equilrqpsi(end, 3); %normalized poloidal flux
-
+            
         end
         
         function set_profiles(obj, ne, Te, Ti, vt)

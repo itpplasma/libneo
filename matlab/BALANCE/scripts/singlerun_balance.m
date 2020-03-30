@@ -10,6 +10,8 @@ function singlerun_balance(studyname, shot, time)
     filehead = ['/temp/ulbl_p/AUG/SHOTS/',num2str(shot),'/',num2str(shot),'.',num2str(time)];
     cfile  = [filehead,'_coil.dat'];
 
+    dapath = '/temp/ulbl_p/DA/ASTRA/';
+    
     neprof = [filehead,'_ne_PED_ulbl_rho_pol.dat'];
     Teprof = [filehead,'_Te_PED_ulbl_rho_pol.dat'];
     Tiprof = [filehead,'_Ti_PED_ulbl_rho_pol.dat'];
@@ -29,6 +31,7 @@ function singlerun_balance(studyname, shot, time)
     bal.setCoil(pfile, cfile);
     bal.setEqui(gfile, fluxdatapath);
     bal.setProfiles(neprof, Teprof, Tiprof, vtprof);
+    bal.setDaEstimation(dapath);
     bal.setModes(m, n);
     bal.write();
     bal.run();
