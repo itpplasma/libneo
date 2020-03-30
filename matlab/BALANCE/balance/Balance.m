@@ -115,6 +115,8 @@ classdef Balance < handle & hdf5_output
         profiles        %profile preprocessor
         fdb0            %field div B0 interface
         
+        da_est          %da_estimator class
+        
         options         %options for balance code (represents balance.in)
         factors = 0     %factors for V-shift
         
@@ -313,7 +315,28 @@ classdef Balance < handle & hdf5_output
                 obj.profiles.set_equilibrium(obj.file_equi, obj.file_coil, obj.CONVEX_PATH, obj.path_fluxdata);
                 obj.profiles.loadExisting();
             end
-
+        end
+        
+        function setDaEstimation(obj, path_da)
+            %##############################################################
+            %function setProfiles(obj, path_da)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % estimates Da based on the content of path_da. If astra data
+            % is found this is used, otherwise power data and if nothing is
+            % found or path is '', the universal constant is used.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % path_da ... location of files used for Da estimation.
+            %##############################################################    
+            
+            %force true for now
+            flag_combined = true;
+            
+            obj.da_est = da_estimator(obj.path_profiles, obj.path_fluxdata);
+            obj.da_est.loadEstimation(obj.shot, obj.time, path_da, flag_combined);   
         end
         
         function setOptions(obj, opt)
@@ -328,7 +351,7 @@ classdef Balance < handle & hdf5_output
             %--------------------------------------------------------------
             % opt   ... balanceoptions object
             %##############################################################    
-            
+                        
             obj.setKiLCA();
             
             if(nargin < 2 || isempty(opt))
@@ -885,6 +908,9 @@ classdef Balance < handle & hdf5_output
             %export KiLCA data
             obj.kil_flre.export2HDF5(fname, '/KiLCA_flre/');
             obj.kil_vac.export2HDF5(fname, '/KiLCA_vac/');
+            
+            %export da estimation
+            obj.da_est.export2HDF5(fname, '/Da_estimation/');
         end
         
         function export2CurTable(obj, path, name)
