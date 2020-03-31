@@ -38,12 +38,24 @@ classdef NameList < dynamicprops
                 %get value as string
                 val = strtrim(strrep(sp{2}, ',', '')); %remove comma
                 
+                %remove comment on the right and trim
+                val = strsplit(val, '!');
+                val = strtrim(val{1});
+                
+                %replace t or f by true or false if len=1 (string has len
+                %minimum 3 because of "")
+                if(numel(val) == 1)
+                    val = strrep(val, 't', '.true.');
+                    val = strrep(val, 'f', '.false.');
+                end
+                
                 %ADD ARRAY IMPLEMENTATION
                 
                 %case 1: string
-                if(contains(val, ''''))
-                    %remove '
+                if(contains(val, '''') || contains(val, '"'))
+                    %remove ', "
                     val = strrep(val, '''', '');
+                    val = strrep(val, '"', '');
                     
                 %case 2: boolean
                 elseif(strcmp(val(1), '.') && strcmp(val(end), '.'))
