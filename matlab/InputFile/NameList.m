@@ -31,43 +31,82 @@ classdef NameList < dynamicprops
             
             %go through raw and add properties to class
             for k = 1:numel(raw)
-                %split by =
-                sp = strsplit(raw{k}, '=');
-                %get property name
-                prop = strrep(strtrim(sp{1}), ' ', '_'); %replace spaces
-                %get value as string
-                val = strtrim(strrep(sp{2}, ',', '')); %remove comma
-                
-                %remove comment on the right and trim
-                val = strsplit(val, '!');
-                val = strtrim(val{1});
-                
-                %replace t or f by true or false if len=1 (string has len
-                %minimum 3 because of "")
-                if(numel(val) == 1)
-                    val = strrep(val, 't', '.true.');
-                    val = strrep(val, 'f', '.false.');
-                end
-                
-                %ADD ARRAY IMPLEMENTATION
-                
-                %case 1: string
-                if(contains(val, '''') || contains(val, '"'))
-                    %remove ', "
-                    val = strrep(val, '''', '');
-                    val = strrep(val, '"', '');
+                %metaproperty object of ne property
+                metaprop = [];
+                %try to parse line
+                try
+                    %split by =
+                    sp = strsplit(raw{k}, '=');
+                    %get property name
+                    prop = strrep(strtrim(sp{1}), ' ', '_'); %replace spaces
+                    %get value as string
+                    val = strtrim(strrep(sp{2}, ',', '')); %remove comma
+
+                    %remove comment on the right and trim
+                    val = strsplit(val, '!');
+                    val = strtrim(val{1});
+
+                    %New Method: 
+                    %convert namelist expression to MATLAB expression
+
+                    %get propertyname
+                    if(contains(prop, '(') && contains(prop, ')')) %array
+                        p = strsplit(prop, '(');
+                        %propertyname is the part before the (...)
+                        propname = p{1};
+                        %array to cell array to allow empty values
+                        val = ['{', val, '}'];
+                        %create property string for access in MATLAB
+                        prop = ['("', strrep(prop, '(', '")(')];
+                        %init value for array
+                        init = '{}';
+                    else %scalars
+                        propname = prop;
+                        %create property string for access in MATLAB
+                        prop = ['("', prop, '")'];
+                        %init value for scalar
+                        init = '[]';
+                    end
+
+                    %handle decimals and booleans
+                    if(~contains(val, '''') && ~contains(val, '"'))
+
+                        %replace fortran d by e
+                        val = strrep(val, 'd', 'e');
+
+                        %bring all boolean variants in t,f form
+                        %we do this because:
+                        %if you replace all t by true, true becomes truerue.
+                        val = strrep(val, '.FALSE.', 'f');
+                        val = strrep(val, '.TRUE.', 't');
+                        val = strrep(val, '.False.', 'f');
+                        val = strrep(val, '.True.', 't');
+                        val = strrep(val, '.false.', 'f');
+                        val = strrep(val, '.true.', 't');
+                        val = strrep(val, 'false', 'f');
+                        val = strrep(val, 'true', 't');
+
+                        %replace t,f for MATLAB expressions
+                        val = strrep(val, 't', 'true');
+                        val = strrep(val, 'f', 'false');
+                    end
+
+                    %add property if not existend and init
+                    if(~any(strcmp(properties(obj), propname)))
+                        metaprop = addprop(obj, propname);
+                        eval(['obj.("', propname, '") = ', init, ';']);
+                    end
+
+                    %set property value
+                    eval(['obj.', prop, ' = ', val, ';']);
                     
-                %case 2: boolean
-                elseif(strcmp(val(1), '.') && strcmp(val(end), '.'))
-                    val = logical(strcmp(val, '.true.'));
-                    
-                %case 3: number
-                else
-                    %convert to number (replace d by e if exist)
-                    val = sscanf(strrep(val, 'd', 'e'), '%g');
+                catch
+                    warning(['could not understand line:\n', raw{k}, '\nproperty skipped.'], 'all')
+                    %delete property if it has been created
+                    if(~isempty(metaprop))
+                        delete(metaprop);
+                    end
                 end
-                addprop(obj, prop);
-                obj.(prop) = val;
             end
         end
         
