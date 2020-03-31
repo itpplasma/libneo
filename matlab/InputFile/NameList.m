@@ -126,28 +126,54 @@ classdef NameList < dynamicprops
             %open file to append
             fid = fopen(fname, 'a');
             %write all properties
-            propnames = properties(obj);
+            propnames = sort(properties(obj));
+            
             for k = 1:numel(propnames)
                 
                 %q is the property value
                 q = obj.(propnames{k});
                 
-                %case boolean
-                if(isa(q, 'logical'))
-                    l = {'.false.', '.true.'};
-                    s = l{q+1};
+                %go through all elements if array otherwise just loop once
+                for l = 1:numel(q)
                     
-                %case numbers
-                elseif(isa(q, 'double'))
-                    s = sprintf('%g', q);
+                    %if cell write indices as string
+                    if(isa(q, 'cell'))
+                        %skip empty array entries
+                        if(isempty(q{l}))
+                            continue;
+                        end
+                        %get subindices from the loop index
+                        [a, b] = ind2sub(size(q), l);
+                        %build index string to write
+                        ind = ['(', num2str(a), ',', num2str(b) ,')'];
+                    else
+                        %otherwise put into cell array for consistent
+                        %indexing of the value
+                        q = {q};
+                        ind = '';
+                    end
                     
-                %case strings
-                else
-                    s = ['''', q, ''''];
+                    %everything is assumed to be in a (at least 1x1) cell
+                    %array to use consistent indexing with {}  for both
+                    %cells and scalars
+                    
+                    %case boolean
+                    if(isa(q{l}, 'logical'))
+                        L = {'.false.', '.true.'};
+                        s = L{q{l}+1};
+
+                    %case numbers
+                    elseif(isa(q{l}, 'double'))
+                        s = sprintf('%g', q{l});
+
+                    %case string and char
+                    else
+                        s = ['''', convertStringsToChars(q{l}), ''''];
+                    end
+
+                    %write string to file
+                    fprintf(fid, '%s\n', [propnames{k}, ind, ' = ', s, ' ,']);
                 end
-                
-                %write string to file
-                fprintf(fid, '%s\n', [propnames{k}, ' = ', s, ' ,']);
             end
             %close file
             fclose(fid);

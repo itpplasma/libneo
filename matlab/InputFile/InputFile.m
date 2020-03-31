@@ -103,8 +103,8 @@ classdef InputFile < dynamicprops
             
             %get only dir structure
             [dirto,~,~] = fileparts(pathto);
-            %create path if not exist
-            system(['mkdir -p ', dirto]);
+            %create path if not exist (ignore warnings)
+            system(['mkdir -p ', dirto, ' 2>/dev/null']);
             %remove file if exist (ignore warnings)
             system(['rm ', pathto, ' 2>/dev/null']);
             %iterate through all properties that are not path and write
