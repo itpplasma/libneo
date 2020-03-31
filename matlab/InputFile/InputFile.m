@@ -72,8 +72,8 @@ classdef InputFile < dynamicprops
             end
             
             %start and end indices of all namelists in raw
-            ind1 = find(nml1, 1, 'first');
-            ind2 = find(nml2, 1, 'first');
+            ind1 = find(nml1);
+            ind2 = find(nml2);
             
             %add all namelists as single properties
             for k = 1:numel(ind1)
