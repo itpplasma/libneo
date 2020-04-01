@@ -18,7 +18,10 @@ classdef InputFile < dynamicprops
 %created: 25.02.2020
 
     properties (SetAccess = private)
-        path
+        path        %path of file
+    end
+    properties (SetAccess = private)
+        order = {}  %order of namelist objects
     end
     
     methods
@@ -79,6 +82,8 @@ classdef InputFile < dynamicprops
             for k = 1:numel(ind1)
                 %get name of namelist without &
                 name = raw{ind1(k)}(2:end);
+                %add to ordering array
+                obj.order{end + 1} = name;
                 %add namelist property to class
                 addprop(obj, name);
                 %create namelist object
@@ -107,8 +112,13 @@ classdef InputFile < dynamicprops
             system(['mkdir -p ', dirto, ' 2>/dev/null']);
             %remove file if exist (ignore warnings)
             system(['rm ', pathto, ' 2>/dev/null']);
+            %get property list
+            if(~isempty(obj.order))
+                propnames = obj.order;
+            else
+                propnames = properties(obj);
+            end
             %iterate through all properties that are not path and write
-            propnames = properties(obj);
             for k = 1:numel(propnames)
                 
                 %skip property if not of type NameList
