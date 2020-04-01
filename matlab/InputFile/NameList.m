@@ -144,10 +144,15 @@ classdef NameList < dynamicprops
                         if(isempty(q{l}))
                             continue;
                         end
-                        %get subindices from the loop index
-                        [a, b] = ind2sub(size(q), l);
-                        %build index string to write
-                        ind = ['(', num2str(a), ',', num2str(b) ,')'];
+                        %1d index or multidim
+                        if(sum(size(q)>1)>1)
+                            %get subindices from the loop index
+                            [a, b] = ind2sub(size(q), l);
+                            %build index string to write
+                            ind = ['(', num2str(a), ',', num2str(b) ,')'];
+                        else
+                            ind = ['(', num2str(l) ,')'];
+                        end
                     else
                         %otherwise put into cell array for consistent
                         %indexing of the value
