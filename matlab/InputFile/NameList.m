@@ -78,13 +78,13 @@ classdef NameList < dynamicprops
                         %we do this because:
                         %if you replace all t by true, true becomes truerue.
                         val = strrep(val, '.FALSE.', 'f');
-                        val = strrep(val, '.TRUE.', 't');
+                        val = strrep(val, '.TRUE.',  't');
                         val = strrep(val, '.False.', 'f');
-                        val = strrep(val, '.True.', 't');
+                        val = strrep(val, '.True.',  't');
                         val = strrep(val, '.false.', 'f');
-                        val = strrep(val, '.true.', 't');
-                        val = strrep(val, 'false', 'f');
-                        val = strrep(val, 'true', 't');
+                        val = strrep(val, '.true.',  't');
+                        val = strrep(val, 'false',   'f');
+                        val = strrep(val, 'true',    't');
 
                         %replace t,f for MATLAB expressions
                         val = strrep(val, 't', 'true');
@@ -132,6 +132,8 @@ classdef NameList < dynamicprops
                 
                 %q is the property value
                 q = obj.(propnames{k});
+                %if char array convert to string because of the next loop
+                q = convertCharsToStrings(q);
                 
                 %go through all elements if array otherwise just loop once
                 for l = 1:numel(q)
