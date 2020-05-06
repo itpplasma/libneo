@@ -110,12 +110,12 @@ classdef balanceoutput < handle
             
             %equipotentials
             raw = load([path, obj.OUTFILES{5}]);
-            obj.psi0 = raw(:, 1);
-            obj.phi0 = raw(:, 2);
-            obj.psi1 = raw(:, 3) + 1i .* raw(:, 4);
-            obj.phi1 = raw(:, 5) + 1i .* raw(:, 6);
-            obj.Br_Abs = raw(:, 7);
-            obj.Br_minus_ckpEs_over_wexB_Abs = raw(:, 8);
+            obj.psi0 = raw(:, 2);
+            obj.phi0 = raw(:, 3);
+            obj.psi1 = raw(:, 4) + 1i .* raw(:, 5);
+            obj.phi1 = raw(:, 6) + 1i .* raw(:, 7);
+            obj.Br_Abs = raw(:, 8);
+            obj.Br_minus_ckpEs_over_wexB_Abs = raw(:, 9);
             
             %equisource
             raw = load([path, obj.OUTFILES{6}]);
