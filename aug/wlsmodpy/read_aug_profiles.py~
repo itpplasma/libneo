@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import MDSplus
+import rprof
+
+server = 'mdsplus.aug.ipp.mpg.de'
+tree = 'augdp'
+
+shot = 34835
+tbegin = 3.0
+tend = 3.05
+
+
+
+def read_ped_fit (conn, tbegin, tend, quant, experiment='AUGD', edition='0'):
+  dcmd = 'augdiag($SHOT,"PED","'+quant+'Fit","'+experiment+'",'+str(edition)+',' \
+         +str(tbegin)+','+str(tend)+')'
+  ecmd = 'augdiag($SHOT,"PED","d'+quant+'Fit","'+experiment+'",'+str(edition)+',' \
+         +str(tbegin)+','+str(tend)+')'
+
+  print(dcmd)
+  
+  Data =   conn.get("(_fit="+dcmd+")")
+  Errbar = conn.get("(_fiterr="+ecmd+")")
+  PsiNorm = conn.get("dim_of(_fit,0)^2")
+
+  ntime   = Data.shape[0]
+  Data1   = np.sum(Data,   axis=0) / ntime
+  Errbar1 = np.sum(Errbar, axis=0) / ntime
+
+#  plt.plot(PsiNorm, Data1)
+#   plt.errorbar(PsiNorm, Data1, yerr=Errbar1)
+  
+  Prof = rprof.RadialProfile(quant, Data1, Errbar1, 'psinorm', PsiNorm)
+  return(Prof)
+
+
+
+
+conn = MDSplus.Connection(server)
+conn.openTree(tree, shot)
+
+TeFit = read_ped_fit (conn, tbegin, tend, 'Te', experiment='WLS', edition='1')
+
+# TeFit.plot_errors(1e3)
+plt.show()

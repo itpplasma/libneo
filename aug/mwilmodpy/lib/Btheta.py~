@@ -1,0 +1,29 @@
+#!/usr/bin/env python
+
+import numpy as np
+import dd
+import IPython
+
+
+class Btheta:
+
+    def __init__( self ,  Shotnumber = None ):
+        self.Status = False
+        if Shotnumber != None :
+            self.Load( Shotnumber )
+	
+    def Load( self, Shotnumber,edition=2 ):
+        
+        sf = dd.shotfile( 'IDF', Shotnumber, 'AUGE', edition)
+        
+        self.Bprobr,self.Bprobz,self.Bprobphi =  sf('Bprobr').data, sf('Bprobz').data, sf('Bprobphi').data
+
+
+        dataTmp = sf('Bprobmes')
+        self.Bprobmeas = dataTmp.data
+        self.Bprobtime = dataTmp.time
+        sf.close()
+
+    def getRzphi( self ):
+        
+        return self.Bprobr, self.Bprobz, self.Bprobphi

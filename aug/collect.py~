@@ -1,0 +1,39 @@
+#############################################################################
+# THIS SCRIPT USES FUNCTIONS coil.py, profiles.py & equi.py TO COLLECT      #
+# DATA FOR GIVEN SHOTS AND TIMES	 					    				#
+#############################################################################
+# AUTHOR:  PHILIPP ULBL							    						#
+# CREATED: 17.12.2019							    						#
+#############################################################################
+
+from coil import coil
+from profiles import profiles
+from equi import equi
+
+#put shotnumbers in list here
+shot = [30000]
+#put times in list here
+time = [5.5]
+#flag if 2-element time should be interpreted as tmin and tmax. no effect if len(time) not 2
+window = True
+#type of equilibrium
+eqtype = 'IDE'
+
+#go through all shots
+for s in range(len(shot)):
+
+	#get times in window
+	if window == True and len(time) == 2:
+			#save coilfile, profiles, shots
+			coil(shot[s], time)
+			profiles(shot[s], time)
+			equi(shot[s], time)
+	#get specific times
+	else:
+		#go through all times
+		for t in range(len(time)):
+		
+			#save coilfile, profiles, shots
+			coil(shot[s], time[t])
+			profiles(shot[s], time[t])
+			equi(shot[s], time[t], eqtype)

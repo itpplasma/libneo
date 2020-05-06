@@ -1,0 +1,22 @@
+import numpy as np
+
+
+import dd as dd
+
+class TBOhelp:
+    status = False
+
+
+class TBO:
+    def __init__( self ,  Experiment = 'AUGD', Diagnostic = 'ECI', Shotnumber = None ):
+        self.Status = False
+
+        if Shotnumber != None :
+            self.Load( Shotnumber )
+
+    def __del__( self ):
+        self.Unload( )
+        del self.Status
+
+    def Load( self ,  Shotnumber, Experiment='AUGD', Diagnostic='ECI', Edition = 0L, tBegin=0.0, tEnd=11.0):
+        self.Unload()
