@@ -209,15 +209,17 @@ classdef efit < handle
             if isempty(obj.zlim),   obj.zlim = zeros(1, obj.limitr); end
         end
 
-        function write(obj)
+        function write(obj, name)
             %##############################################################
-            %function write(obj)
+            %function write(obj, name)
             %##############################################################
             % description:
             %--------------------------------------------------------------
             % Writes all properties into a file in the specified location
             % (given by "fname"). Checks the dimensions of the properties
             % beforehand.
+            %##############################################################
+            % name  ... name to put at the end of the file instead of CASE1
             %##############################################################
 
             obj.check();
@@ -231,12 +233,18 @@ classdef efit < handle
             end
             
             %generate filename without spaces
-            name = ['g', erase(erase(obj.CASE{4}, ' '), '#'), '.',...
-                             erase(erase(obj.CASE{5}, ' '), 'ms'),'_',...
-                             erase(obj.CASE{1}, ' ')];
+            gname = ['g', erase(erase(obj.CASE{4}, ' '), '#'), '.',...
+                             erase(erase(obj.CASE{5}, ' '), 'ms')];
             
+            %put name at the end
+            if nargin < 2 || isempty(name)
+                gname = [gname, '_', erase(obj.CASE{1}, ' ')];
+            else
+                gname = [gname, '_', name];
+            end
+                         
             %put together path+name
-            obj.fname = [dname, name];
+            obj.fname = [dname, gname];
             
             %check if file exists and delete if yes
             if isfile(obj.fname)
