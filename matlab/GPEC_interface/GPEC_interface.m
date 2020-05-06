@@ -123,7 +123,7 @@ classdef GPEC_interface < handle
             rawcoil = AUG_coil(fname);
             rawcoil.read();
             %convert to cell array
-            current = num2cell([rawcoil.Il; rawcoil.Iu]);
+            current = num2cell([rawcoil.Iu; rawcoil.Il]);
             
             %load inputfile and write coil data
             obj.coil = InputFile([obj.LIB_GPEC, '/template/coil.in']);
@@ -143,10 +143,10 @@ classdef GPEC_interface < handle
             %create path
             system(['mkdir -p ', obj.path_run]);
             %delete old outputs
-            system(['rm ', obj.path_run, '*.nc']);
-            system(['rm ', obj.path_run, '*.bin']);
-            system(['rm ', obj.path_run, '*.out']);
-            system(['rm ', obj.path_run, '*.log']);
+            system(['rm ', obj.path_run, '*.nc 2>/dev/null']);
+            system(['rm ', obj.path_run, '*.bin 2>/dev/null']);
+            system(['rm ', obj.path_run, '*.out 2>/dev/null']);
+            system(['rm ', obj.path_run, '*.log 2>/dev/null']);
             
             %copy namelists
             system(['cp ', obj.LIB_GPEC, '/template/* ', obj.path_run]);
