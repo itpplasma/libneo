@@ -22,7 +22,19 @@ classdef f1000 < balance_prototype_output
 
     properties
         path
-        
+    end
+    
+    properties (Access=private)
+        r_priv
+        n_priv
+        Vz_priv
+        Te_priv
+        Ti_priv
+        Er_priv
+        Sqrtg_Btheta_over_c_priv
+    end
+    
+    properties (Dependent)
         r                   %effective radius
         n                   %density
         Vz                  %toroidal velocity
@@ -30,6 +42,59 @@ classdef f1000 < balance_prototype_output
         Ti                  %ion temperature
         Er                  %radial electric field
         Sqrtg_Btheta_over_c %
+    end
+    
+    %get for dependent properties
+    methods
+       function q = get.r(obj)
+           if(isempty(obj.r_priv))
+               raw = load(obj.path);
+               obj.r_priv = raw(:, 1);
+           end
+           q = obj.r_priv;
+       end
+       function q = get.n(obj)
+           if(isempty(obj.n_priv))
+               raw = load(obj.path);
+               obj.n_priv = raw(:, 2);
+           end
+           q = obj.n_priv;
+       end
+       function q = get.Vz(obj)
+           if(isempty(obj.Vz_priv))
+               raw = load(obj.path);
+               obj.Vz_priv = raw(:, 3);
+           end
+           q = obj.Vz_priv;
+       end
+       function q = get.Te(obj)
+           if(isempty(obj.Te_priv))
+               raw = load(obj.path);
+               obj.Te_priv = raw(:, 4);
+           end
+           q = obj.Te_priv;
+       end
+       function q = get.Ti(obj)
+           if(isempty(obj.Ti_priv))
+               raw = load(obj.path);
+               obj.Ti_priv = raw(:, 5);
+           end
+           q = obj.Ti_priv;
+       end
+       function q = get.Er(obj)
+           if(isempty(obj.Er_priv))
+               raw = load(obj.path);
+               obj.Er_priv = raw(:, 6);
+           end
+           q = obj.Er_priv;
+       end
+       function q = get.Sqrtg_Btheta_over_c(obj)
+           if(isempty(obj.Sqrtg_Btheta_over_c_priv))
+               raw = load(obj.path);
+               obj.Sqrtg_Btheta_over_c_priv = raw(:, 7);
+           end
+           q = obj.Sqrtg_Btheta_over_c_priv;
+       end
     end
     
     methods
@@ -47,18 +112,6 @@ classdef f1000 < balance_prototype_output
             %############################################################## 
             
             obj.path = fpath;
-            
-            %load data
-            raw = load(fpath);
-            
-            %assign columns to properties
-            obj.r = raw(:, 1);
-            obj.n = raw(:, 2);
-            obj.Vz = raw(:, 3);
-            obj.Te = raw(:, 4);
-            obj.Ti = raw(:, 5);
-            obj.Er = raw(:, 6);
-            obj.Sqrtg_Btheta_over_c = raw(:, 7);
         end
     end
 end
