@@ -38,12 +38,12 @@
   efcolf=efcolf_arr(:,i)
   velrat=velrat_arr(:,i)
   enrat=enrat_arr(:,i)
-!  print *, "=== BEGIN coleff ===" 
+!  print *, "=== BEGIN coleff ==="
 !  print *, "Index:  ", i, ns
 !  print *, "efcolf: ", efcolf
 !  print *, "velrat: ", velrat
 !  print *, "enrat:  ", enrat
-!  print *, "=== END coleff ===" 
+!  print *, "=== END coleff ==="
 !
   plim=max(p,1.d-8)
 !
@@ -136,16 +136,16 @@
 !        formal: v0            - initial alpha particle velocity, cm/s
 !                dchichi       - pitch angle scattering frequency, $D^{\chi\chi}$, of alpha
 !                                particle with initial velocity, 1/s
-!                slowrate      - slowing down rate, $F^v / v_0$, of alpha particle with 
+!                slowrate      - slowing down rate, $F^v / v_0$, of alpha particle with
 !                                initial velocity, 1/s
 !                dchichi_norim - normalized pitch angle scattering frequency, 1/cm
 !                slowrate_norm - normalized slowing down rate, 1/cm
-!        module collis_alp: 
+!        module collis_alp:
 !                efcolf - normalized collision frequencies
 !                velrat - ratio of initial alpha particle velocity v0 to the
 !                         specific background particle thermal velocity $v_{t}=\sqrt(2T/m)$
 !                enrat  - ratio of initial alpha particle energy to the background species
-!                         energy 
+!                         energy
 !
   use collis_alp
 !
@@ -193,7 +193,7 @@ end subroutine loacol_nbi
 !
   subroutine stost(z,dtauc,iswmode,ierr)
 !
-!  z(1:5)   - phase space coordinates: z(1:3) - spatial position, 
+!  z(1:5)   - phase space coordinates: z(1:3) - spatial position,
 !                                      z(4)   - normalized
 !                                      z(5)   - pitch parameter
 !  dtauc    - normalized time step: dtauc=dtau*v0 - has the dimension of length
@@ -202,15 +202,15 @@ end subroutine loacol_nbi
 !               2 - energy scattering and drag only
 !               3 - drag only
 !               4 - pitch-angle scattering only
-!  ierr     - error code: 
-!               0 - good, 
+!  ierr     - error code:
+!               0 - good,
 !               1 - bad argument (pitch |z(5)| > 1 ),
-!               2 - step over pitch exceeds 1 (pitch was 
+!               2 - step over pitch exceeds 1 (pitch was
 !                   replaced by randomly distributed on [-1,1]),
 !               3 - new pitch module exceeds 1, reflection from
 !                   the boudary was performed,
 !               10 or >10 - new momentum module is less then
-!                   prescribed minimum, reflection was performed. 
+!                   prescribed minimum, reflection was performed.
 !
   implicit none
 !
@@ -241,21 +241,21 @@ end subroutine loacol_nbi
     dalam=sqrt(2.d0*dhh*coala*dtauc)*dble(ur)-2.d0*alam*dhh*dtauc
 !print *, dhh
 !
-    if(abs(dalam).gt.1.d0) then 
+    if(abs(dalam).gt.1.d0) then
       ierr=2
 !
-      call random_num(ur)
+      call random_number(ur)
 !
       alam=2.d0*(dble(ur)-0.5d0)
     else
       alam=alam+dalam
       if(alam.gt.1.d0) then
-        ierr=3 
+        ierr=3
         alam=2.d0-alam
       elseif(alam.lt.-1.d0) then
-        ierr=3 
+        ierr=3
         alam=-2.d0-alam
-      endif 
+      endif
     endif
 !
     z(5)=alam
