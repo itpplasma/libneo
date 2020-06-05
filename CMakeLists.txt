@@ -60,7 +60,7 @@ find_library(MyMPILib_lib MyMPILib ${MYMPILIB_PATH})
 # Main goal (of the created build file): creating the library file.
 add_library(libneo SHARED ${SOURCE_FILES})
 
-add_library(libmc_efit SHARED
+add_library(mc_efit SHARED
   src/magfie/polylag_3.f
   src/magfie/polylag_5.f
   src/magfie/spline5_RZ.f90
