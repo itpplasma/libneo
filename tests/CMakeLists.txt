@@ -32,6 +32,7 @@ else()
   set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
   set(OPEN_BLAS_PATH /usr/lib/openblas-base/ /usr/lib/x86_64-linux-gnu/)
 endif()
+
 set(OPEN_BLAS_LAPACK_LIB ${OPEN_BLAS_PATH})
 set(OPEN_BLAS_LIB ${OPEN_BLAS_PATH})
 
@@ -42,6 +43,12 @@ find_library(open_blas_lapack_lib lapack ${OPEN_BLAS_LAPACK_LIB} NO_DEFAULT_PATH
 find_library(MyMPILib_lib MyMPILib ${MYMPILIB_PATH})
 
 set(LINALG_LIBRARIES ${open_blas_lib} ${open_blas_lapack_lib})
+
+if (APPLE)
+  set(OPEN_BLAS_LIB /opt/local/lib/)
+  find_library(open_blas_lib openblas ${OPEN_BLAS_LIB} NO_DEFAULT_PATH)
+  set(LINALG_LIBRARIES ${open_blas_lib})
+endif()
 
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 
