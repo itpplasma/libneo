@@ -9,65 +9,6 @@ end subroutine elefie
 
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine elefie_mtprofile(x,derphi)
-!
-! Computes the derivatives of the electrostatic potential over
-! coordinates (covariant electric field). Potential is normalized
-! to reference temperature : phinor = e phi / T.
-!
-!   Input parameters:
-!             formal:    x       -   array of coordinates
-!
-!   Output parameters:
-!             formal:    derphi  -   array of derivatives
-!
-
-  USE polylag_3, only : mp,indef, plag1d
-  use elefie_mod, only: Mtprofile, v0, Z1, am1, rbig, escale, bscale
-  use neo_input, only : flux
-  use constants, only: e_mass, e_charge, p_mass, c, pi
-        
-  implicit none
-  
-  integer :: ierr
-  double precision, dimension(3) :: x,derphi
-  double precision :: bmod,sqrtg
-  double precision, dimension(3) :: bder,hcovar,hctrvr,hcurl
-  double precision :: r,phi,z,psi,phi_el,phi_el_pr,phi_el_prpr
-  double precision :: qsafety
-
-  integer,          dimension(mp) :: indu
-  double precision, dimension(mp) :: xp,fp
-  double precision :: s, der, dxm1
-  double precision :: Mt, vth
-
-  !   
-  derphi=0.d0
-  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
-  qsafety = hctrvr(2)/hctrvr(3)
-  
-  s = x(1)
-  
-  dxm1=1.d0/(Mtprofile(2,1)-Mtprofile(1,1))
-  call indef(s,Mtprofile(1,1),dxm1,size(Mtprofile,1),indu)
-  
-  xp=Mtprofile(indu,1)
-  fp=Mtprofile(indu,2)
-  call plag1d(s,fp,dxm1,xp,Mt,der)
-  
-  fp=Mtprofile(indu,3)
-  call plag1d(s,fp,dxm1,xp,vth,der)
-
-  Mt = Mt/bscale
-  
-  derphi(1) = -(1.0d8*flux*bscale/(2.0d0*pi))*Mt*vth/(qsafety*c*rbig)
-  derphi(1) = derphi(1)*Z1*e_charge/(am1*p_mass*v0**2/2.d0) ! normalization
-
-  derphi(1) = -escale*derphi(1) ! TODO check if this is correct sign
-!  derphi(1) = 0.1d0 ! TODO remove this test
-  return
-end subroutine elefie_mtprofile
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine velo(tau,z,vz)
 !
 !
@@ -100,7 +41,6 @@ end subroutine elefie_mtprofile
 !  Called routines: magfie, elefie
 !
       use parmot_mod, only : rmu,ro0
-      use magfield_mod, only : ierrfield
 !
       implicit none
 !
@@ -129,7 +69,7 @@ end subroutine elefie_mtprofile
 !            bmod   - dimensionless magnetic field module: bmod=B/B_ref
 !            sqrtg  - Jacobian of space coordinates (square root of
 !                     metric tensor
-!            bder   - derivatives of logarithm of bmod over space coords 
+!            bder   - derivatives of logarithm of bmod over space coords
 !                     (covariant vector)
 !            hcovar - covariant components of the unit vector along
 !                     the magnetic field
@@ -139,10 +79,11 @@ end subroutine elefie_mtprofile
 !
       call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
-      if(ierrfield.ne.0) then
-        vz=0.d0
-        return
-      endif
+! TODO: error handling magfie
+!      if(ierrfield.ne.0) then
+!        vz=0.d0
+!        return
+!      endif
 ! in elefie: x(i)   - space coords (input, see above)
 !            derphi - derivatives of the dimensionless electric potential
 !                     phihat=e*phi/T over space coords (covar. vector)
@@ -211,7 +152,6 @@ end subroutine elefie_mtprofile
 ! collisions
       use collis_alp, only : swcoll,iswmod
 ! end collisions
-      use magfield_mod, only : ierrfield
 !
       implicit none
 !
@@ -269,7 +209,8 @@ end subroutine elefie_mtprofile
         y(2)=z(3)
 !
         call chamb(y,phi,ierr)
-        ierr=max(ierr,ierrfield)
+        ! TODO: error handling magfie
+        !ierr=max(ierr,ierrfield)
 !
         if(ierr.ne.0) return
         tau1=tau2
@@ -295,7 +236,8 @@ end subroutine elefie_mtprofile
       y(2)=z(3)
 !
       call chamb(y,phi,ierr)
-      ierr=max(ierr,ierrfield)
+      ! TODO: error handling magfie
+      !ierr=max(ierr,ierrfield)
 !
       if(ierr.ne.0) return
 !
@@ -305,7 +247,7 @@ end subroutine elefie_mtprofile
       subroutine rhs_mflint(phi,y,dery)
 !
 ! Computes the right hand side of the magnetic field line equation for
-! the integration over the toroidal angle, subintegrand for the flux tube 
+! the integration over the toroidal angle, subintegrand for the flux tube
 ! volume $1/B^\varphi$ and subintegrants for Boozer $B_{00}$ computation
 ! $B^2/B^\varphi$ and $B^3/B^\varphi$                       -   dery
 !
@@ -321,7 +263,6 @@ end subroutine elefie_mtprofile
 !                 dery(1:5) - vector of the right-hand side
 !  Called routines:  magfie
 !
-      use magfield_mod, only : ierrfield
 !
       double precision :: phi
       double precision, dimension(5) :: y,dery
@@ -334,10 +275,12 @@ end subroutine elefie_mtprofile
 !
       call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
-      if(ierrfield.ne.0) then
-        dery=0.d0
-        return
-      endif
+
+! TODO: error handling magfie
+!      if(ierrfield.ne.0) then
+!        dery=0.d0
+!        return
+!      endif
       dery(1)=hctrvr(1)/hctrvr(2)
       dery(2)=hctrvr(3)/hctrvr(2)
       dery(3)=1.d0/(bmod*hctrvr(2))
@@ -351,7 +294,6 @@ end subroutine elefie_mtprofile
       subroutine integrate_mfl(npoi,dphii,rbeg,phibeg,zbeg,         &
                                xstart,bstart,volstart,bmod00,ierr)
 !
-      use magfield_mod, only : ierrfield
 !
       implicit none
 !
@@ -394,22 +336,26 @@ end subroutine elefie_mtprofile
 !
       call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
-      ierr=max(ierr,ierrfield)
+
+! TODO: error handling magfie
+      !ierr=max(ierr,ierrfield)
       if(ierr.ne.0) return
       xstart(:,1)=x
       bstart(1)=bmod
       volstart(1)=y(3)
 !
       do i=2,npoi
-! 01.09.2011 
+! 01.09.2011
       do i2=1,ndphi
 ! 01.09.2011 end
         phiold=phi
         phi=phiold+dphi
 !
         call odeint_allroutines(y,ndim,phiold,phi,relerr,rhs_mflint)
-        if(ierrfield.ne.0) exit
-! 01.09.2011 
+
+! TODO: error handling magfie
+!        if(ierrfield.ne.0) exit
+! 01.09.2011
       enddo
 ! 01.09.2011 end
 !
@@ -420,7 +366,8 @@ end subroutine elefie_mtprofile
         x(3)=y(2)
 !
         call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
-        ierr=max(ierr,ierrfield)
+! TODO: error handling magfie
+!        ierr=max(ierr,ierrfield)
         if(ierr.ne.0) return
 !
         xstart(:,i)=x
@@ -437,7 +384,7 @@ end subroutine elefie_mtprofile
 !
   subroutine binsrc(p,nmin,nmax,xi,i)
 !
-! Finds the index  i  of the array of increasing numbers   p  with dimension  n 
+! Finds the index  i  of the array of increasing numbers   p  with dimension  n
 ! which satisfies   p(i-1) <  xi  <  p(i) . Uses binary search algorithm.
 !
   implicit none
