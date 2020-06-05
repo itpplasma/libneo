@@ -12,3 +12,12 @@ doc/latex/
 
 # Ignore files that are created by the make process.
 *.pdf
+aug/mwilmodpy/BiotSavart.py~
+
+# Ignore backup files
+*~
+
+# Ignore object files
+*.mod
+*.o
+*.so
