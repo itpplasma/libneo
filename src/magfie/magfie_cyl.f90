@@ -40,7 +40,7 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
   ! TODO: add error handling?
   ! if(ierrfield.eq.1) return
 
-  bmod = dsqrt(br**2 + bf**2 + bz**2)
+  bmod = dsqrt(br**2 + bf**2 + bz**2)  ! B
   sqrtg = x(1)
   hr = br/bmod
   hf = bf/bmod
@@ -58,6 +58,7 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
   hctrvr(2) = hf/x(1)
   hctrvr(3) = hz
 
+  ! hcurl = (curl vecB)/B and not curl vech = curl (vecB/B) (?)
   hcurl(1)=((bzf-x(1)*bfz)/bmod    + hcovar(2)*bder(3)-hcovar(3)*bder(2))/sqrtg
   hcurl(2)=((brz-bzr)/bmod         + hcovar(3)*bder(1)-hcovar(1)*bder(3))/sqrtg
   hcurl(3)=((bf+x(1)*bfr-brf)/bmod + hcovar(1)*bder(2)-hcovar(2)*bder(1))/sqrtg
