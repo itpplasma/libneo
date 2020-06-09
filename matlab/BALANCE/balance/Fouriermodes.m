@@ -21,7 +21,7 @@ function Fouriermodes(fourierpath, fluxdatapath, fdb0)
     %FOURIERMODES.INP - could be set here
     time_start = datestr(datetime);
     disp(['Start of Fouriermodes at ', time_start])
-    [~, res] = system('./fouriermodes.x');
+    [stat, res] = system('./fouriermodes.x');
     time_end = datestr(datetime);
 
     %log file
@@ -32,18 +32,21 @@ function Fouriermodes(fourierpath, fluxdatapath, fdb0)
     fprintf(fid, '%s\n', res); %write console output
     fclose(fid);
 
+    if(stat ~= 0)
+        error('error in fouriermodes, see log file.')
+    end
+    
     %move output to fluxdatapath
     system(['mkdir -p ', fluxdatapath]);
     outfiles = {'amn.dat', 'btor_rbig.dat', 'equil_r_q_psi.dat', ...
                 'axis.dat', 'box_size.dat', 'separ.dat', 'phinorm_arr.dat', ...
-                'thetabooz.dat', 'theta_of_theta_qt_flabel.dat', ...
-                'equil_r_q_psi.dat.qneg', logname};
+                'thetabooz.dat', 'theta_of_theta_qt_flabel.dat', logname};
     for k=1:numel(outfiles)
         %skip amn.dat if run was only equi without coils
-        if(fdb0.ipert == 0 && strcmp(outfiles{k}, 'amn.dat'))
-            system(['rm ' outfiles{k}]);
-            continue;
-        end
+%         if(fdb0.ipert == 0 && strcmp(outfiles{k}, 'amn.dat'))
+%             system(['rm ' outfiles{k}]);
+%             continue;
+%         end
     	system(['mv -f ' outfiles{k}, ' ', fluxdatapath]);
     end
     
