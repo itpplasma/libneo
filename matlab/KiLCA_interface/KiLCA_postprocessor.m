@@ -34,6 +34,12 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
     %created:  04.11.2019
     %modified: 26.03.2020
         
+    properties (Constant)
+        ECHARGE = 4.8e-10;   %electron charge in cgs
+        KB = 1.3807e-16;     % Boltzmann constant
+        EVK = 1.1604e4;      % eV -> deg(K)
+    end
+    
     properties
         
         DEBUG = false;       %flag for debug output
@@ -67,6 +73,10 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
         
         %------------------------------------------------------------------
         
+        E0r     %equilibrium radial electric field
+        
+        %------------------------------------------------------------------
+        
         B0th    %equilibrium theta magnetic field
         B0z     %equilibrium z magnetic field
         B0      %equilibrium absolute magnetic field
@@ -83,6 +93,7 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
         
         %------------------------------------------------------------------
         
+        n       %density
         dp      %pressure gradient
         
         %------------------------------------------------------------------
@@ -109,6 +120,12 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
         
         Jpar    %parallel current
         Jperp   %perpendicular current
+        
+        %------------------------------------------------------------------
+        
+        veperp  %electron perpendicular velocity
+        ved     %electron diamagnetic velocity
+        vExB    %ExB velocity
         
         %------------------------------------------------------------------
         
@@ -419,8 +436,8 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
             
             if(~isempty(obj.d) && ~isnan(obj.d))
                 hold on
-                plot([obj.rres-obj.d/2, obj.rres-obj.d/2], ylim, ':r', 'LineWidth', 2, 'DisplayName', 'r_s - d')
-                plot([obj.rres+obj.d/2, obj.rres+obj.d/2], ylim, ':r', 'LineWidth', 2, 'DisplayName', 'r_s + d')
+                plot([obj.rres-obj.d/2, obj.rres-obj.d/2], ylim, ':r', 'LineWidth', 2, 'DisplayName', 'r_s - d/2')
+                plot([obj.rres+obj.d/2, obj.rres+obj.d/2], ylim, ':r', 'LineWidth', 2, 'DisplayName', 'r_s + d/2')
                 hold off
             end
             
@@ -462,6 +479,10 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
             obj.writeHDF5(fname, loc, 'Jz', 'complex toroidal current', 'statA cm^{-2} c=1');
             obj.writeHDF5(fname, loc, 'Jpar', 'complex parallel current', 'statA cm^{-2} c=1');
             
+            obj.writeHDF5(fname, loc, 'veperp', 'electron perpendicular velocity', 'units of c');
+            obj.writeHDF5(fname, loc, 'ved', 'electron diamagnetic velocity', 'units of c');
+            obj.writeHDF5(fname, loc, 'vExB', 'ExB velocity', 'units of c');
+            
             obj.writeHDF5(fname, loc, 'residual', 'residual of furths equation', 'G cm');
             obj.writeHDF5(fname, loc, 'd', 'width of the resonant layer', 'cm');
             obj.writeHDF5(fname, loc, 'Ipar', 'total parallel current', 'statA c=1');
@@ -484,6 +505,12 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
             obj.ra   = obj.parent.antenna.ra;
             obj.rmax = max(obj.r);
             obj.Rtor = obj.parent.background.Rtor;
+            
+            %density
+            obj.n = interp1(obj.bdata.n_i(:, 1), obj.bdata.n_i(:, 2), obj.r, 'spline');
+            
+            %extract equilibrium electric field components
+            obj.E0r = interp1(obj.bdata.Er_i(:, 1), obj.bdata.Er_i(:, 2), obj.r, 'spline');
             
             %extract equilibrium magnetic field components
             obj.B0th = interp1(obj.bdata.b0th(:, 1), obj.bdata.b0th(:, 2), obj.r, 'spline');
@@ -532,7 +559,12 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
 
             %calculate parallel and perpendicular current
             obj.Jpar = (obj.Jth .* obj.B0th + obj.Jz .* obj.B0z) ./ obj.B0;
-            obj.Jperp = nan; %WRONG!!!
+            obj.Jperp = (obj.Jz .* obj.B0th - obj.Jth .* obj.B0z) ./ obj.B0;
+            
+            %calculate velocities
+            obj.vExB = obj.E0r ./ obj.B0;
+            obj.ved = obj.dp ./ (obj.ECHARGE .* obj.n .* obj.B0);
+            obj.veperp = obj.vExB + obj.ved;
             
             %check furths equation
             obj.check_furth();
@@ -563,8 +595,8 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
             warning ('on', 'all');
             
             obj.d = real(5 * sqrt(beta(1)));
-            
-            %plot for diag
+        
+            %plot for debugging
 %             figure('units', 'normalized', 'outerposition', [0, 0, 1, 0.6]);
 %             axis tight
 %             plot(obj.r(ind), abs(obj.Jpar(ind)), '.', 'MarkerSize', 11, 'DisplayName', 'parallel current')
@@ -592,7 +624,7 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
         function calc_Ipar(obj)
             
             %Method 1: direct integration
-            ind = (obj.r <= (obj.rres + obj.d / 2)) & (obj.r >= (obj.rres - obj.d / 2));
+            ind = (obj.r <= (obj.rres + obj.d/2)) & (obj.r >= (obj.rres - obj.d/2));
             obj.Ipar = abs(2*pi*trapz(obj.r(ind), obj.r(ind) .* obj.Jpar(ind)));
             
             %Method 2: Sergeis estimation
