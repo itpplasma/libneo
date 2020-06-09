@@ -14,7 +14,7 @@ libBalance = '~/BALANCE/';
 addpath([libBalance, 'balance/']);
 fourierpath = [libBalance, 'fourier/'];
 
-gfiles = {'/temp/ulbl_p/AUG/WLS/33353/g33353.2900_AUGD_IDE_ed0',...
+gfiles = {%'/temp/ulbl_p/AUG/WLS/33353/g33353.2900_AUGD_IDE_ed0',...
           '/temp/ulbl_p/AUG/WLS/33353/g33353.2900_MICDU_EQB_ed0',...
           '/temp/ulbl_p/AUG/WLS/33353/g33353.2900_MICDU_EQB_ed1',...
           '/temp/ulbl_p/AUG/WLS/33353/g33353.2900_MICDU_EQB_ed2',...
@@ -37,14 +37,14 @@ for k = 1:numel(gfiles)
         ftype = [ftime{2:end}];
         time = str2double(strrep(ftime{1}, '.', ''));
         
-        pfile = ['/temp/ulbl_p/MESH3D/',num2str(shot(k)),'/field.dat'];
+        pfile = ['/temp/ulbl_p/MESH3D/',num2str(shot),'/field.dat'];
         convexfile = '/proj/plasma/RMP/DATA/ASDEX/convexwall.dat';
         
         fdb0 = field_divB0(gfile, pfile, convexfile, '');
         fdb0.ipert = 1;
         fdb0.write([libBalance, 'blueprints/'], fourierpath);
         
-        fluxdatapath = ['/temp/ulbl_p/FLUXDATA/',num2str(shot(k)),'_',ftype,'/',num2str(time(k)),'/'];
+        fluxdatapath = ['/temp/ulbl_p/FLUXDATA/',num2str(shot),'_',ftype,'/',num2str(time),'/'];
         system(['mkdir -p ', fluxdatapath]);	
         
         disp(['run ', num2str(k), '/', num2str(numel(gfiles)), ' : gfile ', gfile])

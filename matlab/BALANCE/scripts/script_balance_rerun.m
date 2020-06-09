@@ -1,16 +1,17 @@
 %##########################################################################
-% script_balance.m
+% script_balance_rerun.m
 %##########################################################################
 % description:
 %--------------------------------------------------------------------------
-% 
+% this script makes a re-run of the balance code -> profiles are copied
+% beforehand to skip pre-processing
 %##########################################################################
 
 %author:   Philipp Ulbl
 %created:  07.01.2020
 
 libKiLCA = '~/KiLCA_interface/';
-libBalance = '~/BALANCE/';
+libBalance = '~/BALANCE/balance';
 
 addpath(genpath(libKiLCA))
 addpath(genpath(libBalance))
