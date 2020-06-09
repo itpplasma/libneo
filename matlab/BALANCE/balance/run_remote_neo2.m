@@ -21,16 +21,42 @@ function run_remote_neo2(configfile, kpath)
     %minimum # of CPUs per NEO2 run
     MINCPU = 1;
 
-    %import config file
-    conf = importdata(configfile);
-    %remove commented lines
-    rmind = cellfun(@(c) strcmp(c(1), '#'), conf.textdata);
-    conf.textdata(rmind) = [];
-    conf.data(rmind, :) = [];
-    %extract data
-    host = conf.textdata;
-    cpu = conf.data(:, 1);
-    mem = conf.data(:, 2);
+    %fastest way: textscan
+    
+    fid = fopen(configfile);
+    %scan string, int, int
+    raw = textscan(fid, '%s %d %d');
+    %get indices of comment lines: #
+    ind = ~cellfun(@(c) strcmp(c(1), '#'), raw{1});
+    %remove comment lines
+    raw = cellfun(@(c) vertcat(c(ind)), raw, 'UniformOutput', false);
+    %assign hostnames, cpus and ram
+    host = raw{1};
+    cpu = raw{2};
+    mem = raw{3};
+    
+    %keep other solutions as comments because they are nice
+    
+%     %read_in much faster than importdata
+
+%     raw = read_in(configfile);
+%     raw = raw(~cellfun(@(c) strcmp(c(1), '#'), raw));
+%     raw = cellfun(@(c) strsplit(c, ' '), raw, 'UniformOutput', false);
+% 
+%     host = cellfun(@(c) vertcat(c{1}), raw, 'UniformOutput', false);
+%     cpu = cellfun(@(c) vertcat(str2double(c{2})), raw);
+%     mem = cellfun(@(c) vertcat(str2double(c{3})), raw);
+    
+%     %import config file
+%     conf = importdata(configfile);
+%     %remove commented lines
+%     rmind = cellfun(@(c) strcmp(c(1), '#'), conf.textdata);
+%     conf.textdata(rmind) = [];
+%     conf.data(rmind, :) = [];
+%     %extract data
+%     host = conf.textdata;
+%     cpu = conf.data(:, 1);
+%     mem = conf.data(:, 2);
     
     %calculate maximum jobs per host
     maxjob = min(floor(mem ./ MINRAM), floor(cpu ./ MINCPU));
