@@ -936,7 +936,7 @@ if (irf.eq.1) call get_collision_frequences_from_wave_code(flre_cd_ptr(imin), di
     formfactor=(1.d0,0.d0)/Br
 !
     do ipoi = 1, npoib
-      call amn_of_r(-m_vals(i_mn),n_vals(i_mn),r(ipoi),                     &
+      call amn_of_r(+m_vals(i_mn),n_vals(i_mn),r(ipoi),                     &
                     amn_psi(ipoi),amn_theta(ipoi),ierr)
       if(ierr.ne.0) then
 !            print *,'amn_of_r error ',ierr
@@ -947,6 +947,14 @@ if (irf.eq.1) call get_collision_frequences_from_wave_code(flre_cd_ptr(imin), di
     end do
     amn_theta_cyl = r*rtor/n_vals(i_mn)*Br
     spec_weight = 2.0d0*(abs(amn_theta)**2/abs(amn_theta_cyl)**2)
+    
+    !diagnostics
+    open(855,file='amn_theta.dat')
+        do ipoi=1,npoic
+          write (855,*) r(ipoi),abs(amn_theta(ipoi)),abs(amn_theta_cyl(ipoi))
+        end do
+    close(855)
+    
 if (irank .eq. 0 ) then
 !DIAG:
   if(write_diag) then
