@@ -50,6 +50,7 @@ classdef da_estimator < handle & hdf5_output
         type            %type of Da: const/est/combined/astra
         
         r               %small radius
+        q               %safety factor
         psi_pol_norm    %normalized poloidal flux
         V               %flux surface volume
         S               %flux surface area
@@ -94,6 +95,7 @@ classdef da_estimator < handle & hdf5_output
             %load profiles and equi
             equilrqpsi = dlmread([obj.fluxdatapath, 'equil_r_q_psi.dat'], '', 3, 0);
             obj.r = equilrqpsi(:, 1); %equivalent radius
+            obj.q = equilrqpsi(:, 2); %safety factor
             obj.psi_pol_norm = equilrqpsi(:, 3)./equilrqpsi(end, 3); %normalized poloidal flux
             obj.V = equilrqpsi(:, 7); %flux surface volume
             
@@ -143,14 +145,25 @@ classdef da_estimator < handle & hdf5_output
             %check if astraname exists otherwise go for powernames
             if(exist(astraname, 'file'))
                 
+                %textscan: much faster than importdata
+                
+                %open file
+                fid = fopen(astraname);
                 %load data
-                raw = importdata(astraname);
-                %transpose
-                dat = raw.data';
-                %delete nan
-                dat = dat(~isnan(dat));
-                %reshape file which has 19columns but written in rows
-                dat = reshape(dat, 19, numel(dat)/19)';
+                raw=textscan(fid, '%11n', 'HeaderLines', 1);
+                %reshape single column into matrix
+                dat=reshape(raw{1}, 19, numel(raw{1})/19)';
+                %close file
+                fclose(fid);
+                
+%                 %load data
+%                 raw = importdata(astraname);
+%                 %transpose
+%                 dat = raw.data';
+%                 %delete nan
+%                 dat = dat(~isnan(dat));
+%                 %reshape file which has 19columns but written in rows
+%                 dat = reshape(dat, 19, numel(dat)/19)';
 
                 %extract poloidal rho
                 rho_pol = dat(:, 3);
@@ -161,7 +174,7 @@ classdef da_estimator < handle & hdf5_output
                 
                 %use full astra or combined (estimation from astra Q)
                 if(~combine)
-                    obj.Da = obj.chi_e .* 1.5;
+                    obj.Da = obj.chi_e ./ 1.5;
                     obj.type = 'astra';
                 else
                     obj.Da = -obj.Q_e ./ obj.ne ./ obj.dTe ./ obj.S;
@@ -196,6 +209,36 @@ classdef da_estimator < handle & hdf5_output
                 obj.Da = obj.DA_UNIV .* ones(size(obj.r));
                 obj.type = 'const';
             end
+            
+            %test
+            %r_res = interp1(obj.q, obj.r, 5/2);
+            %obj.Da = interp1(obj.r, obj.Da, r_res) .* ones(size(obj.r));
+        end
+        
+        function write(obj, fpath)
+            %##############################################################
+            %function write(obj, fpath)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % writes processed data to file. requires loadEstimation before.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fpath ... path + name of file
+            %##############################################################
+            
+            %check
+            if(isempty(obj.r) || isempty(obj.Da))
+                error('data must be processed before writing.');
+            end
+            
+            %open file
+            fid = fopen(fpath,'wb');
+            %write profile
+            fprintf(fid,'%.15e\t%.15e\n', [obj.r'; obj.Da']);
+            %close file
+            fclose(fid);
         end
         
         function export2HDF5(obj, fname, loc)
