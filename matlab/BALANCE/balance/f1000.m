@@ -47,53 +47,25 @@ classdef f1000 < balance_prototype_output
     %get for dependent properties
     methods
        function q = get.r(obj)
-           if(isempty(obj.r_priv))
-               raw = load(obj.path);
-               obj.r_priv = raw(:, 1);
-           end
-           q = obj.r_priv;
+           q = obj.saveGetProp('r_priv');
        end
        function q = get.n(obj)
-           if(isempty(obj.n_priv))
-               raw = load(obj.path);
-               obj.n_priv = raw(:, 2);
-           end
-           q = obj.n_priv;
+           q = obj.saveGetProp('n_priv');
        end
        function q = get.Vz(obj)
-           if(isempty(obj.Vz_priv))
-               raw = load(obj.path);
-               obj.Vz_priv = raw(:, 3);
-           end
-           q = obj.Vz_priv;
+           q = obj.saveGetProp('Vz_priv');
        end
        function q = get.Te(obj)
-           if(isempty(obj.Te_priv))
-               raw = load(obj.path);
-               obj.Te_priv = raw(:, 4);
-           end
-           q = obj.Te_priv;
+           q = obj.saveGetProp('Te_priv');
        end
        function q = get.Ti(obj)
-           if(isempty(obj.Ti_priv))
-               raw = load(obj.path);
-               obj.Ti_priv = raw(:, 5);
-           end
-           q = obj.Ti_priv;
+           q = obj.saveGetProp('Ti_priv');
        end
        function q = get.Er(obj)
-           if(isempty(obj.Er_priv))
-               raw = load(obj.path);
-               obj.Er_priv = raw(:, 6);
-           end
-           q = obj.Er_priv;
+           q = obj.saveGetProp('Er_priv');
        end
        function q = get.Sqrtg_Btheta_over_c(obj)
-           if(isempty(obj.Sqrtg_Btheta_over_c_priv))
-               raw = load(obj.path);
-               obj.Sqrtg_Btheta_over_c_priv = raw(:, 7);
-           end
-           q = obj.Sqrtg_Btheta_over_c_priv;
+           q = obj.saveGetProp('Sqrtg_Btheta_over_c_priv');
        end
     end
     
@@ -112,6 +84,39 @@ classdef f1000 < balance_prototype_output
             %############################################################## 
             
             obj.path = fpath;
+        end
+    end
+    
+    methods(Access = private)
+        
+        function loadFile(obj)
+            %loads full file into properties
+            
+            %open file
+            fid = fopen(obj.path);
+            %textscan with right format
+            raw = textscan(fid, '%25n', 'Delimiter' , ' ', 'MultipleDelimsAsOne', true);
+            %reshape single column into 7 columns
+            raw = reshape(raw{1}, 7, numel(raw{:})/7)';
+            %assign columns to properties
+            obj.r_priv = raw(:, 1);
+            obj.n_priv = raw(:, 2);
+            obj.Vz_priv = raw(:, 3);
+            obj.Te_priv = raw(:, 4);
+            obj.Ti_priv = raw(:, 5);
+            obj.Er_priv = raw(:, 6);
+            obj.Sqrtg_Btheta_over_c_priv = raw(:, 7);
+            %close file
+            fclose(fid);
+        end    
+        function q = saveGetProp(obj, prop)
+            %checks if property has been loaded and loads it if not
+            
+            if(isempty(obj.(prop)))
+                obj.loadFile();
+            end
+            
+            q = obj.(prop);
         end
     end
 end
