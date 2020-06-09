@@ -56,7 +56,6 @@ classdef profile_preprocessor < handle & hdf5_output
     
         profpath        %path to profile output
         gfile           %path to gfile
-        pfile           %path to coil file
         convexfile      %path to convex file
         fluxdatapath    %path to fluxdata
         
@@ -138,9 +137,9 @@ classdef profile_preprocessor < handle & hdf5_output
             obj.LIB_BALANCE = [s.path, '/'];
         end
         
-        function set_equilibrium(obj, gf, pf, cf, fpath)
+        function set_equilibrium(obj, gf, cf, fpath)
             %##############################################################
-            %function set_equilibrium(obj, gf, pf, cf, fpath)
+            %function set_equilibrium(obj, gf, cf, fpath)
             %##############################################################
             % description:
             %--------------------------------------------------------------
@@ -149,19 +148,16 @@ classdef profile_preprocessor < handle & hdf5_output
             % input:
             %--------------------------------------------------------------
             % gf    ... location of gfile
-            % pf    ... location of pfile (coil file from Kisslinger)
             % cf    ... location of convexfile
             % fpath ... directory containing fluxdata (amn.dat, etc.)
             %############################################################## 
             
             %check input files
             if(exist(gf, 'file') ~= 2), error(['gfile not found in: ', gf]); end
-            if(exist(pf, 'file') ~= 2), error(['pfile not found in: ', pf]); end
             if(exist(cf, 'file') ~= 2), error(['convexfile not found in: ', cf]); end
             if(exist(fpath, 'dir') ~= 7), error(['fluxdatapath not found in: ', fpath]); end
             
             obj.gfile = gf;
-            obj.pfile = pf;
             obj.convexfile = cf;
             obj.fluxdatapath = fpath;
             
@@ -533,7 +529,7 @@ classdef profile_preprocessor < handle & hdf5_output
             %on proj/plasma)
             system(['cp ', obj.convexfile, ' ', kpath]);
             %create divB0 input file
-            fdb0 = field_divB0(obj.gfile, obj.pfile, [kpath, 'convexwall.dat'], obj.fluxdatapath);
+            fdb0 = field_divB0(obj.gfile, ' ', [kpath, 'convexwall.dat'], obj.fluxdatapath);
             fdb0.ipert = 0;
             fdb0.write([obj.LIB_BALANCE, 'blueprints/'], [kpath, 'TEMPLATE_DIR/']);
 
