@@ -61,95 +61,43 @@ classdef f5000 < balance_prototype_output
     %get for dependent properties
     methods
        function q = get.r(obj)
-           if(isempty(obj.r_priv))
-               raw = load(obj.path);
-               obj.r_priv = raw(:, 1);
-           end
-           q = obj.r_priv;
+           q = obj.saveGetProp('r_priv');
        end
        function q = get.de11(obj)
-           if(isempty(obj.de11_priv))
-               raw = load(obj.path);
-               obj.de11_priv = raw(:, 2);
-           end
-           q = obj.de11_priv;
+           q = obj.saveGetProp('de11_priv');
        end
        function q = get.de12(obj)
-           if(isempty(obj.de12_priv))
-               raw = load(obj.path);
-               obj.de12_priv = raw(:, 3);
-           end
-           q = obj.de12_priv;
+           q = obj.saveGetProp('de12_priv');
        end
        function q = get.de22(obj)
-           if(isempty(obj.de22_priv))
-               raw = load(obj.path);
-               obj.de22_priv = raw(:, 4);
-           end
-           q = obj.de22_priv;
+           q = obj.saveGetProp('de22_priv');
        end
        function q = get.di11(obj)
-           if(isempty(obj.di11_priv))
-               raw = load(obj.path);
-               obj.di11_priv = raw(:, 5);
-           end
-           q = obj.di11_priv;
+           q = obj.saveGetProp('di11_priv');
        end
        function q = get.di12(obj)
-           if(isempty(obj.di12_priv))
-               raw = load(obj.path);
-               obj.di12_priv = raw(:, 6);
-           end
-           q = obj.di12_priv;
+           q = obj.saveGetProp('di12_priv');
        end
        function q = get.di22(obj)
-           if(isempty(obj.di22_priv))
-               raw = load(obj.path);
-               obj.di22_priv = raw(:, 7);
-           end
-           q = obj.di22_priv;
+           q = obj.saveGetProp('di22_priv');
        end
        function q = get.Br_Abs(obj)
-           if(isempty(obj.Br_Abs_priv))
-               raw = load(obj.path);
-               obj.Br_Abs_priv = raw(:, 8);
-           end
-           q = obj.Br_Abs_priv;
+           q = obj.saveGetProp('Br_Abs_priv');
        end
        function q = get.Br_minus_ckpEs_over_wexB(obj)
-           if(isempty(obj.Br_minus_ckpEs_over_wexB_priv))
-               raw = load(obj.path);
-               obj.Br_minus_ckpEs_over_wexB_priv = raw(:, 9);
-           end
-           q = obj.Br_minus_ckpEs_over_wexB_priv;
+           q = obj.saveGetProp('Br_minus_ckpEs_over_wexB_priv');
        end
        function q = get.Br_minus_cksEp_over_wexB(obj)
-           if(isempty(obj.Br_minus_cksEp_over_wexB_priv))
-               raw = load(obj.path);
-               obj.Br_minus_cksEp_over_wexB_priv = raw(:, 10);
-           end
-           q = obj.Br_minus_cksEp_over_wexB_priv;
+           q = obj.saveGetProp('Br_minus_cksEp_over_wexB_priv');
        end
        function q = get.Je_Abs(obj)
-           if(isempty(obj.Je_Abs_priv))
-               raw = load(obj.path);
-               obj.Je_Abs_priv = raw(:, 11);
-           end
-           q = obj.Je_Abs_priv;
+           q = obj.saveGetProp('Je_Abs_priv');
        end
        function q = get.Ji_Abs(obj)
-           if(isempty(obj.Ji_Abs_priv))
-               raw = load(obj.path);
-               obj.Ji_Abs_priv = raw(:, 12);
-           end
-           q = obj.Ji_Abs_priv;
+           q = obj.saveGetProp('Ji_Abs_priv');
        end
        function q = get.Je_plus_Ji_Abs(obj)
-           if(isempty(obj.Je_plus_Ji_Abs_priv))
-               raw = load(obj.path);
-               obj.Je_plus_Ji_Abs_priv = raw(:, 13);
-           end
-           q = obj.Je_plus_Ji_Abs_priv;
+           q = obj.saveGetProp('Je_plus_Ji_Abs_priv');
        end
     end
     
@@ -168,6 +116,68 @@ classdef f5000 < balance_prototype_output
             %############################################################## 
             
             obj.path = fpath;
+        end
+        
+        function b = getLastBrAbs(obj)
+            %##############################################################
+            %function b = getLastBrAbs(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % returns the last entry of Br_Abs in an efficient way.
+            %##############################################################
+            % output:
+            %--------------------------------------------------------------
+            % b     ... last entry of Br_Abs
+            %############################################################## 
+            
+            %get last line using system command
+            [~, raw] = system(['tail -n 1 ', obj.path]);
+            %split by space deliminator
+            raw = strsplit(raw, ' ');
+            %remove first and last entry (no chars)
+            raw = raw(2:(end-1));
+            %return value in 8th entry(Br_Abs)
+            b=str2double(raw{8});
+        end
+    end
+    
+    methods(Access = private)
+        
+        function loadFile(obj)
+            %loads full file into properties
+            
+            %open file
+            fid = fopen(obj.path);
+            %textscan with right format
+            raw = textscan(fid, '%25n', 'Delimiter' , ' ', 'MultipleDelimsAsOne', true);
+            %reshape single column into 7 columns
+            raw = reshape(raw{1}, 13, numel(raw{:})/13)';
+            %assign columns to properties
+            obj.r_priv = raw(:, 1);
+            obj.de11_priv = raw(:, 2);
+            obj.de12_priv = raw(:, 3);
+            obj.de22_priv = raw(:, 4);
+            obj.di11_priv = raw(:, 5);
+            obj.di12_priv = raw(:, 6);
+            obj.di22_priv = raw(:, 7);
+            obj.Br_Abs_priv = raw(:, 8);
+            obj.Br_minus_ckpEs_over_wexB_priv = raw(:, 9);
+            obj.Br_minus_cksEp_over_wexB_priv = raw(:, 10);
+            obj.Je_Abs_priv = raw(:, 11);
+            obj.Ji_Abs_priv = raw(:, 12);
+            obj.Je_plus_Ji_Abs_priv = raw(:, 13);
+            %close file
+            fclose(fid);
+        end    
+        function q = saveGetProp(obj, prop)
+            %checks if property has been loaded and loads it if not
+            
+            if(isempty(obj.(prop)))
+                obj.loadFile();
+            end
+            
+            q = obj.(prop);
         end
     end
 end
