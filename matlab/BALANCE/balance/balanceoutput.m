@@ -1,6 +1,6 @@
-classdef balanceoutput < handle
+classdef balanceoutput < handle & hdf5_output
 %##########################################################################
-%classdef balanceoutput < handle
+%classdef balanceoutput < handle & hdf5_output
 %##########################################################################
 % description of class:
 %--------------------------------------------------------------------------
@@ -22,19 +22,37 @@ classdef balanceoutput < handle
 %created:  14.01.2020
 
     properties (Constant=true)
-        OUTFILES = {'fort.1000','fort.5000','Brvac.dat','cond_e.dat',...
+        OUTFILES = {'fort*','Brvac.dat','cond_e.dat',...
             'equipotentials.dat','equisource.dat',...
             'par_current_e.dat','par_current_i.dat',...
-            'init_params.dat'}; %cell array of all output files of balance code
+            'init_params.dat', 'timstep_evol.dat', 'amn_theta.dat'}; %cell array of all output files of balance code
     end
     
     properties
+        path            %path of output
+        
         m               %modenumber m
         n               %modenumber n
+        r_res           %location of this resonant surface
         
         fort1000        %fort.1000 file -> profiles
         fort5000        %fort.5000 file -> D-coefficients, etc..
         
+        time_step       %time steps in time evoluton. only there if time evolution used
+        time            %total time in time evoluton. only there if time evolution used
+        Br_abs_ant      %absolute radial magnetic field at antenna. only there if time evolution used
+    end
+    
+    properties(SetAccess = private)
+        Brvac_file
+        cond_e_file
+        equipotentials_file
+        equisource_file
+        par_current_e_file
+        par_current_i_file
+    end
+    
+    properties(Dependent)
         r               %radius
         Brvac           %vacuum radial magnetic field
         
@@ -50,18 +68,91 @@ classdef balanceoutput < handle
         Br_Abs          %absolute radial magnetic field
         Br_minus_ckpEs_over_wexB_Abs %
         equisource      %
-        
         Jmpe            %parallel current electrons (Heyn14 eq. 60)
         Jmpi            %parallel current ions (Heyn14 eq. 60)
         
         Jpe             %parallel current electrons (full)
         Jpi             %parallel current ions (full)
     end
+    %getter
+    methods
+       function q = get.r(obj)
+           q = obj.saveGetProp('Brvac', 1);
+       end
+       function q = get.Brvac(obj)
+           q = obj.saveGetProp('Brvac', 2);
+       end
+       function q = get.I10(obj)
+           q1 = obj.saveGetProp('cond_e', 2);
+           q2 = obj.saveGetProp('cond_e', 3);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.I11(obj)
+           q1 = obj.saveGetProp('cond_e', 4);
+           q2 = obj.saveGetProp('cond_e', 5);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.I21(obj)
+           q1 = obj.saveGetProp('cond_e', 6);
+           q2 = obj.saveGetProp('cond_e', 7);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.I31(obj)
+           q1 = obj.saveGetProp('cond_e', 8);
+           q2 = obj.saveGetProp('cond_e', 9);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.psi0(obj)
+           q = obj.saveGetProp('equipotentials', 2);
+       end
+       function q = get.phi0(obj)
+           q = obj.saveGetProp('equipotentials', 3);
+       end
+       function q = get.psi1(obj)
+           q1 = obj.saveGetProp('equipotentials', 4);
+           q2 = obj.saveGetProp('equipotentials', 5);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.phi1(obj)
+           q1 = obj.saveGetProp('equipotentials', 6);
+           q2 = obj.saveGetProp('equipotentials', 7);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.Br_Abs(obj)
+           q = obj.saveGetProp('equipotentials', 8);
+       end
+       function q = get.Br_minus_ckpEs_over_wexB_Abs(obj)
+           q = obj.saveGetProp('equipotentials', 9);
+       end
+       function q = get.equisource(obj)
+           q = obj.saveGetProp('equisource', 1:4);
+       end
+       function q = get.Jmpe(obj)
+           q1 = obj.saveGetProp('par_current_e', 2);
+           q2 = obj.saveGetProp('par_current_e', 3);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.Jpe(obj)
+           q1 = obj.saveGetProp('par_current_e', 4);
+           q2 = obj.saveGetProp('par_current_e', 5);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.Jmpi(obj)
+           q1 = obj.saveGetProp('par_current_i', 2);
+           q2 = obj.saveGetProp('par_current_i', 3);
+           q = q1 + 1i.* q2;
+       end
+       function q = get.Jpi(obj)
+           q1 = obj.saveGetProp('par_current_i', 4);
+           q2 = obj.saveGetProp('par_current_i', 5);
+           q = q1 + 1i.* q2;
+       end
+    end
     
     methods
-        function obj = balanceoutput(m, n)
+        function obj = balanceoutput(m, n, r_res)
             %##############################################################
-            %function obj = balanceoutput(m, n)
+            %function obj = balanceoutput(m, n, r_res)
             %##############################################################
             % description:
             %--------------------------------------------------------------
@@ -71,13 +162,14 @@ classdef balanceoutput < handle
             %--------------------------------------------------------------
             % m     ... modenumber m
             % n     ... modenumber n
+            % r_res ... location of this resonant surface
             %##############################################################    
             
             obj.m = m;
             obj.n = n;
+            obj.r_res = r_res;
         end
         
-
         function loadOutput(obj, path)
             %##############################################################
             %function loadOutput(obj, path)
@@ -91,45 +183,87 @@ classdef balanceoutput < handle
             % path  ... mpath of the output files
             %##############################################################    
             
-            %fort 1000 + 5000
-            obj.fort1000 = f1000([path, obj.OUTFILES{1}]);
-            obj.fort5000 = f5000([path, obj.OUTFILES{2}]);
-            %obj.fort5000 = f5000([path, 'fort.5000.0.000']);
+            obj.path = path;
             
-            %Brvac
-            raw = load([path, obj.OUTFILES{3}]);
-            obj.r = raw(:, 1);
-            obj.Brvac = raw(:, 2);
+            %get all files in output directory
+            files = dir(path);
+            %count fort.1*** and fort.5*** files
+            ntime1 = sum(arrayfun(@(x) contains(x.name, 'fort.1'), files));
+            ntime5 = sum(arrayfun(@(x) contains(x.name, 'fort.5'), files));
+%             %number should match
+%             if(ntime1 ~= ntime5)
+%                 error('number of fort.1000 files does not match number of fort.5000 files. check output log of balance.') 
+%             end
             
-            %cond_e
-            raw = load([path, obj.OUTFILES{4}]);
-            obj.I10 = raw(:, 2) + 1i .* raw(:, 3);
-            obj.I11 = raw(:, 4) + 1i .* raw(:, 5);
-            obj.I21 = raw(:, 6) + 1i .* raw(:, 7);
-            obj.I31 = raw(:, 8) + 1i .* raw(:, 9);
+            %if there is more than 1 file then we have time evolution
+            %running
+            if(ntime1 > 1)
+                %save as cell array of objects
+                obj.fort1000 = cell(1, ntime1);
+                obj.fort5000 = cell(1, ntime1);
+                
+                %initialize br antenna
+                obj.Br_abs_ant = nan(ntime1, 1);
+                %get object for each time and read br antenna
+                for k=1:ntime1
+                   obj.fort1000{k} = f1000([path, 'fort.', sprintf('%04d', k+999)]);
+                   obj.fort5000{k} = f5000([path, 'fort.', sprintf('%04d', k+4999)]);
+                   obj.Br_abs_ant(k) = obj.fort5000{k}.getLastBrAbs();
+                end
+                
+                %read time evol file
+                time_evol =  load([path, 'timstep_evol.dat']);
+                obj.time_step = time_evol(:, 2);
+                obj.time = [0; time_evol(:, end)]; %add t=0 at start (to get same length as Br_abs_ant)
+                %not needed columns:
+                %time_evol(:, 1) = N
+                %time_evol(:, 3) = timscale_dqle
+                %time_evol(:, 4) = timscal(1)
+                %time_evol(:, 5) = rate_dql
+                
+            else %load only single file
+                %fort 1000 + 5000
+                obj.fort1000 = f1000([path, 'fort.1000']);
+                obj.fort5000 = f5000([path, 'fort.5000']);
+            end
+        end
+        
+        function export2HDF5(obj, fname, loc)
+            %##############################################################
+            %function export2HDF5(obj, fname, loc)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % exports most important content of this class to hdf5file.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % fname  ... name of hdf5 file with path
+            % loc    ... location of this sub-hierarchy in hdf5tree
+            %##############################################################
             
-            %equipotentials
-            raw = load([path, obj.OUTFILES{5}]);
-            obj.psi0 = raw(:, 2);
-            obj.phi0 = raw(:, 3);
-            obj.psi1 = raw(:, 4) + 1i .* raw(:, 5);
-            obj.phi1 = raw(:, 6) + 1i .* raw(:, 7);
-            obj.Br_Abs = raw(:, 8);
-            obj.Br_minus_ckpEs_over_wexB_Abs = raw(:, 9);
+            obj.writeHDF5(fname, loc, 'time', 'total time', 's');
+            obj.writeHDF5(fname, loc, 'time_step', 'time step', 's');
+            obj.writeHDF5(fname, loc, 'Br_abs_ant', 'absolute radial magnetic field at antenna (unscaled)', 'G');
             
-            %equisource
-            raw = load([path, obj.OUTFILES{6}]);
-            obj.equisource = raw(:, 2:end);
+        end
+    end
+    
+    methods(Access=private)
+        
+        function loadPropFromFile(obj, file)
+            %loads full file into properties
+            obj.([file, '_file']) = load([obj.path, file, '.dat']);
             
-            %parallel current electrons
-            raw = load([path, obj.OUTFILES{7}]);
-            obj.Jmpe = raw(:, 2) + 1i .* raw(:, 3);
-            obj.Jpe  = raw(:, 4) + 1i .* raw(:, 5);
+        end 
+        function q = saveGetProp(obj, prop, col)
+            %checks if property has been loaded and loads it if not
             
-            %parallel current ions
-            raw = load([path, obj.OUTFILES{8}]);
-            obj.Jmpi = raw(:, 2) + 1i .* raw(:, 3);
-            obj.Jpi  = raw(:, 4) + 1i .* raw(:, 5);
+            if(isempty(obj.([prop, '_file'])))
+                obj.loadPropFromFile(prop);
+            end
+            
+            q = obj.([prop, '_file'])(:, col);
         end
     end
 end
