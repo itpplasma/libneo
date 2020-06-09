@@ -355,14 +355,26 @@ classdef KiLCA_interface < handle
             
             %change directory to path of run, run KiLCA exe and change back
             cd(obj.pathofrun);
-            disp('%######################################################')
-            disp(['KiLCA start with type = ', obj.run_type])
-            [obj.run_stat, obj.run_res] = system('./run_local');
-            disp(['KiLCA end with status = ', num2str(obj.run_stat)])
-            disp('%######################################################')
-            cd(obj.pathofmfile);
             
-            stat = obj.run_stat;
+            start_time = datetime;
+            disp(['Start of KiLCA at ', datestr(start_time)])
+            disp(['Type: ', obj.run_type])
+            [obj.run_stat, obj.run_res] = system('./run_local');
+            
+            %write to log file
+            if(obj.run_stat ~= 0)
+                %open log file
+                start_time = datetime;
+                logfile = ['KiLCA_', strrep(datestr(start_time), ' ', '_'), '.log'];
+                fid = fopen(logfile, 'w');
+                fprintf(fid, '%s\n', obj.run_res);
+                fclose(fid);
+            
+                error(['Error in KiLCA. Result = ', obj.run_res, '. See log file run directory.'])
+            end
+                
+            %close log file
+            cd(obj.pathofmfile);
             
             %if run successful
             if(obj.run_stat == 0)
@@ -371,6 +383,9 @@ classdef KiLCA_interface < handle
                 %load output
                 loadOutput(obj);
             end
+            
+            disp(['Finished KiLCA at ', datestr(datetime)])
+            disp(['Total runtime was ', string(datetime-start_time)])
         end
         
         function runExternal(obj)
