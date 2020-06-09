@@ -1,15 +1,15 @@
-1                                                  ipert! 0=eq only, 1=vac, 2,3=vac+plas
-1                                                  iequil ! 0=pert. alone, 1=with equil.
-1                                                 ampl ! amplitude of perturbation, a.u.
-72                                                ntor ! number of toroidal harmonics
-0.99                                              cutoff ! inner cutoff in psi/psi_a units
-4                                                  icftype! type of coil file
-'/temp/ulbl_p/AUG/SHOTS/33353/g33353.2900_IDE'    gfile! equilibrium file
-'/temp/ulbl_p/MESH3D/33353/field.dat'             !'DATA/ASDEX/MESH3D_30835/field.dat'pfile! coilfile
-'/proj/plasma/RMP/DATA/convexwall.dat'            convexfile ! convex file for stretchcoords
-''                                                fluxdatapath ! directory with data in flux coord.
-0                                                  window size for filtering of psi array over R
-0                                                  window size for filtering of psi array over Z
+1                                                   ipert! 0=eq only, 1=vac, 2,3=vac+plas
+1                                                   iequil! 0=pert. alone, 1=with equil.
+1                                                   ampl! amplitude of perturbation, a.u.
+72                                                  ntor! number of toroidal harmonics
+0.99                                                cutoff! inner cutoff in psi/psi_a units
+4                                                   icftype! type of coil file
+'/temp/ulbl_p/AUG/SHOTS/33353/g33353.2900_EQH'      gfile! equilibrium file
+'/temp/ulbl_p/MESH3D/33353/field.dat'               !'DATA/ASDEX/MESH3D_30835/field.dat'pfile! coilfile
+'/proj/plasma/RMP/DATA/convexwall.dat'              convexfile! convex file for stretchcoords
+''                                                  fluxdatapath ! directory with data in flux coord.
+0                                                   window size for filtering of psi array over R
+0                                                   window size for filtering of psi array over Z
 
 
 
