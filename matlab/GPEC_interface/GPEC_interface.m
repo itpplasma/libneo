@@ -40,6 +40,9 @@ classdef GPEC_interface < handle
         
         coil  = []      %inputfile for coil
         equil = []      %inputfile for equi
+        dcon = []       %inputfile for dcon
+        gpec = []       %inputfile for gpec
+        vac = []        %inputfile for vac
     end
     
     methods(Access=public)
@@ -131,6 +134,25 @@ classdef GPEC_interface < handle
             obj.coil.COIL_CONTROL.coil_cur = current;
         end
         
+        function loadDGV(obj)
+            %##############################################################
+            %function loadDGV(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % loads dcon, gpec and vac namelists from templates.
+            %##############################################################
+            
+            obj.dcon = InputFile([obj.LIB_GPEC, 'template/dcon.in']);
+            obj.dcon.read();
+            
+            obj.gpec = InputFile([obj.LIB_GPEC, 'template/gpec.in']);
+            obj.gpec.read();
+            
+            obj.vac = InputFile([obj.LIB_GPEC, 'template/vac.in']);
+            obj.vac.read();
+        end
+        
         function write(obj)
             %##############################################################
             %function write(obj)
@@ -140,6 +162,11 @@ classdef GPEC_interface < handle
             % creates directory structure and copies all input files
             %##############################################################
 
+            %load files if not done
+            if(isempty(obj.gpec) || isempty(obj.dcon) || isempty(obj.vac))
+                obj.loadDGV();
+            end
+            
             %create path
             system(['mkdir -p ', obj.path_run]);
             %delete old outputs
@@ -148,15 +175,16 @@ classdef GPEC_interface < handle
             system(['rm ', obj.path_run, '*.out 2>/dev/null']);
             system(['rm ', obj.path_run, '*.log 2>/dev/null']);
             
-            %copy namelists
-            system(['cp ', obj.LIB_GPEC, '/template/* ', obj.path_run]);
-            %replace changed ones
+            %write namelists
             if(~isempty(obj.coil))
                 obj.coil.write([obj.path_run, 'coil.in']);
             end
             if(~isempty(obj.equil))
                 obj.equil.write([obj.path_run, 'equil.in']);
             end
+            obj.dcon.write([obj.path_run, 'dcon.in']);
+            obj.gpec.write([obj.path_run, 'gpec.in']);
+            obj.vac.write([obj.path_run, 'vac.in']);
         end
         
         function run(obj)
