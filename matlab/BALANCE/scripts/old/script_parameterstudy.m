@@ -24,7 +24,7 @@ system(['mkdir -p ~/Balance_Results/', studyname]);
 
 %##########################################################################
 % SHOT PARAMETERS
-%##########################################################################
+%##################/temp/ulbl_p/AUG/Suttrop/Shots/33353/2900/33353.2900_Te_PED.dat########################################################
 
 shot = 33353;
 time = 2900;
@@ -54,14 +54,17 @@ for o = 1:numel(nfac)
         filename = strsplit(runpath, '/');
         filename = filename{end-1};
 	
-	checkfile = ['out/f_', num2str(m(end)), '_', num2str(n(end)), '/fort.5000'];
-	if(exist([runpath, checkfile], 'file') == 2)
-		continue;
-	end
-	if(exist(['~/Balance_Results/DensTemp_Study/', num2str(shot), '_', num2str(time), '_n', num2str(nfac(o)), ...
-		'_T', num2str(Tfac(p)), '_CurTable.txt'], 'file'))
-		continue;
-	end
+        %this is if runs were somehow disrupted to skip already calculated
+        %ones
+        
+%         checkfile = ['out/f_', num2str(m(end)), '_', num2str(n(end)), '/fort.5000'];
+%         if(exist([runpath, checkfile], 'file') == 2)
+%             continue;
+%         end
+%         if(exist(['~/Balance_Results/DensTemp_Study/', num2str(shot), '_', num2str(time), '_n', num2str(nfac(o)), ...
+%             '_T', num2str(Tfac(p)), '_CurTable.txt'], 'file'))
+%             continue;
+%         end
 
         %get gfile from proj plasma RMP
         gfile  = ['/temp/ulbl_p/AUG/SHOTS/',num2str(shot),'/g',num2str(shot),'.',num2str(time),'_EQH'];
