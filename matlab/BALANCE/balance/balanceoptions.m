@@ -15,6 +15,7 @@ classdef balanceoptions < handle & blueprint
 % *) npointmin, gg_fac, gg_width, gg_rres, Nstorage, tmax_fac
 % *) antenna_fac, iboutype, iwrite, epsilon dperp, icoll, Z_i, am
 % *) rb_cut_in, re_cut_in, rb_cut_out, re_cut_out, write_formfactors
+% *) flag_run_time_evolution
 %##########################################################################
 % methods:
 %--------------------------------------------------------------------------
@@ -27,7 +28,7 @@ classdef balanceoptions < handle & blueprint
 %created:  07.01.2020
 
     properties (Transient, SetAccess = 'protected')
-        INDICES = 1:26;             %indices of parameters in blueprint files
+        INDICES = 1:28;             %indices of parameters in blueprint files
         BLUEPRINT = 'balance.in';   %name of blueprint file
         SEP = '  '
     end
@@ -44,10 +45,10 @@ classdef balanceoptions < handle & blueprint
         gg_fac=[50.0, 200.0]                    %factor for gengrid
         gg_width=2.0                            %width for gengrid
         gg_rres=95.34                           %r_res for gengrid
-        Nstorage=300                            %
+        Nstorage=1000                           %number of times calculated in balance evolution
         tmax_fac=5e1                            %
-        antenna_fac=[1, 0.125, 0.0625, 0.25, 1] %
-        iboutype=1                              %
+        antenna_fac=[1, 0.125, 0.0625, 0.25, 1] %factor for the amplitude of the external field
+        iboutype=1                              %type of boundary conditions iboutype=1 - fixed parameters, iboutype=2 - fixed fluxes
         iwrite=[0, 1]                           %
         epsilon=1e-6                            %
         dperp=1e4                               %
@@ -59,6 +60,8 @@ classdef balanceoptions < handle & blueprint
         rb_cut_out=67.5                         %
         re_cut_out=68.0                         %
         write_formfactors=[false, true]         %
+        flag_run_time_evolution=false           %flag to run balance code with ql time evolution
+        stop_time_step=1e-6                     %criterion to stop time evolution
     end
     
     methods
@@ -111,9 +114,12 @@ classdef balanceoptions < handle & blueprint
             obj2.antenna_fac = sprintf('%.8g ', obj.antenna_fac);
             obj2.iwrite = sprintf('%i ', obj.iwrite);
             obj2.write_formfactors = sprintf('%i ', obj.write_formfactors);
+            obj2.flag_run_time_evolution = sprintf('%i ', obj.flag_run_time_evolution);
             %transform 0 to .false. and 1 to .true.
             obj2.write_formfactors = strrep(obj2.write_formfactors, '0', '.false.');
             obj2.write_formfactors = strrep(obj2.write_formfactors, '1', '.true.');
+            obj2.flag_run_time_evolution = strrep(obj2.flag_run_time_evolution, '0', '.false.');
+            obj2.flag_run_time_evolution = strrep(obj2.flag_run_time_evolution, '1', '.true.');
             
             %continue with ordinary write of superclass
             write@blueprint(obj2, path_from, path_to);
