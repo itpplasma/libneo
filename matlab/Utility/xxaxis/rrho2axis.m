@@ -1,6 +1,6 @@
-function rrho2axis(a, b, r, rho2, delta)
+function rrho2axis(a, b, r, rho2, delta, mode)
 %##########################################################################
-%function rrho2axis(a, b, r, rho2, delta)
+%function rrho2axis(a, b, r, rho2, delta, mode)
 %##########################################################################
 % description:
 %--------------------------------------------------------------------------
@@ -16,6 +16,7 @@ function rrho2axis(a, b, r, rho2, delta)
 % r     ... r values
 % rho2  ... rho values
 % delta ... uniform rho spacing
+% mode  ... mode of spacing. 'optimized' (default) or 'uniform'
 %##########################################################################
 
 %author:   Philipp Ulbl
@@ -37,15 +38,21 @@ function rrho2axis(a, b, r, rho2, delta)
         delta_psi = delta;
     end
     
+    %uniform spacing to 1
+    if(nargin > 5 && ~isempty(mode) && strcmp(mode, 'uniform'))
+        tickb_rho = tickb_rho_raw(1):delta_psi:max(1, tickb_rho_raw(end));
+        
     %create spacing in rho with 0.95 and 1 included
-    tickb_rho = tickb_rho_raw(1):delta_psi:min(0.92, tickb_rho_raw(end));
-    if(tickb_rho_raw(end) >= 0.95)
-        if(delta_psi <= 0.05)
-            tickb_rho = [tickb_rho, 0.95];
-        end
-        tickb_rho = [tickb_rho, 1];
-        if(delta_psi <= 0.05)
-            tickb_rho = [tickb_rho, 1.03:delta_psi:tickb_rho_raw(end)];
+    else
+        tickb_rho = tickb_rho_raw(1):delta_psi:min(0.92, tickb_rho_raw(end));
+        if(tickb_rho_raw(end) >= 0.95)
+            if(delta_psi <= 0.05)
+                tickb_rho = [tickb_rho, 0.95];
+            end
+            tickb_rho = [tickb_rho, 1];
+            if(delta_psi <= 0.05)
+                tickb_rho = [tickb_rho, 1.03:delta_psi:tickb_rho_raw(end)];
+            end
         end
     end
     
