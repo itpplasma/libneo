@@ -8,10 +8,13 @@ classdef Balance < handle & hdf5_output
 %##########################################################################
 % properties:
 %--------------------------------------------------------------------------
-% *) EXEC_NAME, CONVEX_PATH, SOFT_PATH, LIB_BALANCE, LIB_KiLCA
+% *) EXEC_NAME, CONVEX_PATH, LIB_BALANCE, LIB_KiLCA, LIB_GPEC
+% *) FLAG_RUN_TIME_EVOLUTION
 % *) FLAG_FORCE_KISSLINGER, FLAG_FORCE_FOURIER, FLAG_FORCE_PROFILES
+% *) FLAG_FORCE_NEO2, FLAG_FORCE_TMHD
 % *) r_sep, r_ant, r_idw, r_sta, r_min, r_max, rb_cut_out, re_cut_out
-% *) KiLCA_I0, KiLCA_flab, KiLCA_sigma
+% *) KiLCA_I0, KiLCA_flab, KiLCA_sigma, KiLCA_vgalsys
+% *) kil_flre, kil_vacuum
 % READONLY:
 % *) path_run, path_factors, path_output, path_fluxdata,
 %    path_profiles
@@ -20,26 +23,25 @@ classdef Balance < handle & hdf5_output
 %    file_Ti_raw, file_vt_raw
 % *) b_tor, r_big, r_sep_real, fdb0
 % *) profiles, options, factors
-% *) kil_flre, kil_vac, Atheta_antenna
+% *) legacy_Atheta_antenna
 % *) outputs
 % *) r_res, d_res, q_res, I_res, De22_res
-% *) specfactors, I_res_resc, scalefactors, De22_res_resc
+% *) legacy_specfactors, legacy_I_rescaled, scalefactors_sq, De22_res_resc
 %##########################################################################
 % methods:
 %--------------------------------------------------------------------------
-% *) obj = Balance(runpath, shot, time, libkilca, name)
+% *) obj = Balance(runpath, shot, time, name)
 % *) setCoil(obj, pfile, cfile)
 % *) setEqui(obj, gfile, fluxdatapath)
 % *) setProfiles(obj, neprof, Teprof, Tiprof, vtprof)
 % *) setOptions(obj, opt)
 % *) setFactors(obj, f) -> not implemented in run
 % *) setModes(obj, m, n)
+% *) setTMHD(obj, ttype, tpath)
+% *) setKiLCA(obj)
 % *) write(obj)
 % *) run(obj)
 % *) loadOutput(obj)
-% *) basicPost(obj)
-% *) rescaleD(obj, fname, type)
-% *) rescaleI(obj)
 % *) plotDe22(obj)
 % *) plotDe22Single(obj, varargin)
 % *) plotDe22Res(obj)
@@ -54,15 +56,22 @@ classdef Balance < handle & hdf5_output
     properties
         EXEC_NAME = 'balance.x.mpif90.openmpi_x86_64'           %name of the exec file
         CONVEX_PATH = '/proj/plasma/RMP/DATA/convexwall.dat';   %location of convexfile for AUG machine
-        SOFT_PATH = '/proj/plasma/soft/';                       %location of math libraries
 
         LIB_BALANCE     %path to libbalance
         LIB_KiLCA       %path to libkilca
+        LIB_GPEC        %path to libgpec
         
-        FLAG_FORCE_KISSLINGER = false;      %forces recalculation of field.dat
-        FLAG_FORCE_FOURIER = false;         %forces recalculation of amn.dat
+        FLAG_FORCE_KISSLINGER = false;      %forces recalculation of field.dat if required
+        FLAG_FORCE_FOURIER = false;         %forces recalculation of amn.dat if required
         FLAG_FORCE_PROFILES = false;        %forces recalculation of profiles
-
+        FLAG_FORCE_NEO2 = false;            %forces recalculation of neo-2 k profile when profiles are recalculated
+        FLAG_FORCE_TMHD = false;            %forces recalculation of resonant currents with toroidal mhd code
+        
+        FLAG_REQUIRE_KISSLINGER = false;    %code will need output of Kisslinger
+        FLAG_REQUIRE_AMN = false;           %code will need output of fouriermodes with mode = 1 (amn.dat)
+        
+        RES_WARNING_TRIGGER = 1e-1;         %trigger value to give a warning for fluid resonances near surface resonance (distance in cm)
+        
         r_sep = 67;             %position of separatrix
         r_ant = 70;             %position of antenna
         r_idw = 80;             %position of ideal wall
@@ -77,7 +86,7 @@ classdef Balance < handle & hdf5_output
         KiLCA_I0 = 1e13;        %kilca antenna current
         KiLCA_flab = 1;         %kilca frequency in lab frame
         KiLCA_sigma = 1.3e16;   %kilca conductivity of resistive wall
-        
+        KiLCA_vgalsys = -1e8;   %kilca velocity of moving frame
     end
     
     properties(SetAccess = private)
@@ -88,6 +97,7 @@ classdef Balance < handle & hdf5_output
         
         path_fluxdata   %path to folder containing fluxdata
         path_profiles   %path to folder containing profiles
+        path_tmhd       %path to folder containing data of toroidal mhd code
         
         name            %name of the run
         shot            %shot number
@@ -100,7 +110,7 @@ classdef Balance < handle & hdf5_output
         file_coil       %location of coil file from Kisslinger (3D)
         file_equi       %location of gfile
         
-        file_Ires       %location of file containing resonant currents of iMHD
+        file_tmhd       %location of file containing resonant currents of toroidal iMHD code
         file_Da         %location of file containing Da estimation
         
         file_ne_raw     %location of raw ne profile from experiment
@@ -120,23 +130,34 @@ classdef Balance < handle & hdf5_output
         options         %options for balance code (represents balance.in)
         factors = 0     %factors for V-shift
         
-        kil_flre        %KiLCA_interface for flre
-        kil_vac         %KiLCA_interface for vacuum
+        tmhd            %object representing toroidal mhd code.
+        kil_vacuum      %object of KiLCA vacuum run
+        kil_flre        %object of KiLCA flre run
+        
+        zero_veperp      %zeros of veperp
+        zero_vExB        %zeros of vExB
+        dis_zero_veperp  %absolute distance for each mode from veperp zero
+        dis_zero_vExB    %absolute distance for each mode from vExB zero
         
         outputs         %Output container of balance code (cell-array)
-        
-        Atheta_antenna  %poloidal vector potential from antenna
         
         r_res           %location of resonances for all modes
         d_res           %thickness of resonant layers for all modes
         q_res           %resonant safety factor for all modes
         I_res           %resonant total parallel current for all modes (integral over d_res)
-        De22_res        %De22 at r_res for all modes
+        Da_res          %estimated Da at r_res for all modes
+        De22_res        %rescaled De22 at r_res for all modes
+        bifurcfactors   %factors for the bifurcation to occur (De22_res / Da_res)
         
-        specfactors     %Spectral factors Wmn
-        I_res_resc      %rescaled resonant currents
-        scalefactors    %Scale factors Cmn
-        De22_res_resc   %rescaled De22
+        I_tmhd          %resonant currents computed by toroidal mhd code
+        scalefactors_sq    %Scale factors Cmn^2
+        
+        %OLD QUANTITIES COMPUTED FOR CHECKS IF NEEDED
+        
+        legacy_Atheta_antenna  %poloidal vector potential from antenna
+        legacy_specfactors     %Spectral factors Wmn
+        legacy_I_rescaled      %rescaled resonant currents
+        legacy_De22_unscaled   %unscaled De22 (recalculated using legacy_specfactors)
     end
     
     methods
@@ -157,6 +178,8 @@ classdef Balance < handle & hdf5_output
             %##############################################################    
             
             obj.path_run = runpath;
+            system(['mkdir -p ', obj.path_run]);
+            
             obj.path_factors = [runpath, 'factors/'];
             obj.path_output = [runpath, 'out/'];
             
@@ -166,24 +189,57 @@ classdef Balance < handle & hdf5_output
             s = what(s);               %get absolute path
             obj.LIB_BALANCE = [s.path, '/'];
             obj.LIB_KiLCA = [obj.LIB_BALANCE, 'balance/KiLCA_interface/'];
+            obj.LIB_GPEC = [obj.LIB_BALANCE, 'balance/GPEC_interface/'];
             
             if(~exist(obj.LIB_KiLCA, 'dir'))
                 error('libKiLCA not found. Create symbolic link at location of this m file.')
             end
             
-            addpath(genpath(obj.LIB_BALANCE));
-            addpath(genpath(obj.LIB_KiLCA));
+            addpath(obj.LIB_BALANCE);
+            addpath(obj.LIB_KiLCA);
+            addpath(obj.LIB_GPEC);
             
             obj.shot = shot;
             obj.time = time;
             
-            if(nargin < 5 || isempty(name))
-                name = 'default';
+            if(nargin < 4 || isempty(name))
+                name = 'yet another unnamed run';
             end
             obj.name = name;
         end
         
-        function setCoil(obj, pfile, cfile)
+        %##################################################################
+        % METHODS FOR RUNNING THE CODE
+        %##################################################################
+        
+        function setModes(obj, m, n)
+            %##############################################################
+            %function setModes(obj, m, n)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % set modes to calculate with the balance code.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % m     ... mode number m
+            % n     ... mode number n
+            %##############################################################    
+            
+            %check m, n same size
+            if(size(m) ~= size(n))
+                error('m and n must be of same size.')
+            end
+            %check m scalar or vector
+            if(sum(size(m) > 1) > 1)
+                error('m and n must be vectors or scalars.')
+            end
+            
+            obj.m = m;
+            obj.n = n;
+        end
+        
+        function setCoil(obj, cfile, pfile)
             %##############################################################
             %function setCoil(obj, pfile, pfile)
             %##############################################################
@@ -193,24 +249,29 @@ classdef Balance < handle & hdf5_output
             %##############################################################
             % input:
             %--------------------------------------------------------------
-            % pfile   ... location of Kisslinger coil file
             % cfile   ... location of raw coil file 
             %             (needed if pfile not exists for recalc)
+            % pfile   ... (optional) location of Kisslinger coil file 
+            %             (forces calculation if not present)
             %##############################################################    
             
-            obj.file_coil = pfile;
+            obj.file_coil_raw = cfile;
             
-            %check if pfile exists
-            if(exist(obj.file_coil, 'file') ~= 2 || obj.FLAG_FORCE_KISSLINGER == true)
-                obj.file_coil_raw = cfile;
-                coilpath = [obj.LIB_BALANCE, 'coil/'];
-                Kisslinger(coilpath, obj.shot, obj.file_coil_raw, obj.file_coil);
+            %do this only if pfile is used
+            if(nargin == 3)
+                %save path of pfile
+                obj.file_coil = pfile;
+                %check if pfile exists
+                if(exist(obj.file_coil, 'file') ~= 2 || obj.FLAG_FORCE_KISSLINGER == true)
+                    coilpath = [obj.LIB_BALANCE, 'coil/'];
+                    Kisslinger(coilpath, obj.shot, obj.file_coil_raw, obj.file_coil);
+                end
             end
         end
         
-        function setEqui(obj, gfile, fluxdatapath)
+        function setEqui(obj, gfile, fluxdatapath, calc_amn)
             %##############################################################
-            %function setEqui(obj, gfile, fluxdatapath)
+            %function setEqui(obj, gfile, fluxdatapath, use_amn)
             %##############################################################
             % description:
             %--------------------------------------------------------------
@@ -220,17 +281,24 @@ classdef Balance < handle & hdf5_output
             %--------------------------------------------------------------
             % gfile        ... location of g file
             % fluxdatapath ... directory where fluxdata is located
+            % calc_amn     ... default true.
+            %                  flag to calculate amn from existing pfile
+            %                  (set in setCoil).
             %##############################################################    
+            
+            if(nargin < 4 || isempty(calc_amn))
+                calc_amn = true;
+            end
             
             obj.file_equi = gfile;
             obj.path_fluxdata = fluxdatapath;
             
             %check if amn exists. if not run with ipert=1 (use coil file)
-            if(exist([obj.path_fluxdata, 'amn.dat'], 'file') ~= 2 || obj.FLAG_FORCE_FOURIER == true)
+            if(calc_amn == true && (exist([obj.path_fluxdata, 'amn.dat'], 'file') ~= 2 || obj.FLAG_FORCE_FOURIER == true))
                 run_amn = 1;
                 run_fourier = true;
             %check if btorrbig and equilrqpsi exists. if not run with ipert=0 (only equi)
-            elseif(exist([obj.path_fluxdata, 'btor_rbig.dat'], 'file') ~= 2 || exist([obj.path_fluxdata, 'equil_r_q_psi.dat'], 'file') ~= 2)
+            elseif(~exist([obj.path_fluxdata, 'btor_rbig.dat'], 'file') || ~exist([obj.path_fluxdata, 'equil_r_q_psi.dat'], 'file'))
                 run_amn = 0;
                 run_fourier = true;
             %else no run of fourier
@@ -266,13 +334,77 @@ classdef Balance < handle & hdf5_output
             obj.r_sep_real = raw(end, 1);
         end
         
-        function setProfiles(obj, neprof, Teprof, Tiprof, vtprof)
+        function setTMHDCode(obj, ttype, tpath)
             %##############################################################
-            %function setProfiles(obj, neprof, Teprof, Tiprof, vtprof)
+            % setTMHDCode(obj, ttype, tpath)
             %##############################################################
             % description:
             %--------------------------------------------------------------
-            % set profiles for balance run
+            % set the toroidal mhd code (tmhd) used to get scaling factors
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % ttype        ... type of tmhd code (supported: 'GPEC')
+            % tpath        ... path to output of tmhd code
+            %##############################################################    
+            
+            %check if run necessary
+            if(obj.FLAG_FORCE_TMHD || ~exist(tpath, 'dir'))
+                run_tmhd = true;
+            else
+                run_tmhd = false;
+            end
+                
+            %type is GPEC
+            if(strcmp(ttype, 'GPEC'))
+                
+                %save path
+                obj.path_tmhd = tpath;
+                
+                %run if necessary
+                if(run_tmhd==true)
+                    %run gpec with matlab interface
+                    obj.tmhd = GPEC_interface(tpath, obj.shot, obj.time, obj.name);
+                    obj.tmhd.setEqui(obj.file_equi);
+                    obj.tmhd.setCoil(obj.file_coil_raw);
+                    obj.tmhd.write();
+                    obj.tmhd.run();
+                end
+                
+                %load data
+                obj.file_tmhd = [obj.path_tmhd, 'gpec_profile_output_n2.nc'];
+                %read safety factor
+                qraw = ncread(obj.file_tmhd, 'q_rational');
+                %read I res in A
+                Iraw = ncread(obj.file_tmhd, 'I_res');
+                
+                %get resonant that match to the ones calculated by this
+                Ires = Iraw(:, 1) + 1i .* Iraw(:, 2);
+                %pick only m which are calculated in this class
+                ind = ismember(abs(qraw), abs(obj.m./obj.n));
+                Ires = abs(Ires(ind)') / 10; %convert to cgs (c=1)
+                %fill Ires with nan if GPEC computed less modes than here
+                ind = ~ismember(abs(obj.m./obj.n),abs(qraw));
+                Ires(ind) = nan;
+                Ires = reshape(Ires, size(obj.m));
+                
+                %save to class
+                obj.I_tmhd = Ires;
+            else
+                warning('type of tmhd code not supported.')
+                %save nan
+                obj.I_tmhd = nan(size(obj.m));
+            end
+        end
+        
+        function setProfiles(obj, neprof, Teprof, Tiprof, vtprof, copy)
+            %##############################################################
+            %function setProfiles(obj, neprof, Teprof, Tiprof, vtprof, copy)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % set profiles for balance run. If copy is used, the first 4
+            % parameters are ignored and profiles are loaded from copy.
             %##############################################################
             % input:
             %--------------------------------------------------------------
@@ -280,22 +412,29 @@ classdef Balance < handle & hdf5_output
             % Teprof  ... location of Te profile from experiment
             % Tiprof  ... location of Ti profile from experiment
             % vtprof  ... location of vt profile from experiment
+            % copy    ... location of processed profiles to use (instead of
+            %             raw profiles + preprocess)
             %##############################################################    
             
             obj.path_profiles = [obj.path_run, 'profiles/'];
             %create path if not existent
             system(['mkdir -p ', obj.path_profiles]);
 
-            %check all profiles for existence by sophisticated method with cell arrays
-            files = {'q', 'n', 'Te', 'Ti', 'Vz', 'Vth', 'Er'};
-            paths = cellfun(@(x) [obj.path_profiles, x, '.dat'], files, 'UniformOutput', false);
-            check = cellfun(@(x) exist(x, 'file') ~= 2, paths, 'UniformOutput', false);
-            if(any(cell2mat(check)) || obj.FLAG_FORCE_PROFILES == true)
-                recalc_prof = true;
+            if(nargin < 6 || isempty(copy))
+                %check all profiles for existence by sophisticated method with cell arrays
+                files = {'q', 'n', 'Te', 'Ti', 'Vz', 'Vth', 'Er'};
+                paths = cellfun(@(x) [obj.path_profiles, x, '.dat'], files, 'UniformOutput', false);
+                check = cellfun(@(x) exist(x, 'file') ~= 2, paths, 'UniformOutput', false);
+                if(any(cell2mat(check)) || obj.FLAG_FORCE_PROFILES == true)
+                    recalc_prof = true;
+                else
+                    recalc_prof = false;
+                end
             else
+                %copy profiles and 1level of subdir (e.g. k-profile)
+                system(['rsync -a --exclude="/*/*/" ', copy, ' ', obj.path_profiles]);
                 recalc_prof = false;
             end
-
             %recalc profiles if necessary
             if(recalc_prof == true)
 
@@ -306,20 +445,66 @@ classdef Balance < handle & hdf5_output
                 
                 %Profiles(profpath, gfile, pfile, convexfile, fluxdatapath, neprof, Teprof, Tiprof, vtprof, r_min, r_max);
                 obj.profiles = profile_preprocessor(obj.path_profiles);
-                obj.profiles.set_equilibrium(obj.file_equi, obj.file_coil, obj.CONVEX_PATH, obj.path_fluxdata);
+                obj.profiles.FLAG_FORCE_NEO2 = obj.FLAG_FORCE_NEO2;
+                obj.profiles.set_equilibrium(obj.file_equi, obj.CONVEX_PATH, obj.path_fluxdata);
                 obj.profiles.set_profiles(obj.file_ne_raw, obj.file_Te_raw, obj.file_Ti_raw, obj.file_vt_raw);
                 obj.profiles.process(obj.r_min, obj.r_max);
             else
                 %load existing
                 obj.profiles = profile_preprocessor(obj.path_profiles);
-                obj.profiles.set_equilibrium(obj.file_equi, obj.file_coil, obj.CONVEX_PATH, obj.path_fluxdata);
+                obj.profiles.set_equilibrium(obj.file_equi, obj.CONVEX_PATH, obj.path_fluxdata);
                 obj.profiles.loadExisting();
             end
         end
         
+        function setKiLCA(obj)
+            %##############################################################
+            %function setKiLCA(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % sets options for KiLCA and makes a pre-run to get the
+            % resonant currents.
+            %##############################################################    
+            
+            %set basic options
+            obj.setKiLCAOptions();
+            
+            runs = {'kil_vacuum', 'kil_flre'};
+            for k = 1:numel(runs)
+            
+                %write directory structure
+                obj.(runs{k}).write();
+
+                %pre-run of vacuum and flre
+                obj.(runs{k}).run();
+
+                %postprocess kilca
+                obj.(runs{k}).post();
+                
+                %settings for balance run: single mode and profiles from
+                %interface
+                obj.(runs{k}).antenna.nmod = 1;
+                obj.(runs{k}).antenna.write(obj.(runs{k}).BLUE_PATH, obj.(runs{k}).pathofrun);
+                obj.(runs{k}).background.flag_recalc = -1;
+                obj.(runs{k}).background.write(obj.(runs{k}).BLUE_PATH, obj.path_run);
+            end
+            
+            %get data from kilca postprocessing to balance object
+            obj.getKiLCAPost();
+            
+            %used when Amn is removed from balance
+            obj.scalefactors_sq = (obj.I_tmhd./obj.I_res).^2;
+            
+            %rescale current
+            obj.rescaleI();
+            %used when Amn is included in balance
+            %obj.scalefactors_sq = (obj.I_tmhd./obj.legacy_I_rescaled).^2; 
+        end
+        
         function setDaEstimation(obj, path_da)
             %##############################################################
-            %function setProfiles(obj, path_da)
+            %function setDaEstimation(obj, path_da)
             %##############################################################
             % description:
             %--------------------------------------------------------------
@@ -337,6 +522,12 @@ classdef Balance < handle & hdf5_output
             
             obj.da_est = da_estimator(obj.path_profiles, obj.path_fluxdata);
             obj.da_est.loadEstimation(obj.shot, obj.time, path_da, flag_combined);   
+            
+            %extract da at r_res
+            obj.Da_res = interp1(obj.da_est.r, obj.da_est.Da, obj.r_res);
+            
+            %write 2 file for balance
+            obj.da_est.write([obj.path_profiles, 'Da.dat']);
         end
         
         function setOptions(obj, opt)
@@ -352,21 +543,19 @@ classdef Balance < handle & hdf5_output
             % opt   ... balanceoptions object
             %##############################################################    
                         
-            obj.setKiLCA();
-            
             if(nargin < 2 || isempty(opt))
                 %BALANCE OPTIONS
-                obj.options = balanceoptions(obj.kil_flre.pathofrun, obj.kil_vac.pathofrun);
+                obj.options = balanceoptions(obj.kil_flre.pathofrun, obj.kil_vacuum.pathofrun);
                 obj.options.Btor = obj.b_tor;
                 obj.options.Rtor = obj.r_big;
                 obj.options.rmin = obj.r_sta;
                 obj.options.rmax = obj.r_ant;
-                obj.options.rsep = obj.r_sep;
                 obj.options.rb_cut_out = obj.rb_cut_out;
                 obj.options.re_cut_out = obj.re_cut_out;
             else
                 obj.options = opt;
             end
+            obj.options.rsep = obj.r_sep_real;
         end
         
         function setFactors(obj, f)
@@ -375,7 +564,7 @@ classdef Balance < handle & hdf5_output
             %##############################################################
             % description:
             %--------------------------------------------------------------
-            % set factors for V-shift
+            % set factors for V-shift (Not implemented yet)
             %##############################################################
             % input:
             %--------------------------------------------------------------
@@ -383,33 +572,6 @@ classdef Balance < handle & hdf5_output
             %##############################################################    
             
             obj.factors = f;
-        end
-        
-        function setModes(obj, m, n)
-            %##############################################################
-            %function setModes(obj, m, n)
-            %##############################################################
-            % description:
-            %--------------------------------------------------------------
-            % set modes to calculate with the balance code.
-            %##############################################################
-            % input:
-            %--------------------------------------------------------------
-            % m     ... mode number m
-            % n     ... mode number n
-            %##############################################################    
-            
-            %check m, n same size
-            if(size(m) ~= size(n))
-                error('m and n must be of same size.')
-            end
-            %check m scalar or vector
-            if(sum(size(m) > 1) > 1)
-                error('m and n must be vectors or scalars.')
-            end
-            
-            obj.m = m;
-            obj.n = n;
         end
         
         function write(obj)
@@ -422,15 +584,12 @@ classdef Balance < handle & hdf5_output
             %##############################################################
             
             %copy content from template
-            system(['mkdir -p ', obj.path_run]);
-            [~, ~] = system(['rsync -av ', obj.LIB_BALANCE, 'template/ ', obj.path_run]);
+            [~, ~] = system(['rsync -av ', obj.LIB_BALANCE, 'template_experimental/ ', obj.path_run]);
+            %[~, ~] = system(['rsync -av ', obj.LIB_BALANCE, 'template/ ', obj.path_run]);
 
             %FIELD DIVB0
             obj.fdb0 = field_divB0(obj.file_equi, obj.file_coil, obj.CONVEX_PATH, obj.path_fluxdata);
             obj.fdb0.write([obj.LIB_BALANCE, 'blueprints/'], obj.path_run);
-
-            %write link to soft path
-            system(['ln -sfT ', obj.SOFT_PATH, ' ', obj.path_run, 'soft']);
 
             system(['mkdir -p ', obj.path_factors]);
             %write factors file for each mode (the same by now for each mode)
@@ -450,10 +609,6 @@ classdef Balance < handle & hdf5_output
                 obj.setOptions();
             end
             obj.options.write([obj.LIB_BALANCE, 'blueprints/'], obj.path_run);
-            
-            %write KiLCA directory structures
-            obj.kil_flre.write();
-            obj.kil_vac.write();
         end
         
         function run(obj)
@@ -470,7 +625,7 @@ classdef Balance < handle & hdf5_output
             start_time = datetime;
             logfile = [obj.path_output, 'balance_', strrep(datestr(start_time), ' ', '_'), '.log'];
             fid = fopen(logfile, 'w');
-
+            
             disp(['Start of Balance at ', datestr(start_time)])
             disp(['Shot: ', num2str(obj.shot), ', Time: ', num2str(obj.time), 'ms, Name: ', obj.name])
             for i = 1:numel(obj.m)
@@ -484,9 +639,13 @@ classdef Balance < handle & hdf5_output
                 system(['mkdir -p ', mnoutpath]);
                 
                 %change mode in modes.in file
-                obj.kil_flre.modes = KiLCA_modes(obj.m(i), obj.n(i));
-                obj.kil_flre.modes.write(obj.kil_flre.BLUE_PATH, obj.kil_flre.path);
-                %obj.kil_flre.write();
+                kilmode = KiLCA_modes(obj.m(i), obj.n(i));
+                kilmode.write(obj.kil_flre.BLUE_PATH, obj.kil_flre.path);
+                
+                %write antenna fac
+                obj.options.antenna_fac = obj.scalefactors_sq(i);
+                %obj.options.antenna_fac = 1;
+                obj.options.write([obj.LIB_BALANCE, 'blueprints/'], obj.path_run);
                 
                 %save current path
                 currentpath = pwd();
@@ -505,7 +664,7 @@ classdef Balance < handle & hdf5_output
                 %move files to output dir
                 outfiles = balanceoutput.OUTFILES;
                 for j = 1:numel(outfiles)
-                    system(['mv -f ' outfiles{j}, ' ', mnoutpath]);
+                    system(['mv -f ' outfiles{j}, ' ', mnoutpath, ' 2>/dev/null']);
                 end
 
                 %go back
@@ -513,7 +672,6 @@ classdef Balance < handle & hdf5_output
             end
             
             obj.loadOutput();
-            obj.basicPost();
             
             disp(['Finished Balance at ', datestr(datetime)])
             disp(['Total runtime was ', string(datetime-start_time)])
@@ -537,132 +695,46 @@ classdef Balance < handle & hdf5_output
                 %name of out folder for this mode
                 mnoutpath = [obj.path_output, 'f_', num2str(obj.m(i)), '_', num2str(obj.n(i)), '/'];
                 %create balanceoutput object in cell array and load data
-            	obj.outputs{i} = balanceoutput(obj.m(i), obj.n(i));
+            	obj.outputs{i} = balanceoutput(obj.m(i), obj.n(i), obj.r_res(i));
                 obj.outputs{i}.loadOutput(mnoutpath);
             end
             
-            %load vacuum kilca data
-            obj.kil_vac.modes.set(obj.m, obj.n);
-            obj.kil_vac.antenna.nmod = numel(obj.m);
-            obj.kil_vac.runExternal();
-            obj.kil_vac.loadOutput();
-            
-            %load flre kilca data
-            obj.kil_flre.modes.set(obj.m, obj.n);
-            obj.kil_flre.antenna.nmod = numel(obj.m);
-            obj.kil_flre.runExternal();
-            obj.kil_flre.loadOutput();
-        end
-        
-        function basicPost(obj)
-            %##############################################################
-            %function basicPost(obj)
-            %##############################################################
-            % description:
-            %--------------------------------------------------------------
-            % basic postprocessing after balance run
-            %##############################################################
-            
-            %postprocess kilca
-            obj.kil_vac.post();
-            obj.kil_flre.post();
-            
-            %initialize resonant quantities
-            obj.q_res = obj.m ./ obj.n;
-            obj.r_res = zeros(size(obj.m));
-            obj.I_res = zeros(size(obj.m));
+            %read de22
             obj.De22_res = zeros(size(obj.m));
             
-            %read resonant quantities
             for j = 1:numel(obj.m)
-                obj.r_res(j) = obj.kil_flre.postprocessors{j}.rres;
-                obj.d_res(j) = obj.kil_flre.postprocessors{j}.d;
-                obj.I_res(j) = obj.kil_flre.postprocessors{j}.Ipar;
-                obj.De22_res(j) = interp1(obj.outputs{j}.fort5000.r, obj.outputs{j}.fort5000.de22, obj.r_res(j));
+                if(~obj.options.flag_run_time_evolution)
+                    obj.De22_res(j) = interp1(obj.outputs{j}.fort5000.r, obj.outputs{j}.fort5000.de22, obj.r_res(j));
+                else
+                    obj.De22_res(j) = interp1(obj.outputs{j}.fort5000{1}.r, obj.outputs{j}.fort5000{1}.de22, obj.r_res(j));
+                end
             end
+            obj.legacy_De22_unscaled = obj.De22_res;
+            
+            %scale de22 because content in fort5000 file is not
+            obj.De22_res = obj.De22_res .* obj.scalefactors_sq;
+            obj.bifurcfactors = obj.De22_res ./ obj.Da_res;
+            
+            obj.export2HDF5(obj.path_output, obj.name);
+
+            %NOT NEEDED ANYMORE WITH KILCA PRE-RUN
+            
+%             %load vacuum kilca data
+%             obj.kil_vacuum.modes.set(obj.m, obj.n);
+%             obj.kil_vacuum.antenna.nmod = numel(obj.m);
+%             obj.kil_vacuum.runExternal();
+%             obj.kil_vacuum.loadOutput();
+%             
+%             %load flre kilca data
+%             obj.kil_flre.modes.set(obj.m, obj.n);
+%             obj.kil_flre.antenna.nmod = numel(obj.m);
+%             obj.kil_flre.runExternal();
+%             obj.kil_flre.loadOutput();
         end
         
-        function rescaleD(obj, fname, type)
-            %##############################################################
-            %function rescaleD(obj, fac)
-            %##############################################################
-            % description:
-            %--------------------------------------------------------------
-            % rescales de22 by scalefactor computed from ratio of iMHD
-            % resonant currents and KiLCA currents.
-            %##############################################################
-            % input:
-            %--------------------------------------------------------------
-            % fname  ... filename where Ires are located.
-            % type   ... type of Ires. Supported: GPEC (nc file)
-            %##############################################################
-            
-            %check existence
-            if(exist(fname, 'file') ~= 2)
-                warning('file with resonant currents not found.')
-                obj.scalefactors = nan(size(obj.De22));
-                obj.De22_res_resc = nan(size(obj.De22));
-                return;
-            end
-            
-            obj.file_Ires = fname;
-            
-            %read for type=GPEC
-            if(strcmp(type, 'GPEC'))
-                qraw = ncread(fname, 'q_rational'); %read safety factor
-                Iraw = ncread(fname, 'I_res'); %read I res in A
-                Ires = Iraw(:, 1) + 1i .* Iraw(:, 2);
-                %pick only m which are calculated in this class
-                ind = ismember(abs(qraw), abs(obj.m./obj.n));
-                Ires = abs(Ires(ind)') / 10; %cgs
-            end
-            %add read for output of Patricks code
-            
-            %rescale by real currents (resc) or artificial
-            if(any(isnan(obj.I_res_resc)))
-                obj.scalefactors = (Ires./obj.I_res).^2;
-            else
-                obj.scalefactors = (Ires./obj.I_res_resc).^2;
-            end
-            obj.De22_res_resc = obj.De22_res .* obj.scalefactors;
-        end
-        
-        function rescaleI(obj)
-            %##############################################################
-            %function rescaleI(obj)
-            %##############################################################
-            % description:
-            %--------------------------------------------------------------
-            % rescales current by spectral factor. Needs fluxdatapath.
-            %##############################################################
-            
-            %read poloidal vector potential of antenna
-            obj.readAntenna();
-            
-            %if not nan
-            if(~any(cellfun(@(a) any(isnan(a), 'all'), obj.Atheta_antenna)))
-                %calculate reference A from vacuum field
-                Brvac = zeros(size(obj.m));
-                for l=1:numel(obj.m)
-                    post = obj.kil_vac.postprocessors{l};
-                    Brvac(l) = interp1(post.r, post.Br, post.rres);
-                end
-                A_ref = (obj.r_res .* obj.r_big ./ obj.n) .* Brvac;
-                
-                %calculate realistic A (interp of Atheta antenna)
-                A_realistic = zeros(size(obj.m));
-                for l=1:numel(obj.m)
-                    A_realistic(l) = interp1(obj.Atheta_antenna{l}(:, 1), obj.Atheta_antenna{l}(:, 2), obj.r_res(l));
-                end
-            %else set to nan
-            else
-                A_ref = nan(size(obj.I_res));
-                A_realistic = nan(size(obj.I_res));
-            end
-            
-            obj.specfactors = abs(A_realistic ./ A_ref);
-            obj.I_res_resc = obj.I_res .* obj.specfactors;
-        end
+        %##################################################################
+        % METHODS FOR PLOTS
+        %##################################################################
         
         function plotDe22(obj)
             %##############################################################
@@ -686,7 +758,11 @@ classdef Balance < handle & hdf5_output
                 subplot(subs, 1, l)
                 hold on
                 for j = 1:numel(obj.m)
-                    f5k = obj.outputs{j}.fort5000;
+                    if(numel(obj.outputs{j}.fort5000) > 1)
+                        f5k = obj.outputs{j}.fort5000{1};
+                    else
+                        f5k = obj.outputs{j}.fort5000;
+                    end
                     %plot de22
                     ph = plot(f5k.r, f5k.de22, '-', 'LineWidth', 3, 'DisplayName', obj.mn2string(j));
                     %plot line at rres
@@ -786,12 +862,12 @@ classdef Balance < handle & hdf5_output
             hold off
             yyaxis left
             for l=1:numel(obj.m)
-                ph = semilogy(obj.r_res(l), obj.De22_res_resc(l), 'o', 'MarkerSize', 5, ...
+                ph = semilogy(obj.r_res(l), obj.De22_res(l), 'o', 'MarkerSize', 5, ...
                     'HandleVisibility', 'off');
                 hold on
                 set(ph, 'MarkerFaceColor', get(ph, 'Color'));
-                name = ['(', num2str(obj.m(l)), ',' num2str(obj.n(l)) ,')'];
-                text(obj.r_res(l) + 0.1, obj.De22_res_resc(l), name)
+                pname = ['(', num2str(obj.m(l)), ',' num2str(obj.n(l)) ,')'];
+                text(obj.r_res(l) + 0.1, obj.De22_res(l), pname)
             end
             set(ph, 'DisplayName', 'D_{e22}', 'HandleVisibility', 'on')
             legend()
@@ -836,7 +912,7 @@ classdef Balance < handle & hdf5_output
                 %put legend on 8th subplot which is free
                 if(j==numel(files))
                     lh=legend();
-                    pos = get(lh,'Position');
+                    pos = get(lh, 'Position');
                     posx = 0.8;
                     posy = 0.25;
                     set(lh,'Position',[posx posy pos(3) pos(4)]);
@@ -847,6 +923,10 @@ classdef Balance < handle & hdf5_output
             set(findall(gcf,'-property','FontSize'), 'FontSize', 18)
 
         end
+        
+        %##################################################################
+        % METHODS FOR EXPORT
+        %##################################################################
         
         function export2HDF5(obj, path, name)
             %##############################################################
@@ -873,12 +953,22 @@ classdef Balance < handle & hdf5_output
             obj.writeHDF5(fname, '/output/', 'r_res', 'resonant surface location', 'cm');
             obj.writeHDF5(fname, '/output/', 'd_res', 'resonant layer thickness', 'cm');
             obj.writeHDF5(fname, '/output/', 'I_res', 'resonant currents', 'statA (c=1)');
+            obj.writeHDF5(fname, '/output/', 'I_tmhd', 'resonant currents from toroidal mhd code', 'statA (c=1)');
             
+            obj.writeHDF5(fname, '/output/', 'scalefactors_sq', 'scale factors Cmn^2', '1');
             obj.writeHDF5(fname, '/output/', 'De22_res', 'resonant De22', 'cm^2  s^{-1}');
-            obj.writeHDF5(fname, '/output/', 'specfactors', 'spectral factors Wmn', '1');
-            obj.writeHDF5(fname, '/output/', 'I_res_resc', 'resonant currents rescaled with Wmn', 'statA (c=1)');
-            obj.writeHDF5(fname, '/output/', 'scalefactors', 'form factos Cmn', '1');
-            obj.writeHDF5(fname, '/output/', 'De22_res_resc', 'resonant De22 rescaled with Cmn', 'cm^2 s^{-1}');
+            obj.writeHDF5(fname, '/output/', 'Da_res', 'resonant De22', 'cm^2  s^{-1}');
+            obj.writeHDF5(fname, '/output/', 'bifurcfactors', 'De22_res / Da_res', '1');
+            
+            obj.writeHDF5(fname, '/output/', 'legacy_specfactors', 'spectral factors Wmn', '1');
+            obj.writeHDF5(fname, '/output/', 'legacy_I_rescaled', 'resonant currents rescaled with Wmn', 'statA (c=1)');
+            obj.writeHDF5(fname, '/output/', 'legacy_De22_unscaled', 'resonant De22 rescaled with Cmn', 'cm^2 s^{-1}');
+            
+            obj.writeHDF5(fname, '/output/', 'zero_veperp', 'zeros of veperp', 'cm');
+            obj.writeHDF5(fname, '/output/', 'zero_vExB', 'zeros of vExB', 'cm');
+            
+            obj.writeHDF5(fname, '/output/', 'dis_zero_veperp', 'absolute distance for each mode from veperp zero', 'cm');
+            obj.writeHDF5(fname, '/output/', 'dis_zero_vExB', 'absolute distance for each mode from vExB zero', 'cm');
             
             %write input quantities
             obj.writeHDF5(fname, '/input/', 'name', obj.name, 'string');
@@ -907,10 +997,16 @@ classdef Balance < handle & hdf5_output
         
             %export KiLCA data
             obj.kil_flre.export2HDF5(fname, '/KiLCA_flre/');
-            obj.kil_vac.export2HDF5(fname, '/KiLCA_vac/');
+            obj.kil_vacuum.export2HDF5(fname, '/KiLCA_vac/');
             
             %export da estimation
             obj.da_est.export2HDF5(fname, '/Da_estimation/');
+            
+            if(obj.options.flag_run_time_evolution)
+                for k=1:numel(obj.outputs)
+                    obj.outputs{k}.export2HDF5(fname, ['/time_evol/mode_m', num2str(obj.m(k)), '_n', num2str(obj.n(k)), '/']);
+                end
+            end
         end
         
         function export2CurTable(obj, path, name)
@@ -927,11 +1023,11 @@ classdef Balance < handle & hdf5_output
             % name  ... name of file.
             %##############################################################
             
-            colnames = {'SpecFac', 'I_KiLCA', 'I_rescaled', 'I_GPEC', 'FormFac', 'De22', 'De22_rescaled'};
+            colnames = {'SpecFac', 'I_KiLCA', 'legacy_I_rescaled', 'I_GPEC', 'FormFac', 'De22', 'De22_rescaled'};
             rownames = arrayfun(@(x,y) [num2str(x), ',', num2str(y)], obj.m, obj.n, 'UniformOutput', false);
-            Igpec = sqrt(obj.specfactors) ./ obj.I_res_resc;
-            tableval = {obj.specfactors', obj.I_res', obj.I_res_resc', ...
-                        Igpec', obj.scalefactors', obj.De22_res', obj.De22_res_resc'};
+            Igpec = sqrt(obj.legacy_specfactors) ./ obj.legacy_I_rescaled;
+            tableval = {obj.legacy_specfactors', obj.I_res', obj.legacy_I_rescaled', ...
+                        Igpec', obj.scalefactors_sq', obj.De22_res', obj.De22_res_resc'};
 
             fname = [path, name, '_', num2str(obj.shot), '_', num2str(obj.time), '_CurTable.txt'];
             fid = fopen(fname, 'w');
@@ -956,10 +1052,10 @@ classdef Balance < handle & hdf5_output
     end
     
     methods(Access = private)
-                
-        function setKiLCA(obj)
+        
+        function setKiLCAOptions(obj)
             %##############################################################
-            %function setKiLCA(obj, flre, vac)
+            %function setKiLCAOptions(obj, flre, vac)
             %##############################################################
             % description:
             %--------------------------------------------------------------
@@ -972,39 +1068,116 @@ classdef Balance < handle & hdf5_output
             %##############################################################    
             
             %FLRE, VACUUM USING KiLCA CLASS
-            nmodes = 1;
+            
+            %number of modes
+            nmodes = numel(obj.m);
+            
+            %build zones
             rad   = [obj.r_sta, obj.r_sep, obj.r_ant, obj.r_idw];
             bound = {'center', 'interface', 'antenna', 'idealwall'};
             med   = {'vacuum', 'vacuum', 'vacuum'};
 
-            obj.kil_vac = KiLCA_interface(obj.path_run, 'vacuum');
-            obj.kil_vac.BLUE_PATH = [obj.LIB_KiLCA, 'blueprints/'];
-            obj.kil_vac.PROF_PATH = obj.path_profiles;
-            obj.kil_vac.set_background(obj.r_big, obj.r_sep);
-            obj.kil_vac.background.Btor = obj.b_tor;
-            obj.kil_vac.background.flag_recalc = 1;%should be set to -1 in future but problem because profiles are not written by KiLCA in backgrounddata with this option
-            obj.kil_vac.set_antenna(obj.r_ant, nmodes);
-            med{1} = obj.kil_vac.run_type;
-            obj.kil_vac.set_zones(rad, bound, med);
+            %set setting for vac and flre (only differ in run_type)
+            runs = {'vacuum', 'flre'};
+            for k = 1:numel(runs)
+            
+                runname = ['kil_', runs{k}];
+                
+                %standard settings of kilca
+                obj.(runname) = KiLCA_interface(obj.path_run, runs{k});
+                obj.(runname).BLUE_PATH = [obj.LIB_KiLCA, 'blueprints/'];
+                obj.(runname).PROF_PATH = obj.path_profiles;
+                obj.(runname).set_background(obj.r_big, obj.r_sep);
+                obj.(runname).background.Btor = obj.b_tor;
+                obj.(runname).background.flag_recalc = 1;
+                obj.(runname).set_antenna(obj.r_ant, nmodes);
+                obj.(runname).modes.set(obj.m, obj.n);
+                med{1} = runs{k};
+                obj.(runname).set_zones(rad, bound, med);
 
-            obj.kil_vac.antenna.I0 = obj.KiLCA_I0;
-            obj.kil_vac.antenna.flab(1) = obj.KiLCA_flab;
-            obj.kil_vac.zones{3}.vacuum.sigma(1) = obj.KiLCA_sigma; %resistive wall
+                %most common settings for balance run
+                obj.(runname).background.vgalsys = obj.KiLCA_vgalsys;
+                obj.(runname).antenna.I0 = obj.KiLCA_I0;
+                obj.(runname).antenna.flab(1) = obj.KiLCA_flab;
+                obj.(runname).zones{3}.vacuum.sigma(1) = obj.KiLCA_sigma; %resistive wall
 
-            obj.kil_flre = KiLCA_interface(obj.path_run, 'flre');
-            obj.kil_flre.BLUE_PATH = obj.kil_vac.BLUE_PATH;
-            obj.kil_flre.PROF_PATH = obj.kil_vac.PROF_PATH;
-            obj.kil_flre.set_background(obj.r_big, obj.r_sep);
-            obj.kil_flre.background.Btor = obj.b_tor;
-            obj.kil_flre.background.flag_recalc = 1;%should be set to -1 in future but problem because profiles are not written by KiLCA in backgrounddata with this option
-            obj.kil_flre.set_antenna(obj.r_ant, nmodes);
-            med{1} = obj.kil_flre.run_type;
-            obj.kil_flre.set_zones(rad, bound, med);
-
-            obj.kil_flre.antenna.I0 = obj.KiLCA_I0;
-            obj.kil_flre.antenna.flab(1) = obj.KiLCA_flab;
-            obj.kil_flre.zones{3}.vacuum.sigma(1) = obj.KiLCA_sigma; %resistive wall
-
+            end
+        end
+        
+        function getKiLCAPost(obj)
+            %##############################################################
+            %function getKiLCAPost(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % basic postprocessing after kilca run
+            %##############################################################
+            
+            %initialize resonant quantities
+            obj.q_res = obj.m ./ obj.n;
+            obj.r_res = zeros(size(obj.m));
+            obj.I_res = zeros(size(obj.m));
+            
+            %read resonant quantities
+            for j = 1:numel(obj.m)
+                obj.r_res(j) = obj.kil_flre.postprocessors{j}.rres;
+                obj.d_res(j) = obj.kil_flre.postprocessors{j}.d;
+                obj.I_res(j) = obj.kil_flre.postprocessors{j}.Ipar;
+            end
+            
+            obj.checkResonances();
+        end
+        
+        function checkResonances(obj)
+            %##############################################################
+            %function checkResonances(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % checks veperp and vExB for resonances near modes
+            %##############################################################
+            
+            %get values from kilca postprocessor
+            r = obj.kil_flre.postprocessors{1}.r;
+            veperp = obj.kil_flre.postprocessors{1}.veperp;
+            vExB = obj.kil_flre.postprocessors{1}.vExB;
+            
+            %sign of velocities
+            sig_veperp = sign(veperp);
+            sig_vExB = sign(vExB);
+            %approximate zeros
+            approx_zero_veperp = find(sig_veperp(2:end) ~= sig_veperp(1:(end-1)));
+            approx_zero_vExB = find(sig_vExB(2:end) ~= sig_vExB(1:(end-1)));
+            
+            %initialize zero vectors
+            obj.zero_veperp = nan(1, max(1, numel(approx_zero_veperp)));
+            obj.zero_vExB = nan(1, max(1, numel(approx_zero_vExB)));
+            obj.dis_zero_veperp = nan(numel(obj.zero_veperp), numel(obj.m));
+            obj.dis_zero_vExB = nan(numel(obj.zero_veperp), numel(obj.m));
+            %get zeros with fzero using approximate zeros
+            %+get absolute distance for each mode
+            for k = 1:numel(approx_zero_veperp)
+                ind = approx_zero_veperp(k);
+                obj.zero_veperp(k) = fzero(@(x) interp1(r(ind:(ind+1)), veperp(ind:(ind+1)), x), [r(ind), r(ind+1)]);
+                obj.dis_zero_veperp(k,:) = abs(obj.zero_veperp(k) - obj.r_res);
+            end
+            for k = 1:numel(approx_zero_vExB)
+                ind = approx_zero_vExB(k);
+                obj.zero_vExB(k) = fzero(@(x) interp1(r(ind:(ind+1)), vExB(ind:(ind+1)), x), [r(ind), r(ind+1)]);
+                obj.dis_zero_vExB(k,:) = abs(obj.zero_vExB(k) - obj.r_res);
+            end
+            
+            %check veperp resonance
+            L = obj.dis_zero_veperp < obj.RES_WARNING_TRIGGER;
+            if(any(L))
+                warning(['fluid resonance near mode m=', num2str(obj.m(L)),' detected']);
+            end
+            
+            %check ExB resonance
+            L = obj.dis_zero_vExB < obj.RES_WARNING_TRIGGER;
+            if(any(L))
+                warning(['ExB resonance near mode m=', num2str(obj.m(L)),' detected']);
+            end
         end
         
         function readAntenna(obj)
@@ -1018,9 +1191,9 @@ classdef Balance < handle & hdf5_output
             %##############################################################
             
             %check existence
-            if(exist(obj.path_fluxdata, 'dir') ~= 7)
-                warning('fluxdata not found, Atheta not read.')
-                obj.Atheta_antenna = nan;
+            if(~exist([obj.path_fluxdata, 'amn.dat'], 'file'))
+                warning('amn.dat not found, Atheta not read.')
+                obj.legacy_Atheta_antenna = nan;
                 return;
             end
             
@@ -1030,17 +1203,55 @@ classdef Balance < handle & hdf5_output
             mpath = pwd();
             cd(obj.path_fluxdata);
             
-            obj.Atheta_antenna = cell(1, numel(obj.m));
+            obj.legacy_Atheta_antenna = cell(1, numel(obj.m));
             
             %for each mode execute file, this creates ascii with Atheta
             for l=1:numel(obj.m)
                 system(['echo ', num2str(obj.m(l)), ',', num2str(obj.n(l)), '| ./READ_amn_Atheta.x >/dev/null']);
                 %load file and save data
                 raw = load('A_theta.dat');
-                obj.Atheta_antenna{l} = [raw(:, 1), raw(:, 3) + 1i .* raw(:, 4)];
+                obj.legacy_Atheta_antenna{l} = [raw(:, 1), raw(:, 3) + 1i .* raw(:, 4)];
             end
             
             cd(mpath);
+        end
+        
+        function rescaleI(obj)
+            %##############################################################
+            %function rescaleI(obj)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % rescales current by spectral factor. Needs amn.dat in 
+            % fluxdatapath.
+            %##############################################################
+            
+            %read poloidal vector potential of antenna
+            obj.readAntenna();
+            
+            %if not nan
+            if(~any(cellfun(@(a) any(isnan(a), 'all'), obj.legacy_Atheta_antenna)))
+                %calculate reference A from vacuum field
+                Brvac = zeros(size(obj.m));
+                for l=1:numel(obj.m)
+                    post = obj.kil_vacuum.postprocessors{l};
+                    Brvac(l) = interp1(post.r, post.Br, post.rres);
+                end
+                A_ref = (obj.r_res .* obj.r_big ./ obj.n) .* Brvac;
+                
+                %calculate realistic A (interp of Atheta antenna)
+                A_realistic = zeros(size(obj.m));
+                for l=1:numel(obj.m)
+                    A_realistic(l) = interp1(obj.legacy_Atheta_antenna{l}(:, 1), obj.legacy_Atheta_antenna{l}(:, 2), obj.r_res(l));
+                end
+            %else set to nan
+            else
+                A_ref = nan(size(obj.I_res));
+                A_realistic = nan(size(obj.I_res));
+            end
+            
+            obj.legacy_specfactors = abs(A_realistic ./ A_ref);
+            obj.legacy_I_rescaled = obj.I_res .* obj.legacy_specfactors;
         end
         
         function s = mn2string(obj, i)
