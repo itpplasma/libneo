@@ -43,8 +43,8 @@ print(f'psi_pol after: {psi_pol}')
 
 # RR, ZZ = meshgrid(...)
 
-r0 = linspace(0,2000,20)
-z0 = linspace(-200,200,25)
+r0 = linspace(80,250,30)
+z0 = linspace(-100,100,35)
 RR, ZZ = meshgrid(r0,z0)
 PSI = zeros_like(RR)
 THETA = zeros_like(RR)
@@ -56,7 +56,7 @@ for k in range(len(r0)):
         libmc_efit.field(r,0.0,z, Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,
                      dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ)
         psi_pol = field_eq.psif - field_eq.psib
-        PSI[j,k] = sqrt(Br[0]**2 + Bp[0]**2 + Bz[0]**2) #-psi_pol
+        PSI[j,k] = -psi_pol
 
         THETA[j,k] = arctan2(z,r-raxis)
 #fig, axs = plt.figure()
@@ -67,8 +67,9 @@ plt.pcolor(RR, ZZ, PSI, cmap='plasma')
 #CS = ax.contour(RR, ZZ, PSI)
 #ax.clabel(CS, inline=1, fontsize=10)
 #ax.set_title('Simplest default with labels')
-plt.title('Magnetic field B / gauss'); plt.xlabel('r / cm'); plt.ylabel('z / cm')
+plt.title('Psi'); plt.xlabel('r / cm'); plt.ylabel('z / cm')
 plt.colorbar()
+plt.show()
 #plt.show()
 # for ...:
 #    PSI[k,l] = -psi/R
