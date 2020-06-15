@@ -3,9 +3,9 @@ from numpy import linspace, sqrt, meshgrid, cos, sin, zeros_like, arctan2
 import matplotlib.pyplot as plt
 from libmc_fffi import libmc_efit, field_eq
 
-r = libmc_efit.new('double', 50.0)
-p = libmc_efit.new('double', 0.0)
-z = libmc_efit.new('double', 0.0)
+r = 0.5
+p = 0.5
+z = 0.5
 
 Br = libmc_efit.new('double', 0.0)
 Bp = libmc_efit.new('double', 0.0)
@@ -43,32 +43,33 @@ print(f'psi_pol after: {psi_pol}')
 
 # RR, ZZ = meshgrid(...)
 
-r0 = linspace(70, 250, 60)
-z0 = linspace(-120, 120, 60)
+r0 = linspace(0,2000,20)
+z0 = linspace(-200,200,25)
 RR, ZZ = meshgrid(r0,z0)
 PSI = zeros_like(RR)
-PHI = zeros_like(RR)
+THETA = zeros_like(RR)
+raxis = 100
 for k in range(len(r0)):
-    r[0] = r0[k]
+    r = r0[k]
     for j in range(len(z0)):
-        z[0] = z0[j]
-        libmc_efit.field(r, p, z, Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,
-                     dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ) 
+        z = z0[j]
+        libmc_efit.field(r,0.0,z, Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,
+                     dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ)
         psi_pol = field_eq.psif - field_eq.psib
-        PSI[j,k] = -psi_pol
-        
-        PHI[j,k] = arctan2(z[0], r[0])
+        PSI[j,k] = sqrt(Br[0]**2 + Bp[0]**2 + Bz[0]**2) #-psi_pol
+
+        THETA[j,k] = arctan2(z,r-raxis)
 #fig, axs = plt.figure()
-        
+
 fig = plt.figure()
-plt.contour(RR, ZZ, PSI, cmap='plasma', levels=50)
+plt.pcolor(RR, ZZ, PSI, cmap='plasma')
 #fig, ax = plt.subplots()
 #CS = ax.contour(RR, ZZ, PSI)
 #ax.clabel(CS, inline=1, fontsize=10)
 #ax.set_title('Simplest default with labels')
-plt.title('Magnetic flux'); plt.xlabel('r / cm'); plt.ylabel('z / cm')
+plt.title('Magnetic field B / gauss'); plt.xlabel('r / cm'); plt.ylabel('z / cm')
 plt.colorbar()
-plt.show()
+#plt.show()
 # for ...:
 #    PSI[k,l] = -psi/R
 
