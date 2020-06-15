@@ -21,3 +21,8 @@ aug/mwilmodpy/BiotSavart.py~
 *.mod
 *.o
 *.so
+_*.c
+__pycache__
+
+# IDE files
+.vscode/
