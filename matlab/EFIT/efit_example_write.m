@@ -17,8 +17,8 @@
 [r, psi, q, p, f] = efit_example_gentestdata();
 
 %get the derivatives of p and f
-pp = gradient(r, p);
-ff = f .* gradient(r, f);
+pp = gradient(p, r);
+ff = f .* gradient(f, r);
 
 %##########################################################################
 % create an instance and use it to write the file
