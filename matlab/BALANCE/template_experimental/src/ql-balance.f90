@@ -46,8 +46,7 @@ integer, dimension(1) :: ind_dqle,ind_dqli
   
 !needed for interpolation of br abs and stopping criterion
 !Added by Philipp Ulbl 04.06.2020
-DOUBLE PRECISION :: br_abs 
-DOUBLE PRECISION :: br_abs_prev
+DOUBLE PRECISION, DIMENSION(:),   ALLOCATABLE :: br_abs
 integer ::  ibrabsres, ibeg, iend, nlagr, nder
 double precision, dimension(:,:),   allocatable :: coef
   
@@ -314,8 +313,7 @@ dqli22=dqli22*antenna_factor
 !!call MPI_finalize(ierror);
 !!stop
 !
-br_abs = 0
-br_abs_prev = 0
+allocate(br_abs(Nstorage))
 dqle11_prev=dqle11
 dqle12_prev=dqle12
 dqle21_prev=dqle21
@@ -358,6 +356,8 @@ iunit_diag_b=8138
 !write_diag_b=.true.
 ioddeven=1
 open(4321,file='timstep_evol.dat')
+open(777,file='br_abs_res.dat')
+close(777)
 !
 do i=1,Nstorage
     !
@@ -407,7 +407,7 @@ do i=1,Nstorage
         
         !Stop if timestep becomes too small
         !Added by Philipp Ulbl 13.05.2020
-        if (timstep .lt. stop_time_step .and. time .gt. stop_time_step) then
+        if (timstep .lt. stop_time_step .and. time .gt. 1.0d-3) then
             print *, 'stop: timestep smaller than stop limit'
             call MPI_finalize(ierror);
             stop
@@ -428,23 +428,21 @@ do i=1,Nstorage
 
         !lagrange interpolation with order 4 only for function (0)
         call plag_coeff(nlagr,nder,r_resonant,rb(ibeg:iend),coef)
-        br_abs=sum(coef(0,:)*abs(Br(ibeg:iend)))*sqrt(antenna_factor)
+        br_abs(i)=sum(coef(0,:)*abs(Br(ibeg:iend)))*sqrt(antenna_factor)
         
         !output on console and save to file
-        print *, 'Br abs res = ', br_abs
+        print *, 'Br abs res = ', br_abs(i)
         open(777,file='br_abs_res.dat',position='append')
-        write(777,*) i,time,antenna_factor,br_abs
+        write(777,*) i,time,antenna_factor,br_abs(i)
         close(777)
         
         !Stop if gradient of Abs(Br) at the resonance becomes negative
-        if (i .gt. 5.d0 .and. br_abs-br_abs_prev .lt. 0.d0) then
+        if (i .gt. 5.d0 .and. br_abs(i)-br_abs(i-1) .lt. 0.d0 &
+                        .and. br_abs(i-1)-br_abs(i-2) .lt. 0.d0) then
             print *, 'stop: gradient of Br_Abs_Res negative'
-            call MPI_finalize(ierror);
-            stop
+            !call MPI_finalize(ierror);
+            !stop
         endif
-
-        !save previous value
-        br_abs_prev = br_abs
         
         !Ramp up antenna_factor: linear in Icoil or quadratic in D
         !Added by Philipp Ulbl 12.05.2020
@@ -561,8 +559,8 @@ do i=1,Nstorage
             !limits ion and electron temperatures from below (by 10 eV in this example).
             !Added by Philipp Ulbl on 09.06.2020
             do ipoi=1,npoic
-                params(3,ipoi)=max(params(3,ipoi),10d0*ev)
-                params(4,ipoi)=max(params(4,ipoi),10d0*ev)
+                params(3,ipoi)=max(params(3,ipoi),50d0*ev)
+                params(4,ipoi)=max(params(4,ipoi),50d0*ev)
             enddo 
         !
             params_num=(params-params_beg)**2
@@ -616,6 +614,9 @@ do i=1,Nstorage
         endif
         timstep_arr=2.d0*timstep_arr*tim_stack/(timstep_arr+tim_stack)
         timstep=minval(timstep_arr)
+        if(time .gt. 1.2 .and. timstep .gt. 1.d-4) then
+            timstep = 1.d-4
+        endif
         open(5432,file='timstep_min.inp')
         read (5432,*) timstep_min
         close(5432)
