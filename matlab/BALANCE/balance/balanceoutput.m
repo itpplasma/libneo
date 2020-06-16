@@ -25,7 +25,8 @@ classdef balanceoutput < handle & hdf5_output
         OUTFILES = {'fort*','Brvac.dat','cond_e.dat',...
             'equipotentials.dat','equisource.dat',...
             'par_current_e.dat','par_current_i.dat',...
-            'init_params.dat', 'timstep_evol.dat', 'amn_theta.dat'}; %cell array of all output files of balance code
+            'init_params.dat', 'timstep_evol.dat', 'amn_theta.dat',...
+            'br_abs_res.dat'}; %cell array of all output files of balance code
     end
     
     properties
@@ -41,6 +42,8 @@ classdef balanceoutput < handle & hdf5_output
         time_step       %time steps in time evoluton. only there if time evolution used
         time            %total time in time evoluton. only there if time evolution used
         Br_abs_ant      %absolute radial magnetic field at antenna. only there if time evolution used
+        antenna_factor  %scaling factor Cmn^2 in time evolution. only there if time evolution used
+        Br_abs_res      %absolute radial magnetic field at resonance. only there if time evolution used
     end
     
     properties(SetAccess = private)
@@ -185,32 +188,8 @@ classdef balanceoutput < handle & hdf5_output
             
             obj.path = path;
             
-            %get all files in output directory
-            files = dir(path);
-            %count fort.1*** and fort.5*** files
-            ntime1 = sum(arrayfun(@(x) contains(x.name, 'fort.1'), files));
-            ntime5 = sum(arrayfun(@(x) contains(x.name, 'fort.5'), files));
-%             %number should match
-%             if(ntime1 ~= ntime5)
-%                 error('number of fort.1000 files does not match number of fort.5000 files. check output log of balance.') 
-%             end
-            
-            %if there is more than 1 file then we have time evolution
-            %running
-            if(ntime1 > 1)
-                %save as cell array of objects
-                obj.fort1000 = cell(1, ntime1);
-                obj.fort5000 = cell(1, ntime1);
-                
-                %initialize br antenna
-                obj.Br_abs_ant = nan(ntime1, 1);
-                %get object for each time and read br antenna
-                for k=1:ntime1
-                   obj.fort1000{k} = f1000([path, 'fort.', sprintf('%04d', k+999)]);
-                   obj.fort5000{k} = f5000([path, 'fort.', sprintf('%04d', k+4999)]);
-                   obj.Br_abs_ant(k) = obj.fort5000{k}.getLastBrAbs();
-                end
-                
+            if(exist([path, 'timstep_evol.dat'], 'file'))
+                            
                 %read time evol file
                 time_evol =  load([path, 'timstep_evol.dat']);
                 obj.time_step = time_evol(:, 2);
@@ -221,6 +200,29 @@ classdef balanceoutput < handle & hdf5_output
                 %time_evol(:, 4) = timscal(1)
                 %time_evol(:, 5) = rate_dql
                 
+                %read content of br_abs_res.dat file
+                brabsres_raw =  load([path, 'br_abs_res.dat']);
+                obj.antenna_factor = brabsres_raw(:, 3);
+                obj.Br_abs_res = brabsres_raw(:, 4);
+            else
+                obj.time = [];
+            end
+            
+            %if time evolution
+            if(~isempty(obj.time))
+                %save as cell array of objects
+                obj.fort1000 = cell(1, numel(obj.time));
+                obj.fort5000 = cell(1, numel(obj.time));
+                
+                %initialize br antenna
+                obj.Br_abs_ant = nan(numel(obj.time), 1);
+                %get object for each time and read br antenna
+                for k=1:numel(obj.time)
+                   obj.fort1000{k} = f1000([path, 'fort.', sprintf('%04d', k+999)]);
+                   obj.fort5000{k} = f5000([path, 'fort.', sprintf('%04d', k+4999)]);
+                   obj.Br_abs_ant(k) = obj.fort5000{k}.getLastBrAbs();
+                end
+
             else %load only single file
                 %fort 1000 + 5000
                 obj.fort1000 = f1000([path, 'fort.1000']);
@@ -245,6 +247,8 @@ classdef balanceoutput < handle & hdf5_output
             obj.writeHDF5(fname, loc, 'time', 'total time', 's');
             obj.writeHDF5(fname, loc, 'time_step', 'time step', 's');
             obj.writeHDF5(fname, loc, 'Br_abs_ant', 'absolute radial magnetic field at antenna (unscaled)', 'G');
+            obj.writeHDF5(fname, loc, 'antenna_factor', 'scaling factor Cmn^2 in time evolution.', '1');
+            obj.writeHDF5(fname, loc, 'Br_abs_res', 'absolute radial magnetic field at resonance (scaled)', 'G');
             
         end
     end
