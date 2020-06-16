@@ -19,7 +19,7 @@ mpath = pwd();
 
 addpath('~/BALANCE/balance');
 
-studyname = 'TimeEvol_experimental';
+studyname = 'TimeEvol_m5_teststep2';
 system(['mkdir -p ~/Balance_Results/', studyname, '/']);
 
 shot = 33133;
@@ -27,7 +27,7 @@ time = 3000;
 
 time_evol = true;
 
-m = 5;
+m = 6:7;
 n = 2 .* ones(size(m));
 
 runpath = ['/temp/ulbl_p/BALANCE_2020/', studyname, '/', num2str(shot), '_', num2str(time),'/'];
@@ -37,8 +37,8 @@ gfile  = ['/temp/ulbl_p/AUG/SHOTS/',num2str(shot),'/g',num2str(shot),'.',num2str
 filehead = ['/temp/ulbl_p/AUG/SHOTS/',num2str(shot),'/',num2str(shot),'.',num2str(time)];
 cfile  = [filehead,'_coil.dat'];
 
-%dapath = '/temp/ulbl_p/DA/ASTRA/';
-dapath = '';
+dapath = '/temp/ulbl_p/DA/ASTRA/';
+%dapath = '';
 
 neprof = [filehead,'_ne_PED_ULBLP_rho_pol.dat'];
 Teprof = [filehead,'_Te_PED_ULBLP_rho_pol.dat'];
@@ -50,8 +50,8 @@ vtprof = [filehead,'_vt_PED_ULBLP_rho_pol.dat'];
 fluxdatapath = ['/temp/ulbl_p/FLUXDATA/',num2str(shot),'/',num2str(time),'/']; %will be calculated if not present
 
 gpecpath = ['/temp/ulbl_p/GPEC/TimeEvol/', num2str(shot), '_', num2str(time),'/'];
-copy = '/temp/ulbl_p/BALANCE_2020/TimeEvol_m6_experimental/33133_3000/profiles/';
-%copy='';
+%copy = '/temp/ulbl_p/BALANCE_2020/TimeEvol_m6_experimental/33133_3000/profiles/';
+copy='/temp/ulbl_p/BALANCE_2020/TimeEvol_m5_teststep/33133_3000/profiles/';
 
 %REF FROM MARTIN
 % gfile  = '/proj/plasma/RMP/DATA2017/33133/3.0s/g33133.3000_ed4';
@@ -86,6 +86,7 @@ bal.setKiLCA();
 bal.setDaEstimation(dapath);
 opt = balanceoptions(bal.kil_flre.pathofrun, bal.kil_vacuum.pathofrun);
 opt.stop_time_step=1e-8;
+opt.Nstorage = 3999;
 opt.flag_run_time_evolution = time_evol;
 bal.setOptions(opt);
 bal.write();
