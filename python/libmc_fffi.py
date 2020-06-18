@@ -10,7 +10,7 @@ field_eq.fdef("""
 
 parmot_mod = FortranModule(libmc_efit, name='parmot_mod')
 parmot_mod.fdef("""\
-  double precision :: rmu, ro0
+  real(8) :: rmu, ro0
 """)
 
 libmc_efit.fdef("""
@@ -40,4 +40,4 @@ libmc_efit.fdef("""
 
 libmc_efit.compile(verbose=1)
 field_eq.load()
-
+parmot_mod.load()
