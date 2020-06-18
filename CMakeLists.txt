@@ -43,7 +43,7 @@ endif()
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -std=f2008")
+  set (CMAKE_Fortran_FLAGS "-cpp -g -fbacktrace -std=f2008")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
