@@ -171,16 +171,21 @@ z0 = frombuffer(libmc_efit._ffi.buffer(z), dtype=float64)
 tau = libmc_efit.new('double', 0.0)
 vz = libmc_efit._ffi.new('double[5]')  
 
-
 def velo(t,y):
     z[0:5] = y[:]
     libmc_efit.velo(tau, z, vz)
     return frombuffer(libmc_efit._ffi.buffer(vz), dtype=float64)
 
-dtau = 1.
-nt = 10000
-times = linspace(0, nt*dtau, nt)
-sol = solve_ivp(velo, (times[0], times[-1]), z0, method='LSODA', max_step = 10)
-zs = sol.y
+v0 = velo(0, z0)
+print(v0)
+#%%
+# dtau = 1.
+# nt = 10000
+# times = linspace(0, nt*dtau, nt)
+# sol = solve_ivp(velo, (times[0], times[-1]), z0, method='LSODA', max_step = 10)
+# zs = sol.y
 
 
+
+
+# %%
