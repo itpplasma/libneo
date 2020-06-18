@@ -563,9 +563,10 @@ classdef KiLCA_postprocessor < KiLCA_prototype_output & hdf5_output
             
             %calculate velocities
             obj.vExB = obj.E0r ./ obj.B0;
-            obj.ved = obj.dp ./ (obj.ECHARGE .* obj.n .* obj.B0);
+            pres = obj.ne .* obj.Te .* obj.KB .* obj.EVK;
+            obj.ved = gradient(pres, obj.r) ./ (obj.ECHARGE .* obj.n .* obj.B0);
             obj.veperp = obj.vExB + obj.ved;
-            
+
             %check furths equation
             obj.check_furth();
             
