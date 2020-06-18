@@ -2,13 +2,15 @@ from os.path import expanduser
 from fffi import FortranLibrary, FortranModule
 
 libmc_efit = FortranLibrary('mc_efit', path=expanduser('~/src/libneo/build'))
+
 field_eq = FortranModule(libmc_efit, name='field_eq_mod')
-
-# TODO: add more definitions useful for testing
-# Attention: private variables and routines are inaccessible
-
 field_eq.fdef("""
   real(8) :: psif, psib
+""")
+
+parmot_mod = FortranModule(libmc_efit, name='parmot_mod')
+parmot_mod.fdef("""\
+  double precision :: rmu, ro0
 """)
 
 libmc_efit.fdef("""
