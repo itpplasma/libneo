@@ -438,10 +438,10 @@ do i=1,Nstorage
         
         !Stop if gradient of Abs(Br) at the resonance becomes negative
         if (i .gt. 5.d0 .and. br_abs(i)-br_abs(i-1) .lt. 0.d0 &
-                        .and. br_abs(i-1)-br_abs(i-2) .lt. 0.d0) then
+                        .and. br_abs(i-1)-br_abs(i-2) .lt. 0.d0 .and. time .gt. 1.0d-3) then
             print *, 'stop: gradient of Br_Abs_Res negative'
-            !call MPI_finalize(ierror);
-            !stop
+            call MPI_finalize(ierror);
+            stop
         endif
         
         !Ramp up antenna_factor: linear in Icoil or quadratic in D
@@ -614,9 +614,12 @@ do i=1,Nstorage
         endif
         timstep_arr=2.d0*timstep_arr*tim_stack/(timstep_arr+tim_stack)
         timstep=minval(timstep_arr)
-        if(time .gt. 1.2 .and. timstep .gt. 1.d-4) then
-            timstep = 1.d-4
-        endif
+        
+        !This can be used to limit timestep
+        !Added by Philipp Ulbl, June 2020
+        !if(time .gt. 1.2 .and. timstep .gt. 1.d-4) then
+        !    timstep = 1.d-4
+        !endif
         open(5432,file='timstep_min.inp')
         read (5432,*) timstep_min
         close(5432)
