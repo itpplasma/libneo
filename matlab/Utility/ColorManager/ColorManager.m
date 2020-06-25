@@ -123,9 +123,9 @@ classdef (Sealed, Abstract) ColorManager
             nam = properties('ColorManager');
         end
         
-        function col = GetColor(num, name)
+        function col = GetColor(num, wrap, name)
         %##################################################################
-        %function col = GetColor(num, name)
+        %function col = GetColor(num, wrap, name)
         %##################################################################
         % description:
         %------------------------------------------------------------------
@@ -137,6 +137,8 @@ classdef (Sealed, Abstract) ColorManager
         % input:
         %------------------------------------------------------------------
         % num       ... number of color objects to return
+        % wrap      ... boolean that indicates to wrap colors if num >
+        %               elements in set (optional, default = false)
         % name      ... name of the color set (optional, default = Set1)
         %##################################################################
         % output:
@@ -146,23 +148,39 @@ classdef (Sealed, Abstract) ColorManager
         %##################################################################
 
             %default for name
-            if(nargin < 2 || isempty(name))
+            if(nargin < 2 || isempty(wrap))
+               wrap = false;
+            end
+            %default for name
+            if(nargin < 3 || isempty(name))
                name = 'Set1';
             end
             
-            %get available sets and check if set specified by name is there
-            sets = ColorManager.get_available_sets(num);
-            ok = any(cellfun(@(x) strcmp(x, name), sets));
+            %get colors from set by name
+            col = ColorManager.(name);
             
-            %return colors if ok
-            if(ok)
-                col = ColorManager.(name);
-                col = col(1:num, :);
+            % if wrap is activated wrap colors around the 1st dimension
+            % with use of modulo
+            if(~wrap) 
+                %get available sets and check if set specified by name is there
+                sets = ColorManager.get_available_sets(num);
+                ok = any(cellfun(@(x) strcmp(x, name), sets));
+
+                %return colors if ok
+                if(ok)
+                    ind = 1:num;
+                    col = col(ind, :);
+                else
+                    warning('specified set has not enough colors, empty field returned.')
+                    col = [];
+                end
             else
-                warning('specified set has not enough colors, empty field returned.')
-                col = [];
+                ind = mod((1:num)-1, size(col, 1))+1;
+                col = col(ind, :);
             end
+               
         end
+        
     end
     
     methods (Static, Access=private)
