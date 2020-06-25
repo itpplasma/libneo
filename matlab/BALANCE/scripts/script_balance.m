@@ -18,7 +18,7 @@ addpath(genpath(libBalance))
 
 mpath = pwd();
 
-studyname = 'Simple_33120_5500';
+studyname = 'Simple_33120_5500_Test';
 system(['mkdir -p ~/Balance_Results/', studyname, '/']);
 
 %Runs to make
@@ -46,7 +46,8 @@ for k = 1:size(run, 1)
     time = run(k, 2);
 
     %gpecpath = ['/temp/ulbl_p/GPEC/TimeEvol_ReprMartin33133/', num2str(shot), '_', num2str(time), '/'];
-    gpecpath = ['/temp/ulbl_p/GPEC/', studyname, '/', num2str(shot), '_', num2str(time), '/'];
+    %gpecpath = ['/temp/ulbl_p/GPEC/', studyname, '/', num2str(shot), '_', num2str(time), '/'];
+    gpecpath = '/temp/ulbl_p/GPEC/test1/';
     
     bal = singlerun_balance(studyname, shot, time, false, modes, copy, gpecpath);
 end

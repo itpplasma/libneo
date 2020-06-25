@@ -18,21 +18,21 @@ addpath(genpath(libBalance))
 
 mpath = pwd();
 
-studyname = 'VelScan';
+studyname = 'VelScan_Shift';
 system(['mkdir -p ~/Balance_Results/', studyname, '/']);
 
 %Runs to make
 shot = 33133;
 time = 3000;
 
-m = 5:7;
+m = 6;
 n = 2 .* ones(size(m));
 
 %##########################################################################
 % 1) STANDARD RUN
 %##########################################################################
 
-runname = 'Vzfac1';
+runname = 'VzfacRef';
 runpath = ['/temp/ulbl_p/BALANCE_2020/', studyname,'/', num2str(shot), '_', num2str(time),'/',runname,'/'];
 refpath = runpath;
 
@@ -66,43 +66,59 @@ bal.run();
 
 system(['mkdir -p ~/Balance_Results/', studyname, '/ref/']);
 bal.export2HDF5(['~/Balance_Results/', studyname, '/ref/'], [studyname, '_', runname]);
-        
+       
 %##########################################################################
 % 2) VARY PROFILES
 %##########################################################################
 
-Vzfac = linspace(-0.5, 10, 526);
-Vzfac=unique(Vzfac);
+%calculate factor for Er recomputation from reference run
+prof = bal.profiles;
 
-for o = 366:numel(Vzfac)
+if(~isempty(prof.B_out))
+    B0 = prof.B_out;
+else
+    B0 = interp1(bal.kil_vacuum.backgrounddata.b0(:, 1), ...
+                 bal.kil_vacuum.backgrounddata.b0(:, 2), prof.r_out);
+end
+
+ErVzfac = prof.r_out .* B0 ./ (prof.r_big * prof.qp.y_out .* 3e10);
+
+%set factors for vz scan
+%Vzfac = linspace(3, 6, 101);
+Vzfac = linspace(3, 6, 121);
+Vzfac = unique(Vzfac);
+
+copy = ['/temp/ulbl_p/BALANCE_2020/',studyname,'/33133_3000/VzfacRef/profiles/'];
+
+for o = 1:numel(Vzfac)
 
     runname = ['Vzfac', sprintf('%.2f',Vzfac(o))];
     runpath = ['/temp/ulbl_p/BALANCE_2020/', studyname,'/', num2str(shot), '_', num2str(time),'/',runname,'/'];
-
-    system(['mkdir -p ', runpath]);
-    system(['rsync -a ', refpath, 'profiles/ ', runpath, 'profiles/']);
 
     numrun = ['(',num2str(o),'/',num2str(numel(Vzfac)),') '];
     disp([numrun, studyname, ' Vzfac = ', num2str(Vzfac(o)),]);
 
     %BALANCE CODE
-    bal = Balance(runpath, shot, time, [studyname, '_', runname]);
-    bal.setModes(m, n);
-    bal.setCoil(cfile);
-    bal.setEqui(gfile, fluxdatapath);
-    bal.setTMHDCode('GPEC', gpecpath);
-    bal.setProfiles(neprof, Teprof, Tiprof, vtprof);
-    bal.setKiLCA();
+    bal.changeRun(runpath, [studyname, '_', runname]);
+    bal.setProfiles(neprof, Teprof, Tiprof, vtprof, copy);
     bal.write();
 
-    %change temp profile
-    Vz = load([refpath, 'profiles/Vz.dat']);
-    Vz(:, 2) = Vz(:, 2) .* Vzfac(o);
+    %change vz profile
+    Vz_old = load([refpath, 'profiles/Vz.dat']);
+    Vz_new = Vz_old;
+    Vz_new(:, 2) = Vz_new(:, 2) .* (1 + Vzfac(o));
     fid = fopen([runpath, 'profiles/Vz.dat'],'w');
-    fprintf(fid, '%.15e\t%.15e\n', Vz');
+    fprintf(fid, '%.15e\t%.15e\n', Vz_new');
     fclose(fid);
 
-    bal.setDaEstimation(dapath);
+    %change Er profile (recalculation with new vz)
+    Er = load([refpath, 'profiles/Er.dat']);
+    Er(:, 2) = Er(:, 2) + ErVzfac .* (Vz_new(:, 2) - Vz_old(:, 2));
+    fid = fopen([runpath, 'profiles/Er.dat'],'w');
+    fprintf(fid, '%.15e\t%.15e\n', Er');
+    fclose(fid);
+    
+    %run
     bal.run();
 
     %##########################################################################
