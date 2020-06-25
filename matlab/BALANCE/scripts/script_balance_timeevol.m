@@ -19,7 +19,7 @@ mpath = pwd();
 
 addpath('~/BALANCE/balance');
 
-studyname = 'TimeEvol_m5_teststep2';
+studyname = 'TimeEvolution_TestKiLCABack';
 system(['mkdir -p ~/Balance_Results/', studyname, '/']);
 
 shot = 33133;
@@ -27,7 +27,7 @@ time = 3000;
 
 time_evol = true;
 
-m = 6:7;
+m = 5;
 n = 2 .* ones(size(m));
 
 runpath = ['/temp/ulbl_p/BALANCE_2020/', studyname, '/', num2str(shot), '_', num2str(time),'/'];
@@ -51,7 +51,7 @@ fluxdatapath = ['/temp/ulbl_p/FLUXDATA/',num2str(shot),'/',num2str(time),'/']; %
 
 gpecpath = ['/temp/ulbl_p/GPEC/TimeEvol/', num2str(shot), '_', num2str(time),'/'];
 %copy = '/temp/ulbl_p/BALANCE_2020/TimeEvol_m6_experimental/33133_3000/profiles/';
-copy='/temp/ulbl_p/BALANCE_2020/TimeEvol_m5_teststep/33133_3000/profiles/';
+copy='/temp/ulbl_p/BALANCE_2020/TimeEvolution/33133_3000/profiles/';
 
 %REF FROM MARTIN
 % gfile  = '/proj/plasma/RMP/DATA2017/33133/3.0s/g33133.3000_ed4';
@@ -86,10 +86,13 @@ bal.setKiLCA();
 bal.setDaEstimation(dapath);
 opt = balanceoptions(bal.kil_flre.pathofrun, bal.kil_vacuum.pathofrun);
 opt.stop_time_step=1e-8;
-opt.Nstorage = 3999;
 opt.flag_run_time_evolution = time_evol;
 bal.setOptions(opt);
 bal.write();
+bal.kil_flre.background.flag_recalc = -1;
+bal.kil_vacuum.background.flag_recalc = -1;
+bal.kil_flre.write();
+bal.kil_vacuum.write();
 bal.run();
 
 %##########################################################################
