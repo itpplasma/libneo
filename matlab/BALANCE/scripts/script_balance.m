@@ -10,6 +10,8 @@
 %author:   Philipp Ulbl
 %created:  25.03.2020
 
+clear all
+
 libKiLCA = '~/KiLCA_interface/';
 libBalance = '~/BALANCE/balance';
 

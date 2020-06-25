@@ -382,11 +382,13 @@ classdef Balance < handle & hdf5_output
             % tpath        ... path to output of tmhd code
             %##############################################################    
             
-            %data path
-            obj.file_tmhd = [obj.path_tmhd, 'gpec_profile_output_n2.nc'];
+            %save path
+            obj.path_tmhd = tpath;
+            %save file
+            obj.file_tmhd = [tpath, 'gpec_profile_output_n2.nc'];
             
             %check if run necessary
-            if(obj.FLAG_FORCE_TMHD || ~exist(obj.file_tmhd, 'dir'))
+            if(obj.FLAG_FORCE_TMHD || ~exist(obj.file_tmhd, 'file'))
                 run_tmhd = true;
             else
                 run_tmhd = false;
@@ -394,9 +396,6 @@ classdef Balance < handle & hdf5_output
                 
             %type is GPEC
             if(strcmp(ttype, 'GPEC'))
-                
-                %save path
-                obj.path_tmhd = tpath;
                 
                 %run if necessary
                 if(run_tmhd==true)
