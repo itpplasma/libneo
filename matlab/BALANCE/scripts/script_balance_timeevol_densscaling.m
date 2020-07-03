@@ -19,11 +19,11 @@ mpath = pwd();
 
 addpath('~/BALANCE/balance');
 
-studyname = 'TimeEvol_Dens';
+studyname = 'TimeEvolution_Dens_Nocopy';
 system(['mkdir -p ~/Balance_Results/', studyname, '/']);
 
-shot = 33133;
-time = 3000;
+shot = 33120;
+time = 5500;
 
 time_evol = true;
 
@@ -49,9 +49,8 @@ vtprof = [filehead,'_vt_PED_ULBLP_rho_pol.dat'];
 fluxdatapath = ['/temp/ulbl_p/FLUXDATA/',num2str(shot),'/',num2str(time),'/']; %will be calculated if not present
 
 gpecpath = ['/temp/ulbl_p/GPEC/TimeEvol/', num2str(shot), '_', num2str(time),'/'];
-copy = '/temp/ulbl_p/BALANCE_2020/TimeEvol/33133_3000/profiles/';
-%copy='';
-
+%copy = ['/temp/ulbl_p/BALANCE_2020/TimeEvolution/',num2str(shot), '_', num2str(time), '/profiles/'];
+copy='';
 %REF FROM MARTIN
 % gfile  = '/proj/plasma/RMP/DATA2017/33133/3.0s/g33133.3000_ed4';
 % cfile  = '/temp/ulbl_p/AUG/SHOTS/33120/33120.5500_coil.dat';
@@ -70,7 +69,9 @@ copy = '/temp/ulbl_p/BALANCE_2020/TimeEvol/33133_3000/profiles/';
 % fluxdatapath = ['/temp/ulbl_p/FLUXDATA/',num2str(shot),'/',num2str(time),'/']; %will be calculated if not present
 % gpecpath = ['/temp/ulbl_p/GPEC/TimeEvol/', num2str(shot), '_', num2str(time),'/'];
 
-nfac = [0.25, 0.5, 1, 1.5, 2, 4, 6, 8];
+%nfac = [0.25, 0.5, 1, 1.5, 2, 4, 6, 8];
+%nfac = [0.75, 1.25, 1.75, 2.5, 3, 3.5];
+nfac = [0.25, 1, 2, 4];
 
 %##########################################################################
 % RUN BALANCE WITH MATLAB CLASS
@@ -94,9 +95,17 @@ for o = 1:numel(nfac)
     bal.setTMHDCode('GPEC', gpecpath);
     bal.setProfiles(neprof, Teprof, Tiprof, vtprof, copy);
     bal.setKiLCA();
+    
     opt = balanceoptions(bal.kil_flre.pathofrun, bal.kil_vacuum.pathofrun);
-    opt.stop_time_step=1e-6;
+    opt.stop_time_step=1e-8;
     opt.flag_run_time_evolution = time_evol;
+    opt.Btor = bal.b_tor;
+    opt.Rtor = bal.r_big;
+    opt.rmin = bal.r_sta;
+    opt.rmax = bal.r_ant;
+    opt.rb_cut_out = bal.rb_cut_out;
+    opt.re_cut_out = bal.re_cut_out;
+    
     bal.setOptions(opt);
     bal.write();
     

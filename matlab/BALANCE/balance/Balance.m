@@ -82,7 +82,12 @@ classdef Balance < handle & hdf5_output
 
         rb_cut_out = 67.5;      %needed in balance.in
         re_cut_out = 68;        %needed in balance.in
-
+        
+        kil_vacuum              %object of KiLCA vacuum run
+        kil_flre                %object of KiLCA flre run
+        
+        %these can be removed and kilca settings can directly be modified
+        %via the properties
         KiLCA_I0 = 1e13;        %kilca antenna current
         KiLCA_flab = 1;         %kilca frequency in lab frame
         KiLCA_sigma = 1.3e16;   %kilca conductivity of resistive wall
@@ -131,9 +136,7 @@ classdef Balance < handle & hdf5_output
         factors = 0     %factors for V-shift
         
         tmhd            %object representing toroidal mhd code.
-        kil_vacuum      %object of KiLCA vacuum run
-        kil_flre        %object of KiLCA flre run
-        
+
         zero_veperp      %zeros of veperp
         zero_vExB        %zeros of vExB
         dis_zero_veperp  %absolute distance for each mode from veperp zero
@@ -211,6 +214,37 @@ classdef Balance < handle & hdf5_output
         %##################################################################
         % METHODS FOR RUNNING THE CODE
         %##################################################################
+        
+        function changeRun(obj, path, name)
+            %##############################################################
+            %function changeRun(obj, path, name)
+            %##############################################################
+            % description:
+            %--------------------------------------------------------------
+            % Changes path of run and run name to make a duplicate run in 
+            % another directory without the need to recompute everything.
+            %##############################################################
+            % input:
+            %--------------------------------------------------------------
+            % path  ... new path of run
+            % name  ... new name of run
+            %############################################################## 
+            
+            obj.path_run = path;
+            
+            obj.path_factors = [path, 'factors/'];
+            obj.path_output = [path, 'out/'];
+            
+            obj.name = name;
+            obj.setKiLCAOptions();
+            
+            obj.kil_flre.antenna.nmod = 1;
+            obj.kil_flre.background.flag_recalc = -1;
+            obj.kil_vacuum.antenna.nmod = 1;
+            obj.kil_vacuum.background.flag_recalc = -1;
+            
+            obj.setOptions();
+        end
         
         function setModes(obj, m, n)
             %##############################################################
@@ -348,8 +382,13 @@ classdef Balance < handle & hdf5_output
             % tpath        ... path to output of tmhd code
             %##############################################################    
             
+            %save path
+            obj.path_tmhd = tpath;
+            %save file
+            obj.file_tmhd = [tpath, 'gpec_profile_output_n2.nc'];
+            
             %check if run necessary
-            if(obj.FLAG_FORCE_TMHD || ~exist(tpath, 'dir'))
+            if(obj.FLAG_FORCE_TMHD || ~exist(obj.file_tmhd, 'file'))
                 run_tmhd = true;
             else
                 run_tmhd = false;
@@ -357,9 +396,6 @@ classdef Balance < handle & hdf5_output
                 
             %type is GPEC
             if(strcmp(ttype, 'GPEC'))
-                
-                %save path
-                obj.path_tmhd = tpath;
                 
                 %run if necessary
                 if(run_tmhd==true)
@@ -371,8 +407,6 @@ classdef Balance < handle & hdf5_output
                     obj.tmhd.run();
                 end
                 
-                %load data
-                obj.file_tmhd = [obj.path_tmhd, 'gpec_profile_output_n2.nc'];
                 %read safety factor
                 qraw = ncread(obj.file_tmhd, 'q_rational');
                 %read I res in A
@@ -465,23 +499,22 @@ classdef Balance < handle & hdf5_output
             %--------------------------------------------------------------
             % sets options for KiLCA and makes a pre-run to get the
             % resonant currents.
-            %##############################################################    
+            %##############################################################
             
             %set basic options
             obj.setKiLCAOptions();
             
             runs = {'kil_vacuum', 'kil_flre'};
             for k = 1:numel(runs)
-            
+                
                 %write directory structure
                 obj.(runs{k}).write();
-
                 %pre-run of vacuum and flre
                 obj.(runs{k}).run();
-
+                    
                 %postprocess kilca
                 obj.(runs{k}).post();
-                
+
                 %settings for balance run: single mode and profiles from
                 %interface
                 obj.(runs{k}).antenna.nmod = 1;
@@ -603,6 +636,14 @@ classdef Balance < handle & hdf5_output
             system(['mkdir -p ', obj.path_output]);
             %delete content in output path
             system(['rm -r ', obj.path_output, '* 2>/dev/null']); %supress warnings
+            
+            %write KiLCA if not there
+            runs = {'kil_vacuum', 'kil_flre'};
+            for k=1:numel(runs)
+                if(~exist(obj.(runs{k}).pathofrun, 'dir'))
+                    obj.(runs{k}).write();
+                end
+            end
             
             %write balance.in file (balanceoptions)
             if(isempty(obj.options))
@@ -995,9 +1036,12 @@ classdef Balance < handle & hdf5_output
             obj.profiles.qp.writeHDF5(fname, '/profiles/', 'y_out', 'safety factor profile', '1');
             obj.profiles.Er.writeHDF5(fname, '/profiles/', 'y_out', 'radial electric field profile', 'statV cm^{-1}');
         
-            %export KiLCA data
-            obj.kil_flre.export2HDF5(fname, '/KiLCA_flre/');
-            obj.kil_vacuum.export2HDF5(fname, '/KiLCA_vac/');
+            %export KiLCA data if it is there (only with pre-computation)
+            try
+                obj.kil_flre.export2HDF5(fname, '/KiLCA_flre/');
+                obj.kil_vacuum.export2HDF5(fname, '/KiLCA_vac/');
+            catch
+            end
             
             %export da estimation
             obj.da_est.export2HDF5(fname, '/Da_estimation/');
