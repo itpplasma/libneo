@@ -1,4 +1,5 @@
 #%% Init
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from libmc_fffi import libmc_efit, field_eq, parmot_mod
@@ -60,7 +61,7 @@ plt.figure()
 plt.pcolor(RR,ZZ,BMOD, cmap='plasma')
 plt.colorbar()
 plt.title('BMOD')
-
+#%%
 #
 #print('time: '+str(time.time() - t))
 
@@ -324,3 +325,6 @@ plt.show()
 #plt.ylabel('z / cm')
 #plt.xlabel('r / cm')
 #plt.show()
+
+
+# %%
