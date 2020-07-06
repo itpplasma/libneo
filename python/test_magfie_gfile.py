@@ -60,7 +60,7 @@ spl_theta = SmoothBivariateSpline(np.ravel(RR-raxis), np.ravel(ZZ), np.ravel(THE
 plt.figure()
 plt.pcolor(RR,ZZ,BMOD, cmap='plasma')
 plt.colorbar()
-plt.title('BMOD')
+plt.title('BMOD / Gauss')
 #%%
 #
 #print('time: '+str(time.time() - t))
@@ -91,10 +91,9 @@ hcurl = libmc_efit._ffi.new('double[3]')
 
 # Reference Larmor radius of thermal particles
 m = am*p_mass
-bmod_ref = 1e4            # 1 Tesla in Gauss
-bmod00 = 1.0              # 1 Tesla in Tesla
+bmod_ref = 1.0                   # bmod = 1 means 1 Gauss here
 rlarm = v0*m*c/(Zb*qe*bmod_ref)  # Larmor radius in bmod_ref
-parmot_mod.ro0 = rlarm*bmod00    # Rescaled Larmor radius
+parmot_mod.ro0 = rlarm           # Rescaled Larmor radius
 
 # Inverse relativistic temperature, set >=1e5 to neglect relativistic effects
 parmot_mod.rmu = 1e4
