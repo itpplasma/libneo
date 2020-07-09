@@ -20,7 +20,7 @@ addpath(genpath(libBalance))
 
 mpath = pwd();
 
-studyname = 'VelScan_dTe_c5';
+studyname = 'VelScan_dTe_c3';
 system(['mkdir -p ~/Balance_Results/', studyname, '/']);
 
 %Runs to make
@@ -108,9 +108,9 @@ alpha = cell2mat(cellfun(@(c) str2double(c{2}), dirname, 'UniformOutput', false)
 
 for k = 1:numel(alpha)
     
-    if(alpha(k)>0.0)
-        continue;
-    end
+%     if(alpha(k)==0.0)
+%         continue;
+%     end
     
     %##########################################################################
     % 3) VARY VZ PROFILES
@@ -118,9 +118,9 @@ for k = 1:numel(alpha)
 
     for o = 1:numel(Vzfac)
 
-%         if(alpha(k)==0.7 && o < 99)
-%             continue;
-%         end
+        if(alpha(k)<0.9)
+            continue;
+        end
         
         runname = ['Vzfac', sprintf('%.2f',Vzfac(o))];
         runpath = ['/temp/ulbl_p/BALANCE_2020/', studyname, '/', dirs(k).name, '/', num2str(shot), '_', num2str(time),'/',runname,'/'];
@@ -131,13 +131,13 @@ for k = 1:numel(alpha)
         %BALANCE CODE
         bal.changeRun(runpath, [studyname, '_', runname]);
         bal.setProfiles(neprof, Teprof, Tiprof, vtprof, copy);
-        bal.kil_vacuum.background.ce = 5;
-        bal.kil_vacuum.background.ci = 5;
+        bal.kil_vacuum.background.ce = 3;
+        bal.kil_vacuum.background.ci = 3;
         bal.kil_vacuum.output.backdata = 1;
         bal.kil_vacuum.output.lindata = 1;
         bal.kil_vacuum.output.varquant = 1;
-        bal.kil_flre.background.ce = 5;
-        bal.kil_flre.background.ci = 5;
+        bal.kil_flre.background.ce = 3;
+        bal.kil_flre.background.ci = 3;
         bal.kil_flre.output.backdata = 1;
         bal.kil_flre.output.lindata = 1;
         bal.kil_flre.output.varquant = 1;
