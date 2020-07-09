@@ -19,7 +19,7 @@ mpath = pwd();
 
 addpath('~/BALANCE/balance');
 
-studyname = 'TimeEvolution_Dens_Nocopy';
+studyname = 'TimeEvolution_Dens';
 system(['mkdir -p ~/Balance_Results/', studyname, '/']);
 
 shot = 33120;
@@ -49,8 +49,8 @@ vtprof = [filehead,'_vt_PED_ULBLP_rho_pol.dat'];
 fluxdatapath = ['/temp/ulbl_p/FLUXDATA/',num2str(shot),'/',num2str(time),'/']; %will be calculated if not present
 
 gpecpath = ['/temp/ulbl_p/GPEC/TimeEvol/', num2str(shot), '_', num2str(time),'/'];
-%copy = ['/temp/ulbl_p/BALANCE_2020/TimeEvolution/',num2str(shot), '_', num2str(time), '/profiles/'];
-copy='';
+copy = ['/temp/ulbl_p/BALANCE_2020/TimeEvolution/',num2str(shot), '_', num2str(time), '/profiles/'];
+
 %REF FROM MARTIN
 % gfile  = '/proj/plasma/RMP/DATA2017/33133/3.0s/g33133.3000_ed4';
 % cfile  = '/temp/ulbl_p/AUG/SHOTS/33120/33120.5500_coil.dat';
