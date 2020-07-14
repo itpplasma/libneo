@@ -15,6 +15,7 @@ doc/latex/
 
 # Ignore backup files
 *~
+*.swp
 
 # Ignore object files
 *.mod
