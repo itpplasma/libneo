@@ -12,7 +12,6 @@ doc/latex/
 
 # Ignore files that are created by the make process.
 *.pdf
-aug/mwilmodpy/BiotSavart.py~
 
 # Ignore backup files
 *~
@@ -21,8 +20,10 @@ aug/mwilmodpy/BiotSavart.py~
 *.mod
 *.o
 *.so
+*.x
 _*.c
 __pycache__
 
 # IDE files
 .vscode/
+
