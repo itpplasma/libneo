@@ -4,9 +4,9 @@
 81                                           ntor         ! number of toroidal harmonics
 0.99                                         cutoff       ! inner cutoff in psi/psi_a units
 4                                            icftype      ! type of coil file
-'../matlab/EFIT/example/g30835.3200_ed6'  gfile                        ! equilibrium file
+'../matlab/EFIT/example/g000001.0001_TCFP'  gfile                        ! equilibrium file
 './DATA_ASDEX_MESH3D_30835/field.dat'                    pfile        ! coil        file
-'convexwall.asdex'  convexfile                    ! convex file for stretchcoords
+'convexwall.tcfp'  convexfile                    ! convex file for stretchcoords
 'FROMQQ/FLUXDATA'                            fluxdatapath ! directory with data in flux coord.(not used now, 12.07.16)
 0                                            nwindow_r    ! window size for filtering of psi array over R
 0                                            nwindow_z    ! window size for filtering of psi array over Z
