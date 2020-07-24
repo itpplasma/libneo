@@ -6,12 +6,26 @@
 *.err
 *.log
 
-# Ignore folders created by documentation tool.
+# Ignore files regarding documentation
+## Ignore folders created by documentation tool.
 doc/html/
 doc/latex/
 
-# Ignore files that are created by the make process.
+## Ignore files that are created by the make process.
 *.pdf
+*.dvi
+*.ps
+
+## Ignore latex files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.brf
+*.idx
+*.ilg
+*.ind
+*.toc
 
 # Ignore backup files
 *~
@@ -27,4 +41,3 @@ __pycache__
 
 # IDE files
 .vscode/
-

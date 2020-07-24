@@ -1,0 +1,13 @@
+\chapter{Building libneo}
+
+Libneo commes with cmake configuration files for building the libary.
+Note that these are configured for out-of-source build, which means you
+have to build in a seperate directory.
+We suggest you create a subdirectory Build-Release and/or Build-Debug
+for this purpose.
+Inside this directory run ``cmake'' and then ``make''.
+Per default this will create a shard libary. To be able to use it, it
+must be found by your operating system. This can either be achivied by
+adding the directory where it is located to the search path, or by
+copying library and module file to a place that is already in the search
+path.
