@@ -1,0 +1,233 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{amsmath}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage[a4paper]{geometry}
+\usepackage{authblk}
+\usepackage{setspace}
+\usepackage{csquotes}
+\usepackage{booktabs}
+%%%%%%%%%%%%%%%%%% My preamble %%%%%%%%%%%%%%%%%%%%%%%%%%
+%\usepackage[numbers, sort&compress]{natbib}
+%\setcitestyle{numbers,square,comma,aysep={,},yysep={,},notesep={,}}
+%\bibliographystyle{unsrtnat}
+%\bibliographystyle{IEEEtranSN}
+
+%References
+\usepackage[
+    bibstyle=phys,
+    biblabel=brackets,
+    citestyle=numeric-comp,
+    isbn=false,
+    doi=false,
+    sorting=none,
+    url=false,
+    defernumbers=true,
+    bibencoding=utf8,
+    backend=biber,
+    %maxbibnames=3,maxcitenames=3,
+    %minnames=3,
+    maxnames=30,
+    ]{biblatex}
+\setcounter{biburllcpenalty}{7000}
+\setcounter{biburlucpenalty}{8000}
+\addbibresource[]{eccd_ref.bib}
+\DeclareBibliographyCategory{fullcited}
+\newcommand{\mybibexclude}[1]{\addtocategory{fullcited}{#1}}
+\DeclareFieldFormat{titlecase}{\MakeCapital{#1}}
+\DeclareFieldFormat{sentencecase}{\MakeSentenceCase{#1}}
+
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{amssymb}
+\usepackage{bm}
+
+\usepackage{../shared/Commands}
+
+\title{\textbf{NEO-2 Coding Style\\November 2018}}
+
+\begin{document}
+
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Purpose of this document}
+The purpose of this document is to provide a style guide for writing new
+code and editing existing code of NEO-2 and related scripts and
+programs.
+
+It is clear that the code does not follow this standard everywhere (or
+maybe not even anywhere), but to say this again, this is intended for
+future code and rewriting/editing of existing code.
+
+Usually things are said only once, so check all relevant sections.
+Note also that some things are only relevant to a certain tool/language
+(e.g. the git section) while others should be followed in general (e.g.
+the section about whitespace).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{general}
+Language (for names, documentation etc.) is british english.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{units}
+\neotwo uses cgs. Input might be expected in SI units (due
+to using external format, e.g. boozer files for magnetic field).
+
+RB: I support change to SI units. As input/output and internal for new
+codes.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{code}
+
+Use fortran 2008 standard, with files in free form.
+
+Use 'F90' as extension for files, that require preprocessing and 'f90'
+for files which do not require preprocessing.
+
+In all modules/functions/subroutines use ``implicit none''.
+
+Use only what is needed, i.e. use ``use module, only :''.
+
+Use ``private'' as default acess for modules, i.e. only what is
+explicitly declared as public can be acessed from outside the module.
+
+For classes ``protected'' should be the default acess for methods
+(subroutines/functions of the class) and ``private'' for members
+(variables).
+
+The code should compile without warnings.
+
+Put new files in the COMMON directory, unless the new code is definitly
+specific to one of the two programs.
+If you write something for one code and it might be also used in the
+other, then put it into COMMON. Make sure that your code is general
+enough to easily use it also from the other program, even if you do not
+implement the code for this.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{naming}
+Use speaking, descriptive names, make them as long as needed but not
+longer than needed (and not longer than allowed by the standard).
+
+Avoid (re-)using names that are already in use for non-local (used in
+more than one file) variables/constants.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{comments}
+(Note: this subsection assumes, doxygen is used for automatic generation
+of documentation. If we decide on something different, then this should
+be adapted.)\\
+For documentation of a variable on the same line use '!<'.
+Documentation for subroutines/classes/modules etc., should be put in
+front of the subroutine/class/module etc., and be started with '!>' and
+continued on following lines with '!>'.
+
+Comments should not repeat what the code does (exception see next
+point), but explain why the code was written as it is.
+
+An exception of the no-repetition clause holds for equations, as these
+might differ between what they would look like in print versus what they
+look like in code, but of course the comment should not only repeat the
+equation but make a connection between the ``symbols'' in the code and
+those in print.
+
+Exceptions/derivations made from the coding style, e.g. naming
+conventions, should usually be explained with a comment.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{case}
+While fortran is not case sensitive, write code as if it is.
+
+Use lowercase for commands.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{whitespace}
+No tabs
+intendation is two whitespaces for every level
+contains on same level as module/subroutine/function statement
+new level due to
+- module
+- function/subroutine
+- if/elseif/else
+- do/do while
+- case (each case is on same level as select)
+
+whitespace after if and before then, i.e. ``if () then''
+
+whitespace after end, e.g. ``end do'', ``end if''
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Line length}
+Lines should be limited to a maximum of 72 characters, including the
+whitespace at the beginning of the line.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Line continuation}
+Put the continuation sign at the end of the line and as first
+non-whitespace character of the next line.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Arrays}
+Array indices should follow the fortran convention and start at 1,
+unless there are good reason do deviate (e.g. to include boundary
+points, where 0 would be the first point outside the boundary, -1 the
+second, etc.).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{git}
+
+Make small but complete commits, containing only one change, i.e. adding
+a subroutine (maybe with changes for calling it) or fixing one bug.
+
+After each commit to the main branch testcases should pass.
+
+After a push testcases must pass.
+
+Use branches for developments that will take more than two or three
+commits over the course of a day or two.
+
+set user.name and user.email correctly.
+
+example
+[user]
+  name = Max Musterman
+  email = musterman@tugraz.at
+
+Suggested (required?) to set
+set push.default = simple
+set pull.rebase = preserve
+
+Suggested to activate the standard pre-commit hook. To do so simply
+rename the file ``.git/hooks/pre-commit.sample'' to
+``./git/hooks/pre-commit''.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{tag}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{(Python or Shell) Scripts}
+Scripts that are either requied by neo2 itself, the make-system or the
+test system should be put in the corresponding folder of neo2 and added
+to the repositiory.
+
+Treat them as code in terms of coding style.
+
+Make them executable, and in the case of python scripts, allow to run
+them as main program.
+
+See that the code is reusable, i.e. if a function is required in
+multiple scripts, see to put it into an own file which is
+included/imported.
+
+\end{document}

@@ -1,5 +1,5 @@
 
-all: source UserDoc
+all: source UserDoc ExtraDocuments
 
 # Generate doxygen documentation.
 source:
@@ -16,6 +16,9 @@ source:
 UserDoc:
 	make -C UserDoc
 	cp UserDoc/main.pdf ./UserDoc.pdf
+
+ExtraDocuments:
+	make -C ExtraDocuments
 
 # Clean up.
 clean:
@@ -45,4 +48,4 @@ clean:
 	cd $(<D) ; pwd ;\
 	$(PS2PDF) $(<F) $(@F)
 
-.PHONY: all UserDoc clean
+.PHONY: all UserDoc ExtraDocuments clean
