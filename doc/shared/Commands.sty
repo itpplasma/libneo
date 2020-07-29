@@ -1,0 +1,29 @@
+% Commands for text, e.g. consistent formatting of 'objects', or names.
+%% Program names
+\newcommand{\gorilla}[0]{GORILLA}
+\newcommand{\neotwo}[0]{NEO-2}
+\newcommand{\neotwopar}[0]{NEO-2-PAR}
+\newcommand{\neotwoql}[0]{NEO-2-QL}
+\newcommand{\neort}[0]{NEO-RT}
+\newcommand{\simple}[0]{SIMPLE}
+
+%% code references
+\newcommand{\file}[1]{{\em #1}} % For files.
+\newcommand{\tpath}[1]{{\em #1}} % t(ext)path; For paths, not necessarily related to neo2 code, but also for, e.g. scan folders.
+\newcommand{\inputparameter}[1]{{\em #1}} % For inputparameter, i.e. those in neo[2].in.
+\newcommand{\outputvariable}[1]{{\em #1}} % For output variables, i.e. gamma_out in fulltransp.h5.
+\newcommand{\codevariable}[1]{{\em #1}} % For variables (or constants) of the neo-2 code.
+\newcommand{\subroutine}[1]{{\em #1}} % For subroutines (or functions) of the neo-2 code.
+% For (external) programs, e.g. python3, efit_to_boozer.x, or functions,
+% e.g. python3, matlab/octave.
+\newcommand{\program}[1]{{\em #1}}
+
+% Math shorthands
+\newcommand{\ga}[1]{\left\langle #1\right\rangle} % Gyro average
+\newcommand{\fa}[1]{\left\langle #1\right\rangle} % Flux surface average
+
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}} % for partial derivatives
+\newcommand{\pdd}[2]{\frac{\partial^2 #1}{\partial #2^2}} % for double partial derivatives
+
+\newcommand{\ve}[1]{{\bf #1}}% For marking vector symbols.
+\newcommand{\uv}[1]{{\bf #1}}% For marking unit vector symbols.
