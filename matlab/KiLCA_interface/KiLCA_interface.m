@@ -42,13 +42,12 @@ classdef KiLCA_interface < handle
         %These 3 paths are !important!
         
         %path to executable
-        EXEC_PATH = '~/KiLCA/KiLCA-2.4.2/exe/KiLCA_Normal_V_2.4.2_MDNO_FPGEN_POLYNOMIAL_Release_64bit';            
-        %EXEC_PATH = '~/KiLCA/KiLCA-2.4.2/exe/KiLCA_Normal_V_2.4.2_MDNO_NC_POLYNOMIAL_Release_64bit';
-        %EXEC_PATH = '~/KiLCA/KiLCA-2.4.2/exe/KiLCA_Normal_V_2.4.2_MDYES_FPGEN_POLYNOMIAL_Release_64bit';
-        
-        %EXEC_PATH = '~/KiLCA/KiLCA-2.4.2/exe/KiLCA_EigParam_V_2.4.2_MDNO_FPGEN_POLYNOMIAL_Release_64bit';            
-        %EXEC_PATH = '~/KiLCA/KiLCA-2.4.2/exe/KiLCA_EigParam_V_2.4.2_MDNO_NC_POLYNOMIAL_Release_64bit';
-        %EXEC_PATH = '~/KiLCA/KiLCA-2.4.2/exe/KiLCA_EigParam_V_2.4.2_MDYES_FPGEN_POLYNOMIAL_Release_64bit';
+        EXEC_PATH = '/proj/plasma/soft/KiLCA-2.4.2/exe/KiLCA_Normal_V_2.4.2_MDNO_FPGEN_POLYNOMIAL_Release_64bit';
+        %EXEC_PATH = '/proj/plasma/soft/KiLCA-2.4.2/exe/KiLCA_Normal_V_2.4.2_MDNO_NC_POLYNOMIAL_Release_64bit';
+        %EXEC_PATH = '/proj/plasma/soft/KiLCA-2.4.2/exe/KiLCA_Normal_V_2.4.2_MDYES_FPGEN_POLYNOMIAL_Release_64bit';
+        %EXEC_PATH = '/proj/plasma/soft/KiLCA-2.4.2/exe/KiLCA_EigParam_V_2.4.2_MDNO_FPGEN_POLYNOMIAL_Release_64bit';
+        %EXEC_PATH = '/proj/plasma/soft/KiLCA-2.4.2/exe/KiLCA_EigParam_V_2.4.2_MDNO_NC_POLYNOMIAL_Release_64bit';
+        %EXEC_PATH = '/proj/plasma/soft/KiLCA-2.4.2/exe/KiLCA_EigParam_V_2.4.2_MDYES_FPGEN_POLYNOMIAL_Release_64bit';
         
         BLUE_PATH = 'blueprints/'   %path to folder that contains blueprints
         PROF_PATH = 'profiles/'     %path to folder that contains profiles

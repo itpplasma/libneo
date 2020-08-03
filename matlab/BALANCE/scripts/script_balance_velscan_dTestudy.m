@@ -12,16 +12,18 @@
 
 clear all %IS necessary
 
-libKiLCA = '~/KiLCA_interface/';
-libBalance = '~/BALANCE/balance';
+libKiLCA = '../../KiLCA_interface/';
+libBalance = '../../BALANCE/balance';
 
 addpath(genpath(libKiLCA))
 addpath(genpath(libBalance))
 
 mpath = pwd();
 
-studyname = 'VelScan_dTe_c3';
-system(['mkdir -p ~/Balance_Results/', studyname, '/']);
+runBalance = '/temp/lainer_p/BALANCE_2020/';
+outBalance = '/temp/lainer_p/Balance_Results/';
+studyname = 'VelScan_dTe_c0.1_ITER';
+system(['mkdir -p ', outBalance, studyname, '/']);
 
 %Runs to make
 shot = 33133;
@@ -30,14 +32,14 @@ time = 3000;
 m = 6;
 n = 2 .* ones(size(m));
 
-copy = '/temp/ulbl_p/BALANCE_2020/VelScan_dTe/33133_3000/VzfacRef/profiles/';
+copy = '';
 
 %##########################################################################
 % 1) STANDARD RUN
 %##########################################################################
 
 runname = 'VzfacRef';
-runpath = ['/temp/ulbl_p/BALANCE_2020/', studyname,'/', num2str(shot), '_', num2str(time),'/',runname,'/'];
+runpath = [runBalance, studyname,'/', num2str(shot), '_', num2str(time),'/',runname,'/'];
 refpath = runpath;
 
 %input
@@ -68,8 +70,8 @@ bal.setDaEstimation(dapath);
 bal.write();
 bal.run();
 
-system(['mkdir -p ~/Balance_Results/', studyname, '/ref/']);
-bal.export2HDF5(['~/Balance_Results/', studyname, '/ref/'], [studyname, '_', runname]);
+system(['mkdir -p ', outBalance, studyname, '/ref/']);
+bal.export2HDF5([outBalance, studyname, '/ref/'], [studyname, '_', runname]);
 
 %##########################################################################
 % PRECOMP
@@ -92,7 +94,7 @@ ErVzfac = prof.r_out .* B0 ./ (prof.r_big * prof.qp.y_out .* 3e10);
 Vzfac = linspace(0, 6, 241);
 Vzfac = unique(Vzfac);
 
-copy = ['/temp/ulbl_p/BALANCE_2020/',studyname,'/33133_3000/VzfacRef/profiles/'];
+copy = [runBalance,studyname,'/33133_3000/VzfacRef/profiles/'];
 
 %##########################################################################
 % 2) VARY TE PROFILES
@@ -108,9 +110,9 @@ alpha = cell2mat(cellfun(@(c) str2double(c{2}), dirname, 'UniformOutput', false)
 
 for k = 1:numel(alpha)
     
-%     if(alpha(k)==0.0)
-%         continue;
-%     end
+    % if(alpha(k)==0.0)
+    %     continue;
+    % end
     
     %##########################################################################
     % 3) VARY VZ PROFILES
@@ -118,12 +120,12 @@ for k = 1:numel(alpha)
 
     for o = 1:numel(Vzfac)
 
-        if(alpha(k)<0.9)
-            continue;
-        end
+        % if(alpha(k)<0.9)
+        %     continue;
+        % end
         
         runname = ['Vzfac', sprintf('%.2f',Vzfac(o))];
-        runpath = ['/temp/ulbl_p/BALANCE_2020/', studyname, '/', dirs(k).name, '/', num2str(shot), '_', num2str(time),'/',runname,'/'];
+        runpath = [runBalance, studyname, '/', dirs(k).name, '/', num2str(shot), '_', num2str(time),'/',runname,'/'];
 
         numrun = ['(',num2str(o+(k-1)*numel(Vzfac)),'/',num2str(numel(Vzfac)*numel(alpha)),') '];
         disp([numrun, studyname, ' alpha = ', num2str(alpha(k)), ' Vzfac = ', num2str(Vzfac(o)),]);
@@ -131,13 +133,13 @@ for k = 1:numel(alpha)
         %BALANCE CODE
         bal.changeRun(runpath, [studyname, '_', runname]);
         bal.setProfiles(neprof, Teprof, Tiprof, vtprof, copy);
-        bal.kil_vacuum.background.ce = 3;
-        bal.kil_vacuum.background.ci = 3;
+        bal.kil_vacuum.background.ce = 0.1;
+        bal.kil_vacuum.background.ci = 0.1;
         bal.kil_vacuum.output.backdata = 1;
         bal.kil_vacuum.output.lindata = 1;
         bal.kil_vacuum.output.varquant = 1;
-        bal.kil_flre.background.ce = 3;
-        bal.kil_flre.background.ci = 3;
+        bal.kil_flre.background.ce = 0.1;
+        bal.kil_flre.background.ci = 0.1;
         bal.kil_flre.output.backdata = 1;
         bal.kil_flre.output.lindata = 1;
         bal.kil_flre.output.varquant = 1;
@@ -168,8 +170,8 @@ for k = 1:numel(alpha)
         % EXPORT 2 HDF5 FORMAT
         %##########################################################################
 
-        system(['mkdir -p ~/Balance_Results/', studyname, '/', dirs(k).name, '/']);
-        bal.export2HDF5(['~/Balance_Results/', studyname, '/', dirs(k).name, '/'], [studyname, '_', runname]);
+        system(['mkdir -p ', outBalance, studyname, '/', dirs(k).name, '/']);
+        bal.export2HDF5([outBalance, studyname, '/', dirs(k).name, '/'], [studyname, '_', runname]);
 
     end
     
