@@ -206,15 +206,30 @@ second, etc.).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{git}
 
+Do no rewrite published (pushed) history.
+
+Make use of branches for general development.
+
+Use feature branches for developments that will take more than two or
+three commits over the course of a day or two.
+
+The main branch should always compile.
+
+The main branch should only get direct commits from bugfixes and from
+merges of develop.
+
+``develop'' shoud be branch for development, i.e.feature branches should
+branch from develop and be merged back into develop.
+
+Merging develop into master should be done regularly/on specific
+occasions, e.g. submitting a paper with that code version?
+
 Make small but complete commits, containing only one change, i.e. adding
 a subroutine (maybe with changes for calling it) or fixing one bug.
 
 After each commit to the main develop branch testcases should pass.
 
 After a push testcases must pass.
-
-Use branches for developments that will take more than two or three
-commits over the course of a day or two.
 
 set user.name and user.email correctly.
 
@@ -231,12 +246,18 @@ set push.default = simple
 set pull.rebase = preserve
 \end{verbatim}
 
+Make a pull before you push.
+
 It is suggested to activate the standard pre-commit hook. To do so
 simply rename the file ``.git/hooks/pre-commit.sample'' to
 ``./git/hooks/pre-commit''.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{tag}
+
+Use tags for commits where usefull.
+
+For main: version number?
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
