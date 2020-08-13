@@ -209,7 +209,7 @@ second, etc.).
 Make small but complete commits, containing only one change, i.e. adding
 a subroutine (maybe with changes for calling it) or fixing one bug.
 
-After each commit to the main branch testcases should pass.
+After each commit to the main develop branch testcases should pass.
 
 After a push testcases must pass.
 
@@ -219,16 +219,20 @@ commits over the course of a day or two.
 set user.name and user.email correctly.
 
 example
+\begin{verbatim}
 [user]
   name = Max Musterman
   email = musterman@tugraz.at
+\end{verbatim}
 
 Suggested (required?) to set
+\begin{verbatim}
 set push.default = simple
 set pull.rebase = preserve
+\end{verbatim}
 
-Suggested to activate the standard pre-commit hook. To do so simply
-rename the file ``.git/hooks/pre-commit.sample'' to
+It is suggested to activate the standard pre-commit hook. To do so
+simply rename the file ``.git/hooks/pre-commit.sample'' to
 ``./git/hooks/pre-commit''.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
