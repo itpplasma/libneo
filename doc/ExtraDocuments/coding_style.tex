@@ -86,37 +86,37 @@ codes.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{\libneo vs. specific codes}
+Codes which might be of general use should be put into \libneo.
+
+If code appears already in different programs this can be seen as a
+clear sign that it should be put into \libneo.
+
+Another big hint is, if the piece of code is not specific to plasma
+physics.
+
+If it is not clear, ask people which use/develop other codes in the
+group, if they think this might be of use.
+If not make it specific, and move the code later if necessary.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{code}
 
-Use fortran 2008 standard, with files in free form.
+Use newest widely supporty standard (Fortran: 2008; c: 2009?; c++: 2011?), in
+the case of fortran with files in free form.
 
-Use 'F90' as extension for files, that require preprocessing and 'f90'
-for files which do not require preprocessing.
-
-In all modules/functions/subroutines use ``implicit none''.
-
-Use only what is needed, i.e. use ``use module, only :''.
-
-Use ``private'' as default acess for modules, i.e. only what is
-explicitly declared as public can be acessed from outside the module.
+Code should compile without warnings.
 
 For classes ``protected'' should be the default acess for methods
 (subroutines/functions of the class) and ``private'' for members
 (variables).
 
-The code should compile without warnings.
-
-Put new files in the COMMON directory, unless the new code is definitly
-specific to one of the two programs.
-If you write something for one code and it might be also used in the
-other, then put it into COMMON. Make sure that your code is general
-enough to easily use it also from the other program, even if you do not
-implement the code for this.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{naming}
 Use speaking, descriptive names, make them as long as needed but not
-longer than needed (and not longer than allowed by the standard).
+longer than needed (and not longer than allowed by the standard in the
+case of fortran).
 
 Avoid (re-)using names that are already in use for non-local (used in
 more than one file) variables/constants.
@@ -125,8 +125,9 @@ more than one file) variables/constants.
 \subsection{comments}
 (Note: this subsection assumes, doxygen is used for automatic generation
 of documentation. If we decide on something different, then this should
-be adapted.)\\
-For documentation of a variable on the same line use '!<'.
+be adapted.)
+
+Fortran: For documentation of a variable on the same line use '!<'.
 Documentation for subroutines/classes/modules etc., should be put in
 front of the subroutine/class/module etc., and be started with '!>' and
 continued on following lines with '!>'.
@@ -144,26 +145,26 @@ Exceptions/derivations made from the coding style, e.g. naming
 conventions, should usually be explained with a comment.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{case}
-While fortran is not case sensitive, write code as if it is.
+\subsection{Whitespace}
+No tabs, except for makefiles, where it is required for rules.
 
-Use lowercase for commands.
+Intendation is two whitespaces for every level.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{whitespace}
-No tabs
-intendation is two whitespaces for every level
 contains on same level as module/subroutine/function statement
 new level due to
-- module
-- function/subroutine
-- if/elseif/else
-- do/do while
-- case (each case is on same level as select)
+\begin{itemize}
+  \item module
+  \item function/subroutine
+  \item if/elseif/else
+  \item do/do while
+  \item case (each case is on same level as select)
+\end{itemize}
 
-whitespace after if and before then, i.e. ``if () then''
+Whitespace after if and before then, i.e. ``if () then''.
 
-whitespace after end, e.g. ``end do'', ``end if''
+(Fortran) whitespace after end, e.g. ``end do'', ``end if''.
+
+No trailing whitespace. This also means no lines with only whitespace.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Line length}
@@ -171,12 +172,31 @@ Lines should be limited to a maximum of 72 characters, including the
 whitespace at the beginning of the line.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Line continuation}
+\subsection{Fortran}
+Use 'F90' as extension for fortran files, that require preprocessing and
+'f90' for files which do not require preprocessing.
+
+In all modules/functions/subroutines use ``implicit none''.
+
+Use only what is needed, i.e. use ``use module, only :''.
+
+Use ``private'' as default acess for modules, i.e. only what is
+explicitly declared as public can be acessed from outside the module.
+
+Put new files in the COMMON directory, unless the new code is definitly
+specific to one of the two programs.
+If you write something for one code and it might be also used in the
+other, then put it into COMMON. Make sure that your code is general
+enough to easily use it also from the other program, even if you do not
+implement the code for this.
+
+While fortran is not case sensitive, write code as if it is.
+
+Use lowercase for commands.
+
 Put the continuation sign at the end of the line and as first
 non-whitespace character of the next line.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Arrays}
 Array indices should follow the fortran convention and start at 1,
 unless there are good reason do deviate (e.g. to include boundary
 points, where 0 would be the first point outside the boundary, -1 the
