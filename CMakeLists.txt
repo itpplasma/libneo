@@ -15,7 +15,7 @@ set (libneo_VERSION_MINOR 1)
 enable_language(Fortran)
 enable_testing()
 
-#~ set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+# set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 
 if (EXISTS ${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
   include (${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
@@ -28,18 +28,6 @@ find_package (MPI REQUIRED)
 # Include file for the sources.
 include(CMakeSources.in)
 
-set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
-
-# Settings based on OS version (Debian 8 vs 9). \todo Find out how to get OS version directly.
-if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  if (CMAKE_Fortran_COMPILER_VERSION VERSION_EQUAL 8.3.0)
-    set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-gnu-8.3.0/)
-  else()
-    set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
-  endif()
-else()
-  set(MYMPILIB_PATH ${PROJLIBS}/MyMPILib/Build-Release/)
-endif()
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
@@ -53,9 +41,9 @@ endif ()
 
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
-include_directories(${MYMPILIB_PATH}/OBJS)
 
-find_library(MyMPILib_lib MyMPILib ${MYMPILIB_PATH})
+add_subdirectory(src/MyMPILib)
+add_subdirectory(src/hdf5_tools)
 
 # Main goal (of the created build file): creating the library file.
 add_library(libneo SHARED ${SOURCE_FILES})

@@ -1,0 +1,7 @@
+&nmlGenericScheduler
+activateMPE = true
+loadBalancing = true
+buffersize=32
+verbose = 0
+/
+
