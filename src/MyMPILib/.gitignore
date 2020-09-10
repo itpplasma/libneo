@@ -1,0 +1,12 @@
+*.[oa]
+*.mod
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+Makefile
+BuildConfig.txt
+CMakeLists.txt~
+.cproject
+.metadata/
+.project
+
