@@ -34,7 +34,8 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
      read(iunit,*) fluxdatapath ! directory with data in flux coord.
      read(iunit,*) nwindow_r    ! widow size for filtering of psi array over R
      read(iunit,*) nwindow_z    ! widow size for filtering of psi array over Z
-     close(iunit)
+     read(iunit,*,err=1) ieqfile! equilibrium file type (0 - old, 1 - EFIT)
+1    close(iunit)
      print *, 'Perturbation field',ipert,'Ampl',ampl
      if(icall_c.eq.-1) ipert=1
   endif
