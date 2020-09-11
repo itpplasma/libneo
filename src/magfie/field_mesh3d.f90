@@ -1,10 +1,3 @@
-module magfield_mod
-  integer :: ierrfield
-  integer :: input_format,npmid,nr,np,nz,npoint
-  integer,          dimension(:,:,:), allocatable :: ipoint
-  double precision, dimension(:),     allocatable :: rad,phi,zet,Brs,Bzs,Bps
-  double precision, dimension(:,:,:), allocatable :: Bx,By,Bz,Br,Bp
-end module
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -385,10 +378,7 @@ print *,'boundary touched'
 ! dummies:
   module magfie_mod
   end module
-  module neo_magfie_mod
-    integer :: magfie_spline
-    double precision, dimension(:), allocatable :: magfie_sarray
-  end module
+
   subroutine magfie_deallocate
   end
 !
