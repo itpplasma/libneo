@@ -1,5 +1,5 @@
 module input_files
-  character*1024 :: eqfile, cfile, gfile,pfile,convexfile,fluxdatapath
+  character(len=1024) :: eqfile, cfile, gfile,pfile,convexfile,fluxdatapath
   integer :: iunit=1738
 !
   data eqfile  /'d3d.equ'/
