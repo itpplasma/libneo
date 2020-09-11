@@ -52,9 +52,21 @@ add_library(mc_efit SHARED
   src/magfie/polylag_3.f
   src/magfie/polylag_5.f
   src/magfie/spline5_RZ.f90
+  src/magfie/amn_mod.f90
   src/magfie/bdivfree.f90
+  src/magfie/bdivfree_mod.f90
+  src/magfie/extract_fluxcoord_mod.f90
+  src/magfie/field_c_mod.f90
   src/magfie/field_divB0.f90
+  src/magfie/field_eq_mod.f90
+  src/magfie/field_mod.f90
+  src/magfie/input_files.f90
+  src/magfie/inthecore_mod.f90
   src/magfie/magfie_cyl.f90
+  src/magfie/magfield_mod.f90
+  src/magfie/neo_magfie_mod.f90
+  src/magfie/period_mod.f90
+  src/magfie/theta_rz_mod.f90
   src/contrib/rkf45.f90
   src/odeint_rkf45.f90
   src/MC/alpha_lifetime_mod.f90
