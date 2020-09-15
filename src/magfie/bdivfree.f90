@@ -1,7 +1,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
+subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
              rmin_in,rmax_in,pmin_in,pmax_in,zmin_in,zmax_in,  &
              br,bp,bz)
 !
@@ -181,7 +181,7 @@
 102 format(1000e15.7)
 !
   return
-  end subroutine vector_potentials
+end subroutine vector_potentials
 
 subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
   anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
@@ -243,7 +243,7 @@ end subroutine spline_bpol_n
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
+subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
   use bdivfree_mod
@@ -348,11 +348,11 @@ end subroutine spline_bpol_n
   enddo
 !
   return
-  end subroutine field_divfree
+end subroutine field_divfree
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-      subroutine indef_bdf(u,umin,dum1,nup,indu)
+subroutine indef_bdf(u,umin,dum1,nup,indu)
 ! defines interval for 1D interpolation on uniform mesh, normally
 ! looks for the central interval of stencil, but
 ! stops moving of stencil at the boundary (works for mp=4 only!)
@@ -366,26 +366,26 @@ end subroutine spline_bpol_n
 !
 ! the power 3 of polinomial is fixed strictly:
 !
-      implicit double precision (a-h,o-z)
+  implicit double precision (a-h,o-z)
 !
-      parameter(mp=4)
-      integer indu(mp)
+  parameter(mp=4)
+  integer indu(mp)
 
-      indu(1) = int((u-umin)*dum1)
-      if( indu(1) .le. 0 ) indu(1) = 1
-      indu(mp) = indu(1) + mp - 1
-      if( indu(mp) .gt. nup ) then
-         indu(mp) = nup
-         indu(1) = indu(mp) - mp + 1
-      endif
-      do i=2,mp-1
-         indu(i) = indu(i-1) + 1
-      enddo
+  indu(1) = int((u-umin)*dum1)
+  if( indu(1) .le. 0 ) indu(1) = 1
+  indu(mp) = indu(1) + mp - 1
+  if( indu(mp) .gt. nup ) then
+    indu(mp) = nup
+    indu(1) = indu(mp) - mp + 1
+  endif
+  do i=2,mp-1
+    indu(i) = indu(i-1) + 1
+  enddo
 
-      return
-      end subroutine indef_bdf
+  return
+end subroutine indef_bdf
 !---------------------------------------------------------------------
-      subroutine indsmp_bdf(index,nup,indu)
+subroutine indsmp_bdf(index,nup,indu)
 ! defines interval for 1D interpolation on uniform mesh
 ! by known index.
 ! Normally looks for the central interval of stencil, but
@@ -397,30 +397,30 @@ end subroutine spline_bpol_n
 !    indu(mp) - relative index of stencil points
 
 ! the power 3 of polinomial is fixed strictly:
-      parameter(mp=4)
-      integer indu(mp)
+  parameter(mp=4)
+  integer indu(mp)
 
-      indu(1) = index - 1
-      if( indu(1) .le. 0 ) indu(1) = 1
-      indu(mp) = indu(1) + mp - 1
-      if( indu(mp) .gt. nup ) then
-         indu(mp) = nup
-         indu(1) = indu(mp) - mp + 1
-      endif
-      do i=2,mp-1
-         indu(i) = indu(i-1) + 1
-      enddo
+  indu(1) = index - 1
+  if( indu(1) .le. 0 ) indu(1) = 1
+  indu(mp) = indu(1) + mp - 1
+  if( indu(mp) .gt. nup ) then
+    indu(mp) = nup
+    indu(1) = indu(mp) - mp + 1
+  endif
+  do i=2,mp-1
+    indu(i) = indu(i-1) + 1
+  enddo
 
-      return
-      end subroutine indsmp_bdf
+  return
+end subroutine indsmp_bdf
 !---------------------------------------------------------------------
-      subroutine plag2d_bdf(x,y,fp,dxm1,dym1,xp,yp,polyl2d)
+subroutine plag2d_bdf(x,y,fp,dxm1,dym1,xp,yp,polyl2d)
 !
-      implicit double precision (a-h,o-z)
+  implicit double precision (a-h,o-z)
 !
 ! 2D interpolation by means of Lagrange polynomial
 ! the power 3 is fixed strictly:
-      parameter(mp=4)
+  parameter(mp=4)
 ! uniform mesh (increasingly ordered) in all dimensions is implied
 !
 ! Input parameters:
@@ -430,38 +430,38 @@ end subroutine spline_bpol_n
 !
 ! Output parameters:
 ! polyl2d - polynomial itself
-      dimension cx(mp),cy(mp),fp(mp,mp),xp(mp),yp(mp)
+  dimension cx(mp),cy(mp),fp(mp,mp),xp(mp),yp(mp)
 !
-      call coefs_bdf(x,xp,dxm1,cx)
-      call coefs_bdf(y,yp,dym1,cy)
+  call coefs_bdf(x,xp,dxm1,cx)
+  call coefs_bdf(y,yp,dym1,cy)
 !
-      polyl2d = 0.d0
-      do j=1,mp
-        do i=1,mp
-          polyl2d = polyl2d + fp(i,j)*cx(i)*cy(j)
-        enddo
-      enddo
+  polyl2d = 0.d0
+  do j=1,mp
+    do i=1,mp
+      polyl2d = polyl2d + fp(i,j)*cx(i)*cy(j)
+    enddo
+  enddo
 !
-      return
-      end subroutine plag2d_bdf
+  return
+end subroutine plag2d_bdf
 !---------------------------------------------------------------------
-      subroutine coefs_bdf(u,up,dum1,cu)
-!
-      implicit double precision (a-h,o-z)
-!
-      parameter(mp=4)
-      dimension up(mp),cu(mp)
-      data one6/0.16666666666667d0/
-      du3 = dum1**3
-      cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * (-one6*du3)
-      cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * (0.5d0*du3)
-      cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * (-0.5d0*du3)
-      cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * (one6*du3)
-      return
-      end subroutine coefs_bdf
+subroutine coefs_bdf(u,up,dum1,cu)
+
+  implicit double precision (a-h,o-z)
+
+  parameter(mp=4)
+  dimension up(mp),cu(mp)
+  data one6/0.16666666666667d0/
+  du3 = dum1**3
+  cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * (-one6*du3)
+  cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * (0.5d0*du3)
+  cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * (-0.5d0*du3)
+  cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * (one6*du3)
+  return
+end subroutine coefs_bdf
 !---------------------------------------------------------------------
 !
-  subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
+subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
 !
 ! Inverts the monotonous function y(x) given on the equidistant grid
 ! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
@@ -514,11 +514,11 @@ end subroutine spline_bpol_n
   enddo
 !
   return
-  end subroutine invert_mono_reg
+end subroutine invert_mono_reg
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
+subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
 !
 ! Inverts the monotonous function y(x) given on the equidistant grid
 ! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
@@ -578,11 +578,11 @@ end subroutine spline_bpol_n
   enddo
 !
   return
-  end subroutine invert_mono_per
+end subroutine invert_mono_per
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine spl_five_per(n,h,a,b,c,d,e,f)
+subroutine spl_five_per(n,h,a,b,c,d,e,f)
 !
 ! Periodic spline of the 5-th order. First and last values of function must
 ! be the same.
@@ -736,11 +736,11 @@ end subroutine spline_bpol_n
   deallocate(alp,bet,gam)
 !
   return
-  end subroutine spl_five_per
+end subroutine spl_five_per
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
+subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
 !
 ! Calculates coefficients of a 2D spline for a ring domain
 ! (periodic over y variable)
@@ -841,11 +841,11 @@ end subroutine spline_bpol_n
   deallocate( ai,bi,ci,di,ei,fi )
 !
   return
-  end subroutine s2dring
+end subroutine s2dring
 !
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine load_theta
+subroutine load_theta
 !
   use theta_rz_mod
   use input_files, only : iunit,fluxdatapath
@@ -904,11 +904,11 @@ end subroutine spline_bpol_n
                    ,              spllabel(4,:),spllabel(5,:),spllabel(6,:))
 !
   return
-  end subroutine load_theta
+end subroutine load_theta
 !
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine psithet_rz(rrr,zzz,                                          &
+subroutine psithet_rz(rrr,zzz,                                          &
                         theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                         flabel,s_r,s_z,s_rr,s_rz,s_zz,s0,ds0ds,dds0ds)
 !
@@ -991,11 +991,11 @@ end subroutine spline_bpol_n
   theta_extract=theta
 !
   return
-  end subroutine psithet_rz
+end subroutine psithet_rz
 !
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
+subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
 !
   implicit none
 !
@@ -1133,11 +1133,11 @@ end subroutine spline_bpol_n
   deallocate(alp,bet,gam)
 !
   return
-  end subroutine cspl_five_reg
+end subroutine cspl_five_reg
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
+subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
 ! Caution: derivatives are not computed, for derivatives call
@@ -1505,12 +1505,12 @@ end subroutine spline_bpol_n
     Bp=Bp+delbp*plaf+delar*dpladz-delaz*dpladr
   endif
 !
-  end subroutine field_fourier
+end subroutine field_fourier
 !
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
+subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                                  ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
 ! Computes the field and its derivatives using central differences
@@ -1612,11 +1612,11 @@ end subroutine spline_bpol_n
     call field_fourier(r,phi,z,Br,Bp,Bz,dBrdR0,dBrdp0,dBrdZ0          &
                       ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0)
 !
-  end subroutine field_fourier_derivs
+end subroutine field_fourier_derivs
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine extract_fluxcoord(phinorm,theta)
+subroutine extract_fluxcoord(phinorm,theta)
 !
   use extract_fluxcoord_mod
   use input_files, only : iunit,fluxdatapath
@@ -1643,11 +1643,11 @@ end subroutine spline_bpol_n
 !
   theta=theta_extract
 !
-  end subroutine extract_fluxcoord
+end subroutine extract_fluxcoord
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
+subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
                                formfactors)
 !
   use inthecore_mod, only : psi_sep,psi_cut
@@ -1673,6 +1673,6 @@ end subroutine spline_bpol_n
     formfactors(:,i)=weight*formfactors(:,i)+1.d0-weight
   enddo
 !
-  end subroutine smear_formfactors
+end subroutine smear_formfactors
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
