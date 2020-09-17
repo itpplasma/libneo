@@ -1,7 +1,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine field(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &             
+subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
   use magfield_mod
@@ -371,4 +371,4 @@ print *,'boundary touched'
   dBzdZ = poly1z
   !
   return
-end subroutine field
+end subroutine field_mesh3d

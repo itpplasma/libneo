@@ -59,6 +59,7 @@ add_library(mc_efit SHARED
   src/magfie/field_c_mod.f90
   src/magfie/field_divB0.f90
   src/magfie/field_eq_mod.f90
+  src/magfie/field_mesh3d.f90
   src/magfie/field_mod.f90
   src/magfie/input_files.f90
   src/magfie/inthecore_mod.f90
