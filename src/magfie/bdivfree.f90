@@ -10,17 +10,20 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   implicit none
 !
   double precision, parameter :: pi=3.14159265358979d0
-!
-  integer :: nr_in,np_in,nz_in,ntor_in,ip,np,n,ir,iz
+
+  integer, intent(in) :: nr_in, np_in, nz_in, ntor_in
+  double precision, intent(in) :: rmin_in, rmax_in, pmin_in, pmax_in, &
+                                & zmin_in, zmax_in
+  double precision, dimension(nr_in,np_in,nz_in), intent(out) :: br, bp, bz
+
+  integer :: ip,np,n,ir,iz
   integer, dimension(:), allocatable :: imi,ima,jmi,jma
 !
   integer :: nashli_rukami
   integer :: irmin, irmax, i,j
   double precision, dimension(4), parameter :: weight=(/-1., 13., 13., -1./)/24.
-!
-  double precision :: rmin_in,rmax_in,pmin_in,pmax_in,zmin_in,zmax_in
+
   double precision :: hp,r,rm,zm,sumbz,hrm1,hzm1
-  double precision, dimension(nr_in,np_in,nz_in)  :: br,bp,bz
   double precision, dimension(:),     allocatable :: dummy
   double precision, dimension(:,:),   allocatable :: a_re, a_im, rbpav_dummy
   double precision, dimension(:,:),   allocatable :: brm,bpm,bzm
@@ -252,10 +255,12 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
   use amn_mod, only : ntor_amn
 !
   implicit none
-!
+
+  double precision, intent(in) :: r, phi, z
+  double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,   &
+                              & dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
+
   integer :: n,ierr
-  double precision :: r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
-                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   double precision :: f,fr,fz,frr,frz,fzz
   double precision :: g,gr,gz,grr,grz,gzz
   double precision :: delbr,delbz,delbp
@@ -385,7 +390,7 @@ subroutine indef_bdf(u,umin,dum1,nup,indu)
   return
 end subroutine indef_bdf
 !---------------------------------------------------------------------
-subroutine indsmp_bdf(index,nup,indu)
+subroutine indsmp_bdf(index_,nup,indu)
 ! defines interval for 1D interpolation on uniform mesh
 ! by known index.
 ! Normally looks for the central interval of stencil, but
@@ -397,10 +402,16 @@ subroutine indsmp_bdf(index,nup,indu)
 !    indu(mp) - relative index of stencil points
 
 ! the power 3 of polinomial is fixed strictly:
-  parameter(mp=4)
-  integer indu(mp)
+  implicit none
 
-  indu(1) = index - 1
+  integer, parameter :: mp=4
+
+  integer, intent(in) :: index_, nup
+  integer, intent(out) :: indu(mp)
+
+  integer :: i
+
+  indu(1) = index_ - 1
   if( indu(1) .le. 0 ) indu(1) = 1
   indu(mp) = indu(1) + mp - 1
   if( indu(mp) .gt. nup ) then
@@ -469,12 +480,16 @@ subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
 ! at the interval [ymin,ymax] by the array x_i=arrx(i).
 !
   implicit none
-!
-  integer :: ny,nx,iy,ix,ixfix,ix1,ix2,ix3,ix4
-!
-  double precision :: xmin,xmax,ymin,ymax,hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
-  double precision, dimension(0:nx) :: arry
-  double precision, dimension(0:ny) :: arrx
+
+  integer, intent(in) :: nx, ny
+  double precision, intent(in) :: xmin, xmax
+  double precision, intent(out) :: ymin, ymax
+  double precision, dimension(0:nx), intent(in) :: arry
+  double precision, dimension(0:ny), intent(out) :: arrx
+
+  integer :: iy,ix,ixfix,ix1,ix2,ix3,ix4
+
+  double precision :: hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
 
   ixfix = -10
 !
@@ -529,12 +544,16 @@ subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
 ! at the interval [ymin,ymax] by the array x_i=arrx(i).
 !
   implicit none
+
+  integer, intent(in) :: nx, ny
+  double precision, intent(in) :: xmin, xmax
+  double precision, intent(out) :: ymin, ymax
+  double precision, dimension(0:nx), intent(in) :: arry_in
+  double precision, dimension(0:ny), intent(out) :: arrx
+
+  integer :: iy,ix,ixfix,ix1,ix2,ix3,ix4
 !
-  integer :: ny,nx,iy,ix,ixfix,ix1,ix2,ix3,ix4
-!
-  double precision :: xmin,xmax,ymin,ymax,hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
-  double precision, dimension(0:nx) :: arry_in
-  double precision, dimension(0:ny) :: arrx
+  double precision :: hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
   double precision, dimension(:), allocatable :: arry
 
   ixfix = -10
@@ -592,11 +611,16 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
 ! be the same.
 !
   implicit none
-!
-  integer :: n,i,ip1,ip2
-  double precision :: h,rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: h
+  double precision, dimension(n), intent(in) :: a
+  double precision, dimension(n), intent(out) :: b, c, d, e, f
+
+  integer :: i,ip1,ip2
+  double precision :: rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p
   double precision :: c_gammao_m,c_gammao_p
-  double precision, dimension(n) :: a,b,c,d,e,f
+
   double precision, dimension(:), allocatable :: alp,bet,gam
 !
   rhop=13.d0+sqrt(105.d0)
@@ -924,15 +948,20 @@ subroutine psithet_rz(rrr,zzz,                                          &
   implicit none
 !
   real(kind=8), parameter :: pi=3.14159265358979d0
-!
+
+  real(kind=8), intent(in) :: rrr, zzz
+  real(kind=8), intent(out) :: theta, theta_r, theta_z, theta_rr, &
+                            & theta_rz, theta_zz
+  real(kind=8), intent(out) :: flabel
+  real(kind=8), intent(out) :: s_r, s_z, s_rr, s_rz, s_zz
+  real(kind=8), intent(out) :: s0, ds0ds, dds0ds
+
   integer :: npoint,i,j,ierr,k
-  real(kind=8) :: rrr,zzz,theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz
   real(kind=8) :: theta_s,theta_t,theta_ss,theta_st,theta_tt
-  real(kind=8) :: sqpsi_qt,s_r,s_z,s_rr,s_rz,s_zz
+  real(kind=8) :: sqpsi_qt
   real(kind=8) :: theta_qt,t_r,t_z,t_rr,t_rz,t_zz
-  real(kind=8) :: rho2,rho4,dr,dz,flabel,dflabel,ddflabel,dx,dfl_dpsi,ddfl_dpsi
-  real(kind=8) :: s0,ds0ds,dds0ds
-!
+  real(kind=8) :: rho2,rho4,dr,dz,dflabel,ddflabel,dx,dfl_dpsi,ddfl_dpsi
+
   if(icall.eq.0) then
     icall=1
     call load_theta
@@ -1002,14 +1031,18 @@ end subroutine psithet_rz
 subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
 !
   implicit none
-!
-  integer :: n,i,ip1,ip2
-  double precision :: h,rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: h
+  double precision, dimension(n), intent(in) :: a
+  double precision, dimension(n), intent(out) :: b, c, d, e, f
+
+  integer :: i,ip1,ip2
+  double precision :: rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
   double precision :: a11,a12,a13,a21,a22,a23,a31,a32,a33,det
   complex(8) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
   complex(8) :: aend,bend,cend,dend,eend,fend
   complex(8) :: b1,b2,b3
-  complex(8), dimension(n) :: a,b,c,d,e,f
   complex(8), dimension(:), allocatable :: alp,bet,gam
 !
   rhop=13.d0+sqrt(105.d0)
@@ -1156,10 +1189,12 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   use bdivfree_mod,  only : pfac
 !
   implicit none
-!
+
+  double precision, intent(in) :: r, phi, z
+  double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,    &
+                       &  dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
+
   integer :: m,n,i,k,ierr,ntor
-  double precision :: r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ                &
-                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   double precision :: sqpsi,dx,g11,g12,g11_r,g11_z,g12_r,g12_z
   double precision :: theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                       s_r,s_z,s_rr,s_rz,s_zz
@@ -1523,9 +1558,13 @@ subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
   implicit none
 !
   double precision, parameter :: eps=1.d-7
-  double precision :: rrr,ppp,zzz,r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ       &
-                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ,del              &
-                     ,rm,zm,Br0,Bp0,Bz0,dBrdR0,dBrdp0,dBrdZ0               &
+
+  double precision, intent(in) :: phi, r, z
+  double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ
+  double precision, intent(out) :: dBpdR, dBpdp, dBpdZ,dBzdR, dBzdp, dBzdZ
+
+  double precision :: rrr,ppp,zzz,del                              &
+                     ,rm,zm,Br0,Bp0,Bz0,dBrdR0,dBrdp0,dBrdZ0       &
                      ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0
 !
     del=eps*r
@@ -1626,9 +1665,11 @@ subroutine extract_fluxcoord(phinorm,theta)
   use input_files, only : iunit,fluxdatapath
 !
   implicit none
-!
+
+  double precision, intent(out) :: phinorm,theta
+
   integer :: k
-  double precision :: phinorm,theta,xpsif
+  double precision :: xpsif
 !
   if(load_extract_fluxcoord.eq.1) then
     load_extract_fluxcoord=0
@@ -1658,12 +1699,16 @@ subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
   use theta_rz_mod,  only : psiaxis
 !
   implicit none
-!
-  integer :: nmodes_ff,nsqpsi_ff,i
-  double precision :: sqpsimin_ff,sqpsimax_ff,hsqpsi_ff,apsif
+
+  integer, intent(in) :: nmodes_ff,nsqpsi_ff
+  double precision, intent(in) :: sqpsimin_ff,sqpsimax_ff
+  complex(8), dimension(nmodes_ff,nsqpsi_ff), intent(inout) :: formfactors
+
+  double precision :: hsqpsi_ff,apsif
   double precision :: apsi_sep,apsi_cut,weight,dweight,ddweight
+
+  integer :: i
   double precision :: R=1.d0,Z=0.d0
-  complex(8), dimension(nmodes_ff,nsqpsi_ff) :: formfactors
 !
   call inthecore(R,Z)
 !
