@@ -1689,9 +1689,13 @@ subroutine extract_fluxcoord(phinorm,theta)
   theta=theta_extract
 !
 end subroutine extract_fluxcoord
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
+
+!> Since the field in the main volume and outside separatrix are given
+!> by different models, it smoothly connects these two fields in some
+!> narrow transition layer located in the main volume adjacent to the
+!> separatrix. It should have an effect on the field only if one
+!> computes something inside this transition layer which is not so easy
+!> to hit by chance.
 subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
                                formfactors)
 !
