@@ -872,7 +872,11 @@ subroutine stretch_coords(r,z,rm,zm)
   rm = r
   zm = z
   rho = sqrt((r-R0)**2 + z**2)
-  tht = atan2(z,(r-R0))
+  if (z.eq.0.d0.and.r-r0.eq.0.d0) then
+    tht = 0.d0
+  else
+    tht = atan2(z,(r-R0))
+  end if
   if(tht .lt. 0.) tht = tht + 2.*pi
   i = modulo(int(tht/htht), nrhotht-1) + 1
   rho_c = (rho_wall(i+1) - rho_wall(i))/(tht_wall(i+1) - tht_wall(i))   &
