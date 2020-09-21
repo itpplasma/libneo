@@ -144,15 +144,17 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 !
 !-------first call: read data from disk-------------------------------
   if(icall_eq .lt. 1) then
-!
-!     call read_dimeq0(nrad,nzet)
-    call read_dimeq1(nrad,nzet)
-!
+
+    if (ieqfile == 0) then
+      call read_dimeq0(nrad,nzet)
+    else
+      call read_dimeq1(nrad,nzet)
+    endif
+
     allocate(rad(nrad),zet(nzet))
     allocate(psi0(nrad,nzet),psi(nrad,nzet))
     allocate(splfpol(0:5,nrad))                                                      !<=18.12.18
 
-!     call read_eqfile0(nrad, nzet, psib, btf, rtf, rad, zet, psi)
     if(use_fpol) then                                                                !<=18.12.18
       call read_eqfile2(nrad, nzet, psi_axis, psi_sep, btf, rtf,    &                !<=18.12.18
                         splfpol(0,:), rad, zet, psi)                                 !<=18.12.18
@@ -161,7 +163,11 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
       splfpol(0,:)=splfpol(0,:)*1.d6                                                 !<=18.12.18
       call spline_fpol                                                               !<=18.12.18
     else                                                                             !<=18.12.18
-      call read_eqfile1(nrad, nzet, psib, btf, rtf, rad, zet, psi)
+      if (ieqfile == 0) then
+        call read_eqfile0(nrad, nzet, psib, btf, rtf, rad, zet, psi)
+      else
+        call read_eqfile1(nrad, nzet, psib, btf, rtf, rad, zet, psi)
+      end if
     endif                                                                            !<=18.12.18
 !
 ! Filtering:
