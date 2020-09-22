@@ -817,9 +817,10 @@ subroutine stretch_coords(r,z,rm,zm)
   integer icall, i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrzmx=100 ! possible max. of nrz
   integer, parameter :: nrhotht=360
+  integer :: iflag
   real(kind=8), parameter :: pi = 3.14159265358979d0
-  real(kind=8) R0,Rw, Zw, htht, Rl, Zl, a, b, rho, tht, rho_c, delta
-  real(kind=8), dimension(100):: rad_w, zet_w ! points "convex wall"
+  real(kind=8) R0,Rw, Zw, htht, Rl, Zl, a, b, rho, tht, rho_c, delta, dummy
+  real(kind=8), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
   real(kind=8), dimension(:), allocatable :: rho_w, tht_w
   real(kind=8), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
   data icall /0/, delta/1./
@@ -838,20 +839,49 @@ subroutine stretch_coords(r,z,rm,zm)
 10   continue
      close(iunit)
 
-     nrz = nrz+1
-     rad_w(nrz) = rad_w(1)
-     zet_w(nrz) = zet_w(1)
-     allocate(rho_w(nrz), tht_w(nrz))
+     allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
      R0 = (maxval(rad_w(1:nrz)) +  minval(rad_w(1:nrz)))*0.5
      do i=1,nrz
         rho_w(i) = sqrt( (rad_w(i)-R0)**2 + zet_w(i)**2 )
         tht_w(i) = atan2(zet_w(i),(rad_w(i)-R0))
         if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + 2.*pi
      enddo
+
+    ! make sure points are ordered according to tht_w.
+    do
+      iflag = 0
+      do i=1,nrz-1
+        if (tht_w(i) > tht_w(i+1)) then
+          iflag = 1
+          dummy = rad_w(i+1)
+          rad_w(i+1) = rad_w(i)
+          rad_w(i) = dummy
+          dummy = zet_w(i+1)
+          zet_w(i+1) = zet_w(i)
+          zet_w(i) = dummy
+          dummy = rho_w(i+1)
+          rho_w(i+1) = rho_w(i)
+          rho_w(i) = dummy
+          dummy = tht_w(i+1)
+          tht_w(i+1) = tht_w(i)
+          tht_w(i) = dummy
+        end if
+      end do
+      if (iflag == 0) exit
+    end do
+    rad_w(0) = rad_w(nrz)
+    zet_w(0) = zet_w(nrz)
+    tht_w(0) = tht_w(nrz)-2.d0*pi
+    rho_w(0) = rho_w(nrz)
+    rad_w(nrz+1) = rad_w(1)
+    zet_w(nrz+1) = zet_w(1)
+    tht_w(nrz+1) = tht_w(1)+2.d0*pi
+    rho_w(nrz+1) = rho_w(1)
+
      htht = 2.*pi/(nrhotht-1)
      do i=2,nrhotht
         tht_wall(i) = htht*(i-1)
-        do j=1,nrz-1
+        do j=0,nrz
            if(tht_wall(i).ge.tht_w(j) .and. tht_wall(i).le.tht_w(j+1)) then
               if( abs((rad_w(j+1) - rad_w(j))/rad_w(j)) .gt. 1.e-3) then
                  a = (zet_w(j+1) - zet_w(j))/(rad_w(j+1) - rad_w(j))
