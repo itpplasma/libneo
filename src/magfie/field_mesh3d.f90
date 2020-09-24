@@ -1,14 +1,7 @@
-module magfield_mod
-  integer :: ierrfield
-  integer :: input_format,npmid,nr,np,nz,npoint
-  integer,          dimension(:,:,:), allocatable :: ipoint
-  double precision, dimension(:),     allocatable :: rad,phi,zet,Brs,Bzs,Bps
-  double precision, dimension(:,:,:), allocatable :: Bx,By,Bz,Br,Bp
-end module
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine field(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &             
+subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
   use magfield_mod
@@ -378,108 +371,4 @@ print *,'boundary touched'
   dBzdZ = poly1z
   !
   return
-  end 
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-! dummies:
-  module magfie_mod
-  end module
-  module neo_magfie_mod
-    integer :: magfie_spline
-    double precision, dimension(:), allocatable :: magfie_sarray
-  end module
-  subroutine magfie_deallocate
-  end
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-! 19.03.2010  SUBROUTINE stevvo(RT0,R0i,L1i,cbfi,BY0i,bf0)
-!
-! 19.03.2010  integer :: L1i,iunit1
-! 19.03.2010  double precision :: RT0,R0i,cbfi,BY0i,bf0
-!
-! 19.03.2010  iunit1=77
-! 19.03.2010  open(iunit1,file='MESH3D/stevvo_stuff.dat')
-! 19.03.2010  read(iunit1,*) RT0
-! 19.03.2010  read(iunit1,*) L1i
-! 19.03.2010  read(iunit1,*) bf0
-! 19.03.2010  read(iunit1,*) R0i
-! 19.03.2010  read(iunit1,*) cbfi
-! 19.03.2010  read(iunit1,*) BY0i
-! 19.03.2010  close(iunit1)
-!
-! 19.03.2010  return
-! 19.03.2010  end
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-! 19.03.2010  subroutine magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
-!
-! Computes magnetic field module in units of the magnetic code  - bmod,
-! square root of determinant of the metric tensor               - sqrtg,
-! derivatives of the logarythm of the magnetic field module
-! over coordinates                                              - bder,
-! covariant componets of the unit vector of the magnetic
-! field direction                                               - hcovar,
-! contravariant components of this vector                       - hctrvr,
-! contravariant component of the curl of this vector            - hcurl
-! Order of coordinates is the following: x(1)=R (big radius), 
-! x(2)=phi (toroidal angle), x(3)=Z (altitude).
-!
-!  Input parameters:
-!            formal:  x                -    array of coordinates
-!  Output parameters:
-!            formal:  bmod
-!                     sqrtg
-!                     bder
-!                     hcovar
-!                     hctrvr
-!                     hcurl
-!
-!  Called routines:  field
-!
-! 19.03.2010  double precision x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
-! 19.03.2010  double precision hr,hf,hz
-!
-! 19.03.2010  double precision ri,fii,zi,br,bf,bz,      &
-! 19.03.2010      BRR,BRF,BRZ,BFR,BFF,BFZ,BZR,BZF,BZZ,  &
-! 19.03.2010      BRK,BZK,BRRK,BRZK,BZRK,BZZK
-!
-! 19.03.2010  dimension x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
-!
-! 19.03.2010  rbig=max(x(1),1d-12)
-!
-! 19.03.2010  ri=rbig
-! 19.03.2010  fii=x(2)
-! 19.03.2010  zi=x(3)
-! 19.03.2010  call field(ri,fii,zi,br,bf,bz, &
-! 19.03.2010             BRR,BRF,BRZ,BFR,BFF,BFZ,BZR,BZF,BZZ)
-!
-! 19.03.2010  bmod=dsqrt(br**2+bf**2+bz**2)
-! 19.03.2010  sqrtg=rbig
-! 19.03.2010  hr=br/bmod
-! 19.03.2010  hf=bf/bmod
-! 19.03.2010  hz=bz/bmod
-!
-! 19.03.2010  bder(1)=(brr*hr+bfr*hf+bzr*hz)/bmod
-! 19.03.2010  bder(2)=(brf*hr+bff*hf+bzf*hz)/bmod
-! 19.03.2010  bder(3)=(brz*hr+bfz*hf+bzz*hz)/bmod
-!
-! 19.03.2010  hcovar(1)=hr
-! 19.03.2010  hcovar(2)=hf*rbig
-! 19.03.2010  hcovar(3)=hz
-!
-! 19.03.2010  hctrvr(1)=hr
-! 19.03.2010  hctrvr(2)=hf/rbig
-! 19.03.2010  hctrvr(3)=hz
-!
-! 19.0 hcurl(1)=((bzf-rbig*bfz)/bmod+hcovar(2)*bder(3)-hcovar(3)*bder(2))/sqrtg
-! 19.03  hcurl(2)=((brz-bzr)/bmod+hcovar(3)*bder(1)-hcovar(1)*bder(3))/sqrtg
-!19 hcurl(3)=((bf+rbig*bfr-brf)/bmod+hcovar(1)*bder(2)-hcovar(2)*bder(1))/sqrtg
-!
-! 19.03.2010  return
-! 19.03.2010  end
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-
+end subroutine field_mesh3d
