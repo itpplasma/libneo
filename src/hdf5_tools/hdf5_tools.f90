@@ -325,6 +325,28 @@ contains
   end subroutine h5_delete
 
   !**********************************************************
+  ! Helper routine to recursively create parent groups
+  ! for given dataset if they do not exist yet.
+  !**********************************************************
+  recursive subroutine h5_create_parent_groups(h5id, dataset)
+    integer(HID_T), intent(in) :: h5id
+    character(len = *), intent(in) :: dataset
+    integer :: sep
+    integer(HID_T) :: grp_id
+
+    sep = index(dataset, '/')
+    if (sep > 0) then
+       if (h5_exists(h5id, dataset(:sep-1))) then
+          call h5_open_group(h5id, dataset(:sep-1), grp_id)
+       else
+          call h5_define_group(h5id, dataset(:sep-1), grp_id)
+       end if
+       call h5_create_parent_groups(grp_id, dataset(sep+1:))
+       call h5_close_group(grp_id)
+    end if
+  end subroutine h5_create_parent_groups
+
+  !**********************************************************
   ! Define matrix with unlimited dimensions. Used for
   ! appending data with an unknown number of elements.
   !**********************************************************
