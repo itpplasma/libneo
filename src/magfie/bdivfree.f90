@@ -1,59 +1,7 @@
 !
-  module bdivfree_mod
-    integer :: nr,nz,ntor,icp
-    integer, dimension(:,:), allocatable :: ipoint
-    double precision :: rmin,zmin,hr,hz,pmin,pfac
-    double precision, dimension(:),       allocatable :: rpoi,zpoi
-    double precision, dimension(:,:,:),   allocatable :: apav,rbpav_coef
-    double precision, dimension(:,:,:,:), allocatable :: aznre,aznim,arnre,arnim
-  end module bdivfree_mod
-!
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  module theta_rz_mod
-    integer :: icall=0
-    integer :: nsqp,nlab,nthe,icp_pt
-    integer, dimension(:,:), allocatable :: ipoint_pt
-    real(kind=8) :: hsqpsi,hlabel,htheqt,psiaxis,sigma_qt,raxis,zaxis
-    real(kind=8), dimension(:,:),   allocatable :: spllabel
-    real(kind=8), dimension(:,:,:), allocatable :: splthet
-    real(kind=8), dimension(:),     allocatable :: sqpsi,flab,theqt
-  end module theta_rz_mod
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  module amn_mod
-! Fourier ampitudes of the original field:
-    integer :: ntor_amn=1,mpol,ntor_ff,mpol_ff,nsqpsi,icall=0
-    double precision :: sqpsimin,sqpsimax,hsqpsi
-    complex(8), dimension(:,:,:,:), allocatable :: splapsi,splatet
-    complex(8), dimension(:,:), allocatable :: amnpsi,   amntet,     &
-                                                   amnpsi_s, amntet_s,   &
-                                                   amnpsi_ss,amntet_ss
-    complex(8), dimension(:),   allocatable :: expthe,expphi
-! Formfactors:
-    integer :: nsqpsi_ff,nmodes_ff
-    double precision :: sqpsimin_ff,sqpsimax_ff,hsqpsi_ff
-    integer,        dimension(:,:), allocatable :: ipoi_ff
-    complex(8), dimension(:,:,:), allocatable :: splffp,splfft
-    complex(8), dimension(:),   allocatable :: fmnpsi,   fmntet,     &
-                                                   fmnpsi_s, fmntet_s,   &
-                                                   fmnpsi_ss,fmntet_ss
-  end module amn_mod
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  module extract_fluxcoord_mod
-    integer :: load_extract_fluxcoord=1
-    integer :: nphinorm
-    double precision :: psif_extract,theta_extract,psifmin,hpsif
-    double precision :: psifmax,phifmax,sigcos
-    double precision, dimension(:), allocatable :: phinorm_arr
-  end module extract_fluxcoord_mod
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
+subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
              rmin_in,rmax_in,pmin_in,pmax_in,zmin_in,zmax_in,  &
              br,bp,bz)
 !
@@ -62,17 +10,20 @@
   implicit none
 !
   double precision, parameter :: pi=3.14159265358979d0
-!
-  integer :: nr_in,np_in,nz_in,ntor_in,ip,np,n,ir,iz
+
+  integer, intent(in) :: nr_in, np_in, nz_in, ntor_in
+  double precision, intent(in) :: rmin_in, rmax_in, pmin_in, pmax_in, &
+                                & zmin_in, zmax_in
+  double precision, dimension(nr_in,np_in,nz_in), intent(out) :: br, bp, bz
+
+  integer :: ip,np,n,ir,iz
   integer, dimension(:), allocatable :: imi,ima,jmi,jma
 !
   integer :: nashli_rukami
   integer :: irmin, irmax, i,j
   double precision, dimension(4), parameter :: weight=(/-1., 13., 13., -1./)/24.
-!
-  double precision :: rmin_in,rmax_in,pmin_in,pmax_in,zmin_in,zmax_in
+
   double precision :: hp,r,rm,zm,sumbz,hrm1,hzm1
-  double precision, dimension(nr_in,np_in,nz_in)  :: br,bp,bz
   double precision, dimension(:),     allocatable :: dummy
   double precision, dimension(:,:),   allocatable :: a_re, a_im, rbpav_dummy
   double precision, dimension(:,:),   allocatable :: brm,bpm,bzm
@@ -233,7 +184,7 @@
 102 format(1000e15.7)
 !
   return
-  end subroutine vector_potentials
+end subroutine vector_potentials
 
 subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
   anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
@@ -295,7 +246,7 @@ end subroutine spline_bpol_n
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
+subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
   use bdivfree_mod
@@ -304,10 +255,12 @@ end subroutine spline_bpol_n
   use amn_mod, only : ntor_amn
 !
   implicit none
-!
+
+  double precision, intent(in) :: r, phi, z
+  double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,   &
+                              & dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
+
   integer :: n,ierr
-  double precision :: r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
-                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   double precision :: f,fr,fz,frr,frz,fzz
   double precision :: g,gr,gz,grr,grz,gzz
   double precision :: delbr,delbz,delbp
@@ -400,11 +353,11 @@ end subroutine spline_bpol_n
   enddo
 !
   return
-  end subroutine field_divfree
+end subroutine field_divfree
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-      subroutine indef_bdf(u,umin,dum1,nup,indu)
+subroutine indef_bdf(u,umin,dum1,nup,indu)
 ! defines interval for 1D interpolation on uniform mesh, normally
 ! looks for the central interval of stencil, but
 ! stops moving of stencil at the boundary (works for mp=4 only!)
@@ -418,26 +371,26 @@ end subroutine spline_bpol_n
 !
 ! the power 3 of polinomial is fixed strictly:
 !
-      implicit double precision (a-h,o-z)
+  implicit double precision (a-h,o-z)
 !
-      parameter(mp=4)
-      integer indu(mp)
+  parameter(mp=4)
+  integer indu(mp)
 
-      indu(1) = int((u-umin)*dum1)
-      if( indu(1) .le. 0 ) indu(1) = 1
-      indu(mp) = indu(1) + mp - 1
-      if( indu(mp) .gt. nup ) then
-         indu(mp) = nup
-         indu(1) = indu(mp) - mp + 1
-      endif
-      do i=2,mp-1
-         indu(i) = indu(i-1) + 1
-      enddo
+  indu(1) = int((u-umin)*dum1)
+  if( indu(1) .le. 0 ) indu(1) = 1
+  indu(mp) = indu(1) + mp - 1
+  if( indu(mp) .gt. nup ) then
+    indu(mp) = nup
+    indu(1) = indu(mp) - mp + 1
+  endif
+  do i=2,mp-1
+    indu(i) = indu(i-1) + 1
+  enddo
 
-      return
-      end
+  return
+end subroutine indef_bdf
 !---------------------------------------------------------------------
-      subroutine indsmp_bdf(index,nup,indu)
+subroutine indsmp_bdf(index_,nup,indu)
 ! defines interval for 1D interpolation on uniform mesh
 ! by known index.
 ! Normally looks for the central interval of stencil, but
@@ -449,30 +402,36 @@ end subroutine spline_bpol_n
 !    indu(mp) - relative index of stencil points
 
 ! the power 3 of polinomial is fixed strictly:
-      parameter(mp=4)
-      integer indu(mp)
+  implicit none
 
-      indu(1) = index - 1
-      if( indu(1) .le. 0 ) indu(1) = 1
-      indu(mp) = indu(1) + mp - 1
-      if( indu(mp) .gt. nup ) then
-         indu(mp) = nup
-         indu(1) = indu(mp) - mp + 1
-      endif
-      do i=2,mp-1
-         indu(i) = indu(i-1) + 1
-      enddo
+  integer, parameter :: mp=4
 
-      return
-      end
+  integer, intent(in) :: index_, nup
+  integer, intent(out) :: indu(mp)
+
+  integer :: i
+
+  indu(1) = index_ - 1
+  if( indu(1) .le. 0 ) indu(1) = 1
+  indu(mp) = indu(1) + mp - 1
+  if( indu(mp) .gt. nup ) then
+    indu(mp) = nup
+    indu(1) = indu(mp) - mp + 1
+  endif
+  do i=2,mp-1
+    indu(i) = indu(i-1) + 1
+  enddo
+
+  return
+end subroutine indsmp_bdf
 !---------------------------------------------------------------------
-      subroutine plag2d_bdf(x,y,fp,dxm1,dym1,xp,yp,polyl2d)
+subroutine plag2d_bdf(x,y,fp,dxm1,dym1,xp,yp,polyl2d)
 !
-      implicit double precision (a-h,o-z)
+  implicit double precision (a-h,o-z)
 !
 ! 2D interpolation by means of Lagrange polynomial
 ! the power 3 is fixed strictly:
-      parameter(mp=4)
+  parameter(mp=4)
 ! uniform mesh (increasingly ordered) in all dimensions is implied
 !
 ! Input parameters:
@@ -482,38 +441,38 @@ end subroutine spline_bpol_n
 !
 ! Output parameters:
 ! polyl2d - polynomial itself
-      dimension cx(mp),cy(mp),fp(mp,mp),xp(mp),yp(mp)
+  dimension cx(mp),cy(mp),fp(mp,mp),xp(mp),yp(mp)
 !
-      call coefs_bdf(x,xp,dxm1,cx)
-      call coefs_bdf(y,yp,dym1,cy)
+  call coefs_bdf(x,xp,dxm1,cx)
+  call coefs_bdf(y,yp,dym1,cy)
 !
-      polyl2d = 0.d0
-      do j=1,mp
-        do i=1,mp
-          polyl2d = polyl2d + fp(i,j)*cx(i)*cy(j)
-        enddo
-      enddo
+  polyl2d = 0.d0
+  do j=1,mp
+    do i=1,mp
+      polyl2d = polyl2d + fp(i,j)*cx(i)*cy(j)
+    enddo
+  enddo
 !
-      return
-      end
+  return
+end subroutine plag2d_bdf
 !---------------------------------------------------------------------
-      subroutine coefs_bdf(u,up,dum1,cu)
-!
-      implicit double precision (a-h,o-z)
-!
-      parameter(mp=4)
-      dimension up(mp),cu(mp)
-      data one6/0.16666666666667d0/
-      du3 = dum1**3
-      cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * (-one6*du3)
-      cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * (0.5d0*du3)
-      cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * (-0.5d0*du3)
-      cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * (one6*du3)
-      return
-      end
+subroutine coefs_bdf(u,up,dum1,cu)
+
+  implicit double precision (a-h,o-z)
+
+  parameter(mp=4)
+  dimension up(mp),cu(mp)
+  data one6/0.16666666666667d0/
+  du3 = dum1**3
+  cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * (-one6*du3)
+  cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * (0.5d0*du3)
+  cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * (-0.5d0*du3)
+  cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * (one6*du3)
+  return
+end subroutine coefs_bdf
 !---------------------------------------------------------------------
 !
-  subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
+subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
 !
 ! Inverts the monotonous function y(x) given on the equidistant grid
 ! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
@@ -521,12 +480,18 @@ end subroutine spline_bpol_n
 ! at the interval [ymin,ymax] by the array x_i=arrx(i).
 !
   implicit none
-!
-  integer :: ny,nx,iy,ix,ixfix,ix1,ix2,ix3,ix4
-!
-  double precision :: xmin,xmax,ymin,ymax,hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
-  double precision, dimension(0:nx) :: arry
-  double precision, dimension(0:ny) :: arrx
+
+  integer, intent(in) :: nx, ny
+  double precision, intent(in) :: xmin, xmax
+  double precision, intent(out) :: ymin, ymax
+  double precision, dimension(0:nx), intent(in) :: arry
+  double precision, dimension(0:ny), intent(out) :: arrx
+
+  integer :: iy,ix,ixfix,ix1,ix2,ix3,ix4
+
+  double precision :: hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
+
+  ixfix = -10
 !
   ymin=arry(0)
   ymax=arry(nx)
@@ -566,11 +531,11 @@ end subroutine spline_bpol_n
   enddo
 !
   return
-  end
+end subroutine invert_mono_reg
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
+subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
 !
 ! Inverts the monotonous function y(x) given on the equidistant grid
 ! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
@@ -579,13 +544,19 @@ end subroutine spline_bpol_n
 ! at the interval [ymin,ymax] by the array x_i=arrx(i).
 !
   implicit none
+
+  integer, intent(in) :: nx, ny
+  double precision, intent(in) :: xmin, xmax
+  double precision, intent(out) :: ymin, ymax
+  double precision, dimension(0:nx), intent(in) :: arry_in
+  double precision, dimension(0:ny), intent(out) :: arrx
+
+  integer :: iy,ix,ixfix,ix1,ix2,ix3,ix4
 !
-  integer :: ny,nx,iy,ix,ixfix,ix1,ix2,ix3,ix4
-!
-  double precision :: xmin,xmax,ymin,ymax,hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
-  double precision, dimension(0:nx) :: arry_in
-  double precision, dimension(0:ny) :: arrx
+  double precision :: hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
   double precision, dimension(:), allocatable :: arry
+
+  ixfix = -10
 !
   allocate(arry(-1:nx+1))
   arry(0:nx)=arry_in
@@ -630,21 +601,26 @@ end subroutine spline_bpol_n
   enddo
 !
   return
-  end
+end subroutine invert_mono_per
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine spl_five_per(n,h,a,b,c,d,e,f)
+subroutine spl_five_per(n,h,a,b,c,d,e,f)
 !
 ! Periodic spline of the 5-th order. First and last values of function must
 ! be the same.
 !
   implicit none
-!
-  integer :: n,i,ip1,ip2
-  double precision :: h,rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: h
+  double precision, dimension(n), intent(in) :: a
+  double precision, dimension(n), intent(out) :: b, c, d, e, f
+
+  integer :: i,ip1,ip2
+  double precision :: rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p
   double precision :: c_gammao_m,c_gammao_p
-  double precision, dimension(n) :: a,b,c,d,e,f
+
   double precision, dimension(:), allocatable :: alp,bet,gam
 !
   rhop=13.d0+sqrt(105.d0)
@@ -788,11 +764,11 @@ end subroutine spline_bpol_n
   deallocate(alp,bet,gam)
 !
   return
-  end
+end subroutine spl_five_per
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
+subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
 !
 ! Calculates coefficients of a 2D spline for a ring domain
 ! (periodic over y variable)
@@ -893,11 +869,11 @@ end subroutine spline_bpol_n
   deallocate( ai,bi,ci,di,ei,fi )
 !
   return
-  end
+end subroutine s2dring
 !
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine load_theta
+subroutine load_theta
 !
   use theta_rz_mod
   use input_files, only : iunit,fluxdatapath
@@ -956,11 +932,11 @@ end subroutine spline_bpol_n
                    ,              spllabel(4,:),spllabel(5,:),spllabel(6,:))
 !
   return
-  end
+end subroutine load_theta
 !
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine psithet_rz(rrr,zzz,                                          &
+subroutine psithet_rz(rrr,zzz,                                          &
                         theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                         flabel,s_r,s_z,s_rr,s_rz,s_zz,s0,ds0ds,dds0ds)
 !
@@ -972,15 +948,20 @@ end subroutine spline_bpol_n
   implicit none
 !
   real(kind=8), parameter :: pi=3.14159265358979d0
-!
+
+  real(kind=8), intent(in) :: rrr, zzz
+  real(kind=8), intent(out) :: theta, theta_r, theta_z, theta_rr, &
+                            & theta_rz, theta_zz
+  real(kind=8), intent(out) :: flabel
+  real(kind=8), intent(out) :: s_r, s_z, s_rr, s_rz, s_zz
+  real(kind=8), intent(out) :: s0, ds0ds, dds0ds
+
   integer :: npoint,i,j,ierr,k
-  real(kind=8) :: rrr,zzz,theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz
   real(kind=8) :: theta_s,theta_t,theta_ss,theta_st,theta_tt
-  real(kind=8) :: sqpsi_qt,s_r,s_z,s_rr,s_rz,s_zz
+  real(kind=8) :: sqpsi_qt
   real(kind=8) :: theta_qt,t_r,t_z,t_rr,t_rz,t_zz
-  real(kind=8) :: rho2,rho4,dr,dz,flabel,dflabel,ddflabel,dx,dfl_dpsi,ddfl_dpsi
-  real(kind=8) :: s0,ds0ds,dds0ds
-!
+  real(kind=8) :: rho2,rho4,dr,dz,dflabel,ddflabel,dx,dfl_dpsi,ddfl_dpsi
+
   if(icall.eq.0) then
     icall=1
     call load_theta
@@ -1043,21 +1024,25 @@ end subroutine spline_bpol_n
   theta_extract=theta
 !
   return
-  end subroutine psithet_rz
+end subroutine psithet_rz
 !
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
+subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
 !
   implicit none
-!
-  integer :: n,i,ip1,ip2
-  double precision :: h,rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: h
+  double precision, dimension(n), intent(in) :: a
+  double precision, dimension(n), intent(out) :: b, c, d, e, f
+
+  integer :: i,ip1,ip2
+  double precision :: rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
   double precision :: a11,a12,a13,a21,a22,a23,a31,a32,a33,det
   complex(8) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
   complex(8) :: aend,bend,cend,dend,eend,fend
   complex(8) :: b1,b2,b3
-  complex(8), dimension(n) :: a,b,c,d,e,f
   complex(8), dimension(:), allocatable :: alp,bet,gam
 !
   rhop=13.d0+sqrt(105.d0)
@@ -1185,11 +1170,11 @@ end subroutine spline_bpol_n
   deallocate(alp,bet,gam)
 !
   return
-  end
+end subroutine cspl_five_reg
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
+subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
 ! Caution: derivatives are not computed, for derivatives call
@@ -1204,10 +1189,12 @@ end subroutine spline_bpol_n
   use bdivfree_mod,  only : pfac
 !
   implicit none
-!
+
+  double precision, intent(in) :: r, phi, z
+  double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,    &
+                       &  dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
+
   integer :: m,n,i,k,ierr,ntor
-  double precision :: r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ                &
-                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   double precision :: sqpsi,dx,g11,g12,g11_r,g11_z,g12_r,g12_z
   double precision :: theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                       s_r,s_z,s_rr,s_rz,s_zz
@@ -1557,12 +1544,12 @@ end subroutine spline_bpol_n
     Bp=Bp+delbp*plaf+delar*dpladz-delaz*dpladr
   endif
 !
-  end subroutine field_fourier
+end subroutine field_fourier
 !
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
+subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                                  ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
 ! Computes the field and its derivatives using central differences
@@ -1571,9 +1558,13 @@ end subroutine spline_bpol_n
   implicit none
 !
   double precision, parameter :: eps=1.d-7
-  double precision :: rrr,ppp,zzz,r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ       &
-                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ,del              &
-                     ,rm,zm,Br0,Bp0,Bz0,dBrdR0,dBrdp0,dBrdZ0               &
+
+  double precision, intent(in) :: phi, r, z
+  double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ
+  double precision, intent(out) :: dBpdR, dBpdp, dBpdZ,dBzdR, dBzdp, dBzdZ
+
+  double precision :: rrr,ppp,zzz,del                              &
+                     ,rm,zm,Br0,Bp0,Bz0,dBrdR0,dBrdp0,dBrdZ0       &
                      ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0
 !
     del=eps*r
@@ -1664,19 +1655,21 @@ end subroutine spline_bpol_n
     call field_fourier(r,phi,z,Br,Bp,Bz,dBrdR0,dBrdp0,dBrdZ0          &
                       ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0)
 !
-  end subroutine field_fourier_derivs
+end subroutine field_fourier_derivs
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine extract_fluxcoord(phinorm,theta)
+subroutine extract_fluxcoord(phinorm,theta)
 !
   use extract_fluxcoord_mod
   use input_files, only : iunit,fluxdatapath
 !
   implicit none
-!
+
+  double precision, intent(out) :: phinorm,theta
+
   integer :: k
-  double precision :: phinorm,theta,xpsif
+  double precision :: xpsif
 !
   if(load_extract_fluxcoord.eq.1) then
     load_extract_fluxcoord=0
@@ -1695,23 +1688,31 @@ end subroutine spline_bpol_n
 !
   theta=theta_extract
 !
-  end subroutine extract_fluxcoord
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
+end subroutine extract_fluxcoord
+
+!> Since the field in the main volume and outside separatrix are given
+!> by different models, it smoothly connects these two fields in some
+!> narrow transition layer located in the main volume adjacent to the
+!> separatrix. It should have an effect on the field only if one
+!> computes something inside this transition layer which is not so easy
+!> to hit by chance.
+subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
                                formfactors)
 !
   use inthecore_mod, only : psi_sep,psi_cut
   use theta_rz_mod,  only : psiaxis
 !
   implicit none
-!
-  integer :: nmodes_ff,nsqpsi_ff,i
-  double precision :: sqpsimin_ff,sqpsimax_ff,hsqpsi_ff,apsif
+
+  integer, intent(in) :: nmodes_ff,nsqpsi_ff
+  double precision, intent(in) :: sqpsimin_ff,sqpsimax_ff
+  complex(8), dimension(nmodes_ff,nsqpsi_ff), intent(inout) :: formfactors
+
+  double precision :: hsqpsi_ff,apsif
   double precision :: apsi_sep,apsi_cut,weight,dweight,ddweight
+
+  integer :: i
   double precision :: R=1.d0,Z=0.d0
-  complex(8), dimension(nmodes_ff,nsqpsi_ff) :: formfactors
 !
   call inthecore(R,Z)
 !
@@ -1725,6 +1726,6 @@ end subroutine spline_bpol_n
     formfactors(:,i)=weight*formfactors(:,i)+1.d0-weight
   enddo
 !
-  end subroutine smear_formfactors
+end subroutine smear_formfactors
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

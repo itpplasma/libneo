@@ -41,3 +41,6 @@ __pycache__
 
 # IDE files
 .vscode/
+
+# Ignore version files created by build system.
+src/*/*/version.f90

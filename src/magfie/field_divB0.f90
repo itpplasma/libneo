@@ -1,56 +1,3 @@
-module period_mod
-  double precision :: per_phi, per_tht
-end module period_mod
-
-module input_files
-  character*1024 :: eqfile, cfile, gfile,pfile,convexfile,fluxdatapath
-  integer :: iunit=1738
-!
-  data eqfile  /'d3d.equ'/
-  data cfile   /'DATA/ccoil.dat'/
-!  data gfile   /'gfiles/shot115452/g115452.03525'/
-!  data pfile   /'Conly/probe_g129_bfield.out'/
-end module input_files
-!
-module field_c_mod
-  integer :: icall_c=0
-  integer :: ntor=16
-  integer :: nr,np,nz
-  integer :: icftype
-end module field_c_mod
-!
-module field_eq_mod
-  logical :: use_fpol = .true.                                      !<=18.12.18
-  integer :: icall_eq=0
-  integer :: nrad,nzet,icp,nwindow_r,nwindow_z
-  real(kind=8), parameter                      :: pi=3.14159265358979d0
-  real(kind=8) :: psib,btf,rtf,hrad,hzet
-  real(kind=8) :: psi_axis,psi_sep,hfpol                            !<=18.12.18
-  real(kind=8), dimension(:,:), allocatable    :: psi, psi0
-  real(kind=8), dimension(:,:), allocatable    :: splfpol           !<=18.12.18
-  real(kind=8), dimension(:,:,:), allocatable  :: splpsi
-  real(kind=8), dimension(:), allocatable      :: rad, zet, xi,f
-  integer, dimension(:), allocatable           :: imi,ima,jmi,jma
-  integer, dimension(:,:), allocatable         :: ipoint
-  double precision :: psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
-end module field_eq_mod
-!
-module field_mod
-  integer          :: icall=0
-  integer          :: ipert,iequil
-  double precision :: ampl
-end module field_mod
-!
-module inthecore_mod
-  logical :: prop=.true.
-  integer :: npoi,ijumpb,ibeg,iend
-  double precision, parameter :: epssep=1.d-6
-  double precision :: rc,zc,twopi,sig,psi_sep,psi_cut,sigpsi,cutoff
-  double precision, dimension(:), allocatable :: rho2i,theti
-  integer          :: incore
-  double precision :: vacf,dvacdr,dvacdz,d2vacdr2,d2vacdrdz,d2vacdz2
-  double precision :: plaf,dpladr,dpladz,d2pladr2,d2pladrdz,d2pladz2
-end module inthecore_mod
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 ! -----------------------------------------------------------------
@@ -87,7 +34,8 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
      read(iunit,*) fluxdatapath ! directory with data in flux coord.
      read(iunit,*) nwindow_r    ! widow size for filtering of psi array over R
      read(iunit,*) nwindow_z    ! widow size for filtering of psi array over Z
-     close(iunit)
+     read(iunit,*,err=1) ieqfile! equilibrium file type (0 - old, 1 - EFIT)
+1    close(iunit)
      print *, 'Perturbation field',ipert,'Ampl',ampl
      if(icall_c.eq.-1) ipert=1
   endif
@@ -175,7 +123,7 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
    end if
 !
    return
- end subroutine field
+end subroutine field
 ! ========================================================================
 subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
                    ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
@@ -184,24 +132,29 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
   use field_eq_mod
 !
   implicit none
-!
+
+  double precision, intent(in) :: r, ppp, z
+  double precision, intent(out) :: Brad, Bphi, Bzet, dBrdR, dBrdp, dBrdZ
+  double precision, intent(out) :: dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
+
   integer :: ierr,i,j
 !
-  double precision :: rrr,ppp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
-                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ,r,z
+  double precision :: rrr,zzz
   double precision :: psihat,fpol,fpol_prime                                         !<=18.12.18
 !
 !-------first call: read data from disk-------------------------------
   if(icall_eq .lt. 1) then
-!
-!     call read_dimeq0(nrad,nzet)
-    call read_dimeq1(nrad,nzet)
-!
+
+    if (ieqfile == 0) then
+      call read_dimeq0(nrad,nzet)
+    else
+      call read_dimeq1(nrad,nzet)
+    endif
+
     allocate(rad(nrad),zet(nzet))
     allocate(psi0(nrad,nzet),psi(nrad,nzet))
     allocate(splfpol(0:5,nrad))                                                      !<=18.12.18
 
-!     call read_eqfile0(nrad, nzet, psib, btf, rtf, rad, zet, psi)
     if(use_fpol) then                                                                !<=18.12.18
       call read_eqfile2(nrad, nzet, psi_axis, psi_sep, btf, rtf,    &                !<=18.12.18
                         splfpol(0,:), rad, zet, psi)                                 !<=18.12.18
@@ -210,7 +163,11 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
       splfpol(0,:)=splfpol(0,:)*1.d6                                                 !<=18.12.18
       call spline_fpol                                                               !<=18.12.18
     else                                                                             !<=18.12.18
-      call read_eqfile1(nrad, nzet, psib, btf, rtf, rad, zet, psi)
+      if (ieqfile == 0) then
+        call read_eqfile0(nrad, nzet, psib, btf, rtf, rad, zet, psi)
+      else
+        call read_eqfile1(nrad, nzet, psib, btf, rtf, rad, zet, psi)
+      end if
     endif                                                                            !<=18.12.18
 !
 ! Filtering:
@@ -348,56 +305,58 @@ end subroutine field_eq
 ! ----------- Runov's Original Method --------------------------------
 subroutine read_dimeq0(nrad,nzet)
   use input_files
-  integer :: nrad, nzet
+  integer, intent(out) :: nrad, nzet
 
-     open(11,file=eqfile)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
+  open(11,file=eqfile)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
 
-     read(11,111) nrad
-     read(11,111) nzet
+  read(11,111) nrad
+  read(11,111) nzet
 111  format(12x,i3)
 
-     close(11)
+  close(11)
   return
 end subroutine read_dimeq0
 
 subroutine read_eqfile0(nrad, nzet, psib, btf, rtf, rad, zet, psi)
   use input_files
-  integer :: nrad, nzet, dum
-  real(kind=8) :: psib, btf, rtf
-  real(kind=8) :: rad(nrad), zet(nzet)
-  real(kind=8) :: psi(nrad,nzet)
+  integer, intent(in) :: nrad, nzet
+  real(kind=8), intent(out) :: psib, btf, rtf
+  real(kind=8), intent(out) :: rad(nrad), zet(nzet)
+  real(kind=8), intent(out) :: psi(nrad,nzet)
 
-     open(11,file=eqfile)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
-     read(11,*)
+  integer :: dum
 
-     read(11,111) dum !nrad
-     read(11,111) dum !nzet
-     read(11,112) psib
-     read(11,112) btf
-     read(11,112) rtf
-     read(11,*)
-     read(11,*)
+  open(11,file=eqfile)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
+  read(11,*)
 
-     print *, nrad, nzet, psib, btf, rtf
+  read(11,111) dum !nrad
+  read(11,111) dum !nzet
+  read(11,112) psib
+  read(11,112) btf
+  read(11,112) rtf
+  read(11,*)
+  read(11,*)
+
+  print *, nrad, nzet, psib, btf, rtf
 
 !     nrad = nrad - 3
 !     nzet = nzet - 4
@@ -411,19 +370,19 @@ subroutine read_eqfile0(nrad, nzet, psib, btf, rtf, rad, zet, psi)
 !!$     read(11,113)(dummy,dummy,(psi(j,k),j=1,nrad),dummy,k=1,2)
 !!$     read(11,113)(dummy,dummy,(psi(j,k),j=1,nrad),dummy,k=1,nzet)
 
-     read(11,113)(rad(i),i=1,nrad)
-     read(11,*)
-     read(11,*)
-     read(11,113)(zet(i),i=1,nzet)
-     read(11,*)
-     read(11,*)
-     read(11,113)((psi(j,k),j=1,nrad),k=1,nzet)
+  read(11,113)(rad(i),i=1,nrad)
+  read(11,*)
+  read(11,*)
+  read(11,113)(zet(i),i=1,nzet)
+  read(11,*)
+  read(11,*)
+  read(11,113)((psi(j,k),j=1,nrad),k=1,nzet)
 
 !!$     do k=1,nzet
 !!$        write(41,*)(psi(j,k),j=1,nrad)
 !!$     enddo
-    close(11)
-    return
+  close(11)
+  return
 
 111  format(12x,i3)
 112  format(12x,f21.2)
@@ -435,13 +394,15 @@ end subroutine read_eqfile0
 subroutine read_dimeq1(nwEQD,nhEQD)
   use input_files
   implicit none
-  integer :: nwEQD, nhEQD,i
-  integer :: idum
-  character*10 case(6)
+
+  integer, intent(out) :: nwEQD, nhEQD
+
+  integer :: i, idum
+  character(len=10) :: dummy(6)
 !
-     open(unit=iunit,file=trim(gfile),status='old',action='read')
-     read(iunit,2000)(case(i),i=1,6),idum,nwEQD,nhEQD
-     close(iunit)
+  open(unit=iunit,file=trim(gfile),status='old',action='read')
+  read(iunit,2000)(dummy(i),i=1,6),idum,nwEQD,nhEQD
+  close(iunit)
   return
 
 2000  format(6a8,3i4)
@@ -453,57 +414,60 @@ end subroutine read_dimeq1
 subroutine read_eqfile1(nwEQD,nhEQD,psiSep, bt0, rzero, rad, zet, psiRZ)
   use input_files
   implicit none
-  integer :: nwEQD, nhEQD
+
+  integer, intent(inout) :: nwEQD, nhEQD
+  real (kind=8), intent(out) :: bt0, rzero, psiSep
+  real (kind=8), intent(out) :: rad(nwEQD), zet(nhEQD)
+  real (kind=8), dimension(nwEQD,nhEQD), intent(out) :: psiRZ
+
   integer :: gunit, idum
-  character*10 case(6)
+  character(len=10) :: dummy(6)
   integer :: i,j
   real (kind=8) :: xdim,zdim,r1,zmid,rmaxis,zmaxis,xdum
-  real (kind=8) :: bt0, rzero, plas_cur, psiAxis, psiSep
+  real (kind=8) :: plas_cur, psiAxis
   real (kind=8), dimension(nwEQD) :: fpol,pres,ffprim,pprime,qpsi
-  real (kind=8), dimension(nwEQD,nhEQD) :: psiRZ
-  real (kind=8) :: rad(nwEQD), zet(nhEQD)
 
   integer :: n_bndyxy,nlimEQD
   real (kind=8), dimension(:), allocatable :: LCFS, limEQD
 
-      gunit=iunit
+  gunit=iunit
 
-      open(unit=gunit,file=trim(gfile),status='old',action='read')
+  open(unit=gunit,file=trim(gfile),status='old',action='read')
 
 ! Equilibrium Parameters
-      read(gunit,2000)(case(i),i=1,6),idum,nwEQD,nhEQD
-      write(*,*) 'READ_EQFILE1: ',trim(gfile),nwEQD,nhEQD
-      read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
-      write(*,*) xdim, zdim, rzero, r1, zmid
-      read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
-      write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
-      read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
-      write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
-      read(gunit,2010,end=55,err=250)zmaxis,xdum,psiSep,xdum,xdum
-      write(*,*) zmaxis,xdum,psiSep,xdum,xdum
-      read(gunit,2010,end=55,err=250)(fpol(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)(pres(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)(ffprim(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)(pprime(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)((psiRZ(i,j),i=1,nwEQD),j=1,nhEQD)
-      read(gunit,2010,end=55,err=250)(qpsi(i),i=1,nwEQD)
-      print *, 'Equilibrium Done.', trim(gfile)
+  read(gunit,2000)(dummy(i),i=1,6),idum,nwEQD,nhEQD
+  write(*,*) 'READ_EQFILE1: ',trim(gfile),nwEQD,nhEQD
+  read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
+  write(*,*) xdim, zdim, rzero, r1, zmid
+  read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
+  write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
+  read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
+  write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
+  read(gunit,2010,end=55,err=250)zmaxis,xdum,psiSep,xdum,xdum
+  write(*,*) zmaxis,xdum,psiSep,xdum,xdum
+  read(gunit,2010,end=55,err=250)(fpol(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)(pres(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)(ffprim(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)(pprime(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)((psiRZ(i,j),i=1,nwEQD),j=1,nhEQD)
+  read(gunit,2010,end=55,err=250)(qpsi(i),i=1,nwEQD)
+  print *, 'Equilibrium Done.', trim(gfile)
 ! Boundary Data
-      read(gunit,*,end=55,err=250)n_bndyxy,nlimEQD
+  read(gunit,*,end=55,err=250)n_bndyxy,nlimEQD
 
-      if (n_bndyxy > 0) then
-        allocate(LCFS(2*n_bndyxy))
-        read(gunit,2010,end=55,err=250)(LCFS(i),i=1,2*n_bndyxy)
-      end if
+  if (n_bndyxy > 0) then
+    allocate(LCFS(2*n_bndyxy))
+    read(gunit,2010,end=55,err=250)(LCFS(i),i=1,2*n_bndyxy)
+  end if
 
-      if (nlimEQD > 0) then
-        allocate(limEQD(2*nlimEQD))
-        read(gunit,2010,end=55,err=250)(limEQD(i),i=1,2*nlimEQD)
-      end if
+  if (nlimEQD > 0) then
+    allocate(limEQD(2*nlimEQD))
+    read(gunit,2010,end=55,err=250)(limEQD(i),i=1,2*nlimEQD)
+  end if
 !      print *, 'Boundary Done.'
-      close(gunit)
+  close(gunit)
 
-      call set_eqcoords(nwEQD,nhEQD,xdim,zdim,r1,zmid,rad,zet)
+  call set_eqcoords(nwEQD,nhEQD,xdim,zdim,r1,zmid,rad,zet)
   return
 
 2000  format(6a8,3i4)
@@ -517,51 +481,55 @@ end subroutine read_eqfile1
 subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
   use input_files
   implicit none
-  integer :: nwEQD, nhEQD
+
+  integer, intent(inout) :: nwEQD, nhEQD
+  real (kind=8), intent(out) :: bt0, rzero, psiAxis, psiSep
+  real (kind=8), dimension(nwEQD), intent(out) :: fpol
+  real (kind=8), intent(out) :: rad(nwEQD), zet(nhEQD)
+  real (kind=8), dimension(nwEQD,nhEQD), intent(out) :: psiRZ
+
   integer :: gunit, idum
-  character*10 case(6)
+  character(len=10) :: dummy(6)
   integer :: i,j
   real (kind=8) :: xdim,zdim,r1,zmid,rmaxis,zmaxis,xdum
-  real (kind=8) :: bt0, rzero, plas_cur, psiAxis, psiSep
-  real (kind=8), dimension(nwEQD) :: fpol,pres,ffprim,pprime,qpsi
-  real (kind=8), dimension(nwEQD,nhEQD) :: psiRZ
-  real (kind=8) :: rad(nwEQD), zet(nhEQD)
+  real (kind=8) :: plas_cur
+  real (kind=8), dimension(nwEQD) :: pres,ffprim,pprime,qpsi
 
   integer :: n_bndyxy,nlimEQD
   real (kind=8), dimension(:), allocatable :: LCFS, limEQD
 
-      gunit=iunit
+  gunit=iunit
 
-      open(unit=gunit,file=trim(gfile),status='old',action='read')
+  open(unit=gunit,file=trim(gfile),status='old',action='read')
 
 ! Equilibrium Parameters
-      read(gunit,2000)(case(i),i=1,6),idum,nwEQD,nhEQD
-      write(*,*) 'READ_EQFILE1: ',trim(gfile),nwEQD,nhEQD
-      read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
-      write(*,*) xdim, zdim, rzero, r1, zmid
-      read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
-      write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
-      read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
-      write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
-      read(gunit,2010,end=55,err=250)zmaxis,xdum,psiSep,xdum,xdum
-      write(*,*) zmaxis,xdum,psiSep,xdum,xdum
-      read(gunit,2010,end=55,err=250)(fpol(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)(pres(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)(ffprim(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)(pprime(i),i=1,nwEQD)
-      read(gunit,2010,end=55,err=250)((psiRZ(i,j),i=1,nwEQD),j=1,nhEQD)
-      read(gunit,2010,end=55,err=250)(qpsi(i),i=1,nwEQD)
-      print *, 'Equilibrium Done.', trim(gfile)
+  read(gunit,2000)(dummy(i),i=1,6),idum,nwEQD,nhEQD
+  write(*,*) 'READ_EQFILE1: ',trim(gfile),nwEQD,nhEQD
+  read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
+  write(*,*) xdim, zdim, rzero, r1, zmid
+  read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
+  write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
+  read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
+  write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
+  read(gunit,2010,end=55,err=250)zmaxis,xdum,psiSep,xdum,xdum
+  write(*,*) zmaxis,xdum,psiSep,xdum,xdum
+  read(gunit,2010,end=55,err=250)(fpol(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)(pres(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)(ffprim(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)(pprime(i),i=1,nwEQD)
+  read(gunit,2010,end=55,err=250)((psiRZ(i,j),i=1,nwEQD),j=1,nhEQD)
+  read(gunit,2010,end=55,err=250)(qpsi(i),i=1,nwEQD)
+  print *, 'Equilibrium Done.', trim(gfile)
 ! Boundary Data
-      read(gunit,*,end=55,err=250)n_bndyxy,nlimEQD
-      allocate(LCFS(2*n_bndyxy))
-      allocate(limEQD(2*nlimEQD))
-      read(gunit,2010,end=55,err=250)(LCFS(i),i=1,2*n_bndyxy)
-      read(gunit,2010,end=55,err=250)(limEQD(i),i=1,2*nlimEQD)
-!      print *, 'Boundary Done.'
-      close(gunit)
+  read(gunit,*,end=55,err=250)n_bndyxy,nlimEQD
+  allocate(LCFS(2*n_bndyxy))
+  allocate(limEQD(2*nlimEQD))
+  read(gunit,2010,end=55,err=250)(LCFS(i),i=1,2*n_bndyxy)
+  read(gunit,2010,end=55,err=250)(limEQD(i),i=1,2*nlimEQD)
+! print *, 'Boundary Done.'
+  close(gunit)
 
-      call set_eqcoords(nwEQD,nhEQD,xdim,zdim,r1,zmid,rad,zet)
+  call set_eqcoords(nwEQD,nhEQD,xdim,zdim,r1,zmid,rad,zet)
   return
 
 2000  format(6a8,3i4)
@@ -574,16 +542,20 @@ end subroutine read_eqfile2
 
 subroutine set_eqcoords(nwEQD,nhEQD,xdim,zdim,r1,zmid,rad,zet)
   implicit none
-  integer :: j,k,nwEQD,nhEQD
-  real (kind=8) :: xdim,zdim,r1,zmid,z1
-  real (kind=8) :: rad(nwEQD), zet(nhEQD)
+
+  integer, intent(in) :: nwEQD, nhEQD
+  real (kind=8), intent(in) :: xdim, zdim, r1, zmid
+  real (kind=8), intent(out) :: rad(nwEQD), zet(nhEQD)
+
+  integer :: j,k
+  real (kind=8) :: z1
 
   do j=1,nwEQD
     rad(j) = r1 + (j-1)*(xdim/(nwEQD-1))
   end do
 
-  z1 = zmid - zdim/2.0		! check this definition wrt zmid
-  do k=1,nhEQD			! runov chooses lower, probe chooses upper
+  z1 = zmid - zdim/2.0 ! check this definition wrt zmid
+  do k=1,nhEQD ! runov chooses lower, probe chooses upper
     zet(k) = z1 + (k-1)*(zdim/(nhEQD-1))
   end do
 
@@ -678,12 +650,12 @@ subroutine field_c(rrr,ppp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
     icall_c = 1
   endif
   !------- end first call ----------------------------------------------
-!
-print *,'field_divfree'
+
+  print *,'field_divfree'
   call field_divfree(rrr,ppp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ    &
                     ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
-print *,'end field_divfree'
-!
+  print *,'end field_divfree'
+
   return
 end subroutine field_c
 
@@ -693,9 +665,11 @@ end subroutine field_c
 subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
 !
   use input_files
-  parameter(nr=64,np=37,nz=64)
+  integer, parameter :: nr=64, np=37, nz=64
+  integer, parameter :: mp=4 ! power of Lagrange's polynomial =3
+
   real, parameter :: pi=3.14159265358979d0
-  parameter (mp=4) ! power of Lagrange's polynomial =3
+
   dimension Bz(nr,np,nz)
   dimension Br(nr,np,nz),Bp(nr,np,nz)
   dimension rad(nr), phi(np), zet(nz)
@@ -767,10 +741,13 @@ subroutine read_field1(icftype,nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
   implicit none
 !
   double precision, parameter :: pi=3.14159265358979d0
-!
-  integer :: nr,np,nz,i,j,k,icftype
-  double precision :: rmin,pmin,zmin,rmax,pmax,zmax,xdim,zdim,zmid,dum
-  double precision, dimension(nr,np,nz) :: Br,Bp,Bz
+
+  integer, intent(in) :: icftype, nr, np, nz
+  double precision, intent(out) :: rmin, rmax, pmin, pmax, zmin, zmax
+  double precision, dimension(nr,np,nz), intent(out) :: Br, Bp, Bz
+
+  integer :: i,j,k
+  double precision :: xdim,zdim,zmid,dum
 !
   open(iunit,file=trim(pfile),status='old',action='read')
   read(iunit,*)
@@ -789,14 +766,14 @@ subroutine read_field1(icftype,nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
      do k=nz,1,-1  !reverse order of probe data
         do i=1,nr
            if(icftype.eq.1) then
-!					Old Format
+             ! Old Format
              read(iunit,*) Br(i,j,k),Bp(i,j,k),Bz(i,j,k)
            elseif(icftype.eq.2) then
-!					New Format
+             ! New Format
              read(iunit,*) dum,dum,dum,Br(i,j,k),Bp(i,j,k),Bz(i,j,k),dum,dum
            endif
-!
-				  !Convert to CGS
+
+           !Convert to CGS
            Br(i,j,k) = Br(i,j,k)*1.d4
            Bp(i,j,k) = Bp(i,j,k)*1.d4
            Bz(i,j,k) = Bz(i,j,k)*1.d4
@@ -833,12 +810,17 @@ end subroutine read_field1
 subroutine stretch_coords(r,z,rm,zm)
   use input_files, only : iunit,convexfile
   implicit none
+
+  real(kind=8), intent(in) :: r, z
+  real(kind=8), intent(out) :: rm, zm
+
   integer icall, i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrzmx=100 ! possible max. of nrz
   integer, parameter :: nrhotht=360
+  integer :: iflag
   real(kind=8), parameter :: pi = 3.14159265358979d0
-  real(kind=8) R0,Rw, Zw, htht, Rl, Zl, a, b, r, z, rm, zm, rho, tht, rho_c, delta
-  real(kind=8), dimension(100):: rad_w, zet_w ! points "convex wall"
+  real(kind=8) R0,Rw, Zw, htht, Rl, Zl, a, b, rho, tht, rho_c, delta, dummy
+  real(kind=8), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
   real(kind=8), dimension(:), allocatable :: rho_w, tht_w
   real(kind=8), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
   data icall /0/, delta/1./
@@ -857,20 +839,49 @@ subroutine stretch_coords(r,z,rm,zm)
 10   continue
      close(iunit)
 
-     nrz = nrz+1
-     rad_w(nrz) = rad_w(1)
-     zet_w(nrz) = zet_w(1)
-     allocate(rho_w(nrz), tht_w(nrz))
+     allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
      R0 = (maxval(rad_w(1:nrz)) +  minval(rad_w(1:nrz)))*0.5
      do i=1,nrz
         rho_w(i) = sqrt( (rad_w(i)-R0)**2 + zet_w(i)**2 )
         tht_w(i) = atan2(zet_w(i),(rad_w(i)-R0))
         if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + 2.*pi
      enddo
+
+    ! make sure points are ordered according to tht_w.
+    do
+      iflag = 0
+      do i=1,nrz-1
+        if (tht_w(i) > tht_w(i+1)) then
+          iflag = 1
+          dummy = rad_w(i+1)
+          rad_w(i+1) = rad_w(i)
+          rad_w(i) = dummy
+          dummy = zet_w(i+1)
+          zet_w(i+1) = zet_w(i)
+          zet_w(i) = dummy
+          dummy = rho_w(i+1)
+          rho_w(i+1) = rho_w(i)
+          rho_w(i) = dummy
+          dummy = tht_w(i+1)
+          tht_w(i+1) = tht_w(i)
+          tht_w(i) = dummy
+        end if
+      end do
+      if (iflag == 0) exit
+    end do
+    rad_w(0) = rad_w(nrz)
+    zet_w(0) = zet_w(nrz)
+    tht_w(0) = tht_w(nrz)-2.d0*pi
+    rho_w(0) = rho_w(nrz)
+    rad_w(nrz+1) = rad_w(1)
+    zet_w(nrz+1) = zet_w(1)
+    tht_w(nrz+1) = tht_w(1)+2.d0*pi
+    rho_w(nrz+1) = rho_w(1)
+
      htht = 2.*pi/(nrhotht-1)
      do i=2,nrhotht
         tht_wall(i) = htht*(i-1)
-        do j=1,nrz-1
+        do j=0,nrz
            if(tht_wall(i).ge.tht_w(j) .and. tht_wall(i).le.tht_w(j+1)) then
               if( abs((rad_w(j+1) - rad_w(j))/rad_w(j)) .gt. 1.e-3) then
                  a = (zet_w(j+1) - zet_w(j))/(rad_w(j+1) - rad_w(j))
@@ -897,7 +908,11 @@ subroutine stretch_coords(r,z,rm,zm)
   rm = r
   zm = z
   rho = sqrt((r-R0)**2 + z**2)
-  tht = atan2(z,(r-R0))
+  if (z.eq.0.d0.and.r-r0.eq.0.d0) then
+    tht = 0.d0
+  else
+    tht = atan2(z,(r-R0))
+  end if
   if(tht .lt. 0.) tht = tht + 2.*pi
   i = modulo(int(tht/htht), nrhotht-1) + 1
   rho_c = (rho_wall(i+1) - rho_wall(i))/(tht_wall(i+1) - tht_wall(i))   &
@@ -914,20 +929,22 @@ end subroutine stretch_coords
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine inthecore(R,Z)
+subroutine inthecore(R,Z)
 !
   use inthecore_mod
   use input_files,  only : iunit,fluxdatapath
   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
 !
   implicit none
-!
+
+  double precision, intent(in) :: R,Z
+
   integer :: i
-  double precision :: R,Z,rho2,thet,scalp,xx,yy
+  double precision :: rho2,thet,scalp,xx,yy
   double precision :: weight,dweight,ddweight
   double precision, dimension(4) :: x,y
   double precision, dimension(:), allocatable :: ri,zi
-!
+
   if(prop) then
     prop=.false.
     open(iunit,file=trim(fluxdatapath)//'/separ.dat')
@@ -1027,17 +1044,19 @@ end subroutine stretch_coords
   d2vacdz2=-d2pladz2
 !
   return
-  end subroutine inthecore
+end subroutine inthecore
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine localizer(x1,x2,x,weight,dweight,ddweight)
+subroutine localizer(x1,x2,x,weight,dweight,ddweight)
 !
   implicit none
 !
   double precision, parameter :: c1=-6.283185307179586d0,c2=-1.414213562373095d0
 !
-  double precision :: x1,x2,x,t,weight,dweight,ddweight,exin
+  double precision, intent(in) :: x1,x2,x
+  double precision, intent(out) :: weight,dweight,ddweight
+  double precision :: t,exin
 !
   t=(x-x1)/(x2-x1)
 !
@@ -1062,16 +1081,18 @@ end subroutine stretch_coords
   ddweight=ddweight/(x2-x1)**2
 !
   return
-  end subroutine localizer
+end subroutine localizer
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine window_filter(n,nw,arr_in,arr_out)
+subroutine window_filter(n,nw,arr_in,arr_out)
 !
   implicit none
 !
-  integer :: n,nw,nwa,i
-  double precision, dimension(n) :: arr_in,arr_out
+  integer, intent(in) :: n,nw
+  double precision, dimension(n), intent(in) :: arr_in
+  double precision, dimension(n), intent(out) :: arr_out
+  integer :: nwa,i
 !
   do i=1,n
     nwa=min(nw,i-1,n-i)
@@ -1079,7 +1100,7 @@ end subroutine stretch_coords
   enddo
 !
   return
-  end subroutine window_filter
+end subroutine window_filter
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -1090,11 +1111,14 @@ subroutine read_field2(icftype,nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
   implicit none
 !
   double precision, parameter :: pi=3.14159265358979d0
-!
-  integer :: nr,np,nz,i,j,k,icftype
-  double precision :: rmin,pmin,zmin,rmax,pmax,zmax,xdim,zdim,zmid,dum
-  double precision, dimension(nr,np,nz) :: Br,Bp,Bz
-!
+
+  integer, intent(in) :: icftype, nr, np, nz
+  double precision, intent(out) :: rmin, rmax, pmin, pmax, zmin, zmax
+  double precision, dimension(nr,np,nz), intent(out) :: Br,Bp,Bz
+
+  integer :: i,j,k
+  double precision :: xdim,zdim,zmid,dum
+
   open(iunit,file=trim(pfile),status='old',action='read')
 
 !---Input B      -->T = V*s/m/m
@@ -1144,7 +1168,7 @@ subroutine read_sizes(nr,np,nz)
   use input_files, only : iunit,pfile
 !
   implicit none
-  integer :: nr,np,nz
+  integer, intent(out) :: nr,np,nz
 !
   open(iunit,file=pfile)
   read(iunit,*) nr,np,nz
@@ -1158,9 +1182,10 @@ subroutine read_field4(nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
 !
   implicit none
 !
-  integer :: nr,np,nz,i,j,k
-  double precision :: rmin,rmax,pmin,pmax,zmin,zmax
-  double precision, dimension(nr,np,nz)       :: Br,Bp,Bz
+  integer, intent(inout) :: nr,np,nz
+  integer :: i,j,k
+  double precision, intent(out) :: rmin,rmax,pmin,pmax,zmin,zmax
+  double precision, dimension(nr,np,nz), intent(out) :: Br,Bp,Bz
 !
   open(iunit,file=pfile) 
   read(iunit,*) nr,np,nz
@@ -1180,7 +1205,7 @@ end subroutine read_field4
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine spline_fpol
+subroutine spline_fpol
 !
   use field_eq_mod, only : nrad,hfpol,splfpol
 !
@@ -1202,19 +1227,22 @@ end subroutine read_field4
 !
   deallocate(b,c,d,e,f)
 !
-  end subroutine spline_fpol
+end subroutine spline_fpol
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine splint_fpol(x,f,fp)
+subroutine splint_fpol(x,f,fp)
 !
   use field_eq_mod, only : nrad,hfpol,splfpol
 !
   implicit none
-!
+
+  double precision, intent(in) :: x
+  double precision, intent(out) :: f,fp
+
   integer :: j,k
-  double precision :: x,f,fp,dx
-!
+  double precision :: dx
+
   k=max(0,int(x/hfpol))
   dx=x-k*hfpol
   k=k+1
@@ -1226,4 +1254,4 @@ end subroutine read_field4
     fp=fp*dx+splfpol(j+1,k)*dble(j+1)
   enddo
 !
-  end subroutine splint_fpol
+end subroutine splint_fpol
