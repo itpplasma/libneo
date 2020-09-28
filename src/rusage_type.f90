@@ -48,4 +48,13 @@ contains
     write(*,*) 'voluntary context switches: ', usage%ru_nvcsw
     write(*,*) 'involuntary context switches: ', usage%ru_nivcsw
   end subroutine write_fortran_rusage
+
+  subroutine write_fortran_rusage_short(usage)
+    type(fortran_rusage) :: usage
+
+    write(*,*) 'user CPU time used: ', usage%ru_utimes, 's'
+    write(*,*) 'system CPU time used: ', usage%ru_stimes, 's'
+    write(*,*) 'maximum resident set size: ', usage%ru_maxrss
+  end subroutine write_fortran_rusage_short
+
 end module rusage_type
