@@ -14,6 +14,7 @@ endif ()
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})
 
 ### Find HDF5
+cmake_policy(SET CMP0074 NEW)
 find_package(HDF5 COMPONENTS Fortran Fortran_HL) 
 if (NOT ${HDF5_FOUND})
 	message(FATAL_ERROR "HDF5 not found, please set environment variable HDF5_ROOT to the correct path")
