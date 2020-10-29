@@ -29,6 +29,8 @@ def build_and_run(
     status_build = -1
     status_run = -1
     try:
+        chdir(srcdir)
+        system('git show --pretty=oneline -s')
         chdir(builddir)
         with open('build.ninja', 'w') as ninjafile:
             ninja = ninja_syntax.Writer(ninjafile)
