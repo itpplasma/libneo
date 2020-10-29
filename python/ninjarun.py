@@ -5,26 +5,35 @@ import ninja_syntax
 # see https://gist.github.com/syoyo/778d2294fd5534e0f923 for examples
 # on how to use ninja_syntax.py
 
-def build_and_run(
-    target, sources, srcdir=None, builddir=None, rundir=None, config_file=None
-    ):
-    fc = 'gfortran'  # TODO: make configurable in dict or explicitly
+def read_config(config_file):
+    return f90nml.read(config_file)['config']
 
+def build_and_run(
+    target, sources, srcdir=None, builddir=None, rundir=None, config=None,
+    fc = None, fflags = ''
+    ):
+
+    if fc is None:
+        fc = 'gfortran'
     if rundir is None:
         rundir = getcwd()
     if builddir is None:
         builddir = path.abspath(path.join(rundir, '..', 'BUILD'))
     if srcdir is None:
         srcdir = path.abspath(path.join(rundir, '..', 'SRC'))
-    if config_file is None:
-        config_file = f'{target}.in'
+    if config is None:
+        config = read_config(f'{target}.in')
 
-    config = f90nml.read(config_file)['config']
     exe = f'{target}.x'
 
     sourcepaths = []
+    objpaths = []
     for k in range(len(sources)):
-        sourcepaths.append(path.join(srcdir, sources[k].format_map(config)))
+        sourcefile = sources[k].format_map(config)
+        base, ext = path.splitext(path.basename(sourcefile))
+        objfile = f'{base}.o'
+        sourcepaths.append(path.join(srcdir, sourcefile))
+        objpaths.append(path.join(builddir, objfile))
 
     status_build = -1
     status_run = -1
@@ -34,8 +43,11 @@ def build_and_run(
         chdir(builddir)
         with open('build.ninja', 'w') as ninjafile:
             ninja = ninja_syntax.Writer(ninjafile)
-            ninja.rule('fc', f'{fc} $in -o $out')
-            ninja.build(exe, 'fc', sourcepaths)
+            ninja.rule('compile', f'{fc} -o $out -c $in {fflags}')
+            ninja.rule('link', f'{fc} -o $out $in {fflags}')
+            for k, source in enumerate(sourcepaths):
+                ninja.build(objpaths[k], 'compile', source)
+            ninja.build(exe, 'link', objpaths)
         status_build = system('ninja')
 
     finally:
