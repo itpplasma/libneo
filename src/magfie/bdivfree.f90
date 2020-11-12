@@ -1034,8 +1034,8 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
 
   integer, intent(in) :: n
   double precision, intent(in) :: h
-  double precision, dimension(n), intent(in) :: a
-  double precision, dimension(n), intent(out) :: b, c, d, e, f
+  complex(8), dimension(n), intent(in) :: a
+  complex(8), dimension(n), intent(out) :: b, c, d, e, f
 
   integer :: i,ip1,ip2
   double precision :: rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
