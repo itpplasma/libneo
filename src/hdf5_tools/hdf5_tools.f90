@@ -340,13 +340,13 @@ contains
     integer(HID_T) :: grp_id
 
     sep = index(dataset, '/')
-    if (sep > 0) then
+    if (sep > 1) then
        if (h5_exists(h5id, dataset(:sep-1))) then
           call h5_open_group(h5id, dataset(:sep-1), grp_id)
        else
           call h5_define_group(h5id, dataset(:sep-1), grp_id)
        end if
-       call h5_create_parent_groups(grp_id, dataset(sep+1:))
+       if (len_trim(dataset) > sep) call h5_create_parent_groups(grp_id, dataset(sep+1:))
        call h5_close_group(grp_id)
     end if
   end subroutine h5_create_parent_groups
