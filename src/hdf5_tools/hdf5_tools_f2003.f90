@@ -62,6 +62,7 @@ contains
     type(C_PTR)                              :: f_ptr
     integer(HID_T)                           :: h5_kind_type_i
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -107,6 +108,7 @@ contains
     type(C_PTR)                              :: f_ptr
     integer(HID_T)                           :: h5_kind_type_i
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
