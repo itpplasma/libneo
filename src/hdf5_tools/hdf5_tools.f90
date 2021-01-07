@@ -28,6 +28,11 @@ module hdf5_tools
   integer :: h5error
 
   !**********************************************************
+  ! Overwrite existing datasets with h5_add?
+  !**********************************************************
+  logical :: h5overwrite = .false.
+
+  !**********************************************************
   ! Wrapper functions to add content
   !**********************************************************
   interface h5_add
@@ -590,6 +595,7 @@ contains
     integer(HSIZE_T)               :: dims(1) = (/0/)
     integer                        :: internalvalue
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     internalvalue = 0
     if (value) internalvalue = 1
     call h5ltmake_dataset_int_f(h5id, dataset, 0,dims, (/internalvalue/), h5error)
@@ -614,6 +620,7 @@ contains
     character(len=*), optional     :: unit
     integer(HSIZE_T)               :: dims(1) = (/0/)
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     call h5ltmake_dataset_int_f(h5id, dataset, 0,dims, (/value/), h5error)
     if (present(comment)) then
        call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
@@ -639,6 +646,7 @@ contains
     integer(SIZE_T)                   :: size
     integer                           :: rank = 1
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -670,6 +678,7 @@ contains
     integer(SIZE_T)                   :: size
     integer                           :: rank = 1
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     if ( allocated(value) ) then
        allocate(dims(rank))
        dims = ubound(value) - lbound(value) + 1
@@ -712,6 +721,7 @@ contains
     integer(SIZE_T)                   :: size
     integer                           :: rank = 2
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -743,6 +753,7 @@ contains
     integer(SIZE_T)                   :: size
     integer                           :: rank = 2
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     if ( allocated(value) ) then
        allocate(dims(rank))
        dims = ubound(value) - lbound(value) + 1
@@ -904,6 +915,7 @@ contains
     character(len=*), optional     :: unit
     integer(HSIZE_T)               :: dims(1) = (/0/)
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     call h5ltmake_dataset_double_f(h5id, dataset, 0, dims, (/value/), h5error)
     if (present(comment)) then
        call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
@@ -930,6 +942,7 @@ contains
     integer(SIZE_T)                   :: size
     integer                           :: rank = 1
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -961,6 +974,7 @@ contains
     integer(SIZE_T)                   :: size
     integer                           :: rank = 1
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     if ( allocated(value) ) then
        allocate(dims(rank))
        dims = ubound(value) - lbound(value) + 1
@@ -1290,6 +1304,7 @@ contains
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 2
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -1322,6 +1337,7 @@ contains
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 3
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -1354,6 +1370,7 @@ contains
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 4
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -1386,6 +1403,7 @@ contains
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 5
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     allocate(dims(rank))
     dims = ubounds - lbounds + 1
     size = rank
@@ -1422,6 +1440,7 @@ contains
     integer(HID_T)                              :: type_id
     integer(HID_T)                              :: dspace_id, dset_id, dt_re_id, dt_im_id
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     !**********************************************************
     ! Get sizes
     !**********************************************************
@@ -1509,6 +1528,7 @@ contains
     integer(HID_T)                             :: type_id
     integer(HID_T)                              :: dspace_id, dset_id, dt_re_id, dt_im_id
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     !**********************************************************
     ! Get sizes
     !**********************************************************
@@ -1588,6 +1608,7 @@ contains
     character(len=*), optional     :: comment
     character(len=*), optional     :: unit
 
+    if (h5overwrite) call h5_delete(h5id, dataset)
     call h5ltmake_dataset_string_f(h5id, dataset, value, h5error)
     if (present(comment)) then
        call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
