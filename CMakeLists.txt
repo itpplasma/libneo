@@ -47,6 +47,7 @@ add_subdirectory(src/hdf5_tools)
 
 # Main goal (of the created build file): creating the library file.
 add_library(libneo SHARED ${SOURCE_FILES})
+target_link_libraries(libneo lapack)
 
 add_library(mc_efit SHARED
   src/magfie/polylag_3.f
