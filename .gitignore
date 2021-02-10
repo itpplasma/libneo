@@ -44,3 +44,6 @@ __pycache__
 
 # Ignore version files created by build system.
 src/*/*/version.f90
+
+# Ignore macOS system files
+.DS_Store
