@@ -72,6 +72,7 @@ module hdf5_tools
      module procedure h5_get_double_4_hyperslab
      module procedure h5_get_complex_1
      module procedure h5_get_complex_2
+     module procedure h5_get_string
      module procedure h5_get_logical
   end interface h5_get
 
@@ -1640,5 +1641,17 @@ contains
 
     call h5_check()
   end subroutine h5_add_string
+
+  !**********************************************************
+  ! Get string
+  !**********************************************************
+  subroutine h5_get_string(h5id, dataset, value)
+    integer(HID_T), intent(in)     :: h5id
+    character(len=*), intent(in)   :: dataset
+    character(len=*), intent(out)  :: value
+
+    call h5ltread_dataset_string_f(h5id, dataset, value, h5error)
+    call h5_check()
+  end subroutine h5_get_string
 
 end module hdf5_tools
