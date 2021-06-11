@@ -1649,8 +1649,11 @@ contains
     integer(HID_T), intent(in)     :: h5id
     character(len=*), intent(in)   :: dataset
     character(len=*), intent(out)  :: value
+    integer                        :: k
 
     call h5ltread_dataset_string_f(h5id, dataset, value, h5error)
+    k = index(value, char(0))
+    if (k > 0) value(k:) = ' '  ! pad with blanks starting from null byte
     call h5_check()
   end subroutine h5_get_string
 
