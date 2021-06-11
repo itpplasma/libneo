@@ -4,7 +4,7 @@ FC       = gfortran
 
 #OPTS= -M OBJS --chk a,e,s,u,x --trace --trap -g
 #OPTS= -M OBJS -O
-OPTS= -J OBJS -O
+OPTS= -fbacktrace -fcheck=all -ffpe-trap=invalid,zero,overflow -Wall -Wextra -J OBJS -O
 
 OBJS =  OBJS/field_divB0.o \
 	OBJS/bdivfree.o \
