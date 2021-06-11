@@ -1172,14 +1172,13 @@ contains
     integer(HID_T), intent(in)                     :: h5id
     character(len=*), intent(in)                   :: dataset
     complex(kind=dcp), dimension(:), intent(inout) :: val
-    real(kind=dpp), dimension(:), allocatable      :: temp_val
     integer                                        :: lb1, ub1
     integer, parameter                             :: rank = 1
     integer(HSIZE_T), dimension(rank)              :: dims
     integer(SIZE_T)                                :: re_size, im_size, t_size
     integer(SIZE_T)                                :: offset
     integer(HID_T)                                 :: type_id
-    integer(HID_T)                                 :: dset_id
+    integer(HID_T)                                 :: dset_id, dt_re_id, dt_im_id
 
     !**********************************************************
     ! Get sizes
@@ -1198,21 +1197,33 @@ contains
     call h5tinsert_f(type_id, 'imag', offset, H5T_NATIVE_DOUBLE, h5error)
 
     !**********************************************************
+    ! Create sub datasets
+    !**********************************************************
+    call h5tcreate_f(H5T_COMPOUND_F, re_size, dt_re_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_re_id, "real", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    call h5tcreate_f(H5T_COMPOUND_F, im_size, dt_im_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_im_id, "imag", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    !**********************************************************
     ! Get dimension of value to be retrieved
     !**********************************************************
     call h5_get_bounds(h5id, dataset, lb1, ub1)
     dims = (/ ub1 - lb1 + 1 /)
-    allocate(temp_val(1:2*product(dims)))
 
     !**********************************************************
-    ! Write data
+    ! Read data
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
-    call h5dread_f(dset_id, type_id, temp_val, dims, h5error)
-    val(:) = cmplx(temp_val(1:2*product(dims)-1:2), temp_val(2:2*product(dims):2), dpp)
+    call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
+    call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
 
     call h5dclose_f(dset_id, h5error)
     call h5tclose_f(type_id, h5error)
+    call h5tclose_f(dt_re_id, h5error)
+    call h5tclose_f(dt_im_id, h5error)
 
     call h5_check()
   end subroutine h5_get_complex_1
@@ -1224,14 +1235,13 @@ contains
     integer(HID_T), intent(in)                       :: h5id
     character(len=*), intent(in)                     :: dataset
     complex(kind=dcp), dimension(:,:), intent(inout) :: val
-    real(kind=dpp), dimension(:), allocatable        :: temp_val
     integer                                          :: lb1, ub1, lb2, ub2
     integer, parameter                               :: rank = 2
     integer(HSIZE_T), dimension(rank)                :: dims
     integer(SIZE_T)                                  :: re_size, im_size, t_size
     integer(SIZE_T)                                  :: offset
     integer(HID_T)                                   :: type_id
-    integer(HID_T)                                   :: dset_id
+    integer(HID_T)                                   :: dset_id, dt_re_id, dt_im_id
 
     !**********************************************************
     ! Get sizes
@@ -1250,22 +1260,33 @@ contains
     call h5tinsert_f(type_id, 'imag', offset, H5T_NATIVE_DOUBLE, h5error)
 
     !**********************************************************
+    ! Create sub datasets
+    !**********************************************************
+    call h5tcreate_f(H5T_COMPOUND_F, re_size, dt_re_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_re_id, "real", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    call h5tcreate_f(H5T_COMPOUND_F, im_size, dt_im_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_im_id, "imag", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    !**********************************************************
     ! Get dimension of value to be retrieved
     !**********************************************************
     call h5_get_bounds(h5id, dataset, lb1, lb2, ub1, ub2)
     dims = (/ ub1 - lb1 + 1, ub2 - lb2 + 1 /)
-    allocate(temp_val(1:2*product(dims)))
 
     !**********************************************************
-    ! Write data
+    ! Read data
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
-    call h5dread_f(dset_id, type_id, temp_val, dims, h5error)
-    val(:,:) = reshape(cmplx(temp_val(1:2*product(dims)-1:2), &
-         temp_val(2:2*product(dims):2), dpp), dims)
+    call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
+    call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
 
     call h5dclose_f(dset_id, h5error)
     call h5tclose_f(type_id, h5error)
+    call h5tclose_f(dt_re_id, h5error)
+    call h5tclose_f(dt_im_id, h5error)
 
     call h5_check()
   end subroutine h5_get_complex_2
