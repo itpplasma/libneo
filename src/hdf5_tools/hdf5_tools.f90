@@ -1657,4 +1657,25 @@ contains
     call h5_check()
   end subroutine h5_get_string
 
+  !**********************************************************
+  ! Set optional attributes common to (most) fields.
+  !
+  ! Set optional attributes that are common to (most) fields, e.g.
+  ! comment.
+  !**********************************************************
+  subroutine h5_set_optional_attributes(h5id, dataset, comment, unit_)
+    integer(HID_T)                              :: h5id
+    character(len=*)                            :: dataset
+    character(len=*), optional                  :: comment
+    character(len=*), optional                  :: unit_
+
+    if (present(comment)) then
+      call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
+    end if
+    if (present(unit_)) then
+      call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit_, h5error)
+    end if
+
+  end subroutine h5_set_optional_attributes
+
 end module hdf5_tools
