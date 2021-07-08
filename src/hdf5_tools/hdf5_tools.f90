@@ -600,12 +600,7 @@ contains
     internalvalue = 0
     if (value) internalvalue = 1
     call h5ltmake_dataset_int_f(h5id, dataset, 0,dims, (/internalvalue/), h5error)
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
     call h5_check()
 
   end subroutine h5_add_logical
@@ -623,12 +618,7 @@ contains
 
     if (h5overwrite) call h5_delete(h5id, dataset)
     call h5ltmake_dataset_int_f(h5id, dataset, 0,dims, (/value/), h5error)
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
     call h5_check()
 
   end subroutine h5_add_int
@@ -655,12 +645,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
     deallocate(dims)
     call h5_check()
@@ -688,12 +673,7 @@ contains
        call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbound(value), size, h5error)
        call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubound(value), size, h5error)
 
-       if (present(comment)) then
-          call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-       end if
-       if (present(unit)) then
-          call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-       end if
+       call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
        deallocate(dims)
     else
@@ -730,12 +710,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
     deallocate(dims)
     call h5_check()
@@ -763,12 +738,7 @@ contains
        call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbound(value), size, h5error)
        call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubound(value), size, h5error)
 
-       if (present(comment)) then
-          call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-       end if
-       if (present(unit)) then
-          call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-       end if
+       call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
        deallocate(dims)
     else
@@ -821,12 +791,7 @@ contains
 !!$    call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
 !!$    call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 !!$
-!!$    if (present(comment)) then
-!!$       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-!!$    end if
-!!$    if (present(unit)) then
-!!$       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-!!$    end if
+!!$    call h5_set_optional_attributes(h5id, dataset, comment, unit)
 !!$
 !!$    call h5dclose_f(dset_id, h5error)
 !!$    call h5sclose_f(dspace_id, h5error)
@@ -918,12 +883,8 @@ contains
 
     if (h5overwrite) call h5_delete(h5id, dataset)
     call h5ltmake_dataset_double_f(h5id, dataset, 0, dims, (/value/), h5error)
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
     call h5_check()
 
@@ -951,12 +912,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
     deallocate(dims)
     call h5_check()
@@ -984,12 +940,7 @@ contains
        call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbound(value), size, h5error)
        call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubound(value), size, h5error)
 
-       if (present(comment)) then
-          call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-       end if
-       if (present(unit)) then
-          call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-       end if
+       call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
        deallocate(dims)
     else
@@ -1334,12 +1285,8 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+
     deallocate(dims)
 
     call h5_check()
@@ -1367,12 +1314,8 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+
     deallocate(dims)
 
     call h5_check()
@@ -1400,12 +1343,8 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+
     deallocate(dims)
 
     call h5_check()
@@ -1433,12 +1372,8 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+
     deallocate(dims)
 
     call h5_check()
@@ -1515,12 +1450,8 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+
     deallocate(dims)
 
     call h5dclose_f(dset_id, h5error)
@@ -1603,12 +1534,8 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+
     deallocate(dims)
 
     call h5dclose_f(dset_id, h5error)
@@ -1632,12 +1559,8 @@ contains
 
     if (h5overwrite) call h5_delete(h5id, dataset)
     call h5ltmake_dataset_string_f(h5id, dataset, value, h5error)
-    if (present(comment)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
-    end if
-    if (present(unit)) then
-       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
-    end if
+
+    call h5_set_optional_attributes(h5id, dataset, comment, unit)
 
     call h5_check()
   end subroutine h5_add_string
