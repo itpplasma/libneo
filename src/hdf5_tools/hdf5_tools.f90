@@ -873,18 +873,20 @@ contains
   !**********************************************************
   ! Add double scalar
   !**********************************************************
-  subroutine h5_add_double_0(h5id, dataset, value, comment, unit)
+  subroutine h5_add_double_0(h5id, dataset, value, comment, unit, accuracy)
     integer(HID_T)                 :: h5id
     character(len=*)               :: dataset
     double precision               :: value
     character(len=*), optional     :: comment
     character(len=*), optional     :: unit
+    double precision, dimension(1), optional :: accuracy
+
     integer(HSIZE_T)               :: dims(1) = (/0/)
 
     if (h5overwrite) call h5_delete(h5id, dataset)
     call h5ltmake_dataset_double_f(h5id, dataset, 0, dims, (/value/), h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     call h5_check()
 
@@ -893,13 +895,15 @@ contains
   !**********************************************************
   ! Add double array
   !**********************************************************
-  subroutine h5_add_double_1(h5id, dataset, value, lbounds, ubounds, comment, unit)
+  subroutine h5_add_double_1(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
     integer(HID_T)                    :: h5id
     character(len=*)                  :: dataset
     double precision, dimension(:)    :: value
     integer, dimension(:)             :: lbounds, ubounds
     character(len=*), optional        :: comment
     character(len=*), optional        :: unit
+    double precision, dimension(1), optional :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable    :: dims
     integer(SIZE_T)                   :: size
     integer                           :: rank = 1
@@ -912,14 +916,14 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     deallocate(dims)
     call h5_check()
 
   end subroutine h5_add_double_1
 
-  subroutine h5_add_double_1_nobounds(h5id, dataset, value, comment, unit, default)
+  subroutine h5_add_double_1_nobounds(h5id, dataset, value, comment, unit, default, accuracy)
     integer(HID_T)                    :: h5id
     character(len=*)                  :: dataset
     double precision, allocatable, dimension(:)    :: value
@@ -927,6 +931,8 @@ contains
     character(len=*), optional        :: comment
     character(len=*), optional        :: unit
     double precision, optional        :: default
+    double precision, dimension(1), optional :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable    :: dims
     integer(SIZE_T)                   :: size
     integer                           :: rank = 1
@@ -940,7 +946,7 @@ contains
        call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbound(value), size, h5error)
        call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubound(value), size, h5error)
 
-       call h5_set_optional_attributes(h5id, dataset, comment, unit)
+       call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
        deallocate(dims)
     else
@@ -1266,13 +1272,15 @@ contains
   !**********************************************************
   ! Add double matrix
   !**********************************************************
-  subroutine h5_add_double_2(h5id, dataset, value, lbounds, ubounds, comment, unit)
+  subroutine h5_add_double_2(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
     integer(HID_T)                              :: h5id
     character(len=*)                            :: dataset
     double precision, dimension(:,:)            :: value
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
+    double precision, dimension(1), optional    :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 2
@@ -1285,7 +1293,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     deallocate(dims)
 
@@ -1295,13 +1303,15 @@ contains
   !**********************************************************
   ! Add 3-dim double matrix
   !**********************************************************
-  subroutine h5_add_double_3(h5id, dataset, value, lbounds, ubounds, comment, unit)
+  subroutine h5_add_double_3(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
     integer(HID_T)                              :: h5id
     character(len=*)                            :: dataset
     double precision, dimension(:,:,:)          :: value
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
+    double precision, dimension(1), optional    :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 3
@@ -1314,7 +1324,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     deallocate(dims)
 
@@ -1324,13 +1334,15 @@ contains
   !**********************************************************
   ! Add 4-dim double matrix
   !**********************************************************
-  subroutine h5_add_double_4(h5id, dataset, value, lbounds, ubounds, comment, unit)
+  subroutine h5_add_double_4(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
     integer(HID_T)                              :: h5id
     character(len=*)                            :: dataset
     double precision, dimension(:,:,:,:)        :: value
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
+    double precision, dimension(1), optional    :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 4
@@ -1343,7 +1355,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     deallocate(dims)
 
@@ -1353,13 +1365,15 @@ contains
   !**********************************************************
   ! Add 5-dim double matrix
   !**********************************************************
-  subroutine h5_add_double_5(h5id, dataset, value, lbounds, ubounds, comment, unit)
+  subroutine h5_add_double_5(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
     integer(HID_T)                              :: h5id
     character(len=*)                            :: dataset
     double precision, dimension(:,:,:,:,:)      :: value
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
+    double precision, dimension(1), optional    :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 5
@@ -1372,7 +1386,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     deallocate(dims)
 
@@ -1382,13 +1396,15 @@ contains
   !**********************************************************
   ! Add 1-dim complex double matrix
   !**********************************************************
-  subroutine h5_add_complex_1(h5id, dataset, value, lbounds, ubounds, comment, unit)
+  subroutine h5_add_complex_1(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
     integer(HID_T)                              :: h5id
     character(len=*)                            :: dataset
     complex(kind=dcp), dimension(:)             :: value
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
+    double precision, dimension(1), optional    :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 1
@@ -1450,7 +1466,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     deallocate(dims)
 
@@ -1466,13 +1482,15 @@ contains
   !**********************************************************
   ! Add 2-dim complex double matrix
   !**********************************************************
-  subroutine h5_add_complex_2(h5id, dataset, value, lbounds, ubounds, comment, unit)
+  subroutine h5_add_complex_2(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
     integer(HID_T)                              :: h5id
     character(len=*)                            :: dataset
     complex(kind=dcp), dimension(:,:)           :: value
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
+    double precision, dimension(1), optional    :: accuracy
+
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
     integer                                     :: rank = 2
@@ -1534,7 +1552,7 @@ contains
     call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
     call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
 
-    call h5_set_optional_attributes(h5id, dataset, comment, unit)
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
 
     deallocate(dims)
 
@@ -1579,6 +1597,30 @@ contains
     if (k > 0) value(k:) = ' '  ! pad with blanks starting from null byte
     call h5_check()
   end subroutine h5_get_string
+
+  !**********************************************************
+  ! Set optional attributes for floating point type fields.
+  !
+  ! Set the optional attributes that are common to most fields, e.g.
+  ! comment, plus some that are specific for floating point type (e.g.
+  ! double and complex) fields, e.g. accuracy.
+  !**********************************************************
+  subroutine h5_set_optional_attributes_float(h5id, dataset, comment, unit_, accuracy)
+    integer(HID_T)                              :: h5id
+    character(len=*)                            :: dataset
+    character(len=*), optional                  :: comment
+    character(len=*), optional                  :: unit_
+    double precision, dimension(1), optional    :: accuracy
+
+    integer(SIZE_T), parameter :: size_ = 1
+
+    call h5_set_optional_attributes(h5id, dataset, comment, unit_)
+
+    if (present(accuracy)) then
+      call h5ltset_attribute_double_f(h5id, dataset, 'accuracy', accuracy, size_, h5error)
+    end if
+
+  end subroutine h5_set_optional_attributes_float
 
   !**********************************************************
   ! Set optional attributes common to (most) fields.
