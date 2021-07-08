@@ -2,6 +2,7 @@
 find_package(MPI REQUIRED)
 
 set (MAIN_LIB ${MAIN_LIB} libneo)
+set (HDF5_TOOLS_LIB ${HDF5_TOOLS_LIB} hdf5_tools)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
 include_directories(${MPI_Fortran_INCLUDE_PATH})
@@ -21,9 +22,16 @@ endif ()
 find_package(BLAS)
 find_package(LAPACK)
 include_directories(${CMAKE_SOURCE_DIR}/src/MyMPILib)
+include_directories(${CMAKE_SOURCE_DIR}/src/hdf5_tools)
+
+
+find_package(HDF5 COMPONENTS C Fortran Fortran_HL REQUIRED)
+if (NOT ${HDF5_FOUND})
+	message(FATAL_ERROR "HDF5 not found, please set environment variable HDF5_ROOT to the correct path")
+endif ()
+include_directories(${HDF5_INCLUDE_DIRS})
 
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
-
 target_link_libraries(test_arnoldi.x
   ${MAIN_LIB}
   MyMPILib
@@ -49,4 +57,11 @@ add_executable(test_system_utility.x
 target_link_libraries(test_system_utility.x
   ${MAIN_LIB}
   ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
+  )
+
+add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
+target_link_libraries(test_hdf5_tools.x
+  ${HDF5_TOOLS_LIB}
+  ${HDF5_LIBRARIES}
+  ${HDF5_HL_LIBRARIES}
   )
