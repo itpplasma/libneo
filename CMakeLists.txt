@@ -96,6 +96,9 @@ set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 add_test(NAME Test_boozer
          COMMAND tests/test_boozer_class.x)
 set_tests_properties(Test_boozer PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+add_test(NAME Test_hdf5_tools
+         COMMAND "tests/test_hdf5_tools.x" && "rm test_file.h5")
+set_tests_properties(Test_hdf5_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 add_test(NAME Test_system_utility
          COMMAND tests/test_system_utility.x)
 set_tests_properties(Test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
