@@ -38,7 +38,7 @@ program test_hdf5_tools
 
   call h5_define_group(h5id, groupname, h5grpid)
 
-  call h5_add(h5grpid, dataset_dou, double_write, lbounds=(/1,1/), ubounds=(/2,2/), comment='Heinz')
+  call h5_add(h5grpid, dataset_dou, double_write, lbounds=(/1,1/), ubounds=(/2,2/), comment='Heinz', accuracy=1.0d-100)
 
   call h5_open_group(h5id, groupname, h5grpid)
 
