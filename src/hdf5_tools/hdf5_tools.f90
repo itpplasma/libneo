@@ -879,7 +879,7 @@ contains
     double precision               :: value
     character(len=*), optional     :: comment
     character(len=*), optional     :: unit
-    double precision, dimension(1), optional :: accuracy
+    double precision, optional     :: accuracy
 
     integer(HSIZE_T)               :: dims(1) = (/0/)
 
@@ -902,7 +902,7 @@ contains
     integer, dimension(:)             :: lbounds, ubounds
     character(len=*), optional        :: comment
     character(len=*), optional        :: unit
-    double precision, dimension(1), optional :: accuracy
+    double precision, optional        :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable    :: dims
     integer(SIZE_T)                   :: size
@@ -931,7 +931,7 @@ contains
     character(len=*), optional        :: comment
     character(len=*), optional        :: unit
     double precision, optional        :: default
-    double precision, dimension(1), optional :: accuracy
+    double precision, optional        :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable    :: dims
     integer(SIZE_T)                   :: size
@@ -1279,7 +1279,7 @@ contains
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
-    double precision, dimension(1), optional    :: accuracy
+    double precision, optional                  :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
@@ -1310,7 +1310,7 @@ contains
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
-    double precision, dimension(1), optional    :: accuracy
+    double precision, optional                  :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
@@ -1341,7 +1341,7 @@ contains
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
-    double precision, dimension(1), optional    :: accuracy
+    double precision, optional                  :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
@@ -1372,7 +1372,7 @@ contains
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
-    double precision, dimension(1), optional    :: accuracy
+    double precision, optional                  :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
@@ -1403,7 +1403,7 @@ contains
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
-    double precision, dimension(1), optional    :: accuracy
+    double precision, optional                  :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
@@ -1489,7 +1489,7 @@ contains
     integer, dimension(:)                       :: lbounds, ubounds
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit
-    double precision, dimension(1), optional    :: accuracy
+    double precision, optional                  :: accuracy
 
     integer(HSIZE_T), dimension(:), allocatable :: dims
     integer(SIZE_T)                             :: size
@@ -1610,14 +1610,14 @@ contains
     character(len=*)                            :: dataset
     character(len=*), optional                  :: comment
     character(len=*), optional                  :: unit_
-    double precision, dimension(1), optional    :: accuracy
+    double precision, optional    :: accuracy
 
     integer(SIZE_T), parameter :: size_ = 1
 
     call h5_set_optional_attributes(h5id, dataset, comment, unit_)
 
     if (present(accuracy)) then
-      call h5ltset_attribute_double_f(h5id, dataset, 'accuracy', accuracy, size_, h5error)
+      call h5ltset_attribute_double_f(h5id, dataset, 'accuracy', (/ accuracy /), size_, h5error)
     end if
 
   end subroutine h5_set_optional_attributes_float
