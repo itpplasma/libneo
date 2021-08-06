@@ -14,6 +14,8 @@ Python code to write g-files from equilibria.
 Python code to include PSL response of coil files. There is way more in there but not used by now.
 
 ## doc
+Documentation, this includes user documentation and interface
+documentation. The latter is generated via doxygen.
 
 ## matlab
 Matlab library that contains various functions, classes and code interfaces for general and specific uses.
@@ -46,7 +48,25 @@ Classes and functions that have a general use for many application.
 Class to write mnDAT files.
 
 ## python
+Python scripts/functions.
 
 ## src
+Fortran source files for the library.
+Subfolders contain source for additional tools, also compiled into
+libneo.
+
+### hdf5_tools
+Interface to hdf5, to simplify calls.
+
+### magfie
+
+### MC
+
+### contrib
+
+### MyMPILib
+Interface to MPI, so no actual mpi routines need to be called in
+programs.
 
 ## tests
+Contains resources for tests of the library.
