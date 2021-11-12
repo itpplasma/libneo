@@ -1130,6 +1130,9 @@ contains
     integer(HID_T), intent(in)                     :: h5id
     character(len=*), intent(in)                   :: dataset
     complex(kind=dcp), dimension(:), intent(inout) :: val
+#if defined(__INTEL_COMPILER)
+    real, allocatable, dimension(:)                :: temp
+#endif
     integer                                        :: lb1, ub1
     integer, parameter                             :: rank = 1
     integer(HSIZE_T), dimension(rank)              :: dims
@@ -1175,8 +1178,19 @@ contains
     ! Read data
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
+
+#if defined(__INTEL_COMPILER)
+    if (allocated(temp)) deallocate(temp)
+    allocate(temp(lbound(val,1):ubound(val,1)))
+    call h5dread_f(dset_id, dt_re_id, temp, dims, h5error)
+    val%re = temp
+    call h5dread_f(dset_id, dt_im_id, temp, dims, h5error)
+    val%im = temp
+    deallocate(temp)
+#else
     call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
     call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
+#endif
 
     call h5dclose_f(dset_id, h5error)
     call h5tclose_f(type_id, h5error)
@@ -1193,6 +1207,9 @@ contains
     integer(HID_T), intent(in)                       :: h5id
     character(len=*), intent(in)                     :: dataset
     complex(kind=dcp), dimension(:,:), intent(inout) :: val
+#if defined(__INTEL_COMPILER)
+    real, allocatable, dimension(:,:) :: temp
+#endif
     integer                                          :: lb1, ub1, lb2, ub2
     integer, parameter                               :: rank = 2
     integer(HSIZE_T), dimension(rank)                :: dims
@@ -1238,8 +1255,19 @@ contains
     ! Read data
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
+
+#if defined(__INTEL_COMPILER)
+    if (allocated(temp)) deallocate(temp)
+    allocate(temp(lbound(val, 1):ubound(val, 1), lbound(val, 2):ubound(val, 2)))
+    call h5dread_f(dset_id, dt_re_id, temp, dims, h5error)
+    val%re = temp
+    call h5dread_f(dset_id, dt_im_id, temp, dims, h5error)
+    val%im = temp
+    deallocate(temp)
+#else
     call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
     call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
+#endif
 
     call h5dclose_f(dset_id, h5error)
     call h5tclose_f(type_id, h5error)
