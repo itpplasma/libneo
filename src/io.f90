@@ -23,6 +23,10 @@ module io
   character(len=*), parameter :: format_five_rows_doubles = '(5(e16.9))'
   character(len=*), parameter :: format_boozer_output_data = &
     & '(2(i4, 1X), 8(e16.9, 1X))'
+  character(len=*), parameter :: format_boozer_head_param = &
+    & '(4(1X, i5), 3(1X, e16.9))'
+  character(len=*), parameter :: format_boozer_flux_head = &
+    & '(6(1X, e16.9))'
 
   !> \brief Class representing efit data (-file).
   !>
@@ -583,12 +587,12 @@ contains
 
 
 
-    write (r_un,*) 'CC Boozer-coordinate data file'
-    write (r_un,*) 'CC Version: 01'
-    write (r_un,*) 'CC Author:  neo-2'
-    write (r_un,*) 'CC shot:'
-    write (r_un,*) ' m0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'
-    write (r_un,*) this%m0b, this%n0b, this%nsurf, this%nper, this%flux, &
+    write (r_un,'(a)') 'CC Boozer-coordinate data file'
+    write (r_un,'(a)') 'CC Version: 01'
+    write (r_un,'(a)') 'CC Author:  neo-2'
+    write (r_un,'(a)') 'CC shot:'
+    write (r_un,'(a)') ' m0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'
+    write (r_un,format_boozer_head_param) this%m0b, this%n0b, this%nsurf, this%nper, this%flux, &
       & this%a, this%R
 
     m_max_pert = this%m0b + 1
@@ -597,13 +601,13 @@ contains
 
     ! read input arrays
     do i =1, this%nsurf
-      write(r_un,*) '        s               iota           Jpol/nper&
+      write(r_un,'(a)') '        s               iota           Jpol/nper&
                     &          Itor            pprime         sqrt g(0,0)'
-      write(r_un,*) '                                          [A]&
+      write(r_un,'(a)') '                                          [A]&
                     &           [A]             [Pa]         (dV/ds)/nper'
-      write(r_un,*) this%s(i), this%iota(i), this%Jpol_nper(i), &
+      write(r_un,format_boozer_flux_head) this%s(i), this%iota(i), this%Jpol_nper(i), &
         & this%Itor(i), this%pprime(i), this%sqrt_g00(i) ! Header: values
-      write(r_un,*) '    m    n      rmnc [m]         rmns [m]         &
+      write(r_un,'(a)') '    m    n      rmnc [m]         rmns [m]         &
                     &zmnc [m]         zmns [m]         vmnc [ ]         &
                     &vmns [ ]         bmnc [T]         bmns [T]'
 
