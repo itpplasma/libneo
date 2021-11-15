@@ -1,8 +1,8 @@
 program test_hdf5_tools
   use hdf5_tools
 
-  use hdf5_tools, only : h5_add, h5_get, h5_init, h5_deinit
-  use hdf5_tools, only : h5_create, h5_open, h5_close
+!  use hdf5_tools, only : h5_add, h5_get, h5_init, h5_deinit
+!  use hdf5_tools, only : h5_create, h5_open, h5_close
 
   implicit none
 
@@ -82,7 +82,10 @@ program test_hdf5_tools
   end if
 
   if (sum(abs(complex_read - complex_write)) > tolerance) then
-    write(*,*) 'STOP complex does not match.'
+    write(*,*) 'STOP complex does not match, absolute difference: ', sum(abs(complex_read - complex_write))
+    write(*,*) complex_write
+    write(*,*) '-----------'
+    write(*,*) complex_read
     error_found = .true.
   end if
 
