@@ -47,7 +47,7 @@ add_subdirectory(src/hdf5_tools)
 
 # Main goal (of the created build file): creating the library file.
 add_library(libneo SHARED ${SOURCE_FILES})
-target_link_libraries(libneo lapack)
+#target_link_libraries(libneo ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_library(mc_efit SHARED
   src/magfie/polylag_3.f
@@ -102,6 +102,9 @@ set_tests_properties(Test_hdf5_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 add_test(NAME Test_system_utility
          COMMAND tests/test_system_utility.x)
 set_tests_properties(Test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
+add_test(NAME Test_mympilib
+         COMMAND tests/test_mympilib.x)
+set_tests_properties(Test_system_utility PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
 
 #~ # For testing purposes, e.g. printing the environment.
 #~ add_test(NAME run_xterm

@@ -21,8 +21,11 @@ endif ()
 
 find_package(BLAS)
 find_package(LAPACK)
+find_package(MPI REQUIRED)
+
 include_directories(${CMAKE_SOURCE_DIR}/src/MyMPILib)
 include_directories(${CMAKE_SOURCE_DIR}/src/hdf5_tools)
+include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 
 find_package(HDF5 COMPONENTS C Fortran Fortran_HL REQUIRED)
@@ -64,4 +67,13 @@ target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
   ${HDF5_LIBRARIES}
   ${HDF5_HL_LIBRARIES}
+  )
+
+add_executable(test_mympilib.x
+  source/test_mympilib.f90
+  source/derived_scheduler_module.f90
+  )
+target_link_libraries(test_mympilib.x
+  MyMPILib
+  ${MPI_Fortran_LIBRARIES}
   )
