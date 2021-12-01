@@ -104,7 +104,7 @@ add_test(NAME Test_system_utility
 set_tests_properties(Test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
 add_test(NAME Test_mympilib
          COMMAND tests/test_mympilib.x)
-set_tests_properties(Test_system_utility PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
+set_tests_properties(Test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
 
 #~ # For testing purposes, e.g. printing the environment.
 #~ add_test(NAME run_xterm
