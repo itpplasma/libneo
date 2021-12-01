@@ -4,6 +4,7 @@ module derived_scheduler_module
   type, extends(scheduler) :: derived_scheduler
   contains
     procedure :: initMaster => derived_initMaster
+    procedure :: initLinear => derived_initMaster
   end type derived_scheduler
 contains
 
