@@ -7,7 +7,7 @@ enable_language(Fortran)
 
 ### Set compiler flags
 if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  set(CMAKE_Fortran_FLAGS "-O2 -fPIC -Wall -fcheck=bounds -std=f2008")
+  set(CMAKE_Fortran_FLAGS "-O2 -cpp -fPIC -Wall -fcheck=bounds -std=f2008")
 elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   set(CMAKE_Fortran_FLAGS "-O2 -cpp -mkl -heap-arrays -stand f08")
 endif ()
