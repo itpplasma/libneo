@@ -41,6 +41,7 @@ module hdf5_tools
      module procedure h5_add_int_1_nobounds
      module procedure h5_add_int_2
      module procedure h5_add_int_2_nobounds
+     module procedure h5_add_int_3
      !module procedure h5_add_int8_2
      module procedure h5_add_double_0
      module procedure h5_add_double_1
@@ -62,6 +63,7 @@ module hdf5_tools
      module procedure h5_get_int
      module procedure h5_get_int_1
      module procedure h5_get_int_2
+     module procedure h5_get_int_3
      !module procedure h5_get_int8_2
      module procedure h5_get_double_0
      module procedure h5_get_double_1
@@ -753,6 +755,39 @@ contains
     call h5_check()
   end subroutine h5_add_int_2_nobounds
 
+  !**********************************************************
+  ! Add integer array
+  !**********************************************************
+  subroutine h5_add_int_3(h5id, dataset, value, lbounds, ubounds, comment, unit)
+    integer(HID_T)                    :: h5id
+    character(len=*)                  :: dataset
+    integer, dimension(:,:,:)         :: value
+    integer, dimension(:)             :: lbounds, ubounds
+    character(len=*), optional        :: comment
+    character(len=*), optional        :: unit
+    integer(HSIZE_T), dimension(:), allocatable    :: dims
+    integer(SIZE_T)                   :: size
+    integer                           :: rank = 3
+
+    if (h5overwrite) call h5_delete(h5id, dataset)
+    allocate(dims(rank))
+    dims = ubounds - lbounds + 1
+    size = rank
+    call h5ltmake_dataset_int_f(h5id, dataset, rank, dims, value, h5error)
+    call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
+    call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
+
+    if (present(comment)) then
+       call h5ltset_attribute_string_f(h5id, dataset, 'comment', comment, h5error)
+    end if
+    if (present(unit)) then
+       call h5ltset_attribute_string_f(h5id, dataset, 'unit', unit, h5error)
+    end if
+
+    deallocate(dims)
+    call h5_check()
+
+  end subroutine h5_add_int_3
 
   !**********************************************************
   ! Add long integer matrix. This function makes use of the
@@ -977,6 +1012,20 @@ contains
 
     call h5_check()
   end subroutine h5_get_int_2
+
+  !**********************************************************
+  ! Get integer array
+  !**********************************************************
+  subroutine h5_get_int_3(h5id, dataset, value)
+    integer(HID_T)                        :: h5id
+    character(len=*)                      :: dataset
+    integer, dimension(:,:,:)             :: value
+    integer(HSIZE_T), dimension(3)        :: dims
+
+    dims = shape(value)
+    call h5ltread_dataset_int_f(h5id, dataset, value, dims, h5error)
+    call h5_check()
+  end subroutine h5_get_int_3
 
   !**********************************************************
   ! Get double scalar
