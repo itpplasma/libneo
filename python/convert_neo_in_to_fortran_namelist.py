@@ -176,6 +176,16 @@ def append_neo_in_to_fortran_input_file(neoinfilename: str, fortranfilename: str
 
 
 if __name__ == "__main__":
-  # If this is run as main, just run the main function with the default
-  # names for the files.
-  append_neo_in_to_fortran_input_file('neo.in', 'neo2.in')
+  import sys
+
+  if (len(sys.argv) < 2):
+    # If this is run as main without arguments, just run the main function
+    # with the default names for the files.
+    append_neo_in_to_fortran_input_file('neo.in', 'neo2.in')
+  elif (len(sys.argv) < 3):
+    print('Error: not enough (or to many) arguments.')
+    print('  convert_neo_in_to_fortran_namelist.py')
+    print('  convert_neo_in_to_fortran_namelist.py input filetowhichtoappend')
+    sys.exit()
+  elif (len(sys.argv) == 3):
+    append_neo_in_to_fortran_input_file(sys.argv[1], sys.argv[2])
