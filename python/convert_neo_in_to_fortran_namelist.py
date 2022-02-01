@@ -5,19 +5,40 @@
 This function expects the a 'neo.in' file as input (as a string), and
 will converts it to a fortran namelist 'neoin' (as string).
 Comments in the code are retained.
+There is also a function to read in a given file, and append the
+resulting namelist to a fortran namelist file.
+
+Note: the functions use text operations, so far no use is made of the
+  f90nml class.
+
+This file can also be used as script, in this case the append operation
+is done with default file names.
 """
 
 import sys
 
-"""Check if all elements of a list can be converted to integer.
 
-This function expects a list and will try to convert each element in the
-list to an integer. If this is possible it will return True, and False
-otherwise.
-Note that a False is returned as soon as an element can not be
-converted.
-"""
-def all_numbers(list_input):
+def all_numbers(list_input: list):
+  """Check if all elements of a list can be converted to integer.
+
+  This function expects a list and will try to convert each element in the
+  list to an integer. If this is possible it will return True, and False
+  otherwise.
+  Note that a False is returned as soon as an element can not be
+  converted, i.e. this corresponds to a short circuited evaluation.
+
+  input:
+  ------
+  list_input: list, for which entries should be checked.
+
+  output:
+  -------
+  logical: True if all elements can be converted to an integer, False
+    otherwise.
+
+  sideeffects:
+  None.
+  """
   for element in list_input:
     try:
       int(element)
@@ -26,11 +47,24 @@ def all_numbers(list_input):
 
   return True
 
-"""Check if a given input is a string.
 
-Assumed to be a string, if casts to int and float fail.
-"""
 def isstring(to_check):
+  """Check if a given input is a string.
+
+  Assumed to be a string, if casts to int and float fail.
+
+  input:
+  ------
+  to_check: variable of which the type should be checked.
+
+  output:
+  -------
+  logical: True if conversions to int and float fail, otherwise False.
+
+  sideeffects:
+  ------------
+  None
+  """
   try:
     int(to_check)
     return False
@@ -43,7 +77,21 @@ def isstring(to_check):
 
   return False
 
+
 def convert_neo_in_to_fortran_namelist(filetext):
+  """Convert given text to a fortran namelist file text.
+
+  Comments are kept in the conversion process.
+
+  input:
+  ------
+  filetext: list of strings, the file which should be converted.
+
+  output:
+  -------
+  list of strings, forming a text representation of the corresponding
+    namelist.
+  """
   listindex=0
   outputtext = "&neoin\n"
   temp_line = ''
@@ -102,7 +150,24 @@ def convert_neo_in_to_fortran_namelist(filetext):
 
   return outputtext
 
-def append_neo_in_to_fortran_input_file(neoinfilename, fortranfilename):
+
+def append_neo_in_to_fortran_input_file(neoinfilename: str, fortranfilename: str):
+  """Convert neo.in file, and append fortran namelist file.
+
+  input:
+  ------
+  neoinfilename: string, name of the neo.in file which to convert.
+  fortranfilename: name of the fortran namelist file, to which to append
+    the new namelist.
+
+  output:
+  -------
+  None
+
+  sideeffects:
+  ------------
+  Changes the file 'fortranfilename'.
+  """
   f = open(neoinfilename, "r")
   filetext = f.read().strip()
   f.close()
