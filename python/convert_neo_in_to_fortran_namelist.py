@@ -168,23 +168,18 @@ def append_neo_in_to_fortran_input_file(neoinfilename: str, fortranfilename: str
   ------------
   Changes the file 'fortranfilename'.
   """
-  f = open(neoinfilename, "r")
-  filetext = f.read().strip()
-  f.close()
+  with open(neoinfilename, "r") as f:
+    filetext = f.read().strip()
 
   outputtext = convert_neo_in_to_fortran_namelist(filetext)
 
   # As we can not read and write at the same time(?), first read the
   # file, then reopen it to append the new namelist.
-  f = open(fortranfilename, "r")
-  filetext = f.read().strip()
-  f.close()
+  with open(fortranfilename, "r") as f:
+    filetext = f.read().strip()
 
-  g = open(fortranfilename, "a")
-
-  g.write(outputtext)
-
-  g.close()
+  with open(fortranfilename, "a") as g:
+    g.write(outputtext)
 
 
 if __name__ == "__main__":
