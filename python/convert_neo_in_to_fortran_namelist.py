@@ -15,8 +15,6 @@ This file can also be used as script, in this case the append operation
 is done with default file names.
 """
 
-import sys
-
 
 def all_numbers(list_input: list):
   """Check if all elements of a list can be converted to integer.
@@ -172,11 +170,6 @@ def append_neo_in_to_fortran_input_file(neoinfilename: str, fortranfilename: str
     filetext = f.read().strip()
 
   outputtext = convert_neo_in_to_fortran_namelist(filetext)
-
-  # As we can not read and write at the same time(?), first read the
-  # file, then reopen it to append the new namelist.
-  with open(fortranfilename, "r") as f:
-    filetext = f.read().strip()
 
   with open(fortranfilename, "a") as g:
     g.write(outputtext)
