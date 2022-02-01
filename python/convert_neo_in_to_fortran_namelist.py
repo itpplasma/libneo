@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Convert a neo.in file to a fortran namelist (file).
 
 This function expects the a 'neo.in' file as input (as a string), and
