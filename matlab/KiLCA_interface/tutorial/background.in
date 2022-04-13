@@ -1,0 +1,27 @@
+#Machine settings:
+170.05          #big torus radius (cm) of the machine: default=none
+67          #plasma radius (cm)
+20000          #toroidal magnetic field (G) at the center: default=2.0e4
+
+#Background settings:
+./profiles/          #path to input background profiles: default=./profiles/
+1          #1 - if background must be recalculated (7 input profiles are needed), 0 - otherwise (11 input profiles are needed), -1 - from interface
+f          #flag for background ('f'-full, 'w'-wkb, 'h'-hom): default=f
+9          #splines degree: >= NC + 2N+1, where N - order of flr expansion, NC - spl degree for C matrices, must be odd!!!
+-5e+06          #V_gal_sys is a velocity (cm/c) of a moving frame: default=-0.5e7
+1          #V_scale: scale factor for the Vz velocity profile: Vz = V_scale*Vz - V_gal_sys
+2          #m_i: ions mass in units of proton mass: default=2
+1          #collisions coefficient for electrons: default=1.0
+1          #collisions coefficient for ions: default=1.0
+
+#Checkings setting:
+0          #flag for debugging mode (additional checks are performed in the code): default=1
+
+#Comments:
+if plasma profiles are steep at r=0 (their derivatives are not zero) then dPhi0 is not zero at r=0
+what leads to a singular oscillaltions in the f0 moments.
+
+For the low frequency (< 1kHz) computations it is advantageous to use a moving frame.
+The wave frequency in a moving frame is om' = om - kz*V_gal_sys, kz=n/rtor, n - toroidal number.
+Usually the frequency is fixed in the lab frame (flab = om/2/pi),
+so we recalculate the frequency om' in the moving frame in the code for each n harmonic.

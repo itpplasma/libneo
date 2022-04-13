@@ -1,0 +1,40 @@
+#Output:
+roots.dat          #file name with determinat values (either from roots search, or on a grid)
+
+#choose if to use frequency scan or roots search:
+1          #0 - if roots search is used, 1 - if det is evaluated on a frequency grid
+
+#frequency grid settings:
+1          #dimension of a grid for real part
+0          #minimum real value of frequency
+1e+06          #maximim real value of frequency
+100          #dimension of a grid for imag part
+0          #minimum imag value of frequency
+210000          #maximim imag value of frequency
+
+#Stopping criteria for roots search:
+1          #stopping criteria: 0 - det residial, 1 - root convergence
+1e-14          #absolute value of the determinant
+1e-10          #absolute error for roots sequence
+1e-10          #relative error for roots sequence
+
+#For omega derivative:
+0.001          #delta freq used to compute derivative over omega numerically
+
+#Test roots:
+0          #1 - test roots by contour integration, 0 - skip test
+0          #flag for debugging
+
+#Starting points indices for roots search:
+4          #number of starting points
+0          #starting index (from 0)
+3          #ending index   (from 0)
+
+#Starting points array:
+(0,100)          #starting point
+(0,1000)          #starting point
+(0,10000)          #starting point
+(0,100000)          #starting point
+(0,1e+06)          #starting point
+(0,1e+07)          #starting point
+(0,1e+08)          #starting point

@@ -1,0 +1,11 @@
+#Antenna settings:
+70          #small radius (cm) of antenna location (must match to zones.in)
+0          #current density layer width; if == 0 then use delta function
+4.5e+12          #current in the coils (statamp): default=4.5e12 (1.5 kA)
+(10000,0)          #complex frequency (1/c) in the laboratory frame: default=(1.0e3, 0.0e0)
+1          #number of antenna modes to be used from modes.in file (stored as: (m - poloidal, n - toroidal))
+0          #flag for debugging (additional checks are performed in the code): default=1
+0          #flag to solve an eigenmode problem: 0 - no, 1 - yes
+
+#Comments:
+if flag for debugging mode is 1 then additional checks are performed in the code, if it is 2 then more checks are done, if 0 - no checks

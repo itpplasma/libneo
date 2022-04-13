@@ -1,0 +1,25 @@
+1. Copy the file
+   ProjectConfig.cmake.sample
+   to
+   ProjectConfig.cmake.in
+   and edit the file for custom settings.
+
+2. Have a look at the file
+   CMakeLists.txt
+   to understand how the project is built.
+
+3. Enter the directory 
+   Build-Release
+   and run
+   cmake ..
+   (The two dots are required to do an out-of-source build)
+
+4. Run
+   make && make install
+   to build an install the project.
+
+The out-of-source build method gives to ability to create new build directories for different compilers and configurations, without affecting other build configurations.
+The compiler can be change in step 3 by running
+cmake -DCMAKE_Fortran_COMPILER=ifort ..
+instead of
+cmake ..

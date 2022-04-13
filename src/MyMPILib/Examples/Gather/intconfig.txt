@@ -1,0 +1,7 @@
+&nmlIntegrate
+a=-4
+b=+4
+n=200000000
+subintervals=100
+/
+

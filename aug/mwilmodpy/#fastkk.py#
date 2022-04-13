@@ -1,0 +1,20 @@
+          #sp = np.interp(sep[i], PFL[sort_wh,i],TFLx[sort_wh,i])
+                sp = np.min(TFLx[:,i]) #best estimate of sep in rho_tor
+                if abs(sp-mg)<1e-4:
+                    continue
+                tfl = (TFLx[sort_wh,i]-mg)/(sp-mg)
+                pfl = (PFL[sort_wh,i]-mag[i])/(sep[i]-mag[i])
+
+                
+                pfl[pfl < 0] = 0#round errors
+                tfl[tfl < 0] = 0#round errors
+                ind = (pfl < 1-1e-3) & (tfl > 1e-3) 
+                ind[-1] = True
+                pfl,tfl =  np.sqrt(pfl[ind]), np.sqrt(tfl[ind])
+                try:
+                    if rho_lbl == 'rho_pol':
+                        s = UnivariateSpline(pfl[::-1],tfl[::-1],k=3, s=1e-4,bbox=[0, 1],) 
+                    elif rho_lbl == 'rho_tor':
+                        s = UnivariateSpline(tfl[::-1],pfl[::-1],k=3, s=1e-4,bbox=[0, 1],) 
+                except:
+                    conti

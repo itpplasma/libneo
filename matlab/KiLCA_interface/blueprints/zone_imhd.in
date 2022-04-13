@@ -1,0 +1,21 @@
+#Description of the zone:
+3.0         #r1 - minimum radius of the zone (plasma radius)
+center	#type of BC at r1 (center, infinity, interface, antenna)
+imhd 		#type of the plasma model (vacuum, medium, imhd, rmhd, flre)
+0			#code version for the model
+interface	#type of BC at r2 (center, infinity, interface, antenna)
+67.0         #r2 - maximum radius of the zone (first wall boundary)
+
+#ME solver settings:
+1e6		#max dimension of the radial grid for the solution: default=1e5
+1.0e-12		#relative accuracy of the solution: default=1e-8
+1.0e-12		#absolute accuracy of the solution: default=1e-8
+
+#ME solution space out settings:
+3		#degree of the polynomial used to space out the solution (by checking the accuracy
+1.0e-10		#relative accuracy of the sparse solution: default=1e-8
+1.0e-10		#absolute accuracy of the sparse solution: default=1e-8
+0.1e0		#max grid step in the solution: default=0.1
+
+#Debugging settings:
+0		#flag for debugging mode (additional checks are performed in the code): default=1

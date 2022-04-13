@@ -1,0 +1,9 @@
+
+plt.pcolormesh( x, y, dB/IBI)
+plt.colorbar()  
+plt.show()     
+plt.set_xlim([tor.min(),tor.max()])
+plt.set_ylim([pol.min(),pol.max()])
+plt.set_ylabel(r'poloidal angle $\Theta$ [degree]',fontsize=14)
+plt.set_xlabel(r'toroidal angle $\Phi$ [degree]',fontsize=14)
+plt.show()

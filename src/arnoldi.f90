@@ -6,7 +6,7 @@
 !> arnoldi_namelist. This routine is also responsible for initializing
 !> the module.
 !> Main work is done by the subroutine arnoldi.
-module arnoldi_mod
+module arnoldi
   use libneo_kinds, only : real_kind, complex_kind
 
   logical, save :: leigen=.false. !< Determines if eigenvectors should be calculated.
@@ -107,13 +107,9 @@ contains
   !>                                      to TOL
   !>                     eigvecs        - array of eigenvectors, size - (m,ngrow)
   !>                     ierr           - error code (0 - normal work, 1 - error)
-  subroutine arnoldi(n,m,ritznum,next_iteration)
+  subroutine calc_ritz_eigenvalues(n,m,ritznum,next_iteration)
 
-    use mpiprovider_module, only : mpro
     use libneo_kinds, only : real_kind, complex_kind
-#ifdef PARALLEL
-    use mpi
-#endif
 
     implicit none
 
@@ -132,49 +128,44 @@ contains
     call next_iteration(n,fold,fnew)
     fzero=fnew
 
-    if (mpro%isMaster()) then
-      ierr=0
-      allocate(qvecs(n,m),hmat(m,m))
-      hmat=(0.d0,0.d0)
-      qvecs(:,1)=fnew/sqrt(sum(conjg(fnew)*fnew))
-    end if
+    ierr=0
+    allocate(qvecs(n,m),hmat(m,m))
+    hmat=(0.d0,0.d0)
+    qvecs(:,1)=fnew/sqrt(sum(conjg(fnew)*fnew))
 
     do k=2,m
-      if (mpro%isMaster()) fold=qvecs(:,k-1)
-#ifdef PARALLEL
-      call MPI_BCAST(fold, n, MPI_DOUBLE_COMPLEX, mpi_p_root, MPI_COMM_WORLD, ierr)
-#endif
+      fold=qvecs(:,k-1)
+
       !print *, mype, sum(fold)
       call next_iteration(n,fold,fnew)
       !print *, mype, sum(fnew)
-      if (mpro%isMaster()) then
-        qvecs(:,k)=fnew-fzero
-        do j=1,k-1
-          hmat(j,k-1)=sum(conjg(qvecs(:,j))*qvecs(:,k))
-          qvecs(:,k)=qvecs(:,k)-hmat(j,k-1)*qvecs(:,j)
-        end do
-        hmat(k,k-1)=sqrt(sum(conjg(qvecs(:,k))*qvecs(:,k)))
-        qvecs(:,k)=qvecs(:,k)/hmat(k,k-1)
-      end if
+
+      qvecs(:,k)=fnew-fzero
+      do j=1,k-1
+        hmat(j,k-1)=sum(conjg(qvecs(:,j))*qvecs(:,k))
+        qvecs(:,k)=qvecs(:,k)-hmat(j,k-1)*qvecs(:,j)
+      end do
+      hmat(k,k-1)=sqrt(sum(conjg(qvecs(:,k))*qvecs(:,k)))
+      qvecs(:,k)=qvecs(:,k)/hmat(k,k-1)
+
     end do
 
-    if (leigen .and. mpro%isMaster()) then
+    if (leigen) then
       allocate(eigh(m,m))
-      print *,'in'
-      print *,m,size(hmat,1),size(hmat,2),size(ritznum),size(eigh,1),size(eigh,2)
       call try_eigvecvals(m,tol,hmat,ngrow,ritznum,eigh,ierr)
-      print *,'out',m,ngrow
 
       if(allocated(eigvecs)) deallocate(eigvecs)
       allocate(eigvecs(n,ngrow))
 
       eigvecs=matmul(qvecs,eigh(:,1:ngrow))
 
-      deallocate(qvecs,hmat,eigh)
+      deallocate(eigh)
     end if
+
+    deallocate(qvecs,hmat)
     deallocate(fold,fnew,fzero)
 
-  end subroutine arnoldi
+  end subroutine calc_ritz_eigenvalues
 
   !> Computes eigenvalues, ritznum, of the upper Hessenberg matrix hmat
   !> of the dimension (m,m), orders eigenvelues into the decreasing by module
@@ -301,4 +292,4 @@ contains
 
   end subroutine try_eigvecvals
 
-end module arnoldi_mod
+end module arnoldi

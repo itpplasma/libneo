@@ -1,14 +1,51 @@
 # Ignore directories for building the code.
 [Bb]uild/*
 [Bb]uild-*/*
+# Build directories of tools.
+*/*/[Bb]uild-*/
 
 # Ignore error files and log files.
 *.err
 *.log
 
-# Ignore folders created by documentation tool.
+# Ignore files regarding documentation
+## Ignore folders created by documentation tool.
 doc/html/
 doc/latex/
 
-# Ignore files that are created by the make process.
+## Ignore files that are created by the make process.
 *.pdf
+*.dvi
+*.ps
+
+## Ignore latex files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.brf
+*.idx
+*.ilg
+*.ind
+*.toc
+
+# Ignore backup files
+*~
+*.swp
+
+# Ignore object files
+*.mod
+*.o
+*.so
+*.x
+_*.c
+__pycache__
+
+# IDE files
+.vscode/
+
+# Ignore version files created by build system.
+src/*/*/version.f90
+
+# Ignore macOS system files
+.DS_Store
