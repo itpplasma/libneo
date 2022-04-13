@@ -1,0 +1,16 @@
+&GORILLANML
+boole_dt_dtau = .true. ,
+boole_guess = .true. ,
+boole_newton_precalc = .true. ,
+boole_pusher_ode45 = .true. ,
+coord_system = 2 ,
+field_periodicity_hard_coded = 5 ,
+grid_kind = 3 ,
+i_precomp = 0 ,
+ipusher = 2 ,
+ispecies = 2 ,
+n1 = 100 ,
+n2 = 100 ,
+n3 = 100 ,
+poly_order = 2 ,
+/

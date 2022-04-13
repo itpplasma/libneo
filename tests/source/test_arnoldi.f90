@@ -1,7 +1,7 @@
 program test_arnoldi
   use mpiprovider_module, only : mpro
 
-  use arnoldi_mod, only: arnoldi, leigen,ngrow,tol,eigvecs
+  use arnoldi, only: calc_ritz_eigenvalues, leigen,ngrow,tol,eigvecs
   use libneo_kinds, only : complex_kind
 
   integer :: info
@@ -71,7 +71,7 @@ program test_arnoldi
   print *, "Finding eigenvalues"
   leigen= .true.
   tol = 0.7d0
-  call arnoldi(nsize, nritz, ritznum, next_iteration)
+  call calc_ritz_eigenvalues(nsize, nritz, ritznum, next_iteration)
   do kit = 1, ngrow
     print *, ritznum(kit)
   end do

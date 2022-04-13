@@ -1,5 +1,5 @@
 
-all: source
+all: source UserDoc ExtraDocuments
 
 # Generate doxygen documentation.
 source:
@@ -8,10 +8,17 @@ source:
 	@echo "---------------------------------------------------------------------------"
 	doxygen 1> doxygen.log 2> doxygen.err
 	make -C latex/ 1> latex.log 2> latex.err
-	cp latex/refman.pdf .
+	cp latex/refman.pdf ./
 	make -C latex/ clean
 	@echo "---------------------------------------------------------------------------"
 	@echo "...done."
+
+UserDoc:
+	make -C UserDoc
+	cp UserDoc/main.pdf ./UserDoc.pdf
+
+ExtraDocuments:
+	make -C ExtraDocuments
 
 # Clean up.
 clean:
@@ -40,3 +47,5 @@ clean:
 	@echo make $@ with $< in $(<D);\
 	cd $(<D) ; pwd ;\
 	$(PS2PDF) $(<F) $(@F)
+
+.PHONY: all UserDoc ExtraDocuments clean

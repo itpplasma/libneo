@@ -1,0 +1,121 @@
+\documentclass{book}
+
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{amsmath}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage[a4paper]{geometry}
+\usepackage{authblk}
+\usepackage{setspace}
+\usepackage{csquotes}
+\usepackage{booktabs}
+%%%%%%%%%%%%%%%%%% My preamble %%%%%%%%%%%%%%%%%%%%%%%%%%
+%\usepackage[numbers, sort&compress]{natbib}
+%\setcitestyle{numbers,square,comma,aysep={,},yysep={,},notesep={,}}
+%\bibliographystyle{unsrtnat}
+%\bibliographystyle{IEEEtranSN}
+
+%References
+\usepackage[
+    bibstyle=phys,
+    biblabel=brackets,
+    citestyle=numeric-comp,
+    isbn=false,
+    doi=false,
+    sorting=none,
+    url=false,
+    defernumbers=true,
+    bibencoding=utf8,
+    backend=biber,
+    %maxbibnames=3,maxcitenames=3,
+    %minnames=3,
+    maxnames=30,
+    ]{biblatex}
+\setcounter{biburllcpenalty}{7000}
+\setcounter{biburlucpenalty}{8000}
+\addbibresource[]{eccd_ref.bib}
+\DeclareBibliographyCategory{fullcited}
+\newcommand{\mybibexclude}[1]{\addtocategory{fullcited}{#1}}
+\DeclareFieldFormat{titlecase}{\MakeCapital{#1}}
+\DeclareFieldFormat{sentencecase}{\MakeSentenceCase{#1}}
+
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{amssymb}
+\usepackage{bm}
+
+\usepackage{../shared/Commands}
+
+\title{\textbf{libneo Users Documentation}}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Introduction}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Building}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Arnoldi}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Commandline}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Debug}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Libneo_Kinds}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Math_Constants}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{ODE_Integration}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{System_Utility}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Verbose}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Efit}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{appendix}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Bugs}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{Todo}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{appendix}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}

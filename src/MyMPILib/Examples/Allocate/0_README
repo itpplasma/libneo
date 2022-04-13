@@ -1,0 +1,19 @@
+1. Edit the file
+CMakeLists.txt
+in order to set the right library paths.
+
+2. Run
+cmake .
+in the directory of the example code.
+
+3. Run
+./make.openmpi
+to build the project.
+
+4. Edit the files
+schedConfig.txt
+intConfig.txt
+to configure the Scheduler and the parameters of the integration.
+
+5. Run the executable file on 3 processes (2 clients, 1 scheduler) by the command
+mpiexec -np 3 ./SimpleIntegration

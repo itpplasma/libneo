@@ -1,0 +1,9 @@
+set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+
+set (INCLUDEDIRS_MPI_GNU /usr/lib/openmpi/include /usr/lib/openmpi/lib)
+set (LINKDIRS_MPI_GNU /usr/lib /usr/lib/openmpi/lib)
+
+set (INCLUDEDIRS_MPI_INTEL /usr/local/openmpi-1.6.3-intel/include /usr/local/openmpi-1.6.3-intel/lib)
+set (LINKDIRS_MPI_INTEL /usr/local/openmpi-1.6.3-intel/lib)
+
+set (MPE_PATH /afs/itp.tugraz.at/opt/mpe/1.3.0/)
