@@ -41,6 +41,9 @@ endif ()
 
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
+execute_process(COMMAND nc-config --includedir
+                OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
+include_directories(${NETCDFINCLUDE_DIR})
 
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
