@@ -44,18 +44,21 @@ target_link_libraries(test_arnoldi.x
   MyMPILib
   ${MPI_Fortran_LIBRARIES}
   ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
+  ${NETCDF_LIBRARIES}
   )
 
 add_executable(test_efit_class.x source/test_efit_class.f90)
 target_link_libraries(test_efit_class.x
   ${MAIN_LIB}
   ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
+  ${NETCDF_LIBRARIES}
   )
 
 add_executable(test_boozer_class.x source/test_boozer_class.f90)
 target_link_libraries(test_boozer_class.x
   ${MAIN_LIB}
   ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
+  ${NETCDF_LIBRARIES}
   )
 
 add_executable(test_system_utility.x
