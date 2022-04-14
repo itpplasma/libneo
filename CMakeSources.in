@@ -14,6 +14,7 @@ set(SOURCE_FILES
     # VMEC
     src/canonical_coordinates_mod.f90
     src/nctools_module.f90
+    src/new_vmec_allocation_stuff.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
   
