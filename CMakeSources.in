@@ -17,6 +17,7 @@ set(SOURCE_FILES
     src/new_vmec_allocation_stuff.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
+    src/spl_three_to_five.f90
   
     # For CPU time measurements
     src/local_rusage.c
