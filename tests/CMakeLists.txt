@@ -34,6 +34,10 @@ if (NOT ${HDF5_FOUND})
 endif ()
 include_directories(${HDF5_INCLUDE_DIRS})
 
+execute_process(COMMAND nc-config --flibs
+                OUTPUT_VARIABLE NETCDF_LIBRARIES
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 target_link_libraries(test_arnoldi.x
   ${MAIN_LIB}
@@ -60,6 +64,7 @@ add_executable(test_system_utility.x
 target_link_libraries(test_system_utility.x
   ${MAIN_LIB}
   ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
+  ${NETCDF_LIBRARIES}
   )
 
 add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
