@@ -99,9 +99,11 @@ set_tests_properties(Test_boozer PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 add_test(NAME Test_efit
          COMMAND tests/test_efit_class.x)
 set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+
 add_test(NAME Test_hdf5_tools
-         COMMAND "tests/test_hdf5_tools.x" && "rm test_file.h5")
+         COMMAND "tests/test_hdf5_tools.x")
 set_tests_properties(Test_hdf5_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+
 add_test(NAME Test_mympilib
          COMMAND tests/test_mympilib.x)
 set_tests_properties(Test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
