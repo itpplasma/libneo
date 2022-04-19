@@ -50,6 +50,9 @@ program test_hdf5_tools
 
   call h5_close(h5id)
 
+  ! wait to make sure file is written
+  call execute_command_line('sleep 2s')
+
   ! Open file again and read data.
   ! Note: different order of reads compared to writes is intentional.
   call h5_open(filename, h5id)
@@ -69,6 +72,9 @@ program test_hdf5_tools
   call h5_close(h5id)
 
   call h5_deinit()
+
+  ! clean up: remove the file
+  call execute_command_line('rm '//filename)
 
   ! Make sure that data read is same as those written.
   if (int_write /= int_read) then
