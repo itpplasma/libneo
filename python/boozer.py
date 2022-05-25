@@ -313,6 +313,8 @@ def convert_to_boozer(infile, ks, outfile):
   pspoly = np.polyder(ppoly)
   psval  = np.polyval(ppoly,s[ks])
 
+  # Radial interpolation of the quantities. Also get derivative from interpolation.
+  # Half to full grid?
   rpoly = []; rmnval = []; rspoly = []; rsmnval = []
   zpoly = []; zmnval = []; zspoly = []; zsmnval = []
   lpoly = []; lmnval = []; lspoly = []; lsmnval = []
