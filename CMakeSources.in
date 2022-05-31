@@ -3,6 +3,7 @@
 
 set(SOURCE_FILES
     src/arnoldi.f90
+    src/boozer.f90
     src/io.f90
     src/libneo_kinds.f90
     src/math_constants.f90
