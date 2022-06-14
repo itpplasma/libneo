@@ -1,7 +1,7 @@
 !
   subroutine spline_vmec_data
 !
-  use new_vmec_stuff_mod !TODO what is imported? , only: 
+  use new_vmec_stuff_mod
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none
@@ -11,14 +11,15 @@
   double precision :: twopi,cosphase,sinphase
   complex(8)   :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
   double precision, dimension(:,:), allocatable :: splcoe
-  double precision, dimension(:,:), allocatable :: almn_rho,rmn_rho,zmn_rho
+  double precision, dimension(:,:), allocatable :: almnc_rho,rmnc_rho,zmnc_rho
+  double precision, dimension(:,:), allocatable :: almns_rho,rmns_rho,zmns_rho
   complex(8),   dimension(:),   allocatable :: exp_imt,exp_inp
 !
   print *,'Splining VMEC data: ns_A = ',ns_A,'  ns_s = ',ns_s,'  ns_tp = ',ns_tp
 !
   call new_allocate_vmec_stuff
 !
-  call vmecin(rmn,zmn,almn,aiota,phi,sps,axm,axn,s,    &
+  call vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s,    &
               nsurfm,nstrm,kpar,torflux)
 !
   ns=kpar+1
@@ -26,19 +27,26 @@
   hs=s(2)-s(1)
 !
   nrho=ns
-  allocate(almn_rho(nstrm,0:nrho-1),rmn_rho(nstrm,0:nrho-1),zmn_rho(nstrm,0:nrho-1))
+  allocate(almnc_rho(nstrm,0:nrho-1),rmnc_rho(nstrm,0:nrho-1),zmnc_rho(nstrm,0:nrho-1))
+  allocate(almns_rho(nstrm,0:nrho-1),rmns_rho(nstrm,0:nrho-1),zmns_rho(nstrm,0:nrho-1))
 !
   do i=1,nstrm
 !
     m=nint(abs(axm(i)))
 !
-    nheal=min(m,10)
+    nheal=min(m, 4)
 !
-    call s_to_rho_healaxis(m,ns,nrho,nheal,rmn(i,:),rmn_rho(i,:))
+    call s_to_rho_healaxis(m,ns,nrho,nheal,rmnc(i,:),rmnc_rho(i,:))
 !
-    call s_to_rho_healaxis(m,ns,nrho,nheal,zmn(i,:),zmn_rho(i,:))
+    call s_to_rho_healaxis(m,ns,nrho,nheal,zmnc(i,:),zmnc_rho(i,:))
 !
-    call s_to_rho_healaxis(m,ns,nrho,nheal,almn(i,:),almn_rho(i,:))
+    call s_to_rho_healaxis(m,ns,nrho,nheal,almnc(i,:),almnc_rho(i,:))
+!
+    call s_to_rho_healaxis(m,ns,nrho,nheal,rmns(i,:),rmns_rho(i,:))
+!
+    call s_to_rho_healaxis(m,ns,nrho,nheal,zmns(i,:),zmns_rho(i,:))
+!
+    call s_to_rho_healaxis(m,ns,nrho,nheal,almns(i,:),almns_rho(i,:))
 !
   enddo
 !
@@ -86,11 +94,11 @@
 !
   nsize_exp_imt=(n_theta-1)*m_max
   nsize_exp_inp=(n_phi-1)*n_max
-!
+
   allocate(exp_imt(0:nsize_exp_imt),exp_inp(-nsize_exp_inp:nsize_exp_inp))
 !
-  base_exp_imt=exp(cmplx(0.d0,h_theta, kind(0d0)))
-  base_exp_inp=exp(cmplx(0.d0,h_phi, kind(0d0)))
+  base_exp_imt=exp(cmplx(0.d0,h_theta,kind=kind(0d0)))
+  base_exp_inp=exp(cmplx(0.d0,h_phi,kind=kind(0d0)))
   base_exp_inp_inv=(1.d0,0.d0)/base_exp_inp
   exp_imt(0)=(1.d0,0.d0)
   exp_inp(0)=(1.d0,0.d0)
@@ -127,14 +135,17 @@
         iexpp=n*(i_phi-1)
         expphase=exp_imt(iexpt)*exp_inp(-iexpp)
         cosphase=dble(expphase)
-        sinphase=real(aimag(expphase), kind(0d0))
+        sinphase=aimag(expphase)
         do is=1,ns
           sR(1,1,1,is,i_theta,i_phi) = sR(1,1,1,is,i_theta,i_phi)      &
-                                     + rmn_rho(i,is-1)*cosphase
+                                     + rmnc_rho(i,is-1)*cosphase       &
+                                     + rmns_rho(i,is-1)*sinphase
           sZ(1,1,1,is,i_theta,i_phi) = sZ(1,1,1,is,i_theta,i_phi)      &
-                                     + zmn_rho(i,is-1)*sinphase
+                                     + zmnc_rho(i,is-1)*cosphase       &
+                                     + zmns_rho(i,is-1)*sinphase
           slam(1,1,1,is,i_theta,i_phi) = slam(1,1,1,is,i_theta,i_phi)  &
-                                       + almn_rho(i,is-1)*sinphase
+                                       + almnc_rho(i,is-1)*cosphase    &
+                                       + almns_rho(i,is-1)*sinphase
         enddo
       enddo
     enddo
@@ -693,3 +704,57 @@
   deallocate(splcoe)
 !
   end subroutine s_to_rho_healaxis
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine volume_and_B00(volume,B00)
+!
+  use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,nper
+  use vector_potentail_mod, only : ns,hs,torflux,sA_phi
+!
+  implicit none
+!
+  integer :: is,i_theta,i_phi,k
+  double precision :: volume,B00
+  double precision :: B3,B2,bmod2
+  double precision :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
+                      R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp, &
+                      sqg,Bctrvr_vartheta,Bctrvr_varphi,                              &
+                      Bcovar_r,Bcovar_vartheta,Bcovar_varphi
+!
+  s=0.9999999999d0
+  volume=0.d0
+!
+  do i_theta=0,n_theta-2
+    theta=h_theta*dble(i_theta)
+    do i_phi=0,n_phi-2
+      varphi=h_phi*dble(i_phi)
+!
+      call splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
+                            R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp)
+!
+      volume=volume+R**2*dZ_dt
+    enddo
+  enddo
+!
+  volume=0.5d0*abs(volume)*h_theta*h_phi*dble(nper)
+!
+  s=1d-8
+  theta=0.d0
+  B2=0.d0
+  B3=0.d0
+  do i_phi=0,n_phi-2
+    varphi=h_phi*dble(i_phi)
+!
+    call vmec_field(s,theta,varphi,A_theta,A_phi,dA_theta_ds,dA_phi_ds,aiota,     &
+                    sqg,alam,dl_ds,dl_dt,dl_dp,Bctrvr_vartheta,Bctrvr_varphi,     &
+                    Bcovar_r,Bcovar_vartheta,Bcovar_varphi)
+!
+    bmod2=Bctrvr_vartheta*Bcovar_vartheta+Bctrvr_varphi*Bcovar_varphi
+    B2=B2+bmod2/Bctrvr_varphi
+    B3=B3+bmod2*sqrt(bmod2)/Bctrvr_varphi
+  enddo
+!
+  B00=B3/B2
+!
+  end subroutine volume_and_B00
