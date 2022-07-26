@@ -534,8 +534,8 @@ subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
 
 2000  format(6a8,3i4)
 2010  format(5(e16.9))
-55    print *, 'READ_EQFILE1: Early EOF in',trim(gfile); STOP
-250   print *, 'READ_EQFILE1: Error reading ',trim(gfile); STOP
+55    print *, 'READ_EQFILE2: Early EOF in',trim(gfile); STOP
+250   print *, 'READ_EQFILE2: Error reading ',trim(gfile); STOP
 
 end subroutine read_eqfile2
 
