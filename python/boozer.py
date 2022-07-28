@@ -938,11 +938,11 @@ class BoozerFile:
     \todo Find a better way to set the point closest to the axis?
 
     This function will determine rho_poloidal from s grid and
-    q = 1/iota = d\psi_{pol} / d\psi_{tor}.
-    For this it will integrate q over s. The integral over the whole
+    iota = 1/q = d\psi_{pol} / d\psi_{tor}.
+    For this it will integrate iota over s. The integral over the whole
     region serves as normalization constant, so that the values will be
     <= 1.
-    \int_{0}^{s} ds' q(s') /(\int_{0}^{a} ds' q(s')) = \psi_{\pol} (s) \psi_{\pol}(a) = \rho_{pol}^2
+    \int_{0}^{s} ds' iota(s') /(\int_{0}^{a} ds' iota(s')) = \psi_{\pol} (s) \psi_{\pol}(a) = \rho_{pol}^2
     As s = \rho_{tor}^2, thus a connection between \rho_{tor} and \rho_{pol}
     has been established.
 
@@ -955,16 +955,16 @@ class BoozerFile:
     from numpy import array
     from scipy.integrate import simps
 
-    q = 1.0/array(self.iota)
+    iota = array(self.iota)
 
-    psi_pol_a = simps(q, self.s)# Order of arguments is y, x.
+    psi_pol_a = simps(iota, self.s)# Order of arguments is y, x.
 
     rho_poloidal = []
 
     rho_poloidal.append(0.0)
 
     for k in range(1+1, len(self.iota)+1):
-      rho_poloidal.append(sqrt(simps(q[0:k], self.s[0:k])/ psi_pol_a))
+      rho_poloidal.append(sqrt(simps(iota[0:k], self.s[0:k])/ psi_pol_a))
 
     # Interpolate first point
     rho_poloidal[0] = sqrt(self.s[0]/self.s[1])*rho_poloidal[1]
