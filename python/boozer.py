@@ -971,6 +971,33 @@ class BoozerFile:
 
     return rho_poloidal
 
+  def write_rho_toroidal_vs_rho_poloidal(self, filename: str):
+    """Write rho_tor as function of  rho_pol to a file.
+
+    input:
+    ------
+    filename: string, that contains name (and path) of the file to write.
+
+    output:
+    -------
+    none
+
+    sideeffects:
+    ------------
+    creates file, overwrites file if it already exists.
+    """
+
+    from math import sqrt
+
+    rho_poloidal = self.get_rho_poloidal()
+    rho_toroidal = [sqrt(f) for f in self.s]
+
+    with open(filename, 'w') as f:
+      for [p, t] in zip(rho_poloidal, rho_toroidal):
+        f.write("{:13.6e} {:13.6e}\n".format(p, t))
+
+      f.write("\n")
+
   def get_R_Z(self, np:int = 100, phi:float = 0.0, ind:int = -1):
     """
     Get list of R and Z coordinates for given theta values.
