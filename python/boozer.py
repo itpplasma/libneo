@@ -784,6 +784,19 @@ class BoozerFile:
     phi: toroidal angle (in units of pi) at which to compute the contours.
     nplotsurf: number of flux surfaces to calculate (maybe with offset of 1).
     outfile: string, name of the file in which to store the data.
+
+    output:
+    -------
+    none
+
+    sideeffects:
+    ------------
+    Creates a file to which the data is written.
+
+    limitations:
+    ------------
+    Innermost contour can only be innermost flux surface, as
+    interpolation will fail.
     """
 
     import math
@@ -795,8 +808,9 @@ class BoozerFile:
     modfactor = 30
     nt = self.m0b*modfactor
 
-    Rnew = [0.0 for i in range(nt+1)]
-    Znew = [0.0 for i in range(nt+1)]
+    [Rnew, Znew] = self.get_R_Z(np = nt, phi = phi, ind = 0)
+    Rnew.append(Rnew[0])
+    Znew.append(Znew[0])
     rho_tor = hrho
     s_plot = rho_tor**2
     s = 0.0
