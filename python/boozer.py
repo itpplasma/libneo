@@ -775,6 +775,10 @@ class BoozerFile:
   def contours_in_r_z_plane(self, phi: float, nplotsurf: int, outfile: str):
     """Write outfile with contours based on data, at specified toroidal angle.
 
+    Example:
+    --------
+      contours_in_r_z_plane(phi=0.0, nplotsurf=20, outfile="rz_contours.dat")
+
     Input:
     ------
     phi: toroidal angle (in units of pi) at which to compute the contours.
