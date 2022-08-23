@@ -66,24 +66,25 @@ def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, b
       f.write(' {:16.8e} {:16.8e}'.format(bmnc[k], bmns[k]))
       f.write('\n')
 
-"""
-input:
-------
-infile: string, name(+path) of the input file (including extension).
-ks: integer, number of the flux surface to handle. Must be in the range
-  [1, n-2] where n is the number of flux surfaces in the file. This is
-  because of the interpolation that is done.
-outfile: string, name of the output file.
 
-output:
--------
-none
-
-sideeffects:
-------------
-creates outfile.
-"""
 def convert_to_boozer(infile, ks, outfile):
+  """
+  input:
+  ------
+  infile: string, name(+path) of the input file (including extension).
+  ks: integer, number of the flux surface to handle. Must be in the range
+    [1, n-2] where n is the number of flux surfaces in the file. This is
+    because of the interpolation that is done.
+  outfile: string, name of the output file.
+
+  output:
+  -------
+  none
+
+  sideeffects:
+  ------------
+  creates outfile.
+  """
   # Import modules.
 
   # Look for a fourier transformation module.
