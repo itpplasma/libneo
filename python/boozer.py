@@ -808,9 +808,6 @@ class BoozerFile:
     modfactor = 30
     nt = self.m0b*modfactor
 
-    [Rnew, Znew] = self.get_R_Z(np = nt, phi = phi, ind = 0)
-    Rnew.append(Rnew[0])
-    Znew.append(Znew[0])
     rho_tor = hrho
     s_plot = rho_tor**2
     s = 0.0
@@ -820,16 +817,20 @@ class BoozerFile:
         s_old = s
         s = self.s[k]
 
-        Rold=Rnew
-        Zold=Znew
-        # The if condition requires R/Znew and R/Zold to be set, which
-        # is, why this loop can not be moved inside the if-clause.
-        [Rnew, Znew] = self.get_R_Z(np = nt, phi = phi, ind = k)
-        # Add first point at end, to close the lines.
-        Rnew.append(Rnew[0])
-        Znew.append(Znew[0])
-
         if (s > s_plot):
+          [Rnew, Znew] = self.get_R_Z(np = nt, phi = phi, ind = k)
+          # Add first point at end, to close the lines.
+          Rnew.append(Rnew[0])
+          Znew.append(Znew[0])
+
+          if k > 0:
+            [Rold, Zold] = self.get_R_Z(np = nt, phi = phi, ind = k-1)
+            Rold.append(Rold[0])
+            Zold.append(Zold[0])
+          else:
+            Rold = Rnew
+            Zold = Znew
+
           w=(s_plot-s_old)/(s-s_old)
           for i in range(nt+1):
             outfile.write(' {:16.8e}'.format(Rnew[i]*w + Rold[i]*(1.0-w)))
