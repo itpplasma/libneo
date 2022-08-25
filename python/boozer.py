@@ -867,8 +867,8 @@ class BoozerFile:
 
     for k in range(self.nsurf):
 
-      R = sum(rr * math.cos(m*poloidal_angle - n*phi) + rc * math.sin(m*poloidal_angle - n*phi) for rr, rc, m, n in zip(self.rmnc[k], self.rmns[k], self.m[k], self.n[k]))
-      Z = sum(zr * math.cos(m*poloidal_angle - n*phi) + zc * math.sin(m*poloidal_angle - n*phi) for zr, zc, m, n in zip(self.zmnc[k], self.zmns[k], self.m[k], self.n[k]))
+      R = sum(rr * math.cos(m*poloidal_angle - self.nper*n*phi) + rc * math.sin(m*poloidal_angle - self.nper*n*phi) for rr, rc, m, n in zip(self.rmnc[k], self.rmns[k], self.m[k], self.n[k]))
+      Z = sum(zr * math.cos(m*poloidal_angle - self.nper*n*phi) + zc * math.sin(m*poloidal_angle - self.nper*n*phi) for zr, zc, m, n in zip(self.zmnc[k], self.zmns[k], self.m[k], self.n[k]))
 
       radii.append( math.sqrt((R - raxis)**2 + (Z - zaxis)**2) )
 
@@ -1054,8 +1054,8 @@ class BoozerFile:
     htheta = 2.0*pi/float(np)
     theta = [htheta*x for x in range(0,np)]
     for i in range(np):
-      R[i] = sum(rr * cos(m*theta[i] - n*phi) + rc * sin(m*theta[i] - n*phi) for rr, rc, m, n in zip(self.rmnc[ind], self.rmns[ind], self.m[ind], self.n[ind]))
-      Z[i] = sum(zr * cos(m*theta[i] - n*phi) + zc * sin(m*theta[i] - n*phi) for zr, zc, m, n in zip(self.zmnc[ind], self.zmns[ind], self.m[ind], self.n[ind]))
+      R[i] = sum(rr * cos(m*theta[i] - self.nper*n*phi) + rc * sin(m*theta[i] - self.nper*n*phi) for rr, rc, m, n in zip(self.rmnc[ind], self.rmns[ind], self.m[ind], self.n[ind]))
+      Z[i] = sum(zr * cos(m*theta[i] - self.nper*n*phi) + zc * sin(m*theta[i] - self.nper*n*phi) for zr, zc, m, n in zip(self.zmnc[ind], self.zmns[ind], self.m[ind], self.n[ind]))
 
     return [R, Z]
 
