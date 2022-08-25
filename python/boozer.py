@@ -775,6 +775,12 @@ class BoozerFile:
   def contours_in_r_z_plane(self, phi: float, nplotsurf: int, outfile: str):
     """Write outfile with contours based on data, at specified toroidal angle.
 
+    Output data is first column for R, second for Z, with contours
+    seperated by empty lines. This is intended for plotting with
+    gnuplot, where the empty lines will cause different contours not to
+    be connected. File can also be load'ed with octave/matlab, but then
+    seperation into contours is lost
+
     Example:
     --------
       contours_in_r_z_plane(phi=0.0, nplotsurf=20, outfile="rz_contours.dat")
@@ -782,7 +788,8 @@ class BoozerFile:
     Input:
     ------
     phi: toroidal angle (in units of pi) at which to compute the contours.
-    nplotsurf: number of flux surfaces to calculate (maybe with offset of 1).
+    nplotsurf: number of flux surfaces to calculate (output will contain
+      one contour less).
     outfile: string, name of the file in which to store the data.
 
     output:
@@ -795,8 +802,9 @@ class BoozerFile:
 
     limitations:
     ------------
-    Innermost contour can only be innermost flux surface, as
-    interpolation will fail.
+    With current implementation first contour is innermost flux surface.
+    Subsequent contours, may be further innwards or on top of first
+    contour.
     """
 
     import math
