@@ -120,7 +120,7 @@ contains
   !> side effects:
   !> -------------
   !> writes data to the file
-  subroutine write_boozer_block_head(iunit, s, iota, Jpol_over_nper, Itor, pprime, sqrt_g)
+  subroutine write_boozer_block_head_current(iunit, s, iota, Jpol_over_nper, Itor, pprime, sqrt_g)
     use libneo_kinds, only : real_kind
     use math_constants, only : TWOPI
 
@@ -135,7 +135,7 @@ contains
     write(iunit,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'
     write(iunit,'(6e17.8)') s, iota, Jpol_over_nper, Itor, &
         & pprime, sqrt_g
-  end subroutine write_boozer_block_head
+  end subroutine write_boozer_block_head_current
 
 
   !> \brief Write flux surface data of a boozer file.
@@ -175,7 +175,6 @@ contains
   !> writes data to the file
   subroutine write_boozer_block_data(iunit, total_number_modes, &
       & m, n, Rmn_c, Rmn_s, Zmn_c, Zmn_s, almn_c, almn_s, Bmn_c, Bmn_s)
-
     use libneo_kinds, only : real_kind
 
     implicit none
@@ -183,7 +182,6 @@ contains
     integer, intent(in) :: iunit
     integer, intent(in) :: total_number_modes
     integer, dimension(1:total_number_modes), intent(in) :: m, n
-
     real(kind=real_kind), dimension(1:total_number_modes), intent(in) :: &
         & Rmn_c, Rmn_s, Zmn_c, Zmn_s, almn_c, almn_s, Bmn_c, Bmn_s
 
