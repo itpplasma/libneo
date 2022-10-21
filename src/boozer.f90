@@ -138,6 +138,53 @@ contains
   end subroutine write_boozer_block_head_current
 
 
+  !> \brief Write flux surface header of a boozer file given magnetic field components.
+  !>
+  !> Write the header of a boozer flux surface block file to a given
+  !> file unit.
+  !> The header in this context includes two rows. The first with the
+  !> 'name' of the global variables and the second with the values
+  !> itself.
+  !>
+  !> Note that this subroutine assumes it gets quantities in SI units.
+  !> This is important in two ways. First, the units that are written in
+  !> the header are in SI units. Second, the quantities given are
+  !> written to file as is, i.e. with no conversion.
+  !>
+  !> input:
+  !> ------
+  !> iunit: integer, file unit to which to write.
+  !> s: float, flux surface label (boozer coordinate).
+  !> iota: float, rotational transform of the flux surface.
+  !> bsubvB: float, magnetic field component
+  !> bsubuB: float, magnetic field component
+  !> pprime: float, (unit: pascal)
+  !> sqert_g: float, (unit: (dV/ds)/nper)
+  !>
+  !> output:
+  !> -------
+  !> no formal output
+  !>
+  !> side effects:
+  !> -------------
+  !> writes data to the file
+  subroutine write_boozer_block_head(iunit, s, iota, bsubvB, bsubuB, pprime, vp, enfp)
+    use libneo_kinds, only : real_kind
+    use math_constants, only : MU_0, PI
+
+    implicit none
+
+    integer, intent(in) :: iunit
+    integer, intent(in) :: enfp
+    real(kind=real_kind), intent(in) :: s, iota, bsubvB, bsubuB, &
+        & pprime, vp
+
+    call write_boozer_block_head_current(iunit, s, iota, &
+        & -2.0*PI/MU_0*bsubvB/enfp, -2.0*PI/MU_0*bsubuB, pprime, &
+        & -4.0*PI**2*vp/enfp)
+  end subroutine write_boozer_block_head
+
+
   !> \brief Write flux surface data of a boozer file.
   !>
   !> First write column 'names' (with unit in brackets if any), and then
