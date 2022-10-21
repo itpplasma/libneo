@@ -246,4 +246,22 @@ contains
 
   end subroutine write_boozer_block_data
 
+
+  subroutine write_boozer_block_data_complex(iunit, total_number_modes, m, n, rmn, zmn, vmn, bmn, enfp)
+    use libneo_kinds, only : complex_kind, real_kind
+
+    implicit none
+
+    integer, intent(in) :: iunit
+    integer, intent(in) :: total_number_modes, enfp
+    integer, dimension(1:total_number_modes), intent(in) :: m, n
+    complex(kind=complex_kind), dimension(1:total_number_modes), intent(in) :: &
+        & rmn, zmn, vmn, bmn
+
+    call write_boozer_block_data(iunit, total_number_modes, m, n/enfp, &
+        & rmn%re, -rmn%im, zmn%re, -zmn%im, &
+        & vmn%re, -vmn%im, bmn%re, -bmn%im)
+  end subroutine write_boozer_block_data_complex
+
+
 end module boozer
