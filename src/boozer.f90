@@ -90,7 +90,7 @@ contains
   end subroutine write_boozer_head
 
 
-  !> \brief Write flux surface header of a boozer file.
+  !> \brief Write flux surface header of a boozer file given the currents.
   !>
   !> Write the header of a boozer flux surface block file to a given
   !> file unit.
