@@ -263,5 +263,48 @@ contains
         & vmn%re, -vmn%im, bmn%re, -bmn%im)
   end subroutine write_boozer_block_data_complex
 
+  !> \brief Get data required for boozer header from vmec file.
+  subroutine getHeadDataVmecNc(infilename, nfp, psi_tor_a, a, R0, m0b, n0b)
+    use libneo_kinds, only : real_kind
+    use nctools_module, only : nc_get, nc_inq_dim, nc_open
+
+    implicit none
+
+    character(len=100), intent(in) :: infilename
+    real(kind=real_kind), intent(out) :: psi_tor_a, a, R0
+    integer, intent(out) :: nfp, m0b, n0b
+
+    integer :: fileunit
+    integer :: empol, entor
+    integer :: size_m, size_n
+    integer, dimension(:), allocatable :: m,n
+    real(kind=real_kind), dimension(:), allocatable :: phipf
+
+
+    call nc_open(infilename, fileunit)
+
+    call nc_inq_dim(fileunit, 'xm', size_m)
+    call nc_inq_dim(fileunit, 'xm', size_n)
+
+    allocate(m(size_m), n(size_n))
+
+    call nc_get(fileunit, 'nfp', nfp)
+    call nc_get(fileunit, 'Aminor_p', a)
+    call nc_get(fileunit, 'Rmajor_p', R0)
+    call nc_get(fileunit, 'phipf', phipf)
+    call nc_get(fileunit, 'xm', m)
+    call nc_get(fileunit, 'xn', n)
+    psi_tor_a = phipf(1)
+    empol = maxval(abs(m))
+    entor = maxval(abs(n))
+    m0b = 2*empol
+    n0b = 2*entor
+
+    if (allocated(m)) deallocate(m)
+    if (allocated(n)) deallocate(n)
+
+    close(unit=fileunit)
+
+  end subroutine getHeadDataVmecNc
 
 end module boozer
