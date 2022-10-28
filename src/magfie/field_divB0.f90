@@ -688,7 +688,7 @@ subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
      read(1,*)
 
 !---Input B      -->T = V*s/m/m
-     do j=1,np-1	 !only npmax-1 points are given
+     do j=1,np-1  !only npmax-1 points are given
         do k=nz,1,-1  !reverse order of probe data
            do i=1,nr
               read(1,*) Br(i,j,k), Bp(i,j,k), Bz(i,j,k)
