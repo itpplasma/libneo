@@ -13,7 +13,8 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
 !
   implicit none
 !
-  double precision :: r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ         &
+  double precision, intent(in) :: r, z
+  double precision :: p,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ         &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   double precision :: rm,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc   &
                      ,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc
