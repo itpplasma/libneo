@@ -114,7 +114,7 @@ classdef efit < handle
             % nh    ... number of cols (height, vertical grid points)
             %##############################################################
 
-            obj.CASE{3} = datestr(datetime('today'), 'mm/dd/yy');
+            obj.CASE{3} = datestr(now(), 'mm/dd/yy');
 
             obj.fname = fname;
             
