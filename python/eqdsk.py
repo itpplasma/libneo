@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 class eqdsk_file:
 
   def __init__ (self, filename:str):
