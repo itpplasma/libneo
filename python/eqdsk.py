@@ -6,6 +6,7 @@ class eqdsk_file:
   def __init__ (self, filename:str):
     self.generate_from_file(filename)
 
+
   def generate_from_file(self, filename:str):
     """
     \note Might not be suitable for general format of eqdsk file.
@@ -160,5 +161,147 @@ class eqdsk_file:
 
     self.rest = l[line_number:]
 
+
+  def sort_into_coilgroups(self, indices_coilgroupstarts:list, coilgroups:list, coiltags:list):
+    """
+    This method takes the coils and sorts it into groups according to provided information.
+
+    After reading coil data is just a list of points with currents. This
+    method will sort them into coil(-groups).
+    As it is not clear if this process can be automated at all, input is
+    required to do so.
+
+    input:
+    ------
+    indices_coilgroupstarts: list of integers, indices of the points
+      which represent the start of each coil.
+    coilgroups: list of integers, same length as indices_coilgroupstarts.
+      An 'ID' for the corresponding coil. Coils with same ID can not be
+      changed independent(?).
+    coiltags: list of strings, same length as indices_coilgroupstarts.
+      Short(?) descriptive name for coilgroup.
+    """
+    self.coilgroups = []
+
+    for k in range(len(indices_coilgroupstarts)):
+      i = indices_coilgroupstarts[k]
+      imax = len(indices_coilgroupstarts)
+      if k < len(indices_coilgroupstarts)-1:
+        imax = indices_coilgroupstarts[k+1]
+
+      for j in range(i, imax):
+        c = Coilgroup(self.Icond[k], coilgroups[k], coiltags[k])
+
+        p = Point(self.Rcond[j] - self.DRcond[j],
+                  self.Zcond[j] - self.DZcond[j],
+                  0.0)
+        c.coordinates.append(p)
+
+        p = Point(self.Rcond[j] - self.DRcond[j],
+                  self.Zcond[j] + self.DZcond[j],
+                  0.0)
+        c.coordinates.append(p)
+
+        p = Point(self.Rcond[j] + self.DRcond[j],
+                  self.Zcond[j] + self.DZcond[j],
+                  0.0)
+        c.coordinates.append(p)
+
+        p = Point(self.Rcond[j] + self.DRcond[j],
+                  self.Zcond[j] - self.DZcond[j],
+                  0.0)
+        c.coordinates.append(p)
+
+        self.coilgroups.append(c)
+
+
   def to_makegrid_input(self, filename):
-    pass
+    """
+    Creates a makegrid coil input file from the class.
+
+    This method expects, that the coilgroups are set.
+
+    From makegrid documentation (https://princetonuniversity.github.io/STELLOPT/MAKEGRID):
+
+    The coils file is a standard filament format which has it's origin
+    in coil design software. The first line indicates the number of
+    field periods for a run. The next line indicates the beginning of
+    the filament section. The third line is read by MAKEGRID but
+    ignored. Then the definition of a coil begins. The coils is
+    specified by connecting points in space along a line defining a
+    coil. For each point a current is specified. The last point should
+    correspond with the first in a given loop and have zero current. In
+    the following example, a square coil is specified.
+
+    periods 3
+    begin filament
+    mirror NIL
+    0.0   0.0   0.0   5.0
+    1.0   0.0   0.0   5.0
+    1.0   1.0   0.0   5.0
+    0.0   1.0   0.0   5.0
+    0.0   0.0   0.0   0.0   1   SQ
+    end
+
+    The last line also contains a number which associates this coil with
+    coilgroup 1 and a name 'SQ.' The fields from all coils of the same
+    coilgroup will be summed. In a sense, the user can think of
+    coilgroups as indicating common (or coupled) power supplies.
+
+    \todo coordinate system?
+
+    input:
+    ------
+    filename: string, path+name of the file to which to write the result.
+
+    output:
+    -------
+    none
+
+    sideeffects:
+    ------------
+    Creates file on disk and writes results to the file.
+    """
+
+    periods = 1
+
+    with open(filename, 'w') as f:
+      f.write("periods {}\n".format(periods))
+      f.write("begin filament\n")
+      f.write("mirror NIL\n")
+
+      for c in self.coilgroups:
+        if abs(c.I) < 1.0e-10:
+          continue
+
+        for p in c.coordinates:
+          f.write("{} {} {} {}\n".format(p.x, p.y, p.z, c.I))
+
+        p = c.coordinates[0]
+        f.write("{} {} {} {} {} {}\n".format(p.x, p.y, p.z, 0.0, c.coilgroup, c.Tag))
+
+      f.write("end\n")
+
+class Coilgroup:
+  """
+  Collect data for a coil(group):
+  - current
+  - id
+  - Tag
+  - coordinates
+  """
+  def __init__(self, I, coilgroup, Tag):
+    self.I = I
+    self.coilgroup = coilgroup
+    self.Tag = Tag
+    self.coordinates = []
+
+class Point:
+  """
+  Collect data for a 3D point, i.e. x, y and z position (not necessarily
+  cartesian).
+  """
+  def __init__(self, x, y, z):
+    self.x = x
+    self.y = y
+    self.z = z
