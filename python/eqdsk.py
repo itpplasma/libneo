@@ -215,6 +215,59 @@ class eqdsk_file:
         self.coilgroups.append(c)
 
 
+  def increase_periodicity_in_coilgroups(self, periods:int):
+    """
+    Increase the number of periods for the coilgroups.
+
+    Increase the periodicity, by increasing the number of elements, i.e.
+    the makegrid file will still have 'periods 1'.
+
+    Existing data needs to be rotated. Angle is
+
+      k * 2*pi/periods
+
+    with $k \in [0, periods-1]$ or $k \in [1, periods]$. The case
+    $k = 0$ and $k = periods$ corespond to no rotation/one full rotation
+    and thus can be ignored.
+    The rotation itself is along the z-axis and can thus be described by
+
+      x' = x \cos \alpha  - y \sin \alpha
+      y' = x \sin \alpha  + y \cos \alpha
+      z' = z
+
+    input:
+    ------
+    periods: integer, number by which to mulitply number of elements.
+
+    output:
+    -------
+    None
+
+    sideeffects:
+    ------------
+    Adds elements to member coilgroups.
+    """
+    from math import cos, pi, sin
+    for c in self.coilgroups:
+      # Differentiate between elements that have toroidal symmetry and
+      # those that have no (continous) toroidal symmetry.
+      if c.Tag in {'CS','PF'}:
+        for k in range(1,periods):
+          alpha = float(k) * 2.0*pi/float(periods)
+          for p in c.coordinates.copy():
+            c.coordinates.append(Point(p.x*cos(alpha) - p.y*sin(alpha),
+                                       p.x*sin(alpha) + p.y*cos(alpha),
+                                       p.z))
+      else:
+        for k in range(1,periods):
+          alpha = float(k) * 2.0*pi/float(periods)
+          cn = Coilgroup(c.I, c.coilgroup, c.Tag)
+          for p in c.coordinates:
+            cn.coordinates.append(Point(p.x*cos(alpha) - p.y*sin(alpha),
+                                        p.x*sin(alpha) + p.y*cos(alpha),
+                                        p.z))
+
+
   def to_makegrid_input(self, filename):
     """
     Creates a makegrid coil input file from the class.
