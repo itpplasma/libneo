@@ -346,10 +346,10 @@ class eqdsk_file:
           continue
 
         for p in c.coordinates:
-          f.write("{} {} {} {}\n".format(p.x, p.y, p.z, c.I))
+          f.write("{:+13.7e} {:+13.7e} {:+13.7e} {:+13.7e}\n".format(p.x, p.y, p.z, c.I))
 
         p = c.coordinates[0]
-        f.write("{} {} {} {} {} {}\n".format(p.x, p.y, p.z, 0.0, c.coilgroup, c.Tag))
+        f.write("{:+13.7e} {:+13.7e} {:+13.7e} {:+13.7e} {} {}\n".format(p.x, p.y, p.z, 0.0, c.coilgroup, c.Tag))
 
       f.write("end\n")
 
