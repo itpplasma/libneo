@@ -278,6 +278,8 @@ class eqdsk_file:
                                         p.x*sin(alpha) + p.y*cos(alpha),
                                         p.z))
 
+          self.coilgroups.append(cn)
+
 
   def to_makegrid_input(self, filename):
     """
