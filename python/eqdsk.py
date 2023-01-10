@@ -261,16 +261,15 @@ class eqdsk_file:
     from math import cos, pi, sin
       # Differentiate between elements that have toroidal symmetry and
       # those that have no (continous) toroidal symmetry.
-    if c.Tag in {'CS','PF'}:
-      for c in self.coilgroups:
+    for c in self.coilgroups.copy():
+      if c.Tag in {'CS','PF'}:
         for k in range(1,periods):
           alpha = float(k) * 2.0*pi/float(periods)
           for p in c.coordinates.copy():
             c.coordinates.append(Point(p.x*cos(alpha) - p.y*sin(alpha),
                                        p.x*sin(alpha) + p.y*cos(alpha),
                                        p.z))
-    else:
-      for c in self.coilgroups.copy():
+      else:
         for k in range(1,periods):
           alpha = float(k) * 2.0*pi/float(periods)
           cn = Coilgroup(c.I, c.coilgroup, c.Tag)
