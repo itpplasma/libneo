@@ -185,7 +185,7 @@ class eqdsk_file:
 
     for k in range(len(indices_coilgroupstarts)):
       i = indices_coilgroupstarts[k]
-      imax = len(indices_coilgroupstarts)
+      imax = len(self.Rcond)
       if k < len(indices_coilgroupstarts)-1:
         imax = indices_coilgroupstarts[k+1]
 
