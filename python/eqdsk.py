@@ -192,25 +192,36 @@ class eqdsk_file:
       for j in range(i, imax):
         c = Coilgroup(self.Icond[k], coilgroups[k], coiltags[k])
 
-        p = Point(self.Rcond[j] - self.DRcond[j],
-                  0.0,
-                  self.Zcond[j] - self.DZcond[j])
-        c.coordinates.append(p)
+        if c.Tag in {'CS','PF'}:
+          p = Point(self.Rcond[j],
+                    -self.Rcond[j]/50.0,
+                    self.Zcond[j])
+          c.coordinates.append(p)
 
-        p = Point(self.Rcond[j] - self.DRcond[j],
-                  0.0,
-                  self.Zcond[j] + self.DZcond[j])
-        c.coordinates.append(p)
+          p = Point(self.Rcond[j],
+                    +self.Rcond[j]/50.0,
+                    self.Zcond[j])
+          c.coordinates.append(p)
+        else:
+          p = Point(self.Rcond[j] - self.DRcond[j],
+                    0.0,
+                    self.Zcond[j] - self.DZcond[j])
+          c.coordinates.append(p)
 
-        p = Point(self.Rcond[j] + self.DRcond[j],
-                  0.0,
-                  self.Zcond[j] + self.DZcond[j])
-        c.coordinates.append(p)
+          p = Point(self.Rcond[j] - self.DRcond[j],
+                    0.0,
+                    self.Zcond[j] + self.DZcond[j])
+          c.coordinates.append(p)
 
-        p = Point(self.Rcond[j] + self.DRcond[j],
-                  0.0,
-                  self.Zcond[j] - self.DZcond[j])
-        c.coordinates.append(p)
+          p = Point(self.Rcond[j] + self.DRcond[j],
+                    0.0,
+                    self.Zcond[j] + self.DZcond[j])
+          c.coordinates.append(p)
+
+          p = Point(self.Rcond[j] + self.DRcond[j],
+                    0.0,
+                    self.Zcond[j] - self.DZcond[j])
+          c.coordinates.append(p)
 
         self.coilgroups.append(c)
 
