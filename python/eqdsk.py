@@ -6,6 +6,8 @@ class eqdsk_file:
   def __init__ (self, filename:str):
     self.generate_from_file(filename)
 
+    self.verbose = False
+
 
   def generate_from_file(self, filename:str):
     """
@@ -339,6 +341,8 @@ class eqdsk_file:
 
       for c in self.coilgroups:
         if abs(c.I) < 1.0e-10:
+          if self.verbose:
+            print("Ignoring coilgroup with current {} and tag {}".format(c.I, c.Tag))
           continue
 
         for p in c.coordinates:
