@@ -259,11 +259,13 @@ class eqdsk_file:
     Adds elements to member coilgroups.
     """
     from math import cos, pi, sin
-      # Differentiate between elements that have toroidal symmetry and
-      # those that have no (continous) toroidal symmetry.
+
     for c in self.coilgroups.copy():
       for k in range(1,periods):
         alpha = float(k) * 2.0*pi/float(periods)
+
+        # Differentiate between elements that have toroidal symmetry and
+        # those that have no (continous) toroidal symmetry.
         if c.Tag in {'CS','PF'}:
           for p in c.coordinates.copy():
             c.coordinates.append(Point(p.x*cos(alpha) - p.y*sin(alpha),
