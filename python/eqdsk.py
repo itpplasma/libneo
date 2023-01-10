@@ -190,7 +190,7 @@ class eqdsk_file:
         imax = indices_coilgroupstarts[k+1]
 
       for j in range(i, imax):
-        c = Coilgroup(self.Icond[k], coilgroups[k], coiltags[k])
+        c = Coilgroup(self.Icond[j], coilgroups[k], coiltags[k])
 
         if c.Tag in {'CS','PF'}:
           p = Point(self.Rcond[j],
