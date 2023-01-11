@@ -295,7 +295,7 @@ class eqdsk_file:
     ------------
     None
     """
-    s = get_used_coilgroup_ids()
+    s = self.get_used_coilgroup_ids()
 
     return (max(s)+1)
 
