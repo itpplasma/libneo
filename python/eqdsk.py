@@ -228,6 +228,46 @@ class eqdsk_file:
         self.coilgroups.append(c)
 
 
+  def get_used_coilgroup_ids(self):
+    """
+    input:
+    ------
+    None
+
+    output:
+    -------
+    Set with all used coilgroup ids.
+
+    sideeffects:
+    ------------
+    None
+    """
+    s = set()
+    for c in self.coilgroups:
+      s.add(c.coilgroup)
+
+    return s
+
+
+  def get_free_coilgroup_id(self):
+    """
+    input:
+    ------
+    None
+
+    output:
+    -------
+    Free coilgroup id. Currently determined as maximum used id plus one.
+
+    sideeffects:
+    ------------
+    None
+    """
+    s = get_used_coilgroup_ids()
+
+    return (max(s)+1)
+
+
   def increase_periodicity_in_coilgroups(self, periods:int):
     """
     Increase the number of periods for the coilgroups.
