@@ -228,6 +228,38 @@ class eqdsk_file:
         self.coilgroups.append(c)
 
 
+  def add_tf_coilgroup(self, filename: str, current: float, coilgroup: int):
+    """
+
+    input:
+    ------
+    filename: string, name and path of file where to find the data.
+
+    output:
+    -------
+    None
+
+    sideeffects:
+    ------------
+    Adds coilgroup to this object.
+    """
+
+    with open(filename) as f:
+      l = f.readlines()
+
+    l = [ls.strip() for ls in l]
+
+    c = Coilgroup(current, coilgroup, "TF")
+    for ls in l:
+      [x, z] = ls.split()
+      p = Point(float(x),
+                0.0,
+                float(z))
+      c.coordinates.append(p)
+
+    self.coilgroups.append(c)
+
+
   def get_used_coilgroup_ids(self):
     """
     input:
