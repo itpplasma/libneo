@@ -234,6 +234,8 @@ class eqdsk_file:
     input:
     ------
     filename: string, name and path of file where to find the data.
+    current: float, the current through the coil.
+    coilgroup: integer, the id to use for the coil.
 
     output:
     -------
@@ -254,6 +256,40 @@ class eqdsk_file:
       [x, z] = ls.split()
       p = Point(float(x),
                 0.0,
+                float(z))
+      c.coordinates.append(p)
+
+    self.coilgroups.append(c)
+
+
+  def add_rmp_coilgroup(self, filename: str, current: float, coilgroup: int):
+    """
+
+    input:
+    ------
+    filename: string, name and path of file where to find the data.
+    current: float, the current through the coil.
+    coilgroup: integer, the id to use for the coil.
+
+    output:
+    -------
+    None
+
+    sideeffects:
+    ------------
+    Adds coilgroup to this object.
+    """
+
+    with open(filename) as f:
+      l = f.readlines()
+
+    l = [ls.strip() for ls in l]
+
+    c = Coilgroup(current, coilgroup, "RMP")
+    for ls in l:
+      [x, y, z] = ls.split()
+      p = Point(float(x),
+                float(y),
                 float(z))
       c.coordinates.append(p)
 
