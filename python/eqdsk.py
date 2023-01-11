@@ -353,6 +353,7 @@ class eqdsk_file:
 
       f.write("end\n")
 
+
 class Coilgroup:
   """
   Collect data for a coil(group):
@@ -366,6 +367,7 @@ class Coilgroup:
     self.coilgroup = coilgroup
     self.Tag = Tag
     self.coordinates = []
+
 
 class Point:
   """
