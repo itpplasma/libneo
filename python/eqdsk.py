@@ -183,7 +183,11 @@ class eqdsk_file:
     coiltags: list of strings, same length as indices_coilgroupstarts.
       Short(?) descriptive name for coilgroup.
     """
+    from math import cos, pi, sin
+
     self.coilgroups = []
+
+    self.number_toroidal_points = 128
 
     for k in range(len(indices_coilgroupstarts)):
       i = indices_coilgroupstarts[k]
@@ -195,15 +199,12 @@ class eqdsk_file:
         c = Coilgroup(self.Icond[j], coilgroups[k], coiltags[k])
 
         if c.Tag in {'CS','PF'}:
-          p = Point(self.Rcond[j],
-                    -self.Rcond[j]/50.0,
-                    self.Zcond[j])
-          c.coordinates.append(p)
-
-          p = Point(self.Rcond[j],
-                    +self.Rcond[j]/50.0,
-                    self.Zcond[j])
-          c.coordinates.append(p)
+          for k in range(self.number_toroidal_points):
+            alpha = float(k) * 2.0*pi/float(self.number_toroidal_points)
+            p = Point(self.Rcond[j]*cos(alpha),
+                      self.Rcond[j]*sin(alpha),
+                      self.Zcond[j])
+            c.coordinates.append(p)
         else:
           p = Point(self.Rcond[j] - self.DRcond[j],
                     0.0,
@@ -378,12 +379,12 @@ class eqdsk_file:
         # Differentiate between elements that have toroidal symmetry and
         # those that have no (continous) toroidal symmetry.
         if c.Tag in {'CS','PF'}:
-          for p in coordinates:
-            c.coordinates.append(Point(p.x*cos(alpha) - p.y*sin(alpha),
-                                       p.x*sin(alpha) + p.y*cos(alpha),
-                                       p.z))
+          pass # Nothing to do here, is assumed to be already symmetric with enough points.
         else:
-          cn = Coilgroup(c.I, c.coilgroup, c.Tag)
+          if c.Tag in {'RMP'}:
+            cn = Coilgroup(c.I, self.get_free_coilgroup_id(), c.Tag)
+          else:
+            cn = Coilgroup(c.I, c.coilgroup, c.Tag)
           for p in coordinates:
             cn.coordinates.append(Point(p.x*cos(alpha) - p.y*sin(alpha),
                                         p.x*sin(alpha) + p.y*cos(alpha),
