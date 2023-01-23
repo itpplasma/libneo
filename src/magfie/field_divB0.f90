@@ -13,7 +13,8 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
 !
   implicit none
 !
-  double precision :: r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ         &
+  double precision, intent(in) :: r, z
+  double precision :: p,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ         &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   double precision :: rm,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc   &
                      ,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc
@@ -687,7 +688,7 @@ subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
      read(1,*)
 
 !---Input B      -->T = V*s/m/m
-     do j=1,np-1	 !only npmax-1 points are given
+     do j=1,np-1  !only npmax-1 points are given
         do k=nz,1,-1  !reverse order of probe data
            do i=1,nr
               read(1,*) Br(i,j,k), Bp(i,j,k), Bz(i,j,k)
