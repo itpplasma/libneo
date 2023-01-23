@@ -52,6 +52,7 @@ module hdf5_tools
      module procedure h5_add_double_5
      module procedure h5_add_complex_1
      module procedure h5_add_complex_2
+     module procedure h5_add_complex_3
      module procedure h5_add_string
      module procedure h5_add_logical
   end interface h5_add
@@ -74,6 +75,7 @@ module hdf5_tools
      module procedure h5_get_double_4_hyperslab
      module procedure h5_get_complex_1
      module procedure h5_get_complex_2
+     module procedure h5_get_complex_3
      module procedure h5_get_string
      module procedure h5_get_logical
   end interface h5_get
@@ -85,6 +87,7 @@ module hdf5_tools
   interface h5_get_bounds
      module procedure h5_get_bounds_1
      module procedure h5_get_bounds_2
+     module procedure h5_get_bounds_3
   end interface h5_get_bounds
 
   !**********************************************************
@@ -471,6 +474,39 @@ contains
     !write (*,*) "get_bounds: ", dataset, lbounds, ubounds
 
   end subroutine h5_get_bounds_2
+
+  !**********************************************************
+  ! Get bounds of matrix
+  !**********************************************************
+  subroutine h5_get_bounds_3(h5id, dataset, lb1, lb2, lb3, ub1, ub2, ub3)
+    integer(HID_T)         :: h5id
+    character(len=*)       :: dataset
+    integer, dimension(1:3):: lbounds, ubounds
+    integer, intent(out)   :: lb1, lb2, lb3, ub1, ub2, ub3
+    logical                :: attr_exists
+
+    lbounds(1) = 0
+    lbounds(2) = 0
+    lbounds(3) = 0
+    ubounds(1) = 0
+    ubounds(2) = 0
+    ubounds(3) = 0
+
+    call h5aexists_by_name_f(h5id, dataset, 'lbounds', attr_exists, h5error)
+    if (attr_exists) call h5ltget_attribute_int_f(h5id, dataset,'lbounds', lbounds, h5error)
+    call h5aexists_by_name_f(h5id, dataset, 'ubounds', attr_exists, h5error)
+    if (attr_exists) call h5ltget_attribute_int_f(h5id, dataset,'ubounds', ubounds, h5error)
+
+    lb1 = lbounds(1)
+    lb2 = lbounds(2)
+    lb3 = lbounds(3)
+    ub1 = ubounds(1)
+    ub2 = ubounds(2)
+    ub3 = ubounds(3)
+
+    !write (*,*) "get_bounds: ", dataset, lbounds, ubounds
+
+  end subroutine h5_get_bounds_3
 
   !**********************************************************
   ! Append integer scalar to unlimited dimension
@@ -1327,6 +1363,84 @@ contains
   end subroutine h5_get_complex_2
 
   !**********************************************************
+  ! Get 3-dim complex double matrix
+  !**********************************************************
+  subroutine h5_get_complex_3(h5id, dataset, val)
+    integer(HID_T), intent(in)                         :: h5id
+    character(len=*), intent(in)                       :: dataset
+    complex(kind=dcp), dimension(:,:,:), intent(inout) :: val
+#if defined(__INTEL_COMPILER)
+    real, allocatable, dimension(:,:) :: temp
+#endif
+    integer                                          :: lb1, ub1, lb2, ub2, lb3, ub3
+    integer, parameter                               :: rank = 3
+    integer(HSIZE_T), dimension(rank)                :: dims
+    integer(SIZE_T)                                  :: re_size, im_size, t_size
+    integer(SIZE_T)                                  :: offset
+    integer(HID_T)                                   :: type_id
+    integer(HID_T)                                   :: dset_id, dt_re_id, dt_im_id
+
+    !**********************************************************
+    ! Get sizes
+    !**********************************************************
+    call h5tget_size_f(H5T_NATIVE_DOUBLE, re_size, h5error)
+    call h5tget_size_f(H5T_NATIVE_DOUBLE, im_size, h5error)
+    t_size = re_size + im_size
+
+    !**********************************************************
+    ! Create compound type
+    !**********************************************************
+    call h5tcreate_f(H5T_COMPOUND_F, t_size, type_id, h5error)
+    offset = 0
+    call h5tinsert_f(type_id, 'real', offset, H5T_NATIVE_DOUBLE, h5error)
+    offset = offset + re_size
+    call h5tinsert_f(type_id, 'imag', offset, H5T_NATIVE_DOUBLE, h5error)
+
+    !**********************************************************
+    ! Create sub datasets
+    !**********************************************************
+    call h5tcreate_f(H5T_COMPOUND_F, re_size, dt_re_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_re_id, "real", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    call h5tcreate_f(H5T_COMPOUND_F, im_size, dt_im_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_im_id, "imag", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    !**********************************************************
+    ! Get dimension of value to be retrieved
+    !**********************************************************
+    call h5_get_bounds(h5id, dataset, lb1, lb2, lb3, ub1, ub2, ub3)
+    dims = (/ ub1 - lb1 + 1, ub2 - lb2 + 1, ub3 - lb3 + 1 /)
+
+    !**********************************************************
+    ! Read data
+    !**********************************************************
+    call h5dopen_f(h5id, dataset, dset_id, h5error)
+
+#if defined(__INTEL_COMPILER)
+    if (allocated(temp)) deallocate(temp)
+    allocate(temp(lbound(val, 1):ubound(val, 1), lbound(val, 2):ubound(val, 2), &
+         lbound(val, 3):ubound(val, 3)))
+    call h5dread_f(dset_id, dt_re_id, temp, dims, h5error)
+    val%re = temp
+    call h5dread_f(dset_id, dt_im_id, temp, dims, h5error)
+    val%im = temp
+    deallocate(temp)
+#else
+    call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
+    call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
+#endif
+
+    call h5dclose_f(dset_id, h5error)
+    call h5tclose_f(type_id, h5error)
+    call h5tclose_f(dt_re_id, h5error)
+    call h5tclose_f(dt_im_id, h5error)
+
+    call h5_check()
+  end subroutine h5_get_complex_3
+
+  !**********************************************************
   ! Get logical scalar
   !**********************************************************
   subroutine h5_get_logical(h5id, dataset, value)
@@ -1641,6 +1755,92 @@ contains
 
     call h5_check()
   end subroutine h5_add_complex_2
+
+  !**********************************************************
+  ! Add 2-dim complex double matrix
+  !**********************************************************
+  subroutine h5_add_complex_3(h5id, dataset, value, lbounds, ubounds, comment, unit, accuracy)
+    integer(HID_T)                              :: h5id
+    character(len=*)                            :: dataset
+    complex(kind=dcp), dimension(:,:,:)         :: value
+    integer, dimension(:)                       :: lbounds, ubounds
+    character(len=*), optional                  :: comment
+    character(len=*), optional                  :: unit
+    double precision, optional                  :: accuracy
+
+    integer(HSIZE_T), dimension(:), allocatable :: dims
+    integer(SIZE_T)                             :: size
+    integer                                     :: rank = 3
+    integer(SIZE_T)                             :: re_size, im_size, t_size
+    integer(SIZE_T)                             :: offset
+    integer(HID_T)                              :: type_id
+    integer(HID_T)                              :: dspace_id, dset_id, dt_re_id, dt_im_id
+
+    if (h5overwrite) call h5_delete(h5id, dataset)
+    !**********************************************************
+    ! Get sizes
+    !**********************************************************
+    call h5tget_size_f(H5T_NATIVE_DOUBLE, re_size, h5error)
+    call h5tget_size_f(H5T_NATIVE_DOUBLE, im_size, h5error)
+    t_size = re_size + im_size
+
+    !**********************************************************
+    ! Create compound type
+    !**********************************************************
+    call h5tcreate_f(H5T_COMPOUND_F, t_size, type_id, h5error)
+    offset = 0
+    call h5tinsert_f(type_id, 'real', offset, H5T_NATIVE_DOUBLE, h5error)
+    offset = offset + re_size
+    call h5tinsert_f(type_id, 'imag', offset, H5T_NATIVE_DOUBLE, h5error)
+
+    !**********************************************************
+    ! Get dimension of value to be stored
+    !**********************************************************
+    allocate(dims(rank))
+    dims = ubounds - lbounds + 1
+    size = rank
+
+    !**********************************************************
+    ! Create dataset
+    !**********************************************************
+    call h5screate_simple_f(rank, dims, dspace_id, h5error)
+    call h5dcreate_f(h5id, dataset, type_id, dspace_id, dset_id, h5error)
+
+    !**********************************************************
+    ! Create sub datasets
+    !**********************************************************
+    call h5tcreate_f(H5T_COMPOUND_F, re_size, dt_re_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_re_id, "real", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    call h5tcreate_f(H5T_COMPOUND_F, im_size, dt_im_id, h5error)
+    offset = 0
+    call h5tinsert_f(dt_im_id, "imag", offset, H5T_NATIVE_DOUBLE, h5error)
+
+    !**********************************************************
+    ! Write data
+    !**********************************************************
+    call h5dwrite_f(dset_id, dt_re_id, real(value),  dims, h5error)
+    call h5dwrite_f(dset_id, dt_im_id, aimag(value), dims, h5error)
+
+    !**********************************************************
+    ! Set additional attributes
+    !**********************************************************
+    call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
+    call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
+
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit, accuracy)
+
+    deallocate(dims)
+
+    call h5dclose_f(dset_id, h5error)
+    call h5sclose_f(dspace_id, h5error)
+    call h5tclose_f(type_id, h5error)
+    call h5tclose_f(dt_re_id, h5error)
+    call h5tclose_f(dt_im_id, h5error)
+
+    call h5_check()
+  end subroutine h5_add_complex_3
 
   !**********************************************************
   ! Add string
