@@ -1,0 +1,176 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{amsmath}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage[a4paper]{geometry}
+\usepackage{authblk}
+\usepackage{setspace}
+\usepackage{csquotes}
+\usepackage{booktabs}
+%%%%%%%%%%%%%%%%%% My preamble %%%%%%%%%%%%%%%%%%%%%%%%%%
+%\usepackage[numbers, sort&compress]{natbib}
+%\setcitestyle{numbers,square,comma,aysep={,},yysep={,},notesep={,}}
+%\bibliographystyle{unsrtnat}
+%\bibliographystyle{IEEEtranSN}
+
+%References
+\usepackage[
+    bibstyle=phys,
+    biblabel=brackets,
+    citestyle=numeric-comp,
+    isbn=false,
+    doi=false,
+    sorting=none,
+    url=false,
+    defernumbers=true,
+    bibencoding=utf8,
+    backend=biber,
+    %maxbibnames=3,maxcitenames=3,
+    %minnames=3,
+    maxnames=30,
+    ]{biblatex}
+\setcounter{biburllcpenalty}{7000}
+\setcounter{biburlucpenalty}{8000}
+\addbibresource[]{eccd_ref.bib}
+\DeclareBibliographyCategory{fullcited}
+\newcommand{\mybibexclude}[1]{\addtocategory{fullcited}{#1}}
+\DeclareFieldFormat{titlecase}{\MakeCapital{#1}}
+\DeclareFieldFormat{sentencecase}{\MakeSentenceCase{#1}}
+
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{amssymb}
+\usepackage{bm}
+
+\usepackage{../shared/Commands}
+
+\title{\textbf{VMEC Usage}}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Refering to stellopt version of VMEC
+Addition to the manual, answering questions not answered there.
+
+
+\section{General}
+Documentation at https://princetonuniversity.github.io/STELLOPT/VMEC
+
+Not-normalized toroidal flux in variable ``phi''.
+Not-normalized poloidal flux in variable ``chi''.
+
+Pressure in variables ``presf'' (full grid) and ``pres'' (half grid).
+
+Difference between full and half grid?
+- If values are defined at grid or inbetween?
+
+What libraries are actually needed?
+The wiki lists
+\begin{verbatim}
+git
+gfortran
+openmpi-bin
+libopenmpi-dev
+g++
+libnetcdf-dev
+libnetcdff-dev
+libhdf5-openmpi-dev
+hdf5-tools
+libblas-dev
+liblapack-dev
+python3
+python3-numpy
+python3-h5py
+pgplot5
+libncarg-dev
+libscalapack-openmpi-dev
+\end{verbatim}
+(actually gfortran is listed twice in the wiki).
+On faepop35 pgplot5 and libncarg-dev are missing.
+
+Python scripts should to be changed to qt5.
+
+With this function read\_vmec from stellopt library could be used.
+
+Also the graphical interface could be used. Note that this has to be
+started in a folder with a vmec output file, with every file that starts
+with ``wout'' is considered. Files which folow this naming convention but
+are not vmec files might cause problems.
+There seem to be some bugs in the graphical interface. In the ``cut''
+plots y-axis seems to be incorrect (label says it is normalized, with
+values $> 1$).
+
+Conversion from vmec format to boozer file with script boozer.py. This
+requires name of vmec output file and the number of flux surfaces.
+
+
+\section{compiling}
+
+\subsection{on marconi}
+Load the required modules for the intel compiler (see online
+documentation, list of required modules is on the the marconi subpage).
+
+Set the environment variable $STELLOPT_PATH$ to point to the location to
+which you cloned stellopt.
+
+Loading modules and setting $STELLOPT_PATH$ is best done in $.bashrc$.
+If you do this, remember that either a new login is required or you have
+to source ~/.bashrc, otherwise the changes will not take effect.
+
+
+\section{Convert files from vmec to boozer}
+Conversion of files from vmec to boozer format is done in two steps.
+First step is the actual conversion, second is extraction of toroidal
+modes into seperate files.
+
+First step is done with the python function convert_to_boozer
+from the file boozer.py, which will convert a single flux surface.
+This file can also be called as script, with the name of the input file
+and the the number of flux surfaces minus one as arguments. Example:
+\begin{verbatim}
+boozer.py vmec_input.nc 49
+\end{verbatim}
+This will result in a single file with all the poloidal and toroidal
+modes. \neotwo requires separation of toroidal modes, in axisymmetric
+background ($n = 0$) and perturbation ($n > 0$).
+Creating individual files  with toroidal perturbations can be done with
+the octave function
+\begin{verbatim}
+extract_pert_field(file_base, file_ext, file_descr)
+\end{verbatim}
+
+Default value for $file\_descr$ does not work. (Why?) Thus ' ' needs to
+be passed.
+
+
+\section{Makegrid}
+The program ``Makegrid'', part of STELLOPT, allows to create coil-field
+files, required by vmec.
+Makegrid itself requires a file with the coil geometry to work (see
+stellopt documentation for file format). The code is usually
+interactive, it asks some questions about the configuration it should
+use. However, the answers can be written to a file (one line for each),
+in the respective order, and the file then provided to makegrid via
+standard input.
+Note that the number of toroidal cuts selected must be a multiple of the
+nzeta parameter in the vmec input file.
+The region determined her by minimum/maximum of radius and vertical
+position, must match the extend of the plasma in vmec. The extend of the
+plasma in vmec might not have anything to do with the real plasma
+extend.
+
+
+\section{FAQ}
+\paragraph I get ``ARNORM OR AZNORM EQUAL ZERO IN BCOVAR'' after message
+``TRYING TO IMPROVE INITIAL MAGNETIC AXIS GUESS''.
+
+You can try to decrease the number of radial points for the first
+stages, this seems to have helped in a DEMO case.
+
+\end{document}
