@@ -471,7 +471,7 @@ class Coilgroup:
   - Tag
   - coordinates
   """
-  def __init__(self, I, coilgroup, Tag):
+  def __init__(self, I: float, coilgroup: int, Tag: str):
     self.I = I
     self.coilgroup = coilgroup
     self.Tag = Tag
