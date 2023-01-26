@@ -199,8 +199,8 @@ class eqdsk_file:
         c = Coilgroup(self.Icond[j], coilgroups[k], coiltags[k])
 
         if c.Tag in {'CS','PF'}:
-          for k in range(self.number_toroidal_points):
-            alpha = float(k) * 2.0*pi/float(self.number_toroidal_points)
+          for l in range(self.number_toroidal_points):
+            alpha = float(l) * 2.0*pi/float(self.number_toroidal_points)
             p = Point(self.Rcond[j]*cos(alpha),
                       self.Rcond[j]*sin(alpha),
                       self.Zcond[j])
