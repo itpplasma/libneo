@@ -153,17 +153,24 @@ be passed.
 The program ``Makegrid'', part of STELLOPT, allows to create coil-field
 files, required by vmec.
 Makegrid itself requires a file with the coil geometry to work (see
-stellopt documentation for file format). The code is usually
+stellopt documentation for file format, coordinates in the input file
+are xyz(?)). The code is usually
 interactive, it asks some questions about the configuration it should
 use. However, the answers can be written to a file (one line for each),
 in the respective order, and the file then provided to makegrid via
 standard input.
 Note that the number of toroidal cuts selected must be a multiple of the
 nzeta parameter in the vmec input file.
-The region determined her by minimum/maximum of radius and vertical
+The region determined here by minimum/maximum of radius and vertical
 position, must match the extend of the plasma in vmec. The extend of the
 plasma in vmec might not have anything to do with the real plasma
-extend.
+extend. It is better to make the grid larger than needed, because if it
+is to small, vmec will complain, but continue, so it is unclear if this
+actually affects the results (but I would think so).
+
+For RMP simulations, with 3D fields the ``periods'' parameter in the
+coil file should be one, as each RMP coil needs to be in a different
+coil group.
 
 
 \section{FAQ}
