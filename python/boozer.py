@@ -292,6 +292,8 @@ def convert_to_boozer(infile, ks, outfile):
   s   = (np.arange(0,ns)+0.5)*ds
   sf  = (np.arange(0,ns+1))*ds
 
+  # Reduce number of points for radial interpolation if near axis or
+  # near outer border.
   if(ks < 3 or ks > ns-3):
     nl = 2
 
