@@ -123,12 +123,32 @@ contains
     call nf90_check(nf90_inquire_dimension(ncid, dimids(2), len = len(2)))
   end subroutine nc_inq_dim_2
   
-  subroutine nf90_check(status)
-    integer, intent ( in) :: status
+  !> \brief Subroutine for checking status of operation.
+  !>
+  !> Check the status of an netcdf operation. In case of an error, the
+  !> error message is printed via netcdf and the program stoped.
+  !> An optional argument gives the possibility to ignore errors.
+  !>
+  !> input:
+  !> ------
+  !> status: integer, return/status value of an netcdf subroutine/
+  !>   operation, that should be checked.
+  !> optException: logical, optional, when false treat an error not as
+  !>   an exception (in the programming sense), i.e. continue without
+  !>   error message. [.true.]
+  subroutine nf90_check(status, optException)
+    integer, intent(in) :: status
+    logical, intent(in), optional :: optException
+    logical :: exception
+
+    exception = .true.
+    if (present(optException)) exception = optException
 
     if(status /= nf90_noerr) then
-       print *, trim(nf90_strerror(status))
-       stop
+      if (exception) then
+        print *, trim(nf90_strerror(status))
+        stop
+      end if
     end if
   end subroutine nf90_check
 
