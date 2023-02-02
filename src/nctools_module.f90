@@ -18,6 +18,25 @@ module nctools_module
      module procedure nc_inq_dim_2
   end interface nc_inq_dim
 
+
+  !> \brief Interface for subroutines to get id and sizes of an array.
+  !>
+  !> Contrary to nc_inq_dim these subroutines return the id of the field
+  !> and the dimensions, but the latter as multiple variables, not as
+  !> array.
+  !> The common part of the argument list is first the id of the
+  !> nc-file, then the name of the field for which one wants to get the
+  !> bounds. Third variable returns the id of the field. Then there are
+  !> two additional variables for each dimension. The first of these
+  !> will return the lower and upper bound (in this order) of the first
+  !> dimension of the array. The next pair for the second dimension,
+  !> etc.
+  interface nc_inq_id_bounds
+    module procedure nc_inq_id_bounds_1
+    module procedure nc_inq_id_bounds_2
+  end interface nc_inq_id_bounds
+
+
   !> \brief Interface for subroutines to get a variable.
   !>
   !> This interface combines several subroutines to get a variable with
@@ -55,17 +74,17 @@ contains
     character(len=*) :: name
     integer, dimension(:), intent(out) :: var
     integer :: varid
-    
+
     call nf90_check(nf90_inq_varid(ncid, name, varid))
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_int_1
-  
+
   subroutine nc_get_double_0(ncid, name, var)
     integer :: ncid
     character(len=*) :: name
     double precision, intent(out) :: var
     integer :: varid
-    
+
     call nf90_check(nf90_inq_varid(ncid, name, varid))
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_double_0
@@ -75,7 +94,7 @@ contains
     character(len=*) :: name
     double precision, dimension(:), intent(out) :: var
     integer :: varid
-    
+
     call nf90_check(nf90_inq_varid(ncid, name, varid))
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_double_1
@@ -85,7 +104,7 @@ contains
     character(len=*) :: name
     double precision, dimension(:,:), intent(out) :: var
     integer :: varid
-    
+
     call nf90_check(nf90_inq_varid(ncid, name, varid))
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_double_2
@@ -95,11 +114,11 @@ contains
     character(len=*) :: name
     double precision, dimension(:,:,:), intent(out) :: var
     integer :: varid
-    
+
     call nf90_check(nf90_inq_varid(ncid, name, varid))
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_double_3
-  
+
   subroutine nc_inq_dim_1(ncid, name, len)
     integer :: ncid, varid
     character(len=*)      :: name
@@ -122,6 +141,30 @@ contains
     call nf90_check(nf90_inquire_dimension(ncid, dimids(1), len = len(1)))
     call nf90_check(nf90_inquire_dimension(ncid, dimids(2), len = len(2)))
   end subroutine nc_inq_dim_2
+
+
+  subroutine nc_inq_id_bounds_1(ncid, name, varid, lb, ub)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(out) :: varid, lb, ub
+
+    call nf90_check(nf90_inq_varid(ncid, name, varid))
+    call nf90_check(nf90_get_att(ncid, varid, "lbound", lb))
+    call nf90_check(nf90_get_att(ncid, varid, "ubound", ub))
+  end subroutine nc_inq_id_bounds_1
+
+
+  subroutine nc_inq_id_bounds_2(ncid, name, varid, lb1, ub1, lb2, ub2)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(out) :: varid, lb1, ub1, lb2, ub2
+
+    call nf90_check(nf90_inq_varid(ncid, name, varid))
+    call nf90_check(nf90_get_att(ncid, varid, "lbound1", lb1))
+    call nf90_check(nf90_get_att(ncid, varid, "ubound1", ub1))
+    call nf90_check(nf90_get_att(ncid, varid, "lbound2", lb2))
+    call nf90_check(nf90_get_att(ncid, varid, "ubound2", ub2))
+  end subroutine nc_inq_id_bounds_2
 
 
   !> \brief Find/create group with given name.
@@ -205,7 +248,7 @@ contains
   !> none intended, but there might be some due to error checking.
   subroutine nc_close(ncid)
     integer, intent(in) :: ncid
-    
+
     call nf90_check(nf90_close(ncid))
   end subroutine nc_close
 
