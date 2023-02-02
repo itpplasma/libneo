@@ -122,7 +122,46 @@ contains
     call nf90_check(nf90_inquire_dimension(ncid, dimids(1), len = len(1)))
     call nf90_check(nf90_inquire_dimension(ncid, dimids(2), len = len(2)))
   end subroutine nc_inq_dim_2
-  
+
+
+  !> \brief Find/create group with given name.
+  !>
+  !> Check if a netcdf file contains a given group, and create the group
+  !> if not. In both cases return the group id.
+  !>
+  !> input:
+  !> ------
+  !> ncid: integer, id of the netcdf file to check.
+  !> name: string, name of the group for which to check.
+  !>
+  !> output:
+  !> -------
+  !> grpid: integer, will contain the id of the requested group.
+  !> found: logical, will be true if the group with 'name' did
+  !>   already exist, false if not.
+  !>
+  !> sideeffects:
+  !> ------------
+  !> Creates the group if it does not already exist.
+  subroutine nc_findGroup(ncid, name, grpid, found)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(out) :: grpid
+    logical, intent(out) :: found
+    character(len=256) :: filename
+    integer :: ierr
+
+    found = .true.
+    ierr = nf90_inq_ncid(ncid, trim(name), grpid);
+    if (ierr /= NF90_NOERR) then
+       write(filename,'(100A)') trim(adjustl(name)), '.nc'
+       call nf90_check(nf90_open(filename, NF90_NOWRITE, grpid))
+       found = .false.
+    end if
+
+  end subroutine nc_findGroup
+
+
   !> \brief Subroutine for checking status of operation.
   !>
   !> Check the status of an netcdf operation. In case of an error, the
