@@ -281,6 +281,38 @@ contains
   end subroutine nc_open
 
 
+  !> \brief Create an empty netcdf-4 file.
+  !>
+  !> input:
+  !> ------
+  !> filename: string, name of the file to create.
+  !> fileformat_version: string, optional, version information for the
+  !>   file you are creating (not netcdf version). Added as an attribute
+  !>   of the created file. ['1.0']
+  !>
+  !> output:
+  !> -------
+  !> ncid: integer, netcdf id of the opened file, that can be used to
+  !>   inquire information or get data.
+  !>
+  !> sideeffects:
+  !> ------------
+  !> Creates file on the disk.
+  subroutine nc_create(filename, ncid, fileformat_version)
+    character(len=*), intent(in) :: filename
+    integer, intent(out) :: ncid
+    character(len=*), intent(in out), optional :: fileformat_version
+
+    if (.not. present(fileformat_version)) then
+       fileformat_version = '1.0'
+    end if
+
+    write (*,*) "Creating NetCDF-4 File: ", filename
+    call nf90_check(nf90_create(filename, NF90_NETCDF4, ncid))
+    call nf90_check(nf90_put_att(ncid, NF90_GLOBAL, 'Version', fileformat_version))
+  end subroutine nc_create
+
+
   !> \brief Wrapper for nf90_enddef.
   !>
   !> With check of error code.
