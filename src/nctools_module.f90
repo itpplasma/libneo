@@ -145,7 +145,7 @@ contains
   !> sideeffects:
   !> none intended, but there might be some due to error checking.
   subroutine nc_close(ncid)
-    integer :: ncid
+    integer, intent(in) :: ncid
     
     call nf90_check(nf90_close(ncid))
   end subroutine nc_close
@@ -164,8 +164,8 @@ contains
   !> sideeffects:
   !> none intended, but there might be some due to error checking.
   subroutine nc_open(filename, ncid)
-    character(len=*) :: filename
-    integer :: ncid
+    character(len=*), intent(in) :: filename
+    integer, intent(out) :: ncid
 
     call nf90_check(nf90_open(filename, NF90_NOWRITE, ncid))
   end subroutine nc_open
