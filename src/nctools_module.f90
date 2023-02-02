@@ -237,4 +237,22 @@ contains
     call nf90_check(nf90_open(filename, NF90_NOWRITE, ncid), exception)
   end subroutine nc_open
 
+
+  !> \brief Wrapper for nf90_enddef.
+  !>
+  !> With check of error code.
+  !>
+  !> input:
+  !> ------
+  !> ncid: integer, id of the file for which to do the operation.
+  !>
+  !> sideeffects:
+  !> ------------
+  !> Changes state of file.
+  subroutine nc_enddef(ncid)
+    integer, intent(in) :: ncid
+
+    call nf90_check(nf90_enddef(ncid))
+  end subroutine nc_enddef
+
 end module nctools_module
