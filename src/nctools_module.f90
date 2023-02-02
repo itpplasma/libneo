@@ -214,6 +214,8 @@ contains
   !> input:
   !> ------
   !> filename: character array, with the name(+path) of the file to open.
+  !> optException: logical, optional, if false then errors are not
+  !>   treated as exceptions.
   !>
   !> output:
   !> -------
@@ -222,11 +224,17 @@ contains
   !>
   !> sideeffects:
   !> none intended, but there might be some due to error checking.
-  subroutine nc_open(filename, ncid)
+  subroutine nc_open(filename, ncid, optException)
     character(len=*), intent(in) :: filename
     integer, intent(out) :: ncid
+    logical, intent(in), optional :: optException
 
-    call nf90_check(nf90_open(filename, NF90_NOWRITE, ncid))
+    logical :: exception
+
+    exception = .true.
+    if (present(optException)) exception = optException
+
+    call nf90_check(nf90_open(filename, NF90_NOWRITE, ncid), exception)
   end subroutine nc_open
 
 end module nctools_module
