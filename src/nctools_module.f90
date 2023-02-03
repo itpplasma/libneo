@@ -65,6 +65,25 @@ module nctools_module
   end interface nc_inq_id_bounds
 
 
+  !> \brief Interface for subroutines to add a variable.
+  !>
+  !> This interface combines several subroutines to add a variable with
+  !> with given value as group with given name. Optionally also a
+  !> comment and a unit can be given.
+  !> All subroutines share the type of Interface. First parameter is
+  !> nc-file ID, second is name of the group, third the value(s) to
+  !> store. As fourth and fifth argument a comment, and the unit of the
+  !> value can be given. The third parameter is what varies between the
+  !> individual routines in type and/or dimension.
+  interface nc_add
+    module procedure nc_add_int_0
+    module procedure nc_add_double_0
+    module procedure nc_add_double_1
+    module procedure nc_add_double_2
+    module procedure nc_add_char_1
+  end interface nc_add
+
+
   !> \brief Interface for subroutines to get a variable.
   !>
   !> This interface combines several subroutines to get a variable with
@@ -328,6 +347,102 @@ contains
     deallocate(dimid)
 
   end subroutine nc_define_multidim
+
+
+  subroutine nc_add_int_0(ncid, name, var, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(in) :: var
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: ierr, varid
+
+    ierr = nf90_redef(ncid)
+    call nc_define_int_0(ncid, name, var, varid, comment, unit)
+    ierr = nf90_enddef(ncid)
+    call nf90_check(nf90_put_var(ncid, varid, var))
+
+  end subroutine nc_add_int_0
+
+
+  subroutine nc_add_double_0(ncid, name, var, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, intent(in) :: var
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: ierr, varid
+
+    ierr = nf90_redef(ncid)
+    call nc_define_double_0(ncid, name, var, varid, comment, unit)
+    ierr = nf90_enddef(ncid)
+    call nf90_check(nf90_put_var(ncid, varid, var))
+
+  end subroutine nc_add_double_0
+
+
+  subroutine nc_add_double_1(ncid, name, var, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, dimension(:), allocatable, intent(in) :: var
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: ierr, varid
+
+    ierr = nf90_redef(ncid)
+    call nc_define_double_1(ncid, name, var, varid, comment, unit)
+    ierr = nf90_enddef(ncid)
+    call nf90_check(nf90_put_var(ncid, varid, var))
+
+  end subroutine nc_add_double_1
+
+
+  subroutine nc_add_double_1_nonalloc(ncid, name, var, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, dimension(:), intent(in) :: var
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: ierr, varid
+
+    ierr = nf90_redef(ncid)
+    call nc_define_double_1_nonalloc(ncid, name, var, varid, comment, unit)
+    ierr = nf90_enddef(ncid)
+    call nf90_check(nf90_put_var(ncid, varid, var))
+
+  end subroutine nc_add_double_1_nonalloc
+
+
+  subroutine nc_add_double_2(ncid, name, var, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, dimension(:,:), allocatable, intent(in) :: var
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: ierr, varid
+
+    ierr = nf90_redef(ncid)
+    call nc_define_double_2(ncid, name, var, varid, comment, unit)
+    ierr = nf90_enddef(ncid)
+    call nf90_check(nf90_put_var(ncid, varid, var))
+
+  end subroutine nc_add_double_2
+
+
+  subroutine nc_add_char_1(ncid, name, var, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    character(len=*), intent(in) :: var
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: ierr, varid
+
+    ierr = nf90_redef(ncid)
+    call nc_define_char_1(ncid, name, varid, comment, unit)
+    ierr = nf90_enddef(ncid)
+    call nf90_check(nf90_put_var(ncid, varid, var))
+
+  end subroutine nc_add_char_1
 
 
   subroutine nc_get_int_0(ncid, name, var)
