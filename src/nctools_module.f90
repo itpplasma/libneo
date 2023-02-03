@@ -559,6 +559,39 @@ contains
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_double_3
 
+
+  !> \brief Check if a group exists already in the netcdf file.
+  !>
+  !> input:
+  !> ------
+  !> ncid: integer, id of the file to check for the group.
+  !> name: string, name of the group to check for.
+  !>
+  !> output:
+  !> -------
+  !> grp_ncid: integer, if the group is found, this contains the id of
+  !>   the group. If the group is not found, the value is undefined.
+  !> found: logical, optional. If present will be set to true if the
+  !>   group was found, and false if not. If not present, then usual
+  !>   error check will be applied.
+  subroutine nc_inquire_group(ncid, name, grp_ncid, found)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(out) :: grp_ncid
+    logical, intent(out), optional :: found
+
+    integer :: ierr
+
+    ierr = nf90_inq_ncid(ncid, trim(name), grp_ncid)
+    if (present(found)) then
+      found = (ierr == NF90_NOERR)
+    else
+      call nf90_check(ierr)
+    end if
+
+  end subroutine nc_inquire_group
+
+
   subroutine nc_inq_dim_1(ncid, name, len)
     integer :: ncid, varid
     character(len=*)      :: name
