@@ -3,6 +3,34 @@ module nctools_module
   use netcdf
   implicit none
 
+  !> \brief Interface for subroutines to define variables in nc-file.
+  !>
+  !> This interface is for defining a variable with given name. The
+  !> different variants are for different types/numbers of dimensions.
+  !> With the exception of multidim, the argumentlist is for all the
+  !> same. First is the id of the netcdf file in which to define the
+  !> variable. Second is the name of the variable to define. Third is
+  !> the field. It is only used to determine the size, if necessary. The
+  !> type of this varies between the variants. Forth parameter returns
+  !> the id of the variable. Fifth and sixth parameters are optional
+  !> strings, which contain a comment and unit for the variable,
+  !> respectively.
+  !> The multidim variant differs from this by having instead of the
+  !> data parameter two parameters. The first is a netcdf kind
+  !> parameter, the second is an integer array determining the
+  !> dimensions of the field.
+  interface nc_define
+    module procedure nc_define_int_0
+    module procedure nc_define_int_1
+    module procedure nc_define_int_2
+    module procedure nc_define_double_0
+    module procedure nc_define_double_1
+    module procedure nc_define_double_2
+    module procedure nc_define_long_2
+    module procedure nc_define_multidim
+    module procedure nc_define_char_1
+  end interface nc_define
+
   !> \brief Interface for subroutine to get the size of an array.
   !>
   !> An interface to inquire the size of the dimensions of an 1 or 2
@@ -56,15 +84,258 @@ module nctools_module
      module procedure nc_get_double_2
      module procedure nc_get_double_3
   end interface nc_get
-  
+
 contains
+
+  subroutine nc_define_int_0(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    call nf90_check(nf90_def_var(ncid, name, NF90_INT, varid = varid))
+
+    if (present(comment)) then
+      call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+    end if
+    if (present(unit)) then
+      call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+    end if
+  end subroutine nc_define_int_0
+
+
+  subroutine nc_define_int_1(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, dimension(:), allocatable, intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: dimid
+
+    if (allocated(var)) then
+      call nf90_check(nf90_def_dim(ncid, name // "_dim", size(var,1), dimid))
+      call nf90_check(nf90_def_var(ncid, name, NF90_INT, dimid, varid))
+
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound', LBOUND(var)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound', UBOUND(var)))
+      if (present(comment)) then
+        call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+      end if
+      if (present(unit)) then
+        call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+      end if
+    end if
+  end subroutine nc_define_int_1
+
+
+  subroutine nc_define_int_2(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, dimension(:,:), allocatable, intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: dimid(2)
+
+    if (allocated(var)) then
+      call nf90_check(nf90_def_dim(ncid, name // "_dim1", size(var,1), dimid(1)))
+      call nf90_check(nf90_def_dim(ncid, name // "_dim2", size(var,2), dimid(2)))
+      call nf90_check(nf90_def_var(ncid, name, NF90_INT, dimid, varid))
+
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound1', lbound(var,1)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound1', UBOUND(var,1)))
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound2', LBOUND(var,2)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound2', UBOUND(var,2)))
+      if (present(comment)) then
+        call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+      end if
+      if (present(unit)) then
+        call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+      end if
+    end if
+  end subroutine nc_define_int_2
+
+
+  subroutine nc_define_double_0(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    call nf90_check(nf90_def_var(ncid, name, NF90_DOUBLE, varid = varid))
+
+    if (present(comment)) then
+      call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+    end if
+    if (present(unit)) then
+      call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+    end if
+  end subroutine nc_define_double_0
+
+
+  subroutine nc_define_double_1(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, dimension(:), allocatable, intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: dimid
+
+    if (allocated(var)) then
+      call nf90_check(nf90_def_dim(ncid, name // "_dim", size(var,1), dimid))
+      call nf90_check(nf90_def_var(ncid, name, NF90_DOUBLE, dimid, varid))
+
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound', LBOUND(var)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound', UBOUND(var)))
+      if (present(comment)) then
+        call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+      end if
+      if (present(unit)) then
+        call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+      end if
+    end if
+  end subroutine nc_define_double_1
+
+
+  subroutine nc_define_double_1_nonalloc(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, dimension(:), intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: dimid
+
+    call nf90_check(nf90_def_dim(ncid, name // "_dim", size(var,1), dimid))
+    call nf90_check(nf90_def_var(ncid, name, NF90_DOUBLE, dimid, varid))
+
+    call nf90_check(nf90_put_att(ncid, varid, 'lbound', lbound(var)))
+    call nf90_check(nf90_put_att(ncid, varid, 'ubound', ubound(var)))
+    if (present(comment)) then
+      call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+    end if
+    if (present(unit)) then
+      call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+    end if
+
+  end subroutine nc_define_double_1_nonalloc
+
+
+  subroutine nc_define_double_2(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    double precision, dimension(:,:), allocatable, intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: dimid(2)
+
+    if (allocated(var)) then
+      call nf90_check(nf90_def_dim(ncid, name // "_dim1", size(var,1), dimid(1)))
+      call nf90_check(nf90_def_dim(ncid, name // "_dim2", size(var,2), dimid(2)))
+      call nf90_check(nf90_def_var(ncid, name, NF90_DOUBLE, dimid, varid))
+
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound1', LBOUND(var,1)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound1', UBOUND(var,1)))
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound2', LBOUND(var,2)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound2', UBOUND(var,2)))
+      if (present(comment)) then
+        call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+      end if
+      if (present(unit)) then
+        call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+      end if
+    end if
+  end subroutine nc_define_double_2
+
+
+  subroutine nc_define_long_2(ncid, name, var, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer(kind=8), dimension(:,:), allocatable, intent(in) :: var
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: dimid(2)
+
+    if (allocated(var)) then
+      call nf90_check(nf90_def_dim(ncid, name // "_dim1", size(var,1), dimid(1)))
+      call nf90_check(nf90_def_dim(ncid, name // "_dim2", size(var,2), dimid(2)))
+      call nf90_check(nf90_def_var(ncid, name, NF90_INT64, dimid, varid))
+
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound1', LBOUND(var,1)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound1', UBOUND(var,1)))
+      call nf90_check(nf90_put_att(ncid, varid, 'lbound2', LBOUND(var,2)))
+      call nf90_check(nf90_put_att(ncid, varid, 'ubound2', UBOUND(var,2)))
+      if (present(comment)) then
+        call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+      end if
+      if (present(unit)) then
+        call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+      end if
+    end if
+  end subroutine nc_define_long_2
+
+
+  subroutine nc_define_char_1(ncid, name, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    call nf90_check(nf90_def_var(ncid, name, NF90_STRING, varid = varid))
+
+    if (present(comment)) then
+      call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+    end if
+    if (present(unit)) then
+      call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+    end if
+  end subroutine nc_define_char_1
+
+
+  subroutine nc_define_multidim(ncid, name, field_type, dims, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(in) :: field_type
+    integer, dimension(:), intent(in) :: dims
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer, dimension(:), allocatable :: dimid
+    integer :: i
+    character(len=32) :: dimname
+    allocate(dimid(size(dims)))
+
+    do i=1,size(dims)
+      write (dimname, '(A,A,I1)') name, '_dim', i
+      call nf90_check(nf90_def_dim(ncid, dimname, dims(i), dimid(i)))
+    end do
+    call nf90_check(nf90_def_var(ncid, name, field_type, dimid, varid))
+
+    if (present(comment)) then
+      call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+    end if
+
+    if (present(unit)) then
+      call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+    end if
+
+    deallocate(dimid)
+
+  end subroutine nc_define_multidim
+
 
   subroutine nc_get_int_0(ncid, name, var)
     integer :: ncid
     character(len=*) :: name
     integer, intent(out) :: var
     integer :: varid
-    
+
     call nf90_check(nf90_inq_varid(ncid, name, varid))
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_int_0
