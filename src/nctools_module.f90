@@ -31,6 +31,16 @@ module nctools_module
     module procedure nc_define_char_1
   end interface nc_define
 
+
+  !> \brief Interface to define variables with an unlimited dimension.
+  !>
+  !> Define an array with given type and dimensions and one unlimited
+  !> dimension.
+  interface nc_define_unlimited
+    module procedure nc_define_multidim_unlimited
+  end interface nc_define_unlimited
+
+
   !> \brief Interface for subroutine to get the size of an array.
   !>
   !> An interface to inquire the size of the dimensions of an 1 or 2
@@ -347,6 +357,26 @@ contains
     deallocate(dimid)
 
   end subroutine nc_define_multidim
+
+
+  subroutine nc_define_multidim_unlimited(ncid, name, type, varid, comment, unit)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: name
+    integer, intent(in) :: type
+    integer, intent(out) :: varid
+    character(len=*), intent(in), optional :: comment, unit
+
+    integer :: dimid
+
+    call nf90_check(nf90_def_dim(ncid, name // '_dim', NF90_UNLIMITED, dimid))
+    call nf90_check(nf90_def_var(ncid, name, type, dimid, varid))
+    if (present(comment)) then
+      call nf90_check(nf90_put_att(ncid, varid, "comment", comment))
+    end if
+    if (present(unit)) then
+      call nf90_check(nf90_put_att(ncid, varid, "unit", unit))
+    end if
+  end subroutine nc_define_multidim_unlimited
 
 
   subroutine nc_add_int_0(ncid, name, var, comment, unit)
