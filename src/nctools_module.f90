@@ -786,6 +786,38 @@ contains
   end subroutine nc_create
 
 
+  !> \brief Create an empty netcdf file or append if it already exists.
+  !>
+  !> Tries to create a netcdf file with given name. If the file already
+  !> exists, then open it to append to the file.
+  !>
+  !> intput:
+  !> -------
+  !> filename: string, name of the file to append to/create.
+  !>
+  !> output:
+  !> -------
+  !> ncid: integer, id of the created/opened file.
+  !> exists: lgogical, true if the file did already exist, false
+  !>   otherwise.
+  subroutine nf90_create_or_append(filename, ncid, exists)
+    character(len=*), intent(in) :: filename
+    integer, intent(out) :: ncid
+    logical, intent(out) :: exists
+
+    integer :: ierr
+
+    exists = .false.
+    ierr = nf90_create(filename, ior(NF90_NETCDF4, NF90_NOCLOBBER), ncid)
+    if (ierr .eq. NF90_EEXIST) then
+      call nf90_check(nf90_open(filename, NF90_WRITE, ncid))
+      exists = .true.
+    else
+      call nf90_check(ierr)
+    end if
+  end subroutine nf90_create_or_append
+
+
   !> \brief Wrapper for nf90_enddef.
   !>
   !> With check of error code.
