@@ -116,6 +116,30 @@ module nctools_module
 
 contains
 
+  !> \brief Define a group and get the id.
+  !>
+  !> input:
+  !> ------
+  !> ncid: integer, id of the file where to create the group.
+  !> grpname: string, name of the group to create.
+  !>
+  !> output:
+  !> -------
+  !> ncid_grp: integer, id of the created group.
+  !>
+  !> sideeffects:
+  !> ------------
+  !> Changes the file.
+  subroutine nc_defineGroup(ncid, grpname, ncid_grp)
+    integer, intent(in) :: ncid
+    character(len=*), intent(in) :: grpname
+    integer, intent(out) :: ncid_grp
+
+    call nf90_check(nf90_def_grp(ncid, trim(grpname), ncid_grp))
+
+  end subroutine nc_defineGroup
+
+
   subroutine nc_define_int_0(ncid, name, var, varid, comment, unit)
     integer, intent(in) :: ncid
     character(len=*), intent(in) :: name
