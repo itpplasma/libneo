@@ -41,6 +41,9 @@ endif ()
 
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
+execute_process(COMMAND nc-config --includedir
+                OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
+include_directories(${NETCDFINCLUDE_DIR})
 
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
@@ -90,21 +93,23 @@ add_test(Test_Build_Code make)
 add_test(NAME Test_arnoldi
          COMMAND ../tests/python_scripts/test_arnoldi.py && tests/test_arnoldi.x)
 set_tests_properties(Test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-add_test(NAME Test_efit
-         COMMAND tests/test_efit_class.x)
-set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 add_test(NAME Test_boozer
          COMMAND tests/test_boozer_class.x)
 set_tests_properties(Test_boozer PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+add_test(NAME Test_efit
+         COMMAND tests/test_efit_class.x)
+set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+
 add_test(NAME Test_hdf5_tools
-         COMMAND "tests/test_hdf5_tools.x" && "rm test_file.h5")
+         COMMAND "tests/test_hdf5_tools.x")
 set_tests_properties(Test_hdf5_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-add_test(NAME Test_system_utility
-         COMMAND tests/test_system_utility.x)
-set_tests_properties(Test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
+
 add_test(NAME Test_mympilib
          COMMAND tests/test_mympilib.x)
 set_tests_properties(Test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
+add_test(NAME Test_system_utility
+         COMMAND tests/test_system_utility.x)
+set_tests_properties(Test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
 
 #~ # For testing purposes, e.g. printing the environment.
 #~ add_test(NAME run_xterm

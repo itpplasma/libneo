@@ -19,6 +19,9 @@ module math_constants
   !> Imaginary unit:
   complex(kind=complex_kind), parameter :: I = (0.d0,1.d0)
 
+  ! Define physical constants (SI-units)
+  real(kind=real_kind), parameter, public :: MU_0 = 1.25663706212e-6 _real_kind !< vacuum permeability [N A^-2]
+
   ! Define physical constants (cgs-units)
   real(kind=real_kind), parameter, public :: C = 2.99792458e10_real_kind   !< speed of light, [cm/s]
   real(kind=real_kind), parameter, public :: E = 4.8032e-10_real_kind      !< elementary charge [StatC]
