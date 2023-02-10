@@ -184,4 +184,17 @@ stages, this seems to have helped in a DEMO case.
 
 ?
 
+\paragraph  The jacobian was non-definite!
+Together with messges
+INITIAL JACOBIAN CHANGED SIGN!
+TRYING TO IMPROVE INITIAL MAGNETIC AXIS GUESS
+during the run and
+INITIAL JACOBIAN CHANGED SIGN (IMPROVE INITIAL GUESS)
+at the end.
+
+Check if the boundary is correct. These messages were present in two
+cases where the boundary was wrong (in one case there were same values
+for perturbation as for background, except 0,0 mode; the other had an
+error in the script to create the data for the boundary).
+
 \end{document}
