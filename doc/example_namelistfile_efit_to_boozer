@@ -1,0 +1,14 @@
+! Example input file for efit to boozer converter subroutine.
+! Contains also a brief description of each parameter
+! Note values given are not tested for actually working.
+
+&efit_to_boozer_nml
+  nstep = 10 ! number of integration steps
+  nlabel = 20   ! grid size over radial variable
+  ntheta = 20  ! grid size over poloidal angle
+  nsurfmax = 10 ! number of starting points between the magnetic axis
+                ! and right box boundary when searching for the
+                ! separatrix
+  nsurf = 20   ! number of flux surfaces in Boozer file
+  mpol = 5     ! number of poloidal modes in Boozer file
+/
