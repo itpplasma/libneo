@@ -317,24 +317,24 @@ def convert_to_boozer(infile, ks, outfile):
 
   # Radial interpolation of the quantities. Also get derivative from interpolation.
   # Half to full grid?
-  rpoly = []; rmnval = []; rspoly = []; rsmnval = []
-  zpoly = []; zmnval = []; zspoly = []; zsmnval = []
-  lpoly = []; lmnval = []; lspoly = []; lsmnval = []
+  rmnval = []; rsmnval = []
+  zmnval = []; zsmnval = []
+  lmnval = []; lsmnval = []
   for km in range(empmnt):
-    rpoly.append(ip.lagrange(sf[ks-nl:ks+nl],rmn[ks-nl:ks+nl,km]))
-    rspoly.append(np.polyder(rpoly[km]))
-    rmnval.append(np.polyval(rpoly[km],s[ks]))
-    rsmnval.append(np.polyval(rspoly[km],s[ks]))
+    rpoly = ip.lagrange(sf[ks-nl:ks+nl],rmn[ks-nl:ks+nl,km])
+    rspoly = np.polyder(rpoly)
+    rmnval.append(np.polyval(rpoly, s[ks]))
+    rsmnval.append(np.polyval(rspoly, s[ks]))
 
-    zpoly.append(ip.lagrange(sf[ks-nl:ks+nl],zmn[ks-nl:ks+nl,km]))
-    zspoly.append(np.polyder(zpoly[km]))
-    zmnval.append(np.polyval(zpoly[km],s[ks]))
-    zsmnval.append(np.polyval(zspoly[km],s[ks]))
+    zpoly = ip.lagrange(sf[ks-nl:ks+nl],zmn[ks-nl:ks+nl,km])
+    zspoly = np.polyder(zpoly)
+    zmnval.append(np.polyval(zpoly, s[ks]))
+    zsmnval.append(np.polyval(zspoly, s[ks]))
 
-    lpoly.append(ip.lagrange(sf[ks-nl:ks+nl],lmn[ks-nl:ks+nl,km]))
-    lspoly.append(np.polyder(lpoly[km]))
-    lmnval.append(np.polyval(lpoly[km],s[ks]))
-    lsmnval.append(np.polyval(lspoly[km],s[ks]))
+    lpoly = ip.lagrange(sf[ks-nl:ks+nl],lmn[ks-nl:ks+nl,km])
+    lspoly = np.polyder(lpoly)
+    lmnval.append(np.polyval(lpoly, s[ks]))
+    lsmnval.append(np.polyval(lspoly, s[ks]))
 
   rmnval = np.array(rmnval); zmnval = np.array(zmnval); lmnval = np.array(lmnval)
   rsmnval= np.array(rsmnval);zsmnsval=np.array(zsmnval);lsmnval=np.array(lsmnval)
