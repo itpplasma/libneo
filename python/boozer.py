@@ -308,10 +308,9 @@ def convert_to_boozer(infile, ks, outfile):
   m2 = m[cond2]; n2 = n[cond2]
 
   s           = np.insert(s, 0, 0.0)
-  #s = np.insert(s, len(s), 0.0)
   dpsitords   = -phip
 
-  #%% Full mesh quantities
+  # Full mesh quantities
   ppoly  = ip.lagrange(sf[ks-nl:ks+nl],pres[ks-nl:ks+nl])
   pspoly = np.polyder(ppoly)
   psval  = np.polyval(ppoly,s[ks])
@@ -374,17 +373,13 @@ def convert_to_boozer(infile, ks, outfile):
   def dlamdu0(u,v): return sqrtg(u,v)/dpsitords[ks]*bsupv(u,v,ks)-1.0
   def dlamdv0(u,v): return (-sqrtg(u,v)/(iota[ks]*dpsitords[ks])*bsupu(u,v,ks)+1.0)*iota[ks]
 
-  # redifine lambda
-  #def dlamdu(u,v): return dlamdu0(u,v)
-  #def dlamdv(u,v): return dlamdv0(u,v)
-
   # VMEC magnetic coordinates
   def uf(u,v,fsi): return u + lam(u,v)
   def sqrtgf(u,v): return sqrtg(u,v)/np.abs(1+dlamdu(u,v))
   def bsupuf(u,v,fsi): return (1+dlamdu(u,v,fsi))*bsupu(u,v,fsi)+\
       dlamdv(u,v,fsi)*bsubv(u,v,fsi)
 
-  # %% Boozer coordinates
+  # Boozer coordinates
   bsubuB   = np.real(bsubumn[:,0])
   bsubvB   = np.real(bsubvmn[:,0])
   bsubuB2  = buco
