@@ -67,7 +67,7 @@ def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, b
       f.write('\n')
 
 
-def convert_to_boozer(infile, ks, outfile):
+def convert_to_boozer(infile, ks, outfile, uv_grid_multiplicator: int = 6):
   """
   input:
   ------
@@ -76,6 +76,14 @@ def convert_to_boozer(infile, ks, outfile):
     [1, n-2] where n is the number of flux surfaces in the file. This is
     because of the interpolation that is done.
   outfile: string, name of the output file.
+  uv_grid_multiplicator: integer, the function creates a grid in vmec u
+    and v coordinates for calculation of the boozer variables. This
+    factor determines how many more points should be used compared to
+    the maximum m/n-mode number. For example, a value of 6 would mean,
+    60 points in u and 24 in v direction will be used if 10 and 4 are
+    the maximum modes numbers for m and n respectively.
+    The default value should work for some cases(?), but might need to
+    be increased for others. [Default: 6]
 
   output:
   -------
@@ -433,8 +441,8 @@ def convert_to_boozer(infile, ks, outfile):
       nb[k] = nk*enfp
       k = k+1
 
-  nu = 6*np.max(np.abs(m))-1
-  nv = 6*np.max(np.abs(n))+1
+  nu = uv_grid_multiplicator*np.max(np.abs(m))-1
+  nv = uv_grid_multiplicator*np.max(np.abs(n))+1
   du = 2.0*pi/nu
   dv = 2.0*pi/nv
   up = np.arange(0,2*pi,du)
@@ -1111,6 +1119,11 @@ if __name__ == "__main__":
     nsurf = int(sys.argv[2])
     wout_name = infile + '.bc'
 
+    if (len(sys.argv) >= 3):
+      uv_grid_multiplier = int(sys.argv[3])
+    else:
+      uv_grid_multiplier = 6
+
     shot = -1
 
     [nfp, psi_tor_a, aminor, Rmajor, m0b, n0b] = getHeaderDataVMEC.getHeadDataVmecNc(infile)
@@ -1118,4 +1131,4 @@ if __name__ == "__main__":
     write_boozer_head(wout_name, '01', shot, m0b, n0b, nsurf, nfp, psi_tor_a, aminor, Rmajor)
 
     for ind in range(1, nsurf+1):
-      convert_to_boozer(infile, ind, wout_name)
+      convert_to_boozer(infile, ind, wout_name, uv_grid_multiplier)
