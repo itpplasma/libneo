@@ -1111,7 +1111,7 @@ if __name__ == "__main__":
 
   import getHeaderDataVMEC
 
-  if (len(sys.argv) < 2):
+  if (len(sys.argv) < 3):
     print("Usage:")
     print("./boozer.py infilename numberfluxsurfacesminustwo")
   else:
@@ -1119,7 +1119,7 @@ if __name__ == "__main__":
     nsurf = int(sys.argv[2])
     wout_name = infile + '.bc'
 
-    if (len(sys.argv) >= 3):
+    if (len(sys.argv) >= 4):
       uv_grid_multiplier = int(sys.argv[3])
     else:
       uv_grid_multiplier = 6
