@@ -777,7 +777,7 @@ class BoozerFile:
         self.vmnc[i], self.vmns[i],
         self.bmnc[i], self.bmns[i])
 
-  def contours_in_r_z_plane(self, phi: float, nplotsurf: int, outfile: str):
+  def contours_in_r_z_plane(self, phi: float, nplotsurf: int, outfile: str, add_last_flux_surface:bool = False):
     """Write outfile with contours based on data, at specified toroidal angle.
 
     Output data is first column for R, second for Z, with contours
@@ -854,6 +854,15 @@ class BoozerFile:
 
           rho_tor = rho_tor + hrho
           s_plot = rho_tor**2
+
+      if (add_last_flux_surface):
+        [Rnew, Znew] = self.get_R_Z(np = nt, phi = phi, ind = -1)
+        Rnew.append(Rnew[0])
+        Znew.append(Znew[0])
+        for i in range(nt+1):
+          outfile.write(' {:16.8e}'.format(Rnew[i]))
+          outfile.write(' {:16.8e}'.format(Znew[i]))
+          outfile.write('\n')
 
   def get_radial_cut_of_minor_radius(self, poloidal_angle: float):
     """Get radial cut of the minor radius at a specified angle.
