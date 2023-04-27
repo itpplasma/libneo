@@ -1494,7 +1494,7 @@ class BoozerFile:
       vmnb = -enfp*dphmnb/(2*np.pi)
 
       self.m.append(mb)
-      self.n.append(array(nb/enfp, dtype=int32))
+      self.n.append(np.array(nb/enfp, dtype=np.int32))
       self.rmnc.append(+rmnb.real)
       self.rmns.append(-rmnb.imag)
       self.zmnc.append(+zmnb.real)
