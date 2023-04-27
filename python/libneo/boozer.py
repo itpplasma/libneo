@@ -765,7 +765,10 @@ class BoozerFile:
   def __init__(self, filename: str):
     """Init routine which takes a string, representing the file to read.
     """
-    self.read_boozer(filename)
+    if filename.endswith('nc'):
+      self.convert_vmec_to_boozer(filename)
+    else:
+      self.read_boozer(filename)
 
   def write(self, filename: str):
     write_boozer_head(filename, '', 0, self.m0b, self.n0b, self.nsurf,
@@ -1119,6 +1122,392 @@ class BoozerFile:
 
     return [dR_dl, l]
 
+
+  def convert_vmec_to_boozer(self, filename: str, uv_grid_multiplicator: int = 6):
+    """Intended to create a boozer file object from a vmec file.
+
+    This function is thougt for creating a boozer file object from a
+    vmec file.
+    At the same time, it was thought that some speed improvement might
+    be obtained, from not having the vmec file to be read again for each
+    flux surface (as is the case for convert_to_boozer).
+
+    input:
+    ------
+    filename: string, name (and maybe path), of the vmec file to convert.
+    uv_grid_multiplicator: integer, serves as multiplicator for the m/n
+      grid of vmec. Higher values might be necessary for having a
+      reasanoble boundary. [6]
+    """
+
+    # Look for a fourier transformation module.
+    try:
+      from fourier import fourierseries as fourierseries1
+      print('Using f2py fourierseries .so')
+    except:
+      try:
+        from fourier_win import fourierseries as fourierseries1
+        print('Using Win32 f2py fourierseries DLL')
+      except:
+        def fourierseries1(fmn, u, v, m, n):
+          ycpl = np.sum(fmn*np.exp(1j*(m*u + n*v)))
+          return np.real(ycpl)
+        print('Using Python fourierseries (SLOW!)')
+
+    # Standard stuff.
+    import math
+    import numpy as np
+    import scipy.interpolate as ip
+    import scipy.io.netcdf as ncdf
+    import string
+    import sys
+    import time
+
+    import getHeaderDataVMEC
+
+    print("Input is netcdf file, converting to boozer.")
+
+    t_start = time.time()
+
+    [self.nper, self.flux, self.a, self.R, self.m0b, self.n0b] = getHeaderDataVMEC.getHeadDataVmecNc(filename)
+
+    n = ncdf.netcdf_file(filename)
+    data = n.variables
+
+    self.nsurf = data['bmns'].shape[0]
+
+
+    def nextpow2(i):
+      """Return next largest power of 2.
+
+      Return the smallest n > i, with n of the form n = 2^k.
+
+      input:
+      ------
+      i: number (if integer or float should not matter), for which to
+        calculate the next power of 2.
+
+      output:
+      -------
+      integer, as defined above.
+
+      sideeffects:
+      ------------
+      None
+      """
+      n = 1
+      while n < i: n *= 2
+      return n
+
+    def fourierseries(fmn, u, v, m, n):
+      if type(u) == float or u.size == 1:
+        ycpl = np.sum(fmn*np.exp(1j*(m*u + n*v)))
+        return np.real(ycpl)
+      else:
+        y = np.zeros(u.shape)
+        for k in range(u.size):
+          y[k] = fourierseries1(fmn, u[k], v[k], m, n)
+        return y
+
+    pi = np.pi
+
+    low = True # use lower mode number for NetCDF (not Nyquist one)
+
+    self.s = []
+    self.iota = []
+    self.Jpol_divided_by_nper = []
+    self.Itor = []
+    self.pprime = []
+    self.sqrt_g_00 = []
+
+    self.m = []
+    self.n = []
+    self.rmnc = [] # [m]
+    self.rmns = [] # [m]
+    self.zmnc = [] # [m]
+    self.zmns = [] # [m]
+    self.vmnc = []
+    self.vmns = []
+    self.bmnc = [] # [T]
+    self.bmns = [] # [T]
+
+    enrho = np.copy(data['ns'].data)
+    mlow = np.array(np.copy(data['xm'].data),int)
+    nlow = np.array(-np.copy(data['xn'].data),int)
+    m = np.array(np.copy(data['xm_nyq'].data),int)
+    n = np.array(-np.copy(data['xn_nyq'].data),int)
+    empol = int(np.max(np.abs(m)) + 1)
+    entor = int(np.max(np.abs(n)))
+    empoll = int(np.max(np.abs(mlow)) + 1)
+    entorl = int(np.max(np.abs(nlow)))
+    phip = -np.copy(data['phipf'].data)/(2.0*np.pi)
+    pres = np.copy(data['presf'].data)
+    empmnt= np.copy(data['mnmax_nyq'].data)
+    empmntl= np.copy(data['mnmax'].data)
+    buco =  np.copy(data['buco'].data)
+    bvco =  np.copy(data['bvco'].data)
+    iota =  np.copy(data['iotas'].data)
+    enfp =  np.copy(data['nfp'].data)
+    vp =    np.copy(data['vp'].data)
+
+    try:
+      rmnl = np.copy(data['rmnc'].data - 1.0j*data['rmns'].data)
+      zmnl = np.copy(data['zmnc'].data - 1.0j*data['zmns'].data)
+      lmnl = np.copy(data['lmnc'].data - 1.0j*data['lmns'].data)
+      bsubumn = np.copy(data['bsubumnc'].data - 1.0j*data['bsubumns'].data)
+      bsubvmn = np.copy(data['bsubvmnc'].data - 1.0j*data['bsubvmns'].data)
+      bsubsmn = np.copy(data['bsubsmnc'].data - 1.0j*data['bsubsmns'].data)
+      bsupumn = np.copy(data['bsupumnc'].data - 1.0j*data['bsupumns'].data)
+      bsupvmn = np.copy(data['bsupvmnc'].data - 1.0j*data['bsupvmns'].data)
+    except:  # Stellarator-symmetric case
+      print('Stellarator-symmetric case')
+      rmnl = np.copy(data['rmnc'].data)
+      zmnl = np.copy(- 1.0j*data['zmns'].data)
+      lmnl = np.copy(- 1.0j*data['lmns'].data)
+      bsubumn = np.copy(data['bsubumnc'].data)
+      bsubvmn = np.copy(data['bsubvmnc'].data)
+      bsubsmn = np.copy(- 1.0j*data['bsubsmns'].data)
+      bsupumn = np.copy(data['bsupumnc'].data)
+      bsupvmn = np.copy(data['bsupvmnc'].data)
+
+    # use only modes where all quantities are defined
+    condi = (np.abs(m)<empoll) & (np.abs(n)<=entorl)
+
+    if low:
+      m = mlow
+      n = nlow
+      empol = empoll
+      entor = entorl
+      empmnt = empmntl
+      rmn = rmnl
+      zmn = zmnl
+      lmn = lmnl
+      bsubumn = bsubumn[:,condi]
+      bsubvmn = bsubvmn[:,condi]
+      bsubsmn = bsubsmn[:,condi]
+      bsupumn = bsupumn[:,condi]
+      bsupvmn = bsupvmn[:,condi]
+    else:
+      rmn = np.zeros(bsubumn.shape, complex)
+      zmn = np.zeros(bsubumn.shape, complex)
+      lmn = np.zeros(bsubumn.shape, complex)
+      rmn[:,condi] = rmnl
+      zmn[:,condi] = zmnl
+      lmn[:,condi] = lmnl
+
+    ns = enrho - 1
+    ds = 1.0/ns
+    s   = (np.arange(0,ns)+0.5)*ds
+    sf  = (np.arange(0,ns+1))*ds
+
+    cond1   = (m != 0)
+    cond2   = (n != 0)
+    m1 = m[cond1]; n1 = n[cond1]
+    m2 = m[cond2]; n2 = n[cond2]
+
+    s           = np.insert(s, 0, 0.0)
+    dpsitords   = -phip
+
+    # Boozer coordinates
+    bsubuB   = np.real(bsubumn[:,0])
+    bsubvB   = np.real(bsubvmn[:,0])
+    bsubuB2  = buco
+    bsubvB2  = bvco
+    pprime   = 0.0
+
+    for ind in range(1, self.nsurf):
+      print('Processing flux surface {}/{}'.format(ind, self.nsurf-1))
+      t = time.time()
+
+      # number of points on each side for Lagrange interpolation
+      nl = 3
+      # Reduce number of points for radial interpolation if near axis or
+      # near outer border.
+      if(ind < 3 or ind > ns-3):
+        nl = 2
+
+      if(ind < 2 or ind > ns-2):
+        nl = 1
+
+      # Full mesh quantities
+      ppoly  = ip.lagrange(sf[ind-nl:ind+nl],pres[ind-nl:ind+nl])
+      pspoly = np.polyder(ppoly)
+      psval  = np.polyval(ppoly,s[ind])
+
+      # Radial interpolation of the quantities. Also get derivative from interpolation.
+      # Half to full grid?
+      rmnval = []; rsmnval = []
+      zmnval = []; zsmnval = []
+      lmnval = []; lsmnval = []
+      for km in range(empmnt):
+        rpoly = ip.lagrange(sf[ind-nl:ind+nl],rmn[ind-nl:ind+nl,km])
+        rspoly = np.polyder(rpoly)
+        rmnval.append(np.polyval(rpoly, s[ind]))
+        rsmnval.append(np.polyval(rspoly, s[ind]))
+
+        zpoly = ip.lagrange(sf[ind-nl:ind+nl],zmn[ind-nl:ind+nl,km])
+        zspoly = np.polyder(zpoly)
+        zmnval.append(np.polyval(zpoly, s[ind]))
+        zsmnval.append(np.polyval(zspoly, s[ind]))
+
+        lpoly = ip.lagrange(sf[ind-nl:ind+nl],lmn[ind-nl:ind+nl,km])
+        lspoly = np.polyder(lpoly)
+        lmnval.append(np.polyval(lpoly, s[ind]))
+        lsmnval.append(np.polyval(lspoly, s[ind]))
+
+      rmnval = np.array(rmnval); zmnval = np.array(zmnval); lmnval = np.array(lmnval)
+      rsmnval= np.array(rsmnval);zsmnsval=np.array(zsmnval);lsmnval=np.array(lsmnval)
+
+      # Cylindrical coordinates
+      def r(u,v): return fourierseries(rmnval,u,v,m,n)
+      def drdu(u,v): return fourierseries(1j*m*rmnval,u,v,m,n)
+      def drds(u,v): return fourierseries(rsmnval,u,v,m,n)
+
+      def z(u,v): return fourierseries(zmnval,u,v,m,n)
+      def dzdu(u,v): return fourierseries(1j*m*zmnval,u,v,m,n)
+      def dzds(u,v): return fourierseries(zsmnsval,u,v,m,n)
+
+      # Stream function
+      def lam(u,v): return fourierseries(lmnval,u,v,m,n)
+      def dlamdu(u,v): return fourierseries(1j*m*lmnval,u,v,m,n)
+      def dlamdv(u,v): return fourierseries(1j*n*lmnval,u,v,m,n)
+      def dlamds(u,v): return fourierseries(lsmnval,u,v,m,n)
+
+      def bsupu(u,v,fsi): return fourierseries(bsupumn[fsi,:],u,v,m,n)
+      def bsupv(u,v,fsi): return fourierseries(bsupvmn[fsi,:],u,v,m,n)
+
+      def bsubs(u,v,fsi): return fourierseries(bsubsmn[fsi,:],u,v,m,n)
+      def bsubu(u,v,fsi): return fourierseries(bsubumn[fsi,:],u,v,m,n)
+      def bsubv(u,v,fsi): return fourierseries(bsubvmn[fsi,:],u,v,m,n)
+
+      def bmod2(u,v,fsi): return bsupu(u,v,fsi)*bsubu(u,v,fsi) +\
+          bsupv(u,v,fsi)*bsubv(u,v,fsi)
+      def bmod(u,v): return np.sqrt(bmod2(u,v,ind))
+
+      # Metric tensor
+      def G(u,v): return drdu(u,v)*dzds(u,v)-drds(u,v)*dzdu(u,v)
+      def sqrtg(u,v): return np.abs(r(u,v)*G(u,v))
+
+      # Alternative definition of stream function
+      def dlamdu0(u,v): return sqrtg(u,v)/dpsitords[ind]*bsupv(u,v,ind)-1.0
+      def dlamdv0(u,v): return (-sqrtg(u,v)/(iota[ind]*dpsitords[ind])*bsupu(u,v,ind)+1.0)*iota[ind]
+
+      # VMEC magnetic coordinates
+      def uf(u,v,fsi): return u + lam(u,v)
+      def sqrtgf(u,v): return sqrtg(u,v)/np.abs(1+dlamdu(u,v))
+      def bsupuf(u,v,fsi): return (1+dlamdu(u,v,fsi))*bsupu(u,v,fsi)+\
+          dlamdv(u,v,fsi)*bsubv(u,v,fsi)
+
+      # store flux surface quantities
+      # TODO: check sign convention. This one matches Strumberger output
+      # TODO: check dV/ds and bvco enfp factor. Documentation says it's already included
+      #       but it seems it needs to be added to get the correct output
+      # TODO: pprime
+      self.s.append(s[ind])
+      self.iota.append(iota[ind])
+      self.Jpol_divided_by_nper.append(-2.0*pi/mu0*bsubvB[ind]/enfp)
+      self.Itor.append(-2.0*pi/mu0*bsubuB[ind])
+      self.pprime.append(pprime)
+      self.sqrt_g_00.append(-4.0*pi**2*vp[ind]/enfp)
+
+      def sqrtgB(u,v): return np.abs(dpsitords[ind]*(iota[ind]*bsubuB[ind]+
+                                      bsubvB[ind])/bmod2(u,v,ind))
+
+
+      def hcheck(u,v): return sqrtgf(u,v)/sqrtgB(u,v) - 1.0
+
+      # Boozer conversion
+      print('Boozer conversion after Nuehrenberg/Zille')
+
+      hmn1 = (bsubumn[ind,cond1]-1j*m1*bsubuB[ind]*lmnval[cond1])/\
+              (1j*m1*(bsubuB[ind]+bsubvB[ind]/iota[ind]))
+      hmn2 = (bsubvmn[ind,cond2]-1j*n2*bsubuB[ind]*lmnval[cond2])/\
+              (1j*n2*(bsubuB[ind]+bsubvB[ind]/iota[ind]))
+
+      hmn = np.zeros(m.shape, dtype='complex')
+      hmn[cond2] = hmn2
+      hmn[cond1] = hmn1
+
+      def H(u,v): return fourierseries(hmn,u,v,m,n)
+      def dHdu(u,v): return fourierseries(1j*m*hmn,u,v,m,n)
+      def dHdv(u,v): return fourierseries(1j*n*hmn,u,v,m,n)
+
+      def dth(u,v): return fourierseries(lmnval+hmn, u, v, m, n)
+      def dph(u,v): return fourierseries(hmn/iota[ind], u, v, m, n)
+
+      # Calculate Boozer modes
+      m0b = 2*empol-1
+      n0b = 4*entor+1
+      mb = np.zeros(int((m0b-1)*n0b+(n0b-1)/2+1),dtype=int)
+      nb = np.zeros(int((m0b-1)*n0b+(n0b-1)/2+1),dtype=int)
+      k=0
+      for mk in range(m0b):
+        nmin0 = -2*entor
+        if mk < 1:
+          nmin0 = 0
+        for nk in range(nmin0,2*entor+1):
+          mb[k] = mk
+          nb[k] = nk*enfp
+          k = k+1
+
+      nu = uv_grid_multiplicator*np.max(np.abs(m))-1
+      nv = uv_grid_multiplicator*np.max(np.abs(n))+1
+      du = 2.0*pi/nu
+      dv = 2.0*pi/nv
+      up = np.arange(0,2*pi,du)
+      vp = np.arange(0,2*pi,dv)
+      [U,V] = np.meshgrid(up,vp)
+      U = U.flatten().T; V = V.flatten().T
+      THB = U + dth(U,V)
+      PHB = V + dph(U,V)
+      R = r(U,V)
+      Z = z(U,V)
+      B = bmod(U,V)
+      H1 = H(U,V)
+      HCHECK = hcheck(U,V)
+      Jbinv = np.abs((1.0+dlamdu(U,V)+dHdu(U,V))*(1.0+dHdv(U,V)/iota[ind])\
+              -dHdu(U,V)/iota[ind]*(dlamdv(U,V)+dHdv(U,V)))
+
+      print("Computing Boozer modes")
+      dthmnb = np.zeros(mb.shape, complex)
+      dphmnb = np.zeros(mb.shape, complex)
+      rmnb = np.zeros(mb.shape, complex)
+      zmnb = np.zeros(mb.shape, complex)
+      bmnb = np.zeros(mb.shape, complex)
+      hmnb = np.zeros(mb.shape, complex)
+      hcheckmnb = np.zeros(mb.shape, complex)
+      for km in range(len(mb)):
+        efun = 2.0/(2.0*np.pi)**2*np.exp(-1.0j*(mb[km]*THB + nb[km]*PHB))*du*dv
+        if (mb[km]==0) and (nb[km]==0):
+          efun = efun/2.0
+        dthmnb[km] = np.sum(efun*Jbinv*(THB-U))
+        dphmnb[km] = np.sum(efun*Jbinv*(PHB-V))
+        rmnb[km] = np.sum(efun*Jbinv*R)
+        zmnb[km] = np.sum(efun*Jbinv*Z)
+        bmnb[km] = np.sum(efun*Jbinv*B)
+        hmnb[km] = np.sum(efun*Jbinv*H1)
+        hcheckmnb[km] = np.sum(efun*Jbinv*HCHECK)
+
+      vmnb = -enfp*dphmnb/(2*np.pi)
+
+      self.m.append(mb)
+      self.n.append(array(nb/enfp, dtype=int32))
+      self.rmnc.append(+rmnb.real)
+      self.rmns.append(-rmnb.imag)
+      self.zmnc.append(+zmnb.real)
+      self.zmns.append(-zmnb.imga)
+      self.vmnc.append(+vmnb.real)
+      self.vmns.append(-vmnb.imag)
+      self.bmnc.append(+bmnb.real)
+      self.bmns.append(-bmnb.imag)
+
+      elapsed = time.time() - t
+      print('Elapsed time: {} s'.format(elapsed))
+
+    elapsed = time.time() - t_start
+    print('Total time: {} s'.format(elapsed))
+
+
 def main():
   import sys
 
@@ -1145,6 +1534,7 @@ def main():
 
     for ind in range(1, nsurf+1):
       convert_to_boozer(infile, ind, wout_name, uv_grid_multiplier)
+
 
 if __name__ == "__main__":
   main()
