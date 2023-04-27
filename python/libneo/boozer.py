@@ -1159,6 +1159,7 @@ class BoozerFile:
     import numpy as np
     import scipy.interpolate as ip
     import scipy.io.netcdf as ncdf
+    import scipy.constants
     import string
     import sys
     import time
@@ -1168,6 +1169,8 @@ class BoozerFile:
     print("Input is netcdf file, converting to boozer.")
 
     t_start = time.time()
+
+    mu0 = scipy.constants.mu_0
 
     [self.nper, self.flux, self.a, self.R, self.m0b, self.n0b] = getHeaderDataVMEC.getHeadDataVmecNc(filename)
 
