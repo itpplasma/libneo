@@ -449,9 +449,9 @@ def convert_to_boozer(infile, ks, outfile, uv_grid_multiplicator: int = 6):
   nv = uv_grid_multiplicator*np.max(np.abs(n))+1
   du = 2.0*pi/nu
   dv = 2.0*pi/nv
-  up = np.arange(0,2*pi,du)
-  vp = np.arange(0,2*pi,dv)
-  [U,V] = np.meshgrid(up,vp)
+  ug = np.arange(0,2*pi,du)
+  vg = np.arange(0,2*pi,dv)
+  [U,V] = np.meshgrid(ug,vg)
   U = U.flatten().T; V = V.flatten().T
   THB = U + dth(U,V)
   PHB = V + dph(U,V)
@@ -1457,9 +1457,9 @@ class BoozerFile:
       nv = uv_grid_multiplicator*np.max(np.abs(n))+1
       du = 2.0*pi/nu
       dv = 2.0*pi/nv
-      up = np.arange(0,2*pi,du)
-      vp = np.arange(0,2*pi,dv)
-      [U,V] = np.meshgrid(up,vp)
+      ug = np.arange(0,2*pi,du)
+      vg = np.arange(0,2*pi,dv)
+      [U,V] = np.meshgrid(ug,vg)
       U = U.flatten().T; V = V.flatten().T
       THB = U + dth(U,V)
       PHB = V + dph(U,V)
