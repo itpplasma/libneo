@@ -1498,7 +1498,7 @@ class BoozerFile:
       self.rmnc.append(+rmnb.real)
       self.rmns.append(-rmnb.imag)
       self.zmnc.append(+zmnb.real)
-      self.zmns.append(-zmnb.imga)
+      self.zmns.append(-zmnb.imag)
       self.vmnc.append(+vmnb.real)
       self.vmns.append(-vmnb.imag)
       self.bmnc.append(+bmnb.real)
