@@ -1320,6 +1320,7 @@ class BoozerFile:
     bsubvB2  = bvco
     pprime   = 0.0
 
+    # Skip index zero as values are not defined, e.g. iota[0] = 0.0
     for ind in range(1, self.nsurf):
       print('Processing flux surface {}/{}'.format(ind, self.nsurf-1))
       t = time.time()
