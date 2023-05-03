@@ -791,7 +791,9 @@ class BoozerFile:
     seperated by empty lines. This is intended for plotting with
     gnuplot, where the empty lines will cause different contours not to
     be connected. File can also be load'ed with octave/matlab, but then
-    seperation into contours is lost
+    seperation into contours is lost.
+    Note that contours are closed, i.e. the first point is also added as
+    last point.
 
     Example:
     --------
