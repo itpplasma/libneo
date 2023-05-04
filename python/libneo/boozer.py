@@ -762,11 +762,11 @@ class BoozerFile:
 
     return self.iota
 
-  def __init__(self, filename: str):
+  def __init__(self, filename: str, *, uv_grid_multiplicator: int = 6):
     """Init routine which takes a string, representing the file to read.
     """
     if filename.endswith('nc'):
-      self.convert_vmec_to_boozer(filename)
+      self.convert_vmec_to_boozer(filename, uv_grid_multiplicator)
     else:
       self.read_boozer(filename)
 
