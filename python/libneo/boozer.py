@@ -1179,7 +1179,8 @@ class BoozerFile:
     n = ncdf.netcdf_file(filename)
     data = n.variables
 
-    self.nsurf = data['bmns'].shape[0]
+    # Minus one, because we skipp the first flux surface from the file.
+    self.nsurf = np.copy(data['ns'].data) - 1
 
 
     def nextpow2(i):
@@ -1236,7 +1237,6 @@ class BoozerFile:
     self.bmnc = [] # [T]
     self.bmns = [] # [T]
 
-    enrho = np.copy(data['ns'].data)
     mlow = np.array(np.copy(data['xm'].data),int)
     nlow = np.array(-np.copy(data['xn'].data),int)
     m = np.array(np.copy(data['xm_nyq'].data),int)
@@ -1300,7 +1300,7 @@ class BoozerFile:
       zmn[:,condi] = zmnl
       lmn[:,condi] = lmnl
 
-    ns = enrho - 1
+    ns = self.nsurf
     ds = 1.0/ns
     s   = (np.arange(0,ns)+0.5)*ds
     sf  = (np.arange(0,ns+1))*ds
@@ -1321,7 +1321,7 @@ class BoozerFile:
     pprime   = 0.0
 
     # Skip index zero as values are not defined, e.g. iota[0] = 0.0
-    for ind in range(1, self.nsurf):
+    for ind in range(1, self.nsurf+1):
       print('Processing flux surface {}/{}'.format(ind, self.nsurf-1))
       t = time.time()
 
