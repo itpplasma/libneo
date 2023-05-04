@@ -1329,11 +1329,15 @@ class BoozerFile:
       nl = 3
       # Reduce number of points for radial interpolation if near axis or
       # near outer border.
-      if(ind < 3 or ind > ns-3):
+      # Note: inner bound increased by one, due to zero at innermost point.
+      if(ind < 3+1 or ind > ns-3):
         nl = 2
 
-      if(ind < 2 or ind > ns-2):
+      if(ind < 2+1 or ind > ns-2):
         nl = 1
+
+      if(ind < 1+1 or ind > ns-1):
+        nl = 0
 
       # Full mesh quantities
       ppoly  = ip.lagrange(sf[ind-nl:ind+nl],pres[ind-nl:ind+nl])
