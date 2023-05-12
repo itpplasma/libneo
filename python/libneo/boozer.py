@@ -805,6 +805,8 @@ class BoozerFile:
     nplotsurf: number of flux surfaces to calculate (output will contain
       one contour less).
     outfile: string, name of the file in which to store the data.
+    add_last_flux_surface: bool, if true then the last closed flux
+      surface is explicitly added to the output. [False]
 
     output:
     -------
