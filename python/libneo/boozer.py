@@ -875,6 +875,95 @@ class BoozerFile:
           outfile.write(' {:16.8e}'.format(Znew[i]))
           outfile.write('\n')
 
+
+  def get_contours_in_r_z_plane(self, phi: float, nplotsurf: int, add_last_flux_surface:bool = False):
+    """Get list of contours based on data, at specified toroidal angle.
+
+    Note that contours are closed, i.e. the first point is also added as
+    last point.
+
+    Example:
+    --------
+      get_contours_in_r_z_plane(phi=0.0, nplotsurf=20)
+
+    Input:
+    ------
+    phi: toroidal angle (in units of pi) at which to compute the contours.
+    nplotsurf: number of flux surfaces to calculate (output will contain
+      one contour less).
+    add_last_flux_surface: bool, if true then the last closed flux
+      surface is explicitly added to the output. [False]
+
+    output:
+    -------
+    Rs, Zs: lists of numpy arrays of floats. R/Z coordinates for each
+      flux surfaces.
+
+    sideeffects:
+    ------------
+    None
+
+    limitations:
+    ------------
+    With current implementation first contour is innermost flux surface.
+    Subsequent contours, may be further innwards or on top of first
+    contour.
+    """
+
+    import math
+
+    from numpy import array
+
+    hrho = 1.0/float(nplotsurf)
+    phi = phi*math.pi
+
+    nmodes = (self.m0b+1)*(2*self.n0b+1)
+    modfactor = 30
+    nt = self.m0b*modfactor
+
+    rho_tor = hrho
+    s_plot = rho_tor**2
+    s = 0.0
+
+    Rs = []
+    Zs = []
+    for k in range(self.nsurf):
+      s_old = s
+      s = self.s[k]
+
+      if (s > s_plot):
+        [Rnew, Znew] = self.get_R_Z(np = nt, phi = phi, ind = k)
+        # Add first point at end, to close the lines.
+        Rnew.append(Rnew[0])
+        Znew.append(Znew[0])
+
+        if k > 0:
+          [Rold, Zold] = self.get_R_Z(np = nt, phi = phi, ind = k-1)
+          Rold.append(Rold[0])
+          Zold.append(Zold[0])
+        else:
+          Rold = Rnew
+          Zold = Znew
+
+        w=(s_plot-s_old)/(s-s_old)
+
+        Rs.append(array(Rnew)*w + array(Rold)*(1.0-w))
+        Zs.append(array(Znew)*w + array(Zold)*(1.0-w))
+
+        rho_tor = rho_tor + hrho
+        s_plot = rho_tor**2
+
+    if (add_last_flux_surface):
+      [Rnew, Znew] = self.get_R_Z(np = nt, phi = phi, ind = -1)
+      Rnew.append(Rnew[0])
+      Znew.append(Znew[0])
+
+      Rs.append(Rnew)
+      Zs.append(Znew)
+
+    return Rs, Zs
+
+
   def get_radial_cut_of_minor_radius(self, poloidal_angle: float):
     """Get radial cut of the minor radius at a specified angle.
     """
