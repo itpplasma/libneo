@@ -1,3 +1,4 @@
+import setuptools
 from numpy.distutils.core import setup, Extension
 
 setup(
@@ -5,14 +6,14 @@ setup(
     version='0.0.1',
     description='libneo',
     author='Christopher Albert',
+    packages=['libneo'],
     ext_modules=[
-        Extension('magfie',
+        Extension('libneo.magfie',
                   sources=['f2py_magfie.f90',
                            '../../src/magfie/magfie_vmec.f90',
                            '../../src/magfie/spline_vmec_data.f90'],
                   include_dirs=['../../build'],
-                  libraries=['liblibneo.so'],
+                  libraries=['libneo'],
                   library_dirs=['../../build/'])
     ],
-    data_files=[('libneo', ['../../build/liblibneo.so'])]
 )

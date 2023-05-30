@@ -41,16 +41,34 @@ endif ()
 
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
+
+find_program(NC_CONFIG "nc-config")
+
+if (NC_CONFIG)
 execute_process(COMMAND nc-config --includedir
                 OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
+execute_process(COMMAND nc-config --libdir
+                OUTPUT_VARIABLE NETCDFLIB_DIR)
+else()
+message(SEND_ERROR "nc-config not found. Please install libnetcdff-dev")
+endif()
+
+string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
+string(STRIP ${NETCDFLIB_DIR} NETCDFLIB_DIR)
+
 include_directories(${NETCDFINCLUDE_DIR})
+link_directories(${NETCDFLIB_DIR})
 
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 
 # Main goal (of the created build file): creating the library file.
 add_library(libneo SHARED ${SOURCE_FILES})
-#target_link_libraries(libneo ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
+target_link_libraries(libneo
+  netcdf netcdff ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_library(mc_efit SHARED
   src/magfie/polylag_3.f
