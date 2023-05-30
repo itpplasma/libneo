@@ -49,3 +49,7 @@ src/*/*/version.f90
 
 # Ignore macOS system files
 .DS_Store
+
+# Ignore files created by the python build system
+python/libneo/build/
+*.egg-info/
