@@ -7,15 +7,13 @@
   implicit none
 !
   integer :: i,k,m,n,is,i_theta,i_phi,m_max,n_max,nsize_exp_imt,nsize_exp_inp,iexpt,iexpp
-  integer :: iss,ist,isp,nrho,nheal
+  integer :: iss,ist,isp,nrho,nheal,iunit_hs
   double precision :: twopi,cosphase,sinphase
   complex(8)   :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
   double precision, dimension(:,:), allocatable :: splcoe
   double precision, dimension(:,:), allocatable :: almnc_rho,rmnc_rho,zmnc_rho
   double precision, dimension(:,:), allocatable :: almns_rho,rmns_rho,zmns_rho
   complex(8),   dimension(:),   allocatable :: exp_imt,exp_inp
-
-  logical, parameter :: old_axis_healing_boundary = .false.
 
   print *,'Splining VMEC data: ns_A = ',ns_A,'  ns_s = ',ns_s,'  ns_tp = ',ns_tp
 !
@@ -32,6 +30,9 @@
   allocate(almnc_rho(nstrm,0:nrho-1),rmnc_rho(nstrm,0:nrho-1),zmnc_rho(nstrm,0:nrho-1))
   allocate(almns_rho(nstrm,0:nrho-1),rmns_rho(nstrm,0:nrho-1),zmns_rho(nstrm,0:nrho-1))
 !
+  iunit_hs=1357
+  open(iunit_hs,file='healaxis.dat')
+!
   do i=1,nstrm
 !
     m=nint(abs(axm(i)))
@@ -39,7 +40,10 @@
     if (old_axis_healing_boundary) then
       nheal = min(m, 4)
     else
+!
       call determine_nheal_for_axis(m, ns, rmnc(i,:), nheal)
+!
+      write(iunit_hs,*) 'm = ',m,' n = ',nint(abs(axn(i))),' skipped ',nheal,' / ',ns
     end if
 
     call s_to_rho_healaxis(m,ns,nrho,nheal,rmnc(i,:),rmnc_rho(i,:))
@@ -55,6 +59,8 @@
     call s_to_rho_healaxis(m,ns,nrho,nheal,almns(i,:),almns_rho(i,:))
 !
   enddo
+!
+  close(iunit_hs)
 !
 !------------------------------------
 ! Begin poloidal flux ($A_\varphi$):
@@ -100,7 +106,7 @@
 !
   nsize_exp_imt=(n_theta-1)*m_max
   nsize_exp_inp=(n_phi-1)*n_max
-
+!
   allocate(exp_imt(0:nsize_exp_imt),exp_inp(-nsize_exp_inp:nsize_exp_inp))
 !
   base_exp_imt=exp(cmplx(0.d0,h_theta,kind=kind(0d0)))
@@ -323,7 +329,8 @@
 !
   integer :: is,i_theta,i_phi,k
   double precision :: ds,dtheta,dphi,rho_tor
-  double precision :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
+  double precision, intent(in) :: s,theta,varphi
+  double precision, intent(out) :: A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                       R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp
 !
   integer, parameter :: ns_max=6
@@ -667,7 +674,7 @@
 ! none
 subroutine s_to_rho_healaxis(m,ns,nrho,nheal,arr_in,arr_out)
 
-  use new_vmec_stuff_mod, only : ns_s
+  use new_vmec_stuff_mod, only : ns_s, old_axis_healing
 
   implicit none
 
@@ -678,8 +685,6 @@ subroutine s_to_rho_healaxis(m,ns,nrho,nheal,arr_in,arr_out)
   integer :: irho,is,k,nhe
   double precision :: hs,hrho,s,ds,rho,a,b,c
   double precision, dimension(:,:), allocatable :: splcoe
-
-  logical, parameter :: old_axis_healing = .false.
 
   hs = 1.d0/dble(ns-1)
   hrho = 1.d0/dble(nrho-1)
