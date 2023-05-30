@@ -62,13 +62,19 @@ link_directories(${NETCDFLIB_DIR})
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 
+# RKF45 from https://people.sc.fsu.edu/~jburkardt/
+# licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
+add_library ( rkf45 SHARED
+	src/contrib/rkf45.f90
+)
+
 # Main goal (of the created build file): creating the library file.
 add_library(libneo SHARED ${SOURCE_FILES})
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 target_link_libraries(libneo
-  netcdf netcdff ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  rkf45 netcdf netcdff ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_library(mc_efit SHARED
   src/magfie/polylag_3.f

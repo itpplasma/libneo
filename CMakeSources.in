@@ -11,7 +11,7 @@ set(SOURCE_FILES
     src/rusage_type.f90
     src/solve_systems.f90
     src/system_utility.f90
- 
+
     # VMEC
     src/canonical_coordinates_mod.f90
     src/nctools_module.f90
@@ -19,7 +19,13 @@ set(SOURCE_FILES
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
     src/spl_three_to_five.f90
-  
+    src/plag_coeff.f90
+    src/odeint_rkf45.f90
+    src/binsrc.f90
+    src/get_canonical_coordinates.f90
+    src/boozer_converter.f90
+    src/magfie/magfie_vmec.f90
+
     # For CPU time measurements
     src/local_rusage.c
 )
