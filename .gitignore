@@ -53,4 +53,3 @@ src/*/*/version.f90
 # Ignore files created by the python build system
 python/build/
 *.egg-info/
-python/build/src.linux-aarch64-3.10/build/src.linux-aarch64-3.10/libneo/fortranobject.c
