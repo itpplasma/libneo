@@ -1,6 +1,25 @@
 # libneo
 Common code for plasma codes of ITPcp, in particular for different Neo-2 versions.
 
+
+## Getting started
+
+### Prerequisites
+`libneo` requires the following libraries to be available with
+development headers: GSL, FGSL, BLAS, LAPACK, SuiteSparse and SuperLU.
+
+### Build
+`libneo` is built using `cmake`. The build process is as follows:
+
+    mkdir build
+    cd build
+    cmake ..
+    make
+
+### Install Python interface
+The Python interface is located in the `python` subdirectory. Follow the
+`README.md` in that directory for installation instructions.
+
 ## aug
 This is mostly python code for use in AUG intranet to extract data from the AUG shotfile database. The following libraries are used by this.
 
@@ -48,7 +67,7 @@ Classes and functions that have a general use for many application.
 Class to write mnDAT files.
 
 ## python
-Python scripts/functions.
+Python interface package and scripts/functions.
 
 ## src
 Fortran source files for the library.
