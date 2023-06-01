@@ -15,6 +15,9 @@ This file can also be used as script, in this case the append operation
 is done with default file names.
 """
 
+__all__ = ['all_numbers', 'isstring', 'convert_neo_in_to_fortran_namelist',
+           'append_neo_in_to_fortran_input_file']
+
 
 def all_numbers(list_input: list):
   """Check if all elements of a list can be converted to integer.
@@ -174,8 +177,7 @@ def append_neo_in_to_fortran_input_file(neoinfilename: str, fortranfilename: str
   with open(fortranfilename, "a") as g:
     g.write(outputtext)
 
-
-if __name__ == "__main__":
+def main():
   import sys
 
   if (len(sys.argv) < 2):
@@ -189,3 +191,7 @@ if __name__ == "__main__":
     sys.exit()
   elif (len(sys.argv) == 3):
     append_neo_in_to_fortran_input_file(sys.argv[1], sys.argv[2])
+
+
+if __name__ == "__main__":
+  main()

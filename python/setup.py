@@ -10,6 +10,14 @@ setup(
     description='libneo',
     author='Christopher Albert',
     packages=['libneo'],
+    entry_points={
+        'console_scripts': [
+            'vmec_to_boozer = libneo.boozer:main',
+            'convert_neo_in_to_fortran_namelist = '
+                'libneo.convert_neo_in_to_fortran_namelist:main',
+            'get_header_data_vmec = libneo.getHeaderDataVMEC:main'
+        ],
+    },
     ext_modules=[
         Extension('libneo.magfie',
                   sources=['f2py_interfaces/f2py_magfie.f90',
