@@ -20,7 +20,7 @@ module math_constants
   complex(kind=complex_kind), parameter :: I = (0.d0,1.d0)
 
   ! Define physical constants (SI-units)
-  real(kind=real_kind), parameter, public :: MU_0 = 1.25663706212e-6 _real_kind !< vacuum permeability [N A^-2]
+  real(kind=real_kind), parameter, public :: MU_0 = 1.25663706212e-6_real_kind !< vacuum permeability [N A^-2]
 
   ! Define physical constants (cgs-units)
   real(kind=real_kind), parameter, public :: C = 2.99792458e10_real_kind   !< speed of light, [cm/s]
