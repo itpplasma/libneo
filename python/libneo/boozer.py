@@ -6,6 +6,10 @@ Created on Wed Mar 23 10:17:41 2016
 @author: Christopher Albert
 """
 
+__all__ = ['write_boozer_head', 'append_boozer_block_head',
+           'append_boozer_block', 'convert_to_boozer', 'BoozerFile']
+
+
 def write_boozer_head(filename, version, shot: int, m0b, n0b, nsurf_fmt, nfp, psi_tor_a, aminor, Rmajor):
   import getpass
 
@@ -1115,10 +1119,10 @@ class BoozerFile:
 
     return [dR_dl, l]
 
-if __name__ == "__main__":
+def main():
   import sys
 
-  import getHeaderDataVMEC
+  from . import getHeaderDataVMEC
 
   if (len(sys.argv) < 3):
     print("Usage:")
@@ -1141,3 +1145,6 @@ if __name__ == "__main__":
 
     for ind in range(1, nsurf+1):
       convert_to_boozer(infile, ind, wout_name, uv_grid_multiplier)
+
+if __name__ == "__main__":
+  main()

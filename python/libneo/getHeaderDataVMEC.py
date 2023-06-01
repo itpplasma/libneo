@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+__all__ = ['getHeadDataVmecNc']
+
+
 def getHeadDataVmecNc(infile):
   import numpy as np
   import scipy.io.netcdf as ncdf
@@ -33,7 +36,7 @@ def getHeadDataVmecNc(infile):
 
   return [enfp, psi_tor_a, a, R0, m0b, n0b]
 
-if __name__ == "__main__":
+def main():
   import sys
 
   infile = sys.argv[1]
@@ -46,3 +49,6 @@ if __name__ == "__main__":
   print('%10.8f' % R0)
   print('%3d' % m0b)
   print('%3d' % n0b)
+
+if __name__ == "__main__":
+  main()
