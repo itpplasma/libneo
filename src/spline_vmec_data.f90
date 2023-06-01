@@ -480,14 +480,17 @@
 
 !
   implicit none
-!
-  double precision :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,        &
-                      R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp
-  double precision :: Bctrvr_vartheta,Bctrvr_varphi,Bcovar_vartheta,Bcovar_varphi,sqg
-  double precision :: cjac,sqgV,Bcovar_r
-  double precision, dimension(3,3) :: cmat,gV,g
-!
-!
+
+  double precision, intent(in) :: s, theta, varphi
+  double precision, intent(out) :: A_theta, A_phi, dA_theta_ds, dA_phi_ds, &
+      & aiota, sqg, alam, dl_ds, dl_dt, dl_dp, &
+      & Bctrvr_vartheta, Bctrvr_varphi, Bcovar_r, Bcovar_vartheta, Bcovar_varphi
+
+  double precision :: R, Z, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
+  double precision :: cjac, sqgV
+  double precision, dimension(3,3) :: cmat, gV, g
+
+
   call splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,      &
                         R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp)
 !
