@@ -570,20 +570,7 @@ class BoozerFile:
 
   file_version = file_versions_to_read['other']
 
-  def read_boozer(self, filename: str):
-    """Reads information from a file, whose name is given as a string.
-
-    This routine will read the content of file 'filename', assuming it
-    is a boozer file (thus expecting a specific format).
-    The comments are available in a list, each line an entry.
-    Global fields are available as simple elements.
-    Fields that depend on radius are lists, those that depend on radius
-    and mode number lists of lists.
-    """
-
-    with open(filename) as f:
-      lines = f.readlines()
-
+  def initialize(self):
     self.comments = []
     self.m0b = 0.0
     self.n0b = 0.0
@@ -610,6 +597,21 @@ class BoozerFile:
     self.vmns = []
     self.bmnc = [] # [T]
     self.bmns = [] # [T]
+
+
+  def read_boozer(self, filename: str):
+    """Reads information from a file, whose name is given as a string.
+
+    This routine will read the content of file 'filename', assuming it
+    is a boozer file (thus expecting a specific format).
+    The comments are available in a list, each line an entry.
+    Global fields are available as simple elements.
+    Fields that depend on radius are lists, those that depend on radius
+    and mode number lists of lists.
+    """
+
+    with open(filename) as f:
+      lines = f.readlines()
 
     # Get header information, e.g. comments and sizes.
     for lineindex in range(len(lines)):
@@ -765,10 +767,13 @@ class BoozerFile:
   def __init__(self, filename: str, *, uv_grid_multiplicator: int = 6):
     """Init routine which takes a string, representing the file to read.
     """
-    if filename.endswith('nc'):
-      self.convert_vmec_to_boozer(filename, uv_grid_multiplicator)
-    else:
-      self.read_boozer(filename)
+    self.initialize()
+
+    if filename != '':
+      if filename.endswith('nc'):
+        self.convert_vmec_to_boozer(filename, uv_grid_multiplicator)
+      else:
+        self.read_boozer(filename)
 
   def write(self, filename: str):
     write_boozer_head(filename, '', 0, self.m0b, self.n0b, self.nsurf,
@@ -1309,24 +1314,6 @@ class BoozerFile:
     pi = np.pi
 
     low = True # use lower mode number for NetCDF (not Nyquist one)
-
-    self.s = []
-    self.iota = []
-    self.Jpol_divided_by_nper = []
-    self.Itor = []
-    self.pprime = []
-    self.sqrt_g_00 = []
-
-    self.m = []
-    self.n = []
-    self.rmnc = [] # [m]
-    self.rmns = [] # [m]
-    self.zmnc = [] # [m]
-    self.zmns = [] # [m]
-    self.vmnc = []
-    self.vmns = []
-    self.bmnc = [] # [T]
-    self.bmns = [] # [T]
 
     mlow = np.array(np.copy(data['xm'].data),int)
     nlow = np.array(-np.copy(data['xn'].data),int)
