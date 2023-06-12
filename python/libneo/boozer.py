@@ -572,8 +572,8 @@ class BoozerFile:
 
   def initialize(self):
     self.comments = []
-    self.m0b = 0.0
-    self.n0b = 0.0
+    self.m0b = 0
+    self.n0b = 0
     self.nsurf = 0
     self.nper = 0
     self.flux = 0.0 #[Tm^2]
