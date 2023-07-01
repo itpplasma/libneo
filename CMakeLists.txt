@@ -45,19 +45,23 @@ message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
 find_program(NC_CONFIG "nc-config")
 
 if (NC_CONFIG)
-execute_process(COMMAND nc-config --includedir
-                OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
-execute_process(COMMAND nc-config --libdir
-                OUTPUT_VARIABLE NETCDFLIB_DIR)
+execute_process(
+  COMMAND nc-config --fflags
+  OUTPUT_VARIABLE NETCDF_FFLAGS
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+execute_process(
+  COMMAND nc-config --flibs
+  OUTPUT_VARIABLE NETCDF_FLIBS
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 else()
 message(SEND_ERROR "nc-config not found. Please install libnetcdff-dev")
 endif()
 
-string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
-string(STRIP ${NETCDFLIB_DIR} NETCDFLIB_DIR)
-
-include_directories(${NETCDFINCLUDE_DIR})
-link_directories(${NETCDFLIB_DIR})
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${NETCDF_FFLAGS}")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${NETCDF_FLIBS}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${NETCDF_FLIBS}")
 
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
@@ -74,7 +78,7 @@ add_library(libneo SHARED ${SOURCE_FILES})
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 target_link_libraries(libneo
-  rkf45 netcdf netcdff ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  rkf45 ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_library(mc_efit SHARED
   src/magfie/polylag_3.f

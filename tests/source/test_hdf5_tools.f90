@@ -22,12 +22,9 @@ program test_hdf5_tools
   logical :: logical_read, logical_write = .false.
   logical :: error_found = .false.
 
-  complex_write(1)%re = 2.0
-  complex_write(1)%im = 3.0
-  complex_write(2)%re = 5.0
-  complex_write(2)%im =-1.0
-  complex_write(3)%re = 0.4
-  complex_write(3)%im = 1.3e-3
+  complex_write(1) = cmplx(2.0d0, 3.0d0, kind=dcp)
+  complex_write(2) = cmplx(5.0d0, -1.0d0, kind=dcp)
+  complex_write(3) = cmplx(0.4d0, 1.3d-3, kind=dcp)
 
   call h5_init()
 
