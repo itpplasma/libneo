@@ -1178,6 +1178,38 @@ class BoozerFile:
 
     return [R, Z]
 
+
+  def get_B(self, np:int = 100, phi:float = 0.0, ind:int = -1):
+    """
+    Get list of B values.
+
+    Returns a list for B, that contains the values for flux surface with
+    given index for equaly spaced theta values.
+
+    input:
+    ------
+    np: integer, number of points to use for theta grid.
+    phi: float, the phi value to use for the calculations. So far this
+      can only be a single value. Defaults to 0.0.
+    ind: integer, index of the flux surface to use for the calculation.
+      Defaults to -1, i.e. the outermost flux surface.
+
+    output:
+    -------
+    List of floats, the values of B.
+    """
+    from math import cos, sin, pi
+
+    B = [0.0 for i in range(np)]
+
+    htheta = 2.0*pi/float(np)
+    theta = [htheta*x for x in range(0,np)]
+    for i in range(np):
+      B[i] = sum(br * cos(m*theta[i] - self.nper*n*phi) + bc * sin(m*theta[i] - self.nper*n*phi) for br, bc, m, n in zip(self.bmnc[ind], self.bmns[ind], self.m[ind], self.n[ind]))
+
+    return B
+
+
   def get_dR_dl(self, ind:int = -1, np:int = 100):
     """
     Get derivative of major radius R as a function of arc length l.
