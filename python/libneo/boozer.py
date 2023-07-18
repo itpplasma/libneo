@@ -1633,27 +1633,21 @@ def main():
 
   from libneo import getHeaderDataVMEC
 
-  if (len(sys.argv) < 3):
+  if (len(sys.argv) < 2):
     print("Usage:")
-    print("./boozer.py infilename numberfluxsurfacesminustwo")
+    print("./boozer.py infilename [uv_grid_multiplier]")
   else:
     infile = sys.argv[1]
-    nsurf = int(sys.argv[2])
     wout_name = infile + '.bc'
 
-    if (len(sys.argv) >= 4):
-      uv_grid_multiplier = int(sys.argv[3])
+    if (len(sys.argv) >= 3):
+      uv_grid_multiplier = int(sys.argv[2])
     else:
       uv_grid_multiplier = 6
 
-    shot = -1
-
-    [nfp, psi_tor_a, aminor, Rmajor, m0b, n0b] = getHeaderDataVMEC.getHeadDataVmecNc(infile)
-
-    write_boozer_head(wout_name, '01', shot, m0b, n0b, nsurf, nfp, psi_tor_a, aminor, Rmajor)
-
-    for ind in range(1, nsurf+1):
-      convert_to_boozer(infile, ind, wout_name, uv_grid_multiplier)
+    b = BoozerFile(filename='')
+    b.convert_vmec_to_boozer(filename=infile, uv_grid_multiplicator=uv_grid_multiplier)
+    b.write(wout_name)
 
 
 if __name__ == "__main__":
