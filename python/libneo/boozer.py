@@ -1440,11 +1440,13 @@ class BoozerFile:
       # Reduce number of points for radial interpolation if near axis or
       # near outer border.
       # Note: inner bound increased by one, due to zero at innermost point.
-      if(ind < 1+1 or ind > ns-1):
+      # Note: outermost bound decreased by one, to be able to define
+      #   interval symmetric around ind, which requires adding 1 below.
+      if(ind < 1+1 or ind > ns-1-1):
         nl = 0
-      elif(ind < 2+1 or ind > ns-2):
+      elif(ind < 2+1 or ind > ns-2-1):
         nl = 1
-      elif(ind < 3+1 or ind > ns-3):
+      elif(ind < 3+1 or ind > ns-3-1):
         nl = 2
 
       # Full mesh quantities
@@ -1458,17 +1460,17 @@ class BoozerFile:
       zmnval = []; zsmnval = []
       lmnval = []; lsmnval = []
       for km in range(empmnt):
-        rpoly = ip.lagrange(sf[ind-nl:ind+nl],rmn[ind-nl:ind+nl,km])
+        rpoly = ip.lagrange(sf[ind-nl:ind+nl+1],rmn[ind-nl:ind+nl+1,km])
         rspoly = np.polyder(rpoly)
         rmnval.append(np.polyval(rpoly, s[ind]))
         rsmnval.append(np.polyval(rspoly, s[ind]))
 
-        zpoly = ip.lagrange(sf[ind-nl:ind+nl],zmn[ind-nl:ind+nl,km])
+        zpoly = ip.lagrange(sf[ind-nl:ind+nl+1],zmn[ind-nl:ind+nl+1,km])
         zspoly = np.polyder(zpoly)
         zmnval.append(np.polyval(zpoly, s[ind]))
         zsmnval.append(np.polyval(zspoly, s[ind]))
 
-        lpoly = ip.lagrange(sf[ind-nl:ind+nl],lmn[ind-nl:ind+nl,km])
+        lpoly = ip.lagrange(sf[ind-nl:ind+nl+1],lmn[ind-nl:ind+nl+1,km])
         lspoly = np.polyder(lpoly)
         lmnval.append(np.polyval(lpoly, s[ind]))
         lsmnval.append(np.polyval(lspoly, s[ind]))
