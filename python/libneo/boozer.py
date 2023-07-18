@@ -1629,7 +1629,7 @@ class BoozerFile:
 def main():
   import sys
 
-  from . import getHeaderDataVMEC
+  from libneo import getHeaderDataVMEC
 
   if (len(sys.argv) < 3):
     print("Usage:")
