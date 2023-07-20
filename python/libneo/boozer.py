@@ -1628,6 +1628,159 @@ class BoozerFile:
     print('Total time: {} s'.format(elapsed))
 
 
+  def extract_pert_field(self, filename_base:str, filename_ext:str=''):
+    """Extrakt toroidal modes from a boozer file.
+
+    Take a file with many toroidal modes and write boozer files with one
+    toroidal mode in each.
+
+    input:
+    ------
+    file_base: string, base name for output files (without file extension),
+      Output file names will be 'file_base-n#mode[.file_ext]', where
+      '#mode' is replaced with the mode number.
+    file_ext: string, file extension of output files. If not passed or
+      empty, it is assumed there is no file extension.
+    """
+
+    import numpy as np
+
+    print('Basic parameters: m0 {} n0 {} nsurf {} nper {}\n'.format(self.m0b, self.n0b,
+        self.nsurf, self.nper))
+
+    # get the highest toroidal perturbation mode number
+    n_pert_max = max(max(self.n))
+
+    m = np.array(list(set(self.m[0])))
+    n = np.array(list(set(self.n[0])))
+    # check m > -inf
+    check_m_symm = sum(m[::-1] + m) == 0
+    # check n >= 0
+    check_n_symm = sum(n[::-1] + n - self.n0b) == 0
+    # specify switch for mapping Foruier coefficients
+    if (check_m_symm and check_n_symm): # this is the wanted spectrum
+      sw_spec = 1;
+    else:
+      # check m >= 0
+      check_m_symm = sum(m[::-1] + m - self.m0b) == 0
+      # check n > -inf
+      check_n_symm = sum(n[::-1] + n) == 0
+      if (check_m_symm and check_n_symm): # Fourier coefficients must be mapped
+        sw_spec = 2
+      else:
+        error('Check your Boozer file (mode numbers)!\n')
+
+    # change now n0b and m0b according to perturbation
+    # ~ dline(2) = 0; # only 1 toroidal mode number per file
+    # ~ switch sw_spec
+    # ~ case 1
+      # ~ dline(1) = self.m0b;
+    # ~ case 2
+      # Requires additional header for the n equal zero mode.
+      # ~ data_c0(1:k_def)=data_c(1:k_def);
+      # ~ data_c0{k_def} = sprintf(' %d    %d    %d   %d   %.6e   %.5f   %.5f', dline);
+      # ~ dline(1) = self.m0b * 2; # because of negative perturbations
+
+    # ~ data_c{k_def} = sprintf(' %d    %d    %d   %d   %.6e   %.5f   %.5f', dline);
+
+    # open the output files for the different (toroidal) perturbation
+    # mode numbers
+    perturbation_files = []
+
+    for n_pert in range(n_pert_max+1):
+      perturbation_files.append(BoozerFile(filename=''))
+
+      # Set values
+      perturbation_files[-1].comments = self.comments
+      if n_pert > 0:
+        perturbation_files[-1].m0b = 2*self.m0b
+      else:
+        perturbation_files[-1].m0b = self.m0b
+      perturbation_files[-1].n0b = 0 # not self.n0b, as output should have only one mode
+      perturbation_files[-1].nsurf = self.nsurf
+      perturbation_files[-1].nper = self.nper
+      perturbation_files[-1].flux = self.flux
+      perturbation_files[-1].a = self.a
+      perturbation_files[-1].R = self.R
+
+      # Set flux surface quantities - these should be the same for all files.
+      perturbation_files[-1].s = self.s
+      perturbation_files[-1].iota = self.iota
+      perturbation_files[-1].Jpol_divided_by_nper = self.Jpol_divided_by_nper
+      perturbation_files[-1].Itor = self.Itor
+      perturbation_files[-1].pprime = self.pprime
+      perturbation_files[-1].sqrt_g_00 = self.sqrt_g_00
+
+    print('Start to go through flux surfaces.\n')
+
+    # separate spectra accodring to toroidal mode number and
+    # write data into separate files
+    for surface_index in range(self.nsurf):
+
+      # extract single (toroidal) perturbations
+      if (sw_spec == 2):
+        # n_pert = 0 part
+        L = np.array(self.n[surface_index]) == 0
+
+        perturbation_files[0].m.append(list(np.array(self.m[surface_index])[L]))
+        perturbation_files[0].n.append(list(np.array(self.n[surface_index])[L]))
+        perturbation_files[0].rmnc.append(list(np.array(self.rmnc[surface_index])[L]))
+        perturbation_files[0].rmns.append(list(np.array(self.rmns[surface_index])[L]))
+        perturbation_files[0].zmnc.append(list(np.array(self.zmnc[surface_index])[L]))
+        perturbation_files[0].zmns.append(list(np.array(self.zmns[surface_index])[L]))
+        perturbation_files[0].vmnc.append(list(np.array(self.vmnc[surface_index])[L] / self.nper))
+        perturbation_files[0].vmns.append(list(np.array(self.vmns[surface_index])[L] / self.nper))
+        perturbation_files[0].bmnc.append(list(np.array(self.bmnc[surface_index])[L]))
+        perturbation_files[0].bmns.append(list(np.array(self.bmns[surface_index])[L]))
+
+        for n_pert in range(1, n_pert_max+1):
+
+            # ~ data_new = zeros(2*self.m0b+1,ncol_spec)
+            L1 = np.array(self.n[surface_index]) == -n_pert
+            L2 = np.array(self.n[surface_index]) == +n_pert
+            L_m0 = np.array(self.m[surface_index]) == 0
+            Lm = np.logical_and(np.logical_not(L_m0), L1)
+
+            # ~ data_new(1:self.m0b,:) = [-spec_num(~L_m0&L1,1),...
+                # ~ abs(spec_num(~L_m0&L1,2)),spec_num(~L_m0&L1,3:end)];
+            # ~ # sin()-contribution
+            # ~ data_new(1:self.m0b,4:2:end)=-data_new(1:self.m0b,4:2:end);
+
+            # ~ data_new(self.m0b+1:2*self.m0b+1,:)=[spec_num(L2,1),...
+                # ~ abs(spec_num(L2,2)),spec_num(L2,3:end)];
+            # ~ [~,ind]=sort(data_new(:,1));
+            # ~ data_new=data_new(ind,:);
+
+            m = list(-np.array(self.m[surface_index])[Lm]) + list(np.array(self.m[surface_index])[L2])
+            n = list(abs(np.array(self.n[surface_index])[Lm])) + list(np.array(self.n[surface_index])[L2])
+            rmnc = list(+np.array(self.rmnc[surface_index])[Lm]) + list(np.array(self.rmnc[surface_index])[L2])
+            rmns = list(-np.array(self.rmns[surface_index])[Lm]) + list(np.array(self.rmns[surface_index])[L2])
+            zmnc = list(+np.array(self.zmnc[surface_index])[Lm]) + list(np.array(self.zmnc[surface_index])[L2])
+            zmns = list(-np.array(self.zmns[surface_index])[Lm]) + list(np.array(self.zmns[surface_index])[L2])
+            vmnc = list(+np.array(self.vmnc[surface_index])[Lm]) + list(np.array(self.vmnc[surface_index])[L2])
+            vmns = list(-np.array(self.vmns[surface_index])[Lm]) + list(np.array(self.vmns[surface_index])[L2])
+            bmnc = list(+np.array(self.bmnc[surface_index])[Lm]) + list(np.array(self.bmnc[surface_index])[L2])
+            bmns = list(-np.array(self.bmns[surface_index])[Lm]) + list(np.array(self.bmns[surface_index])[L2])
+
+            m, n, rmnc, rmns, zmnc, zmns, vmnc, vmns, bmnc, bmns = map(list, zip(*sorted(zip(m, n, rmnc, rmns, zmnc, zmns, vmnc, vmns, bmnc, bmns))))
+
+            perturbation_files[n_pert].m.append(m)
+            perturbation_files[n_pert].n.append(n)
+            perturbation_files[n_pert].rmnc.append(rmnc)
+            perturbation_files[n_pert].rmns.append(rmns)
+            perturbation_files[n_pert].zmnc.append(zmnc)
+            perturbation_files[n_pert].zmns.append(zmns)
+            perturbation_files[n_pert].vmnc.append(vmnc)
+            perturbation_files[n_pert].vmns.append(vmns)
+            perturbation_files[n_pert].bmnc.append(bmnc)
+            perturbation_files[n_pert].bmns.append(bmns)
+
+    print('Finished to go through flux surfaces.')
+
+    for perturbation_file in perturbation_files:
+      perturbation_file.write(filename_base + '-n{}.'.format(perturbation_file.n[0][0]) + filename_ext)
+
+
 def main():
   import sys
 
