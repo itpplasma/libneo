@@ -1801,6 +1801,7 @@ def main():
     b = BoozerFile(filename='')
     b.convert_vmec_to_boozer(filename=infile, uv_grid_multiplicator=uv_grid_multiplier)
     b.write(wout_name)
+    b.extract_pert_field(filename_base=infile, filename_ext='bc')
 
 
 if __name__ == "__main__":
