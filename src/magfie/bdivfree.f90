@@ -183,8 +183,6 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   deallocate(expon,a_re,a_im,rbpav_dummy,imi,ima,jmi,jma,dummy,brm,bpm,bzm)
 !
 102 format(1000e15.7)
-!
-  return
 end subroutine vector_potentials
 
 subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
@@ -619,10 +617,9 @@ subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
 !
   return
 end subroutine invert_mono_per
-!
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine spl_five_per(n,h,a,b,c,d,e,f)
+subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
 !
 ! Periodic spline of the 5-th order. First and last values of function must
 ! be the same.
@@ -781,7 +778,7 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
   deallocate(alp,bet,gam)
 !
   return
-end subroutine spl_five_per
+end subroutine spl_five_per_bdivfree
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -842,7 +839,7 @@ subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
       do j=jmi(i),jma(i)
         ai(j-jmi(i)+1)=f(i,j)
       enddo
-      call spl_five_per(nsi,hy,ai,bi,ci,di,ei,fi)
+      call spl_five_per_bdivfree(nsi,hy,ai,bi,ci,di,ei,fi)
       do j=jmi(i),jma(i)
         jj=j-jmi(i)+1
         ic = ic+1

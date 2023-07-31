@@ -258,8 +258,8 @@ contains
         & rmn, zmn, vmn, bmn
 
     call write_boozer_block_data(iunit, total_number_modes, m, n/enfp, &
-        & real(rmn), -aimag(rmn), real(zmn), -aimag(zmn), &
-        & real(vmn), -aimag(vmn), real(bmn), -aimag(bmn))
+        & rmn%re, -rmn%im, zmn%re, -zmn%im, &
+        & vmn%re, -vmn%im, bmn%re, -bmn%im)
   end subroutine write_boozer_block_data_complex
 
 
