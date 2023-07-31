@@ -295,7 +295,7 @@
 !
   end subroutine spline_vmec_data
 !
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine deallocate_vmec_spline(mode)
 !
@@ -317,7 +317,7 @@
 !
   end subroutine deallocate_vmec_spline
 !
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                               R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp)
@@ -754,6 +754,7 @@ end subroutine s_to_rho_healaxis
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
+!-----
   !> Determines the number of first radial points, nheal, where data is
   !> replaced by extrapolation.
   !>
@@ -831,7 +832,7 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
 
 end subroutine determine_nheal_for_axis
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine volume_and_B00(volume,B00)
 !

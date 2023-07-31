@@ -15,7 +15,7 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 ! 01.11.2015  parameter (mp=6) ! power of Lagrange's polynomial =5
   dimension xp(mp),yp(mp),zp(mp),fp(mp,mp,mp)
   integer indx(mp), indy(mp), indz(mp)
-  character *30 namedim(3), namevar(3) 
+  character *30 namedim(3), namevar(3)
   character *80 bez
   data icall/0/
   save
@@ -38,40 +38,40 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
     if(input_format.eq.0) then
 !
        open(iunit1,file='MESH3D/field.dat')
-       read(iunit1,*)   
-       read(iunit1,*)   
-       read(iunit1,*) bez 
+       read(iunit1,*)
+       read(iunit1,*)
+       read(iunit1,*) bez
        print *,'description:',bez
        !
-       allocate(Bx(nr,np,nz),By(nr,np,nz)) 
+       allocate(Bx(nr,np,nz),By(nr,np,nz))
        allocate(Br(nr,np,nz),Bp(nr,np,nz),Bz(nr,np,nz))
        allocate(rad(nr),phi(np),zet(nz))
        !
-       read(iunit1,*)   
-       read(iunit1,*)        
-       read(iunit1,*) ndim 
-       !      
-       read(iunit1,*)   
-       read(iunit1,*)        
-       read(iunit1,*) nvar          
-       !      
-       read(iunit1,*)   
-       read(iunit1,*)        
+       read(iunit1,*)
+       read(iunit1,*)
+       read(iunit1,*) ndim
+       !
+       read(iunit1,*)
+       read(iunit1,*)
+       read(iunit1,*) nvar
+       !
+       read(iunit1,*)
+       read(iunit1,*)
        do i=1,ndim
-          read(iunit1,*) namedim(i)            
+          read(iunit1,*) namedim(i)
        enddo
        print *,'dimension:',ndim,namedim(1),namedim(2),namedim(3)
        do i=1,nvar
-          read(iunit1,*) namevar(i)            
+          read(iunit1,*) namevar(i)
        enddo
        print *,'function:',nvar,namevar(1),namevar(2),namevar(3)
-       !      
-       read(iunit1,*)   
-       read(iunit1,*)        
-       read(iunit1,*) nwert 
+       !
+       read(iunit1,*)
+       read(iunit1,*)
+       read(iunit1,*) nwert
        print *,'number of values:',nwert
-       read(iunit1,*)   
-       read(iunit1,*)    
+       read(iunit1,*)
+       read(iunit1,*)
        !
        !---Input B      -->T = V*s/m/m
        do i=1,nr
@@ -109,7 +109,7 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 !
        deallocate(Bx,By)
 !
-       hrad = (rmax - rmin)/(nr-1)  
+       hrad = (rmax - rmin)/(nr-1)
        hphi = (pmax - pmin)/(np-1)
        hzet = (zmax - zmin)/(nz-1)
        np = np + 1
@@ -159,7 +159,7 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
        enddo
        close(iunit1)
 !
-       hrad = (rmax - rmin)/(nr-1)  
+       hrad = (rmax - rmin)/(nr-1)
        hphi = (pmax - pmin)/(np-5)
        hzet = (zmax - zmin)/(nz-1)
 !
@@ -192,7 +192,7 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 !
        print *,'input_format = 3 : sparse field with stellarator symmetry'
        open(iunit1,file='MESH3D/field_sparse.dat')
-       read(iunit1,*) 
+       read(iunit1,*)
        read(iunit1,*)
        read(iunit1,*)
        read(iunit1,*)
@@ -289,9 +289,9 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
   !
   !
   call indef(rrr,rmin,hrm1,nr,indx)
-  !      
+  !
   call indef(ppp,pmin_0,hpm1,np,indy)
-  !      
+  !
   call indef(zzz,zmin,hzm1,nz,indz)
   !
   do i=1,mp

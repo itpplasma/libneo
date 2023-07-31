@@ -1,3 +1,6 @@
+  subroutine vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s, &
+                    nsurfb,nstrb,kparb,flux)
+!-----
 ! Usage:
 !
 !    call vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s,    &
@@ -29,8 +32,6 @@
 !  amplitudes of Z for various sin(m*theta - n*phi) harmonics
 !  almns(nstrm,0:kpar)     - (double precision) profiles of Fourier
 !  amplitudes of lambda for various sin(m*theta - n*phi) harmonics
-  subroutine vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s, &
-                    nsurfb,nstrb,kparb,flux)
 !
   use new_vmec_stuff_mod, only : netcdffile, vmec_B_scale, vmec_RZ_scale
   use nctools_module, only : nc_open, nc_close, nc_get
@@ -115,7 +116,7 @@
   use new_vmec_stuff_mod, only : nper,rmajor
 !
   implicit none
-! 
+!
   integer :: L1i
   double precision :: RT0,R0i,cbfi,bz0i,bf0
 !
