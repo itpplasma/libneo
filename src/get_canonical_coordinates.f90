@@ -281,7 +281,7 @@ deallocate(y,dy)
 !
   logical :: fullset
   integer :: k,is,i_theta,i_phi,i_qua
-  integer :: iss,ist,isp
+  integer :: ist,isp
   double precision, dimension(:,:), allocatable :: splcoe
 !
   if (.not. allocated(s_sqg_Bt_Bp)) &
@@ -439,7 +439,6 @@ use diag_mod, only : icounter
 !
   integer :: mode_secders,nstp,ns_A_p1,ns_s_p1
   integer :: k,is,i_theta,i_phi
-  integer :: iss,ist,isp
 !
   double precision :: r,vartheta_c,varphi_c,                                           &
                       A_phi,A_theta,dA_phi_dr,dA_theta_dr,d2A_phi_dr2,d3A_phi_dr3,     &
@@ -449,7 +448,7 @@ use diag_mod, only : icounter
                       d2sqg_rr,d2sqg_rt,d2sqg_rp,d2sqg_tt,d2sqg_tp,d2sqg_pp,           &
                       d2bth_rr,d2bth_rt,d2bth_rp,d2bth_tt,d2bth_tp,d2bth_pp,           &
                       d2bph_rr,d2bph_rt,d2bph_rp,d2bph_tt,d2bph_tp,d2bph_pp
-  double precision :: s,ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
+  double precision :: ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
 !
   double precision, dimension(ns_max)              :: sp_G
   double precision, dimension(ns_max,ns_max)       :: stp_G
@@ -986,12 +985,11 @@ icounter=icounter+1
 !
   double precision, parameter :: twopi=2.d0*3.14159265358979d0
 !
-  integer :: nstp,ns_A_p1,ns_s_p1
+  integer :: nstp,ns_A_p1
   integer :: k,is,i_theta,i_phi
-  integer :: iss,ist,isp
 !
-  double precision :: A_phi,A_theta,dA_phi_dr,dA_theta_dr
-  double precision :: s,ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
+  double precision :: A_phi,dA_phi_dr,dA_theta_dr
+  double precision :: ds,dtheta,dphi,rho_tor
   double precision :: aiota,G_c,dG_c_dt,dG_c_dp
   double precision :: ts,ps,dts_dtc,dts_dpc,dps_dtc,dps_dpc,det
 !

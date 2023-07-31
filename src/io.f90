@@ -570,10 +570,8 @@ contains
 
     integer :: inp_swi
     integer :: i, j
-    integer :: i_alloc
     integer :: r_un
     integer :: m_max_pert, n_max_pert, mnmax_pert
-    character(len=80) :: char_dummy
 
     if (present(inp_swi_)) then
       inp_swi = inp_swi_
