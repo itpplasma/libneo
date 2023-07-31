@@ -5,7 +5,8 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
              rmin_in,rmax_in,pmin_in,pmax_in,zmin_in,zmax_in,  &
              br,bp,bz)
 !
-  use bdivfree_mod
+  use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,rmin,zmin,hr,hz,pmin,pfac,&
+    rpoi,zpoi,apav,rbpav_coef,aznre,aznim,arnre,arnim
 !
   implicit none
 !
@@ -189,7 +190,8 @@ end subroutine vector_potentials
 subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
   anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
 
-  use bdivfree_mod
+  use bdivfree_mod, only : nr,nz,icp,ipoint,hr,hz,&
+  rpoi,zpoi,aznre,aznim,arnre,arnim
 !
   implicit none
 !
@@ -268,10 +270,8 @@ end subroutine spline_bn
 subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
-  use bdivfree_mod
-  use inthecore_mod, only : incore                                            &
-                          , vacf,dvacdr,dvacdz,d2vacdr2,d2vacdrdz,d2vacdz2
-  use amn_mod, only : ntor_amn
+  use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,hr,hz,pfac,&
+  rpoi,zpoi,apav,rbpav_coef
 !
   implicit none
 
@@ -892,7 +892,8 @@ end subroutine s2dring
 !
 subroutine load_theta
 !
-  use theta_rz_mod
+  use theta_rz_mod, only : nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,htheqt,&
+    psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,sqpsi,flab,theqt
   use input_files, only : iunit,fluxdatapath
 !
   implicit none
@@ -957,7 +958,8 @@ subroutine psithet_rz(rrr,zzz,                                          &
                         theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                         flabel,s_r,s_z,s_rr,s_rz,s_zz,s0,ds0ds,dds0ds)
 !
-  use theta_rz_mod
+  use theta_rz_mod, only : icall, nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,&
+    htheqt,psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,flab,theqt
   use field_eq_mod, only : nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint  &
                          , psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use extract_fluxcoord_mod, only : psif_extract,theta_extract
@@ -1197,11 +1199,16 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
 ! Caution: derivatives are not computed, for derivatives call
 ! a driver routine "field_fourier_derivs"
 !
-  use amn_mod
+  use amn_mod, only : ntor_amn,mpol,ntor_ff,mpol_ff,nsqpsi,icall,&
+    sqpsimin,sqpsimax,hsqpsi,splapsi,splatet,amnpsi,amntet,&
+    amnpsi_s,amntet_s,amnpsi_ss,amntet_ss,expthe,expphi,&
+    nsqpsi_ff,nmodes_ff,sqpsimin_ff,sqpsimax_ff,hsqpsi_ff,&
+    ipoi_ff,splffp,splfft,fmnpsi,fmntet,fmnpsi_s, fmntet_s,&
+    fmnpsi_ss,fmntet_ss
   use input_files,           only : iunit,fluxdatapath
   use inthecore_mod, only : incore,psi_sep                                 &
-                          , plaf,dpladr,dpladz,d2pladr2,d2pladrdz,d2pladz2
-  use field_eq_mod,  only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+                          , plaf,dpladr,dpladz
+  use field_eq_mod,  only : dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use theta_rz_mod,  only : psiaxis
   use bdivfree_mod,  only : pfac
 !
@@ -1673,7 +1680,8 @@ end subroutine field_fourier_derivs
 !
 subroutine extract_fluxcoord(phinorm,theta)
 !
-  use extract_fluxcoord_mod
+  use extract_fluxcoord_mod, only : load_extract_fluxcoord,nphinorm,&
+    psif_extract,theta_extract,psifmin,hpsif,phinorm_arr
   use input_files, only : iunit,fluxdatapath
 !
   implicit none

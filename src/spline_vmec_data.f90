@@ -1,7 +1,9 @@
 !
   subroutine spline_vmec_data
 !
-  use new_vmec_stuff_mod
+  use new_vmec_stuff_mod, only : rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,&
+    axm,axn,s,nsurfm,nstrm,kpar,ns_A,ns_s,ns_tp,n_theta,n_phi,multharm,&
+    sR,sZ,slam,old_axis_healing_boundary,nper,h_theta,h_phi
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none
@@ -297,7 +299,7 @@
 !
   subroutine deallocate_vmec_spline(mode)
 !
-  use new_vmec_stuff_mod
+  use new_vmec_stuff_mod, only : sR,sZ,slam
 !
   implicit none
 !
@@ -320,7 +322,8 @@
   subroutine splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                               R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp)
 !
-  use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,sR,sZ,slam,nper,ns_A,ns_s,ns_tp
+  use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,sR,sZ,slam,&
+    nper,ns_A,ns_s,ns_tp
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none

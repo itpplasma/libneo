@@ -4,7 +4,8 @@
 subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
-  use magfield_mod
+  use magfield_mod, only : ierrfield,input_format,npmid,nr,np,nz,npoint,ipoint,&
+    rad,phi,zet,Brs,Bzs,Bps,Bx,By,Bz,Br,Bp
 !  use polylag_5, only : mp,indef, plag3d
   use polylag_3, only : mp,indef, plag3d
 !
