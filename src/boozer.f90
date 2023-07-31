@@ -122,7 +122,6 @@ contains
   !> writes data to the file
   subroutine write_boozer_block_head_current(iunit, s, iota, Jpol_over_nper, Itor, pprime, sqrt_g)
     use libneo_kinds, only : real_kind
-    use math_constants, only : TWOPI
 
     implicit none
 
@@ -248,7 +247,7 @@ contains
 
 
   subroutine write_boozer_block_data_complex(iunit, total_number_modes, m, n, rmn, zmn, vmn, bmn, enfp)
-    use libneo_kinds, only : complex_kind, real_kind
+    use libneo_kinds, only : complex_kind
 
     implicit none
 

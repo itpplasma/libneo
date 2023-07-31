@@ -3,8 +3,8 @@
 !
   implicit none
 !
-  integer :: n,i,ip1,ip2
-  double precision :: h,rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
+  integer :: n,i,ip1
+  double precision :: h,rhop,rhom,fac
   double precision :: a11,a12,a13,a21,a22,a23,a31,a32,a33,b1,b2,b3,det
   double precision :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
   double precision :: aend,bend,cend,dend,eend,fend
@@ -144,8 +144,8 @@
 !
   implicit none
 !
-  integer :: n,i,ip1,ip2
-  double precision :: h,rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p,gammao_m_redef
+  integer :: n,i,ip1
+  double precision :: h,rhop,rhom,fac,xplu,xmin,gammao_p,gammao_m_redef
   double precision :: dummy
   double precision, dimension(n) :: a,b,c,d,e,f
   double precision, dimension(:), allocatable :: alp,bet,gam
@@ -267,7 +267,7 @@
 !
   implicit none
 !
-  integer :: n,i,ip1,ip2
+  integer :: n,i,ip1
   double precision :: h,fac,fpl31,fpl40,fmn31,fmn40
   double precision, dimension(n) :: a,b,c,d,e
   double precision, dimension(:), allocatable :: alp,bet,gam
@@ -338,7 +338,7 @@
 !
   implicit none
 !
-  integer :: n,i,ip1,ip2
+  integer :: n,i,ip1
   double precision :: h,fac,base1,base2,phi1,phi2,phi
   double precision, dimension(n) :: a,b,c,d,e
   double precision, dimension(:), allocatable :: alp,bet,gam

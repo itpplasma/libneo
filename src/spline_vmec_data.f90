@@ -7,7 +7,7 @@
   implicit none
 !
   integer :: i,k,m,n,is,i_theta,i_phi,m_max,n_max,nsize_exp_imt,nsize_exp_inp,iexpt,iexpp
-  integer :: iss,ist,isp,nrho,nheal,iunit_hs
+  integer :: ist,isp,nrho,nheal,iunit_hs
   double precision :: twopi,cosphase,sinphase
   complex(8)   :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
   double precision, dimension(:,:), allocatable :: splcoe
@@ -535,15 +535,9 @@
 !
   implicit none
 !
-  double precision, parameter :: twopi=2.d0*3.14159265358979d0
-!
-  integer :: is,i_theta,i_phi,k
-  double precision :: ds,dtheta,dphi
+  integer :: is,k
+  double precision :: ds
   double precision :: s,dA_phi_ds,dA_theta_ds,d2A_phi_ds2,aiota,daiota_ds
-!
-  integer, parameter :: ns_max=6
-!
-  integer :: nstp
 !
   dA_theta_ds=torflux
 !
@@ -785,8 +779,6 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
   !> -------
   !> nheal: integer, number of points to extrapolate at the axis.
 
-  use new_vmec_stuff_mod, only : ns_s
-
   implicit none
 
   ! Lagrange polynomial stencil size for checking the data by extraplation:
@@ -801,9 +793,9 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
   integer, intent(out) :: nheal
   double precision, dimension(ns), intent(in) :: arr_in
 
-  integer :: is,k,nhe,ncheck
+  integer :: is,ncheck
 
-  double precision :: hs,s,ds,rho,rho_nonzero,errmax
+  double precision :: hs,rho,rho_nonzero,errmax
 
   double precision, dimension(:), allocatable :: arr
 
@@ -841,11 +833,10 @@ end subroutine determine_nheal_for_axis
   subroutine volume_and_B00(volume,B00)
 !
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,nper
-  use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none
 !
-  integer :: is,i_theta,i_phi,k
+  integer :: i_theta,i_phi
   double precision :: volume,B00
   double precision :: B3,B2,bmod2
   double precision :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &

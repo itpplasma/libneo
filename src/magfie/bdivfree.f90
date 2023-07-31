@@ -281,12 +281,10 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
 
   integer :: n,ierr
   double precision :: f,fr,fz,frr,frz,fzz
-  double precision :: g,gr,gz,grr,grz,gzz
   double precision :: delbr,delbz,delbp
   double precision :: deldBrdR,deldBrdp,deldBrdZ
   double precision :: deldBpdR,deldBpdp,deldBpdZ
   double precision :: deldBzdR,deldBzdp,deldBzdZ
-  double precision :: ar,az,dar_dr,dar_dz,dar_dp,daz_dr,daz_dz,daz_dp
   complex(8) :: expon,anr,anz,anr_r,anr_z,anz_r,anz_z
   complex(8) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
 !
@@ -636,7 +634,7 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
   double precision, dimension(n), intent(in) :: a
   double precision, dimension(n), intent(out) :: b, c, d, e, f
 
-  integer :: i,ip1,ip2
+  integer :: i,ip1
   double precision :: rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p
   double precision :: c_gammao_m,c_gammao_p
 
@@ -975,7 +973,7 @@ subroutine psithet_rz(rrr,zzz,                                          &
   real(kind=8), intent(out) :: s_r, s_z, s_rr, s_rz, s_zz
   real(kind=8), intent(out) :: s0, ds0ds, dds0ds
 
-  integer :: npoint,i,j,ierr,k
+  integer :: ierr,k
   real(kind=8) :: theta_s,theta_t,theta_ss,theta_st,theta_tt
   real(kind=8) :: sqpsi_qt
   real(kind=8) :: theta_qt,t_r,t_z,t_rr,t_rz,t_zz
@@ -1056,8 +1054,8 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
   complex(8), dimension(n), intent(in) :: a
   complex(8), dimension(n), intent(out) :: b, c, d, e, f
 
-  integer :: i,ip1,ip2
-  double precision :: rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
+  integer :: i,ip1
+  double precision :: rhop,rhom,fac
   double precision :: a11,a12,a13,a21,a22,a23,a31,a32,a33,det
   complex(8) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
   complex(8) :: aend,bend,cend,dend,eend,fend
@@ -1213,18 +1211,13 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,    &
                        &  dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
 
-  integer :: m,n,i,k,ierr,ntor
+  integer :: m,n,i,k,ntor
   double precision :: sqpsi,dx,g11,g12,g11_r,g11_z,g12_r,g12_z
   double precision :: theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                       s_r,s_z,s_rr,s_rz,s_zz
-  double precision :: fun,fr,fz,frr,frz,fzz
   double precision :: apsi,apsi_s,apsi_t,apsi_p
   double precision :: athe,athe_s,athe_t,athe_p
   double precision :: delbr,delbz,delbp,delar,delaz
-  double precision :: deldBrdR,deldBrdp,deldBrdZ
-  double precision :: deldBpdR,deldBpdp,deldBpdZ
-  double precision :: deldBzdR,deldBzdp,deldBzdZ
-  double precision :: delardR,delazdR,delardZ,delazdZ
   double precision :: fcjac,g11_t,g12_t,s0,ds0ds,dds0ds,sqpsi_sep
 !
   integer, dimension(:,:), allocatable :: idummy2

@@ -24,7 +24,7 @@
   double precision, dimension(:),       allocatable :: wint_t,wint_p,theta_V,theta_B,   &
                                                        phi_V,phi_B,aiota_arr,rho_tor
   double precision, dimension(:,:),     allocatable :: Bcovar_theta_V,Bcovar_varphi_V,  &
-                                                       bmod_Vg,bmod_Bg,alam_2D,         &
+                                                       bmod_Vg,alam_2D,         &
                                                        deltheta_BV_Vg,delphi_BV_Vg,     &
                                                        deltheta_BV_Bg,delphi_BV_Bg,     &
                                                        splcoe_r,splcoe_t,splcoe_p,coef, &
@@ -505,7 +505,6 @@ use diag_mod, only : icounter
 !
   integer :: nstp,ns_A_p1,ns_s_p1
   integer :: k,is,i_theta,i_phi
-  integer :: iss,ist,isp
 !
   double precision :: r,vartheta_B,varphi_B,                                       &
                       A_phi,A_theta,dA_phi_dr,dA_theta_dr,d2A_phi_dr2,d3A_phi_dr3, &
@@ -514,7 +513,7 @@ use diag_mod, only : icounter
   double precision, dimension(3) :: dBmod_B,dB_r
   double precision, dimension(6) :: d2Bmod_B,d2B_r
 !
-  double precision :: s,ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
+  double precision :: ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
   double precision :: qua,dqua_dr,dqua_dt,dqua_dp
   double precision :: d2qua_dr2,d2qua_drdt,d2qua_drdp,d2qua_dt2,d2qua_dtdp,d2qua_dp2
   double precision, dimension(ns_max)        :: sp_all,dsp_all_ds,dsp_all_dt
@@ -877,7 +876,7 @@ icounter=icounter+1
   use boozer_coordinates_mod, only : ns_s_B,ns_tp_B,ns_B,n_theta_B,n_phi_B, &
                                      hs_B,h_theta_B,h_phi_B,                &
                                      s_delt_delp_V,s_delt_delp_B,           &
-                                     ns_max,derf1,derf2,derf3,              &
+                                     ns_max,derf1,                          &
                                      use_del_tp_B
   use new_vmec_stuff_mod,   only : nper
   use chamb_mod,            only : rnegflag
@@ -890,11 +889,10 @@ icounter=icounter+1
 !
   integer, parameter :: n_qua=2
   double precision, parameter :: twopi=2.d0*3.14159265358979d0
-  integer :: nstp,ns_A_p1,ns_s_p1
+  integer :: nstp,ns_s_p1
   integer :: k,is,i_theta,i_phi
-  integer :: iss,ist,isp
 !
-  double precision :: s,ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
+  double precision :: ds,dtheta,dphi,rho_tor
 !
 !
   double precision, dimension(n_qua)               :: qua,dqua_dt,dqua_dp
@@ -1029,12 +1027,10 @@ icounter=icounter+1
 ! Input : r,vartheta_B,varphi_B - Boozer coordinates
 ! Output: theta,varphi          - VMEC coordinates
 !
-  use new_vmec_stuff_mod,   only : nper
   use boozer_coordinates_mod, only : use_del_tp_B
 !
   implicit none
 !
-  double precision, parameter :: twopi=2.d0*3.14159265358979d0
   double precision, parameter :: epserr=1.d-14
   integer,          parameter :: niter=100
 !
