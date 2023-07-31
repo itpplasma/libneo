@@ -1,5 +1,6 @@
 module field_eq_mod
   logical :: use_fpol = .true.                                      !<=18.12.18
+  logical :: skip_read = .false.
   integer :: icall_eq=0
   integer :: nrad,nzet,icp,nwindow_r,nwindow_z
   integer :: ierrfield

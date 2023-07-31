@@ -243,6 +243,25 @@ subroutine spline_bpol_n(n, r, z, B_Rn, B_Zn)
   B_Zn = -(0.d0,1.d0)*dble(n)*anr/r
 end subroutine spline_bpol_n
 
+! call spline_bn(n_tor_out)
+subroutine spline_bn(n, r, z, Bn_R, Bn_phi, Bn_Z)
+
+  implicit none
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: r, z
+  complex(8), intent(out) :: Bn_R, Bn_phi, Bn_Z
+
+  complex(8) :: anr,anz,anr_r,anr_z,anz_r,anz_z
+  complex(8) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
+
+  call spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
+    anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
+  Bn_R = (0.d0,1.d0) * dble(n) * anz / r
+  Bn_phi = anr_z - anz_r
+  Bn_Z = -(0.d0,1.d0) * dble(n) * anr / r
+end subroutine spline_bn
+
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
