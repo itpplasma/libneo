@@ -33,7 +33,7 @@
                     nsurfb,nstrb,kparb,flux)
 !
   use new_vmec_stuff_mod, only : netcdffile, vmec_B_scale, vmec_RZ_scale
-  use nctools_module
+  use nctools_module, only : nc_open, nc_close, nc_get
 !
   implicit none
 !
