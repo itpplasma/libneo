@@ -1,142 +1,3 @@
-!
-  subroutine spl_five_reg(n,h,a,b,c,d,e,f)
-!
-  implicit none
-!
-  integer :: n,i,ip1,ip2
-  double precision :: h,rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
-  double precision :: a11,a12,a13,a21,a22,a23,a31,a32,a33,b1,b2,b3,det
-  double precision :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
-  double precision :: aend,bend,cend,dend,eend,fend
-  double precision, dimension(n) :: a,b,c,d,e,f
-  double precision, dimension(:), allocatable :: alp,bet,gam
-!
-  rhop=13.d0+sqrt(105.d0)
-  rhom=13.d0-sqrt(105.d0)
-!
-  a11=1.d0
-  a12=1.d0/4.d0
-  a13=1.d0/16.d0
-  a21=3.d0
-  a22=27.d0/4.d0
-  a23=9.d0*27.d0/16.d0
-  a31=5.d0
-  a32=125.d0/4.d0
-  a33=5.d0**5/16.d0
-  det=a11*a22*a33+a12*a23*a31+a13*a21*a32-a12*a21*a33-a13*a22*a31-a11*a23*a32
-  b1=a(4)-a(3)
-  b2=a(5)-a(2)
-  b3=a(6)-a(1)
-  bbeg=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  bbeg=bbeg/det
-  dbeg=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  dbeg=dbeg/det
-  fbeg=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  fbeg=fbeg/det
-  b1=a(n-2)-a(n-3)
-  b2=a(n-1)-a(n-4)
-  b3=a(n)-a(n-5)
-  bend=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  bend=bend/det
-  dend=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  dend=dend/det
-  fend=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  fend=fend/det
-  a11=2.d0
-  a12=1.d0/2.d0
-  a13=1.d0/8.d0
-  a21=2.d0
-  a22=9.d0/2.d0
-  a23=81.d0/8.d0
-  a31=2.d0
-  a32=25.d0/2.d0
-  a33=625.d0/8.d0
-  det=a11*a22*a33+a12*a23*a31+a13*a21*a32-a12*a21*a33-a13*a22*a31-a11*a23*a32
-  b1=a(4)+a(3)
-  b2=a(5)+a(2)
-  b3=a(6)+a(1)
-  abeg=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  abeg=abeg/det
-  cbeg=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  cbeg=cbeg/det
-  ebeg=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  ebeg=ebeg/det
-  b1=a(n-2)+a(n-3)
-  b2=a(n-1)+a(n-4)
-  b3=a(n)+a(n-5)
-  aend=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  aend=aend/det
-  cend=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  cend=cend/det
-  eend=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  eend=eend/det
-!
-  allocate(alp(n),bet(n),gam(n))
-!
-  alp(1)=0.0d0
-  bet(1)=ebeg*(2.d0+rhom)-5.d0*fbeg*(3.d0+1.5d0*rhom) !gamma1
-!
-  do i=1,n-4
-    ip1=i+1
-    alp(ip1)=-1.d0/(rhop+alp(i))
-    bet(ip1)=alp(ip1)*(bet(i)- &
-             5.d0*(a(i+4)-4.d0*a(i+3)+6.d0*a(i+2)-4.d0*a(ip1)+a(i)))
-  enddo
-!
-  gam(n-2)=eend*(2.d0+rhom)+5.d0*fend*(3.d0+1.5d0*rhom) !gamma
-  do i=n-3,1,-1
-    gam(i)=gam(i+1)*alp(i)+bet(i)
-  enddo
-!
-  alp(1)=0.0d0
-  bet(1)=ebeg-2.5d0*5.d0*fbeg !e1
-!
-  do i=1,n-2
-    ip1=i+1
-    alp(ip1)=-1.d0/(rhom+alp(i))
-    bet(ip1)=alp(ip1)*(bet(i)-gam(i))
-  enddo
-!
-  e(n)=eend+2.5d0*5.d0*fend
-  e(n-1)=e(n)*alp(n-1)+bet(n-1)
-  f(n-1)=(e(n)-e(n-1))/5.d0
-  e(n-2)=e(n-1)*alp(n-2)+bet(n-2)
-  f(n-2)=(e(n-1)-e(n-2))/5.d0
-  d(n-2)=dend+1.5d0*4.d0*eend+1.5d0**2*10.d0*fend
-!
-  do i=n-3,1,-1
-    e(i)=e(i+1)*alp(i)+bet(i)
-    f(i)=(e(i+1)-e(i))/5.d0
-    d(i)=(a(i+3)-3.d0*a(i+2)+3.d0*a(i+1)-a(i))/6.d0 &
-        -(e(i+3)+27.d0*e(i+2)+93.d0*e(i+1)+59.d0*e(i))/30.d0
-    c(i)=0.5d0*(a(i+2)+a(i))-a(i+1)-0.5d0*d(i+1)-2.5d0*d(i) &
-        -0.1d0*(e(i+2)+18.d0*e(i+1)+31.d0*e(i))
-    b(i)=a(i+1)-a(i)-c(i)-d(i)-0.2d0*(4.d0*e(i)+e(i+1))
-  enddo
-!
-  do i=n-3,n
-    b(i)=b(i-1)+2.d0*c(i-1)+3.d0*d(i-1)+4.d0*e(i-1)+5.d0*f(i-1)
-    c(i)=c(i-1)+3.d0*d(i-1)+6.d0*e(i-1)+10.d0*f(i-1)
-    d(i)=d(i-1)+4.d0*e(i-1)+10.d0*f(i-1)
-    if(i.ne.n) f(i)= a(i+1)-a(i)-b(i)-c(i)-d(i)-e(i)
-  enddo
-  f(n)=f(n-1)
-!
-  fac=1.d0/h
-  b=b*fac
-  fac=fac/h
-  c=c*fac
-  fac=fac/h
-  d=d*fac
-  fac=fac/h
-  e=e*fac
-  fac=fac/h
-  f=f*fac
-!
-  deallocate(alp,bet,gam)
-!
-  return
-  end
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine s2dcut(nx,ny,hx,hy,f,imi,ima,jmi,jma,icount,spl,ipoint)
@@ -144,7 +5,7 @@
 ! Calculates coefficients of a 2D spline for a convex domain
 ! (for a non-rectangular domain the interpolation is not continious)
 ! equidistant mesh, but hx must not be = hy
-! 
+!
 !  Input parameters:
 !                    nx           - horizontal size of the mesh (over x)
 !                    ny           - vertical size of the mesh (over y)
@@ -228,7 +89,7 @@
       do l=1,6
         do i=imi(j),ima(j)
           ai(i-imi(j)+1)=spl(1,l,ipoint(i,j))
-        enddo   
+        enddo
         call spl_five_reg(nsi,hx,ai,bi,ci,di,ei,fi)
         do i=imi(j),ima(j)
           ii=i-imi(j)+1
@@ -237,10 +98,10 @@
           spl(4,l,ipoint(i,j))=di(ii)
           spl(5,l,ipoint(i,j))=ei(ii)
           spl(6,l,ipoint(i,j))=fi(ii)
-        enddo   
-      enddo   
+        enddo
+      enddo
     endif
-  enddo   
+  enddo
 !
   deallocate( ai,bi,ci,di,ei,fi )
 !
@@ -252,7 +113,7 @@
   subroutine spline(nx,ny,x,y,hx,hy,icount,spl,ipoint,xb,yb,u,ux,uy, &
     uxx,uxy,uyy,ierr)
 !
-! Evaluates interpolated value u(x,y) and its derivatives ux,uy,uxx,uyy,uxy 
+! Evaluates interpolated value u(x,y) and its derivatives ux,uy,uxx,uyy,uxy
 ! using arrays calculated by  s2dcut
 ! see also comments in subroutine s2dcut
 !  ierr = 1 - point out of the domain
