@@ -1436,18 +1436,15 @@ class BoozerFile:
       t = time.time()
 
       # number of points on each side for Lagrange interpolation
-      nl = 3
+      nl = 1
       # Reduce number of points for radial interpolation if near axis or
       # near outer border.
       # Note: inner bound increased by one, due to zero at innermost point.
       # Note: outermost bound decreased by one, to be able to define
       #   interval symmetric around ind, which requires adding 1 below.
-      if(ind < 1+1 or ind > ns-1-1):
+      #   This is also required for having a non-empty slice for nl = 0.
+      if(ind < 1+1 or ind > ns-1):
         nl = 0
-      elif(ind < 2+1 or ind > ns-2-1):
-        nl = 1
-      elif(ind < 3+1 or ind > ns-3-1):
-        nl = 2
 
       # Full mesh quantities
       ppoly  = ip.lagrange(sf[ind-nl:ind+nl+1],pres[ind-nl:ind+nl+1])
