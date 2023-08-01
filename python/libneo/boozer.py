@@ -1450,7 +1450,7 @@ class BoozerFile:
         nl = 2
 
       # Full mesh quantities
-      ppoly  = ip.lagrange(sf[ind-nl:ind+nl],pres[ind-nl:ind+nl])
+      ppoly  = ip.lagrange(sf[ind-nl:ind+nl+1],pres[ind-nl:ind+nl+1])
       pspoly = np.polyder(ppoly)
       psval  = np.polyval(ppoly,s[ind])
 
