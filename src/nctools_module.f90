@@ -702,7 +702,7 @@ contains
     if(status /= nf90_noerr) then
       if (exception) then
         print *, trim(nf90_strerror(status))
-        stop
+        error stop
       end if
     end if
   end subroutine nf90_check

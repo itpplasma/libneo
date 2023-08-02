@@ -43,10 +43,12 @@ module math_constants
 
   ! Conversion of units.
   real(kind=real_kind), parameter, public :: magneticfield_si_to_cgs = 1.0e4_real_kind  !< SI to cgs for magnetic fields, i.e. convert from T to Gauss.
-  real(kind=real_kind), parameter, public :: current_si_to_cgs = 1.0e6_real_kind  !< SI to cgs
+  real(kind=real_kind), parameter, public :: magneticflux_si_to_cgs = 1.0e8_real_kind  !< SI to cgs for magnetic flux, i.e. convert from Weber to Maxwell.
+  real(kind=real_kind), parameter, public :: current_si_to_cgs = 1.0e-1_real_kind * C  !< SI to cgs, i.e. A to statA
   real(kind=real_kind), parameter, public :: sqg11_convfac = 1.0e6_real_kind  !< SI to cgs
   real(kind=real_kind), parameter, public :: length_si_to_cgs = 1.0e2_real_kind  !< SI to cgs for length, i.e. convert from m to cm.
   real(kind=real_kind), parameter, public :: te_to_vte     = 4.19e7_real_kind !< Thermal energy to thermal velocity, i.e. eV to cm/s.
   real(kind=real_kind), parameter, public :: ev_to_cgs     = 1.6022e-12_real_kind !< eV to gcm^2/s^2, the cgs equivalent of joule.
+  real(kind=real_kind), parameter, public :: pressure_si_to_cgs = 1.0e1_real_kind  !< SI to cgs for pressure, i.e. convert from Pa to Barye.
 
 end module math_constants

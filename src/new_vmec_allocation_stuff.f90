@@ -1,9 +1,11 @@
 !
   subroutine new_allocate_vmec_stuff
 !
-  use new_vmec_stuff_mod
-  use nctools_module
-! 
+  use new_vmec_stuff_mod, only : axm, axn, soa, aiota, sps, phi, s, rmnc, zmnc, &
+       almnc, rmns, zmns, almns, nstrm, nsurfm, kpar, nper, rmajor, &
+       vmec_RZ_scale, netcdffile
+  use nctools_module, only : nc_open, nc_inq_dim, nc_get, nc_close
+!
   implicit none
 !
   integer :: ncid
@@ -35,7 +37,8 @@
 !
   subroutine new_deallocate_vmec_stuff
 !
-  use new_vmec_stuff_mod
+  use new_vmec_stuff_mod, only : axm,axn,soa,aiota,sps,phi,s,rmnc,zmnc,almnc,&
+    rmns,zmns,almns
 !
   implicit none
 !
