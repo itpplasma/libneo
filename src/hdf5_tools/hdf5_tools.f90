@@ -1215,8 +1215,8 @@ contains
     integer(HID_T), intent(in)                     :: h5id
     character(len=*), intent(in)                   :: dataset
     complex(kind=dcp), dimension(:), intent(inout) :: val
-#if defined(__INTEL_COMPILER)
-    real, allocatable, dimension(:)                :: temp
+#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+    real(kind=dpp), allocatable, dimension(:)      :: temp_re, temp_im
 #endif
     integer                                        :: lb1, ub1
     integer, parameter                             :: rank = 1
@@ -1264,14 +1264,16 @@ contains
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
 
-#if defined(__INTEL_COMPILER)
-    if (allocated(temp)) deallocate(temp)
-    allocate(temp(lbound(val,1):ubound(val,1)))
-    call h5dread_f(dset_id, dt_re_id, temp, dims, h5error)
-    val%re = temp
-    call h5dread_f(dset_id, dt_im_id, temp, dims, h5error)
-    val%im = temp
-    deallocate(temp)
+#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+    if (allocated(temp_re)) deallocate(temp_re)
+    if (allocated(temp_im)) deallocate(temp_im)
+    allocate(temp_re(lbound(val,1):ubound(val,1)))
+    allocate(temp_im(lbound(val,1):ubound(val,1)))
+    call h5dread_f(dset_id, dt_re_id, temp_re, dims, h5error)
+    call h5dread_f(dset_id, dt_im_id, temp_im, dims, h5error)
+    val = temp_re + cmplx(0.d0, 1.d0, kind=dcp)*temp_im
+    deallocate(temp_re)
+    deallocate(temp_im)
 #else
     call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
     call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
@@ -1292,8 +1294,8 @@ contains
     integer(HID_T), intent(in)                       :: h5id
     character(len=*), intent(in)                     :: dataset
     complex(kind=dcp), dimension(:,:), intent(inout) :: val
-#if defined(__INTEL_COMPILER)
-    real, allocatable, dimension(:,:) :: temp
+#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+    real, allocatable, dimension(:,:) :: temp_re, temp_im
 #endif
     integer                                          :: lb1, ub1, lb2, ub2
     integer, parameter                               :: rank = 2
@@ -1341,14 +1343,18 @@ contains
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
 
-#if defined(__INTEL_COMPILER)
-    if (allocated(temp)) deallocate(temp)
-    allocate(temp(lbound(val, 1):ubound(val, 1), lbound(val, 2):ubound(val, 2)))
-    call h5dread_f(dset_id, dt_re_id, temp, dims, h5error)
-    val%re = temp
-    call h5dread_f(dset_id, dt_im_id, temp, dims, h5error)
-    val%im = temp
-    deallocate(temp)
+#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+    if (allocated(temp_re)) deallocate(temp_re)
+    if (allocated(temp_im)) deallocate(temp_im)
+    allocate(temp_re(lbound(val, 1):ubound(val, 1), &
+                     lbound(val, 2):ubound(val, 2)))
+    allocate(temp_im(lbound(val, 1):ubound(val, 1), &
+                     lbound(val, 2):ubound(val, 2)))
+    call h5dread_f(dset_id, dt_re_id, temp_re, dims, h5error)
+    call h5dread_f(dset_id, dt_im_id, temp_im, dims, h5error)
+    val = temp_re + cmplx(0.d0, 1.d0, kind=dcp)*temp_im
+    deallocate(temp_im)
+    deallocate(temp_re)
 #else
     call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
     call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
@@ -1369,8 +1375,8 @@ contains
     integer(HID_T), intent(in)                         :: h5id
     character(len=*), intent(in)                       :: dataset
     complex(kind=dcp), dimension(:,:,:), intent(inout) :: val
-#if defined(__INTEL_COMPILER)
-    real, allocatable, dimension(:,:) :: temp
+#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+    real(kind=dpp), allocatable, dimension(:,:,:) :: temp_re, temp_im
 #endif
     integer                                          :: lb1, ub1, lb2, ub2, lb3, ub3
     integer, parameter                               :: rank = 3
@@ -1418,15 +1424,20 @@ contains
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
 
-#if defined(__INTEL_COMPILER)
-    if (allocated(temp)) deallocate(temp)
-    allocate(temp(lbound(val, 1):ubound(val, 1), lbound(val, 2):ubound(val, 2), &
-         lbound(val, 3):ubound(val, 3)))
-    call h5dread_f(dset_id, dt_re_id, temp, dims, h5error)
-    val%re = temp
-    call h5dread_f(dset_id, dt_im_id, temp, dims, h5error)
-    val%im = temp
-    deallocate(temp)
+#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+    if (allocated(temp_re)) deallocate(temp_re)
+    if (allocated(temp_im)) deallocate(temp_im)
+    allocate(temp_re(lbound(val, 1):ubound(val, 1), &
+                     lbound(val, 2):ubound(val, 2), &
+                     lbound(val, 3):ubound(val, 3)))
+    allocate(temp_im(lbound(val, 1):ubound(val, 1), &
+                    lbound(val, 2):ubound(val, 2), &
+                    lbound(val, 3):ubound(val, 3)))
+    call h5dread_f(dset_id, dt_re_id, temp_re, dims, h5error)
+    call h5dread_f(dset_id, dt_im_id, temp_im, dims, h5error)
+    val = temp_re + cmplx(0.d0, 1.d0, kind=dcp) * temp_im
+    deallocate(temp_im)
+    deallocate(temp_re)
 #else
     call h5dread_f(dset_id, dt_re_id, val%re, dims, h5error)
     call h5dread_f(dset_id, dt_im_id, val%im, dims, h5error)
