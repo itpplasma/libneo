@@ -42,26 +42,33 @@ endif ()
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
 
-find_program(NC_CONFIG "nc-config")
+find_program(NC_CONFIG "nf-config")
 
 if (NC_CONFIG)
-execute_process(
-  COMMAND nc-config --fflags
-  OUTPUT_VARIABLE NETCDF_FFLAGS
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-execute_process(
-  COMMAND nc-config --flibs
-  OUTPUT_VARIABLE NETCDF_FLIBS
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+execute_process(COMMAND nf-config --includedir
+                OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
+execute_process(COMMAND nc-config --libdir
+				OUTPUT_VARIABLE NETCDFLIB_DIR)
+execute_process(COMMAND nf-config --flibs
+                OUTPUT_VARIABLE NETCDF_FLIBS)
 else()
 message(SEND_ERROR "nc-config not found. Please install libnetcdff-dev")
 endif()
 
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${NETCDF_FFLAGS}")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${NETCDF_FLIBS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${NETCDF_FLIBS}")
+string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
+string(STRIP ${NETCDFLIB_DIR} NETCDFLIB_DIR)
+string(STRIP ${NETCDF_FLIBS} NETCDF_FLIBS)
+
+message(STATUS "NetCDF include path: " ${NETCDFINCLUDE_DIR})
+message(STATUS "NetCDF lib path: " ${NETCDFLIB_DIR})
+message(STATUS "NetCDF Fortran libs: " ${NETCDF_FLIBS})
+
+# Replace space by semicolon in the Fortran libs
+string(REPLACE " " ";" NETCDF_FLIBS ${NETCDF_FLIBS})
+
+include_directories(${NETCDFINCLUDE_DIR})
+link_directories(${NETCDFLIB_DIR})
+add_link_options(${NETCDF_FLIBS})
 
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
