@@ -1,0 +1,31 @@
+# See https://github.com/Forsti5/Fortran-Unit-Test-Basic/blob/main/.github/workflows/main.yml
+
+name: Build and test
+
+on: [push, pull_request]
+
+jobs:
+  GNU:
+    runs-on: ubuntu-latest
+    container:
+        image: registry.gitlab.tugraz.at/plasma/images/testing:0.1.0
+        credentials:
+           username: docker
+           password: ${{ secrets.TUGRAZ_DOCKER_KEY }}
+
+    name: Build and test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Deps
+        run: |
+          sh install_deps.sh
+
+      - name: Build
+        run: |
+          sh build.sh
+
+      - name: Test
+        run: |
+          cd build && ctest
