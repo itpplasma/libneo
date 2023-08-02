@@ -28,9 +28,9 @@ module geqdsk_tools
      real(dp), dimension(:, :), allocatable :: psirz
   end type geqdsk_t
 
-  character(len = *), parameter :: geqdsk_2000 = '(a48, 3i4)'
-  character(len = *), parameter :: geqdsk_2020 = '(5es16.9)'
-  character(len = *), parameter :: geqdsk_2022 = '(2i5)'
+  character(len = *), parameter :: format_2000 = '(a48, 3i4)'
+  character(len = *), parameter :: format_2020 = '(5es16.9)'
+  character(len = *), parameter :: format_2022 = '(2i5)'
 
   character(len = *), parameter :: &
        incons_fmt = '("Signs of ", a, " and ", a, " are inconsistent.")', &
@@ -69,30 +69,30 @@ contains
     call geqdsk_deinit(geqdsk)
     geqdsk%fname = fname
     open(newunit = fid, file = geqdsk%fname, status = 'old', form = 'formatted', action = 'read')
-    read (fid, geqdsk_2000) geqdsk%header, idum, geqdsk%nw, geqdsk%nh
+    read (fid, format_2000) geqdsk%header, idum, geqdsk%nw, geqdsk%nh
     allocate(geqdsk%fpol(geqdsk%nw))
     allocate(geqdsk%pres(geqdsk%nw))
     allocate(geqdsk%ffprim(geqdsk%nw))
     allocate(geqdsk%pprime(geqdsk%nw))
     allocate(geqdsk%qpsi(geqdsk%nw))
     allocate(geqdsk%psirz(geqdsk%nw, geqdsk%nh))
-    read (fid, geqdsk_2020) geqdsk%rdim, geqdsk%zdim, geqdsk%rcentr, geqdsk%rleft, geqdsk%zmid
-    read (fid, geqdsk_2020) geqdsk%rmaxis, geqdsk%zmaxis, geqdsk%simag, geqdsk%sibry, geqdsk%bcentr
-    read (fid, geqdsk_2020) geqdsk%current, (xdum, kw = 1, 4)
-    read (fid, geqdsk_2020) (xdum, kw = 1, 5)
-    read (fid, geqdsk_2020) (geqdsk%fpol(kw), kw = 1, geqdsk%nw)
-    read (fid, geqdsk_2020) (geqdsk%pres(kw), kw = 1, geqdsk%nw)
-    read (fid, geqdsk_2020) (geqdsk%ffprim(kw), kw = 1, geqdsk%nw)
-    read (fid, geqdsk_2020) (geqdsk%pprime(kw), kw = 1, geqdsk%nw)
-    read (fid, geqdsk_2020) ((geqdsk%psirz(kw, kh), kw = 1, geqdsk%nw), kh = 1, geqdsk%nh)
-    read (fid, geqdsk_2020) (geqdsk%qpsi(kw), kw = 1, geqdsk%nw)
-    read (fid, geqdsk_2022) geqdsk%nbbbs, geqdsk%limitr
+    read (fid, format_2020) geqdsk%rdim, geqdsk%zdim, geqdsk%rcentr, geqdsk%rleft, geqdsk%zmid
+    read (fid, format_2020) geqdsk%rmaxis, geqdsk%zmaxis, geqdsk%simag, geqdsk%sibry, geqdsk%bcentr
+    read (fid, format_2020) geqdsk%current, (xdum, kw = 1, 4)
+    read (fid, format_2020) (xdum, kw = 1, 5)
+    read (fid, format_2020) (geqdsk%fpol(kw), kw = 1, geqdsk%nw)
+    read (fid, format_2020) (geqdsk%pres(kw), kw = 1, geqdsk%nw)
+    read (fid, format_2020) (geqdsk%ffprim(kw), kw = 1, geqdsk%nw)
+    read (fid, format_2020) (geqdsk%pprime(kw), kw = 1, geqdsk%nw)
+    read (fid, format_2020) ((geqdsk%psirz(kw, kh), kw = 1, geqdsk%nw), kh = 1, geqdsk%nh)
+    read (fid, format_2020) (geqdsk%qpsi(kw), kw = 1, geqdsk%nw)
+    read (fid, format_2022) geqdsk%nbbbs, geqdsk%limitr
     allocate(geqdsk%rbbbs(geqdsk%nbbbs))
     allocate(geqdsk%zbbbs(geqdsk%nbbbs))
     allocate(geqdsk%rlim(geqdsk%limitr))
     allocate(geqdsk%zlim(geqdsk%limitr))
-    read (fid, geqdsk_2020) (geqdsk%rbbbs(kw), geqdsk%zbbbs(kw), kw = 1, geqdsk%nbbbs)
-    read (fid, geqdsk_2020) (geqdsk%rlim(kw), geqdsk%zlim(kw), kw = 1, geqdsk%limitr)
+    read (fid, format_2020) (geqdsk%rbbbs(kw), geqdsk%zbbbs(kw), kw = 1, geqdsk%nbbbs)
+    read (fid, format_2020) (geqdsk%rlim(kw), geqdsk%zlim(kw), kw = 1, geqdsk%limitr)
     close(fid)
 
     geqdsk%rdim = geqdsk%rdim * length_si_to_cgs
@@ -146,22 +146,22 @@ contains
     xdum = 0.0d0
     geqdsk%fname = fname
     open(newunit = fid, file = geqdsk%fname, status = 'replace', form = 'formatted', action = 'write')
-    write (fid, geqdsk_2000) geqdsk%header, idum, geqdsk%nw, geqdsk%nh
-    write (fid, geqdsk_2020) geqdsk%rdim * 1.0d-2, geqdsk%zdim * 1.0d-2, &
+    write (fid, format_2000) geqdsk%header, idum, geqdsk%nw, geqdsk%nh
+    write (fid, format_2020) geqdsk%rdim * 1.0d-2, geqdsk%zdim * 1.0d-2, &
          geqdsk%rcentr * 1.0d-2, geqdsk%rleft * 1.0d-2, geqdsk%zmid * 1.0d-2
-    write (fid, geqdsk_2020) geqdsk%rmaxis * 1.0d-2, geqdsk%zmaxis * 1.0d-2, &
+    write (fid, format_2020) geqdsk%rmaxis * 1.0d-2, geqdsk%zmaxis * 1.0d-2, &
          geqdsk%simag * 1.0d-8, geqdsk%sibry * 1.0d-8, geqdsk%bcentr * 1.0d-4
-    write (fid, geqdsk_2020) geqdsk%current * 1.0d1 / clight, geqdsk%simag * 1.0d-8, xdum, geqdsk%rmaxis * 1.0d-2, xdum
-    write (fid, geqdsk_2020) geqdsk%zmaxis * 1.0d-2, xdum, geqdsk%sibry * 1.0d-8, xdum, xdum
-    write (fid, geqdsk_2020) (geqdsk%fpol(kw) * 1.0d-6, kw = 1, geqdsk%nw)
-    write (fid, geqdsk_2020) (geqdsk%pres(kw) * 1.0d-1, kw = 1, geqdsk%nw)
-    write (fid, geqdsk_2020) (geqdsk%ffprim(kw) * 1.0d-4, kw = 1, geqdsk%nw)
-    write (fid, geqdsk_2020) (geqdsk%pprime(kw) * 1.0d7, kw = 1, geqdsk%nw)
-    write (fid, geqdsk_2020) ((geqdsk%psirz(kw, kh) * 1.0d-8, kw = 1, geqdsk%nw), kh = 1, geqdsk%nh)
-    write (fid, geqdsk_2020) (geqdsk%qpsi(kw), kw = 1, geqdsk%nw)
-    write (fid, geqdsk_2022) geqdsk%nbbbs, geqdsk%limitr
-    write (fid, geqdsk_2020) (geqdsk%rbbbs(kw) * 1.0d-2, geqdsk%zbbbs(kw) * 1.0d-2, kw = 1, geqdsk%nbbbs)
-    write (fid, geqdsk_2020) (geqdsk%rlim(kw) * 1.0d-2, geqdsk%zlim(kw) * 1.0d-2, kw = 1, geqdsk%limitr)
+    write (fid, format_2020) geqdsk%current * 1.0d1 / clight, geqdsk%simag * 1.0d-8, xdum, geqdsk%rmaxis * 1.0d-2, xdum
+    write (fid, format_2020) geqdsk%zmaxis * 1.0d-2, xdum, geqdsk%sibry * 1.0d-8, xdum, xdum
+    write (fid, format_2020) (geqdsk%fpol(kw) * 1.0d-6, kw = 1, geqdsk%nw)
+    write (fid, format_2020) (geqdsk%pres(kw) * 1.0d-1, kw = 1, geqdsk%nw)
+    write (fid, format_2020) (geqdsk%ffprim(kw) * 1.0d-4, kw = 1, geqdsk%nw)
+    write (fid, format_2020) (geqdsk%pprime(kw) * 1.0d7, kw = 1, geqdsk%nw)
+    write (fid, format_2020) ((geqdsk%psirz(kw, kh) * 1.0d-8, kw = 1, geqdsk%nw), kh = 1, geqdsk%nh)
+    write (fid, format_2020) (geqdsk%qpsi(kw), kw = 1, geqdsk%nw)
+    write (fid, format_2022) geqdsk%nbbbs, geqdsk%limitr
+    write (fid, format_2020) (geqdsk%rbbbs(kw) * 1.0d-2, geqdsk%zbbbs(kw) * 1.0d-2, kw = 1, geqdsk%nbbbs)
+    write (fid, format_2020) (geqdsk%rlim(kw) * 1.0d-2, geqdsk%zlim(kw) * 1.0d-2, kw = 1, geqdsk%limitr)
     close(fid)
   end subroutine geqdsk_write
 
