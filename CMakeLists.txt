@@ -117,6 +117,7 @@ add_library(mc_efit SHARED
 
 #set_target_properties(libneo PROPERTIES VERSION ${libneo_VERSION})
 
+add_subdirectory(src)
 add_subdirectory(tests)
 
 add_test(Test_Build_Code make)
