@@ -39,6 +39,7 @@ add_library(magfie SHARED
     magfie/magfield_mod.f90
     magfie/polylag_3.f
     magfie/magfie_cyl.f90
+    magfie/geqdsk_tools.f90
 )
 set_source_files_properties(boozer.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=unused-variable;-Wno-error=maybe-uninitialized")
 set_source_files_properties(field_divB0.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=compare-reals;-Wno-error=conversion")
