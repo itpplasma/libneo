@@ -1,13 +1,15 @@
 !
   subroutine spline_vmec_data
 !
-  use new_vmec_stuff_mod
+  use new_vmec_stuff_mod, only : rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,&
+    axm,axn,s,nsurfm,nstrm,kpar,ns_A,ns_s,ns_tp,n_theta,n_phi,multharm,&
+    sR,sZ,slam,old_axis_healing_boundary,nper,h_theta,h_phi
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none
 !
   integer :: i,k,m,n,is,i_theta,i_phi,m_max,n_max,nsize_exp_imt,nsize_exp_inp,iexpt,iexpp
-  integer :: iss,ist,isp,nrho,nheal,iunit_hs
+  integer :: ist,isp,nrho,nheal,iunit_hs
   double precision :: twopi,cosphase,sinphase
   complex(8)   :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
   double precision, dimension(:,:), allocatable :: splcoe
@@ -293,11 +295,11 @@
 !
   end subroutine spline_vmec_data
 !
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine deallocate_vmec_spline(mode)
 !
-  use new_vmec_stuff_mod
+  use new_vmec_stuff_mod, only : sR,sZ,slam
 !
   implicit none
 !
@@ -315,12 +317,13 @@
 !
   end subroutine deallocate_vmec_spline
 !
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                               R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp)
 !
-  use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,sR,sZ,slam,nper,ns_A,ns_s,ns_tp
+  use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,sR,sZ,slam,&
+    nper,ns_A,ns_s,ns_tp
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none
@@ -535,15 +538,9 @@
 !
   implicit none
 !
-  double precision, parameter :: twopi=2.d0*3.14159265358979d0
-!
-  integer :: is,i_theta,i_phi,k
-  double precision :: ds,dtheta,dphi
+  integer :: is,k
+  double precision :: ds
   double precision :: s,dA_phi_ds,dA_theta_ds,d2A_phi_ds2,aiota,daiota_ds
-!
-  integer, parameter :: ns_max=6
-!
-  integer :: nstp
 !
   dA_theta_ds=torflux
 !
@@ -757,6 +754,7 @@ end subroutine s_to_rho_healaxis
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
+!-----
   !> Determines the number of first radial points, nheal, where data is
   !> replaced by extrapolation.
   !>
@@ -785,8 +783,6 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
   !> -------
   !> nheal: integer, number of points to extrapolate at the axis.
 
-  use new_vmec_stuff_mod, only : ns_s
-
   implicit none
 
   ! Lagrange polynomial stencil size for checking the data by extraplation:
@@ -801,9 +797,9 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
   integer, intent(out) :: nheal
   double precision, dimension(ns), intent(in) :: arr_in
 
-  integer :: is,k,nhe,ncheck
+  integer :: is,ncheck
 
-  double precision :: hs,s,ds,rho,rho_nonzero,errmax
+  double precision :: hs,rho,rho_nonzero,errmax
 
   double precision, dimension(:), allocatable :: arr
 
@@ -836,16 +832,15 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
 
 end subroutine determine_nheal_for_axis
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine volume_and_B00(volume,B00)
 !
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,nper
-  use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none
 !
-  integer :: is,i_theta,i_phi,k
+  integer :: i_theta,i_phi
   double precision :: volume,B00
   double precision :: B3,B2,bmod2
   double precision :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &

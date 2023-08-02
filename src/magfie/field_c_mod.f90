@@ -3,4 +3,5 @@ module field_c_mod
   integer :: ntor=16
   integer :: nr,np,nz
   integer :: icftype
+  double precision :: rmin,pmin,zmin,rmax,pmax,zmax
 end module field_c_mod

@@ -1,7 +1,7 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine magfie_vmec(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
-!
+!-----
 ! Computes magnetic field module in units of the magnetic code  - bmod,
 ! square root of determinant of the metric tensor               - sqrtg,
 ! derivatives of the logarythm of the magnetic field module
@@ -172,7 +172,7 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine magfie_can(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
-!
+!-----
 !
 ! Computes magnetic field module in units of the magnetic code  - bmod,
 ! square root of determinant of the metric tensor               - sqrtg,
@@ -259,7 +259,7 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   subroutine magfie_boozer(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
-!
+!-----
 ! Computes magnetic field module in units of the magnetic code  - bmod,
 ! square root of determinant of the metric tensor               - sqrtg,
 ! derivatives of the logarythm of the magnetic field module

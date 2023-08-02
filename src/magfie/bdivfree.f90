@@ -5,7 +5,8 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
              rmin_in,rmax_in,pmin_in,pmax_in,zmin_in,zmax_in,  &
              br,bp,bz)
 !
-  use bdivfree_mod
+  use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,rmin,zmin,hr,hz,pmin,pfac,&
+    rpoi,zpoi,apav,rbpav_coef,aznre,aznim,arnre,arnim
 !
   implicit none
 !
@@ -182,14 +183,13 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   deallocate(expon,a_re,a_im,rbpav_dummy,imi,ima,jmi,jma,dummy,brm,bpm,bzm)
 !
 102 format(1000e15.7)
-!
-  return
 end subroutine vector_potentials
 
 subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
   anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
 
-  use bdivfree_mod
+  use bdivfree_mod, only : nr,nz,icp,ipoint,hr,hz,&
+  rpoi,zpoi,aznre,aznim,arnre,arnim
 !
   implicit none
 !
@@ -243,16 +243,33 @@ subroutine spline_bpol_n(n, r, z, B_Rn, B_Zn)
   B_Zn = -(0.d0,1.d0)*dble(n)*anr/r
 end subroutine spline_bpol_n
 
+! call spline_bn(n_tor_out)
+subroutine spline_bn(n, r, z, Bn_R, Bn_phi, Bn_Z)
+
+  implicit none
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: r, z
+  complex(8), intent(out) :: Bn_R, Bn_phi, Bn_Z
+
+  complex(8) :: anr,anz,anr_r,anr_z,anz_r,anz_z
+  complex(8) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
+
+  call spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
+    anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
+  Bn_R = (0.d0,1.d0) * dble(n) * anz / r
+  Bn_phi = anr_z - anz_r
+  Bn_Z = -(0.d0,1.d0) * dble(n) * anr / r
+end subroutine spline_bn
+
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
-  use bdivfree_mod
-  use inthecore_mod, only : incore                                            &
-                          , vacf,dvacdr,dvacdz,d2vacdr2,d2vacdrdz,d2vacdz2
-  use amn_mod, only : ntor_amn
+  use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,hr,hz,pfac,&
+  rpoi,zpoi,apav,rbpav_coef
 !
   implicit none
 
@@ -262,12 +279,10 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
 
   integer :: n,ierr
   double precision :: f,fr,fz,frr,frz,fzz
-  double precision :: g,gr,gz,grr,grz,gzz
   double precision :: delbr,delbz,delbp
   double precision :: deldBrdR,deldBrdp,deldBrdZ
   double precision :: deldBpdR,deldBpdp,deldBpdZ
   double precision :: deldBzdR,deldBzdp,deldBzdZ
-  double precision :: ar,az,dar_dr,dar_dz,dar_dp,daz_dr,daz_dz,daz_dp
   complex(8) :: expon,anr,anz,anr_r,anr_z,anz_r,anz_z
   complex(8) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
 !
@@ -602,10 +617,9 @@ subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
 !
   return
 end subroutine invert_mono_per
-!
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine spl_five_per(n,h,a,b,c,d,e,f)
+subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
 !
 ! Periodic spline of the 5-th order. First and last values of function must
 ! be the same.
@@ -617,7 +631,7 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
   double precision, dimension(n), intent(in) :: a
   double precision, dimension(n), intent(out) :: b, c, d, e, f
 
-  integer :: i,ip1,ip2
+  integer :: i,ip1
   double precision :: rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p
   double precision :: c_gammao_m,c_gammao_p
 
@@ -764,7 +778,7 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
   deallocate(alp,bet,gam)
 !
   return
-end subroutine spl_five_per
+end subroutine spl_five_per_bdivfree
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -825,7 +839,7 @@ subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
       do j=jmi(i),jma(i)
         ai(j-jmi(i)+1)=f(i,j)
       enddo
-      call spl_five_per(nsi,hy,ai,bi,ci,di,ei,fi)
+      call spl_five_per_bdivfree(nsi,hy,ai,bi,ci,di,ei,fi)
       do j=jmi(i),jma(i)
         jj=j-jmi(i)+1
         ic = ic+1
@@ -875,7 +889,8 @@ end subroutine s2dring
 !
 subroutine load_theta
 !
-  use theta_rz_mod
+  use theta_rz_mod, only : nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,htheqt,&
+    psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,sqpsi,flab,theqt
   use input_files, only : iunit,fluxdatapath
 !
   implicit none
@@ -940,7 +955,8 @@ subroutine psithet_rz(rrr,zzz,                                          &
                         theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                         flabel,s_r,s_z,s_rr,s_rz,s_zz,s0,ds0ds,dds0ds)
 !
-  use theta_rz_mod
+  use theta_rz_mod, only : icall, nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,&
+    htheqt,psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,flab,theqt
   use field_eq_mod, only : nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint  &
                          , psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use extract_fluxcoord_mod, only : psif_extract,theta_extract
@@ -956,7 +972,7 @@ subroutine psithet_rz(rrr,zzz,                                          &
   real(kind=8), intent(out) :: s_r, s_z, s_rr, s_rz, s_zz
   real(kind=8), intent(out) :: s0, ds0ds, dds0ds
 
-  integer :: npoint,i,j,ierr,k
+  integer :: ierr,k
   real(kind=8) :: theta_s,theta_t,theta_ss,theta_st,theta_tt
   real(kind=8) :: sqpsi_qt
   real(kind=8) :: theta_qt,t_r,t_z,t_rr,t_rz,t_zz
@@ -1037,8 +1053,8 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
   complex(8), dimension(n), intent(in) :: a
   complex(8), dimension(n), intent(out) :: b, c, d, e, f
 
-  integer :: i,ip1,ip2
-  double precision :: rhop,rhom,fac,fpl31,fpl40,fmn31,fmn40          ,x
+  integer :: i,ip1
+  double precision :: rhop,rhom,fac
   double precision :: a11,a12,a13,a21,a22,a23,a31,a32,a33,det
   complex(8) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
   complex(8) :: aend,bend,cend,dend,eend,fend
@@ -1180,11 +1196,16 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
 ! Caution: derivatives are not computed, for derivatives call
 ! a driver routine "field_fourier_derivs"
 !
-  use amn_mod
+  use amn_mod, only : ntor_amn,mpol,ntor_ff,mpol_ff,nsqpsi,icall,&
+    sqpsimin,sqpsimax,hsqpsi,splapsi,splatet,amnpsi,amntet,&
+    amnpsi_s,amntet_s,amnpsi_ss,amntet_ss,expthe,expphi,&
+    nsqpsi_ff,nmodes_ff,sqpsimin_ff,sqpsimax_ff,hsqpsi_ff,&
+    ipoi_ff,splffp,splfft,fmnpsi,fmntet,fmnpsi_s, fmntet_s,&
+    fmnpsi_ss,fmntet_ss
   use input_files,           only : iunit,fluxdatapath
   use inthecore_mod, only : incore,psi_sep                                 &
-                          , plaf,dpladr,dpladz,d2pladr2,d2pladrdz,d2pladz2
-  use field_eq_mod,  only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+                          , plaf,dpladr,dpladz
+  use field_eq_mod,  only : dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use theta_rz_mod,  only : psiaxis
   use bdivfree_mod,  only : pfac
 !
@@ -1194,18 +1215,13 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   double precision, intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ,    &
                        &  dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
 
-  integer :: m,n,i,k,ierr,ntor
+  integer :: m,n,i,k,ntor
   double precision :: sqpsi,dx,g11,g12,g11_r,g11_z,g12_r,g12_z
   double precision :: theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                       s_r,s_z,s_rr,s_rz,s_zz
-  double precision :: fun,fr,fz,frr,frz,fzz
   double precision :: apsi,apsi_s,apsi_t,apsi_p
   double precision :: athe,athe_s,athe_t,athe_p
   double precision :: delbr,delbz,delbp,delar,delaz
-  double precision :: deldBrdR,deldBrdp,deldBrdZ
-  double precision :: deldBpdR,deldBpdp,deldBpdZ
-  double precision :: deldBzdR,deldBzdp,deldBzdZ
-  double precision :: delardR,delazdR,delardZ,delazdZ
   double precision :: fcjac,g11_t,g12_t,s0,ds0ds,dds0ds,sqpsi_sep
 !
   integer, dimension(:,:), allocatable :: idummy2
@@ -1661,7 +1677,8 @@ end subroutine field_fourier_derivs
 !
 subroutine extract_fluxcoord(phinorm,theta)
 !
-  use extract_fluxcoord_mod
+  use extract_fluxcoord_mod, only : load_extract_fluxcoord,nphinorm,&
+    psif_extract,theta_extract,psifmin,hpsif,phinorm_arr
   use input_files, only : iunit,fluxdatapath
 !
   implicit none
