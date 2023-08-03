@@ -1,6 +1,38 @@
 # This file provides the list of source files for libneo.
 # The file CMakeLists.txt contains the main configuration code.
 # Main goal (of the created build file): creating the library file.
+
+add_library(mc_efit SHARED
+    magfie/polylag_3.f
+    magfie/polylag_5.f
+    magfie/spl_three_to_five.f90
+    magfie/spline5_RZ.f90
+    magfie/amn_mod.f90
+    magfie/bdivfree.f90
+    magfie/bdivfree_mod.f90
+    magfie/extract_fluxcoord_mod.f90
+    magfie/field_c_mod.f90
+    magfie/field_divB0.f90
+    magfie/field_eq_mod.f90
+    magfie/field_mesh3d.f90
+    magfie/field_mod.f90
+    magfie/input_files.f90
+    magfie/inthecore_mod.f90
+    magfie/magfie_cyl.f90
+    magfie/magfield_mod.f90
+    magfie/neo_magfie_mod.f90
+    magfie/period_mod.f90
+    magfie/theta_rz_mod.f90
+    contrib/rkf45.f90
+    odeint_rkf45.f90
+    MC/alpha_lifetime_mod.f90
+    MC/chamb_divB0.f90
+    MC/rng.f90
+    MC/collis_nbi.f90
+    MC/sub_alpha_lifetime.f90
+)
+
+
 add_library(magfie SHARED
     boozer.f90
     io.f90
