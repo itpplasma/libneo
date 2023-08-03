@@ -87,34 +87,6 @@ find_package(LAPACK REQUIRED)
 target_link_libraries(libneo
   rkf45 ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
-add_library(mc_efit SHARED
-  src/magfie/polylag_3.f
-  src/magfie/polylag_5.f
-  src/magfie/spline5_RZ.f90
-  src/magfie/amn_mod.f90
-  src/magfie/bdivfree.f90
-  src/magfie/bdivfree_mod.f90
-  src/magfie/extract_fluxcoord_mod.f90
-  src/magfie/field_c_mod.f90
-  src/magfie/field_divB0.f90
-  src/magfie/field_eq_mod.f90
-  src/magfie/field_mesh3d.f90
-  src/magfie/field_mod.f90
-  src/magfie/input_files.f90
-  src/magfie/inthecore_mod.f90
-  src/magfie/magfie_cyl.f90
-  src/magfie/magfield_mod.f90
-  src/magfie/neo_magfie_mod.f90
-  src/magfie/period_mod.f90
-  src/magfie/theta_rz_mod.f90
-  src/contrib/rkf45.f90
-  src/odeint_rkf45.f90
-  src/MC/alpha_lifetime_mod.f90
-  src/MC/chamb_divB0.f90
-  src/MC/rng.f90
-  src/MC/collis_nbi.f90
-  src/MC/sub_alpha_lifetime.f90)
-
 #set_target_properties(libneo PROPERTIES VERSION ${libneo_VERSION})
 
 add_subdirectory(src)
