@@ -1294,7 +1294,7 @@ class BoozerFile:
     import sys
     import time
 
-    import getHeaderDataVMEC
+    from libneo import getHeaderDataVMEC
 
     print("Input is netcdf file, converting to boozer.")
 
@@ -1607,16 +1607,16 @@ class BoozerFile:
 
       vmnb = -enfp*dphmnb/(2*np.pi)
 
-      self.m.append(mb)
-      self.n.append(np.array(nb/enfp, dtype=np.int32))
-      self.rmnc.append(+rmnb.real)
-      self.rmns.append(-rmnb.imag)
-      self.zmnc.append(+zmnb.real)
-      self.zmns.append(-zmnb.imag)
-      self.vmnc.append(+vmnb.real)
-      self.vmns.append(-vmnb.imag)
-      self.bmnc.append(+bmnb.real)
-      self.bmns.append(-bmnb.imag)
+      self.m.append(list(mb))
+      self.n.append(list(np.array(nb/enfp, dtype=np.int32)))
+      self.rmnc.append(list(+rmnb.real))
+      self.rmns.append(list(-rmnb.imag))
+      self.zmnc.append(list(+zmnb.real))
+      self.zmns.append(list(-zmnb.imag))
+      self.vmnc.append(list(+vmnb.real))
+      self.vmns.append(list(-vmnb.imag))
+      self.bmnc.append(list(+bmnb.real))
+      self.bmns.append(list(-bmnb.imag))
 
       elapsed = time.time() - t
       print('Elapsed time: {} s'.format(elapsed))
@@ -1780,8 +1780,6 @@ class BoozerFile:
 
 def main():
   import sys
-
-  from libneo import getHeaderDataVMEC
 
   if (len(sys.argv) < 2):
     print("Usage:")
