@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.12)
 project (AllocateTest)
 
-set(CMAKE_Fortran_COMPILER mpif90) 
+set(CMAKE_Fortran_COMPILER mpif90)
 enable_language(Fortran)
 
 set(PROJLIBS /proj/plasma/Libs/)
@@ -12,7 +12,7 @@ set (MPE_PATH /afs/itp.tugraz.at/opt/mpe/1.3.0/)
 include_directories("${MYMPILIB_PATH}/OBJS")
 set(MPI_lib -lmpi_f90 -lmpi_f77 -lmpi -lopen-rte -lopen-pal -ldl -Wl,--export-dynamic -lnsl -lutil -lm -ldl -pthread)
 find_library(MyMPILib_lib MyMPILib ${MYMPILIB_PATH})
- 
+
 add_executable(allocatetest
 main.f90
 )
@@ -22,4 +22,3 @@ target_link_libraries(allocatetest
         ${MPI_lib}
 	/afs/itp.tugraz.at/opt/mpe/1.3.0/lib/libmpe.a
 )
-
