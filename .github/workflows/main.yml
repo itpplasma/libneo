@@ -6,12 +6,7 @@ on: [push, pull_request]
 
 jobs:
   GNU:
-    runs-on: ubuntu-latest
-    container:
-        image: registry.gitlab.tugraz.at/plasma/images/testing:0.1.0
-        credentials:
-           username: docker
-           password: ${{ secrets.TUGRAZ_DOCKER_KEY }}
+    runs-on: ubuntu-22.04
 
     name: Build and test
     steps:
@@ -20,7 +15,7 @@ jobs:
 
       - name: Deps
         run: |
-          sh install_deps.sh
+          sudo sh install_deps.sh
 
       - name: Build
         run: |
