@@ -3,9 +3,11 @@
 # Main goal (of the created build file): creating the library file.
 
 add_library(mc_efit SHARED
+    libneo_kinds.f90
+    math_constants.f90
+    spl_three_to_five.f90
     magfie/polylag_3.f
     magfie/polylag_5.f
-    magfie/spl_three_to_five.f90
     magfie/spline5_RZ.f90
     magfie/amn_mod.f90
     magfie/bdivfree.f90
