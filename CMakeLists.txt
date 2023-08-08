@@ -2,7 +2,7 @@
 # List of source files are in CMakeSources.in.
 
 # Basic cmake settings/requirements
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.12)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
 # Basic project settings.
