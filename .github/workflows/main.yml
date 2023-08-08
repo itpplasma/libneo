@@ -19,7 +19,7 @@ jobs:
 
       - name: Build
         run: |
-          sh build.sh
+          mkdir build && cd build && cmake .. && make
 
       - name: Test
         run: |
