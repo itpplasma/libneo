@@ -15,6 +15,8 @@ set (libneo_VERSION_MINOR 1)
 enable_language(Fortran)
 enable_testing()
 
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 # set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 
 if (EXISTS ${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
