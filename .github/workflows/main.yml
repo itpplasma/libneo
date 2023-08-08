@@ -23,4 +23,4 @@ jobs:
 
       - name: Test
         run: |
-          cd build && ctest
+          cd build && ctest --output-on-failure
