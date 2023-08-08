@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.12)
 # project (MyMPILib)
 enable_language (Fortran)
 
@@ -24,7 +24,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
 	#ifort -I/usr/local/openmpi-1.6.3-intel/include -I/usr/local/openmpi-1.6.3-intel/lib -L/usr/local/openmpi-1.6.3-intel/lib -lmpi_f90 -lmpi_f77 -lmpi -ldl -lm -lnuma -Wl,--export-dynamic -lrt -lnsl -lutil
-	
+
 #	include_directories(${INCLUDEDIRS_MPI_INTEL})
 #	link_directories(${LINKDIRS_MPI_INTEL})
 
@@ -54,14 +54,14 @@ add_library(MyMPILib
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Specific/packBuffer_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Specific/mpiprovider_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/list_module.f90
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/packable_module.f90 
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/packable_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/matrix_module.f90
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/clientStatus_module.f90 
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Generic/workunit_module.f90 
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/wuDataRequester_module.f90 
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/intList_module.f90 
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/wuList_module.f90 
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/packableList_module.f90 
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/clientStatus_module.f90
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Generic/workunit_module.f90
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/wuDataRequester_module.f90
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/intList_module.f90
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/wuList_module.f90
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/packableList_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/commandline_parser_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Generic/scheduler_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/mpelog_module.f90
@@ -69,7 +69,7 @@ ${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/myLog_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Tools/configFile_parser_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/wuMergeWorkunit_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Internal/wuMergeChunk_module.f90
-${CMAKE_SOURCE_DIR}/src/MyMPILib/Generic/initWorkunit_module.f90 
+${CMAKE_SOURCE_DIR}/src/MyMPILib/Generic/initWorkunit_module.f90
 ${CMAKE_SOURCE_DIR}/src/MyMPILib/Generic/genericWorkunit_module.f90
 )
 
