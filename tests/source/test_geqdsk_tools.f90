@@ -87,6 +87,7 @@ contains
   !>
   !> A file with known cocos class is read and classified. Then it is
   !> checked if the cocos index is as expected.
+  !>
   !> input:
   !> ------
   !> none
