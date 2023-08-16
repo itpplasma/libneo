@@ -4,6 +4,7 @@ find_package(MPI REQUIRED)
 
 set (MAIN_LIB ${MAIN_LIB} libneo)
 set (HDF5_TOOLS_LIB ${HDF5_TOOLS_LIB} hdf5_tools)
+set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
 include_directories(${MPI_Fortran_INCLUDE_PATH})
@@ -24,6 +25,7 @@ find_package(BLAS)
 find_package(LAPACK)
 find_package(MPI REQUIRED)
 
+include_directories(${CMAKE_BINARY_DIR}/src/)
 include_directories(${CMAKE_SOURCE_DIR}/src/MyMPILib)
 include_directories(${CMAKE_SOURCE_DIR}/src/hdf5_tools)
 include_directories(${MPI_Fortran_INCLUDE_PATH})
@@ -60,6 +62,12 @@ target_link_libraries(test_efit_class.x
   ${MAIN_LIB}
   ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
   ${NETCDF_LIBRARIES}
+  )
+
+add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
+target_link_libraries(test_geqdsk_tools.x
+  ${MAIN_LIB}
+  ${MAGFIE_LIB}
   )
 
 add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
