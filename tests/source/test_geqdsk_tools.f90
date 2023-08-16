@@ -2,7 +2,6 @@
 !>
 !> Ideas for further tests:
 !> - read test with 'defect' efit file (should fail)
-!> - that geqdsk_classify after geqdsk_standardise gives cocos index 3
 !> - that a second call of geqdsk_check_consistency does nothing
 !> - that a second call of geqdsk_standardise does nothing
 program test_geqdsk_tools
@@ -16,6 +15,9 @@ program test_geqdsk_tools
   sucess_all = sucess_all .and. sucess
 
   call test_classify(sucess)
+  sucess_all = sucess_all .and. sucess
+
+  call test_standardise(sucess)
   sucess_all = sucess_all .and. sucess
 
   if (.not. sucess_all) then
@@ -129,5 +131,57 @@ contains
     end if
 
   end subroutine test_classify
+
+
+  !> Check standarisation of geqdsk files.
+  !>
+  !> A eqdsk file is read, standardised and then classified.
+  !> Standardisation means the cocos index should be three, which is
+  !> checked.
+  !>
+  !> input:
+  !> ------
+  !> none
+  !>
+  !> output:
+  !> -------
+  !> sucess: logical, true if sucessfull, false if not.
+  !>
+  !> sideeffects:
+  !> ------------
+  !> none
+  !>
+  !> limitations:
+  !> ------------
+  !> Checks only that index matches.
+  !> Checks only conversion from single class.
+  subroutine test_standardise(sucess)
+    use geqdsk_tools, only : geqdsk_t ! variables/types
+    use geqdsk_tools, only : geqdsk_read, geqdsk_classify, geqdsk_standardise ! subroutines
+
+    implicit none
+
+    logical, intent(out) :: sucess
+
+    type(geqdsk_t) :: geqdsk
+
+    character(len=*), parameter :: infilename = '../tests/resources/input_efit_file.dat'
+
+    sucess = .false.
+
+    call geqdsk_read(geqdsk, infilename)
+
+    call geqdsk_standardise(geqdsk)
+
+    call geqdsk_classify(geqdsk)
+
+    if (geqdsk%cocos%index == 3) then
+      sucess = .true.
+    else
+      write(*,*) "ERROR cocos index ", geqdsk%cocos%index, " does not&
+          & match the expected value 3 after standardisation!"
+    end if
+
+  end subroutine
 
 end program test_geqdsk_tools
