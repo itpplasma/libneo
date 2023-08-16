@@ -1,3 +1,10 @@
+!> Program to test the geqdsk_tools module.
+!>
+!> Ideas for further tests:
+!> - read test with 'defect' efit file (should fail)
+!> - that geqdsk_classify after geqdsk_standardise gives cocos index 3
+!> - that a second call of geqdsk_check_consistency does nothing
+!> - that a second call of geqdsk_standardise does nothing
 program test_geqdsk_tools
   implicit none
 
