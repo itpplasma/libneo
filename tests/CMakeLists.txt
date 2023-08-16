@@ -13,11 +13,11 @@ include_directories(${PROJECT_BINARY_DIR})
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -std=f2008")
+  set (CMAKE_Fortran_FLAGS "-g -cpp -std=f2008")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -heap-arrays -stand f08")
+  set (CMAKE_Fortran_FLAGS "-g -cpp -heap-arrays -stand f08")
 
 endif ()
 
