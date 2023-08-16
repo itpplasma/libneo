@@ -125,7 +125,7 @@ contains
       sucess = .true.
     else
       write(*,*) "ERROR cocos index ", geqdsk%cocos%index, " does not&
-          & match the expected value 3!"
+          & match the expected value 15!"
     end if
 
   end subroutine test_classify
