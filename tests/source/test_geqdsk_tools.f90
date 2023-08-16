@@ -113,7 +113,7 @@ contains
 
     call geqdsk_classify(geqdsk)
 
-    if (geqdsk%cocos%index == 3) then
+    if (geqdsk%cocos%index == 15) then
       sucess = .true.
     else
       write(*,*) "ERROR cocos index ", geqdsk%cocos%index, " does not&
