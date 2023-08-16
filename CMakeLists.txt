@@ -109,6 +109,10 @@ add_test(NAME Test_efit
          COMMAND tests/test_efit_class.x)
 set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 
+add_test(NAME Test_geqdsk_tools
+         COMMAND tests/test_geqdsk_tools.x)
+set_tests_properties(Test_geqdsk_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+
 add_test(NAME Test_hdf5_tools
          COMMAND "tests/test_hdf5_tools.x")
 set_tests_properties(Test_hdf5_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
