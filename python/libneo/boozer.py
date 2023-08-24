@@ -1288,7 +1288,7 @@ class BoozerFile:
     import math
     import numpy as np
     import scipy.interpolate as ip
-    import scipy.io.netcdf as ncdf
+    import scipy.io
     import scipy.constants
     import string
     import sys
@@ -1304,7 +1304,7 @@ class BoozerFile:
 
     [self.nper, self.flux, self.a, self.R, self.m0b, self.n0b] = getHeaderDataVMEC.getHeadDataVmecNc(filename)
 
-    n = ncdf.netcdf_file(filename)
+    n = scipy.io.netcdf_file(filename)
     data = n.variables
 
     # Minus one, because we skipp the first flux surface from the file.
