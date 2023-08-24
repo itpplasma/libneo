@@ -44,31 +44,26 @@ endif ()
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
 
-find_program(NC_CONFIG "nf-config")
+find_program(NF_CONFIG "nf-config")
 
-if (NC_CONFIG)
+if (NF_CONFIG)
 execute_process(COMMAND nf-config --includedir
                 OUTPUT_VARIABLE NETCDFINCLUDE_DIR
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND nc-config --libdir
-                OUTPUT_VARIABLE NETCDFLIB_DIR
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_FLIBS
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 else()
-message(SEND_ERROR "nc-config not found. Please install libnetcdff-dev")
+message(SEND_ERROR "nf-config not found. Please install libnetcdff-dev")
 endif()
 
 message(STATUS "NetCDF include path: " ${NETCDFINCLUDE_DIR})
-message(STATUS "NetCDF lib path: " ${NETCDFLIB_DIR})
 message(STATUS "NetCDF Fortran libs: " ${NETCDF_FLIBS})
 
 # Replace space by semicolon in the Fortran libs
 string(REPLACE " " ";" NETCDF_FLIBS ${NETCDF_FLIBS})
 
 include_directories(${NETCDFINCLUDE_DIR})
-link_directories(${NETCDFLIB_DIR})
 add_link_options(${NETCDF_FLIBS})
 
 add_subdirectory(src/MyMPILib)
