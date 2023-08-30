@@ -1,0 +1,73 @@
+\chapter{MyMPILib}
+Basic interface to an mpi implementation, so the code requires no
+mpi specific commands.
+Utilizes a scheduler-worker model:
+\begin{itemize}
+  \item scheduler - manager, distributes work and collects results
+  \item worker - does actual calculations
+\end{itemize}
+
+\section{How to use}
+Need to write scheduler module and wuGenericWorkunit module for your
+code.
+Former usally only needs to overwrite the specific part.
+
+\section{Code}
+Code distributed into three folders - Generic, Internal and Specific.
+Makes use of includes.
+
+these will include other files:
+scheduler\_header.f90
+scheduler\_generic.f90
+scheduler\_module.f90
+
+where the scheduler\_module will include the other two, and scheduler\_specific
+Modules included are listener, comListener, wuListener, dispatcher,
+comDispatcher and wuDispatcher.
+
+wu - work unit?
+
+\section{Todo}
+\begin{itemize}
+  \item Add checkpointing? Could be based on unit of work, maybe needs
+  to be implemented in specific code instead.
+\end{itemize}
+
+
+Types:
+type :: scheduler
+
+type, abstract :: packable
+  type, extends(packable) :: matrix
+  type, extends(packable), abstract :: workunit
+    type, extends(workunit) :: genericWorkunit
+      type, extends(genericWorkunit) :: wuMergeWorkunit
+        type, extends(wuMergeWorkunit) :: wuMergeChunk
+      type, extends(genericWorkunit) :: wuDataRequester
+      type, extends(genericworkunit) :: initWorkunit
+
+type :: dispatcher !< Sending signals?
+  type, extends(dispatcher) :: wuDispatcher
+  type, extends(dispatcher) :: comDispatcher
+
+type :: listener !< Receiving signals?
+  type, extends(listener) :: wuListener
+  type, extends(listener) :: comListener
+
+type :: globalSchedulerStorage
+type :: packBuffer
+type :: commandline_parser
+type :: configFileParser
+type :: mpelog
+type :: myLogClass
+type :: clientStatus
+
+type :: node
+  type, extends(node) :: packableNode
+  type, extends(node) :: workunitNode
+  type, extends(node) :: intnode
+
+type :: list
+  type, extends(list) :: packableList
+  type, extends(list) :: workunitList
+  type, extends(list) :: intlist
