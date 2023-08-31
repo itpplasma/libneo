@@ -155,7 +155,7 @@ The program ``Makegrid'', part of STELLOPT, allows to create coil-field
 files, required by vmec.
 Makegrid itself requires a file with the coil geometry to work (see
 stellopt documentation for file format, coordinates in the input file
-are xyz(?)). The code is usually
+are xyz). The code is usually
 interactive, it asks some questions about the configuration it should
 use. However, the answers can be written to a file (one line for each),
 in the respective order, and the file then provided to makegrid via
@@ -173,6 +173,12 @@ For RMP simulations, with 3D fields the ``periods'' parameter in the
 coil file should be one, as each RMP coil needs to be in a different
 coil group.
 
+The content of a coils file can be read with ``read_coils'' from ``matlabVMEC/XGRID/''
+and the data plotted with ``plot_coils'' from the same folder.
+
+A possibility to check the result of ``Makegrid'' is with the ``FIELDLINES''
+code of stellopt.
+There are some matlab routines for the ``FIELDLINES'' output in ``matlabVMEC''.
 
 \section{FAQ}
 \paragraph I get ``ARNORM OR AZNORM EQUAL ZERO IN BCOVAR'' after message
