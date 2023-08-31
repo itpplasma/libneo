@@ -132,9 +132,9 @@ modes into seperate files.
 First step is done with the python function convert_to_boozer
 from the file boozer.py, which will convert a single flux surface.
 This file can also be called as script, with the name of the input file
-and the the number of flux surfaces minus one as arguments. Example:
+as argument. Example:
 \begin{verbatim}
-boozer.py vmec_input.nc 49
+boozer.py vmec_input.nc
 \end{verbatim}
 This will result in a single file with all the poloidal and toroidal
 modes. \neotwo requires separation of toroidal modes, in axisymmetric
@@ -144,6 +144,7 @@ the octave function
 \begin{verbatim}
 extract_pert_field(file_base, file_ext, file_descr)
 \end{verbatim}
+or with the corresponding function of python class BoozerFile.
 
 Default value for $file\_descr$ does not work. (Why?) Thus ' ' needs to
 be passed.
