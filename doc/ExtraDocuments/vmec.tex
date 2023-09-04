@@ -126,14 +126,11 @@ Conversion of files from vmec to boozer format is done in two steps.
 First step is the actual conversion, second is extraction of toroidal
 modes into seperate files.
 
-First step is done with the python function convert_to_boozer
+First step can be done with the python function convert\_to\_boozer
 from the file boozer.py, which will convert a single flux surface.
-This file can also be called as script, with the name of the input file
-as argument. Example:
-\begin{verbatim}
-boozer.py vmec_input.nc
-\end{verbatim}
-This will result in a single file with all the poloidal and toroidal
+An alternative is the method convert\_vmec\_to\_boozer from class
+BoozerFile.
+Both variants will result in a single file with all the poloidal and toroidal
 modes. \neotwo requires separation of toroidal modes, in axisymmetric
 background ($n = 0$) and perturbation ($n > 0$).
 Creating individual files  with toroidal perturbations can be done with
@@ -145,6 +142,15 @@ or with the corresponding function of python class BoozerFile.
 
 Default value for $file\_descr$ does not work. (Why?) Thus ' ' needs to
 be passed.
+
+Note that boozer.py can also be called as script, with the name of the
+input file as argument, and optionally an multiplier for the internal
+grid. Example:
+\begin{verbatim}
+boozer.py vmec_input.nc [uv_grid_multiplicator]
+\end{verbatim}
+In this form, the extraction of the modes is already included, i.e. it
+does not need to be done manually afterwards.
 
 
 \section{Makegrid}
