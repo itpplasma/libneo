@@ -113,9 +113,7 @@ target_link_libraries(magfie
   netcdff
   hdf5_tools
   ${fftw_lib}
-#  ${HDF5_Fortran_HL_LIBRARIES}
   ${HDF5_HL_LIBRARIES}
-#  ${HDF5_Fortran_LIBRARIES}
   ${HDF5_LIBRARIES}
   ${BLAS_LIBRARIES}
   ${LAPACK_LIBRARIES}
@@ -123,9 +121,7 @@ target_link_libraries(magfie
 
 target_link_libraries(vacfield.x
   hdf5_tools
-#  ${HDF5_Fortran_HL_LIBRARIES}
   ${HDF5_HL_LIBRARIES}
-#  ${HDF5_Fortran_LIBRARIES}
   ${HDF5_LIBRARIES}
   ${fftw_lib}
 )
