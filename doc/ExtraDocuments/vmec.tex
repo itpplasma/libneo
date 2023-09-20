@@ -121,6 +121,30 @@ If you do this, remember that either a new login is required or you have
 to source ~/.bashrc, otherwise the changes will not take effect.
 
 
+\section{Running}
+
+\subsection{Input namelist}
+From my experience with running \vv{vmec} it seems that \vv{vmec} does
+not save the ``best'' state, but only the last.
+This is of relevance when selecting the number of iterations and the
+tolerances. If the maximum number of iterations is reached in an
+intermediate resolution, then the next might be started with an
+suboptimal solution. This can affect the solution of the next step to
+the worse.
+
+\paragraph{delt}
+Lower values mean more steps will be required for convergence, but on
+the other hand a lower initial value might save ``restarts'' where the
+value is reduced.
+
+\paragraph{lasym}
+Should be \vv{True} for tokamaks.
+
+\paragraph{RBC, RBS, ZBC, ZBS}
+Fourier coefficients for the plasma boundary. Note that this is used as
+initial value in the free boundary case.
+
+
 \section{Convert files from vmec to boozer}
 Conversion of files from vmec to boozer format is done in two steps.
 First step is the actual conversion, second is extraction of toroidal
