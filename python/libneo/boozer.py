@@ -71,6 +71,19 @@ def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, b
       f.write('\n')
 
 
+def _append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc):
+  with open(filename, 'a') as f:
+    f.write('    m    n      rmnc [m]         zmns [m]  '+
+            '       vmns [ ]         bmnc [T]\n')
+    for k in range(len(mb)):
+      f.write(' {:4d} {:4d}'.format(mb[k], nb[k]))
+      f.write(' {:16.8e}'.format(rmnc[k]))
+      f.write(' {:16.8e}'.format(zmns[k]))
+      f.write(' {:16.8e}'.format(vmns[k]))
+      f.write(' {:16.8e}'.format(bmnc[k]))
+      f.write('\n')
+
+
 def convert_to_boozer(infile, ks, outfile, uv_grid_multiplicator: int = 6):
   """
   input:
