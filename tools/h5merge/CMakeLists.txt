@@ -17,14 +17,14 @@ set(CMAKE_Fortran_FLAGS "-g -Wall")
 find_package(HDF5 COMPONENTS C HL Fortran REQUIRED)
 include_directories(${HDF5_INCLUDE_DIRS})
 
-find_library(HDF5_TOOLS_LIB NAMES hdf5_tools libhdf5_tools.a PATHS ${CMAKE_SOURCE_DIR}/../../Build-11-1-0/ ${CMAKE_BINARY_DIR}/ PATH_SUFFIXES src/hdf5_tools/ NO_DEFAULT_PATH)
+find_library(HDF5_TOOLS_LIB NAMES hdf5_tools libhdf5_tools.a PATHS ${CMAKE_SOURCE_DIR}/../../Build-12-2-0/ ${CMAKE_BINARY_DIR}/ PATH_SUFFIXES src/hdf5_tools/ NO_DEFAULT_PATH)
 
-include_directories(${CMAKE_SOURCE_DIR}/../../Build-11-1-0/ ${CMAKE_BINARY_DIR})
+include_directories(${CMAKE_SOURCE_DIR}/../../Build-12-2-0/ ${CMAKE_BINARY_DIR})
 
 set(Interface_Libs
+  ${HDF5_TOOLS_LIB}
   ${HDF5_Fortran_HL_LIBRARIES}
   ${HDF5_Fortran_LIBRARIES}
-  ${HDF5_TOOLS_LIB}
   lapack
   blas
 )
