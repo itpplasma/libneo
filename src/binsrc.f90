@@ -9,9 +9,12 @@ subroutine binsrc(p, nmin, nmax, xi, i)
 
   implicit none
 
-  integer                                :: n,nmin,nmax,i,imin,imax,k
-  double precision                       :: xi
-  double precision, dimension(nmin:nmax) :: p
+  integer, intent(in) :: nmin, nmax
+  integer, intent(out) :: i
+  double precision, intent(in) :: xi
+  double precision, dimension(nmin:nmax), intent(in) :: p
+
+  integer :: n, imin, imax, k
 
   imin = nmin
   imax = nmax
