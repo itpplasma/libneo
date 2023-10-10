@@ -50,6 +50,13 @@ target_link_libraries(test_arnoldi.x
   ${NETCDF_LIBRARIES}
   )
 
+add_executable(test_binsrc.x source/test_binsrc.f90)
+target_link_libraries(test_binsrc.x
+  ${MAIN_LIB}
+  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
+  ${NETCDF_LIBRARIES}
+  )
+
 add_executable(test_boozer_class.x source/test_boozer_class.f90)
 target_link_libraries(test_boozer_class.x
   ${MAIN_LIB}

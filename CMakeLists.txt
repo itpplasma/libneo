@@ -97,6 +97,11 @@ add_test(Test_Build_Code make)
 add_test(NAME Test_arnoldi
          COMMAND ../tests/python_scripts/test_arnoldi.py && tests/test_arnoldi.x)
 set_tests_properties(Test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+
+add_test(NAME Test_binsrc
+         COMMAND "tests/test_binsrc.x")
+set_tests_properties(Test_binsrc PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+
 add_test(NAME Test_boozer
          COMMAND tests/test_boozer_class.x)
 set_tests_properties(Test_boozer PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
