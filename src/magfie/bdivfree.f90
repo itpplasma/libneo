@@ -1,15 +1,13 @@
-!
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
              rmin_in,rmax_in,pmin_in,pmax_in,zmin_in,zmax_in,  &
              br,bp,bz)
-!
+
   use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,rmin,zmin,hr,hz,pmin,pfac,&
     rpoi,zpoi,apav,rbpav_coef,aznre,aznim,arnre,arnim
-!
+
   implicit none
-!
+
   double precision, parameter :: pi=3.14159265358979d0
 
   integer, intent(in) :: nr_in, np_in, nz_in, ntor_in
@@ -19,7 +17,7 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
 
   integer :: ip,np,n,ir,iz
   integer, dimension(:), allocatable :: imi,ima,jmi,jma
-!
+
   integer :: nashli_rukami
   integer :: irmin, irmax, i,j
   double precision, dimension(4), parameter :: weight=(/-1., 13., 13., -1./)/24.
@@ -28,21 +26,21 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   double precision, dimension(:),     allocatable :: dummy
   double precision, dimension(:,:),   allocatable :: a_re, a_im, rbpav_dummy
   double precision, dimension(:,:),   allocatable :: brm,bpm,bzm
-!
+
   complex(8) :: four_ampl
   complex(8), dimension(:,:), allocatable :: expon
-!
+
   integer, parameter :: mp=4 ! power of Lagrange's polynomial =3
   integer,          dimension(mp)    :: indx,indy
   double precision, dimension(mp)    :: xp,yp
   double precision, dimension(mp,mp) :: fp
-!
+
   nr=nr_in
   nz=nz_in
   np=np_in-1
   ntor=ntor_in
   nashli_rukami=(nr_in+1)/2
-!
+
   rmin=rmin_in
   zmin=zmin_in
   hr=(rmax_in-rmin_in)/(nr-1)
@@ -50,25 +48,24 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   hp=2.d0*pi/np
   pmin=pmin_in
   pfac = dble(nint(2.d0*pi/(pmax_in-pmin_in)))
-!
+
   allocate(expon(np,ntor),a_re(nr,nz),a_im(nr,nz),rbpav_dummy(nr,nz))
   allocate(imi(nz),ima(nz),jmi(nr),jma(nr), dummy(nr))
   allocate(rpoi(nr),zpoi(nz))
   allocate(brm(nr,nz),bpm(nr,nz),bzm(nr,nz))
-!
+
   imi=1
   ima=nr
   jmi=1
   jma=nz
   do ir=1,nr
     rpoi(ir)=rmin+hr*(ir-1)
-  enddo
+  end do
   do iz=1,nz
     zpoi(iz)=zmin+hz*(iz-1)
-  enddo
-!
-! Truncation of data outside the limiting convex:
-!
+  end do
+
+  ! Truncation of data outside the limiting convex:
   hrm1=1.d0/hr
   hzm1=1.d0/hz
   do ip=1,np
@@ -77,53 +74,52 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
         call stretch_coords(rpoi(ir),zpoi(iz),rm,zm)
         call indef_bdf(rm,rmin,hrm1,nr,indx)
         call indef_bdf(zm,zmin,hzm1,nz,indy)
-!
+
         do i=1,mp
           xp(i) = rpoi(indx(i))
           yp(i) = zpoi(indy(i))
-        enddo
-!
+        end do
+
         do j=1,mp
           do i=1,mp
             fp(i,j) = Br(indx(i),ip,indy(j))
-          enddo
-        enddo
+          end do
+        end do
         call plag2d_bdf(rm,zm,fp,hrm1,hzm1,xp,yp,brm(ir,iz))
         do j=1,mp
           do i=1,mp
             fp(i,j) = Bp(indx(i),ip,indy(j))
-          enddo
-        enddo
+          end do
+        end do
         call plag2d_bdf(rm,zm,fp,hrm1,hzm1,xp,yp,bpm(ir,iz))
         bpm(ir,iz)=bpm(ir,iz)*rm/rpoi(ir)
         do j=1,mp
           do i=1,mp
             fp(i,j) = Bz(indx(i),ip,indy(j))
-          enddo
-        enddo
+          end do
+        end do
         call plag2d_bdf(rm,zm,fp,hrm1,hzm1,xp,yp,bzm(ir,iz))
-!
-      enddo
-    enddo
+
+      end do
+    end do
     Br(:,ip,:)=brm
     Bp(:,ip,:)=bpm
     Bz(:,ip,:)=bzm
-  enddo
-!
-! End of data truncation
-!
+  end do
+  ! End of data truncation
+
   allocate(ipoint(nr,nz))
   icp=nr*nz
   allocate(aznre(6,6,icp,ntor),aznim(6,6,icp,ntor))
   allocate(arnre(6,6,icp,ntor),arnim(6,6,icp,ntor))
   allocate(apav(6,6,icp),rbpav_coef(6,6,icp))
-!
+
   do n=1,ntor
     do ip=1,np
       expon(ip,n)=exp(cmplx(0.d0,-n*(ip-1)*hp, kind=kind(1.0d0)))/np
-    enddo
-  enddo
-!
+    end do
+  end do
+
   do n=1,ntor
     do ir=1,nr
       r=rmin+hr*(ir-1)
@@ -131,8 +127,8 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
         four_ampl=sum(br(ir,1:np,iz)*expon(:,n))*cmplx(0.d0,-r/(n*pfac), kind=kind(1.0d0))
         a_re(ir,iz)=dble(four_ampl)
         a_im(ir,iz)=aimag(four_ampl)
-      enddo
-    enddo
+      end do
+    end do
     call s2dcut(nr,nz,hr,hz,a_re,imi,ima,jmi,jma,icp,aznre(:,:,:,n),ipoint)
     call s2dcut(nr,nz,hr,hz,a_im,imi,ima,jmi,jma,icp,aznim(:,:,:,n),ipoint)
     do ir=1,nr
@@ -141,17 +137,17 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
         four_ampl=sum(bz(ir,1:np,iz)*expon(:,n))*cmplx(0.d0,r/(n*pfac), kind=kind(1.0d0))
         a_re(ir,iz)=dble(four_ampl)
         a_im(ir,iz)=aimag(four_ampl)
-      enddo
-    enddo
+      end do
+    end do
     call s2dcut(nr,nz,hr,hz,a_re,imi,ima,jmi,jma,icp,arnre(:,:,:,n),ipoint)
     call s2dcut(nr,nz,hr,hz,a_im,imi,ima,jmi,jma,icp,arnim(:,:,:,n),ipoint)
-  enddo
-!
+  end do
+
   do iz=1,nz
      do ir=1,nr
         r=rmin+hr*(ir-1)
         dummy(ir) = sum(bz(ir,1:np,iz))*hr*r/np
-     enddo
+     end do
      a_re(nashli_rukami,iz) = 0.
      sumbz=0.d0
      do ir=nashli_rukami+1,nr
@@ -159,29 +155,29 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
         irmin = irmax - 3
         sumbz = sumbz + sum(dummy(irmin:irmax)*weight)
         a_re(ir,iz)=sumbz
-     enddo
+     end do
      sumbz=0.d0
      do ir=nashli_rukami-1,1,-1
         irmin = max(ir-1,1)
         irmax = irmin + 3
         sumbz = sumbz - sum(dummy(irmin:irmax)*weight)
         a_re(ir,iz)=sumbz
-     enddo
-  enddo
-!
+     end do
+  end do
+
   call s2dcut(nr,nz,hr,hz,a_re,imi,ima,jmi,jma,icp,apav,ipoint)
-!
+
   do iz=1,nz
      do ir=1,nr
         r=rmin+hr*(ir-1)
         rbpav_dummy(ir,iz) = r*sum(bp(ir,1:np,iz))/np
-     enddo
-  enddo
-!
+     end do
+  end do
+
   call s2dcut(nr,nz,hr,hz,rbpav_dummy,imi,ima,jmi,jma,icp,rbpav_coef,ipoint)
-!
+
   deallocate(expon,a_re,a_im,rbpav_dummy,imi,ima,jmi,jma,dummy,brm,bpm,bzm)
-!
+
 102 format(1000e15.7)
 end subroutine vector_potentials
 
@@ -190,9 +186,9 @@ subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
 
   use bdivfree_mod, only : nr,nz,icp,ipoint,hr,hz,&
   rpoi,zpoi,aznre,aznim,arnre,arnim
-!
+
   implicit none
-!
+
   integer, intent(in) :: n
   double precision, intent(in) :: r, z
   complex(8), intent(out) :: anr,anz,anr_r,anr_z,anz_r,anz_z
@@ -222,14 +218,14 @@ subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
   anz_rr=cmplx(frr,grr, kind=kind(1.0d0))
   anz_rz=cmplx(frz,grz, kind=kind(1.0d0))
   anz_zz=cmplx(fzz,gzz, kind=kind(1.0d0))
-!
+
 end subroutine spline_vector_potential_n
 
-! call spline_bpol_n(n_tor_out)
+
 subroutine spline_bpol_n(n, r, z, B_Rn, B_Zn)
-!
+
   implicit none
-!
+
   integer, intent(in) :: n
   double precision, intent(in) :: r, z
   complex(8), intent(out) :: B_Rn, B_Zn
@@ -243,7 +239,7 @@ subroutine spline_bpol_n(n, r, z, B_Rn, B_Zn)
   B_Zn = -(0.d0,1.d0)*dble(n)*anr/r
 end subroutine spline_bpol_n
 
-! call spline_bn(n_tor_out)
+
 subroutine spline_bn(n, r, z, Bn_R, Bn_phi, Bn_Z)
 
   implicit none
@@ -262,15 +258,14 @@ subroutine spline_bn(n, r, z, Bn_R, Bn_phi, Bn_Z)
   Bn_Z = -(0.d0,1.d0) * dble(n) * anr / r
 end subroutine spline_bn
 
-!
+
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
-!
+
   use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,hr,hz,pfac,&
   rpoi,zpoi,apav,rbpav_coef
-!
+
   implicit none
 
   double precision, intent(in) :: r, phi, z
@@ -285,18 +280,18 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
   double precision :: deldBzdR,deldBzdp,deldBzdZ
   complex(8) :: expon,anr,anz,anr_r,anr_z,anz_r,anz_z
   complex(8) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
-!
-!
+
+
   call spline(nr,nz,rpoi,zpoi,hr,hz,icp,rbpav_coef,ipoint,r,z,         &
               f,fr,fz,frr,frz,fzz,ierr)
   Bp = f/r
   dBpdR = fr/r - Bp/r
   dBpdZ = fz/r
   dBpdp = 0.d0
-!
+
   call spline(nr,nz,rpoi,zpoi,hr,hz,icp,apav,ipoint,r,z,         &
               f,fr,fz,frr,frz,fzz,ierr)
-!
+
   Br=-fz/r
   Bz=fr/r
   dBrdR=fz/r**2-frz/r
@@ -305,7 +300,7 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
   dBzdZ=frz/r
   dBrdp=0.d0
   dBzdp=0.d0
-!
+
   do n=1,ntor
     call spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
       anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
@@ -323,71 +318,41 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
     deldBpdR=2.d0*dble((anr_rz-anz_rr)*expon)
     deldBpdZ=2.d0*dble((anr_zz-anz_rz)*expon)
     deldBpdp=2.d0*dble(cmplx(0.d0,pfac, kind=kind(1.0d0))*n*(anr_z-anz_r)*expon)
-!
-!    if(incore.eq.-1.or.n.gt.ntor_amn) then
-      br=br+delbr
-      bz=bz+delbz
-      bp=bp+delbp
-      dBrdR=dBrdR+deldBrdR
-      dBrdZ=dBrdZ+deldBrdZ
-      dBrdp=dBrdp+deldBrdp
-      dBzdR=dBzdR+deldBzdR
-      dBzdZ=dBzdZ+deldBzdZ
-      dBzdp=dBzdp+deldBzdp
-      dBpdR=dBpdR+deldBpdR
-      dBpdZ=dBpdZ+deldBpdZ
-      dBpdp=dBpdp+deldBpdp
-!    elseif(incore.eq.0) then
-!!
-!      ar=2.d0*dble(anr*expon)
-!      az=2.d0*dble(anz*expon)
-!      dar_dr=2.d0*dble(anr_r*expon)
-!      dar_dz=2.d0*dble(anr_z*expon)
-!      dar_dp=-delbz*r
-!      daz_dr=2.d0*dble(anz_r*expon)
-!      daz_dz=2.d0*dble(anz_z*expon)
-!      daz_dp=delbr*r
-!!
-!      br=br+delbr*vacf
-!      bz=bz+delbz*vacf
-!      bp=bp+delbp*vacf+ar*dvacdz-az*dvacdr
-!      dBrdR=dBrdR+deldBrdR*vacf+delbr*dvacdr
-!      dBrdZ=dBrdZ+deldBrdZ*vacf+delbr*dvacdz
-!      dBrdp=dBrdp+deldBrdp*vacf
-!      dBzdR=dBzdR+deldBzdR*vacf+delbz*dvacdr
-!      dBzdZ=dBzdZ+deldBzdZ*vacf+delbz*dvacdz
-!      dBzdp=dBzdp+deldBzdp*vacf
-!      dBpdR=dBpdR+deldBpdR*vacf+delbp*dvacdr &
-!           +dar_dr*dvacdz-daz_dr*dvacdr+ar*d2vacdrdz-az*d2vacdr2
-!      dBpdZ=dBpdZ+deldBpdZ*vacf+delbp*dvacdz &
-!           +dar_dz*dvacdz-daz_dz*dvacdr+ar*d2vacdz2-az*d2vacdrdz-az
-!      dBpdp=dBpdp+deldBpdp*vacf              &
-!           +dar_dp*dvacdz-daz_dp*dvacdr
-!    endif
-!
-  enddo
-!
-  return
+
+    br=br+delbr
+    bz=bz+delbz
+    bp=bp+delbp
+    dBrdR=dBrdR+deldBrdR
+    dBrdZ=dBrdZ+deldBrdZ
+    dBrdp=dBrdp+deldBrdp
+    dBzdR=dBzdR+deldBzdR
+    dBzdZ=dBzdZ+deldBzdZ
+    dBzdp=dBzdp+deldBzdp
+    dBpdR=dBpdR+deldBpdR
+    dBpdZ=dBpdZ+deldBpdZ
+    dBpdp=dBpdp+deldBpdp
+
+  end do
+
 end subroutine field_divfree
-!
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine indef_bdf(u,umin,dum1,nup,indu)
-! defines interval for 1D interpolation on uniform mesh, normally
-! looks for the central interval of stencil, but
-! stops moving of stencil at the boundary (works for mp=4 only!)
-! Input:
-!    u - coordinate of a point (to be interpolated)
-!    umin - minimal value of u
-!    dum1 = 1./h reciprocal to length of mesh interval
-!    nup - total number of mesh points
-! Output:
-!    indu(mp) - relative index of stencil points
-!
-! the power 3 of polinomial is fixed strictly:
-!
+  ! defines interval for 1D interpolation on uniform mesh, normally
+  ! looks for the central interval of stencil, but
+  ! stops moving of stencil at the boundary (works for mp=4 only!)
+  ! Input:
+  !    u - coordinate of a point (to be interpolated)
+  !    umin - minimal value of u
+  !    dum1 = 1./h reciprocal to length of mesh interval
+  !    nup - total number of mesh points
+  ! Output:
+  !    indu(mp) - relative index of stencil points
+  !
+
   implicit double precision (a-h,o-z)
-!
+
+  ! the power 3 of polinomial is fixed strictly:
   parameter(mp=4)
   integer indu(mp)
 
@@ -397,28 +362,28 @@ subroutine indef_bdf(u,umin,dum1,nup,indu)
   if( indu(mp) .gt. nup ) then
     indu(mp) = nup
     indu(1) = indu(mp) - mp + 1
-  endif
+  end if
   do i=2,mp-1
     indu(i) = indu(i-1) + 1
-  enddo
+  end do
 
-  return
 end subroutine indef_bdf
+
 !---------------------------------------------------------------------
 subroutine indsmp_bdf(index_,nup,indu)
-! defines interval for 1D interpolation on uniform mesh
-! by known index.
-! Normally looks for the central interval of stencil, but
-! stops moving of stencil at the boundary (works for mp=4 only!)
-! Input:
-!    index - number of a cell on the mesh
-!    nup - total number of mesh points
-! Output:
-!    indu(mp) - relative index of stencil points
+  ! defines interval for 1D interpolation on uniform mesh
+  ! by known index.
+  ! Normally looks for the central interval of stencil, but
+  ! stops moving of stencil at the boundary (works for mp=4 only!)
+  ! Input:
+  !    index - number of a cell on the mesh
+  !    nup - total number of mesh points
+  ! Output:
+  !    indu(mp) - relative index of stencil points
 
-! the power 3 of polinomial is fixed strictly:
   implicit none
 
+  ! the power 3 of polinomial is fixed strictly:
   integer, parameter :: mp=4
 
   integer, intent(in) :: index_, nup
@@ -432,44 +397,45 @@ subroutine indsmp_bdf(index_,nup,indu)
   if( indu(mp) .gt. nup ) then
     indu(mp) = nup
     indu(1) = indu(mp) - mp + 1
-  endif
+  end if
   do i=2,mp-1
     indu(i) = indu(i-1) + 1
-  enddo
+  end do
 
-  return
 end subroutine indsmp_bdf
+
 !---------------------------------------------------------------------
 subroutine plag2d_bdf(x,y,fp,dxm1,dym1,xp,yp,polyl2d)
-!
+  ! 2D interpolation by means of Lagrange polynomial
+  ! uniform mesh (increasingly ordered) in all dimensions is implied
+  !
+  ! Input parameters:
+  !   x,y - coordinates of the point for interpolation
+  !   dxm1,dym1 - inverse steps in each direction
+  !   xp,yp - vertices of stencil
+  !
+  ! Output parameters:
+  ! polyl2d - polynomial itself
+
   implicit double precision (a-h,o-z)
-!
-! 2D interpolation by means of Lagrange polynomial
-! the power 3 is fixed strictly:
+
+  ! the power 3 is fixed strictly:
   parameter(mp=4)
-! uniform mesh (increasingly ordered) in all dimensions is implied
-!
-! Input parameters:
-!   x,y - coordinates of the point for interpolation
-!   dxm1,dym1 - inverse steps in each direction
-!   xp,yp - vertices of stencil
-!
-! Output parameters:
-! polyl2d - polynomial itself
+
   dimension cx(mp),cy(mp),fp(mp,mp),xp(mp),yp(mp)
-!
+
   call coefs_bdf(x,xp,dxm1,cx)
   call coefs_bdf(y,yp,dym1,cy)
-!
+
   polyl2d = 0.d0
   do j=1,mp
     do i=1,mp
       polyl2d = polyl2d + fp(i,j)*cx(i)*cy(j)
-    enddo
-  enddo
-!
-  return
+    end do
+  end do
+
 end subroutine plag2d_bdf
+
 !---------------------------------------------------------------------
 subroutine coefs_bdf(u,up,dum1,cu)
 
@@ -483,17 +449,16 @@ subroutine coefs_bdf(u,up,dum1,cu)
   cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * (0.5d0*du3)
   cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * (-0.5d0*du3)
   cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * (one6*du3)
-  return
+
 end subroutine coefs_bdf
+
 !---------------------------------------------------------------------
-!
 subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
-!
-! Inverts the monotonous function y(x) given on the equidistant grid
-! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
-! The result, function x(y), is given on the equidistant grid of y values
-! at the interval [ymin,ymax] by the array x_i=arrx(i).
-!
+  ! Inverts the monotonous function y(x) given on the equidistant grid
+  ! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
+  ! The result, function x(y), is given on the equidistant grid of y values
+  ! at the interval [ymin,ymax] by the array x_i=arrx(i).
+
   implicit none
 
   integer, intent(in) :: nx, ny
@@ -507,24 +472,24 @@ subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
   double precision :: hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
 
   ixfix = -10
-!
+
   ymin=arry(0)
   ymax=arry(nx)
-!
+
   hy=(ymax-ymin)/ny
   hx=(xmax-xmin)/nx
-!
+
   arrx(0)=xmin
   arrx(ny)=xmax
-!
+
   do iy=1,ny-1
     y=ymin+iy*hy
     do ix=0,nx
       if(arry(ix).gt.y) then
         ixfix=ix-3
         exit
-      endif
-    enddo
+      end if
+    end do
     ixfix=max(ixfix,-1)
     ixfix=min(ixfix,nx-4)
     ix1=ixfix+1
@@ -543,21 +508,18 @@ subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
              + x2*(y-y3)/(y2-y3)*(y-y4)/(y2-y4)*(y-y1)/(y2-y1)    &
              + x3*(y-y4)/(y3-y4)*(y-y1)/(y3-y1)*(y-y2)/(y3-y2)    &
              + x4*(y-y1)/(y4-y1)*(y-y2)/(y4-y2)*(y-y3)/(y4-y3)
-  enddo
-!
-  return
+  end do
+
 end subroutine invert_mono_reg
-!
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
-!
-! Inverts the monotonous function y(x) given on the equidistant grid
-! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
-! Special case: y(x) is a sum of linear and periodic functions.
-! The result, function x(y), is given on the equdistant grid of y values
-! at the interval [ymin,ymax] by the array x_i=arrx(i).
-!
+  ! Inverts the monotonous function y(x) given on the equidistant grid
+  ! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
+  ! Special case: y(x) is a sum of linear and periodic functions.
+  ! The result, function x(y), is given on the equdistant grid of y values
+  ! at the interval [ymin,ymax] by the array x_i=arrx(i).
+
   implicit none
 
   integer, intent(in) :: nx, ny
@@ -567,36 +529,35 @@ subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
   double precision, dimension(0:ny), intent(out) :: arrx
 
   integer :: iy,ix,ixfix,ix1,ix2,ix3,ix4
-!
+
   double precision :: hy,y,hx,x1,x2,x3,x4,y1,y2,y3,y4
   double precision, dimension(:), allocatable :: arry
 
   ixfix = -10
-!
+
   allocate(arry(-1:nx+1))
   arry(0:nx)=arry_in
-!
+
   ymin=arry(0)
   ymax=arry(nx)
   arry(-1)=arry(nx-1)-ymax+ymin
   arry(nx+1)=arry(1)+ymax-ymin
-!
+
   hy=(ymax-ymin)/ny
   hx=(xmax-xmin)/nx
-!
+
   arrx(0)=xmin
   arrx(ny)=xmax
-!
+
   do iy=1,ny-1
     y=ymin+iy*hy
     do ix=0,nx
       if(arry(ix).gt.y) then
         ixfix=ix-3
         exit
-      endif
-    enddo
-!    ixfix=max(ixfix,-1)
-!    ixfix=min(ixfix,nx-4)
+      end if
+    end do
+
     ix1=ixfix+1
     ix2=ixfix+2
     ix3=ixfix+3
@@ -613,17 +574,15 @@ subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
              + x2*(y-y3)/(y2-y3)*(y-y4)/(y2-y4)*(y-y1)/(y2-y1)    &
              + x3*(y-y4)/(y3-y4)*(y-y1)/(y3-y1)*(y-y2)/(y3-y2)    &
              + x4*(y-y1)/(y4-y1)*(y-y2)/(y4-y2)*(y-y3)/(y4-y3)
-  enddo
-!
-  return
+  end do
+
 end subroutine invert_mono_per
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
-!
-! Periodic spline of the 5-th order. First and last values of function must
-! be the same.
-!
+  ! Periodic spline of the 5-th order. First and last values of function must
+  ! be the same.
+
   implicit none
 
   integer, intent(in) :: n
@@ -636,21 +595,21 @@ subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
   double precision :: c_gammao_m,c_gammao_p
 
   double precision, dimension(:), allocatable :: alp,bet,gam
-!
+
   rhop=13.d0+sqrt(105.d0)
   rhom=13.d0-sqrt(105.d0)
-!
+
   allocate(alp(n),bet(n),gam(n))
-!
+
   alp(1)=0.0d0
   bet(1)=0.0d0
-!
+
   do i=1,n-4
     ip1=i+1
     alp(ip1)=-1.d0/(rhop+alp(i))
     bet(ip1)=alp(ip1)*(bet(i)- &
              5.d0*(a(i+4)-4.d0*a(i+3)+6.d0*a(i+2)-4.d0*a(ip1)+a(i)))
-  enddo
+  end do
   alp(n-2)=-1.d0/(rhop+alp(n-3))
   bet(n-2)=alp(n-2)*(bet(n-3)- &
            5.d0*(a(2)-4.d0*a(1)+6.d0*a(n-1)-4.d0*a(n-2)+a(n-3)))
@@ -660,12 +619,12 @@ subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
   alp(n)=-1.d0/(rhop+alp(n-1))
   bet(n)=alp(n)*(bet(n-1)- &
            5.d0*(a(4)-4.d0*a(3)+6.d0*a(2)-4.d0*a(1)+a(n-1)))
-!
+
   gam(n)=bet(n)
   do i=n-1,1,-1
     gam(i)=gam(i+1)*alp(i)+bet(i)
-  enddo
-!
+  end do
+
   xplu=sqrt(0.25d0*rhop**2-1.d0)-0.5d0*rhop
   xmin=-sqrt(0.25d0*rhop**2-1.d0)-0.5d0*rhop
   gammao_m=(gam(2)+xplu*gam(n))/(xmin-xplu)
@@ -674,41 +633,41 @@ subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
     c_gammao_m=gammao_m/(xmin**(n-1)-1.d0)
   else
     c_gammao_m=gammao_m*(1.d0/xmin)**(n-1)/(1.d0-(1.d0/xmin)**(n-1))
-  endif
+  end if
   if(abs(xplu).lt.1) then
     c_gammao_p=gammao_p/(xplu**(n-1)-1.d0)
   else
     c_gammao_p=gammao_p*(1.d0/xplu)**(n-1)/(1.d0-(1.d0/xplu)**(n-1))
-  endif
+  end if
   gam(1)=gam(1)+c_gammao_m+c_gammao_p
   do i=2,n
     if(abs(xmin).lt.1) then
       c_gammao_m=gammao_m*xmin**(i-1)/(xmin**(n-1)-1.d0)
     else
       c_gammao_m=gammao_m*(1.d0/xmin)**(n-i)/(1.d0-(1.d0/xmin)**(n-1))
-    endif
+    end if
     if(abs(xplu).lt.1) then
       c_gammao_p=gammao_p*xplu**(i-1)/(xplu**(n-1)-1.d0)
     else
       c_gammao_p=gammao_p*(1.d0/xplu)**(n-i)/(1.d0-(1.d0/xplu)**(n-1))
-    endif
+    end if
     gam(i)=gam(i)+c_gammao_m+c_gammao_p
-  enddo
-!
+  end do
+
   alp(1)=0.0d0
   bet(1)=0.d0
-!
+
   do i=1,n-1
     ip1=i+1
     alp(ip1)=-1.d0/(rhom+alp(i))
     bet(ip1)=alp(ip1)*(bet(i)-gam(i))
-  enddo
-!
+  end do
+
   e(n)=bet(n)
   do i=n-1,1,-1
     e(i)=e(i+1)*alp(i)+bet(i)
-  enddo
-!
+  end do
+
   xplu=sqrt(0.25d0*rhom**2-1.d0)-0.5d0*rhom
   xmin=-sqrt(0.25d0*rhom**2-1.d0)-0.5d0*rhom
   gammao_m=(e(2)+xplu*e(n))/(xmin-xplu)
@@ -717,32 +676,32 @@ subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
     c_gammao_m=gammao_m/(xmin**(n-1)-1.d0)
   else
     c_gammao_m=gammao_m*(1.d0/xmin)**(n-1)/(1.d0-(1.d0/xmin)**(n-1))
-  endif
+  end if
   if(abs(xplu).lt.1) then
     c_gammao_p=gammao_p/(xplu**(n-1)-1.d0)
   else
     c_gammao_p=gammao_p*(1.d0/xplu)**(n-1)/(1.d0-(1.d0/xplu)**(n-1))
-  endif
+  end if
   e(1)=e(1)+c_gammao_m+c_gammao_p
   do i=2,n
     if(abs(xmin).lt.1) then
       c_gammao_m=gammao_m*xmin**(i-1)/(xmin**(n-1)-1.d0)
     else
       c_gammao_m=gammao_m*(1.d0/xmin)**(n-i)/(1.d0-(1.d0/xmin)**(n-1))
-    endif
+    end if
     if(abs(xplu).lt.1) then
       c_gammao_p=gammao_p*xplu**(i-1)/(xplu**(n-1)-1.d0)
     else
       c_gammao_p=gammao_p*(1.d0/xplu)**(n-i)/(1.d0-(1.d0/xplu)**(n-1))
-    endif
+    end if
     e(i)=e(i)+c_gammao_m+c_gammao_p
-  enddo
-!
+  end do
+
   do i=n-1,1,-1
     f(i)=(e(i+1)-e(i))/5.d0
-  enddo
+  end do
   f(n)=f(1)
-!
+
   d(n-1)=(a(3)-3.d0*a(2)+3.d0*a(1)-a(n-1))/6.d0 &
       -(e(3)+27.d0*e(2)+93.d0*e(1)+59.d0*e(n-1))/30.d0
   d(n-2)=(a(2)-3.d0*a(1)+3.d0*a(n-1)-a(n-2))/6.d0 &
@@ -750,20 +709,20 @@ subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
   do i=n-3,1,-1
     d(i)=(a(i+3)-3.d0*a(i+2)+3.d0*a(i+1)-a(i))/6.d0 &
         -(e(i+3)+27.d0*e(i+2)+93.d0*e(i+1)+59.d0*e(i))/30.d0
-  enddo
+  end do
   d(n)=d(1)
   c(n-1)=0.5d0*(a(2)+a(n-1))-a(1)-0.5d0*d(1)-2.5d0*d(n-1) &
       -0.1d0*(e(2)+18.d0*e(1)+31.d0*e(n-1))
   b(n-1)=a(1)-a(n-1)-c(n-1)-d(n-1)-0.2d0*(4.d0*e(n-1)+e(1))
-!
+
   do i=n-2,1,-1
     c(i)=0.5d0*(a(i+2)+a(i))-a(i+1)-0.5d0*d(i+1)-2.5d0*d(i) &
         -0.1d0*(e(i+2)+18.d0*e(i+1)+31.d0*e(i))
     b(i)=a(i+1)-a(i)-c(i)-d(i)-0.2d0*(4.d0*e(i)+e(i+1))
-  enddo
+  end do
   b(n)=b(1)
   c(n)=c(1)
-!
+
   fac=1.d0/h
   b=b*fac
   fac=fac/h
@@ -774,71 +733,68 @@ subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
   e=e*fac
   fac=fac/h
   f=f*fac
-!
+
   deallocate(alp,bet,gam)
-!
-  return
+
 end subroutine spl_five_per_bdivfree
-!
+
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
-!
-! Calculates coefficients of a 2D spline for a ring domain
-! (periodic over y variable)
-! equidistant mesh, but hx must not be = hy
-!
-!  Input parameters:
-!                    nx           - horizontal size of the mesh (over x)
-!                    ny           - vertical size of the mesh (over y)
-!                    hx           - step of the mesh over x
-!                    hy           - step of the mesh over y
-!                    f(i,j)       - array of values to be interpolated
-!                                   (i = 1, ..., nx; j = 1, ..., ny).
-!
-!                                   For the case of non-rectangular domain:
-!                                   numbers of the mesh points which
-!                                   correspond to the boundaries of the
-!                                   interpolation region:
-!                    icount       - maximum number of entries in spl
-! Output parameters:
-!                    spl(l,m,k)   - spline coefficients (i,j = 1, ... , n;
-!                    ipoint(i,j)    l,m = 1, ..., 4; i,j - numbers of the
-!                                   mesh point in horizontal and vertical
-!                                   direction (over x and over y), l,m -
-!                                   the numbers of expansion power over x
-!                                   and y (~ dx**(l-1)*dy**(m-1) ))
-!                                   ipoint(i,j) contains the pointer to k
-!
+  ! Calculates coefficients of a 2D spline for a ring domain
+  ! (periodic over y variable)
+  ! equidistant mesh, but hx must not be = hy
+  !
+  !  Input parameters:
+  !                    nx           - horizontal size of the mesh (over x)
+  !                    ny           - vertical size of the mesh (over y)
+  !                    hx           - step of the mesh over x
+  !                    hy           - step of the mesh over y
+  !                    f(i,j)       - array of values to be interpolated
+  !                                   (i = 1, ..., nx; j = 1, ..., ny).
+  !
+  !                                   For the case of non-rectangular domain:
+  !                                   numbers of the mesh points which
+  !                                   correspond to the boundaries of the
+  !                                   interpolation region:
+  !                    icount       - maximum number of entries in spl
+  ! Output parameters:
+  !                    spl(l,m,k)   - spline coefficients (i,j = 1, ... , n;
+  !                    ipoint(i,j)    l,m = 1, ..., 4; i,j - numbers of the
+  !                                   mesh point in horizontal and vertical
+  !                                   direction (over x and over y), l,m -
+  !                                   the numbers of expansion power over x
+  !                                   and y (~ dx**(l-1)*dy**(m-1) ))
+  !                                   ipoint(i,j) contains the pointer to k
+
   implicit double precision (a-h,o-z)
-!
+
   dimension f(nx,ny),spl(6,6,icount),ipoint(nx,ny)
-!
+
   integer,          dimension(:), allocatable :: imi,ima,jmi,jma
   double precision, dimension(:), allocatable :: ai,bi,ci,di,ei,fi
-!
+
   nmax=max(nx,ny)
-!
+
   allocate( ai(nmax),bi(nmax),ci(nmax),di(nmax),ei(nmax),fi(nmax) )
   allocate(imi(ny),ima(ny),jmi(nx),jma(nx))
-!
+
   imi=1
   ima=nx
   jmi=1
   jma=ny
-!
+
   spl=0.d0
   ipoint=-1
-!
-!  spline along Y-axis
-!
+
+  !  spline along Y-axis
+
   ic = 0
   do i=1,nx
     if(jmi(i).gt.0) then
       nsi=jma(i)-jmi(i)+1
       do j=jmi(i),jma(i)
         ai(j-jmi(i)+1)=f(i,j)
-      enddo
+      end do
       call spl_five_per_bdivfree(nsi,hy,ai,bi,ci,di,ei,fi)
       do j=jmi(i),jma(i)
         jj=j-jmi(i)+1
@@ -850,23 +806,23 @@ subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
         spl(1,4,ic)=di(jj)
         spl(1,5,ic)=ei(jj)
         spl(1,6,ic)=fi(jj)
-      enddo
-    endif
-  enddo
-!
+      end do
+    end if
+  end do
+
   if (ic .ne. icount) then
     write (6,*) 'Warning, ic, icount:  ',ic,icount
   endif
-!
-!  spline along X-axis
-!
+
+  !  spline along X-axis
+
   do j=1,ny
     if(imi(j).gt.0) then
       nsi=ima(j)-imi(j)+1
       do l=1,6
         do i=imi(j),ima(j)
           ai(i-imi(j)+1)=spl(1,l,ipoint(i,j))
-        enddo
+        end do
         call spl_five_reg(nsi,hx,ai,bi,ci,di,ei,fi)
         do i=imi(j),ima(j)
           ii=i-imi(j)+1
@@ -875,35 +831,33 @@ subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
           spl(4,l,ipoint(i,j))=di(ii)
           spl(5,l,ipoint(i,j))=ei(ii)
           spl(6,l,ipoint(i,j))=fi(ii)
-        enddo
-      enddo
-    endif
-  enddo
-!
+        end do
+      end do
+    end if
+  end do
+
   deallocate( ai,bi,ci,di,ei,fi )
-!
-  return
+
 end subroutine s2dring
-!
+
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine load_theta
-!
+
   use theta_rz_mod, only : nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,htheqt,&
     psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,sqpsi,flab,theqt
   use input_files, only : iunit,fluxdatapath
-!
+
   implicit none
-!
+
   double precision, parameter :: pi=3.14159265358979d0
-!
+
   integer :: nsqpsi,nlabel,ntheta,i
   real(kind=8) :: sqpsimin,sqpsimax
   real(kind=8) :: flabel_min,flabel_max
-!
+
   real(kind=8), dimension(:),   allocatable :: flabel
   real(kind=8), dimension(:,:), allocatable :: theta_of_theta_qt
-!
+
   open(iunit,form='unformatted',                                 &
        file=trim(fluxdatapath)//'/theta_of_theta_qt_flabel.dat')
   read (iunit) nsqpsi,nlabel,ntheta,sqpsimin,sqpsimax,flabel_min,flabel_max &
@@ -912,57 +866,55 @@ subroutine load_theta
   read (iunit) theta_of_theta_qt
   read (iunit) flabel
   close(iunit)
-!
+
   nsqp=nsqpsi
   nlab=nlabel
   nthe=ntheta+1
-!
+
   hsqpsi=(sqpsimax-sqpsimin)/(nsqp-1)
   hlabel=(flabel_max-flabel_min)/(nlab-1)
   htheqt=2.d0*pi/ntheta
-!
+
   allocate(sqpsi(nsqp),flab(nlab),theqt(nthe))
-!
+
   do i=1,nsqp
     sqpsi(i)=sqpsimin+hsqpsi*(i-1)
-  enddo
-!
+  end do
+
   do i=1,nlab
     flab(i)=flabel_min+hlabel*(i-1)
-  enddo
-!
+  end do
+
   do i=1,nthe
     theqt(i)=htheqt*(i-1)
-  enddo
-!
+  end do
+
   icp_pt=nthe*nlab
   allocate( splthet(6,6,icp_pt), ipoint_pt(nlab,nthe) )
-!
+
   call s2dring(nlab,nthe,hlabel,htheqt,theta_of_theta_qt(:,0:ntheta), &
                icp_pt,splthet,ipoint_pt)
-!
+
   allocate(spllabel(6,nsqpsi))
   spllabel(1,:)=flabel(1:nsqpsi)
   call spl_five_reg(nsqpsi,hsqpsi,spllabel(1,:),spllabel(2,:),spllabel(3,:) &
                    ,              spllabel(4,:),spllabel(5,:),spllabel(6,:))
-!
-  return
+
 end subroutine load_theta
-!
+
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine psithet_rz(rrr,zzz,                                          &
                         theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                         flabel,s_r,s_z,s_rr,s_rz,s_zz,s0,ds0ds,dds0ds)
-!
+
   use theta_rz_mod, only : icall, nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,&
     htheqt,psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,flab,theqt
   use field_eq_mod, only : nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint  &
                          , psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use extract_fluxcoord_mod, only : psif_extract,theta_extract
-!
+
   implicit none
-!
+
   real(kind=8), parameter :: pi=3.14159265358979d0
 
   real(kind=8), intent(in) :: rrr, zzz
@@ -982,12 +934,12 @@ subroutine psithet_rz(rrr,zzz,                                          &
     icall=1
     call load_theta
   endif
-!
+
   call spline(nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint,rrr,zzz, &
               psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierr)
-!
+
   sqpsi_qt=sqrt(abs(psif-psiaxis))
-!
+
   k=min(int(sqpsi_qt/hsqpsi),nsqp)
   dx=sqpsi_qt-hsqpsi*k
   flabel=spllabel(1,k)+dx*(spllabel(2,k)+dx*(spllabel(3,k)           &
@@ -997,8 +949,7 @@ subroutine psithet_rz(rrr,zzz,                                          &
           +dx*5.d0*spllabel(6,k))))
   ddflabel=2.d0*spllabel(3,k)+dx*(6.d0*spllabel(4,k)                 &
            +dx*(12.d0*spllabel(5,k)+dx*20.d0*spllabel(6,k)))
-!
-!  dfl_dpsi=0.5d0*dflabel/sqpsi_qt
+
   dfl_dpsi=sign(0.5d0,psif-psiaxis)*dflabel/sqpsi_qt
   ddfl_dpsi=0.25d0*(ddflabel-dflabel/sqpsi_qt)/abs(psif-psiaxis)
   s_r=dpsidr*dfl_dpsi
@@ -1006,11 +957,11 @@ subroutine psithet_rz(rrr,zzz,                                          &
   s_rr=d2psidr2*dfl_dpsi+dpsidr**2*ddfl_dpsi
   s_rz=d2psidrdz*dfl_dpsi+dpsidr*dpsidz*ddfl_dpsi
   s_zz=d2psidz2*dfl_dpsi+dpsidz**2*ddfl_dpsi
-!
+
   s0=sqpsi_qt
   ds0ds=1.d0/dflabel
   dds0ds=-ds0ds**3*ddflabel
-!
+
   dr=rrr-raxis
   dz=zzz-zaxis
   rho2=dr**2+dz**2
@@ -1021,11 +972,11 @@ subroutine psithet_rz(rrr,zzz,                                          &
   t_rr=2.d0*sigma_qt*dr*dz/rho4
   t_zz=-t_rr
   t_rz=sigma_qt*(dz**2-dr**2)/rho4
-!
+
   call spline(nlab,nthe,flab,theqt,hlabel,htheqt,icp_pt,splthet,ipoint_pt, &
               flabel,theta_qt,                                             &
               theta,theta_s,theta_t,theta_ss,theta_st,theta_tt,ierr)
-!
+
   theta=theta+theta_qt
   theta_r=theta_s*s_r+(theta_t+1.d0)*t_r
   theta_z=theta_s*s_z+(theta_t+1.d0)*t_z
@@ -1035,17 +986,15 @@ subroutine psithet_rz(rrr,zzz,                                          &
           +theta_s*s_rz+(theta_t+1.d0)*t_rz
   theta_zz=theta_ss*s_z**2+2.d0*theta_st*s_z*t_z+theta_tt*t_z**2 &
           +theta_s*s_zz+(theta_t+1.d0)*t_zz
-!
+
   psif_extract=psif
   theta_extract=theta
-!
-  return
+
 end subroutine psithet_rz
-!
+
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
-!
+
   implicit none
 
   integer, intent(in) :: n
@@ -1060,10 +1009,10 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
   complex(8) :: aend,bend,cend,dend,eend,fend
   complex(8) :: b1,b2,b3
   complex(8), dimension(:), allocatable :: alp,bet,gam
-!
+
   rhop=13.d0+sqrt(105.d0)
   rhom=13.d0-sqrt(105.d0)
-!
+
   a11=1.d0
   a12=1.d0/4.d0
   a13=1.d0/16.d0
@@ -1120,40 +1069,40 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
   cend=cend/det
   eend=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
   eend=eend/det
-!
+
   allocate(alp(n),bet(n),gam(n))
-!
+
   alp(1)=0.0d0
   bet(1)=ebeg*(2.d0+rhom)-5.d0*fbeg*(3.d0+1.5d0*rhom) !gamma1
-!
+
   do i=1,n-4
     ip1=i+1
     alp(ip1)=-1.d0/(rhop+alp(i))
     bet(ip1)=alp(ip1)*(bet(i)- &
              5.d0*(a(i+4)-4.d0*a(i+3)+6.d0*a(i+2)-4.d0*a(ip1)+a(i)))
-  enddo
-!
+  end do
+
   gam(n-2)=eend*(2.d0+rhom)+5.d0*fend*(3.d0+1.5d0*rhom) !gamma
   do i=n-3,1,-1
     gam(i)=gam(i+1)*alp(i)+bet(i)
-  enddo
-!
+  end do
+
   alp(1)=0.0d0
   bet(1)=ebeg-2.5d0*5.d0*fbeg !e1
-!
+
   do i=1,n-2
     ip1=i+1
     alp(ip1)=-1.d0/(rhom+alp(i))
     bet(ip1)=alp(ip1)*(bet(i)-gam(i))
-  enddo
-!
+  end do
+
   e(n)=eend+2.5d0*5.d0*fend
   e(n-1)=e(n)*alp(n-1)+bet(n-1)
   f(n-1)=(e(n)-e(n-1))/5.d0
   e(n-2)=e(n-1)*alp(n-2)+bet(n-2)
   f(n-2)=(e(n-1)-e(n-2))/5.d0
   d(n-2)=dend+1.5d0*4.d0*eend+1.5d0**2*10.d0*fend
-!
+
   do i=n-3,1,-1
     e(i)=e(i+1)*alp(i)+bet(i)
     f(i)=(e(i+1)-e(i))/5.d0
@@ -1162,16 +1111,16 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
     c(i)=0.5d0*(a(i+2)+a(i))-a(i+1)-0.5d0*d(i+1)-2.5d0*d(i) &
         -0.1d0*(e(i+2)+18.d0*e(i+1)+31.d0*e(i))
     b(i)=a(i+1)-a(i)-c(i)-d(i)-0.2d0*(4.d0*e(i)+e(i+1))
-  enddo
-!
+  end do
+
   do i=n-3,n
     b(i)=b(i-1)+2.d0*c(i-1)+3.d0*d(i-1)+4.d0*e(i-1)+5.d0*f(i-1)
     c(i)=c(i-1)+3.d0*d(i-1)+6.d0*e(i-1)+10.d0*f(i-1)
     d(i)=d(i-1)+4.d0*e(i-1)+10.d0*f(i-1)
     if(i.ne.n) f(i)= a(i+1)-a(i)-b(i)-c(i)-d(i)-e(i)
-  enddo
+  end do
   f(n)=f(n-1)
-!
+
   fac=1.d0/h
   b=b*fac
   fac=fac/h
@@ -1182,20 +1131,17 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
   e=e*fac
   fac=fac/h
   f=f*fac
-!
+
   deallocate(alp,bet,gam)
-!
-  return
+
 end subroutine cspl_five_reg
-!
+
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
-!
-! Caution: derivatives are not computed, for derivatives call
-! a driver routine "field_fourier_derivs"
-!
+  ! Caution: derivatives are not computed, for derivatives call
+  ! a driver routine "field_fourier_derivs"
+
   use amn_mod, only : ntor_amn,mpol,ntor_ff,mpol_ff,nsqpsi,icall,&
     sqpsimin,sqpsimax,hsqpsi,splapsi,splatet,amnpsi,amntet,&
     amnpsi_s,amntet_s,amnpsi_ss,amntet_ss,expthe,expphi,&
@@ -1208,7 +1154,7 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   use field_eq_mod,  only : dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use theta_rz_mod,  only : psiaxis
   use bdivfree_mod,  only : pfac
-!
+
   implicit none
 
   double precision, intent(in) :: r, phi, z
@@ -1223,39 +1169,39 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   double precision :: athe,athe_s,athe_t,athe_p
   double precision :: delbr,delbz,delbp,delar,delaz
   double precision :: fcjac,g11_t,g12_t,s0,ds0ds,dds0ds,sqpsi_sep
-!
+
   integer, dimension(:,:), allocatable :: idummy2
-!
+
   complex(8) :: expon
   complex(8), dimension(:), allocatable :: a,b,c,d,e,f
   complex(8), dimension(:,:,:), allocatable :: apsimn,athetmn
-!
+
   integer, save :: nper
-!
-! Initialization ------------------------------------------------------------
-!
+
+  ! Initialization ------------------------------------------------------------
+
   if(icall.eq.0) then
     icall=1
-!
+
     nper=nint(pfac)
     print *,'nper = ',nper
-! Toroidally symetric part of the vacuum perturbation field - comes now
-! from the cylindrical vacuum field routine
-!
-!
-! Fourier ampitudes of the non-axisymmetric vacuum perturbation field:
-!
+    ! Toroidally symetric part of the vacuum perturbation field - comes now
+    ! from the cylindrical vacuum field routine
+
+
+    ! Fourier ampitudes of the non-axisymmetric vacuum perturbation field:
+
     open(iunit,form='unformatted',file=trim(fluxdatapath)//'/amn.dat')
     read (iunit) ntor,mpol,nsqpsi,sqpsimin,sqpsimax
     allocate(apsimn(-mpol:mpol,ntor,nsqpsi))
     allocate(athetmn(-mpol:mpol,ntor,nsqpsi))
     read (iunit) apsimn,athetmn
     close(iunit)
-!
+
     call psithet_rz(r,z,                                              &
                     theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                     sqpsi,s_r,s_z,s_rr,s_rz,s_zz,s0,ds0ds,dds0ds)
-!
+
     nsqpsi_ff=0
     open(iunit,form='unformatted',file=trim(fluxdatapath)//'/formfactors.dat')
     read (iunit,end=1) nmodes_ff,nsqpsi_ff,mpol_ff,mpol_ff,ntor_ff,ntor_ff
@@ -1265,22 +1211,20 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
       print *,'Number of harmonics in formfactors differs from original field'
       print *,'ntor = ',ntor,'ntor_ff = ',ntor_ff, &
               'mpol = ',mpol,'mpol_ff = ',mpol_ff
-    endif
+    end if
     allocate(ipoi_ff(-mpol_ff:mpol_ff,ntor_ff))
     allocate(splfft(nmodes_ff,6,nsqpsi_ff))
     read (iunit) ipoi_ff(-mpol_ff:mpol_ff,1:ntor_ff)
     read (iunit) splfft(1:nmodes_ff,1,1:nsqpsi_ff)
-!splfft(1:nmodes_ff,1,1:nsqpsi_ff)=(0.d0,0.d0)
-!ipoi_ff(1,1)=-1
-!ipoi_ff(-1,1)=-1
+
 1   close(iunit)
-!
+
     if(nsqpsi_ff.gt.0) then
-!
+
       call smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
                              splfft(1:nmodes_ff,1,1:nsqpsi_ff))
-!
-! use those formfactors which available and necessary
+
+      ! use those formfactors which available and necessary
       mpol_ff=min(mpol,mpol_ff)
       ntor_ff=min(ntor,ntor_ff)
       allocate(splffp(nmodes_ff,6,nsqpsi_ff))
@@ -1306,25 +1250,25 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
       allocate(splfft(nmodes_ff,6,nsqpsi_ff))
       splffp(:,1,:)=1.d0
       splfft(:,1,:)=splffp(:,1,:)
-    endif
-!
+    end if
+
     mpol=mpol_ff
     ntor=ntor_ff
     ntor_amn=ntor
-!
+
     allocate(splapsi(-mpol:mpol,ntor,6,nsqpsi))
     allocate(splatet(-mpol:mpol,ntor,6,nsqpsi))
-!
+
     allocate(amnpsi(-mpol:mpol,ntor),amntet(-mpol:mpol,ntor))
     allocate(amnpsi_s(-mpol:mpol,ntor),amntet_s(-mpol:mpol,ntor))
     allocate(amnpsi_ss(-mpol:mpol,ntor),amntet_ss(-mpol:mpol,ntor))
-!
+
     allocate(expthe(-mpol:mpol),expphi(ntor))
-!
+
     hsqpsi=(sqpsimax-sqpsimin)/(nsqpsi-1)
-!
+
     allocate(a(nsqpsi),b(nsqpsi),c(nsqpsi),d(nsqpsi),e(nsqpsi),f(nsqpsi))
-!
+
     do m=-mpol,mpol
       do n=1,ntor
         a=apsimn(m,n,:)
@@ -1343,25 +1287,24 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
         splatet(m,n,4,:)=d
         splatet(m,n,5,:)=e
         splatet(m,n,6,:)=f
-      enddo
-    enddo
-!
-! Formfactors:
-!
-!
+      end do
+    end do
+
+    ! Formfactors:
+
     allocate(fmnpsi(nmodes_ff))
     allocate(fmntet(nmodes_ff))
     allocate(fmnpsi_s(nmodes_ff))
     allocate(fmntet_s(nmodes_ff))
     allocate(fmnpsi_ss(nmodes_ff))
     allocate(fmntet_ss(nmodes_ff))
-!
+
     hsqpsi_ff=(sqpsimax_ff-sqpsimin_ff)/(nsqpsi_ff-1)
-!
+
     deallocate(a,b,c,d,e,f)
     allocate(a(nsqpsi_ff),b(nsqpsi_ff),c(nsqpsi_ff))
     allocate(d(nsqpsi_ff),e(nsqpsi_ff),f(nsqpsi_ff))
-!
+
     do i=1,nmodes_ff
       a=splffp(i,1,:)
       call cspl_five_reg(nsqpsi_ff,hsqpsi_ff,a,b,c,d,e,f)
@@ -1379,13 +1322,13 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
       splfft(i,4,:)=d
       splfft(i,5,:)=e
       splfft(i,6,:)=f
-    enddo
-!
-! Normalize formfactors to 1 at the separatrix:
+    end do
+
+    ! Normalize formfactors to 1 at the separatrix:
     sqpsi_sep=sqrt(abs(psi_sep-psiaxis))
     k=min(nsqpsi_ff,max(1,ceiling((sqpsi_sep-sqpsimin_ff)/hsqpsi_ff)))
     dx=sqpsi_sep-sqpsimin_ff-hsqpsi_ff*(k-1)
-!
+
     fmnpsi=splffp(:,1,k)+dx*(splffp(:,2,k)+dx*(splffp(:,3,k)        &
           +dx*(splffp(:,4,k)+dx*(splffp(:,5,k)+dx*splffp(:,6,k)))))
     fmntet=splfft(:,1,k)+dx*(splfft(:,2,k)+dx*(splfft(:,3,k)        &
@@ -1394,18 +1337,18 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
       do k=1,nsqpsi_ff
         splffp(:,i,k)=splffp(:,i,k)/fmnpsi
         splfft(:,i,k)=splfft(:,i,k)/fmntet
-      enddo
-    enddo
+      end do
+    end do
     splffp(:,1,:)=splffp(:,1,:)-1.d0
     splfft(:,1,:)=splfft(:,1,:)-1.d0
-!
-  endif
-!
-! End of initialization ------------------------------------------------------
-!
-! Toroidally symmetric part of the perturbation field - not computed, comes
-! from the vacuum routine
-!
+
+  end if
+
+  ! End of initialization ------------------------------------------------------
+
+  ! Toroidally symmetric part of the perturbation field - not computed, comes
+  ! from the vacuum routine
+
   Br=0.d0
   Bp=0.d0
   Bz=0.d0
@@ -1418,13 +1361,13 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   dBzdR=0.d0
   dBzdZ=0.d0
   dBzdp=0.d0
-!
-! Asymmetric part of the perturbation field:
-!
+
+  ! Asymmetric part of the perturbation field:
+
   call psithet_rz(r,z,                                              &
                   theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz, &
                   sqpsi,s_r,s_z,s_rr,s_rz,s_zz,s0,ds0ds,dds0ds)
-!
+
   g11=dpsidr**2+dpsidz**2
   g12=dpsidr*theta_r+dpsidz*theta_z
   g11_r=2.d0*dpsidr*d2psidr2+2.d0*dpsidz*d2psidrdz
@@ -1434,11 +1377,10 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   fcjac=dpsidr*theta_z-dpsidz*theta_r
   g11_t=(dpsidr*g11_z-dpsidz*g11_r)/fcjac
   g12_t=(dpsidr*g12_z-dpsidz*g12_r)/fcjac
-!
+
   k=min(nsqpsi,max(1,ceiling((sqpsi-sqpsimin)/hsqpsi)))
   dx=sqpsi-sqpsimin-hsqpsi*(k-1)
-!write(75,*) sqpsi,k,theta
-!
+
   amnpsi=splapsi(:,:,1,k)+dx*(splapsi(:,:,2,k)+dx*(splapsi(:,:,3,k)       &
         +dx*(splapsi(:,:,4,k)+dx*(splapsi(:,:,5,k)+dx*splapsi(:,:,6,k)))))
   amntet=splatet(:,:,1,k)+dx*(splatet(:,:,2,k)+dx*(splatet(:,:,3,k)       &
@@ -1453,12 +1395,12 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
            +dx*(12.d0*splapsi(:,:,5,k)+dx*20.d0*splapsi(:,:,6,k)))
   amntet_ss=2.d0*splatet(:,:,3,k)+dx*(6.d0*splatet(:,:,4,k)               &
            +dx*(12.d0*splatet(:,:,5,k)+dx*20.d0*splatet(:,:,6,k)))
-!
-! Formfactors:
-!
+
+  ! Formfactors:
+
   k=min(nsqpsi_ff,max(1,ceiling((s0-sqpsimin_ff)/hsqpsi_ff)))
   dx=s0-sqpsimin_ff-hsqpsi_ff*(k-1)
-!
+
   fmnpsi=splffp(:,1,k)+dx*(splffp(:,2,k)+dx*(splffp(:,3,k)        &
         +dx*(splffp(:,4,k)+dx*(splffp(:,5,k)+dx*splffp(:,6,k)))))
   fmntet=splfft(:,1,k)+dx*(splfft(:,2,k)+dx*(splfft(:,3,k)        &
@@ -1473,16 +1415,16 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
            +dx*(12.d0*splffp(:,5,k)+dx*20.d0*splffp(:,6,k)))
   fmntet_ss=2.d0*splfft(:,3,k)+dx*(6.d0*splfft(:,4,k)               &
            +dx*(12.d0*splfft(:,5,k)+dx*20.d0*splfft(:,6,k)))
-!
-! convert forfactor derivatives to derivatives over new label:
-!
+
+  ! convert forfactor derivatives to derivatives over new label:
+
   fmnpsi_ss=fmnpsi_ss*ds0ds**2+fmnpsi_s*dds0ds
   fmnpsi_s=fmnpsi_s*ds0ds
   fmntet_ss=fmntet_ss*ds0ds**2+fmntet_s*dds0ds
   fmntet_s=fmntet_s*ds0ds
-!
-! Product:
-!
+
+  ! Product:
+
   do m=-mpol_ff,mpol_ff
     do n=1,ntor_ff
       if(n*nper.gt.ntor_ff) cycle
@@ -1500,23 +1442,23 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
                       +amntet(m,n)*fmntet_s(k)
         amnpsi(m,n)   =amnpsi(m,n)*fmnpsi(k)
         amntet(m,n)   =amntet(m,n)*fmntet(k)
-      endif
-    enddo
-  enddo
-!
+      end if
+    end do
+  end do
+
   expthe(0)=(1.d0,0.d0)
   expthe(1)=exp(cmplx(0.d0,theta, kind=kind(1.0d0)))
   expthe(-1)=conjg(expthe(1))
   do m=2,mpol
     expthe(m)=expthe(m-1)*expthe(1)
     expthe(-m)=conjg(expthe(m))
-  enddo
-!  expphi(1)=exp(cmplx(0.d0,phi, kind=kind(1.0d0)))
+  end do
+
   expphi(1)=exp(cmplx(0.d0,pfac*phi, kind=kind(1.0d0)))
   do n=2,ntor_amn
     expphi(n)=expphi(n-1)*expphi(1)
-  enddo
-!
+  end do
+
   apsi=0.d0
   apsi_s=0.d0
   apsi_t=0.d0
@@ -1538,10 +1480,10 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
         athe_s=athe_s+2.d0*dble(expon*amntet_s(m,n))
         athe_t=athe_t+2.d0*dble((0.d0,1.d0)*m*expon*amntet(m,n))
         athe_p=athe_p+2.d0*dble((0.d0,1.d0)*n*expon*amntet(m,n))*pfac
-      endif
-    enddo
-  enddo
-!
+      end if
+    end do
+  end do
+
   delar=(apsi-g12*athe)/g11*dpsidr+athe*theta_r
   delaz=(apsi-g12*athe)/g11*dpsidz+athe*theta_z
   delbr=((apsi_p-g12*athe_p)/g11*dpsidz+athe_p*theta_z)/r
@@ -1549,7 +1491,7 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   delbp=fcjac*( (apsi_t-g12*athe_t-g12_t*athe)/g11  &
        -(apsi-g12*athe)*g11_t/g11**2 )              &
        +athe_s*(theta_r*s_z-theta_z*s_r)
-!
+
   if(incore.eq.1) then
     Br=Br+delbr
     Bz=Bz+delbz
@@ -1558,21 +1500,19 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
     Br=Br+delbr*plaf
     Bz=Bz+delbz*plaf
     Bp=Bp+delbp*plaf+delar*dpladz-delaz*dpladr
-  endif
-!
+  end if
+
 end subroutine field_fourier
-!
-!
+
+
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                                  ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
-!
-! Computes the field and its derivatives using central differences
-! for the field components computed by "field_fourier".
-!
+  ! Computes the field and its derivatives using central differences
+  ! for the field components computed by "field_fourier".
+
   implicit none
-!
+
   double precision, parameter :: eps=1.d-7
 
   double precision, intent(in) :: phi, r, z
@@ -1582,9 +1522,9 @@ subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
   double precision :: rrr,ppp,zzz,del                              &
                      ,rm,zm,Br0,Bp0,Bz0,dBrdR0,dBrdp0,dBrdZ0       &
                      ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0
-!
+
     del=eps*r
-!
+
     rrr=r-del
     zzz=z
     ppp=phi
@@ -1610,7 +1550,7 @@ subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
     dBrdR=0.5d0*(Br-Br0)/del
     dBpdR=0.5d0*(Bp-Bp0)/del
     dBzdR=0.5d0*(Bz-Bz0)/del
-!
+
     rrr=r
     zzz=z-del
     ppp=phi
@@ -1636,9 +1576,9 @@ subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
     dBrdZ=0.5d0*(Br-Br0)/del
     dBpdZ=0.5d0*(Bp-Bp0)/del
     dBzdZ=0.5d0*(Bz-Bz0)/del
-!
+
     del=eps
-!
+
     rrr=r
     zzz=z
     ppp=phi-del
@@ -1664,30 +1604,29 @@ subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
     dBrdp=0.5d0*(Br-Br0)/del
     dBpdp=0.5d0*(Bp-Bp0)/del
     dBzdp=0.5d0*(Bz-Bz0)/del
-!
+
     call field_eq(r,phi,z,Br0,Bp0,Bz0,dBrdR0,dBrdp0,dBrdZ0   &
                   ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0)
     call inthecore(r,z)
     call field_fourier(r,phi,z,Br,Bp,Bz,dBrdR0,dBrdp0,dBrdZ0          &
                       ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0)
-!
+
 end subroutine field_fourier_derivs
-!
+
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
 subroutine extract_fluxcoord(phinorm,theta)
-!
+
   use extract_fluxcoord_mod, only : load_extract_fluxcoord,nphinorm,&
     psif_extract,theta_extract,psifmin,hpsif,phinorm_arr
   use input_files, only : iunit,fluxdatapath
-!
+
   implicit none
 
   double precision, intent(out) :: phinorm,theta
 
   integer :: k
   double precision :: xpsif
-!
+
   if(load_extract_fluxcoord.eq.1) then
     load_extract_fluxcoord=0
     open(iunit,file=trim(fluxdatapath)//'/phinorm_arr.dat')
@@ -1695,16 +1634,16 @@ subroutine extract_fluxcoord(phinorm,theta)
     allocate(phinorm_arr(nphinorm))
     do k=1,nphinorm
       read (iunit,*) phinorm_arr(k)
-    enddo
+    end do
     close(iunit)
-  endif
-!
+  end if
+
   xpsif=(psif_extract-psifmin)/hpsif
   k=min(nphinorm-2,max(0,int(xpsif)))
   phinorm=phinorm_arr(k+1)*(k+1-xpsif)+phinorm_arr(k+2)*(xpsif-k)
-!
+
   theta=theta_extract
-!
+
 end subroutine extract_fluxcoord
 
 !> Since the field in the main volume and outside separatrix are given
@@ -1715,10 +1654,10 @@ end subroutine extract_fluxcoord
 !> to hit by chance.
 subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
                                formfactors)
-!
+
   use inthecore_mod, only : psi_sep,psi_cut
   use theta_rz_mod,  only : psiaxis
-!
+
   implicit none
 
   integer, intent(in) :: nmodes_ff,nsqpsi_ff
@@ -1730,19 +1669,17 @@ subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
 
   integer :: i
   double precision :: R=1.d0,Z=0.d0
-!
+
   call inthecore(R,Z)
-!
+
   hsqpsi_ff=(sqpsimax_ff-sqpsimin_ff)/dble(nsqpsi_ff-1)
   apsi_sep=abs(psi_sep-psiaxis)
   apsi_cut=abs(psi_cut-psiaxis)
-!
+
   do i=1,nsqpsi_ff
     apsif=(sqpsimin_ff+hsqpsi_ff*dble(i-1))**2
     call localizer(apsi_cut,apsi_sep,apsif,weight,dweight,ddweight)
     formfactors(:,i)=weight*formfactors(:,i)+1.d0-weight
-  enddo
-!
+  end do
+
 end subroutine smear_formfactors
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

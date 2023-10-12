@@ -1,48 +1,48 @@
-  subroutine vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s, &
+subroutine vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s, &
                     nsurfb,nstrb,kparb,flux)
-!-----
-! Usage:
-!
-!    call vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s,    &
-!               nsurfm,nstrm,kpar,torflux)
-!
-!  where scalars are:
-!
-!  nstrm - (integer) number of harmonics
-!  kpar  - (integer) number of radial points
-!
-!  vectors are:
-!  aiota(0:kpar)             - (double precision) iota profile
-!  sps(0:kpar) = 0:kpar      - (double precision) radial index as dble number
-!  phi(0:kpar)               - (double precision) toroidal flux
-!  s(0:kpar)                 - (double precision) normalized toroidal flux
-!  axm(nstrm)                - (double precision) poloidal mode numbers
-!  axn(nstrm)                - (double precision) toroidal mode numbers
-!
-!  matrices are:
-!  rmnc(nstrm,0:kpar)     - (double precision) profiles of Fourier
-!  amplitudes of R for various cos(m*theta - n*phi) harmonics
-!  zmnc(nstrm,0:kpar)     - (double precision) profiles of Fourier
-!  amplitudes of Z for various cos(m*theta - n*phi) harmonics
-!  almnc(nstrm,0:kpar)     - (double precision) profiles of Fourier
-!  amplitudes of lambda for various cos(m*theta - n*phi) harmonics
-!  rmns(nstrm,0:kpar)     - (double precision) profiles of Fourier
-!  amplitudes of R for various sin(m*theta - n*phi) harmonics
-!  zmns(nstrm,0:kpar)     - (double precision) profiles of Fourier
-!  amplitudes of Z for various sin(m*theta - n*phi) harmonics
-!  almns(nstrm,0:kpar)     - (double precision) profiles of Fourier
-!  amplitudes of lambda for various sin(m*theta - n*phi) harmonics
+  !-----
+  ! Usage:
+  !
+  !    call vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s,    &
+  !               nsurfm,nstrm,kpar,torflux)
+  !
+  !  where scalars are:
+  !
+  !  nstrm - (integer) number of harmonics
+  !  kpar  - (integer) number of radial points
+  !
+  !  vectors are:
+  !  aiota(0:kpar)             - (double precision) iota profile
+  !  sps(0:kpar) = 0:kpar      - (double precision) radial index as dble number
+  !  phi(0:kpar)               - (double precision) toroidal flux
+  !  s(0:kpar)                 - (double precision) normalized toroidal flux
+  !  axm(nstrm)                - (double precision) poloidal mode numbers
+  !  axn(nstrm)                - (double precision) toroidal mode numbers
+  !
+  !  matrices are:
+  !  rmnc(nstrm,0:kpar)     - (double precision) profiles of Fourier
+  !  amplitudes of R for various cos(m*theta - n*phi) harmonics
+  !  zmnc(nstrm,0:kpar)     - (double precision) profiles of Fourier
+  !  amplitudes of Z for various cos(m*theta - n*phi) harmonics
+  !  almnc(nstrm,0:kpar)     - (double precision) profiles of Fourier
+  !  amplitudes of lambda for various cos(m*theta - n*phi) harmonics
+  !  rmns(nstrm,0:kpar)     - (double precision) profiles of Fourier
+  !  amplitudes of R for various sin(m*theta - n*phi) harmonics
+  !  zmns(nstrm,0:kpar)     - (double precision) profiles of Fourier
+  !  amplitudes of Z for various sin(m*theta - n*phi) harmonics
+  !  almns(nstrm,0:kpar)     - (double precision) profiles of Fourier
+  !  amplitudes of lambda for various sin(m*theta - n*phi) harmonics
 
   use libneo_kinds, only : real_kind
   use math_constants, only : PI
   use new_vmec_stuff_mod, only : netcdffile, vmec_B_scale, vmec_RZ_scale
   use nctools_module, only : nc_open, nc_close, nc_get
-!
+
   implicit none
-!
+
   real(kind=real_kind), parameter :: fac_b0 = 1d4, fac_r0 = 1d2
   real(kind=real_kind) :: fac_b, fac_r
-!
+
   integer :: nsurfb,nstrb,kparb,ncid,i
   real(kind=real_kind) :: flux
   real(kind=real_kind), dimension(nstrb)         :: axm,axn
@@ -54,24 +54,24 @@
 
   fac_b = fac_b0 * vmec_B_scale
   fac_r = fac_r0 * vmec_RZ_scale
-!
+
   do i=0,kparb
     sps(i)=dble(i)
   enddo
-!
+
   call nc_open(netcdffile, ncid)
 
   call nc_get(ncid, 'lasym__logical__', lasym_int)
   lasym = (lasym_int == 1)
-!
+
   call nc_get(ncid, 'phi', phi)
   phi = phi/(2*PI)  ! added by Christopher Albert, 2019-09-16 for correct normalization
-!
+
   flux=phi(kparb)
   flux=flux*fac_b*fac_r**2
   phi=phi*fac_b*fac_r**2
   s=phi/flux
-!
+
   call nc_get(ncid, 'xm', axm)
   call nc_get(ncid, 'xn', axn)
   call nc_get(ncid, 'iotaf', aiota)
@@ -100,29 +100,28 @@
 
   almns(:,kparb) = lmns(:,kparb) &
     & + 0.5d0*(lmns(:,kparb) - lmns(:,kparb-1))
-!
+
   rmnc = rmnc*fac_r
   zmnc = zmnc*fac_r
   rmns = rmns*fac_r
   zmns = zmns*fac_r
-!
+
   call nc_close(ncid)
-!
-  end subroutine vmecin
-!
+
+end subroutine vmecin
+
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  subroutine stevvo(RT0,R0i,L1i,cbfi,bz0i,bf0)
+subroutine stevvo(RT0,R0i,L1i,cbfi,bz0i,bf0)
 
   use libneo_kinds, only : real_kind
   use new_vmec_stuff_mod, only : nper,rmajor
-!
+
   implicit none
-!
+
   integer :: L1i
   real(kind=real_kind) :: RT0,R0i,cbfi,bz0i,bf0
-!
+
   L1i=nper
   RT0=rmajor*1.d2
-!
-  end subroutine stevvo
+
+end subroutine stevvo

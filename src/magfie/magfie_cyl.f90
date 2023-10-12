@@ -1,31 +1,30 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-!
-! Computes magnetic field module in units of the magnetic code  - bmod,
-! square root of determinant of the metric tensor               - sqrtg,
-! derivatives of the logarythm of the magnetic field module
-! over coordinates                                              - bder,
-! covariant componets of the unit vector of the magnetic
-! field direction                                               - hcovar,
-! contravariant components of this vector                       - hctrvr,
-! contravariant component of the curl of this vector            - hcurl
-! Order of coordinates is the following: x(1)=R (big radius),
-! x(2)=phi (toroidal angle), x(3)=Z (altitude).
-!
-!  Input parameters:
-!            formal:  x                -    array of coordinates
-!  Output parameters:
-!            formal:  bmod
-!                     sqrtg
-!                     bder
-!                     hcovar
-!                     hctrvr
-!                     hcurl
-!
-!  Called routines:  field
-!
+  ! Computes magnetic field module in units of the magnetic code  - bmod,
+  ! square root of determinant of the metric tensor               - sqrtg,
+  ! derivatives of the logarythm of the magnetic field module
+  ! over coordinates                                              - bder,
+  ! covariant componets of the unit vector of the magnetic
+  ! field direction                                               - hcovar,
+  ! contravariant components of this vector                       - hctrvr,
+  ! contravariant component of the curl of this vector            - hcurl
+  ! Order of coordinates is the following: x(1)=R (big radius),
+  ! x(2)=phi (toroidal angle), x(3)=Z (altitude).
+  !
+  !  Input parameters:
+  !            formal:  x                -    array of coordinates
+  !  Output parameters:
+  !            formal:  bmod
+  !                     sqrtg
+  !                     bder
+  !                     hcovar
+  !                     hctrvr
+  !                     hcurl
+  !
+  !  Called routines:  field
+
   use field_eq_mod, only : psi_axis,psi_sep,psif,ierrfield
-!
+
   implicit none
 
   double precision x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
