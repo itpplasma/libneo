@@ -1,9 +1,11 @@
 
 module exchange_get_cancoord_mod
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   logical :: onlytheta
-  double precision :: vartheta_c, varphi_c, sqg, aiota, Bcovar_vartheta,&
+  real(kind=real_kind) :: vartheta_c, varphi_c, sqg, aiota, Bcovar_vartheta,&
       & Bcovar_varphi, A_theta, A_phi, theta, Bctrvr_vartheta, Bctrvr_varphi
 !$omp threadprivate(onlytheta, vartheta_c, varphi_c, sqg, aiota)
 !$omp threadprivate(Bcovar_vartheta,Bcovar_varphi,A_theta,A_phi,theta,Bctrvr_vartheta,Bctrvr_varphi)
@@ -11,6 +13,7 @@ end module exchange_get_cancoord_mod
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine get_canonical_coordinates
+  use libneo_kinds, only : real_kind
 
   use canonical_coordinates_mod, only : ns_c,n_theta_c,n_phi_c,           &
                                         hs_c,h_theta_c,h_phi_c,           &
@@ -25,15 +28,16 @@ subroutine get_canonical_coordinates
 
   implicit none
 
+  real(kind=real_kind), parameter :: relerr=1d-10
+
   logical :: fullset
-  double precision, parameter :: relerr=1d-10
   integer :: i_theta,i_phi,i_sten,ndim,is_beg
   integer,          dimension(:),     allocatable :: ipoi_t,ipoi_p
-  double precision, dimension(:),     allocatable :: y,dy
-  double precision :: dstencil_theta(-nh_stencil:nh_stencil), &
+  real(kind=real_kind), dimension(:),     allocatable :: y,dy
+  real(kind=real_kind) :: dstencil_theta(-nh_stencil:nh_stencil), &
                       dstencil_phi(-nh_stencil:nh_stencil)
 
-  double precision :: r,r1,r2,G_beg,dG_c_dt,dG_c_dp
+  real(kind=real_kind) :: r,r1,r2,G_beg,dG_c_dt,dG_c_dp
   integer :: is
   integer :: i_ctr ! for nice counting in parallel
 
@@ -192,19 +196,20 @@ end subroutine get_canonical_coordinates
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine rhs_cancoord(r,y,dy)
+  use libneo_kinds, only : real_kind
 
   use exchange_get_cancoord_mod, only : vartheta_c,varphi_c,sqg,aiota,Bcovar_vartheta,Bcovar_varphi, &
                                         theta,onlytheta
 
   implicit none
 
-  double precision, parameter :: epserr=1.d-14
+  real(kind=real_kind), parameter :: epserr=1.d-14
   integer :: iter
-  double precision :: s,varphi,A_theta,A_phi,dA_theta_ds,dA_phi_ds,                 &
+  real(kind=real_kind) :: s,varphi,A_theta,A_phi,dA_theta_ds,dA_phi_ds,                 &
                       alam,dl_ds,dl_dt,dl_dp,Bctrvr_vartheta,Bctrvr_varphi,Bcovar_r
 
-  double precision :: r,vartheta,daiota_ds,deltheta
-  double precision, dimension(1) :: y,dy
+  real(kind=real_kind) :: r,vartheta,daiota_ds,deltheta
+  real(kind=real_kind), dimension(1) :: y,dy
 
   s=r**2
 
@@ -241,6 +246,7 @@ end subroutine rhs_cancoord
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine spline_can_coord(fullset)
+  use libneo_kinds, only : real_kind
 
   use canonical_coordinates_mod, only : ns_c,n_theta_c,n_phi_c,hs_c,h_theta_c,h_phi_c,    &
                                         ns_s_c,ns_tp_c,G_c,sqg_c,B_vartheta_c,B_varphi_c, &
@@ -251,7 +257,7 @@ subroutine spline_can_coord(fullset)
   logical :: fullset
   integer :: k,is,i_theta,i_phi,i_qua
   integer :: ist,isp
-  double precision, dimension(:,:), allocatable :: splcoe
+  real(kind=real_kind), dimension(:,:), allocatable :: splcoe
 
   if (.not. allocated(s_sqg_Bt_Bp)) &
     allocate(s_sqg_Bt_Bp(3,ns_s_c+1,ns_tp_c+1,ns_tp_c+1,ns_c,n_theta_c,n_phi_c))
@@ -391,6 +397,9 @@ subroutine splint_can_coord(fullset,mode_secders,r,vartheta_c,varphi_c,         
                               d2bth_rr,d2bth_rt,d2bth_rp,d2bth_tt,d2bth_tp,d2bth_pp,           &
                               d2bph_rr,d2bph_rt,d2bph_rp,d2bph_tt,d2bph_tp,d2bph_pp,G_c)
 
+  use libneo_kinds, only : real_kind
+  use math_constants, only : TWOPI
+
   use canonical_coordinates_mod, only : ns_c,n_theta_c,n_phi_c,hs_c,h_theta_c,h_phi_c,    &
                                         ns_s_c,ns_tp_c,ns_max,n_qua,derf1,derf2,derf3,    &
                                         s_sqg_Bt_Bp,s_G_c
@@ -401,14 +410,12 @@ subroutine splint_can_coord(fullset,mode_secders,r,vartheta_c,varphi_c,         
 
   implicit none
 
-  double precision, parameter :: twopi=2.d0*3.14159265358979d0
-
   logical :: fullset
 
   integer :: mode_secders,nstp,ns_A_p1,ns_s_p1
   integer :: k,is,i_theta,i_phi
 
-  double precision :: r,vartheta_c,varphi_c,                                           &
+  real(kind=real_kind) :: r,vartheta_c,varphi_c,                                           &
                       A_phi,A_theta,dA_phi_dr,dA_theta_dr,d2A_phi_dr2,d3A_phi_dr3,     &
                       sqg_c,dsqg_c_dr,dsqg_c_dt,dsqg_c_dp,                             &
                       B_vartheta_c,dB_vartheta_c_dr,dB_vartheta_c_dt,dB_vartheta_c_dp, &
@@ -416,16 +423,16 @@ subroutine splint_can_coord(fullset,mode_secders,r,vartheta_c,varphi_c,         
                       d2sqg_rr,d2sqg_rt,d2sqg_rp,d2sqg_tt,d2sqg_tp,d2sqg_pp,           &
                       d2bth_rr,d2bth_rt,d2bth_rp,d2bth_tt,d2bth_tp,d2bth_pp,           &
                       d2bph_rr,d2bph_rt,d2bph_rp,d2bph_tt,d2bph_tp,d2bph_pp
-  double precision :: ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
+  real(kind=real_kind) :: ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
 
-  double precision, dimension(ns_max)              :: sp_G
-  double precision, dimension(ns_max,ns_max)       :: stp_G
+  real(kind=real_kind), dimension(ns_max)              :: sp_G
+  real(kind=real_kind), dimension(ns_max,ns_max)       :: stp_G
 
-  double precision, dimension(n_qua)               :: qua,dqua_dr,dqua_dt,dqua_dp
-  double precision, dimension(n_qua)               :: d2qua_dr2,d2qua_drdt,d2qua_drdp,d2qua_dt2,d2qua_dtdp,d2qua_dp2
-  double precision, dimension(n_qua,ns_max)        :: sp_all,dsp_all_ds,dsp_all_dt
-  double precision, dimension(n_qua,ns_max)        :: d2sp_all_ds2,d2sp_all_dsdt,d2sp_all_dt2
-  double precision, dimension(n_qua,ns_max,ns_max) :: stp_all,dstp_all_ds,d2stp_all_ds2
+  real(kind=real_kind), dimension(n_qua)               :: qua,dqua_dr,dqua_dt,dqua_dp
+  real(kind=real_kind), dimension(n_qua)               :: d2qua_dr2,d2qua_drdt,d2qua_drdp,d2qua_dt2,d2qua_dtdp,d2qua_dp2
+  real(kind=real_kind), dimension(n_qua,ns_max)        :: sp_all,dsp_all_ds,dsp_all_dt
+  real(kind=real_kind), dimension(n_qua,ns_max)        :: d2sp_all_ds2,d2sp_all_dsdt,d2sp_all_dt2
+  real(kind=real_kind), dimension(n_qua,ns_max,ns_max) :: stp_all,dstp_all_ds,d2stp_all_ds2
 !$omp atomic
   icounter=icounter+1
   if(r.le.0.d0) then
@@ -436,12 +443,12 @@ subroutine splint_can_coord(fullset,mode_secders,r,vartheta_c,varphi_c,         
   A_theta=torflux*r
   dA_theta_dr=torflux
 
-  dtheta=modulo(vartheta_c,twopi)/h_theta_c
+  dtheta=modulo(vartheta_c,TWOPI)/h_theta_c
   i_theta=max(0,min(n_theta_c-1,int(dtheta)))
   dtheta=(dtheta-dble(i_theta))*h_theta_c
   i_theta=i_theta+1
 
-  dphi=modulo(varphi_c,twopi/dble(nper))/h_phi_c
+  dphi=modulo(varphi_c,TWOPI/dble(nper))/h_phi_c
   i_phi=max(0,min(n_phi_c-1,int(dphi)))
   dphi=(dphi-dble(i_phi))*h_phi_c
   i_phi=i_phi+1
@@ -844,6 +851,7 @@ end subroutine splint_can_coord
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine can_to_vmec(r,vartheta_c_in,varphi_c_in,theta_vmec,varphi_vmec)
+  use libneo_kinds, only : real_kind
 
   use exchange_get_cancoord_mod, only : vartheta_c,varphi_c,theta
 
@@ -851,9 +859,9 @@ subroutine can_to_vmec(r,vartheta_c_in,varphi_c_in,theta_vmec,varphi_vmec)
 
   logical :: fullset
   integer :: mode_secders
-  double precision, intent(in) :: r,vartheta_c_in,varphi_c_in
-  double precision, intent(out) :: theta_vmec,varphi_vmec
-  double precision :: A_phi,A_theta,dA_phi_dr,dA_theta_dr,d2A_phi_dr2,d3A_phi_dr3,     &
+  real(kind=real_kind), intent(in) :: r,vartheta_c_in,varphi_c_in
+  real(kind=real_kind), intent(out) :: theta_vmec,varphi_vmec
+  real(kind=real_kind) :: A_phi,A_theta,dA_phi_dr,dA_theta_dr,d2A_phi_dr2,d3A_phi_dr3,     &
                       sqg_c,dsqg_c_dr,dsqg_c_dt,dsqg_c_dp,                             &
                       B_vartheta_c,dB_vartheta_c_dr,dB_vartheta_c_dt,dB_vartheta_c_dp, &
                       B_varphi_c,dB_varphi_c_dr,dB_varphi_c_dt,dB_varphi_c_dp,G_c,     &
@@ -901,15 +909,17 @@ end subroutine deallocate_can_coord
 ! Input : r,theta,varphi      - VMEC coordinates
 ! Output: vartheta_c,varphi_c - canonical coordinates
 subroutine vmec_to_can(r,theta,varphi,vartheta_c,varphi_c)
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision, parameter :: epserr=1.d-14
+  real(kind=real_kind), parameter :: epserr=1.d-14
   integer,          parameter :: niter=100
+
   integer          :: iter
-  double precision :: r,theta,varphi
-  double precision, intent(out) :: vartheta_c,varphi_c
-  double precision :: delthe,delphi,alam,dl_dt,vartheta
+  real(kind=real_kind) :: r,theta,varphi
+  real(kind=real_kind), intent(out) :: vartheta_c,varphi_c
+  real(kind=real_kind) :: delthe,delphi,alam,dl_dt,vartheta
 
   call splint_lambda(r,theta,varphi,alam,dl_dt)
 
@@ -931,6 +941,9 @@ contains
 
   subroutine newt_step
 
+    use libneo_kinds, only : real_kind
+    use math_constants, only : TWOPI
+
     use canonical_coordinates_mod, only : ns_c,n_theta_c,n_phi_c,hs_c,h_theta_c,h_phi_c,    &
                                           ns_s_c,ns_tp_c,ns_max,derf1,s_G_c
     use vector_potentail_mod, only : ns,hs,torflux,sA_phi
@@ -939,18 +952,16 @@ contains
 
     implicit none
 
-    double precision, parameter :: twopi=2.d0*3.14159265358979d0
-
     integer :: nstp,ns_A_p1
     integer :: k,is,i_theta,i_phi
 
-    double precision :: A_phi,dA_phi_dr,dA_theta_dr
-    double precision :: ds,dtheta,dphi,rho_tor
-    double precision :: aiota,G_c,dG_c_dt,dG_c_dp
-    double precision :: ts,ps,dts_dtc,dts_dpc,dps_dtc,dps_dpc,det
+    real(kind=real_kind) :: A_phi,dA_phi_dr,dA_theta_dr
+    real(kind=real_kind) :: ds,dtheta,dphi,rho_tor
+    real(kind=real_kind) :: aiota,G_c,dG_c_dt,dG_c_dp
+    real(kind=real_kind) :: ts,ps,dts_dtc,dts_dpc,dps_dtc,dps_dpc,det
 
-    double precision, dimension(ns_max)              :: sp_G,dsp_G_dt
-    double precision, dimension(ns_max,ns_max)       :: stp_G
+    real(kind=real_kind), dimension(ns_max)              :: sp_G,dsp_G_dt
+    real(kind=real_kind), dimension(ns_max,ns_max)       :: stp_G
 
     if(r.le.0.d0) then
       rnegflag=.true.
@@ -959,12 +970,12 @@ contains
 
     dA_theta_dr=torflux
 
-    dtheta=modulo(vartheta_c,twopi)/h_theta_c
+    dtheta=modulo(vartheta_c,TWOPI)/h_theta_c
     i_theta=max(0,min(n_theta_c-1,int(dtheta)))
     dtheta=(dtheta-dble(i_theta))*h_theta_c
     i_theta=i_theta+1
 
-    dphi=modulo(varphi_c,twopi/dble(nper))/h_phi_c
+    dphi=modulo(varphi_c,TWOPI/dble(nper))/h_phi_c
     i_phi=max(0,min(n_phi_c-1,int(dphi)))
     dphi=(dphi-dble(i_phi))*h_phi_c
     i_phi=i_phi+1

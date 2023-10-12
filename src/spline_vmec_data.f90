@@ -1,5 +1,8 @@
 !
   subroutine spline_vmec_data
+
+  use libneo_kinds, only : real_kind, complex_kind
+  use math_constants, only : TWOPI
 !
   use new_vmec_stuff_mod, only : rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,&
     axm,axn,s,nsurfm,nstrm,kpar,ns_A,ns_s,ns_tp,n_theta,n_phi,multharm,&
@@ -10,12 +13,12 @@
 !
   integer :: i,k,m,n,is,i_theta,i_phi,m_max,n_max,nsize_exp_imt,nsize_exp_inp,iexpt,iexpp
   integer :: ist,isp,nrho,nheal,iunit_hs
-  double precision :: twopi,cosphase,sinphase
-  complex(8)   :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
-  double precision, dimension(:,:), allocatable :: splcoe
-  double precision, dimension(:,:), allocatable :: almnc_rho,rmnc_rho,zmnc_rho
-  double precision, dimension(:,:), allocatable :: almns_rho,rmns_rho,zmns_rho
-  complex(8),   dimension(:),   allocatable :: exp_imt,exp_inp
+  real(kind=real_kind) :: cosphase,sinphase
+  complex(kind=complex_kind) :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
+  real(kind=real_kind), dimension(:,:), allocatable :: splcoe
+  real(kind=real_kind), dimension(:,:), allocatable :: almnc_rho,rmnc_rho,zmnc_rho
+  real(kind=real_kind), dimension(:,:), allocatable :: almns_rho,rmns_rho,zmns_rho
+  complex(kind=complex_kind), dimension(:), allocatable :: exp_imt,exp_inp
 
   print *,'Splining VMEC data: ns_A = ',ns_A,'  ns_s = ',ns_s,'  ns_tp = ',ns_tp
 !
@@ -102,9 +105,9 @@
 !
   n_theta = m_max*multharm+1
   n_phi = n_max*multharm+1
-  twopi=8.d0*atan2(1.d0,1.d0)
-  h_theta=twopi/dble(n_theta-1)
-  h_phi=twopi/dble((n_phi-1)*nper)
+
+  h_theta=TWOPI/dble(n_theta-1)
+  h_phi=TWOPI/dble((n_phi-1)*nper)
 !
   nsize_exp_imt=(n_theta-1)*m_max
   nsize_exp_inp=(n_phi-1)*n_max
@@ -322,29 +325,30 @@
   subroutine splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                               R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp)
 !
+  use libneo_kinds, only : real_kind
+  use math_constants, only : TWOPI
+
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,sR,sZ,slam,&
     nper,ns_A,ns_s,ns_tp
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
 !
   implicit none
-!
-  double precision, parameter :: twopi=2.d0*3.14159265358979d0
-!
+
   integer :: is,i_theta,i_phi,k
-  double precision :: ds,dtheta,dphi,rho_tor
-  double precision, intent(in) :: s,theta,varphi
-  double precision, intent(out) :: A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
+  real(kind=real_kind) :: ds,dtheta,dphi,rho_tor
+  real(kind=real_kind), intent(in) :: s,theta,varphi
+  real(kind=real_kind), intent(out) :: A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                       R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp
 !
   integer, parameter :: ns_max=6
 !
   integer :: nstp
 !
-  double precision, dimension(ns_max)        :: sp_R,sp_Z,sp_lam
-  double precision, dimension(ns_max)        :: dsp_R_ds,dsp_Z_ds,dsp_lam_ds
-  double precision, dimension(ns_max)        :: dsp_R_dt,dsp_Z_dt,dsp_lam_dt
-  double precision, dimension(ns_max,ns_max) :: stp_R,stp_Z,stp_lam
-  double precision, dimension(ns_max,ns_max) :: dstp_R_ds,dstp_Z_ds,dstp_lam_ds
+  real(kind=real_kind), dimension(ns_max)        :: sp_R,sp_Z,sp_lam
+  real(kind=real_kind), dimension(ns_max)        :: dsp_R_ds,dsp_Z_ds,dsp_lam_ds
+  real(kind=real_kind), dimension(ns_max)        :: dsp_R_dt,dsp_Z_dt,dsp_lam_dt
+  real(kind=real_kind), dimension(ns_max,ns_max) :: stp_R,stp_Z,stp_lam
+  real(kind=real_kind), dimension(ns_max,ns_max) :: dstp_R_ds,dstp_Z_ds,dstp_lam_ds
 !
   nstp=ns_tp+1
 !
@@ -356,12 +360,12 @@
   ds=(ds-dble(is))*hs
   is=is+1
 !
-  dtheta=modulo(theta,twopi)/h_theta
+  dtheta=modulo(theta,TWOPI)/h_theta
   i_theta=max(0,min(n_theta-1,int(dtheta)))
   dtheta=(dtheta-dble(i_theta))*h_theta
   i_theta=i_theta+1
 !
-  dphi=modulo(varphi,twopi/dble(nper))/h_phi
+  dphi=modulo(varphi,TWOPI/dble(nper))/h_phi
   i_phi=max(0,min(n_phi-1,int(dphi)))
   dphi=(dphi-dble(i_phi))*h_phi
   i_phi=i_phi+1
@@ -480,18 +484,18 @@
   subroutine vmec_field(s,theta,varphi,A_theta,A_phi,dA_theta_ds,dA_phi_ds,aiota,     &
                         sqg,alam,dl_ds,dl_dt,dl_dp,Bctrvr_vartheta,Bctrvr_varphi,     &
                         Bcovar_r,Bcovar_vartheta,Bcovar_varphi)
-
+  use libneo_kinds, only : real_kind
 !
   implicit none
 
-  double precision, intent(in) :: s, theta, varphi
-  double precision, intent(out) :: A_theta, A_phi, dA_theta_ds, dA_phi_ds, &
+  real(kind=real_kind), intent(in) :: s, theta, varphi
+  real(kind=real_kind), intent(out) :: A_theta, A_phi, dA_theta_ds, dA_phi_ds, &
       & aiota, sqg, alam, dl_ds, dl_dt, dl_dp, &
       & Bctrvr_vartheta, Bctrvr_varphi, Bcovar_r, Bcovar_vartheta, Bcovar_varphi
 
-  double precision :: R, Z, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
-  double precision :: cjac, sqgV
-  double precision, dimension(3,3) :: cmat, gV, g
+  real(kind=real_kind) :: R, Z, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
+  real(kind=real_kind) :: cjac, sqgV
+  real(kind=real_kind), dimension(3,3) :: cmat, gV, g
 
 
   call splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,      &
@@ -533,14 +537,15 @@
 !
   subroutine splint_iota(s,aiota,daiota_ds)
 !
+  use libneo_kinds, only : real_kind
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
   use new_vmec_stuff_mod,   only : ns_A
 !
   implicit none
 !
   integer :: is,k
-  double precision :: ds
-  double precision :: s,dA_phi_ds,dA_theta_ds,d2A_phi_ds2,aiota,daiota_ds
+  real(kind=real_kind) :: ds
+  real(kind=real_kind) :: s,dA_phi_ds,dA_theta_ds,d2A_phi_ds2,aiota,daiota_ds
 !
   dA_theta_ds=torflux
 !
@@ -570,24 +575,24 @@
 !
   subroutine splint_lambda(s,theta,varphi,alam,dl_dt)
 !
+  use libneo_kinds, only : real_kind
+  use math_constants, only : TWOPI
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,slam,nper,ns_s,ns_tp
   use vector_potentail_mod, only : ns,hs
 !
   implicit none
-!
-  double precision, parameter :: twopi=2.d0*3.14159265358979d0
-!
+
   integer :: is,i_theta,i_phi,k
-  double precision :: ds,dtheta,dphi
-  double precision :: s,theta,varphi,alam,dl_dt
+  real(kind=real_kind) :: ds,dtheta,dphi
+  real(kind=real_kind) :: s,theta,varphi,alam,dl_dt
 !
   integer, parameter :: ns_max=6
 !
   integer :: nstp
 !
-  double precision, dimension(ns_max)        :: sp_lam
-  double precision, dimension(ns_max)        :: dsp_lam_dt
-  double precision, dimension(ns_max,ns_max) :: stp_lam
+  real(kind=real_kind), dimension(ns_max)        :: sp_lam
+  real(kind=real_kind), dimension(ns_max)        :: dsp_lam_dt
+  real(kind=real_kind), dimension(ns_max,ns_max) :: stp_lam
 !
   nstp=ns_tp+1
 !
@@ -596,12 +601,12 @@
   ds=(ds-dble(is))*hs
   is=is+1
 !
-  dtheta=modulo(theta,twopi)/h_theta
+  dtheta=modulo(theta,TWOPI)/h_theta
   i_theta=max(0,min(n_theta-1,int(dtheta)))
   dtheta=(dtheta-dble(i_theta))*h_theta
   i_theta=i_theta+1
 !
-  dphi=modulo(varphi,twopi/dble(nper))/h_phi
+  dphi=modulo(varphi,TWOPI/dble(nper))/h_phi
   i_phi=max(0,min(n_phi-1,int(dphi)))
   dphi=(dphi-dble(i_phi))*h_phi
   i_phi=i_phi+1
@@ -674,17 +679,18 @@
 ! none
 subroutine s_to_rho_healaxis(m,ns,nrho,nheal,arr_in,arr_out)
 
+  use libneo_kinds, only : real_kind
   use new_vmec_stuff_mod, only : ns_s, old_axis_healing
 
   implicit none
 
   integer, intent(in) :: m, ns, nrho, nheal
-  double precision, dimension(ns), intent(in) :: arr_in
-  double precision, dimension(nrho), intent(out) :: arr_out
+  real(kind=real_kind), dimension(ns), intent(in) :: arr_in
+  real(kind=real_kind), dimension(nrho), intent(out) :: arr_out
 
   integer :: irho,is,k,nhe
-  double precision :: hs,hrho,s,ds,rho,a,b,c
-  double precision, dimension(:,:), allocatable :: splcoe
+  real(kind=real_kind) :: hs,hrho,s,ds,rho,a,b,c
+  real(kind=real_kind), dimension(:,:), allocatable :: splcoe
 
   hs = 1.d0/dble(ns-1)
   hrho = 1.d0/dble(nrho-1)
@@ -783,25 +789,27 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
   !> -------
   !> nheal: integer, number of points to extrapolate at the axis.
 
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   ! Lagrange polynomial stencil size for checking the data by extraplation:
   integer, parameter :: nplag = 4
   ! tolerance for Lagrange polynomial extrapolation by one point (to check if data is noisy):
-  double precision, parameter :: tol = 3.d-1
-  double precision, parameter :: tiny = 1.d-200
+  real(kind=real_kind), parameter :: tol = 3.d-1
+  real(kind=real_kind), parameter :: tiny = 1.d-200
   ! 3-rd order Lagrange polynomial extrapolation coefficients from points (1,2,3,4) to point 0:
-  double precision, parameter, dimension(nplag) :: weight = (/4.d0,-6.d0,4.d0,-1.d0/)
+  real(kind=real_kind), parameter, dimension(nplag) :: weight = (/4.d0,-6.d0,4.d0,-1.d0/)
 
   integer, intent(in) :: m,ns
   integer, intent(out) :: nheal
-  double precision, dimension(ns), intent(in) :: arr_in
+  real(kind=real_kind), dimension(ns), intent(in) :: arr_in
 
   integer :: is,ncheck
 
-  double precision :: hs,rho,rho_nonzero,errmax
+  real(kind=real_kind) :: hs,rho,rho_nonzero,errmax
 
-  double precision, dimension(:), allocatable :: arr
+  real(kind=real_kind), dimension(:), allocatable :: arr
 
   ! We check points which are away by more than 3 stencils from the edge:
   ncheck = ns - 3*nplag
@@ -836,14 +844,15 @@ end subroutine determine_nheal_for_axis
 !
   subroutine volume_and_B00(volume,B00)
 !
+  use libneo_kinds, only : real_kind
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,nper
 !
   implicit none
 !
   integer :: i_theta,i_phi
-  double precision :: volume,B00
-  double precision :: B3,B2,bmod2
-  double precision :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
+  real(kind=real_kind) :: volume,B00
+  real(kind=real_kind) :: B3,B2,bmod2
+  real(kind=real_kind) :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,   &
                       R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp, &
                       sqg,Bctrvr_vartheta,Bctrvr_varphi,                              &
                       Bcovar_r,Bcovar_vartheta,Bcovar_varphi

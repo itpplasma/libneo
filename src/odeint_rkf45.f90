@@ -1,13 +1,15 @@
 subroutine odeint_allroutines(y, nvar, x1, x2, eps, derivs)
+    use libneo_kinds, only : real_kind
+
     implicit none
 
     external :: derivs
     integer, intent(in) :: nvar
-    double precision, intent(in) :: x1, x2, eps
-    double precision, dimension(nvar) :: y
-    double precision, dimension(nvar) :: yp
+    real(kind=real_kind), intent(in) :: x1, x2, eps
+    real(kind=real_kind), dimension(nvar) :: y
+    real(kind=real_kind), dimension(nvar) :: yp
 
-    double precision :: epsrel, epsabs
+    real(kind=real_kind) :: epsrel, epsabs
     integer :: flag
 
     flag = 1

@@ -14,15 +14,16 @@
     ! f=sum(fun(1:npoi)*coef(0,1:npoi) gives the function value
     ! df=sum(fun(1:npoi)*coef(1,1:npoi) gives the derivative value
     !
-    !
+    use libneo_kinds, only : real_kind
+
     INTEGER, INTENT(in)                                :: npoi,nder
-    double precision, INTENT(in)                          :: x
-    double precision, DIMENSION(npoi), INTENT(in)         :: xp
-    double precision, DIMENSION(0:nder,npoi), INTENT(out) :: coef
-    double precision, DIMENSION(:), ALLOCATABLE           :: dummy
+    real(kind=real_kind), INTENT(in)                          :: x
+    real(kind=real_kind), DIMENSION(npoi), INTENT(in)         :: xp
+    real(kind=real_kind), DIMENSION(0:nder,npoi), INTENT(out) :: coef
+    real(kind=real_kind), DIMENSION(:), ALLOCATABLE           :: dummy
     !
     INTEGER                                            :: i,k,j
-    double precision                                      :: fac
+    real(kind=real_kind) :: fac
     !
     DO i=1,npoi
        coef(0,i)=1.d0
