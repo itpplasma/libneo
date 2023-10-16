@@ -10,8 +10,8 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 
   dimension xp(mp),yp(mp),zp(mp),fp(mp,mp,mp)
   integer indx(mp), indy(mp), indz(mp)
-  character *30 namedim(3), namevar(3)
-  character *80 bez
+  character(len=30) :: namedim(3), namevar(3)
+  character(len=80) :: bez
   data icall/0/
   save
 
