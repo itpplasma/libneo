@@ -30,13 +30,14 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
   use field_c_mod, only : icall_c
   use field_mod, only : icall, ipert, iequil, ampl
   use inthecore_mod, only : incore
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision, intent(in) :: r, z
-  double precision :: p,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ         &
+  real(kind=real_kind), intent(in) :: r, z
+  real(kind=real_kind) :: p,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ         &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
-  double precision :: rm,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc   &
+  real(kind=real_kind) :: rm,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc &
                      ,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc
 
   if(icall .eq. 0) then
@@ -139,17 +140,18 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
     nwindow_z,psib,btf,rtf,hrad,hzet,psi_axis,psi_sep,&
     psi,psi0,splfpol,splpsi,rad,zet,imi,ima,jmi,jma,ipoint,&
     psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision, intent(in) :: r, ppp, z
-  double precision, intent(out) :: Brad, Bphi, Bzet, dBrdR, dBrdp, dBrdZ
-  double precision, intent(out) :: dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
+  real(kind=real_kind), intent(in) :: r, ppp, z
+  real(kind=real_kind), intent(out) :: Brad, Bphi, Bzet, dBrdR, dBrdp, dBrdZ
+  real(kind=real_kind), intent(out) :: dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
 
   integer :: ierr,i
 
-  double precision :: rrr,zzz
-  double precision :: psihat,fpol,fpol_prime
+  real(kind=real_kind) :: rrr,zzz
+  real(kind=real_kind) :: psihat,fpol,fpol_prime
 
   !-------first call: read data from disk-------------------------------
   if (icall_eq < 1) then
@@ -317,15 +319,16 @@ end subroutine read_dimeq0
 
 subroutine read_eqfile0(nrad, nzet, psib, btf, rtf, rad, zet, psi)
   use input_files, only : eqfile
+  use libneo_kinds, only : real_kind
 
   implicit none
 
   integer :: i,j,k
 
   integer, intent(in) :: nrad, nzet
-  real(kind=8), intent(out) :: psib, btf, rtf
-  real(kind=8), intent(out) :: rad(nrad), zet(nzet)
-  real(kind=8), intent(out) :: psi(nrad,nzet)
+  real(kind=real_kind), intent(out) :: psib, btf, rtf
+  real(kind=real_kind), intent(out) :: rad(nrad), zet(nzet)
+  real(kind=real_kind), intent(out) :: psi(nrad,nzet)
 
   integer :: dum
 
@@ -391,22 +394,24 @@ end subroutine read_dimeq1
 
 subroutine read_eqfile1(nwEQD,nhEQD,psiSep, bt0, rzero, rad, zet, psiRZ)
   use input_files, only : iunit, gfile
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   integer, intent(inout) :: nwEQD, nhEQD
-  real (kind=8), intent(out) :: bt0, rzero, psiSep
-  real (kind=8), intent(out) :: rad(nwEQD), zet(nhEQD)
-  real (kind=8), dimension(nwEQD,nhEQD), intent(out) :: psiRZ
+  real(kind=real_kind), intent(out) :: bt0, rzero, psiSep
+  real(kind=real_kind), intent(out) :: rad(nwEQD), zet(nhEQD)
+  real(kind=real_kind), dimension(nwEQD,nhEQD), intent(out) :: psiRZ
 
   integer :: gunit, idum
   character(len=10) :: dummy(6)
   integer :: i,j
-  real (kind=8) :: xdim,zdim,r1,zmid,rmaxis,zmaxis,xdum
-  real (kind=8) :: plas_cur, psiAxis
-  real (kind=8), dimension(nwEQD) :: fpol,pres,ffprim,pprime,qpsi
+  real(kind=real_kind) :: xdim,zdim,r1,zmid,rmaxis,zmaxis,xdum
+  real(kind=real_kind) :: plas_cur, psiAxis
+  real(kind=real_kind), dimension(nwEQD) :: fpol,pres,ffprim,pprime,qpsi
 
   integer :: n_bndyxy,nlimEQD
-  real (kind=8), dimension(:), allocatable :: LCFS, limEQD
+  real(kind=real_kind), dimension(:), allocatable :: LCFS, limEQD
 
   gunit=iunit
 
@@ -458,23 +463,24 @@ end subroutine read_eqfile1
 
 subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
   use input_files, only : iunit, gfile
+  use libneo_kinds, only : real_kind
   implicit none
 
   integer, intent(inout) :: nwEQD, nhEQD
-  real (kind=8), intent(out) :: bt0, rzero, psiAxis, psiSep
-  real (kind=8), dimension(nwEQD), intent(out) :: fpol
-  real (kind=8), intent(out) :: rad(nwEQD), zet(nhEQD)
-  real (kind=8), dimension(nwEQD,nhEQD), intent(out) :: psiRZ
+  real(kind=real_kind), intent(out) :: bt0, rzero, psiAxis, psiSep
+  real(kind=real_kind), dimension(nwEQD), intent(out) :: fpol
+  real(kind=real_kind), intent(out) :: rad(nwEQD), zet(nhEQD)
+  real(kind=real_kind), dimension(nwEQD,nhEQD), intent(out) :: psiRZ
 
   integer :: gunit, idum
   character(len=10) :: dummy(6)
   integer :: i,j
-  real (kind=8) :: xdim,zdim,r1,zmid,rmaxis,zmaxis,xdum
-  real (kind=8) :: plas_cur
-  real (kind=8), dimension(nwEQD) :: pres,ffprim,pprime,qpsi
+  real(kind=real_kind) :: xdim,zdim,r1,zmid,rmaxis,zmaxis,xdum
+  real(kind=real_kind) :: plas_cur
+  real(kind=real_kind), dimension(nwEQD) :: pres,ffprim,pprime,qpsi
 
   integer :: n_bndyxy,nlimEQD
-  real (kind=8), dimension(:), allocatable :: LCFS, limEQD
+  real(kind=real_kind), dimension(:), allocatable :: LCFS, limEQD
 
   gunit=iunit
 
@@ -519,14 +525,16 @@ end subroutine read_eqfile2
 
 
 subroutine set_eqcoords(nwEQD,nhEQD,xdim,zdim,r1,zmid,rad,zet)
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   integer, intent(in) :: nwEQD, nhEQD
-  real (kind=8), intent(in) :: xdim, zdim, r1, zmid
-  real (kind=8), intent(out) :: rad(nwEQD), zet(nhEQD)
+  real(kind=real_kind), intent(in) :: xdim, zdim, r1, zmid
+  real(kind=real_kind), intent(out) :: rad(nwEQD), zet(nhEQD)
 
   integer :: j,k
-  real (kind=8) :: z1
+  real(kind=real_kind) :: z1
 
   do j=1,nwEQD
     rad(j) = r1 + (j-1)*(xdim/(nwEQD-1))
@@ -562,13 +570,14 @@ end subroutine read_dimeq_west
 subroutine read_eqfile_west(nrad, nzet, psib, btf, rtf, rad, zet, psi)
 
   use input_files, only : iunit, gfile
+  use libneo_kinds, only : real_kind
 
   implicit none
 
   integer, intent(inout) :: nrad, nzet
-  double precision, intent(out) :: psib, btf, rtf
-  double precision, intent(out) :: rad(nrad), zet(nzet)
-  double precision, intent(out) :: psi(nrad, nzet)
+  real(kind=real_kind), intent(out) :: psib, btf, rtf
+  real(kind=real_kind), intent(out) :: rad(nrad), zet(nzet)
+  real(kind=real_kind), intent(out) :: psi(nrad, nzet)
   integer :: ir
 
   psib = 0.0d0
@@ -593,12 +602,13 @@ subroutine field_c(rrr,ppp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
                   ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 
   use field_c_mod, only : icall_c,ntor,nr,np,nz,icftype,rmin,pmin,zmin,rmax,pmax,zmax
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision :: rrr,ppp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
+  real(kind=real_kind) :: rrr,ppp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
-  double precision, dimension(:,:,:), allocatable :: Br,Bp,Bz
+  real(kind=real_kind), dimension(:,:,:), allocatable :: Br,Bp,Bz
 
   !-------first call: read data from disk-------------------------------
   if(icall_c .lt. 1) then
@@ -740,16 +750,17 @@ end subroutine read_field0
 subroutine read_field1(icftype,nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
 
   use input_files, only : iunit,pfile
+  use libneo_kinds, only : real_kind
   use math_constants, only : pi
 
   implicit none
 
   integer, intent(in) :: icftype, nr, np, nz
-  double precision, intent(out) :: rmin, rmax, pmin, pmax, zmin, zmax
-  double precision, dimension(nr,np,nz), intent(out) :: Br, Bp, Bz
+  real(kind=real_kind), intent(out) :: rmin, rmax, pmin, pmax, zmin, zmax
+  real(kind=real_kind), dimension(nr,np,nz), intent(out) :: Br, Bp, Bz
 
   integer :: i,j,k
-  double precision :: xdim,zdim,zmid,dum
+  real(kind=real_kind) :: xdim,zdim,zmid,dum
 
   open(iunit,file=trim(pfile),status='old',action='read')
   read(iunit,*)
@@ -811,20 +822,22 @@ end subroutine read_field1
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine stretch_coords(r,z,rm,zm)
   use input_files, only : iunit,convexfile
+  use libneo_kinds, only : real_kind
+  use math_constants, only : TWOPI
+
   implicit none
 
-  real(kind=8), intent(in) :: r, z
-  real(kind=8), intent(out) :: rm, zm
+  real(kind=real_kind), intent(in) :: r, z
+  real(kind=real_kind), intent(out) :: rm, zm
 
   integer icall, i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrzmx=100 ! possible max. of nrz
   integer, parameter :: nrhotht=360
   integer :: iflag
-  real(kind=8), parameter :: pi = 3.14159265358979d0
-  real(kind=8) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
-  real(kind=8), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
-  real(kind=8), dimension(:), allocatable :: rho_w, tht_w
-  real(kind=8), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
+  real(kind=real_kind) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
+  real(kind=real_kind), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
+  real(kind=real_kind), dimension(:), allocatable :: rho_w, tht_w
+  real(kind=real_kind), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
   data icall /0/, delta/1./
   save
   !----------- 1st call --------------------------------------------------------
@@ -846,7 +859,7 @@ subroutine stretch_coords(r,z,rm,zm)
     do i=1,nrz
       rho_w(i) = sqrt( (rad_w(i)-R0)**2 + zet_w(i)**2 )
       tht_w(i) = atan2(zet_w(i),(rad_w(i)-R0))
-      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + 2.*pi
+      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
     end do
 
     ! make sure points are ordered according to tht_w.
@@ -873,14 +886,14 @@ subroutine stretch_coords(r,z,rm,zm)
     end do
     rad_w(0) = rad_w(nrz)
     zet_w(0) = zet_w(nrz)
-    tht_w(0) = tht_w(nrz)-2.d0*pi
+    tht_w(0) = tht_w(nrz) - TWOPI
     rho_w(0) = rho_w(nrz)
     rad_w(nrz+1) = rad_w(1)
     zet_w(nrz+1) = zet_w(1)
-    tht_w(nrz+1) = tht_w(1)+2.d0*pi
+    tht_w(nrz+1) = tht_w(1) + TWOPI
     rho_w(nrz+1) = rho_w(1)
 
-    htht = 2.*pi/(nrhotht-1)
+    htht = TWOPI/(nrhotht-1)
     do i=2,nrhotht
       tht_wall(i) = htht*(i-1)
       do j=0,nrz
@@ -913,7 +926,7 @@ subroutine stretch_coords(r,z,rm,zm)
   else
     tht = atan2(z,(r-R0))
   end if
-  if(tht .lt. 0.) tht = tht + 2.*pi
+  if(tht .lt. 0.) tht = tht + TWOPI
   i = modulo(int(tht/htht), nrhotht-1) + 1
   rho_c = (rho_wall(i+1) - rho_wall(i))/(tht_wall(i+1) - tht_wall(i))   &
        *(tht - tht_wall(i)) + rho_wall(i)
@@ -935,16 +948,17 @@ subroutine inthecore(R,Z)
     d2vacdr2,d2vacdrdz,d2vacdz2,plaf,dpladr,dpladz,d2pladr2,d2pladrdz,d2pladz2
   use input_files,  only : iunit,fluxdatapath
   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision, intent(in) :: R,Z
+  real(kind=real_kind), intent(in) :: R,Z
 
   integer :: i
-  double precision :: rho2,thet,xx,yy
-  double precision :: weight,dweight,ddweight
-  double precision, dimension(4) :: x,y
-  double precision, dimension(:), allocatable :: ri,zi
+  real(kind=real_kind) :: rho2,thet,xx,yy
+  real(kind=real_kind) :: weight,dweight,ddweight
+  real(kind=real_kind), dimension(4) :: x,y
+  real(kind=real_kind), dimension(:), allocatable :: ri,zi
 
   if(prop) then
     prop=.false.
@@ -1049,14 +1063,15 @@ end subroutine inthecore
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine localizer(x1,x2,x,weight,dweight,ddweight)
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision, parameter :: c1=-6.283185307179586d0,c2=-1.414213562373095d0
+  real(kind=real_kind), parameter :: c1=-6.283185307179586d0,c2=-1.414213562373095d0
 
-  double precision, intent(in) :: x1,x2,x
-  double precision, intent(out) :: weight,dweight,ddweight
-  double precision :: t,exin
+  real(kind=real_kind), intent(in) :: x1,x2,x
+  real(kind=real_kind), intent(out) :: weight,dweight,ddweight
+  real(kind=real_kind) :: t,exin
 
   t=(x-x1)/(x2-x1)
 
@@ -1085,12 +1100,13 @@ end subroutine localizer
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine window_filter(n,nw,arr_in,arr_out)
+  use libneo_kinds, only : real_kind
 
   implicit none
 
   integer, intent(in) :: n,nw
-  double precision, dimension(n), intent(in) :: arr_in
-  double precision, dimension(n), intent(out) :: arr_out
+  real(kind=real_kind), dimension(n), intent(in) :: arr_in
+  real(kind=real_kind), dimension(n), intent(out) :: arr_out
   integer :: nwa,i
 
   do i=1,n
@@ -1105,17 +1121,17 @@ end subroutine window_filter
 subroutine read_field2(icftype,nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
 
   use input_files, only : iunit, pfile
+  use libneo_kinds, only : real_kind
+  use math_constants, only : TWOPI
 
   implicit none
 
-  double precision, parameter :: pi=3.14159265358979d0
-
   integer, intent(in) :: icftype, nr, np, nz
-  double precision, intent(out) :: rmin, rmax, pmin, pmax, zmin, zmax
-  double precision, dimension(nr,np,nz), intent(out) :: Br,Bp,Bz
+  real(kind=real_kind), intent(out) :: rmin, rmax, pmin, pmax, zmin, zmax
+  real(kind=real_kind), dimension(nr,np,nz), intent(out) :: Br,Bp,Bz
 
   integer :: i,j,k
-  double precision :: xdim,zdim,zmid,dum
+  real(kind=real_kind) :: xdim,zdim,zmid,dum
 
   open(iunit,file=trim(pfile),status='old',action='read')
 
@@ -1145,7 +1161,7 @@ subroutine read_field2(icftype,nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
   rmax=rmin+xdim
 
   pmin = 0.
-  pmax = 2.*pi
+  pmax = TWOPI
 
   zdim=400.d0
   zmid=0.d0
@@ -1177,13 +1193,14 @@ end subroutine read_sizes
 subroutine read_field4(nr,np,nz,rmin,rmax,pmin,pmax,zmin,zmax,Br,Bp,Bz)
 
   use input_files, only : iunit,pfile
+  use libneo_kinds, only : real_kind
 
   implicit none
 
   integer, intent(inout) :: nr,np,nz
   integer :: i,j,k
-  double precision, intent(out) :: rmin,rmax,pmin,pmax,zmin,zmax
-  double precision, dimension(nr,np,nz), intent(out) :: Br,Bp,Bz
+  real(kind=real_kind), intent(out) :: rmin,rmax,pmin,pmax,zmin,zmax
+  real(kind=real_kind), dimension(nr,np,nz), intent(out) :: Br,Bp,Bz
 
   open(iunit,file=pfile)
   read(iunit,*) nr,np,nz
@@ -1206,10 +1223,11 @@ end subroutine read_field4
 subroutine spline_fpol
 
   use field_eq_mod, only : nrad,hfpol,splfpol
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision, dimension(:), allocatable :: b,c,d,e,f
+  real(kind=real_kind), dimension(:), allocatable :: b,c,d,e,f
 
   allocate(b(nrad),c(nrad),d(nrad),e(nrad),f(nrad))
 
@@ -1232,14 +1250,15 @@ end subroutine spline_fpol
 subroutine splint_fpol(x,f,fp)
 
   use field_eq_mod, only : hfpol,splfpol
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  double precision, intent(in) :: x
-  double precision, intent(out) :: f,fp
+  real(kind=real_kind), intent(in) :: x
+  real(kind=real_kind), intent(out) :: f,fp
 
   integer :: j,k
-  double precision :: dx
+  real(kind=real_kind) :: dx
 
   k=max(0,int(x/hfpol))
   dx=x-k*hfpol

@@ -7,12 +7,14 @@ subroutine chamb(y,phi,ierr)
   ! Outout parameters:
   !            formal: ierr -error code (0 if the point is inside 1 - othervice)
 
+  use libneo_kinds, only : real_kind
+
   implicit none
 
 
   integer :: ierr,ir,ip,iz
-  double precision :: phi
-  double precision, dimension(2) :: y
+  real(kind=real_kind) :: phi
+  real(kind=real_kind), dimension(2) :: y
 
   ierr = 0  ! dummy routine here. TODO: implement
 end subroutine chamb

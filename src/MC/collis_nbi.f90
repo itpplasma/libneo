@@ -17,11 +17,12 @@ subroutine coleff(s,p,dpp,dhh,fpeff)
   !                         deviation in Fokker-Planck eq.)
 
   use collis_alp
+  use libneo_kinds, only : real_kind
 
   implicit none
 
   integer :: i
-  double precision :: s,p,dpp,dhh,fpeff,plim,xbeta,dp,dh,dpd
+  real(kind=real_kind) :: s,p,dpp,dhh,fpeff,plim,xbeta,dp,dh,dpd
 
   i=min(ns,nint((ns-1)*s)+1)
   efcolf=efcolf_arr(:,i)
@@ -54,13 +55,15 @@ subroutine onseff(v,dp,dh,dpd)
   !  dh - dhh*p^2     (p - dmls)
   !  dpd - (1/p)(d/dp)p^2*dp   (p - dmls)
 
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   ! square root of pi
-  double precision, parameter :: sqp=1.7724538d0
+  real(kind=real_kind), parameter :: sqp=1.7724538d0
   ! cons=4./(3.*sqrt(pi))
-  double precision, parameter :: cons=.75225278d0
-  double precision :: v,dp,dh,dpd,v2,v3,ex,er
+  real(kind=real_kind), parameter :: cons=.75225278d0
+  real(kind=real_kind) :: v,dp,dh,dpd,v2,v3,ex,er
 
   v2=v**2
   v3=v2*v
@@ -115,27 +118,25 @@ subroutine loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,ebe
   !                         energy
 
   use collis_alp
+  use libneo_kinds, only : real_kind
+  use math_constants, only : E, m_e, m_p, TWOPI
 
   implicit none
 
-  double precision :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,ebeam,dense
-  double precision :: v0,vti1,vti2,vte
-  double precision :: pi,pmass,emass,e,ev,alame,frecol_base,alami1,alami2
+  real(kind=real_kind) :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,ebeam,dense
+  real(kind=real_kind) :: v0,vti1,vti2,vte
+  real(kind=real_kind) :: ev,alame,frecol_base,alami1,alami2
 
-  pi=3.14159265358979d0
-  pmass=1.6726d-24
-  emass=9.1094d-28
-  e=4.8032d-10
   ev=1.6022d-12
 
   enrat(1)=ebeam/tempi1
   enrat(2)=ebeam/tempi2
   enrat(3)=ebeam/tempe
 
-  v0=sqrt(2.d0*ebeam*ev/(amb*pmass))
-  vti1=sqrt(2.d0*tempi1*ev/(pmass*am1))
-  vti2=sqrt(2.d0*tempi2*ev/(pmass*am2))
-  vte=sqrt(2.d0*tempe*ev/emass)
+  v0=sqrt(2.d0*ebeam*ev/(amb*m_p))
+  vti1=sqrt(2.d0*tempi1*ev/(m_p*am1))
+  vti2=sqrt(2.d0*tempi2*ev/(m_p*am2))
+  vte=sqrt(2.d0*tempe*ev/m_e)
 
   velrat(1)=v0/vti1
   velrat(2)=v0/vti2
@@ -147,7 +148,7 @@ subroutine loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,ebe
   alami2=23.d0-log(max(epsilon(1.d0), &
          sqrt(densi2*Z2**2/tempi2)*Zb*Z2*(amb+am2)/(amb*tempi2+am2*ebeam)))
   alame=24.d0-log(sqrt(dense)/tempe)
-  frecol_base=2.d0*pi*dense*e**4*Zb**2/((amb*pmass)**2*v0**3) !usual
+  frecol_base=TWOPI*dense*E**4*Zb**2/((amb*m_p)**2*v0**3) !usual
   frecol_base=frecol_base/v0                                     !normalized
 
   efcolf(1)=frecol_base*Z1**2*alami1*densi1/dense
@@ -178,13 +179,15 @@ subroutine stost(z,dtauc,iswmode,ierr)
   !               10 or >10 - new momentum module is less then
   !                   prescribed minimum, reflection was performed.
 
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   integer :: iswmode,ierr
-  double precision, parameter :: pmin=1.e-8
-  double precision :: dtauc,s,p,dpp,dhh,fpeff,alam,dalam,coala
-  double precision, dimension(5) :: z
-  real :: ur
+  real(kind=real_kind), parameter :: pmin=1.e-8
+  real(kind=real_kind) :: dtauc,s,p,dpp,dhh,fpeff,alam,dalam,coala
+  real(kind=real_kind), dimension(5) :: z
+  real(kind=real_kind) :: ur
 
   s=z(1)
   p=z(4)

@@ -1,7 +1,11 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 ! For testing: zero electric field
 subroutine elefie(x, derphi)
-  double precision, dimension(3) :: x,derphi
+  use libneo_kinds, only : real_kind
+
+  implicit none
+
+  real(kind=real_kind), dimension(3) :: x,derphi
   derphi = 0d0
 end subroutine elefie
 
@@ -36,21 +40,22 @@ subroutine velo(tau,z,vz)
   !
   !  Called routines: magfie, elefie
 
+  use libneo_kinds, only : real_kind
       use parmot_mod, only : rmu,ro0
 
       implicit none
 
       integer :: i
 
-      double precision, intent(in)  :: tau, z
-      double precision, intent(out) :: vz
-      double precision x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
-      double precision derphi
-      double precision p,alambd,p2,ovmu,gamma2,gamma,ppar,vpa,coala
-      double precision rmumag,rovsqg,rosqgb,rovbm
-      double precision a_phi,a_b,a_c,hstar
-      double precision s_hc,hpstar,phidot,blodot,bra
-      double precision pardeb
+  real(kind=real_kind), intent(in)  :: tau, z
+  real(kind=real_kind), intent(out) :: vz
+  real(kind=real_kind) x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
+  real(kind=real_kind) derphi
+  real(kind=real_kind) p,alambd,p2,ovmu,gamma2,gamma,ppar,vpa,coala
+  real(kind=real_kind) rmumag,rovsqg,rosqgb,rovbm
+  real(kind=real_kind) a_phi,a_b,a_c,hstar
+  real(kind=real_kind) s_hc,hpstar,phidot,blodot,bra
+  real(kind=real_kind) pardeb
 
       dimension z(5), vz(5)
       dimension x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
@@ -145,22 +150,23 @@ subroutine orbit_timestep(z,dtau,dtaumin,ierr)
   ! collisions
   use collis_alp, only : swcoll,iswmod
   ! end collisions
+  use libneo_kinds, only : real_kind
 
   implicit none
 
   integer, parameter          :: ndim=5, nstepmax=100000000
-  double precision, parameter :: relerr=1d-6
+  real(kind=real_kind), parameter :: relerr=1d-6
+  real(kind=real_kind), parameter :: vdr_dv=0.03d0
 
   integer :: ierr,j
-  double precision :: dtau,dtaumin,phi,tau1,tau2
+  real(kind=real_kind) :: dtau,dtaumin,phi,tau1,tau2
 
-  double precision, dimension(2)    :: y
-  double precision, dimension(ndim) :: z
-  double precision, parameter :: vdr_dv=0.03d0
+  real(kind=real_kind), dimension(2)    :: y
+  real(kind=real_kind), dimension(ndim) :: z
 
   ! collisions
   integer :: ierrcol
-  double precision :: dtauc
+  real(kind=real_kind) :: dtauc
   ! end collisions
 
   external velo
@@ -248,9 +254,13 @@ subroutine rhs_mflint(phi,y,dery)
   !                 dery(1:5) - vector of the right-hand side
   !  Called routines:  magfie
 
-  double precision :: phi
-  double precision, dimension(5) :: y,dery
-  double precision x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
+  use libneo_kinds, only : real_kind
+
+  implicit none
+
+  real(kind=real_kind) :: phi
+  real(kind=real_kind), dimension(5) :: y,dery
+  real(kind=real_kind) x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
   dimension x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
 
   x(1)=y(1)
@@ -272,22 +282,24 @@ end subroutine rhs_mflint
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine integrate_mfl(npoi,dphii,rbeg,phibeg,zbeg,         &
                                xstart,bstart,volstart,bmod00,ierr)
+  use libneo_kinds, only : real_kind
 
   implicit none
 
-  integer, parameter          :: ndim=5
-  double precision, parameter :: relerr=1d-8
-  integer :: npoi,i,ierr
-  double precision :: dphi,rbeg,phibeg,zbeg,bmod00,phi,phiold
-  double precision, dimension(3,npoi) :: xstart
-  double precision, dimension(npoi)   :: bstart,volstart
-  double precision, dimension(ndim)   :: y
+  integer, parameter :: ndim=5
+  integer, parameter :: ndphi=13
+  real(kind=real_kind), parameter :: relerr=1d-8
 
-  double precision x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
+  integer :: npoi,i,ierr
+  real(kind=real_kind) :: dphi,rbeg,phibeg,zbeg,bmod00,phi,phiold
+  real(kind=real_kind), dimension(3,npoi) :: xstart
+  real(kind=real_kind), dimension(npoi)   :: bstart,volstart
+  real(kind=real_kind), dimension(ndim)   :: y
+
+  real(kind=real_kind) x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
   dimension x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
-  integer, parameter          :: ndphi=13
   integer          :: i2
-  double precision :: dphii
+  real(kind=real_kind) :: dphii
 
   external :: rhs_mflint
 
@@ -350,11 +362,13 @@ subroutine binsrc(p,nmin,nmax,xi,i)
   ! Finds the index  i  of the array of increasing numbers   p  with dimension  n
   ! which satisfies   p(i-1) <  xi  <  p(i) . Uses binary search algorithm.
 
+  use libneo_kinds, only : real_kind
+
   implicit none
 
   integer                                :: n,nmin,nmax,i,imin,imax,k
-  double precision                       :: xi
-  double precision, dimension(nmin:nmax) :: p
+  real(kind=real_kind)                       :: xi
+  real(kind=real_kind), dimension(nmin:nmax) :: p
 
   imin=nmin
   imax=nmax
@@ -376,16 +390,17 @@ end subroutine binsrc
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine regst(z,dtau,ierr)
+  use libneo_kinds, only : real_kind
 
   implicit none
 
   integer, parameter          :: ndim=5
-  double precision, parameter :: relerr=1d-6
+  real(kind=real_kind), parameter :: relerr=1d-6
 
   integer :: ierr,j
-  double precision :: dtau,tau1,tau2
+  real(kind=real_kind) :: dtau,tau1,tau2
 
-  double precision, dimension(ndim) :: z
+  real(kind=real_kind), dimension(ndim) :: z
 
   external velo
 
