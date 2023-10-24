@@ -2,7 +2,7 @@ program vacfield
 
   use iso_fortran_env, only: dp => real64, error_unit
   use hdf5_tools, only: h5_init, h5_deinit, h5overwrite
-  use coil_tools, only: AUG_coils_read, AUG_coils_write_Nemov, AUG_coils_read_Nemov, &
+  use coil_tools, only: coil_t, coil_deinit, AUG_coils_read, AUG_coils_write_Nemov, AUG_coils_read_Nemov, &
        AUG_coils_write_GPEC, AUG_coils_read_GPEC, AUG_coils_write_Fourier, read_currents_Nemov, &
        Biot_Savart_sum_coils, write_Bvac_Nemov
 
@@ -11,9 +11,10 @@ program vacfield
   ! use default values for now
   real(dp), parameter :: Rmin = 75.0d0, Rmax = 267.0d0, Zmin = -154.0d0, Zmax = 150.4d0
   integer, parameter :: nmax = 64, nR = 150, nZ = 300, nphi = 512
-  integer :: argc, nseg, ncoil, nwind
+  integer :: argc, ncoil, kc
   character(len = 1024) :: in_type, out_type, in_dir, out_dir
-  real(dp), allocatable :: XYZ(:, :, :), Ic(:), Bvac(:, :, :, :)
+  real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
+  type(coil_t), allocatable :: coils(:)
 
   argc = command_argument_count()
   if (argc >= 4) then
@@ -26,11 +27,11 @@ program vacfield
   endif
 
   if (in_type == 'AUG') then
-     call AUG_coils_read(trim(in_dir), ncoil, nseg, nwind, XYZ)
+     call AUG_coils_read(trim(in_dir), ncoil, coils)
   else if (in_type == 'GPEC') then
-     call AUG_coils_read_GPEC(trim(in_dir), ncoil, nseg, nwind, XYZ)
+     call AUG_coils_read_GPEC(trim(in_dir), ncoil, coils)
   else if (in_type == 'Nemov') then
-     call AUG_coils_read_Nemov(trim(in_dir), ncoil, nseg, nwind, XYZ)
+     call AUG_coils_read_Nemov(trim(in_dir), ncoil, coils)
   else
      write (error_unit, '("unknown input type ", a)') trim(in_type)
      error stop
@@ -38,16 +39,16 @@ program vacfield
   if (out_type == 'Fourier') then
      call h5_init
      h5overwrite = .true.
-     call AUG_coils_write_Fourier(trim(out_dir), ncoil, nseg, nwind, XYZ, &
+     call AUG_coils_write_Fourier(trim(out_dir), ncoil, coils, &
           nmax, Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
      call h5_deinit
   else if (out_type == 'GPEC') then
-     call AUG_coils_write_GPEC(trim(out_dir), ncoil, nseg, nwind, XYZ)
+     call AUG_coils_write_GPEC(trim(out_dir), ncoil, coils)
   else if (out_type == 'Nemov') then
-     call AUG_coils_write_Nemov(trim(out_dir), ncoil, nseg, XYZ)
+     call AUG_coils_write_Nemov(trim(out_dir), coils)
   else if (out_type == 'sum') then
      call read_currents_Nemov(trim(in_dir), Ic)
-     call Biot_Savart_sum_coils(ncoil, nseg, nwind, XYZ, Ic, &
+     call Biot_Savart_sum_coils(ncoil, coils, Ic, &
           Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
      call write_Bvac_Nemov(trim(out_dir), Rmin, Rmax, Zmin, Zmax, Bvac)
      if (allocated(Ic)) deallocate(Ic)
@@ -56,6 +57,11 @@ program vacfield
      write (error_unit, '("unknown output type ", a)') trim(out_type)
      error stop
   end if
-  if (allocated(XYZ)) deallocate(XYZ)
+  if (allocated(coils)) then
+     do kc = 1, size(coils)
+        call coil_deinit(coils(kc))
+     end do
+     deallocate(coils)
+  end if
 
 end program vacfield
