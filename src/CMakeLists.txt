@@ -96,7 +96,10 @@ add_executable(vacfield.x
     libneo_kinds.f90
 )
 
+find_package(OpenMP)
+
 find_library(fftw_lib NAMES "fftw3")
+find_library(fftw_omp_lib NAMES "fftw3_omp")
 find_path(fftw_include_dir NAMES "fftw3.h")
 
 find_package(HDF5 COMPONENTS C Fortran Fortran_HL REQUIRED)
@@ -113,17 +116,20 @@ target_link_libraries(magfie
   netcdff
   hdf5_tools
   ${fftw_lib}
+  ${fftw_omp_lib}
   ${HDF5_HL_LIBRARIES}
   ${HDF5_LIBRARIES}
   ${BLAS_LIBRARIES}
   ${LAPACK_LIBRARIES}
 )
 
-target_link_libraries(vacfield.x
+target_link_libraries(vacfield.x PUBLIC
+  OpenMP::OpenMP_Fortran
   hdf5_tools
   ${HDF5_HL_LIBRARIES}
   ${HDF5_LIBRARIES}
   ${fftw_lib}
+  ${fftw_omp_lib}
 )
 
 target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
