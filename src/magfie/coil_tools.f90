@@ -6,9 +6,16 @@ module coil_tools
 
   private
 
-  public :: AUG_coils_read, AUG_coils_write_Nemov, AUG_coils_read_Nemov, &
+  public :: coil_t, coil_init, coil_deinit, &
+       AUG_coils_read, AUG_coils_write_Nemov, AUG_coils_read_Nemov, &
        AUG_coils_write_GPEC, AUG_coils_read_GPEC, AUG_coils_write_Fourier, &
        read_currents_Nemov, Biot_Savart_sum_coils, write_Bvac_Nemov
+
+  type :: coil_t
+     integer :: nseg
+     integer :: nwind
+     real(dp), allocatable :: XYZ(:, :)
+  end type coil_t
 
   character(len = *), parameter :: arg_size_fmt = &
        '("Argument size mismatch in ", a, ": ", a, " = ", i0, ", ", a, " = ", i0)'
@@ -27,107 +34,125 @@ contains
     if (excl_hi == 0) linspace(cnt) = hi
   end function linspace
 
-  subroutine AUG_coils_read(directory, ncoil, nseg, nwind, XYZ)
+  subroutine coil_init(coil, nseg, nwind)
+    type(coil_t), intent(inout) :: coil
+    integer, intent(in) :: nseg
+    integer, intent(in) :: nwind
+
+    call coil_deinit(coil)
+    allocate(coil%XYZ(3, nseg))
+    coil%XYZ(:, :) = 0d0
+    coil%nseg = nseg
+    coil%nwind = nwind
+  end subroutine coil_init
+
+  subroutine coil_deinit(coil)
+    type(coil_t), intent(inout) :: coil
+
+    if (allocated(coil%XYZ)) deallocate(coil%XYZ)
+    coil%nseg = 0
+    coil%nwind = 0d0
+  end subroutine coil_deinit
+
+  subroutine AUG_coils_read(directory, ncoil, coils)
     character(len = *), intent(in) :: directory
-    integer, intent(out) :: ncoil, nseg, nwind
-    real(dp), intent(out), dimension(:, :, :), allocatable :: XYZ
+    integer, intent(out) :: ncoil
+    type(coil_t), intent(out), dimension(:), allocatable :: coils
     character(len = 8) :: filename
-    integer :: fid, status, kc, ks
+    integer :: fid, status, nseg, kc, ks
     real(dp), dimension(:, :), allocatable :: R_Z_phi
 
     ncoil = 8
-    nwind = 5
-    ! count number of lines = number of coil segments
-    filename = 'Bu1n.asc'
-    open(newunit = fid, file = directory // '/' // filename, status = 'old', &
-         action = 'read', form = 'formatted')
-    nseg = 0
-    do
-       read(fid, *, iostat = status)
-       if (status /= 0) exit
-       nseg = nseg + 1
-    end do
-    close(fid)
-    ! allocate coordinates and read all coil data, starting with upper B coil set
-    allocate(R_Z_phi(nseg, 3))
-    allocate(XYZ(3, nseg, 2 * ncoil))
+    allocate(coils(2 * ncoil))
     do kc = 1, ncoil
        write (filename, '("Bu", i1, "n.asc")') kc
+       ! count number of lines = number of coil segments
+       open(newunit = fid, file = directory // '/' // filename, status = 'old', &
+            action = 'read', form = 'formatted')
+       nseg = 0
+       do
+          read(fid, *, iostat = status)
+          if (status /= 0) exit
+          nseg = nseg + 1
+       end do
+       close(fid)
+       call coil_init(coils(kc), nseg, 5)
+       allocate(R_Z_phi(nseg, 3))
        open(newunit = fid, file = directory // '/' // filename, status = 'old', &
             action = 'read', form = 'formatted')
        do ks = 1, nseg
           read (fid, '(f8.6, 1x, f8.5, 1x, f8.5)') R_Z_phi(ks, 1), R_Z_phi(ks, 2), R_Z_phi(ks, 3)
        end do
        close(fid)
-       XYZ(1, :, kc) = 1d2 * R_Z_phi(:, 1) * cos(R_Z_phi(:, 3))
-       XYZ(2, :, kc) = 1d2 * R_Z_phi(:, 1) * sin(R_Z_phi(:, 3))
-       XYZ(3, :, kc) = 1d2 * R_Z_phi(:, 2)
+       coils(kc)%XYZ(1, :) = 1d2 * R_Z_phi(:, 1) * cos(R_Z_phi(:, 3))
+       coils(kc)%XYZ(2, :) = 1d2 * R_Z_phi(:, 1) * sin(R_Z_phi(:, 3))
+       coils(kc)%XYZ(3, :) = 1d2 * R_Z_phi(:, 2)
+       deallocate(R_Z_phi)
     end do
     do kc = 1, ncoil
        write (filename, '("Bl", i1, "n.asc")') kc
+       ! count number of lines = number of coil segments
+       open(newunit = fid, file = directory // '/' // filename, status = 'old', &
+            action = 'read', form = 'formatted')
+       nseg = 0
+       do
+          read(fid, *, iostat = status)
+          if (status /= 0) exit
+          nseg = nseg + 1
+       end do
+       close(fid)
+       call coil_init(coils(kc), nseg, 5)
+       allocate(R_Z_phi(nseg, 3))
        open(newunit = fid, file = directory // '/' // filename, status = 'old', &
             action = 'read', form = 'formatted')
        do ks = 1, nseg
           read (fid, '(f8.6, 1x, f8.5, 1x, f8.5)') R_Z_phi(ks, 1), R_Z_phi(ks, 2), R_Z_phi(ks, 3)
        end do
        close(fid)
-       XYZ(1, :, kc + ncoil) = 1d2 * R_Z_phi(:, 1) * cos(R_Z_phi(:, 3))
-       XYZ(2, :, kc + ncoil) = 1d2 * R_Z_phi(:, 1) * sin(R_Z_phi(:, 3))
-       XYZ(3, :, kc + ncoil) = 1d2 * R_Z_phi(:, 2)
+       coils(kc + ncoil)%XYZ(1, :) = 1d2 * R_Z_phi(:, 1) * cos(R_Z_phi(:, 3))
+       coils(kc + ncoil)%XYZ(2, :) = 1d2 * R_Z_phi(:, 1) * sin(R_Z_phi(:, 3))
+       coils(kc + ncoil)%XYZ(3, :) = 1d2 * R_Z_phi(:, 2)
+       deallocate(R_Z_phi)
     end do
-    deallocate(R_Z_phi)
   end subroutine AUG_coils_read
 
-  subroutine AUG_coils_write_Nemov(directory, ncoil, nseg, XYZ)
+  subroutine AUG_coils_write_Nemov(directory, coils)
     character(len = *), intent(in) :: directory
-    integer, intent(in) :: ncoil, nseg
-    real(dp), intent(in), dimension(:, :, :) :: XYZ
-    integer :: fid, kc, ks
+    type(coil_t), intent(in), dimension(:) :: coils
+    integer :: fid, ncoil, kc, ks
 
-    if (3 /= size(XYZ, 1)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_Nemov', '3', 'size(XYZ, 1)', 3, size(XYZ, 1)
-       error stop
-    end if
-    if (nseg /= size(XYZ, 2)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_Nemov', 'nseg', 'size(XYZ, 2)', nseg, size(XYZ, 2)
-       error stop
-    end if
-    if (2 * ncoil /= size(XYZ, 3)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_Nemov', '2 * ncoil', 'size(XYZ, 3)', &
-            2 * ncoil, size(XYZ, 3)
-       error stop
-    end if
     open(newunit = fid, file = directory // '/co_asd.dd', status = 'replace', &
          action = 'write', form = 'formatted')
-    write (fid, '(1x, i6)') 2 * ncoil * (nseg + 1)
-    do kc = 1, 2 * ncoil
-       do ks = 1, nseg
+    ! first point is repeated for each coil
+    write (fid, '(1x, i6)') sum(coils(:)%nseg + 1)
+    do kc = 1, size(coils)
+       do ks = 1, coils(kc)%nseg
           write (fid, '(3(1x, es17.9e2), 1x, es12.4e2, 1x, i3)') &
-               XYZ(1, ks, kc), XYZ(2, ks, kc), XYZ(3, ks, kc), 1.0, kc
+               coils(kc)%XYZ(1, ks), coils(kc)%XYZ(2, ks), coils(kc)%XYZ(3, ks), 1.0, kc
        end do
        write (fid, '(3(1x, es17.9e2), 1x, es12.4e2, 1x, i3)') &
-            XYZ(1, 1, kc), XYZ(2, 1, kc), XYZ(3, 1, kc), 0.0, kc
+            coils(kc)%XYZ(1, 1), coils(kc)%XYZ(2, 1), coils(kc)%XYZ(3, 1), 0.0, kc
     end do
     close(fid)
   end subroutine AUG_coils_write_Nemov
 
-  subroutine AUG_coils_read_Nemov(directory, ncoil, nseg, nwind, XYZ)
+  subroutine AUG_coils_read_Nemov(directory, ncoil, coils)
     character(len = *), intent(in) :: directory
-    integer, intent(out) :: ncoil, nseg, nwind
-    real(dp), intent(out), allocatable, dimension(:, :, :) :: XYZ
-    integer :: fid, kc, ks, temp
+    integer, intent(out) :: ncoil
+    type(coil_t), intent(out), allocatable, dimension(:) :: coils
+    integer :: fid, nseg, kc, ks, temp
     real(dp) :: rdum
 
     ncoil = 8
-    nwind = 5
     open(newunit = fid, file = directory // '/co_asd.dd', status = 'old', &
          action = 'read', form = 'formatted')
     read (fid, *) temp
     nseg = temp / (2 * ncoil) - 1
-    allocate(XYZ(3, nseg, 2 * ncoil))
+    allocate(coils(2 * ncoil))
     do kc = 1, 2 * ncoil
+       call coil_init(coils(kc), nseg, 5)
        do ks = 1, nseg
-          read (fid, *) XYZ(1, ks, kc), XYZ(2, ks, kc), XYZ(3, ks, kc), rdum, temp
+          read (fid, *) coils(kc)%XYZ(:, ks), rdum, temp
           if (temp /= kc) then
              write (error_unit, '("Expected coil index ", i0, " in co_asd.dd at line ", ' // &
                   'i0, ", but got ", i0)') kc, (kc - 1) * (nseg + 1) + ks + 1, temp
@@ -139,56 +164,52 @@ contains
     close(fid)
   end subroutine AUG_coils_read_Nemov
 
-  subroutine AUG_coils_write_GPEC(directory, ncoil, nseg, nwind, XYZ)
+  subroutine AUG_coils_write_GPEC(directory, ncoil, coils)
     character(len = *), intent(in) :: directory
-    integer, intent(in) :: ncoil, nseg, nwind
-    real(dp), intent(in), dimension(:, :, :) :: XYZ
+    integer, intent(in) :: ncoil
+    type(coil_t), intent(in), dimension(:) :: coils
     integer :: fid, kc, ks
 
-    if (3 /= size(XYZ, 1)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', '3', 'size(XYZ, 1)', 3, size(XYZ, 1)
+    if (2 * ncoil /= size(coils)) then
+       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', &
+            '2 * ncoil', 'size(coils)', 2 * ncoil, size(coils)
        error stop
     end if
-    if (nseg /= size(XYZ, 2)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', 'nseg', 'size(XYZ, 2)', nseg, size(XYZ, 2)
+    if (any(coils(:)%nseg /= coils(1)%nseg)) then
+       write (error_unit, '("AUG_coils_write_GPEC: not all coils have the same number of segments.")')
        error stop
     end if
-    if (2 * ncoil /= size(XYZ, 3)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', '2 * ncoil', 'size(XYZ, 3)', &
-            2 * ncoil, size(XYZ, 3)
+    if (any(coils(:)%nwind /= coils(1)%nwind)) then
+       write (error_unit, '("AUG_coils_write_GPEC: not all coils have the same winding number.")')
        error stop
     end if
     open(newunit = fid, file = directory // '/aug_bu.dat', status = 'replace', &
          action = 'write', form = 'formatted')
-    write (fid, '(3(1x, i4), 1x, f7.2)') ncoil, 1, nseg + 1, dble(nwind)
+    write (fid, '(3(1x, i4), 1x, f7.2)') ncoil, 1, coils(1)%nseg + 1, dble(coils(1)%nwind)
     do kc = 1, ncoil
-       do ks = 1, nseg
-          write (fid, '(3(1x, es12.4e2))') &
-               1d-2 * XYZ(1, ks, kc), 1d-2 * XYZ(2, ks, kc), 1d-2 * XYZ(3, ks, kc)
+       do ks = 1, coils(kc)%nseg
+          write (fid, '(3(1x, es12.4e2))') 1d-2 * coils(kc)%XYZ(:, ks)
        end do
-       write (fid, '(3(1x, es12.4e2))') &
-            1d-2 * XYZ(1, 1, kc), 1d-2 * XYZ(2, 1, kc), 1d-2 * XYZ(3, 1, kc)
+       write (fid, '(3(1x, es12.4e2))') 1d-2 * coils(kc)%XYZ(:, 1)
     end do
     close(fid)
     open(newunit = fid, file = directory // '/aug_bl.dat', status = 'replace', &
          action = 'write', form = 'formatted')
-    write (fid, '(3(1x, i4), 1x, f7.2)') ncoil, 1, nseg + 1, dble(nwind)
+    write (fid, '(3(1x, i4), 1x, f7.2)') ncoil, 1, coils(1)%nseg + 1, dble(coils(1)%nwind)
     do kc = ncoil + 1, 2 * ncoil
-       do ks = 1, nseg
-          write (fid, '(3(1x, es12.4e2))') &
-               1d-2 * XYZ(1, ks, kc), 1d-2 * XYZ(2, ks, kc), 1d-2 * XYZ(3, ks, kc)
+       do ks = 1, coils(kc)%nseg
+          write (fid, '(3(1x, es12.4e2))') 1d-2 * coils(kc)%XYZ(:, ks)
        end do
-       write (fid, '(3(1x, es12.4e2))') &
-            1d-2 * XYZ(1, 1, kc), 1d-2 * XYZ(2, 1, kc), 1d-2 * XYZ(3, 1, kc)
+       write (fid, '(3(1x, es12.4e2))') 1d-2 * coils(kc)%XYZ(:, 1)
     end do
     close(fid)
   end subroutine AUG_coils_write_GPEC
 
-  subroutine AUG_coils_read_GPEC(directory, ncoil, nseg, nwind, XYZ)
+  subroutine AUG_coils_read_GPEC(directory, ncoil, coils)
     character(len = *), intent(in) :: directory
-    integer, intent(out) :: ncoil, nseg, nwind
-    real(dp), intent(out), allocatable, dimension(:, :, :) :: XYZ
-    integer :: fid, kc, ks, idum
+    integer, intent(out) :: ncoil
+    type(coil_t), intent(out), allocatable, dimension(:) :: coils
+    integer :: fid, nseg, nwind, kc, ks, idum
     real(dp) :: ddum
 
     open(newunit = fid, file = directory // '/aug_bu.dat', status = 'old', &
@@ -196,12 +217,14 @@ contains
     read (fid, '(3(1x, i4), 1x, f7.2)') ncoil, idum, nseg, ddum
     nseg = nseg - 1
     nwind = int(ddum)
-    allocate(XYZ(3, nseg, 2 * ncoil))
+    allocate(coils(2 * ncoil))
     do kc = 1, ncoil
+       call coil_init(coils(kc), nseg, nwind)
        do ks = 1, nseg
-          read (fid, '(3(1x, es12.4e2))') XYZ(1, ks, kc), XYZ(2, ks, kc), XYZ(3, ks, kc)
+          read (fid, '(3(1x, es12.4e2))') coils(kc)%XYZ(:, ks)
        end do
        read (fid, *)
+       coils(kc)%XYZ(:, :) = 1d2 * coils(kc)%XYZ
     end do
     close(fid)
     open(newunit = fid, file = directory // '/aug_bl.dat', status = 'old', &
@@ -209,20 +232,20 @@ contains
     read (fid, *)
     do kc = ncoil + 1, 2 * ncoil
        do ks = 1, nseg
-          read (fid, '(3(1x, es12.4e2))') XYZ(1, ks, kc), XYZ(2, ks, kc), XYZ(3, ks, kc)
+          read (fid, '(3(1x, es12.4e2))') coils(kc)%XYZ(:, ks)
        end do
        read (fid, *)
+       coils(kc)%XYZ(:, :) = 1d2 * coils(kc)%XYZ
     end do
     close(fid)
-    XYZ(:, :, :) = 1d2 * XYZ
   end subroutine AUG_coils_read_GPEC
 
-  subroutine AUG_coils_write_Fourier(directory, ncoil, nseg, nwind, XYZ, nmax, &
+  subroutine AUG_coils_write_Fourier(directory, ncoil, coils, nmax, &
        Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
     use hdf5_tools, only: HID_T, h5_open_rw, h5_create_parent_groups, h5_add, h5_close
     character(len = *), intent(in) :: directory
-    integer, intent(in) :: ncoil, nseg, nwind
-    real(dp), intent(in), dimension(:, :, :) :: XYZ
+    integer, intent(in) :: ncoil
+    type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
@@ -232,17 +255,9 @@ contains
     integer(HID_T) :: h5id_root
     character(len = 7) :: modename, coilname
 
-    if (3 /= size(XYZ, 1)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', '3', 'size(XYZ, 1)', 3, size(XYZ, 1)
-       error stop
-    end if
-    if (nseg /= size(XYZ, 2)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', 'nseg', 'size(XYZ, 2)', nseg, size(XYZ, 2)
-       error stop
-    end if
-    if (2 * ncoil /= size(XYZ, 3)) then
-       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', '2 * ncoil', 'size(XYZ, 3)', &
-            2 * ncoil, size(XYZ, 3)
+    if (2 * ncoil /= size(coils)) then
+       write (error_unit, arg_size_fmt) 'AUG_coils_write_GPEC', &
+            '2 * ncoil', 'size(coils)', 2 * ncoil, size(coils)
        error stop
     end if
     if (nmax > nphi / 4) then
@@ -250,7 +265,7 @@ contains
             nmax, nphi / 4
        error stop
     end if
-    call Biot_Savart_Fourier(ncoil, nseg, nwind, XYZ, nmax, &
+    call Biot_Savart_Fourier(ncoil, coils, nmax, &
          Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
     filename = directory // '/AUG_B_coils.h5'
     call h5_open_rw(trim(filename), h5id_root)
@@ -268,6 +283,7 @@ contains
        call h5_add(h5id_root, modename // '/nR', nR, 'number of grid points in R direction')
        call h5_add(h5id_root, modename // '/nZ', nZ, 'number of grid points in Z direction')
        call h5_add(h5id_root, modename // '/ncoil', ncoil, 'number of upper and lower B coils')
+       ! TODO: add nwind
        do kc = 1, 2 * ncoil
           write (coilname, '("coil_", i2.2)') kc
           call h5_create_parent_groups(h5id_root, modename // '/' // coilname // '/')
@@ -299,11 +315,11 @@ contains
     Ic(:) = Ic / real(nwind)
   end subroutine read_currents_Nemov
 
-  subroutine Biot_Savart_sum_coils(ncoil, nseg, nwind, XYZ_c, Ic, &
+  subroutine Biot_Savart_sum_coils(ncoil, coils, Ic, &
        Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
     use math_constants, only: pi
-    integer, intent(in) :: ncoil, nseg, nwind
-    real(dp), intent(in), dimension(:, :, :) :: XYZ_c
+    integer, intent(in) :: ncoil
+    type(coil_t), intent(in), dimension(:) :: coils
     real(dp), intent(in), dimension(:) :: Ic
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
@@ -312,24 +328,14 @@ contains
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
     real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ_c(3), BXYZ(3)
 
-    if (3 /= size(XYZ_c, 1)) then
+    if (2 * ncoil /= size(coils)) then
        write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', &
-            '3', 'size(XYZ_c, 1)', 3, size(XYZ_c, 1)
-       error stop
-    end if
-    if (nseg /= size(XYZ_c, 2)) then
-       write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', &
-            'nseg', 'size(XYZ_c, 2)', nseg, size(XYZ_c, 2)
-       error stop
-    end if
-    if (2 * ncoil /= size(XYZ_c, 3)) then
-       write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', &
-            '2 * ncoil', 'size(XYZ_c, 3)', 2 * ncoil, size(XYZ_c, 3)
+            '2 * ncoil', 'size(coils)', 2 * ncoil, size(coils)
        error stop
     end if
     if (2 * ncoil /= size(Ic)) then
-       write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', '2 * ncoil', 'size(Ic)', &
-            2 * ncoil, size(Ic)
+       write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', &
+            '2 * ncoil', 'size(Ic)', 2 * ncoil, size(Ic)
        error stop
     end if
     R(:) = linspace(Rmin, Rmax, nR, 0, 0)
@@ -340,8 +346,8 @@ contains
     allocate(Bvac(3, nZ, nphi, nR))
     Bvac(:, :, :, :) = 0d0
     !$omp parallel do schedule(static) collapse(3) default(none) &
-    !$omp private(kr, kphi, kZ, kc, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) &
-    !$omp shared(nR, nphi, nZ, ncoil, nseg, R, Z, cosphi, sinphi, XYZ_c, nwind, Ic, Bvac)
+    !$omp private(kr, kphi, kZ, kc, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ, BXYZ_c) &
+    !$omp shared(nR, nphi, nZ, ncoil, R, Z, cosphi, sinphi, coils, Ic, Bvac)
     do kR = 1, nR
        do kphi = 1, nphi
           do kZ = 1, nZ
@@ -350,18 +356,18 @@ contains
              BXYZ(:) = 0d0
              do kc = 1, 2 * ncoil
                 BXYZ_c(:) = 0d0
-                XYZ_f(:) = XYZ_c(:, nseg, kc) - XYZ_r
+                XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
                 dist_f = sqrt(sum(XYZ_f * XYZ_f))
-                do ks = 1, nseg
+                do ks = 1, coils(kc)%nseg
                    XYZ_i(:) = XYZ_f
                    dist_i = dist_f
-                   XYZ_f(:) = XYZ_c(:, ks, kc) - XYZ_r
+                   XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
                    dist_f = sqrt(sum(XYZ_f * XYZ_f))
                    BXYZ_c(:) = BXYZ_c + &
                         (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
                         (dist_i + dist_f) / (dist_i * dist_f * (dist_i * dist_f + sum(XYZ_i * XYZ_f)))
                 end do
-                BXYZ(:) = BXYZ + nwind * Ic(kc) * BXYZ_c
+                BXYZ(:) = BXYZ + coils(kc)%nwind * Ic(kc) * BXYZ_c
              end do
              Bvac(1, kZ, kphi, kR) = BXYZ(1) * cosphi(kphi) + BXYZ(2) * sinphi(kphi)
              Bvac(2, kZ, kphi, kR) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
@@ -371,7 +377,7 @@ contains
     end do
   end subroutine Biot_Savart_sum_coils
 
-  subroutine Biot_Savart_Fourier(ncoil, nseg, nwind, XYZ_c, nmax, &
+  subroutine Biot_Savart_Fourier(ncoil, coils, nmax, &
        Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
@@ -379,8 +385,8 @@ contains
          fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
          FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
     use math_constants, only: pi
-    integer, intent(in) :: ncoil, nseg, nwind
-    real(dp), intent(in), dimension(:, :, :) :: XYZ_c
+    integer, intent(in) :: ncoil
+    type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
@@ -392,19 +398,9 @@ contains
     real(c_double), dimension(:), pointer :: BR, Bphi, BZ
     complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
 
-    if (3 /= size(XYZ_c, 1)) then
+    if (2 * ncoil /= size(coils)) then
        write (error_unit, arg_size_fmt) 'Biot_Savart_Fourier', &
-            '3', 'size(XYZ_c, 1)', 3, size(XYZ_c, 1)
-       error stop
-    end if
-    if (nseg /= size(XYZ_c, 2)) then
-       write (error_unit, arg_size_fmt) 'Biot_Savart_Fourier', &
-            'nseg', 'size(XYZ_c, 2)', nseg, size(XYZ_c, 2)
-       error stop
-    end if
-    if (2 * ncoil /= size(XYZ_c, 3)) then
-       write (error_unit, arg_size_fmt) 'Biot_Savart_Fourier', &
-            '2 * ncoil', 'size(XYZ_c, 3)', 2 * ncoil, size(XYZ_c, 3)
+            '2 * ncoil', 'size(coils)', 2 * ncoil, size(coils)
        error stop
     end if
     if (nmax > nphi / 4) then
@@ -441,16 +437,16 @@ contains
           do kR = 1, nR
              !$omp parallel do schedule(static) default(none) &
              !$omp private(kphi, ks, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) firstprivate(XYZ_r) &
-             !$omp shared(nphi, nseg, kc, XYZ_c, R, kR, cosphi, sinphi, BR, Bphi, BZ)
+             !$omp shared(nphi, kc, coils, R, kR, cosphi, sinphi, BR, Bphi, BZ)
              do kphi = 1, nphi
                 XYZ_r(1:2) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi)]
                 ! Biot-Savart integral over coil segments
-                XYZ_f(:) = XYZ_c(:, nseg, kc) - XYZ_r
+                XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
                 dist_f = sqrt(sum(XYZ_f * XYZ_f))
-                do ks = 1, nseg
+                do ks = 1, coils(kc)%nseg
                    XYZ_i(:) = XYZ_f
                    dist_i = dist_f
-                   XYZ_f(:) = XYZ_c(:, ks, kc) - XYZ_r
+                   XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
                    dist_f = sqrt(sum(XYZ_f * XYZ_f))
                    BXYZ(:) = BXYZ + &
                         (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
@@ -463,9 +459,9 @@ contains
              call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
              call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
              call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
-             Bn(0:nmax, 1, kR, kZ, kc) = nwind * BnR(1:nmax+1) / dble(nphi)
-             Bn(0:nmax, 2, kR, kZ, kc) = nwind * Bnphi(1:nmax+1) / dble(nphi)
-             Bn(0:nmax, 3, kR, kZ, kc) = nwind * BnZ(1:nmax+1) / dble(nphi)
+             Bn(0:nmax, 1, kR, kZ, kc) = coils(kc)%nwind * BnR(1:nmax+1) / dble(nphi)
+             Bn(0:nmax, 2, kR, kZ, kc) = coils(kc)%nwind * Bnphi(1:nmax+1) / dble(nphi)
+             Bn(0:nmax, 3, kR, kZ, kc) = coils(kc)%nwind * BnZ(1:nmax+1) / dble(nphi)
           end do
        end do
     end do
