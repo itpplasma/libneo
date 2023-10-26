@@ -27,14 +27,19 @@ contains
 
   function linspace(lo, hi, cnt, excl_lo, excl_hi)
     real(dp), intent(in) :: lo, hi
-    integer, intent(in) :: cnt, excl_lo, excl_hi
+    integer, intent(in) :: cnt
+    integer, intent(in), optional :: excl_lo, excl_hi
     real(dp) :: linspace(cnt)
     real(dp) :: step
-    integer :: k
+    integer :: k, omit_lo, omit_hi
 
-    step = (hi - lo) / dble(cnt - 1 + excl_lo + excl_hi)
-    linspace = lo + [(k * step, k = excl_lo, cnt - 1 + excl_lo)]
-    if (excl_hi == 0) linspace(cnt) = hi
+    omit_lo = 0
+    if (present(excl_lo)) omit_lo = excl_lo
+    omit_hi = 0
+    if (present(excl_hi)) omit_hi = excl_hi
+    step = (hi - lo) / dble(cnt - 1 + omit_lo + omit_hi)
+    linspace = lo + [(k * step, k = omit_lo, cnt - 1 + omit_lo)]
+    if (omit_hi == 0) linspace(cnt) = hi
   end function linspace
 
   subroutine check_number_of_args(expected)
@@ -124,6 +129,7 @@ contains
   end subroutine coils_append
 
   subroutine AUG_coils_write(filename, coil)
+    use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(in) :: coil
     integer :: fid, ks
@@ -132,14 +138,15 @@ contains
          action = 'write', form = 'formatted')
     do ks = 1, coil%nseg
        write (fid, '(3(es24.16e3, :, 1x))') &
-            1d-2 * hypot(coil%XYZ(2, ks), coil%XYZ(1, ks)), &
-            1d-2 * coil%XYZ(3, ks), &
+            hypot(coil%XYZ(2, ks), coil%XYZ(1, ks)) / length_si_to_cgs, &
+            coil%XYZ(3, ks) / length_si_to_cgs, &
             atan2(coil%XYZ(2, ks), coil%XYZ(1, ks))
     end do
     close(fid)
   end subroutine AUG_coils_write
 
   subroutine AUG_coils_read(filename, coil)
+    use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(inout) :: coil
     integer :: fid, status, nseg, ks
@@ -161,9 +168,9 @@ contains
        read (fid, *) R_Z_phi(ks, :)
     end do
     close(fid)
-    coil%XYZ(1, :) = 1d2 * R_Z_phi(:, 1) * cos(R_Z_phi(:, 3))
-    coil%XYZ(2, :) = 1d2 * R_Z_phi(:, 1) * sin(R_Z_phi(:, 3))
-    coil%XYZ(3, :) = 1d2 * R_Z_phi(:, 2)
+    coil%XYZ(1, :) = length_si_to_cgs * R_Z_phi(:, 1) * cos(R_Z_phi(:, 3))
+    coil%XYZ(2, :) = length_si_to_cgs * R_Z_phi(:, 1) * sin(R_Z_phi(:, 3))
+    coil%XYZ(3, :) = length_si_to_cgs * R_Z_phi(:, 2)
     deallocate(R_Z_phi)
   end subroutine AUG_coils_read
 
@@ -233,6 +240,7 @@ contains
   end subroutine AUG_coils_read_Nemov
 
   subroutine AUG_coils_write_GPEC(filename, coils)
+    use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(in), dimension(:) :: coils
     integer :: fid, ncoil, kc, ks
@@ -251,14 +259,15 @@ contains
     write (fid, '(3(i0, 1x), es24.16e3)') ncoil, 1, coils(1)%nseg + 1, dble(coils(1)%nwind)
     do kc = 1, ncoil
        do ks = 1, coils(kc)%nseg
-          write (fid, '(3(es24.16e3, :, 1x))') 1d-2 * coils(kc)%XYZ(:, ks)
+          write (fid, '(3(es24.16e3, :, 1x))') coils(kc)%XYZ(:, ks) / length_si_to_cgs
        end do
-       write (fid, '(3(es24.16e3, :, 1x))') 1d-2 * coils(kc)%XYZ(:, 1)
+       write (fid, '(3(es24.16e3, :, 1x))') coils(kc)%XYZ(:, 1) / length_si_to_cgs
     end do
     close(fid)
   end subroutine AUG_coils_write_GPEC
 
   subroutine AUG_coils_read_GPEC(filename, coils)
+    use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(out), allocatable, dimension(:) :: coils
     integer :: fid, ncoil, nseg, nwind, kc, ks, idum
@@ -276,7 +285,7 @@ contains
           read (fid, *) coils(kc)%XYZ(:, ks)
        end do
        read (fid, *)
-       coils(kc)%XYZ(:, :) = 1d2 * coils(kc)%XYZ
+       coils(kc)%XYZ(:, :) = length_si_to_cgs * coils(kc)%XYZ
     end do
     close(fid)
   end subroutine AUG_coils_read_GPEC

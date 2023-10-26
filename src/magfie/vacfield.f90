@@ -13,11 +13,28 @@ program vacfield
   ! use default values for now
   real(dp), parameter :: Rmin = 75.0d0, Rmax = 267.0d0, Zmin = -154.0d0, Zmax = 150.4d0
   integer, parameter :: nmax = 64, nR = 150, nZ = 300, nphi = 512
-  integer :: ncoil, kc
-  character(len = 1024) :: coil_type, field_type, field_file, currents_file
+  integer :: argc, ncoil, kc
+  character(len = 1024) :: arg, coil_type, field_type, field_file, currents_file
   character(len = :), dimension(:), allocatable :: coil_files
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
+
+  argc = command_argument_count()
+  if (argc < 1) then
+     call usage()
+     stop
+  end if
+  if (argc == 1) then
+     call get_command_argument(1, arg)
+     if (arg == '-h' .or. arg == '--help' .or. arg == '-?') then
+        call usage()
+        stop
+     else
+        write (error_unit, '("Unrecognized argument ", a, ".")') trim(arg)
+        call usage()
+        error stop
+     end if
+  endif
 
   call check_number_of_args(1)
   call get_command_argument(1, coil_type)
@@ -82,5 +99,21 @@ program vacfield
      end do
      deallocate(coils)
   end if
+
+contains
+
+  subroutine usage()
+    write (*, '("Usage:")')
+    write (*, '("  vacfield.x <coil_format> <n_files> <file_1> [ <file_2> ... ]")')
+    write (*, '("             <field_format> <field_file> [ <current_file> ]")')
+    write (*, '()')
+    write (*, '("  coil_format   supportedd formats are AUG, GPEC, and Nemov")')
+    write (*, '("  n_files       integer indicating the number of coil file names that follow")')
+    write (*, '("  file_#        coil file, to be processed in the given order")')
+    write (*, '("  field_format  ''sum'' sums over coils and currents, ")')
+    write (*, '("                ''Fourier'' computes Fourier modes per coil with unit current")')
+    write (*, '("  field_file    output file, plaintext for ''sum'' and HDF5 for ''Fourier''")')
+    write (*, '("  current_file  plaintext file containing currents for use with ''sum''")')
+  end subroutine usage
 
 end program vacfield
