@@ -361,7 +361,7 @@ contains
 
     if (size(coils) /= size(Ic)) then
        write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', &
-            'size(coils)', 'size(Ic)', size(coils), size(Ic)
+            'size(coils)', size(coils), 'size(Ic)', size(Ic)
        error stop
     end if
     ncoil = size(coils)
@@ -506,7 +506,7 @@ contains
     integer :: fid, nR, nphi, nZ, kR, kphi, kZ
 
     if (3 /= size(Bvac, 1)) then
-       write (error_unit, arg_size_fmt) 'write_Bnvac_Nemov', '3', 'size(Bvac, 1)', 3, size(Bvac, 1)
+       write (error_unit, arg_size_fmt) 'write_Bnvac_Nemov', '3', 3, 'size(Bvac, 1)', size(Bvac, 1)
        error stop
     end if
     nZ = size(Bvac, 2)
@@ -567,8 +567,8 @@ contains
     call h5_get(h5id_root, modename // '/nZ', nZ)
     call h5_get(h5id_root, modename // '/ncoil', ncoil)
     if (2 * ncoil /= size(Ic)) then
-       write (error_unit, arg_size_fmt) 'read_Bnvac_Fourier', '2 * ncoil', 'size(Ic)', &
-            2 * ncoil, size(Ic)
+       write (error_unit, arg_size_fmt) 'read_Bnvac_Fourier', &
+            '2 * ncoil', 2 * ncoil, 'size(Ic)', size(Ic)
        error stop
     end if
     allocate(Bnvac_R(nR, nZ), Bnvac_Z(nR, nZ), Bn(nR, nZ))
