@@ -281,16 +281,15 @@ contains
     close(fid)
   end subroutine AUG_coils_read_GPEC
 
-  subroutine AUG_coils_write_Fourier(directory, coils, nmax, &
+  subroutine AUG_coils_write_Fourier(filename, coils, nmax, &
        Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
     use hdf5_tools, only: HID_T, h5_open_rw, h5_create_parent_groups, h5_add, h5_close
-    character(len = *), intent(in) :: directory
+    character(len = *), intent(in) :: filename
     type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
     complex(dp), dimension(:, :, :, :, :), allocatable :: Bn
-    character(len = 1024) :: filename
     integer :: ntor, ncoil, kc
     integer(HID_T) :: h5id_root
     character(len = 7) :: modename, coilname
@@ -303,8 +302,7 @@ contains
     ncoil = size(coils)
     call Biot_Savart_Fourier(coils, nmax, &
          Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
-    filename = directory // '/AUG_B_coils.h5'
-    call h5_open_rw(trim(filename), h5id_root)
+    call h5_open_rw(filename, h5id_root)
     do ntor = 0, nmax
        write (modename, '("ntor_", i2.2)') ntor
        call h5_create_parent_groups(h5id_root, modename // '/')
@@ -338,17 +336,16 @@ contains
     deallocate(Bn)
   end subroutine AUG_coils_write_Fourier
 
-  subroutine read_currents_Nemov(directory, Ic)
-    character(len = *), intent(in) :: directory
+  subroutine read_currents_Nemov(filename, Ic)
+    character(len = *), intent(in) :: filename
     real(dp), intent(out), allocatable :: Ic(:)
-    integer, parameter :: nwind = 5, ncoil = 8
+    integer, parameter :: nwind = 5
     integer :: fid
 
-    allocate(Ic(2 * ncoil))
-    open(newunit = fid, file = directory // '/cur_asd.dd', status = 'old', action = 'read', form = 'formatted')
-    read (fid, *) Ic(:)
+    open(newunit = fid, file = filename, status = 'old', action = 'read', form = 'formatted')
+    read (fid, *) Ic
     close(fid)
-    Ic(:) = Ic / real(nwind)
+    Ic(:) = Ic / dble(nwind)
   end subroutine read_currents_Nemov
 
   subroutine Biot_Savart_sum_coils(coils, Ic, &
@@ -502,9 +499,9 @@ contains
     ! nullify pointers past this point
   end subroutine Biot_Savart_Fourier
 
-  subroutine write_Bvac_Nemov(directory, Rmin, Rmax, Zmin, Zmax, Bvac)
+  subroutine write_Bvac_Nemov(filename, Rmin, Rmax, Zmin, Zmax, Bvac)
     use math_constants, only: pi
-    character(len = *), intent(in) :: directory
+    character(len = *), intent(in) :: filename
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     real(dp), intent(in), dimension(:, :, :, :) :: Bvac
     integer :: fid, nR, nphi, nZ, kR, kphi, kZ
@@ -516,8 +513,7 @@ contains
     nZ = size(Bvac, 2)
     nphi = size(Bvac, 3)
     nR = size(Bvac, 4)
-    open(newunit = fid, file = directory // '/field.dat', status = 'replace', &
-         action = 'write', form = 'formatted')
+    open(newunit = fid, file = filename, status = 'replace', action = 'write', form = 'formatted')
     ! kisslinger_asdex.f90 writes points at phi = 0 and at phi = 2 pi
     write (fid, '(i0, 1x, i0, 1x, i0, 1x, i0)') nR, nphi + 1, nZ, 1
     write (fid, '(es24.16e3, 1x, es24.16e3)') Rmin, Rmax
@@ -538,23 +534,21 @@ contains
     close(fid)
   end subroutine write_Bvac_Nemov
 
-  subroutine read_Bnvac_Fourier(directory, ntor, Ic, nR, nZ, Rmin, Rmax, Zmin, Zmax, &
+  subroutine read_Bnvac_Fourier(filename, ntor, Ic, nR, nZ, Rmin, Rmax, Zmin, Zmax, &
        Bnvac_R, Bnvac_Z)
     use hdf5_tools, only: HID_T, h5_open, h5_get, h5_close
-    character(len = *), intent(in) :: directory
+    character(len = *), intent(in) :: filename
     integer, intent(in) :: ntor
     real(dp), intent(in), dimension(:) :: Ic
     integer, intent(out) :: nR, nZ
     real(dp), intent(out) :: Rmin, Rmax, Zmin, Zmax
     complex(dp), intent(out), dimension(:, :), allocatable :: Bnvac_R, Bnvac_Z
-    character(len = 1024) :: filename
     logical :: file_exists
     integer :: kc, ncoil
     integer(HID_T) :: h5id_root
     character(len = 7) :: modename, coilname
     complex(dp), dimension(:, :), allocatable :: Bn
 
-    filename = trim(adjustl(directory)) // '/AUG_B_coils.h5'
     inquire(file = filename, exist = file_exists)
     if (.not. file_exists) then
        write (error_unit, '("File ", a, " not found, cannot read vacuum perturbation field.")') &
@@ -570,15 +564,15 @@ contains
     call h5_get(h5id_root, modename // '/nR', nR)
     call h5_get(h5id_root, modename // '/nZ', nZ)
     call h5_get(h5id_root, modename // '/ncoil', ncoil)
-    if (2 * ncoil /= size(Ic)) then
+    if (ncoil /= size(Ic)) then
        write (error_unit, arg_size_fmt) 'read_Bnvac_Fourier', &
-            '2 * ncoil', 2 * ncoil, 'size(Ic)', size(Ic)
+            'ncoil', ncoil, 'size(Ic)', size(Ic)
        error stop
     end if
     allocate(Bnvac_R(nR, nZ), Bnvac_Z(nR, nZ), Bn(nR, nZ))
     Bnvac_R(:, :) = (0d0, 0d0)
     Bnvac_Z(:, :) = (0d0, 0d0)
-    do kc = 1, 2 * ncoil
+    do kc = 1, ncoil
        write (coilname, '("coil_", i2.2)') kc
        call h5_get(h5id_root, modename // '/' // coilname // '/Bn_R', Bn)
        Bnvac_R(:, :) = Bnvac_R + Ic(kc) * Bn
