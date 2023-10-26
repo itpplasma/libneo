@@ -3,10 +3,10 @@ program vacfield
   use iso_fortran_env, only: dp => real64, error_unit
   use hdf5_tools, only: h5_init, h5_deinit, h5overwrite
   use coil_tools, only: coil_t, coil_init, coil_deinit, coils_append, &
-       process_fixed_number_of_args, check_number_of_args, &
-       AUG_coils_read, AUG_coils_read_Nemov, AUG_coils_read_GPEC, &
-       AUG_coils_write_Fourier, read_currents_Nemov, &
-       Biot_Savart_sum_coils, write_Bvac_Nemov
+    process_fixed_number_of_args, check_number_of_args, &
+    AUG_coils_read, AUG_coils_read_Nemov, AUG_coils_read_GPEC, &
+    AUG_coils_write_Fourier, read_currents_Nemov, &
+    Biot_Savart_sum_coils, write_Bvac_Nemov
 
   implicit none
 
@@ -21,19 +21,19 @@ program vacfield
 
   argc = command_argument_count()
   if (argc < 1) then
-     call usage()
-     stop
+    call usage()
+    stop
   end if
   if (argc == 1) then
-     call get_command_argument(1, arg)
-     if (arg == '-h' .or. arg == '--help' .or. arg == '-?') then
-        call usage()
-        stop
-     else
-        write (error_unit, '("Unrecognized argument ", a, ".")') trim(arg)
-        call usage()
-        error stop
-     end if
+    call get_command_argument(1, arg)
+    if (arg == '-h' .or. arg == '--help' .or. arg == '-?') then
+      call usage()
+      stop
+    else
+      write (error_unit, '("Unrecognized argument ", a, ".")') trim(arg)
+      call usage()
+      error stop
+    end if
   endif
 
   call check_number_of_args(1)
@@ -43,61 +43,61 @@ program vacfield
   call get_command_argument(3 + ncoil, field_type)
 
   if (coil_type == 'AUG') then
-     allocate(coils(ncoil))
-     do kc = 1, ncoil
-        call AUG_coils_read(trim(coil_files(kc)), coils(kc))
-     end do
+    allocate(coils(ncoil))
+    do kc = 1, ncoil
+      call AUG_coils_read(trim(coil_files(kc)), coils(kc))
+    end do
   else if (coil_type == 'GPEC') then
-     call AUG_coils_read_GPEC(trim(coil_files(1)), coils)
-     do kc = 2, ncoil
-        call AUG_coils_read_GPEC(trim(coil_files(kc)), more_coils)
-        call coils_append(coils, more_coils)
-     end do
+    call AUG_coils_read_GPEC(trim(coil_files(1)), coils)
+    do kc = 2, ncoil
+      call AUG_coils_read_GPEC(trim(coil_files(kc)), more_coils)
+      call coils_append(coils, more_coils)
+    end do
   else if (coil_type == 'Nemov') then
-     call AUG_coils_read_Nemov(trim(coil_files(1)), coils)
-     do kc = 2, ncoil
-        call AUG_coils_read_Nemov(trim(coil_files(kc)), more_coils)
-        call coils_append(coils, more_coils)
-     end do
+    call AUG_coils_read_Nemov(trim(coil_files(1)), coils)
+    do kc = 2, ncoil
+      call AUG_coils_read_Nemov(trim(coil_files(kc)), more_coils)
+      call coils_append(coils, more_coils)
+    end do
   else
-     write (error_unit, '("Unknown input type ", a, ".")') trim(coil_type)
-     error stop
+    write (error_unit, '("Unknown input type ", a, ".")') trim(coil_type)
+    error stop
   end if
   ! not actually necessary for format AUG
   if (.not. allocated(coils)) then
-     write (error_unit, '("Unexpected error: coils array not allocated.")')
-     error stop
+    write (error_unit, '("Unexpected error: coils array not allocated.")')
+    error stop
   end if
 
   if (field_type == 'Fourier') then
-     call check_number_of_args(4 + ncoil)
-     call get_command_argument(4 + ncoil, field_file)
-     call h5_init
-     h5overwrite = .true.
-     call AUG_coils_write_Fourier(trim(field_file), coils, &
-          nmax, Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
-     call h5_deinit
+    call check_number_of_args(4 + ncoil)
+    call get_command_argument(4 + ncoil, field_file)
+    call h5_init
+    h5overwrite = .true.
+    call AUG_coils_write_Fourier(trim(field_file), coils, &
+      nmax, Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
+    call h5_deinit
   else if (field_type == 'sum') then
-     call check_number_of_args(4 + ncoil)
-     call get_command_argument(4 + ncoil, field_file)
-     call check_number_of_args(5 + ncoil)
-     call get_command_argument(5 + ncoil, currents_file)
-     call read_currents_Nemov(trim(currents_file), Ic)
-     call Biot_Savart_sum_coils(coils, Ic, &
-          Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
-     call write_Bvac_Nemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
-     if (allocated(Ic)) deallocate(Ic)
-     if (allocated(Bvac)) deallocate(Bvac)
+    call check_number_of_args(4 + ncoil)
+    call get_command_argument(4 + ncoil, field_file)
+    call check_number_of_args(5 + ncoil)
+    call get_command_argument(5 + ncoil, currents_file)
+    call read_currents_Nemov(trim(currents_file), Ic)
+    call Biot_Savart_sum_coils(coils, Ic, &
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
+    call write_Bvac_Nemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
+    if (allocated(Ic)) deallocate(Ic)
+    if (allocated(Bvac)) deallocate(Bvac)
   else
-     write (error_unit, '("unknown output type ", a)') trim(field_type)
-     error stop
+    write (error_unit, '("unknown output type ", a)') trim(field_type)
+    error stop
   end if
 
   if (allocated(coils)) then
-     do kc = 1, size(coils)
-        call coil_deinit(coils(kc))
-     end do
-     deallocate(coils)
+    do kc = 1, size(coils)
+      call coil_deinit(coils(kc))
+    end do
+    deallocate(coils)
   end if
 
 contains
