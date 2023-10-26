@@ -54,12 +54,16 @@ contains
     integer, intent(in) :: offset
     integer, intent(out) :: number
     character(len = :), dimension(:), allocatable, intent(out) :: args
-    character(len = 1024) :: decimal_number
-    integer :: k
+    character(len = 1024) :: decimal_number, err_msg
+    integer :: k, status
 
     call check_number_of_args(offset)
     call get_command_argument(offset, decimal_number)
-    read (decimal_number, *) number
+    read (decimal_number, *, iostat = status, iomsg = err_msg) number
+    if (status /= 0) then
+       write (error_unit, '(a)') trim(err_msg)
+       error stop
+    end if
     if (number < 1) then
        write (error_unit, '("Number of further command line arguments must be positive.")')
        error stop
