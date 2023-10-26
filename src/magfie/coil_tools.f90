@@ -131,7 +131,7 @@ contains
     open(newunit = fid, file = filename, status = 'replace', &
          action = 'write', form = 'formatted')
     do ks = 1, coil%nseg
-       write (fid, '(es24.16e3, 1x, es24.16e3, 1x, es24.16e3)') &
+       write (fid, '(3(es24.16e3, :, 1x))') &
             1d-2 * hypot(coil%XYZ(2, ks), coil%XYZ(1, ks)), &
             1d-2 * coil%XYZ(3, ks), &
             atan2(coil%XYZ(2, ks), coil%XYZ(1, ks))
@@ -251,9 +251,9 @@ contains
     write (fid, '(3(i0, 1x), es24.16e3)') ncoil, 1, coils(1)%nseg + 1, dble(coils(1)%nwind)
     do kc = 1, ncoil
        do ks = 1, coils(kc)%nseg
-          write (fid, '(2(es24.16e3, 1x), es24.16e3)') 1d-2 * coils(kc)%XYZ(:, ks)
+          write (fid, '(3(es24.16e3, :, 1x))') 1d-2 * coils(kc)%XYZ(:, ks)
        end do
-       write (fid, '(2(es24.16e3, 1x), es24.16e3)') 1d-2 * coils(kc)%XYZ(:, 1)
+       write (fid, '(3(es24.16e3, :, 1x))') 1d-2 * coils(kc)%XYZ(:, 1)
     end do
     close(fid)
   end subroutine AUG_coils_write_GPEC
@@ -515,20 +515,20 @@ contains
     nR = size(Bvac, 4)
     open(newunit = fid, file = filename, status = 'replace', action = 'write', form = 'formatted')
     ! kisslinger_asdex.f90 writes points at phi = 0 and at phi = 2 pi
-    write (fid, '(i0, 1x, i0, 1x, i0, 1x, i0)') nR, nphi + 1, nZ, 1
-    write (fid, '(es24.16e3, 1x, es24.16e3)') Rmin, Rmax
-    write (fid, '(es24.16e3, 1x, es24.16e3)') 0d0, 2d0 * pi
-    write (fid, '(es24.16e3, 1x, es24.16e3)') Zmin, Zmax
+    write (fid, '(4(i0, :, 1x))') nR, nphi + 1, nZ, 1
+    write (fid, '(2(es24.16e3, :, 1x))') Rmin, Rmax
+    write (fid, '(2(es24.16e3, :, 1x))') 0d0, 2d0 * pi
+    write (fid, '(2(es24.16e3, :, 1x))') Zmin, Zmax
     do kR = 1, nR
        do kphi = 1, nphi
           do kZ = 1, nZ
-             write (fid, '(es24.16e3, 1x, es24.16e3, 1x, es24.16e3)') Bvac(:, kZ, kphi, kR)
+             write (fid, '(3(es24.16e3, :, 1x))') Bvac(:, kZ, kphi, kR)
           end do
        end do
        ! kisslinger_asdex.f90 writes points at phi = 0 and at phi = 2 pi
        kphi = 1
        do kZ = 1, nZ
-          write (fid, '(es24.16e3, 1x, es24.16e3, 1x, es24.16e3)') Bvac(:, kZ, kphi, kR)
+          write (fid, '(3(es24.16e3, :, 1x))') Bvac(:, kZ, kphi, kR)
        end do
     end do
     close(fid)
