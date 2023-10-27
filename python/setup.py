@@ -18,6 +18,9 @@ setup(
             'get_header_data_vmec = libneo.getHeaderDataVMEC:main'
         ],
     },
+    install_requires=[
+        'numpy'
+    ],
     ext_modules=[
         Extension('libneo.magfie',
                   sources=['f2py_interfaces/f2py_magfie.f90',
