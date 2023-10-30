@@ -8,11 +8,11 @@ module coil_tools
 
   public :: coil_t, coil_init, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
-    AUG_coils_write, AUG_coils_read, &
-    AUG_coils_write_Nemov, AUG_coils_read_Nemov, &
-    AUG_coils_write_GPEC, AUG_coils_read_GPEC, &
-    AUG_coils_write_Fourier, read_Bnvac_Fourier, &
-    read_currents, Biot_Savart_sum_coils, write_Bvac_Nemov
+    coils_write_AUG, coils_read_AUG, &
+    coils_write_Nemov, coils_read_Nemov, &
+    coils_write_GPEC, coils_read_GPEC, &
+    read_currents, Biot_Savart_sum_coils, Biot_Savart_Fourier, &
+    write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier
 
   type :: coil_t
     integer :: nseg = 0
@@ -128,7 +128,7 @@ contains
     call move_alloc(coils_temp, coils_head)
   end subroutine coils_append
 
-  subroutine AUG_coils_write(filename, coil)
+  subroutine coils_write_AUG(filename, coil)
     use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(in) :: coil
@@ -143,9 +143,9 @@ contains
         atan2(coil%XYZ(2, ks), coil%XYZ(1, ks))
     end do
     close(fid)
-  end subroutine AUG_coils_write
+  end subroutine coils_write_AUG
 
-  subroutine AUG_coils_read(filename, coil)
+  subroutine coils_read_AUG(filename, coil)
     use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(inout) :: coil
@@ -172,9 +172,9 @@ contains
     coil%XYZ(2, :) = length_si_to_cgs * R_Z_phi(:, 1) * sin(R_Z_phi(:, 3))
     coil%XYZ(3, :) = length_si_to_cgs * R_Z_phi(:, 2)
     deallocate(R_Z_phi)
-  end subroutine AUG_coils_read
+  end subroutine coils_read_AUG
 
-  subroutine AUG_coils_write_Nemov(filename, coils)
+  subroutine coils_write_Nemov(filename, coils)
     character(len = *), intent(in) :: filename
     type(coil_t), intent(in), dimension(:) :: coils
     integer :: fid, kc, ks
@@ -192,9 +192,9 @@ contains
         coils(kc)%XYZ(:, 1), 0.0, kc
     end do
     close(fid)
-  end subroutine AUG_coils_write_Nemov
+  end subroutine coils_write_Nemov
 
-  subroutine AUG_coils_read_Nemov(filename, coils)
+  subroutine coils_read_Nemov(filename, coils)
     character(len = *), intent(in) :: filename
     type(coil_t), intent(out), allocatable, dimension(:) :: coils
     integer :: fid, total, k, ncoil, kc, nseg, ks, idum
@@ -229,28 +229,28 @@ contains
         read (fid, *) coils(kc)%XYZ(:, ks), cur, idum
         k = k + 1
         if (idum /= kc) then
-          write (error_unit, '("Expected coil index ", i0, " in ", a, " at line ", ' // &
-            'i0, ", but got ", i0)') kc, filename, k, idum
+          write (error_unit, '("coils_read_Nemov: expected coil index ", ' // &
+            'i0, " in ", a, " at line ", i0, ", but got ", i0)') kc, filename, k, idum
           error stop
         end if
       end do
       read (fid, *) X, Y, Z, cur, idum
     end do
     close(fid)
-  end subroutine AUG_coils_read_Nemov
+  end subroutine coils_read_Nemov
 
-  subroutine AUG_coils_write_GPEC(filename, coils)
+  subroutine coils_write_GPEC(filename, coils)
     use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(in), dimension(:) :: coils
     integer :: fid, ncoil, kc, ks
 
     if (any(coils(:)%nseg /= coils(1)%nseg)) then
-      write (error_unit, '("AUG_coils_write_GPEC: not all coils have the same number of segments.")')
+      write (error_unit, '("coils_write_GPEC: not all coils have the same number of segments.")')
       error stop
     end if
     if (any(coils(:)%nwind /= coils(1)%nwind)) then
-      write (error_unit, '("AUG_coils_write_GPEC: not all coils have the same winding number.")')
+      write (error_unit, '("coils_write_GPEC: not all coils have the same winding number.")')
       error stop
     end if
     ncoil = size(coils)
@@ -264,9 +264,9 @@ contains
       write (fid, '(3(es24.16e3, :, 1x))') coils(kc)%XYZ(:, 1) / length_si_to_cgs
     end do
     close(fid)
-  end subroutine AUG_coils_write_GPEC
+  end subroutine coils_write_GPEC
 
-  subroutine AUG_coils_read_GPEC(filename, coils)
+  subroutine coils_read_GPEC(filename, coils)
     use math_constants, only: length_si_to_cgs
     character(len = *), intent(in) :: filename
     type(coil_t), intent(out), allocatable, dimension(:) :: coils
@@ -288,61 +288,7 @@ contains
       coils(kc)%XYZ(:, :) = length_si_to_cgs * coils(kc)%XYZ
     end do
     close(fid)
-  end subroutine AUG_coils_read_GPEC
-
-  subroutine AUG_coils_write_Fourier(filename, coils, nmax, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
-    use hdf5_tools, only: HID_T, h5_open_rw, h5_create_parent_groups, h5_add, h5_close
-    character(len = *), intent(in) :: filename
-    type(coil_t), intent(in), dimension(:) :: coils
-    integer, intent(in) :: nmax
-    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
-    integer, intent(in) :: nR, nphi, nZ
-    complex(dp), dimension(:, :, :, :, :), allocatable :: Bn
-    integer :: ntor, ncoil, kc
-    integer(HID_T) :: h5id_root
-    character(len = 7) :: modename, coilname
-
-    if (nmax > nphi / 4) then
-      write (error_unit, '("Requested nmax = ", i0, ", but only ", i0, " modes available.")') &
-        nmax, nphi / 4
-      error stop
-    end if
-    ncoil = size(coils)
-    call Biot_Savart_Fourier(coils, nmax, &
-      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
-    call h5_open_rw(filename, h5id_root)
-    do ntor = 0, nmax
-      write (modename, '("ntor_", i2.2)') ntor
-      call h5_create_parent_groups(h5id_root, modename // '/')
-      call h5_add(h5id_root, modename // '/R_min', Rmin, &
-        unit = 'cm', comment = 'minimal R coordinate of computational grid')
-      call h5_add(h5id_root, modename // '/R_max', Rmax, &
-        unit = 'cm', comment = 'maximal R coordinate of computational grid')
-      call h5_add(h5id_root, modename // '/Z_min', Zmin, &
-        unit = 'cm', comment = 'minimal Z coordinate of computational grid')
-      call h5_add(h5id_root, modename // '/Z_max', Zmax, &
-        unit = 'cm', comment = 'maximal Z coordinate of computational grid')
-      call h5_add(h5id_root, modename // '/nR', nR, 'number of grid points in R direction')
-      call h5_add(h5id_root, modename // '/nZ', nZ, 'number of grid points in Z direction')
-      call h5_add(h5id_root, modename // '/ncoil', ncoil, 'number of coils')
-      do kc = 1, ncoil
-        write (coilname, '("coil_", i2.2)') kc
-        call h5_create_parent_groups(h5id_root, modename // '/' // coilname // '/')
-        call h5_add(h5id_root, modename // '/' // coilname // '/Bn_R', &
-          Bn(ntor, 1, :, :, kc), [1, 1], [nR, nZ], &
-          unit = 'G', comment = 'R component of coil field for I_c = 0.1 A')
-        call h5_add(h5id_root, modename // '/' // coilname // '/Bn_phi', &
-          Bn(ntor, 2, :, :, kc), [1, 1], [nR, nZ], &
-          unit = 'G', comment = 'physical phi component of coil field for I_c = 0.1 A')
-        call h5_add(h5id_root, modename // '/' // coilname // '/Bn_Z', &
-          Bn(ntor, 3, :, :, kc), [1, 1], [nR, nZ], &
-          unit = 'G', comment = 'Z component of coil field for I_c = 0.1 A')
-      end do
-    end do
-    call h5_close(h5id_root)
-    deallocate(Bn)
-  end subroutine AUG_coils_write_Fourier
+  end subroutine coils_read_GPEC
 
   subroutine read_currents(filename, Ic)
     character(len = *), intent(in) :: filename
@@ -432,8 +378,8 @@ contains
     complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
 
     if (nmax > nphi / 4) then
-      write (error_unit, '("Requested nmax = ", i0, ", but only ", i0, " modes available.")') &
-        nmax, nphi / 4
+      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
+        'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
       error stop
     end if
     nfft = nphi / 2 + 1
@@ -512,8 +458,8 @@ contains
     real(dp), intent(in), dimension(:, :, :, :) :: Bvac
     integer :: fid, nR, nphi, nZ, kR, kphi, kZ
 
-    if (3 /= size(Bvac, 1)) then
-      write (error_unit, arg_size_fmt) 'write_Bnvac_Nemov', '3', 3, 'size(Bvac, 1)', size(Bvac, 1)
+    if (size(Bvac, 1) /= 3) then
+      write (error_unit, arg_size_fmt) 'write_Bnvac_Nemov', 'size(Bvac, 1)', size(Bvac, 1), '3', 3
       error stop
     end if
     nZ = size(Bvac, 2)
@@ -540,6 +486,56 @@ contains
     close(fid)
   end subroutine write_Bvac_Nemov
 
+  subroutine write_Bnvac_Fourier(filename, Bn, Rmin, Rmax, Zmin, Zmax)
+    use hdf5_tools, only: HID_T, h5_open_rw, h5_create_parent_groups, h5_add, h5_close
+    character(len = *), intent(in) :: filename
+    complex(dp), dimension(0:, :, :, :, :), intent(in) :: Bn
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    integer :: nR, nZ, nmax, ncoil, ntor, kc
+    integer(HID_T) :: h5id_root
+    character(len = 7) :: modename, coilname
+
+    if (size(Bn, 2) /= 3) then
+      write (error_unit, arg_size_fmt) 'write_Bnvac_Fourier', &
+        'size(Bn, 2)', size(Bn, 2), '3', 3
+      error stop
+    end if
+    nmax = ubound(Bn, 1)
+    nR = size(Bn, 3)
+    nZ = size(Bn, 4)
+    ncoil = size(Bn, 5)
+    call h5_open_rw(filename, h5id_root)
+    do ntor = 0, nmax
+      write (modename, '("ntor_", i2.2)') ntor
+      call h5_create_parent_groups(h5id_root, modename // '/')
+      call h5_add(h5id_root, modename // '/R_min', Rmin, &
+        unit = 'cm', comment = 'minimal R coordinate of computational grid')
+      call h5_add(h5id_root, modename // '/R_max', Rmax, &
+        unit = 'cm', comment = 'maximal R coordinate of computational grid')
+      call h5_add(h5id_root, modename // '/Z_min', Zmin, &
+        unit = 'cm', comment = 'minimal Z coordinate of computational grid')
+      call h5_add(h5id_root, modename // '/Z_max', Zmax, &
+        unit = 'cm', comment = 'maximal Z coordinate of computational grid')
+      call h5_add(h5id_root, modename // '/nR', nR, 'number of grid points in R direction')
+      call h5_add(h5id_root, modename // '/nZ', nZ, 'number of grid points in Z direction')
+      call h5_add(h5id_root, modename // '/ncoil', ncoil, 'number of coils')
+      do kc = 1, ncoil
+        write (coilname, '("coil_", i2.2)') kc
+        call h5_create_parent_groups(h5id_root, modename // '/' // coilname // '/')
+        call h5_add(h5id_root, modename // '/' // coilname // '/Bn_R', &
+          Bn(ntor, 1, :, :, kc), [1, 1], [nR, nZ], &
+          unit = 'G', comment = 'R component of coil field for I_c = 0.1 A')
+        call h5_add(h5id_root, modename // '/' // coilname // '/Bn_phi', &
+          Bn(ntor, 2, :, :, kc), [1, 1], [nR, nZ], &
+          unit = 'G', comment = 'physical phi component of coil field for I_c = 0.1 A')
+        call h5_add(h5id_root, modename // '/' // coilname // '/Bn_Z', &
+          Bn(ntor, 3, :, :, kc), [1, 1], [nR, nZ], &
+          unit = 'G', comment = 'Z component of coil field for I_c = 0.1 A')
+      end do
+    end do
+    call h5_close(h5id_root)
+  end subroutine write_Bnvac_Fourier
+
   subroutine read_Bnvac_Fourier(filename, ntor, Ic, nR, nZ, Rmin, Rmax, Zmin, Zmax, &
     Bnvac_R, Bnvac_Z)
     use hdf5_tools, only: HID_T, h5_open, h5_get, h5_close
@@ -557,8 +553,7 @@ contains
 
     inquire(file = filename, exist = file_exists)
     if (.not. file_exists) then
-      write (error_unit, '("File ", a, " not found, cannot read vacuum perturbation field.")') &
-        trim(filename)
+      write (error_unit, '("read_Bnvac_fourier: File ", a, " not found.")') trim(filename)
       error stop
     end if
     call h5_open(filename, h5id_root)
