@@ -292,9 +292,10 @@ contains
 
   subroutine read_currents(filename, Ic)
     character(len = *), intent(in) :: filename
-    real(dp), intent(out), allocatable :: Ic(:)
+    real(dp), intent(out) :: Ic(:)
     integer :: fid
 
+    Ic(:) = 0d0
     open(newunit = fid, file = filename, status = 'old', action = 'read', form = 'formatted')
     read (fid, *) Ic
     close(fid)
