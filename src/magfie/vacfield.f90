@@ -5,9 +5,9 @@ program vacfield
   use math_constants, only: current_si_to_cgs, C
   use coil_tools, only: coil_t, coil_init, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
-    AUG_coils_read, AUG_coils_read_Nemov, AUG_coils_read_GPEC, &
-    AUG_coils_write_Fourier, read_currents, &
-    Biot_Savart_sum_coils, write_Bvac_Nemov
+    coils_read_AUG, coils_read_Nemov, coils_read_GPEC, &
+    read_currents, Biot_Savart_sum_coils, write_Bvac_Nemov, &
+    Biot_Savart_Fourier, write_Bnvac_Fourier
 
   implicit none
 
@@ -16,10 +16,11 @@ program vacfield
   namelist /coil_field/ Rmin, Rmax, Zmin, Zmax, nR, nZ, nphi, nmax, prefactor
   integer :: argc, fid, status, ncoil, kc
   character(len = 1024) :: arg, err_msg, &
-       coil_type, field_type, grid_file, field_file, currents_file
+    coil_type, field_type, grid_file, field_file, currents_file
   character(len = :), dimension(:), allocatable :: coil_files
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
+  complex(dp), allocatable :: Bnvac(:, :, :, :, :)
 
   argc = command_argument_count()
   if (argc < 1) then
@@ -61,26 +62,26 @@ program vacfield
   read (fid, nml = coil_field, iostat = status, iomsg = err_msg)
   close(fid)
   if (status /= 0) then
-     write (error_unit, '("Error ", i0, " occurred while reading from ", a, ": ", a, ".")') &
-          status, trim(grid_file), trim(err_msg)
-     error stop
+    write (error_unit, '("Error ", i0, " occurred while reading from ", a, ": ", a, ".")') &
+      status, trim(grid_file), trim(err_msg)
+    error stop
   end if
 
   if (coil_type == 'AUG') then
     allocate(coils(ncoil))
     do kc = 1, ncoil
-      call AUG_coils_read(trim(coil_files(kc)), coils(kc))
+      call coils_read_AUG(trim(coil_files(kc)), coils(kc))
     end do
   else if (coil_type == 'GPEC') then
-    call AUG_coils_read_GPEC(trim(coil_files(1)), coils)
+    call coils_read_GPEC(trim(coil_files(1)), coils)
     do kc = 2, ncoil
-      call AUG_coils_read_GPEC(trim(coil_files(kc)), more_coils)
+      call coils_read_GPEC(trim(coil_files(kc)), more_coils)
       call coils_append(coils, more_coils)
     end do
   else if (coil_type == 'Nemov') then
-    call AUG_coils_read_Nemov(trim(coil_files(1)), coils)
+    call coils_read_Nemov(trim(coil_files(1)), coils)
     do kc = 2, ncoil
-      call AUG_coils_read_Nemov(trim(coil_files(kc)), more_coils)
+      call coils_read_Nemov(trim(coil_files(kc)), more_coils)
       call coils_append(coils, more_coils)
     end do
   else
@@ -94,12 +95,14 @@ program vacfield
   end if
 
   if (field_type == 'Fourier') then
-     call check_number_of_args(5 + ncoil)
-     call get_command_argument(5 + ncoil, field_file)
+    call check_number_of_args(5 + ncoil)
+    call get_command_argument(5 + ncoil, field_file)
     call h5_init
     h5overwrite = .true.
-    call AUG_coils_write_Fourier(trim(field_file), coils, &
-      nmax, Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
+    call Biot_Savart_Fourier(coils, nmax, &
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bnvac)
+    call write_Bnvac_Fourier(trim(field_file), Bnvac, Rmin, Rmax, Zmin, Zmax)
+    deallocate(Bnvac)
     call h5_deinit
   else if (field_type == 'sum') then
     call check_number_of_args(5 + ncoil)
@@ -110,8 +113,8 @@ program vacfield
     call Biot_Savart_sum_coils(coils, Ic, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
     call write_Bvac_Nemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
-    if (allocated(Ic)) deallocate(Ic)
-    if (allocated(Bvac)) deallocate(Bvac)
+    deallocate(Ic)
+    deallocate(Bvac)
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
     error stop
