@@ -2,19 +2,21 @@ program vacfield
 
   use iso_fortran_env, only: dp => real64, error_unit
   use hdf5_tools, only: h5_init, h5_deinit, h5overwrite
+  use math_constants, only: current_si_to_cgs, C
   use coil_tools, only: coil_t, coil_init, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
     AUG_coils_read, AUG_coils_read_Nemov, AUG_coils_read_GPEC, &
-    AUG_coils_write_Fourier, read_currents_Nemov, &
+    AUG_coils_write_Fourier, read_currents, &
     Biot_Savart_sum_coils, write_Bvac_Nemov
 
   implicit none
 
-  ! use default values for now
-  real(dp), parameter :: Rmin = 75.0d0, Rmax = 267.0d0, Zmin = -154.0d0, Zmax = 150.4d0
-  integer, parameter :: nmax = 64, nR = 150, nZ = 300, nphi = 512
-  integer :: argc, ncoil, kc
-  character(len = 1024) :: arg, coil_type, field_type, field_file, currents_file
+  real(dp) :: Rmin, Rmax, Zmin, Zmax, prefactor
+  integer :: nR, nZ, nphi, nmax
+  namelist /coil_field/ Rmin, Rmax, Zmin, Zmax, nR, nZ, nphi, nmax, prefactor
+  integer :: argc, fid, status, ncoil, kc
+  character(len = 1024) :: arg, err_msg, &
+       coil_type, field_type, grid_file, field_file, currents_file
   character(len = :), dimension(:), allocatable :: coil_files
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
@@ -41,6 +43,28 @@ program vacfield
   call process_fixed_number_of_args(2, ncoil, coil_files)
   call check_number_of_args(3 + ncoil)
   call get_command_argument(3 + ncoil, field_type)
+  call check_number_of_args(4 + ncoil)
+  call get_command_argument(4 + ncoil, grid_file)
+
+  ! set default values for ASDEX Upgrade
+  Rmin = 75.0d0
+  Rmax = 267.0d0
+  Zmin = -154.0d0
+  Zmax = 150.4d0
+  nR = 150
+  nZ = 300
+  nphi = 512
+  nmax = 64
+  prefactor = 5 * current_si_to_cgs / C
+  ! read namelist input
+  open(newunit = fid, file = trim(grid_file), status = 'old', action = 'read')
+  read (fid, nml = coil_field, iostat = status, iomsg = err_msg)
+  close(fid)
+  if (status /= 0) then
+     write (error_unit, '("Error ", i0, " occurred while reading from ", a, ": ", a, ".")') &
+          status, trim(grid_file), trim(err_msg)
+     error stop
+  end if
 
   if (coil_type == 'AUG') then
     allocate(coils(ncoil))
@@ -70,19 +94,19 @@ program vacfield
   end if
 
   if (field_type == 'Fourier') then
-    call check_number_of_args(4 + ncoil)
-    call get_command_argument(4 + ncoil, field_file)
+     call check_number_of_args(5 + ncoil)
+     call get_command_argument(5 + ncoil, field_file)
     call h5_init
     h5overwrite = .true.
     call AUG_coils_write_Fourier(trim(field_file), coils, &
       nmax, Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ)
     call h5_deinit
   else if (field_type == 'sum') then
-    call check_number_of_args(4 + ncoil)
-    call get_command_argument(4 + ncoil, field_file)
     call check_number_of_args(5 + ncoil)
-    call get_command_argument(5 + ncoil, currents_file)
-    call read_currents_Nemov(trim(currents_file), Ic)
+    call get_command_argument(5 + ncoil, field_file)
+    call check_number_of_args(6 + ncoil)
+    call get_command_argument(6 + ncoil, currents_file)
+    call read_currents(trim(currents_file), Ic)
     call Biot_Savart_sum_coils(coils, Ic, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
     call write_Bvac_Nemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
