@@ -12,7 +12,7 @@ module coil_tools
     AUG_coils_write_Nemov, AUG_coils_read_Nemov, &
     AUG_coils_write_GPEC, AUG_coils_read_GPEC, &
     AUG_coils_write_Fourier, read_Bnvac_Fourier, &
-    read_currents_Nemov, Biot_Savart_sum_coils, write_Bvac_Nemov
+    read_currents, Biot_Savart_sum_coils, write_Bvac_Nemov
 
   type :: coil_t
     integer :: nseg = 0
@@ -97,7 +97,7 @@ contains
 
     if (allocated(coil%XYZ)) deallocate(coil%XYZ)
     coil%nseg = 0
-    coil%nwind = 0d0
+    coil%nwind = 0
   end subroutine coil_deinit
 
   subroutine coils_append(coils_head, coils_tail)
@@ -161,7 +161,7 @@ contains
       if (status /= 0) exit
       nseg = nseg + 1
     end do
-    call coil_init(coil, nseg, 5)
+    call coil_init(coil, nseg, 1)
     allocate(R_Z_phi(nseg, 3))
     rewind fid
     do ks = 1, nseg
@@ -217,7 +217,7 @@ contains
       if (abs(cur) > 0d0) then
         nseg = nseg + 1
       else
-        call coil_init(coils(kc), nseg, 5)
+        call coil_init(coils(kc), nseg, 1)
         nseg = 0
       end if
     end do
@@ -326,7 +326,6 @@ contains
       call h5_add(h5id_root, modename // '/nR', nR, 'number of grid points in R direction')
       call h5_add(h5id_root, modename // '/nZ', nZ, 'number of grid points in Z direction')
       call h5_add(h5id_root, modename // '/ncoil', ncoil, 'number of coils')
-      ! TODO: add nwind
       do kc = 1, ncoil
         write (coilname, '("coil_", i2.2)') kc
         call h5_create_parent_groups(h5id_root, modename // '/' // coilname // '/')
@@ -345,17 +344,15 @@ contains
     deallocate(Bn)
   end subroutine AUG_coils_write_Fourier
 
-  subroutine read_currents_Nemov(filename, Ic)
+  subroutine read_currents(filename, Ic)
     character(len = *), intent(in) :: filename
     real(dp), intent(out), allocatable :: Ic(:)
-    integer, parameter :: nwind = 5
     integer :: fid
 
     open(newunit = fid, file = filename, status = 'old', action = 'read', form = 'formatted')
     read (fid, *) Ic
     close(fid)
-    Ic(:) = Ic / dble(nwind)
-  end subroutine read_currents_Nemov
+  end subroutine read_currents
 
   subroutine Biot_Savart_sum_coils(coils, Ic, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
@@ -404,7 +401,7 @@ contains
                 (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
                 (dist_i + dist_f) / (dist_i * dist_f * (dist_i * dist_f + sum(XYZ_i * XYZ_f)))
             end do
-            BXYZ(:) = BXYZ + coils(kc)%nwind * Ic(kc) * BXYZ_c
+            BXYZ(:) = BXYZ + Ic(kc) * BXYZ_c
           end do
           Bvac(1, kZ, kphi, kR) = BXYZ(1) * cosphi(kphi) + BXYZ(2) * sinphi(kphi)
           Bvac(2, kZ, kphi, kR) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
@@ -491,9 +488,9 @@ contains
           call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
           call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
           call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
-          Bn(0:nmax, 1, kR, kZ, kc) = coils(kc)%nwind * BnR(1:nmax+1) / dble(nphi)
-          Bn(0:nmax, 2, kR, kZ, kc) = coils(kc)%nwind * Bnphi(1:nmax+1) / dble(nphi)
-          Bn(0:nmax, 3, kR, kZ, kc) = coils(kc)%nwind * BnZ(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 1, kR, kZ, kc) = BnR(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 2, kR, kZ, kc) = Bnphi(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 3, kR, kZ, kc) = BnZ(1:nmax+1) / dble(nphi)
         end do
       end do
     end do
