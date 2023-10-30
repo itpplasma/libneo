@@ -109,6 +109,7 @@ program vacfield
     call get_command_argument(5 + ncoil, field_file)
     call check_number_of_args(6 + ncoil)
     call get_command_argument(6 + ncoil, currents_file)
+    allocate(Ic(size(coils)))
     call read_currents(trim(currents_file), Ic)
     call Biot_Savart_sum_coils(coils, Ic, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
