@@ -74,6 +74,8 @@ add_library(magfie SHARED
     magfie/polylag_3.f
     magfie/magfie_cyl.f90
     magfie/geqdsk_tools.f90
+    magfie/coil_tools.f90
+    fftw3.f90
 )
 set_source_files_properties(boozer.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=unused-variable;-Wno-error=maybe-uninitialized")
 set_source_files_properties(field_divB0.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=compare-reals;-Wno-error=conversion")
@@ -83,9 +85,68 @@ add_executable(standardise_geqdsk.x
     magfie/standardise_geqdsk.f90
     magfie/geqdsk_tools.f90
     plag_coeff.f90
-    libneo_kinds.f90
     math_constants.f90
+    libneo_kinds.f90
+)
+add_executable(vacfield.x
+    magfie/vacfield.f90
+    magfie/coil_tools.f90
+    fftw3.f90
+    math_constants.f90
+    libneo_kinds.f90
+)
+add_executable(coil_convert.x
+    magfie/coil_convert.f90
+    magfie/coil_tools.f90
+    fftw3.f90
+    math_constants.f90
+    libneo_kinds.f90
 )
 
+find_package(OpenMP)
+
+find_library(fftw_lib NAMES "fftw3")
+find_library(fftw_omp_lib NAMES "fftw3_omp")
+find_path(fftw_include_dir NAMES "fftw3.h")
+
+find_package(HDF5 COMPONENTS C Fortran Fortran_HL REQUIRED)
+if (NOT ${HDF5_FOUND})
+	message(FATAL_ERROR "HDF5 not found, please set environment variable HDF5_ROOT to the correct path")
+endif ()
+include_directories(${HDF5_INCLUDE_DIRS})
+
+set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
+
 target_link_libraries(magfie
-  rkf45 netcdf netcdff ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  rkf45
+  netcdf
+  netcdff
+  hdf5_tools
+  ${fftw_lib}
+  ${fftw_omp_lib}
+  ${HDF5_HL_LIBRARIES}
+  ${HDF5_LIBRARIES}
+  ${BLAS_LIBRARIES}
+  ${LAPACK_LIBRARIES}
+)
+
+target_link_libraries(vacfield.x PUBLIC
+  OpenMP::OpenMP_Fortran
+  hdf5_tools
+  ${HDF5_HL_LIBRARIES}
+  ${HDF5_LIBRARIES}
+  ${fftw_lib}
+  ${fftw_omp_lib}
+)
+target_link_libraries(coil_convert.x PUBLIC
+  OpenMP::OpenMP_Fortran
+  hdf5_tools
+  ${HDF5_HL_LIBRARIES}
+  ${HDF5_LIBRARIES}
+  ${fftw_lib}
+  ${fftw_omp_lib}
+)
+
+target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
+target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
+target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})

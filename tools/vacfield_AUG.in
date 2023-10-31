@@ -1,0 +1,21 @@
+&coil_field
+  ! minimum big radius R
+  Rmin = 75.0d0
+  ! maximum big radius R
+  Rmax = 267.0d0
+  ! minimum altitude Z
+  Zmin = -154.0d0
+  ! maximum altitude Z
+  Zmax = 150.4d0
+  ! number of evaluation points in direction of big radius R
+  nR = 150
+  ! number of evaluation points in direction of altitude Z
+  nZ = 300
+  ! number of evaluation points in direction of toroidal angle phi
+  nphi = 512
+  ! maximum toroidal Fourier mode number to be saved
+  nmax = 64
+  ! prefactor in Biot-Savart law, e.g. 5 windings
+  ! and conversion from A to statA / c_0
+  prefactor = 5.0e-1
+/
