@@ -20,18 +20,6 @@ development headers: GSL, FGSL, BLAS, LAPACK, SuiteSparse and SuperLU.
 The Python interface is located in the `python` subdirectory. Follow the
 `README.md` in that directory for installation instructions.
 
-## aug
-This is mostly python code for use in AUG intranet to extract data from the AUG shotfile database. The following libraries are used by this.
-
-### eqtools_modified
-Modified version of the [eqtools](https://github.com/PSFCPlasmaTools/eqtools) library that is available on GITHUB. Modifications where made because the code is not maintained anymore and it did not work in the beginning.
-
-### wlsmodpy
-Python code to write g-files from equilibria.
-
-### mwilmodpy
-Python code to include PSL response of coil files. There is way more in there but not used by now.
-
 ## doc
 Documentation, this includes user documentation and interface
 documentation. The latter is generated via doxygen.
