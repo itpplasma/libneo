@@ -290,13 +290,27 @@ contains
     close(fid)
   end subroutine coils_read_GPEC
 
+  !> Reads all floating-point numbers from one line.
   subroutine read_currents(filename, Ic)
     character(len = *), intent(in) :: filename
-    real(dp), intent(out) :: Ic(:)
-    integer :: fid
+    real(dp), intent(out), allocatable :: Ic(:)
+    integer :: fid, status, ncoil
 
-    Ic(:) = 0d0
     open(newunit = fid, file = filename, status = 'old', action = 'read', form = 'formatted')
+    ncoil = 1
+    status = 0
+    do while (status == 0)
+      allocate(Ic(ncoil))
+      read (fid, *, iostat = status) Ic(:)
+      rewind fid
+      deallocate(Ic)
+      if (status == 0) then
+        ncoil = ncoil + 1
+      else
+        ncoil = ncoil - 1
+      end if
+    end do
+    allocate(Ic(ncoil))
     read (fid, *) Ic
     close(fid)
   end subroutine read_currents
