@@ -1,6 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+def slice_line(line):
+  """
+  This function takes a string as input and slices it into segments of 16
+  characters each. If the length of the string is less than 32, 48, 64, or 80,
+  it will return fewer segments.
+
+  Parameters:
+  line (str): The string to be sliced.
+
+  Returns:
+  list: A list of string segments, each of which is 16 characters long.
+  """
+  length = len(line)
+  if (length < 32):
+    return [line[0:16]]
+  if (length < 48):
+    return [line[0:16], line[16:32]]
+  if (length < 64):
+    return [line[0:16], line[16:32], line[32:48]]
+  if (length < 80):
+    return [line[0:16], line[16:32], line[32:48], line[48:64]]
+  return [line[0:16], line[16:32], line[32:48], line[48:64], line[64:80]]
+
 class eqdsk_file:
 
   def __init__ (self, filename:str):
@@ -18,31 +41,38 @@ class eqdsk_file:
     with open(filename) as f:
       l = f.readlines()
 
-    l = [ls.strip() for ls in l]
-
     self.filenamedateEQDSK = l[0][0:48]
-    # l[0].split()[1] is dummy, not used
+    l0split = l[0].split()
     # number r coordinates for the grid
-    self.nrgr = int(l[0].split()[2]);
+    self.nrgr = int(l0split[-2])
     # number z coordinates for the grid
-    self.nzgr = int(l[0].split()[3]);
+    self.nzgr = int(l0split[-1])
     # Read boxlength
-    self.rboxlength = float(l[1].split()[0])
-    self.zboxlength = float(l[1].split()[1])
-    self.R0 = float(l[1].split()[2])
-    self.rboxleft = float(l[1].split()[3])
-    self.zbox_mid = float(l[1].split()[4])
+    l1slices = l[1].strip().split()
+    if (len(l1slices) < 5):
+      l1slices += slice_line(l[1])
+    self.rboxlength = float(l1slices[0])
+    self.zboxlength = float(l1slices[1])
+    self.R0 = float(l1slices[2])
+    self.rboxleft = float(l1slices[3])
+    self.zbox_mid = float(l1slices[4])
     self.R = [self.rboxleft + self.rboxlength/(self.nrgr-1)*k for k in range(self.nrgr)]
     self.Z = [self.zbox_mid - self.zboxlength/2 + self.zboxlength/(self.nzgr-1)*k for k in range(self.nzgr)] # Needs to be transposed.
     # Read magnetic axis
-    self.Rpsi0 = float(l[2].split()[0])
-    self.Zpsi0 = float(l[2].split()[1])
+    l2slices = l[2].strip().split()
+    if (len(l2slices) < 5):
+      l2slices += slice_line(l[2])
+    self.Rpsi0 = float(l2slices[0])
+    self.Zpsi0 = float(l2slices[1])
     # Read psiaxis and psiedge
-    self.PsiaxisVs = float(l[2].split()[2])
-    self.PsiedgeVs = float(l[2].split()[3])
+    self.PsiaxisVs = float(l2slices[2])
+    self.PsiedgeVs = float(l2slices[3])
     # Read B0 and current
-    self.Btor_at_R0=float(l[2].split()[4])
-    self.Ip=float(l[3].split()[0])
+    self.Btor_at_R0=float(l2slices[4])
+    l3slices = l[3].strip().split()
+    if (len(l3slices) < 5):
+      l3slices += slice_line(l[3])
+    self.Ip=float(l3slices[0])
     # Rest of line 3 (4 one-based) and the next line is ignored.
 
     startline = 5 # 0-based index
@@ -51,7 +81,7 @@ class eqdsk_file:
     self.fprof = []
     line_number = startline
     while (len(self.fprof) < self.nrgr):
-      self.fprof += [float(n) for n in l[line_number].split()]
+      self.fprof += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
 
     # Read p(psi) (size nrgr)
@@ -59,7 +89,7 @@ class eqdsk_file:
     if self.nrgr % 5 == 0:
       line_number += 1
     while (len(self.ptotprof) < self.nrgr):
-      self.ptotprof += [float(n) for n in l[line_number].split()]
+      self.ptotprof += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
 
     # Read TT'(psi) - ff' (size nrgr)
@@ -67,7 +97,7 @@ class eqdsk_file:
     if self.nrgr % 5 == 0:
       line_number += 1
     while (len(self.fdfdpsiprof) < self.nrgr):
-      self.fdfdpsiprof += [float(n) for n in l[line_number].split()]
+      self.fdfdpsiprof += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
 
     # Read p'  (size nrgr)
@@ -75,7 +105,7 @@ class eqdsk_file:
     if self.nrgr % 5 == 0:
       line_number += 1
     while (len(self.dpressdpsiprof) < self.nrgr):
-      self.dpressdpsiprof += [float(n) for n in l[line_number].split()]
+      self.dpressdpsiprof += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
 
     # Read psi (size nrgr x nzgr in file?, nzgr x nrgr in 'output')
@@ -83,7 +113,7 @@ class eqdsk_file:
     if self.nrgr % 5 == 0:
       line_number += 1
     while (len(self.PsiVs) < self.nrgr*self.nzgr):
-      self.PsiVs += [float(n) for n in l[line_number].split()]
+      self.PsiVs += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
     self.psinorm = [(PsiV-self.PsiaxisVs+self.PsiedgeVs)/(-self.PsiaxisVs+self.PsiedgeVs) for PsiV in self.PsiVs]
     self.PsiVs = array(self.PsiVs)
@@ -94,19 +124,19 @@ class eqdsk_file:
     if (self.nrgr*self.nzgr) % 5 == 0:
       line_number += 1
     while (len(self.qprof) < self.nrgr):
-      self.qprof += [float(n) for n in l[line_number].split()]
+      self.qprof += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
 
     # Read npbound and nblimiter (in one line)
     if self.nrgr % 5 == 0:
       line_number += 1
-    self.npbound = int(l[line_number].split()[0])
-    self.nplimiter = int(l[line_number].split()[1])
+    self.npbound = int(l[line_number].strip().split()[0])
+    self.nplimiter = int(l[line_number].strip().split()[1])
     # Read boundary (LCFS)
     line_number += 1
     self.Lcfs = []
     while (len(self.Lcfs) < 2*self.npbound):
-      self.Lcfs += [float(n) for n in l[line_number].split()]
+      self.Lcfs += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
     self.Lcfs = array(self.Lcfs)
     self.Lcfs = self.Lcfs.reshape(self.npbound, 2)
@@ -117,7 +147,8 @@ class eqdsk_file:
       line_number += 1
     self.Limiter = []
     while (len(self.Limiter) < 2*self.nplimiter):
-      self.Limiter += [float(n) for n in l[line_number].split()]
+      print(l[line_number])
+      self.Limiter += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
     self.Limiter = array(self.Limiter)
     self.Limiter = self.Limiter.reshape(self.nplimiter, 2)
@@ -130,7 +161,7 @@ class eqdsk_file:
     # Read PFcoilData
     self.PFcoilData = []
     while (len(self.PFcoilData) < 5*self.ncoils):
-      self.PFcoilData += [float(n) for n in l[line_number].split()]
+      self.PFcoilData += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
     self.PFcoilData = array(self.PFcoilData)
     self.PFcoilData = self.PFcoilData.reshape(self.ncoils, 5)
@@ -146,7 +177,7 @@ class eqdsk_file:
     # Read Brn
     self.Brn = []
     while (len(self.Brn) < self.nrgr*self.nzgr):
-      self.Brn += [float(n) for n in l[line_number].split()]
+      self.Brn += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
     self.Brn = array(self.Brn)
     self.Brn = self.Brn.reshape(self.nzgr, self.nrgr)
@@ -156,7 +187,7 @@ class eqdsk_file:
     # Read Bzn
     self.Bzn = []
     while (len(self.Bzn) < self.nrgr*self.nzgr):
-      self.Bzn += [float(n) for n in l[line_number].split()]
+      self.Bzn += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
     self.Bzn = array(self.Bzn)
     self.Bzn = self.Bzn.reshape(self.nzgr, self.nrgr)

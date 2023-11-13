@@ -53,3 +53,8 @@ src/*/*/version.f90
 # Ignore files created by the python build system
 python/build/
 *.egg-info/
+amat.dat
+bvec.dat
+mmat.dat
+xsol.dat
+yvec.dat
