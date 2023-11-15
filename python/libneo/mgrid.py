@@ -7,6 +7,9 @@ class MgridFile:
     def __init__(self, filename=None):
         if filename:
             self.read(filename)
+
+    def __str__(self):
+        return "mgrid"
     
     def read(self, filename):
         with Dataset(filename, "r") as f:
