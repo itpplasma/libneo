@@ -60,8 +60,9 @@ class eqdsk_file:
     self.Z = [self.zbox_mid - self.zboxlength/2 + self.zboxlength/(self.nzgr-1)*k for k in range(self.nzgr)] # Needs to be transposed.
     # Read magnetic axis
     l2slices = l[2].strip().split()
+    print(len(l2slices))
     if (len(l2slices) < 5):
-      l2slices += slice_line(l[2])
+      l2slices = slice_line(l[2])
     self.Rpsi0 = float(l2slices[0])
     self.Zpsi0 = float(l2slices[1])
     # Read psiaxis and psiedge
@@ -71,7 +72,7 @@ class eqdsk_file:
     self.Btor_at_R0=float(l2slices[4])
     l3slices = l[3].strip().split()
     if (len(l3slices) < 5):
-      l3slices += slice_line(l[3])
+      l3slices = slice_line(l[3])
     self.Ip=float(l3slices[0])
     # Rest of line 3 (4 one-based) and the next line is ignored.
 
