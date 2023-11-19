@@ -6,9 +6,36 @@ from netCDF4 import Dataset
 
 
 class MgridFile:
-    def __init__(self, filename=None):
-        if filename:
-            self.read(filename)
+    def __init__(
+        self,
+        ir,
+        jz,
+        kp,
+        rmin,
+        zmin,
+        rmax,
+        zmax,
+        nfp=1,
+        mgrid_mode="S",
+        coil_group=None,
+        coil_current=None,
+        br=None,
+        bp=None,
+        bz=None,
+    ):
+        # Set self.ir, self.jz, etc. dynamically
+        vars(self).update((k, v) for k, v in vars().items() if k != "self")
+
+        if self.coil_group is None:
+            self.coil_group = []
+        if self.coil_current is None:
+            self.coil_current = []
+        if self.br is None:
+            self.br = []
+        if self.bp is None:
+            self.bp = []
+        if self.bz is None:
+            self.bz = []
 
     def __str__(self):
         return textwrap.dedent(
@@ -21,28 +48,49 @@ class MgridFile:
         """
         )
 
-    def read(self, filename):
+    def __repr__(self):
+        return self.__str__()
+
+    @classmethod
+    def from_file(cls, filename):
         with Dataset(filename, "r") as f:
-            self.coil_group = f.variables["coil_group"][:]
-            self.coil_current = f.variables["raw_coil_cur"][:]
-            self.ir = f.dimensions["rad"].size
-            self.jz = f.dimensions["zee"].size
-            self.kp = f.dimensions["phi"].size
+            coil_group = f.variables["coil_group"][:]
+            coil_current = f.variables["raw_coil_cur"][:]
+            ir = f.dimensions["rad"].size
+            jz = f.dimensions["zee"].size
+            kp = f.dimensions["phi"].size
 
-            self.nfp = f.variables["nfp"][:]
-            self.rmin = f.variables["rmin"][:]
-            self.zmin = f.variables["zmin"][:]
-            self.rmax = f.variables["rmax"][:]
-            self.zmax = f.variables["zmax"][:]
-            self.mgrid_mode = f.variables["mgrid_mode"][:]
+            nfp = f.variables["nfp"][:]
+            rmin = f.variables["rmin"][:]
+            zmin = f.variables["zmin"][:]
+            rmax = f.variables["rmax"][:]
+            zmax = f.variables["zmax"][:]
+            mgrid_mode = f.variables["mgrid_mode"][:]
 
-            self.br = []
-            self.bp = []
-            self.bz = []
-            for kgroup, group in enumerate(self.coil_group):
-                self.br.append(f.variables[f"br_{kgroup+1:03}"][:])
-                self.bp.append(f.variables[f"bp_{kgroup+1:03}"][:])
-                self.bz.append(f.variables[f"bz_{kgroup+1:03}"][:])
+            br = []
+            bp = []
+            bz = []
+            for kgroup, group in enumerate(coil_group):
+                br.append(f.variables[f"br_{kgroup+1:03}"][:])
+                bp.append(f.variables[f"bp_{kgroup+1:03}"][:])
+                bz.append(f.variables[f"bz_{kgroup+1:03}"][:])
+
+        return cls(
+            ir=ir,
+            jz=jz,
+            kp=kp,
+            rmin=rmin,
+            zmin=zmin,
+            rmax=rmax,
+            zmax=zmax,
+            nfp=nfp,
+            mgrid_mode=mgrid_mode,
+            coil_group=coil_group,
+            coil_current=coil_current,
+            br=br,
+            bp=bp,
+            bz=bz,
+        )
 
     def write(self, filename):
         with Dataset(filename, "w") as f:
@@ -104,3 +152,11 @@ class MgridFile:
                 f.variables[f"br_{kgroup+1:03}"][:] = self.br[kgroup]
                 f.variables[f"bp_{kgroup+1:03}"][:] = self.bp[kgroup]
                 f.variables[f"bz_{kgroup+1:03}"][:] = self.bz[kgroup]
+
+    def add_coil_group(self, group_name):
+        self.coil_group.append(group_name)
+
+    def add_coil(self, group_name, current):
+        if not group_name in self.coil_group:
+            self.coil_group.append(group_name)
+        self.coil_current.append(current)
