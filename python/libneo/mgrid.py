@@ -116,7 +116,7 @@ class MgridFile:
             f.createDimension("stringsize", 30)
             f.createDimension("external_coil_groups", len(self.coil_group))
             f.createDimension("dim_00001", 1)
-            f.createDimension("external_coils", self.coil_current.size)
+            f.createDimension("external_coils", len(self.coil_current))
             f.createDimension("rad", self.ir)
             f.createDimension("zee", self.jz)
             f.createDimension("phi", self.kp)
@@ -156,7 +156,7 @@ class MgridFile:
             f.variables["jz"][:] = self.jz
             f.variables["kp"][:] = self.kp
             f.variables["nfp"][:] = self.nfp
-            f.variables["nextcur"][:] = self.coil_current.size
+            f.variables["nextcur"][:] = len(self.coil_current)
             f.variables["rmin"][:] = self.rmin
             f.variables["zmin"][:] = self.zmin
             f.variables["rmax"][:] = self.rmax
