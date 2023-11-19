@@ -2,7 +2,25 @@
 Handle mgrid data
 """
 import textwrap
+import numpy as np
 from netCDF4 import Dataset
+
+
+def list_to_bytearray(input_strings, max_length=30):
+    data_list = [[char.encode() for char in string] for string in input_strings]
+
+    # Pad the lists with empty bytes to make them of equal length
+    data_list = [
+        sublist + [b" "] * (max_length - len(sublist)) for sublist in data_list
+    ]
+
+    return np.array(data_list, dtype="S1")
+
+
+def bytearray_to_list(input_bytearray):
+    return [
+        b"".join(bytearray).decode().strip() for bytearray in input_bytearray
+    ]
 
 
 class MgridFile:
@@ -54,7 +72,7 @@ class MgridFile:
     @classmethod
     def from_file(cls, filename):
         with Dataset(filename, "r") as f:
-            coil_group = f.variables["coil_group"][:]
+            coil_group = bytearray_to_list(f.variables["coil_group"][:])
             coil_current = f.variables["raw_coil_cur"][:]
             ir = f.dimensions["rad"].size
             jz = f.dimensions["zee"].size
@@ -96,7 +114,7 @@ class MgridFile:
         with Dataset(filename, "w") as f:
             # Add dimensions
             f.createDimension("stringsize", 30)
-            f.createDimension("external_coil_groups", self.coil_group.shape[0])
+            f.createDimension("external_coil_groups", len(self.coil_group))
             f.createDimension("dim_00001", 1)
             f.createDimension("external_coils", self.coil_current.size)
             f.createDimension("rad", self.ir)
@@ -144,7 +162,9 @@ class MgridFile:
             f.variables["rmax"][:] = self.rmax
             f.variables["zmax"][:] = self.zmax
 
-            f.variables["coil_group"][:] = self.coil_group
+            f.variables["coil_group"][:] = list_to_bytearray(
+                self.coil_group, 30
+            )
             f.variables["mgrid_mode"][:] = self.mgrid_mode
             f.variables["raw_coil_cur"][:] = self.coil_current
 
