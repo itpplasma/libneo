@@ -343,9 +343,9 @@ contains
     !$omp parallel do schedule(static) collapse(3) default(none) &
     !$omp private(kr, kphi, kZ, kc, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ, BXYZ_c) &
     !$omp shared(nR, nphi, nZ, ncoil, R, Z, cosphi, sinphi, coils, Ic, Bvac)
-    do kR = 1, nR
+    do kZ = 1, nZ
       do kphi = 1, nphi
-        do kZ = 1, nZ
+        do kR = 1, nR
           XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)]
           ! Biot-Savart integral over coil segments
           BXYZ(:) = 0d0
@@ -370,6 +370,7 @@ contains
         end do
       end do
     end do
+    !$omp end parallel do
   end subroutine Biot_Savart_sum_coils
 
   subroutine Biot_Savart_Fourier(coils, nmax, &
@@ -423,14 +424,14 @@ contains
     plan_nphi = fftw_plan_dft_r2c_1d(nphi, BR, BnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
     do kc = 1, ncoil
       do kZ = 1, nZ
-        XYZ_r(3) = Z(kZ)
         do kR = 1, nR
           !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) firstprivate(XYZ_r) &
-          !$omp shared(nphi, kc, coils, R, kR, cosphi, sinphi, BR, Bphi, BZ)
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) &
+          !$omp shared(nphi, kc, coils, R, kR, Z, kZ, cosphi, sinphi, BR, Bphi, BZ)
           do kphi = 1, nphi
-            XYZ_r(1:2) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi)]
+            XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)]
             ! Biot-Savart integral over coil segments
+            BXYZ(:) = 0d0
             XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
             dist_f = sqrt(sum(XYZ_f * XYZ_f))
             do ks = 1, coils(kc)%nseg
@@ -446,6 +447,7 @@ contains
             Bphi(kphi) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
             BZ(kphi) = BXYZ(3)
           end do
+          !$omp end parallel do
           call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
           call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
           call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
