@@ -1,12 +1,10 @@
 """
 Handle mgrid data
 """
-import textwrap
-import numpy as np
-from netCDF4 import Dataset
-
 
 def list_to_bytearray(input_strings, max_length=30):
+    import numpy as np
+
     data_list = [[char.encode() for char in string] for string in input_strings]
 
     # Pad the lists with empty bytes to make them of equal length
@@ -56,6 +54,8 @@ class MgridFile:
             self.bz = []
 
     def __str__(self):
+        import textwrap
+
         return textwrap.dedent(
             f"""
             mgrid
@@ -71,6 +71,7 @@ class MgridFile:
 
     @classmethod
     def from_file(cls, filename):
+        from netCDF4 import Dataset
         with Dataset(filename, "r") as f:
             coil_group = bytearray_to_list(f.variables["coil_group"][:])
             coil_current = f.variables["raw_coil_cur"][:]
@@ -111,6 +112,8 @@ class MgridFile:
         )
 
     def write(self, filename):
+        from netCDF4 import Dataset
+
         with Dataset(filename, "w") as f:
             # Add dimensions
             f.createDimension("stringsize", 30)
@@ -180,3 +183,8 @@ class MgridFile:
         if not group_name in self.coil_group:
             self.coil_group.append(group_name)
         self.coil_current.append(current)
+
+    # TODO: plot function
+    def plot(self):
+        import matplotlib.pyplot as plt
+        pass
