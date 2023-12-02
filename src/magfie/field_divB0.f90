@@ -49,9 +49,6 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
 
   call stretch_coords(r,z,rm,zm)
 
-  call field_eq(rm,p,zm,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
-               ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
-
   if(iequil.eq.0) then
     Br=0.d0
     Bp=0.d0
@@ -65,6 +62,9 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
     dBzdR=0.d0
     dBzdp=0.d0
     dBzdZ=0.d0
+  else
+    call field_eq(rm,p,zm,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
+               ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
   end if
 
   if(ipert.gt.0) then
