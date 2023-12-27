@@ -50,18 +50,8 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
   call stretch_coords(r,z,rm,zm)
 
   if(iequil.eq.0) then
-    Br=0.d0
-    Bp=0.d0
-    Bz=0.d0
-    dBrdR=0.d0
-    dBrdp=0.d0
-    dBrdZ=0.d0
-    dBpdR=0.d0
-    dBpdp=0.d0
-    dBpdZ=0.d0
-    dBzdR=0.d0
-    dBzdp=0.d0
-    dBzdZ=0.d0
+    call set_zero(Br,Bp,Bz,dBrdR,dBrdp,dBrdZ,   &
+                  dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
   else
     call field_eq(rm,p,zm,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
                ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
@@ -232,18 +222,8 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 
     if(icall_eq.eq.-1) then
       ! Quit after initialization with zero field
-      Brad=0.d0
-      Bphi=0.d0
-      Bzet=0.d0
-      dBrdR=0.d0
-      dBrdp=0.d0
-      dBrdZ=0.d0
-      dBpdR=0.d0
-      dBpdp=0.d0
-      dBpdZ=0.d0
-      dBzdR=0.d0
-      dBzdp=0.d0
-      dBzdZ=0.d0
+      call set_zero(Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ, &
+                    dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
       icall_eq = 1
       return
     end if
@@ -1270,3 +1250,27 @@ subroutine splint_fpol(x,f,fp)
   end do
 
 end subroutine splint_fpol
+
+subroutine set_zero(Br, Bp, Bz, dBrdR, dBrdp, dBrdZ, dBpdR, dBpdp, dBpdZ, dBzdR, &
+  dBzdp, dBzdZ)
+
+  use libneo_kinds, only : real_kind
+
+  implicit none
+
+  real(kind=real_kind), intent(out) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ, dBpdR, dBpdp, &
+    dBpdZ, dBzdR, dBzdp, dBzdZ
+
+  Br=0.d0
+  Bp=0.d0
+  Bz=0.d0
+  dBrdR=0.d0
+  dBrdp=0.d0
+  dBrdZ=0.d0
+  dBpdR=0.d0
+  dBpdp=0.d0
+  dBpdZ=0.d0
+  dBzdR=0.d0
+  dBzdp=0.d0
+  dBzdZ=0.d0
+end subroutine set_zero
