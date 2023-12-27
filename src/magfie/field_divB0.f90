@@ -70,18 +70,8 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
     call field_c(rm,p,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc   &
                 ,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc)
 
-    Br = Br + Brc*ampl
-    Bp = Bp + Bpc*ampl
-    Bz = Bz + Bzc*ampl
-    dBrdR = dBrdR + dBrdRc*ampl
-    dBrdp = dBrdp + dBrdpc*ampl
-    dBrdZ = dBrdZ + dBrdZc*ampl
-    dBpdR = dBpdR + dBpdRc*ampl
-    dBpdp = dBpdp + dBpdpc*ampl
-    dBpdZ = dBpdZ + dBpdZc*ampl
-    dBzdR = dBzdR + dBzdRc*ampl
-    dBzdp = dBzdp + dBzdpc*ampl
-    dBzdZ = dBzdZ + dBzdZc*ampl
+    call add_scaled(Br,Bp,Bz,dBrdR,dBrdp,dBrdZ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ  &
+      ,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc,ampl)
 
     if(incore.gt.-1) then
       ! perturbation coil field with plasma shielding:
@@ -100,18 +90,10 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
         call field_fourier_derivs(rm,p,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc    &
                                  ,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc)
 
-        Br = Br + Brc*ampl
-        Bp = Bp + Bpc*ampl
-        Bz = Bz + Bzc*ampl
-        dBrdR = dBrdR + dBrdRc*ampl
-        dBrdp = dBrdp + dBrdpc*ampl
-        dBrdZ = dBrdZ + dBrdZc*ampl
-        dBpdR = dBpdR + dBpdRc*ampl
-        dBpdp = dBpdp + dBpdpc*ampl
-        dBpdZ = dBpdZ + dBpdZc*ampl
-        dBzdR = dBzdR + dBzdRc*ampl
-        dBzdp = dBzdp + dBzdpc*ampl
-        dBzdZ = dBzdZ + dBzdZc*ampl
+        call add_scaled(
+          Br,Bp,Bz,dBrdR,dBrdp,dBrdZ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ  &
+         ,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZ &
+         ,ampl)
 
       end if
 
@@ -1274,3 +1256,31 @@ subroutine set_zero(Br, Bp, Bz, dBrdR, dBrdp, dBrdZ, dBpdR, dBpdp, dBpdZ, dBzdR,
   dBzdp=0.d0
   dBzdZ=0.d0
 end subroutine set_zero
+
+subroutine add_scaled(Br, Bp, Bz, dBrdR, dBrdp, dBrdZ, dBpdR, dBpdp, dBpdZ, dBzdR, &
+  dBzdp, dBzdZ, Br1, Bp1, Bz1, dBrdR1, dBrdp1, dBrdZ1, dBpdR1, dBpdp1, dBpdZ1, &
+  dBzdR1, dBzdp1, dBzdZ1, scale)
+
+  use libneo_kinds, only : real_kind
+
+  implicit none
+
+  real(kind=real_kind), intent(inout) :: Br, Bp, Bz, dBrdR, dBrdp, dBrdZ, dBpdR,&
+    dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ
+  real(kind=real_kind), intent(in) :: Br1, Bp1, Bz1, dBrdR1, dBrdp1, dBrdZ1, dBpdR1, &
+    dBpdp1, dBpdZ1, dBzdR1, dBzdp1, dBzdZ1
+  real(kind=real_kind), intent(in) :: scale
+
+  Br=Br+scale*Br1
+  Bp=Bp+scale*Bp1
+  Bz=Bz+scale*Bz1
+  dBrdR=dBrdR+scale*dBrdR1
+  dBrdp=dBrdp+scale*dBrdp1
+  dBrdZ=dBrdZ+scale*dBrdZ1
+  dBpdR=dBpdR+scale*dBpdR1
+  dBpdp=dBpdp+scale*dBpdp1
+  dBpdZ=dBpdZ+scale*dBpdZ1
+  dBzdR=dBzdR+scale*dBzdR1
+  dBzdp=dBzdp+scale*dBzdp1
+  dBzdZ=dBzdZ+scale*dBzdZ1
+end subroutine add_scaled
