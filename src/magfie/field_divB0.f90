@@ -613,18 +613,8 @@ subroutine field_c(rrr,ppp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 
     if(icall_c.eq.-1) then
       ! Quit after initialization with zero field
-      Brad=0.d0
-      Bphi=0.d0
-      Bzet=0.d0
-      dBrdR=0.d0
-      dBrdp=0.d0
-      dBrdZ=0.d0
-      dBpdR=0.d0
-      dBpdp=0.d0
-      dBpdZ=0.d0
-      dBzdR=0.d0
-      dBzdp=0.d0
-      dBzdZ=0.d0
+      call set_zero(Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ, &
+                    dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
       icall_c = 1
       return
     end if
