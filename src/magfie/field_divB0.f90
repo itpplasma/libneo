@@ -633,6 +633,9 @@ subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
 
   use input_files, only : cfile
   use math_constants, only : pi
+
+  implicit real*8 (a-h, o-z)
+
   integer, parameter :: nr=64, np=37, nz=64
 
   dimension Bz(nr,np,nz)
@@ -666,12 +669,12 @@ subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
   end do
   close(1)
 
-  rmin = 84.
-  rmax = 254.
-  zmin = -160.
-  zmax = 160.
-  pmin = 0.
-  pmax = 2.*pi
+  rmin = 84.d0
+  rmax = 254.d0
+  zmin = -160.d0
+  zmax = 160.d0
+  pmin = 0.d0
+  pmax = 2.d0*pi
 
   hrad = (rmax - rmin)/(nr-1)
   hphi = (pmax - pmin)/(np-1)
