@@ -634,7 +634,7 @@ subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
   use input_files, only : cfile
   use math_constants, only : pi
 
-  implicit real*8 (a-h, o-z)
+  implicit real(8) (a-h, o-z)
 
   integer, parameter :: nr=64, np=37, nz=64
 
