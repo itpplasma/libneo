@@ -18,4 +18,7 @@ module field_eq_mod
   integer, dimension(:), allocatable           :: imi,ima,jmi,jma
   integer, dimension(:,:), allocatable         :: ipoint
   real(kind=real_kind) :: psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+
+  ! Make temporary variables threadprivate
+  !$omp threadprivate(psif)
 end module field_eq_mod
