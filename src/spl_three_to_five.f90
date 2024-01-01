@@ -9,7 +9,7 @@ subroutine spl_five_reg(n,h,a,b,c,d,e,f)
   real(kind=real_kind) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
   real(kind=real_kind) :: aend,bend,cend,dend,eend,fend
   real(kind=real_kind), dimension(n) :: a,b,c,d,e,f
-  real(kind=real_kind), dimension(n) :: alp,bet,gam
+  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
 
   rhop=13.d0+sqrt(105.d0)
   rhom=13.d0-sqrt(105.d0)
@@ -71,6 +71,8 @@ subroutine spl_five_reg(n,h,a,b,c,d,e,f)
   eend=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
   eend=eend/det
 
+  allocate(alp(n),bet(n),gam(n))
+
   alp(1)=0.0d0
   bet(1)=ebeg*(2.d0+rhom)-5.d0*fbeg*(3.d0+1.5d0*rhom) !gamma1
 
@@ -131,6 +133,8 @@ subroutine spl_five_reg(n,h,a,b,c,d,e,f)
   fac=fac/h
   f=f*fac
 
+  deallocate(alp,bet,gam)
+
 end subroutine spl_five_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -143,10 +147,12 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
   real(kind=real_kind) :: h,rhop,rhom,fac,xplu,xmin,gammao_p,gammao_m_redef
   real(kind=real_kind) :: dummy
   real(kind=real_kind), dimension(n) :: a,b,c,d,e,f
-  real(kind=real_kind), dimension(n) :: alp,bet,gam
+  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
 
   rhop=13.d0+sqrt(105.d0)
   rhom=13.d0-sqrt(105.d0)
+
+  allocate(alp(n),bet(n),gam(n))
 
   alp(1)=0.0d0
   bet(1)=0.0d0
@@ -243,6 +249,8 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
   fac=fac/h
   f=f*fac
 
+  deallocate(alp,bet,gam)
+
 end subroutine spl_five_per
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -254,7 +262,9 @@ subroutine spl_four_reg(n,h,a,b,c,d,e)
   integer :: n,i,ip1
   real(kind=real_kind) :: h,fac,fpl31,fpl40,fmn31,fmn40
   real(kind=real_kind), dimension(n) :: a,b,c,d,e
-  real(kind=real_kind), dimension(n) :: alp,bet,gam
+  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
+
+  allocate(alp(n),bet(n),gam(n))
 
   fpl31=.5d0*(a(2)+a(4))-a(3)
   fpl40=.5d0*(a(1)+a(5))-a(3)
@@ -309,6 +319,8 @@ subroutine spl_four_reg(n,h,a,b,c,d,e)
   fac=fac/h
   e=e*fac
 
+  deallocate(alp,bet,gam)
+
 end subroutine spl_four_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -320,7 +332,9 @@ subroutine spl_four_per(n,h,a,b,c,d,e)
   integer :: n,i,ip1
   real(kind=real_kind) :: h,fac,base1,base2,phi1,phi2,phi
   real(kind=real_kind), dimension(n) :: a,b,c,d,e
-  real(kind=real_kind), dimension(n) :: alp,bet,gam
+  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
+
+  allocate(alp(n),bet(n),gam(n))
 
   base1=-5.d0+2.d0*sqrt(6.d0)
   base2=-5.d0-2.d0*sqrt(6.d0)
@@ -390,6 +404,8 @@ subroutine spl_four_per(n,h,a,b,c,d,e)
   fac=fac/h
   e=e*fac
 
+  deallocate(alp,bet,gam)
+
 end subroutine spl_four_per
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -411,8 +427,10 @@ SUBROUTINE splreg(n,h,y,bi,ci,di)
   real(kind=real_kind), DIMENSION(n), INTENT(out) :: bi, ci, di
 
   real(kind=real_kind) :: ak1, ak2, am1, am2, c, e, c1
-  real(kind=real_kind), DIMENSION(n) :: al, bt
+  real(kind=real_kind), DIMENSION(:), ALLOCATABLE :: al, bt
   INTEGER                                  :: k, n2, i, i5
+
+  ALLOCATE ( al(n), bt(n) )
 
   ak1 = 0.d0
   ak2 = 0.d0
@@ -441,6 +459,7 @@ SUBROUTINE splreg(n,h,y,bi,ci,di)
   END DO
   bi(n)=0.d0
   di(n)=0.d0
+  DEALLOCATE ( al, bt )
 
 END SUBROUTINE splreg
 
@@ -462,9 +481,11 @@ SUBROUTINE splper(n,h,y,bi,ci,di)
   real(kind=real_kind), DIMENSION(n), INTENT(out) :: bi, ci, di
 
   real(kind=real_kind) :: psi, ss
-  real(kind=real_kind), DIMENSION(n) :: bmx, yl
-  real(kind=real_kind), DIMENSION(n) :: amx1, amx2, amx3
+  real(kind=real_kind), DIMENSION(:), ALLOCATABLE :: bmx, yl
+  real(kind=real_kind), DIMENSION(:), ALLOCATABLE :: amx1, amx2, amx3
   INTEGER                                  :: nmx, n1, n2, i, i1
+
+  ALLOCATE ( bmx(n), yl(n), amx1(n), amx2(n), amx3(n) )
 
   bmx(1) = 1.d30
 
@@ -510,6 +531,8 @@ SUBROUTINE splper(n,h,y,bi,ci,di)
   bi(n) = bi(1)
   ci(n) = ci(1)
   di(n) = di(1)
+
+  DEALLOCATE ( bmx, yl, amx1, amx2, amx3 )
 
 END SUBROUTINE splper
 
@@ -568,9 +591,10 @@ subroutine spl_reg(ns,n,h,splcoe)
   integer :: ns,n
   real(kind=real_kind) :: h
   real(kind=real_kind), dimension(0:ns,n) :: splcoe
-  real(kind=real_kind), dimension(n) :: a,b,c,d,e,f
+  real(kind=real_kind), dimension(:), allocatable :: a,b,c,d,e,f
 
   if(ns.eq.3) then
+    allocate(a(n),b(n),c(n),d(n))
     a=splcoe(0,:)
 
     call splreg(n,h,a,b,c,d)
@@ -578,7 +602,9 @@ subroutine spl_reg(ns,n,h,splcoe)
     splcoe(1,:)=b
     splcoe(2,:)=c
     splcoe(3,:)=d
+    deallocate(a,b,c,d)
   elseif(ns.eq.4) then
+    allocate(a(n),b(n),c(n),d(n),e(n))
     a=splcoe(0,:)
 
     call spl_four_reg(n,h,a,b,c,d,e)
@@ -587,7 +613,9 @@ subroutine spl_reg(ns,n,h,splcoe)
     splcoe(2,:)=c
     splcoe(3,:)=d
     splcoe(4,:)=e
+    deallocate(a,b,c,d,e)
   elseif(ns.eq.5) then
+    allocate(a(n),b(n),c(n),d(n),e(n),f(n))
     a=splcoe(0,:)
 
     call spl_five_reg(n,h,a,b,c,d,e,f)
@@ -597,6 +625,7 @@ subroutine spl_reg(ns,n,h,splcoe)
     splcoe(3,:)=d
     splcoe(4,:)=e
     splcoe(5,:)=f
+    deallocate(a,b,c,d,e,f)
   else
     print *,'wrong spline order'
   endif
@@ -619,9 +648,10 @@ subroutine spl_per(ns,n,h,splcoe)
   integer :: ns,n
   real(kind=real_kind) :: h
   real(kind=real_kind), dimension(0:ns,n) :: splcoe
-  real(kind=real_kind), dimension(n) :: a,b,c,d,e,f
+  real(kind=real_kind), dimension(:), allocatable :: a,b,c,d,e,f
 
   if(ns.eq.3) then
+    allocate(a(n),b(n),c(n),d(n))
     a=splcoe(0,:)
 
     call splper(n,h,a,b,c,d)
@@ -629,7 +659,9 @@ subroutine spl_per(ns,n,h,splcoe)
     splcoe(1,:)=b
     splcoe(2,:)=c
     splcoe(3,:)=d
+    deallocate(a,b,c,d)
   elseif(ns.eq.4) then
+    allocate(a(n),b(n),c(n),d(n),e(n))
     a=splcoe(0,:)
 
     call spl_four_per(n,h,a,b,c,d,e)
@@ -638,7 +670,9 @@ subroutine spl_per(ns,n,h,splcoe)
     splcoe(2,:)=c
     splcoe(3,:)=d
     splcoe(4,:)=e
+    deallocate(a,b,c,d,e)
   elseif(ns.eq.5) then
+    allocate(a(n),b(n),c(n),d(n),e(n),f(n))
     a=splcoe(0,:)
 
     call spl_five_per(n,h,a,b,c,d,e,f)
@@ -648,6 +682,7 @@ subroutine spl_per(ns,n,h,splcoe)
     splcoe(3,:)=d
     splcoe(4,:)=e
     splcoe(5,:)=f
+    deallocate(a,b,c,d,e,f)
   else
     print *,'wrong spline order'
   endif
