@@ -181,6 +181,51 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
 102 format(1000e15.7)
 end subroutine vector_potentials
 
+
+! Spline a single toroidal Fourier mode of the RMP coil field, as needed for MEPHIT.
+! Note the explicit-shape input arrays are not checked for shape.
+! Also, the truncation of data outside the limiting convex is not performed.
+subroutine vector_potential_single_mode(ntor_in, nR_in, nZ_in, Rmin_in, Rmax_in, Zmin_in, Zmax_in, Bn_R, Bn_Z)
+  use iso_fortran_env, only: dp => real64
+  use bdivfree_mod, only: nR, nZ, Rmin, Zmin, ntor, icp, ipoint, hR, hZ, Rpoi, Zpoi, AZnRe, AZnIm, ARnRe, ARnIm
+  integer, intent(in) :: nR_in, nZ_in
+  real(dp), intent(in) :: Rmin_in, Rmax_in, Zmin_in, Zmax_in
+  complex(dp), intent(in), dimension(nR_in, nZ_in) :: Bn_R, Bn_Z
+  integer :: k, imi(nZ_in), ima(nZ_in), jmi(nR_in), jma(nR_in)
+  complex(dp), dimension(nR_in, nZ_in) :: An_R, An_Z
+
+  ntor = ntor_in
+  nR = nR_in
+  nZ = nZ_in
+  icp = nR * nZ
+  Rmin = Rmin_in
+  Zmin = Zmin_in
+  hR = (Rmax - Rmin) / dble(nR - 1)
+  hZ = (Zmax - Zmin) / dble(nZ - 1)
+  allocate(Rpoi(nR), Zpoi(nZ), ipoint(nR, nZ))
+  Rpoi(:) = Rmin + [(k * hr, k = 0, nR - 1)]
+  Zpoi(:) = Zmin + [(k * hz, k = 0, nZ - 1)]
+  do k = 1, nZ
+    An_R(:, k) = (0d0, 1d0) * Bn_Z(:, k) * Rpoi / dble(ntor)
+    An_Z(:, k) = (0d0, -1d0) * Bn_R(:, k) * Rpoi / dble(ntor)
+  end do
+  allocate(ARnRe(6, 6, icp, ntor), ARnIm(6, 6, icp, ntor))
+  allocate(AZnRe(6, 6, icp, ntor), AZnIm(6, 6, icp, ntor))
+  ARnRe(:, :, :, :ntor-1) = (0d0, 0d0)
+  ARnIm(:, :, :, :ntor-1) = (0d0, 0d0)
+  AZnRe(:, :, :, :ntor-1) = (0d0, 0d0)
+  AZnIm(:, :, :, :ntor-1) = (0d0, 0d0)
+  imi(:) = 1
+  ima(:) = nR
+  jmi(:) = 1
+  jma(:) = nZ
+  call s2dcut(nR, nZ, hR, hZ, An_R%re, imi, ima, jmi, jma, icp, ARnRe(:, :, :, ntor), ipoint)
+  call s2dcut(nR, nZ, hR, hZ, An_R%im, imi, ima, jmi, jma, icp, ARnIm(:, :, :, ntor), ipoint)
+  call s2dcut(nR, nZ, hR, hZ, An_Z%re, imi, ima, jmi, jma, icp, AZnRe(:, :, :, ntor), ipoint)
+  call s2dcut(nR, nZ, hR, hZ, An_Z%im, imi, ima, jmi, jma, icp, AZnIm(:, :, :, ntor), ipoint)
+end subroutine vector_potential_single_mode
+
+
 subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
   anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
 
