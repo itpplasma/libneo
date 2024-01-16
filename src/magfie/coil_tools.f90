@@ -373,6 +373,177 @@ contains
     !$omp end parallel do
   end subroutine Biot_Savart_sum_coils
 
+  subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, An, dAn)
+    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
+    !$ use omp_lib, only: omp_get_max_threads
+    use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
+      fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
+      FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
+    use math_constants, only: pi
+    type(coil_t), intent(in), dimension(:) :: coils
+    integer, intent(in) :: nmax
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(in) :: nR, nphi, nZ
+    !real(dp), dimension(:, :, :, :), allocatable :: Avac
+    !real(dp), dimension(:, :, :, :), allocatable :: dAvac
+    real(dp), intent(out), dimension(:, :, :, :), allocatable :: An
+    real(dp), intent(out), dimension(:, :, :, :), allocatable :: dAn
+    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
+    real(dp), dimension(nphi) :: phi, cosphi, sinphi
+    real(dp), dimension(3,3) :: dAXZ_c, dAXYZ
+    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, AXYZ_c(3), AXYZ(3), L(3), dist_L(3)
+    complex :: i
+    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dz, p_AnR, p_Anphi, p_AnZ,  p_dAnphi_dR, p_dAnphi_dz
+    real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAR, dAphi_dR, dAphi_dz
+    complex(c_double_complex), dimension(:), pointer :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dz
+
+    if (nmax > nphi / 4) then
+      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
+        'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
+      error stop
+    end if
+    nfft = nphi / 2 + 1
+    ncoil = size(coils)
+    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
+    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    cosphi(:) = cos(phi)
+    sinphi(:) = sin(phi)
+    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
+    allocate(An(0:nmax, 3, nR, nZ, ncoil),dAn(0:nmax, 2, nR, nZ, ncoil))
+    !allocate(Avac(3, nZ, nphi, nR),dAvac(3, 3, nZ, nphi, nR))
+    !Avac(:, :, :, :) = 0d0
+    !dAvac(:, :, :, :, :) = 0d0
+    ! prepare FFTW
+    !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
+    !$ call fftw_plan_with_nthreads(omp_get_max_threads())
+    p_AR = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_AR, AR, [nphi])
+    p_Aphi = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_Aphi, Aphi, [nphi])
+    p_AZ = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_AZ, AZ, [nphi])
+    p_dAphi_dR = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_dAnphi_dR, dAphi_dR, [nphi])
+    p_dAphi_dz = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_dAphi_dz, dAphi_dz, [nphi])
+    p_AnR = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_AnR, AnR, [nfft])
+    p_Anphi = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_Anphi, Anphi, [nfft])
+    p_AnZ = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_AnZ, AnZ, [nfft])
+    p_dAnphi_dR = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_dAnphi_dR, dAnphi_dR, [nfft])
+    p_dAnphi_dz = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_dAnphi_dz, dAnphi_dz, [nfft])
+    plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
+
+    do kc = 1, ncoil
+      do kZ = 1, nZ
+        do kR = 1, nR
+          !$omp parallel do schedule(static) default(none) &
+          !$omp private(kr, kphi, kZ, kc, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, AXYZ, AXYZ_c) &
+          !$omp shared(nR, nphi, nZ, ncoil, R, Z, cosphi, sinphi, coils, Ic, Avac,dAvac)
+          do kphi = 1, nphi
+             XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)] !position at which vector potential should be evaluated
+             AXYZ(:) = 0d0
+             AXYZ_c(:) = 0d0
+             dAXYZ_c(:) = 0d0
+             XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
+             dist_f = sqrt(sum(XYZ_f * XYZ_f))
+             do ks = 1, coils(kc)%nseg
+               XYZ_i(:) = XYZ_f
+               dist_i = dist_f
+               XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
+               dist_f = sqrt(sum(XYZ_f * XYZ_f))
+               L = XYZ_f - XYZ_i
+               dist_L = sqrt(sum(L * L))
+               AXYZ_c(:) = AXYZ_c + L/dist_L*log((dist_i+dist_f+dist_L)/(dist_i+dist_f-dist_L))
+               dAXYZ_c(1,:) = dAXYZ_c - L(1)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))*(XYZ_i/dist_i + XYZ_f/dist_f) !(/Axx,Axy,Axz/)
+               dAXYZ_c(2,:) = dAXYZ_c - L(2)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))*(XYZ_i/dist_i + XYZ_f/dist_f) !(/Ayx,Ayy,Ayz/)
+               !dAXYZ_c(3,:) = dAXYZ_c - L(3)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))*(XYZ_i/dist_i + XYZ_f/dist_f) !(/Azx,Azy,Azz/)
+             end do
+             AXYZ(:) = AXYZ + Ic(kc) * AXYZ_c
+             dAXYZ(:) = dAXYZ + Ic(kc) * dAXYZ_c
+          end do
+          !$omp end parallel do
+        end do
+      end do
+    end do
+
+    do kc = 1, ncoil
+      do kZ = 1, nZ
+        do kR = 1, nR
+          !$omp parallel do schedule(static) default(none) &
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) &
+          !$omp shared(nphi, kc, coils, R, kR, Z, kZ, cosphi, sinphi, BR, Bphi, BZ)
+          do kphi = 1, nphi
+            XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)]
+            ! Biot-Savart integral over coil segments
+            BXYZ(:) = 0d0
+            XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
+            dist_f = sqrt(sum(XYZ_f * XYZ_f))
+            do ks = 1, coils(kc)%nseg
+              XYZ_i(:) = XYZ_f
+              dist_i = dist_f
+              XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
+              dist_f = sqrt(sum(XYZ_f * XYZ_f))
+              BXYZ(:) = BXYZ + &
+                (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
+                (dist_i + dist_f) / (dist_i * dist_f * (dist_i * dist_f + sum(XYZ_i * XYZ_f)))
+            end do
+            BR(kphi) = BXYZ(1) * cosphi(kphi) + BXYZ(2) * sinphi(kphi)
+            Bphi(kphi) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
+            BZ(kphi) = BXYZ(3)
+          end do
+          !$omp end parallel do
+          call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
+          call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
+          call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
+          Bn(0:nmax, 1, kR, kZ, kc) = BnR(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 2, kR, kZ, kc) = Bnphi(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 3, kR, kZ, kc) = BnZ(1:nmax+1) / dble(nphi)
+        end do
+      end do
+    end do
+
+
+    call fftw_destroy_plan(plan_nphi)
+    call fftw_free(p_AR)
+    call fftw_free(p_Aphi)
+    call fftw_free(p_AZ)
+    call fftw_free(p_dAphi_dR)
+    call fftw_free(p_dAphi_dz)
+    call fftw_free(p_AnR)
+    call fftw_free(p_Anphi)
+    call fftw_free(p_AnZ)
+    call fftw_free(p_dAnphi_dR)
+    call fftw_free(p_dAnphi_dz)
+    !$ call fftw_cleanup_threads()
+    ! nullify pointers past this point
+  end subroutine Vector_Potential_Biot_Savart_Fourier
+
+  ! !convert Avac from cartesian to cylindrical coordinates
+  ! Avac(1, kZ, kphi, kR) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
+  ! Avac(2, kZ, kphi, kR) = AXYZ(2) * cosphi(kphi) - AXYZ(1) * sinphi(kphi)
+  ! Avac(3, kZ, kphi, kR) = AXYZ(3)
+
+  ! !convert dAvac from cartesian to cylindrical coordinates
+  ! !dAvac(1, 1, kZ, kphi, kR) = dAXYZ(1,1)*cosphi(kphi)**2+dAXYZ(2,2)*sinphi(kphi)**2+ &
+  ! !                          & (dAXYZ(1,2)+dAXYZ(2,1))*cosphi(kphi)*sinphi(kphi)
+  ! dAvac(2, 1, kZ, kphi, kR) = dAXYZ(2,1)*cosphi(kphi)**2-dAXYZ(1,2)*sinphi(kphi)**2+ &
+  !                           & (dAXYZ(2,2)-dAXYZ(1,1))*cosphi(kphi)*sinphi(kphi)
+  ! !dAvac(3, 1, kZ, kphi, kR) = dAXYZ(3,1)*cosphi(kphi)+dAXYZ(3,2)*sinphi(kphi)
+  ! !dAvac(1, 2, kZ, kphi, kR) = R(kR)*(dAXYZ(1,2)*cosphi(kphi)**2 - dAXYZ(2,1)*sinphi(kphi)**2 + &
+  ! !                          & (dAXYZ(2,2) - dAXYZ(1,1))*cosphi(kphi)*sinphi(kphi)) + Avac(2, kZ, kphi, kR)
+  ! !dAvac(2, 2, kZ, kphi, kR) = R(kR)*(dAXYZ(1,1)*sinphi(kphi)**2 + dAXYZ(2,2)*cosphi(kphi)**2 - &
+  ! !                          & (dAXYZ(1,2) + dAXYZ(2,1))*cosphi(kphi)*sinphi(kphi)) - Avac(1, kZ, kphi, kR) 
+  ! !dAvac(3, 2, kZ, kphi, kR) = R(kR)*(dAXYZ(3,2)*cosphi(kphi) - dAXYZ(3,1)*sinphi(kphi)) - Avac(1, kZ, kphi, kR)
+  ! !dAvac(1, 3, kZ, kphi, kR) = dAXYZ(1,3)*cosphi(kphi)+dAXYZ(2,3)*sinphi(kphi)
+  ! dAvac(2, 3, kZ, kphi, kR) = -dAXYZ(1,3)*sinphi(kphi)+dAXYZ(2,3)*sinphi(kphi)
+  ! !dAvac(3, 3, kZ, kphi, kR) = dAXYZ(3,3)
+
   subroutine Biot_Savart_Fourier(coils, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
