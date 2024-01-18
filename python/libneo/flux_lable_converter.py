@@ -11,6 +11,13 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 
 class FluxLableConverter:
+    """
+    This is a class for the conversion between the poloidal and toroidal flux lable s_pol and s_tor of a given flux surface.
+    The conversion is based on the safety factor profile q as q = d{toroidal_flux}/d{polodial_flux}.
+    Therefore {toroidal_flux} = int_-inf^{polodial_flux}q({flux})d{flux} - , with {s} = {flux}/{flux_max}
+    gives {toroidal_flux} = {flux_max}*int_-inf^{s_pol}q(s)ds
+    and {s_tor} = {todroidal_flux}/{toroidal_flux_max} = int_-inf^{s_pol}q(s)ds / int_-inf^1q(s)ds
+    """
 
     def __init__(self,q_profile:np.ndarray):
         """
@@ -51,13 +58,9 @@ class FluxLableConverter:
 ################################################################################
 
 if __name__=='__main__':
-    print('This is a conversion routine between the poloidal and toroidal flux lable s_pol and s_tor of a given flux surface.')
-    print('The conversion is based on the safety factor profile q as q = d{toroidal_flux}/d{polodial_flux}.')
-    print('Therefore {toroidal_flux} = int_-inf^{polodial_flux}q({flux})d{flux} - , with {s} = {flux}/{flux_max}')
-    print('gives {toroidal_flux} = {flux_max}*int_-inf^{s_pol}q(s)ds')
-    print('and {s_tor} = {todroidal_flux}/{toroidal_flux_max} = int_-inf^{s_pol}q(s)ds / int_-inf^1q(s)ds')
-    
-    print('Running test conversion for spol2stor:')
+    print('This file contains a class for the conversion between the poloidal and') 
+    print('toroidal flux lable s_pol and s_tor of a given flux surface.')
+    print('Running test conversion for FluxLableConverter.spol2stor:')
 
     ### TEST conversion
 
