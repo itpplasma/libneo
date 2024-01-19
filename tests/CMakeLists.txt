@@ -110,6 +110,7 @@ add_fortran_test(test_boozer_class)
 add_fortran_test(test_efit_class)
 add_fortran_test(test_geqdsk_tools)
 add_fortran_test(test_hdf5_tools)
+add_fortran_test(test_util)
 
 ## Custom tests
 
