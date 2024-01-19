@@ -55,8 +55,6 @@ contains
 
         call evaluate_splines_1d(x_eval, spl, actual)
 
-        print *, expected, actual
-
         if (abs(expected - actual) > TOL) error stop
 
         call destroy_splines_1d(spl)

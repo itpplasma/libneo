@@ -41,6 +41,7 @@ contains
 
         type(SplineData1D), intent(out) :: spl
 
+        spl%x_min = x_min
         spl%order = order
         spl%periodic = periodic
         spl%num_points = size(y)
