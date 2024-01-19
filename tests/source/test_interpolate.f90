@@ -4,6 +4,8 @@ program test_interpolate
 
     implicit none
 
+    real(8), parameter :: TOL = 1.0d-6
+
     integer, parameter :: N_POINTS = 100
     real(8), parameter :: X_MIN = 0.0d0, X_MAX = TWOPI
 
@@ -22,43 +24,32 @@ contains
     end subroutine generate_test_data_1d
 
     subroutine test_spl_reg(spline_order)
+        use interpolate
 
         integer, intent(in) :: spline_order
 
         real(8), dimension(N_POINTS) :: x, y, dy, d2y
 
-        real(8) :: expected, actual
+        real(8) :: x_eval, expected, actual
 
         real(kind=real_kind), dimension(0:spline_order, N_POINTS) :: spline_coeff
 
-        real(8) :: h_step, x_norm
-        integer :: i, k, point_index
+        type(SplineData1D) :: spl
 
         call linspace(0.0d0, 2.0d0 * pi, 100, x)
         call generate_test_data_1d(x, y, dy, d2y)
 
-        h_step = x(2) - x(1)
+        call construct_splines_1d(x, y, 5, .False., spl)
 
-        spline_coeff(0,:) = y
-        call spl_reg(spline_order, N_POINTS, h_step, spline_coeff)
+        x_eval = (x(30) + x(31))/2.0d0
 
-        i = 30
+        expected = cos(x_eval)
 
-        expected = cos(x(i))
+        call evaluate_splines_1d(x_eval, spl, actual)
 
-        x_norm = x(i)/h_step
-        point_index = max(0, min(N_POINTS-1, int(x_norm)))
-        x_norm = (x_norm - dble(point_index))*h_step
-        point_index = point_index + 1
+        if (abs(expected - actual) > TOL) error stop
 
-        actual = spline_coeff(spline_order+1, point_index)
-
-        do k = spline_order, 0, -1
-            actual = spline_coeff(k, point_index) + x_norm*actual
-        enddo
-
-        print *, 'expected = ', expected
-        print *, 'actual = ', actual
+        call destroy_splines_1d(spl)
 
     end subroutine test_spl_reg
 
