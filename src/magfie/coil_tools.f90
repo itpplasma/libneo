@@ -374,7 +374,7 @@ contains
   end subroutine Biot_Savart_sum_coils
 
   subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, An, dAn)
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
@@ -385,15 +385,16 @@ contains
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
-    !real(dp), dimension(:, :, :, :), allocatable :: Avac
-    !real(dp), dimension(:, :, :, :), allocatable :: dAvac
-    real(dp), intent(out), dimension(:, :, :, :), allocatable :: An
-    real(dp), intent(out), dimension(:, :, :, :), allocatable :: dAn
-    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
+    ! real(dp), intent(out), dimension(:, :, :, :, :), allocatable :: An
+    ! real(dp), intent(out), dimension(:, :, :, :, :), allocatable :: dAn
+    complex(dp), intent(out), dimension(:, :, :, :), allocatable :: AnR_array, Anphi_array, AnZ_array, &
+                                                                     & dAnphi_dR_array, dAnphi_dZ_array
+    integer, intent(out) :: ncoil
+    integer :: nfft, kc, ks, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
-    real(dp) :: alpha, beta
+    real(dp) :: alpha, beta(3)
     real(dp), dimension(3,3) :: dAXZ_c, dAXYZ
-    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, AXYZ(3), dAX(3), dAY(3), XYZ_if(3), dist_if(3)
+    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, AXYZ(3), dAX(3), dAY(3), XYZ_if(3), dist_if
     complex :: i
     type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dz, p_AnR, p_Anphi, p_AnZ,  p_dAnphi_dR, p_dAnphi_dz
     real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
@@ -411,10 +412,12 @@ contains
     cosphi(:) = cos(phi)
     sinphi(:) = sin(phi)
     Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
-    allocate(An(0:nmax, 3, nR, nZ, ncoil),dAn(0:nmax, 2, nR, nZ, ncoil))
-    !allocate(Avac(3, nZ, nphi, nR),dAvac(3, 3, nZ, nphi, nR))
-    !Avac(:, :, :, :) = 0d0
-    !dAvac(:, :, :, :, :) = 0d0
+    !allocate(An(0:nmax, 3, nR, nZ, ncoil),dAn(0:nmax, 2, nR, nZ, ncoil))
+    allocate(AnR_array(0:nmax,nR,nZ,ncoil))
+    allocate(Anphi_array(0:nmax,nR,nZ,ncoil))
+    allocate(AnZ_array(0:nmax,nR,nZ,ncoil))
+    allocate(dAnphi_dR_array(0:nmax,nR,nZ,ncoil))
+    allocate(dAnphi_dZ_array(0:nmax,nR,nZ,ncoil))
     ! prepare FFTW
     !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
     !$ call fftw_plan_with_nthreads(omp_get_max_threads())
@@ -444,7 +447,7 @@ contains
       do kZ = 1, nZ
         do kR = 1, nR
           !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, AXYZ, dAX, dAY, alpha, beta) &
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, AXYZ, dAX, dAY, alpha, beta) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ)
           do kphi = 1, nphi
             XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)] !position at which vector potential should be evaluated
@@ -453,8 +456,6 @@ contains
             dAY(:) = 0d0
             XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
             dist_f = sqrt(sum(XYZ_f * XYZ_f))
-            alpha = log((dist_i+dist_f+dist_if)/(dist_i+dist_f-dist_if))
-            beta = (XYZ_i/dist_i + XYZ_f/dist_f)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))
             do ks = 1, coils(kc)%nseg
               XYZ_i(:) = XYZ_f
               dist_i = dist_f
@@ -462,6 +463,8 @@ contains
               dist_f = sqrt(sum(XYZ_f * XYZ_f))
               XYZ_if = XYZ_f - XYZ_i
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
+              alpha = log((dist_i+dist_f+dist_if)/(dist_i+dist_f-dist_if))
+              beta = (XYZ_i/dist_i + XYZ_f/dist_f)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))
               AXYZ(:) = AXYZ + XYZ_if/dist_if*alpha
               dAX(:) = dAX(:) - XYZ_if(1)*beta !(/dAX_dX,dAX_dY,dAX_dZ/)
               dAY(:) = dAY(:) - XYZ_if(2)*beta !(/dAY_dX,dAY_dY,dAY_dZ/)
@@ -478,11 +481,16 @@ contains
           call fftw_execute_dft_r2c(plan_nphi, AZ, AnZ)
           call fftw_execute_dft_r2c(plan_nphi, dAphi_dR, dAnphi_dR)
           call fftw_execute_dft_r2c(plan_nphi, dAphi_dZ, dAnphi_dZ)
-          An(0:nmax, 1, kR, kZ, kc) = AnR(1:nmax+1) / dble(nphi)
-          An(0:nmax, 2, kR, kZ, kc) = Anphi(1:nmax+1) / dble(nphi)
-          An(0:nmax, 3, kR, kZ, kc) = AnZ(1:nmax+1) / dble(nphi)
-          dAn(0:nmax, 1, kR, kZ, kc) = dAnphi_dR(1:nmax+1) / dble(nphi)
-          dAn(0:nmax, 2, kR, kZ, kc) = dAnphi_dZ(1:nmax+1) / dble(nphi)
+          ! An(0:nmax, 1, kR, kZ, kc) = AnR(1:nmax+1) / dble(nphi)
+          ! An(0:nmax, 2, kR, kZ, kc) = Anphi(1:nmax+1) / dble(nphi)
+          ! An(0:nmax, 3, kR, kZ, kc) = AnZ(1:nmax+1) / dble(nphi)
+          ! dAn(0:nmax, 1, kR, kZ, kc) = dAnphi_dR(1:nmax+1) / dble(nphi)
+          ! dAn(0:nmax, 2, kR, kZ, kc) = dAnphi_dZ(1:nmax+1) / dble(nphi)
+          AnR_array(0:nmax, kR, kZ, kc) = AnR(1:nmax+1) / dble(nphi)
+          Anphi_array(0:nmax, kR, kZ, kc) = Anphi(1:nmax+1) / dble(nphi)
+          AnZ_array(0:nmax, kR, kZ, kc) = AnZ(1:nmax+1) / dble(nphi)
+          dAnphi_dR_array(0:nmax, kR, kZ, kc) = dAnphi_dR(1:nmax+1) / dble(nphi)
+          dAnphi_dZ_array(0:nmax, kR, kZ, kc) = dAnphi_dZ(1:nmax+1) / dble(nphi)
         end do
       end do
     end do
@@ -524,6 +532,84 @@ contains
   ! !dAvac(1, 3, kZ, kphi, kR) = dAXYZ(1,3)*cosphi(kphi)+dAXYZ(2,3)*sinphi(kphi)
   ! dAvac(2, 3, kZ, kphi, kR) = -dAXYZ(1,3)*sinphi(kphi)+dAXYZ(2,3)*cosphi(kphi)
   ! !dAvac(3, 3, kZ, kphi, kR) = dAXYZ(3,3)
+
+  subroutine write_An_arrays(filename, ncoil, nmax, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array)
+    use netcdf
+    character(len = *), intent(in) :: filename
+    integer, intent(in) :: ncoil, nmax
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(in) :: nR, nphi, nZ
+    complex(dp), intent(in), dimension(:, :, :, :) :: AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array
+    real(dp), dimension(:, :, :, :, :), allocatable :: AnR_split, Anphi_split, AnZ_split, dAnphi_dR_split, dAnphi_dZ_split
+    integer :: status, ncid
+    integer :: dimid_2, dimid_4, dimid_nR, dimid_nZ, dimid_ncoil, dimid_nmax
+    integer :: varid_rminmax, varid_zminmax, varid_nrnphinz
+    integer :: varid_AnR, varid_Anphi, varid_AnZ, varid_dAnphi_dR, varid_dAnphi_dZ
+
+    status = nf90_create(filename, NF90_NETCDF4, ncid)
+    call check(status, 'open')
+
+    ! define dimensions
+    status = nf90_def_dim(ncid, '2', 2, dimid_2)
+    status = nf90_def_dim(ncid, '4', 4, dimid_4)
+    status = nf90_def_dim(ncid, 'nR', nR, dimid_nR)
+    status = nf90_def_dim(ncid, 'nZ', nZ, dimid_nZ)
+    status = nf90_def_dim(ncid, 'ncoil', ncoil, dimid_ncoil)
+    status = nf90_def_dim(ncid, 'nmax_plus_one', nmax + 1, dimid_nmax)
+
+    ! define variables
+    status = nf90_def_var(ncid, 'Rminmax', NF90_DOUBLE, [dimid_2], varid_rminmax)
+    status = nf90_def_var(ncid, 'Zminmax', NF90_DOUBLE, [dimid_2], varid_zminmax)
+    status = nf90_def_var(ncid, 'nRnphinZncoils', NF90_INT, [dimid_4], varid_nrnphinz)
+    status = nf90_def_var(ncid, 'AnR_array', NF90_DOUBLE, [dimid_2,dimid_nmax,dimid_nR,dimid_nZ,dimid_ncoil], varid_AnR)
+    status = nf90_def_var(ncid, 'Anphi_array', NF90_DOUBLE, [dimid_2,dimid_nmax,dimid_nR,dimid_nZ,dimid_ncoil], varid_Anphi)
+    status = nf90_def_var(ncid, 'AnZ_array', NF90_DOUBLE, [dimid_2,dimid_nmax,dimid_nR,dimid_nZ,dimid_ncoil], varid_AnZ)
+    status = nf90_def_var(ncid, 'dAnphi_dR_array', NF90_DOUBLE, [dimid_2,dimid_nmax,dimid_nR,dimid_nZ,dimid_ncoil], varid_dAnphi_dR)
+    status = nf90_def_var(ncid, 'dAnphi_dZ_array', NF90_DOUBLE, [dimid_2,dimid_nmax,dimid_nR,dimid_nZ,dimid_ncoil], varid_dAnphi_dZ)
+
+    ! construct variables to be written
+    allocate(AnR_split(2, 0:nmax, nR, nZ, ncoil))
+    allocate(Anphi_split(2, 0:nmax, nR, nZ, ncoil))
+    allocate(AnZ_split(2, 0:nmax, nR, nZ, ncoil))
+    allocate(dAnphi_dR_split(2, 0:nmax, nR, nZ, ncoil))
+    allocate(dAnphi_dZ_split(2, 0:nmax, nR, nZ, ncoil))
+
+    AnR_split(1, :, :, :, :) = real(AnR_array) 
+    AnR_split(2, :, :, :, :) = aimag(AnR_array)
+    Anphi_split(1, :, :, :, :) = real(Anphi_array)
+    Anphi_split(2, :, :, :, :) = aimag(Anphi_array)
+    AnZ_split(1, :, :, :, :) = real(AnZ_array)
+    AnZ_split(2, :, :, :, :) = aimag(AnZ_array)
+    dAnphi_dR_split(1, :, :, :, :) = real(dAnphi_dR_array)
+    dAnphi_dR_split(2, :, :, :, :) = aimag(dAnphi_dR_array)
+    dAnphi_dZ_split(1, :, :, :, :) = real(dAnphi_dZ_array)
+    dAnphi_dZ_split(2, :, :, :, :) = aimag(dAnphi_dZ_array)
+
+    ! write variables
+    status = nf90_put_var(ncid, varid_rminmax, (/Rmin, Rmax/))
+    status = nf90_put_var(ncid, varid_zminmax, (/Zmin, Zmax/))
+    status = nf90_put_var(ncid, varid_nrnphinz, (/nR, nphi, nZ, ncoil/))
+    status = nf90_put_var(ncid, varid_AnR, AnR_split)
+    status = nf90_put_var(ncid, varid_Anphi, Anphi_split)
+    status = nf90_put_var(ncid, varid_AnZ, AnZ_split)
+    status = nf90_put_var(ncid, varid_dAnphi_dR, dAnphi_dR_split)
+    status = nf90_put_var(ncid, varid_dAnphi_dZ, dAnphi_dZ_split)
+
+    status = nf90_close(ncid)
+    call check(status, 'close')
+  end subroutine write_An_arrays
+
+  subroutine check(status, operation)
+    use netcdf
+    integer, intent(in) :: status
+    character(len=*), intent(in) :: operation
+
+    if (status == NF90_NOERR) return
+    print*, "Error encountered during", operation
+    print*, nf90_strerror(status)
+    STOP
+  end subroutine check
 
   subroutine Biot_Savart_Fourier(coils, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
