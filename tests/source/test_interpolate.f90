@@ -9,7 +9,10 @@ program test_interpolate
     integer, parameter :: N_POINTS = 100
     real(8), parameter :: X_MIN = 0.0d0, X_MAX = TWOPI
 
-    call test_spl_reg(spline_order=3, periodic=.False.)
+    call test_spline_1d(spline_order=3, periodic=.False.)
+    call test_spline_1d(spline_order=3, periodic=.True.)
+    call test_spline_1d(spline_order=5, periodic=.False.)
+    call test_spline_1d(spline_order=5, periodic=.True.)
 
 contains
 
@@ -23,7 +26,7 @@ contains
 
     end subroutine generate_test_data_1d
 
-    subroutine test_spl_reg(spline_order, periodic)
+    subroutine test_spline_1d(spline_order, periodic)
         use interpolate
 
         integer, intent(in) :: spline_order
@@ -32,8 +35,6 @@ contains
         real(8), dimension(N_POINTS) :: x, y, dy, d2y
 
         real(8) :: x_eval, expected, actual
-
-        real(kind=real_kind), dimension(0:spline_order, N_POINTS) :: spline_coeff
 
         type(SplineData1D) :: spl
 
@@ -52,6 +53,6 @@ contains
 
         call destroy_splines_1d(spl)
 
-    end subroutine test_spl_reg
+    end subroutine test_spline_1d
 
 end program test_interpolate
