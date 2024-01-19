@@ -9,7 +9,7 @@ program test_interpolate
     integer, parameter :: N_POINTS = 100
     real(8), parameter :: X_MIN = 0.0d0, X_MAX = TWOPI
 
-    call test_spl_reg(spline_order=3)
+    call test_spl_reg(spline_order=3, periodic=.False.)
 
 contains
 
@@ -23,10 +23,11 @@ contains
 
     end subroutine generate_test_data_1d
 
-    subroutine test_spl_reg(spline_order)
+    subroutine test_spl_reg(spline_order, periodic)
         use interpolate
 
         integer, intent(in) :: spline_order
+        logical, intent(in) :: periodic
 
         real(8), dimension(N_POINTS) :: x, y, dy, d2y
 
@@ -39,7 +40,7 @@ contains
         call linspace(0.0d0, 2.0d0 * pi, 100, x)
         call generate_test_data_1d(x, y, dy, d2y)
 
-        call construct_splines_1d(x, y, 5, .False., spl)
+        call construct_splines_1d(x, y, spl_order, periodic, spl)
 
         x_eval = (x(30) + x(31))/2.0d0
 
