@@ -96,3 +96,35 @@ target_link_libraries(test_system_utility.x
 
 add_executable(test_util.x source/test_util.f90)
 target_link_libraries(test_util.x ${COMMON_LIBS})
+
+
+## Standard tests according to standard libneo Fortran test convention.
+
+function (add_fortran_test name)
+  add_test(NAME ${name} COMMAND ${name}.x)
+  set_tests_properties(${name} PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+endfunction()
+
+add_fortran_test(test_binsrc)
+add_fortran_test(test_boozer_class)
+add_fortran_test(test_efit_class)
+add_fortran_test(test_geqdsk_tools)
+add_fortran_test(test_hdf5_tools)
+
+## Custom tests
+
+# This requires an additional call to test_arnoldi.py, so use the script
+# instead of calling the executable directly.
+# \note Maybe this could be solved with test_arnoldi.py && test_arnoldi.x.
+# Afterwards fail condition is set: test will fail if the output
+# contains 'STOP'.
+add_test(NAME test_arnoldi
+         COMMAND ../../tests/python_scripts/test_arnoldi.py && test_arnoldi.x)
+set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+
+add_test(NAME test_mympilib
+  COMMAND test_mympilib.x)
+set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
+add_test(NAME test_system_utility
+         COMMAND test_system_utility.x)
+set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
