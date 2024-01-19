@@ -17,7 +17,7 @@ module math_constants
   real(kind=real_kind), parameter :: EULER = 0.5772156649015328606065120900824024310422_real_kind
 
   !> Imaginary unit:
-  complex(kind=complex_kind), parameter :: I = (0.d0,1.d0)
+  complex(kind=complex_kind), parameter :: IMUN = (0.d0,1.d0)
 
   ! Define physical constants (SI-units)
   real(kind=real_kind), parameter, public :: MU_0 = 1.25663706212e-6_real_kind !< vacuum permeability [N A^-2]
