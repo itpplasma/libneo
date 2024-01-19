@@ -40,7 +40,7 @@ contains
         call linspace(0.0d0, 2.0d0 * pi, 100, x)
         call generate_test_data_1d(x, y, dy, d2y)
 
-        call construct_splines_1d(x, y, spl_order, periodic, spl)
+        call construct_splines_1d(x, y, spline_order, periodic, spl)
 
         x_eval = (x(30) + x(31))/2.0d0
 
