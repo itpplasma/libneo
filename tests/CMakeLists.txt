@@ -41,63 +41,58 @@ execute_process(COMMAND nc-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+set (COMMON_LIBS ${MAIN_LIB} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${NETCDF_LIBRARIES})
+
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 target_link_libraries(test_arnoldi.x
-  ${MAIN_LIB}
+  ${COMMON_LIBS}
   MyMPILib
   ${MPI_Fortran_LIBRARIES}
-  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
-  ${NETCDF_LIBRARIES}
-  )
+)
 
 add_executable(test_binsrc.x source/test_binsrc.f90)
 target_link_libraries(test_binsrc.x
-  ${MAIN_LIB}
-  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
-  ${NETCDF_LIBRARIES}
-  )
+  ${COMMON_LIBS}
+)
 
 add_executable(test_boozer_class.x source/test_boozer_class.f90)
 target_link_libraries(test_boozer_class.x
-  ${MAIN_LIB}
-  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
-  ${NETCDF_LIBRARIES}
-  )
+  ${COMMON_LIBS}
+)
 
 add_executable(test_efit_class.x source/test_efit_class.f90)
 target_link_libraries(test_efit_class.x
-  ${MAIN_LIB}
-  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
-  ${NETCDF_LIBRARIES}
-  )
+  ${COMMON_LIBS}
+)
 
 add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
 target_link_libraries(test_geqdsk_tools.x
   ${MAIN_LIB}
   ${MAGFIE_LIB}
-  )
+)
 
 add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
 target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
   ${HDF5_LIBRARIES}
   ${HDF5_HL_LIBRARIES}
-  )
+)
 
 add_executable(test_mympilib.x
   source/test_mympilib.f90
   source/derived_scheduler_module.f90
-  )
+)
 target_link_libraries(test_mympilib.x
   MyMPILib
   ${MPI_Fortran_LIBRARIES}
-  )
+)
 
 add_executable(test_system_utility.x
   source/test_system_utility.f90
   ../src/local_rusage.c)
 target_link_libraries(test_system_utility.x
-  ${MAIN_LIB}
-  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
-  ${NETCDF_LIBRARIES}
-  )
+  ${COMMON_LIBS}
+)
+
+add_executable(test_util.x source/test_util.f90)
+target_link_libraries(test_util.x ${COMMON_LIBS})

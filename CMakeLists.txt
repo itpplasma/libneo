@@ -88,41 +88,37 @@ target_link_libraries(libneo
 add_subdirectory(src)
 add_subdirectory(tests)
 
-add_test(Test_Build_Code make)
+## Standard tests according to standard libneo Fortran test convention.
+
+function (add_fortran_test name)
+  add_test(NAME ${name} COMMAND tests/${name}.x)
+  set_tests_properties(${name} PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+endfunction()
+
+add_fortran_test(test_binsrc)
+add_fortran_test(test_boozer_class)
+add_fortran_test(test_efit_class)
+add_fortran_test(test_geqdsk_tools)
+add_fortran_test(test_hdf5_tools)
+
+## Custom tests
+
 # This requires an additional call to test_arnoldi.py, so use the script
 # instead of calling the executable directly.
 # \note Maybe this could be solved with test_arnoldi.py && test_arnoldi.x.
 # Afterwards fail condition is set: test will fail if the output
 # contains 'STOP'.
-add_test(NAME Test_arnoldi
+add_test(NAME test_arnoldi
          COMMAND ../tests/python_scripts/test_arnoldi.py && tests/test_arnoldi.x)
-set_tests_properties(Test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 
-add_test(NAME Test_binsrc
-         COMMAND "tests/test_binsrc.x")
-set_tests_properties(Test_binsrc PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-
-add_test(NAME Test_boozer
-         COMMAND tests/test_boozer_class.x)
-set_tests_properties(Test_boozer PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-add_test(NAME Test_efit
-         COMMAND tests/test_efit_class.x)
-set_tests_properties(Test_efit PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-
-add_test(NAME Test_geqdsk_tools
-         COMMAND tests/test_geqdsk_tools.x)
-set_tests_properties(Test_geqdsk_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-
-add_test(NAME Test_hdf5_tools
-         COMMAND "tests/test_hdf5_tools.x")
-set_tests_properties(Test_hdf5_tools PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-
-add_test(NAME Test_mympilib
-         COMMAND tests/test_mympilib.x)
-set_tests_properties(Test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
-add_test(NAME Test_system_utility
+add_test(NAME test_mympilib
+  COMMAND tests/test_mympilib.x)
+set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
+add_test(NAME test_system_utility
          COMMAND tests/test_system_utility.x)
-set_tests_properties(Test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
+set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
+
 
 # MacOS RPATH specifics
 # see https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling
@@ -145,8 +141,3 @@ list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib"
 if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
-
-
-#~ # For testing purposes, e.g. printing the environment.
-#~ add_test(NAME run_xterm
-         #~ COMMAND xterm)
