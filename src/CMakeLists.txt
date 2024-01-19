@@ -109,10 +109,7 @@ find_library(fftw_lib NAMES "fftw3")
 find_library(fftw_omp_lib NAMES "fftw3_omp")
 find_path(fftw_include_dir NAMES "fftw3.h")
 
-find_package(HDF5 COMPONENTS C Fortran Fortran_HL REQUIRED)
-if (NOT ${HDF5_FOUND})
-	message(FATAL_ERROR "HDF5 not found, please set environment variable HDF5_ROOT to the correct path")
-endif ()
+# Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
 
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
