@@ -1,12 +1,13 @@
 program test_interpolate
+    use iso_fortran_env, only: dp => real64
     use math_constants
     use util
 
     implicit none
 
-    real(8), parameter :: TOL = 1.0d-6
+    real(dp), parameter :: TOL = 1.0d-6
 
-    real(8), parameter :: X_MIN = 1.23d0, X_MAX = TWOPI+1.23d0
+    real(dp), parameter :: X_MIN = 1.23d0, X_MAX = TWOPI+1.23d0
 
     call test_spline_1d(spline_order=3, periodic=.False.)
     call test_spline_1d(spline_order=3, periodic=.True.)
@@ -36,9 +37,9 @@ contains
         integer, intent(in) :: spline_order
         logical, intent(in) :: periodic
 
-        real(8), dimension(N_POINTS) :: x, y
+        real(dp), dimension(N_POINTS) :: x, y
 
-        real(8) :: x_eval, expected, actual
+        real(dp) :: x_eval, expected, actual
 
         type(SplineData1D) :: spl
 
@@ -46,13 +47,15 @@ contains
 
         y = cos(x)
 
-        call construct_splines_1d(x, y, spline_order, periodic, spl)
+        call construct_splines_1d(X_MIN, X_MAX, y, spline_order, periodic, spl)
 
         x_eval = (x(30) + x(31))/2.0d0
 
         expected = cos(x_eval)
 
         call evaluate_splines_1d(x_eval, spl, actual)
+
+        print *, expected, actual
 
         if (abs(expected - actual) > TOL) error stop
 
@@ -70,10 +73,10 @@ contains
 
         integer, parameter :: N_POINTS(2) = [100, 103]
 
-        real(8), allocatable :: x1(:), x2(:), y(:,:)
+        real(dp), allocatable :: x1(:), x2(:), y(:,:)
         integer :: k1, k2
 
-        real(8) :: x_eval(2), expected, actual
+        real(dp) :: x_eval(2), expected, actual
 
         type(SplineData2D) :: spl
 
@@ -114,10 +117,10 @@ contains
 
             integer, parameter :: N_POINTS(3) = [82, 93, 87]
 
-            real(8), allocatable :: x1(:), x2(:), x3(:), y(:,:,:)
+            real(dp), allocatable :: x1(:), x2(:), x3(:), y(:,:,:)
             integer :: k1, k2, k3
 
-            real(8) :: x_eval(3), expected, actual
+            real(dp) :: x_eval(3), expected, actual
 
             type(SplineData3D) :: spl
 
