@@ -1,4 +1,6 @@
 module interpolate
+    use iso_fortran_env, only: dp => real64
+
     implicit none
 
     integer, parameter :: MAX_ORDER = 5
@@ -7,30 +9,33 @@ module interpolate
         integer :: order
         integer :: num_points
         logical :: periodic
-        real(8) :: h_step
-        real(8), dimension(:,:), allocatable :: coeff
+        real(dp) :: x_min
+        real(dp) :: h_step
+        real(dp), dimension(:,:), allocatable :: coeff
     end type SplineData1D
 
     type :: SplineData2D
         integer :: order(2)
         integer :: num_points(2)
         logical :: periodic(2)
-        real(8) :: h_step(2)
-        real(8), dimension(:,:,:,:), allocatable :: coeff
+        real(dp) :: h_step(2)
+        real(dp) :: x_min(2)
+        real(dp), dimension(:,:,:,:), allocatable :: coeff
     end type SplineData2D
 
     type :: SplineData3D
         integer :: order(3)
         integer :: num_points(3)
         logical :: periodic(3)
-        real(8) :: h_step(3)
-        real(8), dimension(:,:,:,:,:,:), allocatable :: coeff
+        real(dp) :: h_step(3)
+        real(dp) :: x_min(3)
+        real(dp), dimension(:,:,:,:,:,:), allocatable :: coeff
     end type SplineData3D
 
 contains
 
-    subroutine construct_splines_1d(x, y, order, periodic, spl)
-        real(8), intent(in) :: x(:), y(:)
+    subroutine construct_splines_1d(x_min, x_max, y, order, periodic, spl)
+        real(dp), intent(in) :: x_min, x_max, y(:)
         integer, intent(in) :: order
         logical, intent(in) :: periodic
 
@@ -38,9 +43,10 @@ contains
 
         spl%order = order
         spl%periodic = periodic
-        spl%num_points = size(x)
-        spl%h_step = x(2) - x(1)
+        spl%num_points = size(y)
+        spl%h_step = (x_max - x_min) / (spl%num_points - 1)
 
+        if(allocated(spl%coeff)) deallocate(spl%coeff)
         allocate(spl%coeff(0:order, spl%num_points))
         spl%coeff(0,:) = y
 
@@ -55,19 +61,19 @@ contains
     subroutine destroy_splines_1d(spl)
         type(SplineData1D), intent(inout) :: spl
 
-        deallocate(spl%coeff)
+        if(allocated(spl%coeff)) deallocate(spl%coeff)
     end subroutine destroy_splines_1d
 
 
     subroutine evaluate_splines_1d(x, spl, y)
-        real(8), intent(in) :: x
+        real(dp), intent(in) :: x
         type(SplineData1D), intent(in) :: spl
-        real(8), intent(out) :: y
+        real(dp), intent(out) :: y
 
-        real(8) :: x_norm, x_local, local_coeff(0:MAX_ORDER)
+        real(dp) :: x_norm, x_local, local_coeff(0:MAX_ORDER)
         integer :: interval_index, k_power
 
-        x_norm = x/spl%h_step
+        x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
 
@@ -82,13 +88,13 @@ contains
 
 
     subroutine construct_splines_2d(x1, x2, y, order, periodic, spl)
-        real(8), intent(in) :: x1(:), x2(:), y(:,:)
-        integer, intent(in) :: order(2)
-        logical, intent(in) :: periodic(2)
+        real(dp), intent(in) :: x1(:), x2(:), y(:,:)
+        integer, intent(in) :: order(:)
+        logical, intent(in) :: periodic(:)
 
         type(SplineData2D), intent(out) :: spl
 
-        real(8), dimension(:,:), allocatable  :: splcoe
+        real(dp), dimension(:,:), allocatable  :: splcoe
 
         integer :: i1, i2  ! Loop indices for points (1 ... num_points)
         integer :: k1, k2  ! Loop indices for polynomial order (0 ... order)
@@ -100,6 +106,7 @@ contains
         spl%h_step(1) = x1(2) - x1(1)
         spl%h_step(2) = x2(2) - x2(1)
 
+        if(allocated(spl%coeff)) deallocate(spl%coeff)
         allocate(spl%coeff(0:order(1), 0:order(2), &
                  spl%num_points(1), spl%num_points(2)))
 
@@ -128,9 +135,7 @@ contains
                 else
                     call spl_reg(spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                 endif
-                do k1 = 0, spl%order(1)
-                    spl%coeff(k1, k2, :, i2) = splcoe(k1, :)
-                enddo
+                spl%coeff(:, k2, :, i2) = splcoe
             enddo
         enddo
         deallocate(splcoe)
@@ -139,12 +144,12 @@ contains
 
 
     subroutine evaluate_splines_2d(x, spl, y)
-        real(8), intent(in) :: x(2)
+        real(dp), intent(in) :: x(2)
         type(SplineData2D), intent(in) :: spl
-        real(8), intent(out) :: y
+        real(dp), intent(out) :: y
 
-        real(8) :: x_norm(2), x_local(2)
-        real(8) :: coeff_2(0:MAX_ORDER), coeff_12(0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: x_norm(2), x_local(2)
+        real(dp) :: coeff_2(0:MAX_ORDER), coeff_12(0:MAX_ORDER,0:MAX_ORDER)
         integer :: interval_index(2), k1, k2, j
 
         do j=1,2
@@ -172,18 +177,18 @@ contains
     subroutine destroy_splines_2d(spl)
         type(SplineData2D), intent(inout) :: spl
 
-        deallocate(spl%coeff)
+        if(allocated(spl%coeff)) deallocate(spl%coeff)
     end subroutine destroy_splines_2d
 
 
     subroutine construct_splines_3d(x1, x2, x3, y, order, periodic, spl)
-        real(8), intent(in) :: x1(:), x2(:), x3(:), y(:,:,:)
+        real(dp), intent(in) :: x1(:), x2(:), x3(:), y(:,:,:)
         integer, intent(in) :: order(3)
         logical, intent(in) :: periodic(3)
 
         type(SplineData3D), intent(out) :: spl
 
-        real(8), dimension(:,:), allocatable  :: splcoe
+        real(dp), dimension(:,:), allocatable  :: splcoe
 
         integer :: i1, i2, i3  ! Loop indices for points (1 ... num_points)
         integer :: k1, k2, k3  ! Loop indices for polynomial order (0 ... order)
@@ -197,6 +202,7 @@ contains
         spl%h_step(2) = x2(2) - x2(1)
         spl%h_step(3) = x3(2) - x3(1)
 
+        if(allocated(spl%coeff)) deallocate(spl%coeff)
         allocate(spl%coeff(0:order(1), 0:order(2), 0:order(3), &
                  spl%num_points(1), spl%num_points(2), spl%num_points(3)))
 
@@ -210,9 +216,7 @@ contains
             else
                 call spl_reg(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
             endif
-            do k3 = 0, spl%order(3)
-                spl%coeff(1, 1, k3, i1, i2, :) = splcoe(k3, :)
-            enddo
+            spl%coeff(1, 1, :, i1, i2, :) = splcoe
         enddo
         enddo
         deallocate(splcoe)
@@ -228,9 +232,7 @@ contains
                 else
                     call spl_reg(spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
                 endif
-                do k2 = 0, spl%order(2)
-                    spl%coeff(1, k2, k3, i1, :, i3) = splcoe(k2, :)
-                enddo
+                spl%coeff(1, :, k3, i1, :, i3) = splcoe
             enddo
         enddo
         enddo
@@ -248,9 +250,7 @@ contains
                 else
                     call spl_reg(spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                 endif
-                do k1 = 0, spl%order(1)
-                    spl%coeff(k1, k2, k3, i1, :, i3) = splcoe(k1, :)
-                enddo
+                spl%coeff(:, k2, k3, i1, :, i3) = splcoe
             enddo
             enddo
         enddo
@@ -260,12 +260,12 @@ contains
 
 
     subroutine evaluate_splines_3d(x, spl, y)
-        real(8), intent(in) :: x(3)
+        real(dp), intent(in) :: x(3)
         type(SplineData3D), intent(in) :: spl
-        real(8), intent(out) :: y
+        real(dp), intent(out) :: y
 
-        real(8) :: x_norm(3), x_local(3)
-        real(8) :: coeff_2(0:MAX_ORDER), coeff_12(0:MAX_ORDER,0:MAX_ORDER), &
+        real(dp) :: x_norm(3), x_local(3)
+        real(dp) :: coeff_2(0:MAX_ORDER), coeff_12(0:MAX_ORDER,0:MAX_ORDER), &
             coeff_123(0:MAX_ORDER,0:MAX_ORDER,0:MAX_ORDER)
         integer :: interval_index(3), k1, k2, k3, j
 
@@ -303,6 +303,6 @@ contains
     subroutine destroy_splines_3d(spl)
         type(SplineData3D), intent(inout) :: spl
 
-        deallocate(spl%coeff)
+        if(allocated(spl%coeff)) deallocate(spl%coeff)
     end subroutine destroy_splines_3d
 end module interpolate
