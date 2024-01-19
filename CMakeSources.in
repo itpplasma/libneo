@@ -12,6 +12,7 @@ set(SOURCE_FILES
     src/solve_systems.f90
     src/system_utility.f90
     src/util.f90
+    src/interpolate.f90
 
     # VMEC
     src/canonical_coordinates_mod.f90
