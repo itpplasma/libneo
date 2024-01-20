@@ -43,7 +43,7 @@ contains
 
         type(SplineData1D) :: spl
 
-        call linspace(X_MIN, X_MAX, N_POINTS, x)
+        x = linspace(X_MIN, X_MAX, N_POINTS)
 
         y = cos(x)
 
@@ -81,8 +81,8 @@ contains
         allocate(x1(N_POINTS(1)), x2(N_POINTS(2)))
         allocate(y(N_POINTS(1), N_POINTS(2)))
 
-        call linspace(X_MIN, X_MAX, N_POINTS(1), x1)
-        call linspace(X_MIN, X_MAX, N_POINTS(2), x2)
+        x1 = linspace(X_MIN, X_MAX, N_POINTS(1))
+        x2 = linspace(X_MIN, X_MAX, N_POINTS(2))
 
         do k2 = 1, N_POINTS(2)
             do k1 = 1, N_POINTS(1)
@@ -125,9 +125,9 @@ contains
             allocate(x1(N_POINTS(1)), x2(N_POINTS(2)), x3(N_POINTS(3)))
             allocate(y(N_POINTS(1), N_POINTS(2), N_POINTS(3)))
 
-            call linspace(X_MIN, X_MAX, N_POINTS(1), x1)
-            call linspace(X_MIN, X_MAX, N_POINTS(2), x2)
-            call linspace(X_MIN, X_MAX, N_POINTS(3), x3)
+            x1 = linspace(X_MIN, X_MAX, N_POINTS(1))
+            x2 = linspace(X_MIN, X_MAX, N_POINTS(2))
+            x3 = linspace(X_MIN, X_MAX, N_POINTS(3))
 
             do k3 = 1, N_POINTS(2)
                 do k2 = 1, N_POINTS(2)

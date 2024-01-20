@@ -40,6 +40,7 @@ add_library(magfie SHARED
     io.f90
     libneo_kinds.f90
     math_constants.f90
+    util.f90
 
     # VMEC
     canonical_coordinates_mod.f90
@@ -94,6 +95,7 @@ add_executable(vacfield.x
     fftw3.f90
     math_constants.f90
     libneo_kinds.f90
+    util.f90
 )
 add_executable(coil_convert.x
     magfie/coil_convert.f90
@@ -101,6 +103,7 @@ add_executable(coil_convert.x
     fftw3.f90
     math_constants.f90
     libneo_kinds.f90
+    util.f90
 )
 
 find_package(OpenMP)
