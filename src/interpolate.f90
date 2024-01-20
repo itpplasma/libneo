@@ -88,8 +88,8 @@ contains
     end subroutine evaluate_splines_1d
 
 
-    subroutine construct_splines_2d(x1, x2, y, order, periodic, spl)
-        real(dp), intent(in) :: x1(:), x2(:), y(:,:)
+    subroutine construct_splines_2d(x_min, x_max, y, order, periodic, spl)
+        real(dp), intent(in) :: x_min(:), x_max(:), y(:,:)
         integer, intent(in) :: order(:)
         logical, intent(in) :: periodic(:)
 
@@ -98,14 +98,13 @@ contains
         real(dp), dimension(:,:), allocatable  :: splcoe
 
         integer :: i1, i2  ! Loop indices for points (1 ... num_points)
-        integer :: k1, k2  ! Loop indices for polynomial order (0 ... order)
+        integer :: k2      ! Loop indices for polynomial order (0 ... order)
 
+        spl%x_min = x_min
         spl%order = order
         spl%periodic = periodic
-        spl%num_points(1) = size(x1)
-        spl%num_points(2) = size(x2)
-        spl%h_step(1) = x1(2) - x1(1)
-        spl%h_step(2) = x2(2) - x2(1)
+        spl%num_points = shape(y)
+        spl%h_step = (x_max - x_min) / (spl%num_points - 1)
 
         if(allocated(spl%coeff)) deallocate(spl%coeff)
         allocate(spl%coeff(0:order(1), 0:order(2), &
@@ -154,7 +153,7 @@ contains
         integer :: interval_index(2), k1, k2, j
 
         do j=1,2
-            x_norm(j) = x(j)/spl%h_step(j)
+            x_norm(j) = (x(j) - spl%x_min(j))/spl%h_step(j)
             interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
@@ -182,8 +181,8 @@ contains
     end subroutine destroy_splines_2d
 
 
-    subroutine construct_splines_3d(x1, x2, x3, y, order, periodic, spl)
-        real(dp), intent(in) :: x1(:), x2(:), x3(:), y(:,:,:)
+    subroutine construct_splines_3d(x_min, x_max, y, order, periodic, spl)
+        real(dp), intent(in) :: x_min(:), x_max(:), y(:,:,:)
         integer, intent(in) :: order(3)
         logical, intent(in) :: periodic(3)
 
@@ -192,16 +191,13 @@ contains
         real(dp), dimension(:,:), allocatable  :: splcoe
 
         integer :: i1, i2, i3  ! Loop indices for points (1 ... num_points)
-        integer :: k1, k2, k3  ! Loop indices for polynomial order (0 ... order)
+        integer :: k2, k3      ! Loop indices for polynomial order (0 ... order)
 
+        spl%x_min = x_min
         spl%order = order
         spl%periodic = periodic
-        spl%num_points(1) = size(x1)
-        spl%num_points(2) = size(x2)
-        spl%num_points(3) = size(x3)
-        spl%h_step(1) = x1(2) - x1(1)
-        spl%h_step(2) = x2(2) - x2(1)
-        spl%h_step(3) = x3(2) - x3(1)
+        spl%num_points = shape(y)
+        spl%h_step = (x_max - x_min) / (spl%num_points - 1)
 
         if(allocated(spl%coeff)) deallocate(spl%coeff)
         allocate(spl%coeff(0:order(1), 0:order(2), 0:order(3), &
@@ -271,7 +267,7 @@ contains
         integer :: interval_index(3), k1, k2, k3, j
 
         do j=1,3
-            x_norm(j) = x(j)/spl%h_step(j)
+            x_norm(j) = (x(j) - spl%x_min(j))/spl%h_step(j)
             interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do

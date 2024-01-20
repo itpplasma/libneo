@@ -90,7 +90,8 @@ contains
             end do
         end do
 
-        call construct_splines_2d(x1, x2, y, spline_order, periodic, spl)
+        call construct_splines_2d([X_MIN, X_MIN], [X_MAX, X_MAX], &
+            y, spline_order, periodic, spl)
 
         x_eval(1) = (x1(30) + x1(31))/2.0d0
         x_eval(2) = (x2(28) + x2(29))/2.0d0
@@ -137,7 +138,9 @@ contains
                 end do
             end do
 
-            call construct_splines_3d(x1, x2, x3, y, spline_order, periodic, spl)
+            call construct_splines_3d(&
+                [X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX], &
+                y, spline_order, periodic, spl)
 
             x_eval(1) = (x1(30) + x1(31))/2.0d0
             x_eval(2) = (x2(28) + x2(29))/2.0d0
