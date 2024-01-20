@@ -10,9 +10,9 @@ Created on Thu January 18 15:17:41 2024
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-class FluxLableConverter:
+class FluxLabelConverter:
     """
-    This is a class for the conversion between the poloidal and toroidal flux lable s_pol and s_tor of a given flux surface.
+    This is a class for the conversion between the poloidal and toroidal flux label s_pol and s_tor of a given flux surface.
     The conversion is based on the safety factor profile q as q = d{toroidal_flux}/d{polodial_flux}.
     Therefore {toroidal_flux} = int_-inf^{polodial_flux}q({flux})d{flux} - , with {s} = {flux}/{flux_max}
     gives {toroidal_flux} = {flux_max}*int_-inf^{s_pol}q(s)ds
@@ -37,7 +37,7 @@ class FluxLableConverter:
 
     def spol2stor(self,spol):
         """
-        Converts the poloidal flux lable s_pol to the toroidal flux lable s_tor.
+        Converts the poloidal flux label s_pol to the toroidal flux label s_tor.
         """
 
         stor = (self.interp_psitor(spol)-self.psitor_min)/(self.psitor_max - self.psitor_min)
@@ -46,7 +46,7 @@ class FluxLableConverter:
 
     def stor2spol(self,stor):
         """
-        Converts the toroidal flux lable s_tor to the poloidal flux lable s_pol.
+        Converts the toroidal flux label s_tor to the poloidal flux label s_pol.
         """
 
         spol = self.interp_spol(stor)
@@ -59,8 +59,8 @@ class FluxLableConverter:
 
 if __name__=='__main__':
     print('This file contains a class for the conversion between the poloidal and') 
-    print('toroidal flux lable s_pol and s_tor of a given flux surface.')
-    print('Running test conversion for FluxLableConverter.spol2stor:')
+    print('toroidal flux label s_pol and s_tor of a given flux surface.')
+    print('Running test conversion for FluxLabelConverter.spol2stor:')
 
     ### TEST conversion
 
@@ -102,7 +102,7 @@ if __name__=='__main__':
     0.441836509E+01, 0.444296595E+01, 0.445858607E+01, 0.446785744E+01, 0.447329187E+01,
     0.447746807E+01])
 
-    converter = FluxLableConverter(test_q_profile)
+    converter = FluxLabelConverter(test_q_profile)
 
     test_spol = np.linspace(0.0, 1.0, len(test_q_profile))
     result_stor = converter.spol2stor(test_spol)
