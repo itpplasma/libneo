@@ -97,6 +97,13 @@ add_executable(vacfield.x
     libneo_kinds.f90
     util.f90
 )
+add_executable(vector_potential.x
+    magfie/vector_potential.f90
+    magfie/coil_tools.f90
+    fftw3.f90
+    math_constants.f90
+    libneo_kinds.f90
+)
 add_executable(coil_convert.x
     magfie/coil_convert.f90
     magfie/coil_tools.f90
@@ -139,6 +146,16 @@ target_link_libraries(vacfield.x PUBLIC
   ${fftw_lib}
   ${fftw_omp_lib}
 )
+
+target_link_libraries(vector_potential.x PUBLIC
+  OpenMP::OpenMP_Fortran
+  hdf5_tools
+  magfie
+  ${HDF5_HL_LIBRARIES}
+  ${HDF5_LIBRARIES}
+  ${fftw_lib}
+  ${fftw_omp_lib}
+)
 target_link_libraries(coil_convert.x PUBLIC
   OpenMP::OpenMP_Fortran
   hdf5_tools
@@ -150,4 +167,5 @@ target_link_libraries(coil_convert.x PUBLIC
 
 target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
 target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
+target_include_directories(vector_potential.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
 target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})

@@ -57,6 +57,7 @@ program vacfield
   nphi = 512
   nmax = 64
   prefactor = 5 * current_si_to_cgs / C
+
   ! read namelist input
   open(newunit = fid, file = trim(grid_file), status = 'old', action = 'read')
   read (fid, nml = coil_field, iostat = status, iomsg = err_msg)
@@ -67,6 +68,7 @@ program vacfield
     error stop
   end if
 
+  ! read coil files
   if (coil_type == 'AUG') then
     allocate(coils(ncoil))
     do kc = 1, ncoil
@@ -88,6 +90,7 @@ program vacfield
     write (error_unit, '("Unknown input type ", a, ".")') trim(coil_type)
     error stop
   end if
+
   ! not actually necessary for format AUG
   if (.not. allocated(coils)) then
     write (error_unit, '("Unexpected error: coils array not allocated.")')
@@ -115,6 +118,7 @@ program vacfield
     call write_Bvac_Nemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
     deallocate(Ic)
     deallocate(Bvac)
+    !!!!!!!!!!!!!!!!!!!!!! write option for write_vector_potential_biot_savart_fourier !!!!!!!!!
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
     error stop
