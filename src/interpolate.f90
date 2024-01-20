@@ -199,6 +199,8 @@ contains
         spl%num_points = shape(y)
         spl%h_step = (x_max - x_min) / (spl%num_points - 1)
 
+        print *, spl%num_points
+
         if(allocated(spl%coeff)) deallocate(spl%coeff)
         allocate(spl%coeff(0:order(1), 0:order(2), 0:order(3), &
                  spl%num_points(1), spl%num_points(2), spl%num_points(3)))

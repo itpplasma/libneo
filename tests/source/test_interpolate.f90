@@ -25,7 +25,7 @@ program test_interpolate
     call test_spline_2d(spline_order=[5,5], periodic=[.True., .True.])
 
 
-    call test_spline_3d(spline_order=[3,3,3], periodic=[.False., .False., .True.])
+    call test_spline_3d(spline_order=[5,3,3], periodic=[.False., .False., .True.])
 
 contains
 
@@ -130,7 +130,7 @@ contains
             call linspace(X_MIN, X_MAX, N_POINTS(2), x2)
             call linspace(X_MIN, X_MAX, N_POINTS(3), x3)
 
-            do k3 = 1, N_POINTS(2)
+            do k3 = 1, N_POINTS(3)
                 do k2 = 1, N_POINTS(2)
                     do k1 = 1, N_POINTS(1)
                        y(k1, k2, k3) = cos(x1(k1))*cos(x2(k2))*cos(x3(k3))
