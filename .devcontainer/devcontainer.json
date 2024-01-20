@@ -2,7 +2,7 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
 {
 	"name": "Default dev environment",
-	"image": "ghcr.io/itpplasma/base:latest",
+	"image": "ghcr.io/itpplasma/devel-tex:latest",
 
 	"mounts": [
 		"source=/proj/plasma,target=/proj/plasma,type=bind,consistency=cached"
