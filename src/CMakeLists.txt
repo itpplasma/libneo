@@ -133,6 +133,7 @@ target_link_libraries(magfie
 target_link_libraries(vacfield.x PUBLIC
   OpenMP::OpenMP_Fortran
   hdf5_tools
+  magfie
   ${HDF5_HL_LIBRARIES}
   ${HDF5_LIBRARIES}
   ${fftw_lib}
