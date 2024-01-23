@@ -12,9 +12,9 @@ contains
     subroutine test_linspace
         use util, only : linspace
 
-        real(8), dimension(5) :: expected, actual
+        real(dp), dimension(5) :: expected, actual
 
-        expected = (/ 0.0d0, 1.0d0, 2.0d0, 3.0d0, 4.0d0 /)
+        expected = [0.0d0, 1.0d0, 2.0d0, 3.0d0, 4.0d0]
         call linspace(0.0d0, 4.0d0, 5, actual)
 
         if (maxval(abs(expected - actual)) > TOL) error stop

@@ -119,9 +119,7 @@ contains
             else
                 call spl_reg(spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
             endif
-            do k2 = 0, spl%order(2)
-                spl%coeff(1, k2, i1, :) = splcoe(k2, :)
-            enddo
+            spl%coeff(1, :, i1, :) = splcoe
         enddo
         deallocate(splcoe)
 
@@ -198,8 +196,6 @@ contains
         spl%periodic = periodic
         spl%num_points = shape(y)
         spl%h_step = (x_max - x_min) / (spl%num_points - 1)
-
-        print *, spl%num_points
 
         if(allocated(spl%coeff)) deallocate(spl%coeff)
         allocate(spl%coeff(0:order(1), 0:order(2), 0:order(3), &
