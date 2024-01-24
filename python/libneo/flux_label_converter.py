@@ -19,7 +19,7 @@ class FluxLabelConverter:
     and {s_tor} = {todroidal_flux}/{toroidal_flux_max} = int_-inf^{s_pol}q(s)ds / int_-inf^1q(s)ds
     """
 
-    def __init__(self,q_profile:np.ndarray):
+    def __init__(self, q_profile:np.ndarray):
         """
         Assumes that the q profile is given on equidistant s_pol profile from 0 to 1.
         """
@@ -35,7 +35,7 @@ class FluxLabelConverter:
         self.interp_spol = CubicSpline(self.spol2stor(spol_list), 
                                         spol_list, extrapolate=True)
 
-    def spol2stor(self,spol):
+    def spol2stor(self, spol):
         """
         Converts the poloidal flux label s_pol to the toroidal flux label s_tor.
         """
@@ -44,7 +44,7 @@ class FluxLabelConverter:
 
         return stor
 
-    def stor2spol(self,stor):
+    def stor2spol(self, stor):
         """
         Converts the toroidal flux label s_tor to the poloidal flux label s_pol.
         """
