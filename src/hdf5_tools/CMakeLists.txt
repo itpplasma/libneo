@@ -19,6 +19,12 @@ if (NOT ${HDF5_FOUND})
 	message(FATAL_ERROR "HDF5 not found, please set environment variable HDF5_ROOT to the correct path")
 endif ()
 
+# Set variables in parent scope, so find_package is not needed there
+set(HDF5_INCLUDE_DIRS ${HDF5_INCLUDE_DIRS} PARENT_SCOPE)
+set(HDF5_LIBRARIES ${HDF5_LIBRARIES} PARENT_SCOPE)
+set(HDF5_HL_LIBRARIES ${HDF5_HL_LIBRARIES} PARENT_SCOPE)
+
+
 include_directories(${HDF5_INCLUDE_DIRS})
 
 ### Define executable
