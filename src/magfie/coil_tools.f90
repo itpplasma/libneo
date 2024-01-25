@@ -12,7 +12,8 @@ module coil_tools
     coils_write_Nemov, coils_read_Nemov, &
     coils_write_GPEC, coils_read_GPEC, &
     read_currents, Biot_Savart_sum_coils, Biot_Savart_Fourier, &
-    write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier
+    write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier, &
+    Vector_Potential_Biot_Savart_Fourier, write_An_arrays
 
   type :: coil_t
     integer :: nseg = 0
@@ -204,7 +205,7 @@ contains
       action = 'read', form = 'formatted')
     read (fid, *) total
     ncoil = 0
-    do k = 1, total
+    do k = 1, total !figure out the number of coils in this loop
       read (fid, *) X, Y, Z, cur, kc
       ncoil = max(ncoil, kc)
     end do
@@ -212,7 +213,7 @@ contains
     rewind fid
     read (fid, *) total
     nseg = 0
-    do k = 1, total
+    do k = 1, total !figure out number of segments per coil and initialise the vertex coordinates in this loop
       read (fid, *) X, Y, Z, cur, kc
       if (abs(cur) > 0d0) then
         nseg = nseg + 1
@@ -224,7 +225,7 @@ contains
     rewind fid
     read (fid, *) total
     k = 1
-    do kc = 1, ncoil
+    do kc = 1, ncoil !save the vertex coordinates in coils in this loop
       do ks = 1, coils(kc)%nseg
         read (fid, *) coils(kc)%XYZ(:, ks), cur, idum
         k = k + 1
@@ -428,7 +429,7 @@ contains
     p_AZ = fftw_alloc_real(int(nphi, c_size_t))
     call c_f_pointer(p_AZ, AZ, [nphi])
     p_dAphi_dR = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_dAnphi_dR, dAphi_dR, [nphi])
+    call c_f_pointer(p_dAphi_dR, dAphi_dR, [nphi])
     p_dAphi_dz = fftw_alloc_real(int(nphi, c_size_t))
     call c_f_pointer(p_dAphi_dz, dAphi_dZ, [nphi])
     p_AnR = fftw_alloc_complex(int(nfft, c_size_t))
@@ -548,7 +549,10 @@ contains
     integer :: varid_AnR, varid_Anphi, varid_AnZ, varid_dAnphi_dR, varid_dAnphi_dZ
 
     status = nf90_create(filename, NF90_NETCDF4, ncid)
+    print*, filename
+    print*, 'do we go here?'
     call check(status, 'open')
+    print*, 'and here?'
 
     ! define dimensions
     status = nf90_def_dim(ncid, '2', 2, dimid_2)
@@ -606,7 +610,7 @@ contains
     character(len=*), intent(in) :: operation
 
     if (status == NF90_NOERR) return
-    print*, "Error encountered during", operation
+    print*, "Error encountered during ", operation
     print*, nf90_strerror(status)
     STOP
   end subroutine check

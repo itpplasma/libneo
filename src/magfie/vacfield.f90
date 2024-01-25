@@ -7,20 +7,22 @@ program vacfield
     process_fixed_number_of_args, check_number_of_args, &
     coils_read_AUG, coils_read_Nemov, coils_read_GPEC, &
     read_currents, Biot_Savart_sum_coils, write_Bvac_Nemov, &
-    Biot_Savart_Fourier, write_Bnvac_Fourier
+    Biot_Savart_Fourier, write_Bnvac_Fourier, &
+    Vector_Potential_Biot_Savart_Fourier, write_An_arrays
 
   implicit none
 
   real(dp) :: Rmin, Rmax, Zmin, Zmax, prefactor
   integer :: nR, nZ, nphi, nmax
   namelist /coil_field/ Rmin, Rmax, Zmin, Zmax, nR, nZ, nphi, nmax, prefactor
-  integer :: argc, fid, status, ncoil, kc
+  integer :: argc, fid, status, num_coilfiles, kc, ncoil
   character(len = 1024) :: arg, err_msg, &
     coil_type, field_type, grid_file, field_file, currents_file
   character(len = :), dimension(:), allocatable :: coil_files
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
   complex(dp), allocatable :: Bnvac(:, :, :, :, :)
+  complex(dp), dimension(:, :, :, :), allocatable :: AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array
 
   argc = command_argument_count()
   if (argc < 1) then
@@ -41,22 +43,22 @@ program vacfield
 
   call check_number_of_args(1)
   call get_command_argument(1, coil_type)
-  call process_fixed_number_of_args(2, ncoil, coil_files)
-  call check_number_of_args(3 + ncoil)
-  call get_command_argument(3 + ncoil, field_type)
-  call check_number_of_args(4 + ncoil)
-  call get_command_argument(4 + ncoil, grid_file)
+  call process_fixed_number_of_args(2, num_coilfiles, coil_files)
+  call check_number_of_args(3 + num_coilfiles)
+  call get_command_argument(3 + num_coilfiles, field_type)
+  call check_number_of_args(4 + num_coilfiles)
+  call get_command_argument(4 + num_coilfiles, grid_file)
 
   ! set default values for ASDEX Upgrade
-  Rmin = 75.0d0
-  Rmax = 267.0d0
-  Zmin = -154.0d0
-  Zmax = 150.4d0
-  nR = 150
-  nZ = 300
-  nphi = 512
-  nmax = 64
-  prefactor = 5 * current_si_to_cgs / C
+  ! Rmin = 75.0d0
+  ! Rmax = 267.0d0
+  ! Zmin = -154.0d0
+  ! Zmax = 150.4d0
+  ! nR = 150
+  ! nZ = 300
+  ! nphi = 512
+  ! nmax = 64
+  ! prefactor = 5 * current_si_to_cgs / C
 
   ! read namelist input
   open(newunit = fid, file = trim(grid_file), status = 'old', action = 'read')
@@ -70,19 +72,19 @@ program vacfield
 
   ! read coil files
   if (coil_type == 'AUG') then
-    allocate(coils(ncoil))
-    do kc = 1, ncoil
+    allocate(coils(num_coilfiles))
+    do kc = 1, num_coilfiles
       call coils_read_AUG(trim(coil_files(kc)), coils(kc))
     end do
   else if (coil_type == 'GPEC') then
     call coils_read_GPEC(trim(coil_files(1)), coils)
-    do kc = 2, ncoil
+    do kc = 2, num_coilfiles
       call coils_read_GPEC(trim(coil_files(kc)), more_coils)
       call coils_append(coils, more_coils)
     end do
   else if (coil_type == 'Nemov') then
     call coils_read_Nemov(trim(coil_files(1)), coils)
-    do kc = 2, ncoil
+    do kc = 2, num_coilfiles
       call coils_read_Nemov(trim(coil_files(kc)), more_coils)
       call coils_append(coils, more_coils)
     end do
@@ -98,8 +100,8 @@ program vacfield
   end if
 
   if (field_type == 'Fourier') then
-    call check_number_of_args(5 + ncoil)
-    call get_command_argument(5 + ncoil, field_file)
+    call check_number_of_args(5 + num_coilfiles)
+    call get_command_argument(5 + num_coilfiles, field_file)
     call h5_init
     h5overwrite = .true.
     call Biot_Savart_Fourier(coils, nmax, &
@@ -108,17 +110,26 @@ program vacfield
     deallocate(Bnvac)
     call h5_deinit
   else if (field_type == 'sum') then
-    call check_number_of_args(5 + ncoil)
-    call get_command_argument(5 + ncoil, field_file)
-    call check_number_of_args(6 + ncoil)
-    call get_command_argument(6 + ncoil, currents_file)
+    call check_number_of_args(5 + num_coilfiles)
+    call get_command_argument(5 + num_coilfiles, field_file)
+    call check_number_of_args(6 + num_coilfiles)
+    call get_command_argument(6 + num_coilfiles, currents_file)
     call read_currents(trim(currents_file), Ic)
     call Biot_Savart_sum_coils(coils, prefactor * Ic, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
     call write_Bvac_Nemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
     deallocate(Ic)
     deallocate(Bvac)
-    !!!!!!!!!!!!!!!!!!!!!! write option for write_vector_potential_biot_savart_fourier !!!!!!!!!
+  else if (field_type == 'vector_potential') then
+    print*, 'hello'
+    call check_number_of_args(5 + num_coilfiles)
+    call get_command_argument(5 + num_coilfiles, field_file)
+    call Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil)
+    call write_An_arrays(trim(field_file), ncoil, nmax, &
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array)
+    !deallocate(Bnvac)
+    print*, 'hello'
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
     error stop
