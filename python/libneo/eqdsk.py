@@ -4,9 +4,8 @@
 class eqdsk_file:
 
   def __init__ (self, filename:str):
-    self.generate_from_file(filename)
-
     self.verbose = False
+    self.generate_from_file(filename)
 
 
   def generate_from_file(self, filename:str):
@@ -37,7 +36,8 @@ class eqdsk_file:
     self.Z = [self.zbox_mid - self.zboxlength/2 + self.zboxlength/(self.nzgr-1)*k for k in range(self.nzgr)] # Needs to be transposed.
     # Read magnetic axis
     l2slices = l[2].strip().split()
-    print(len(l2slices))
+    if self.verbose:
+      print(len(l2slices))
     if (len(l2slices) < 5):
       l2slices = slice_line(l[2])
     self.Rpsi0 = float(l2slices[0])
@@ -125,7 +125,8 @@ class eqdsk_file:
       line_number += 1
     self.Limiter = []
     while (len(self.Limiter) < 2*self.nplimiter):
-      print(l[line_number])
+      if self.verbose:
+        print(l[line_number])
       self.Limiter += [float(n) for n in slice_line(l[line_number])]
       line_number += 1
     self.Limiter = array(self.Limiter)
@@ -347,7 +348,7 @@ class eqdsk_file:
 
 
   def increase_periodicity_in_coilgroups(self, periods:int):
-    """
+    r"""
     Increase the number of periods for the coilgroups.
 
     Increase the periodicity, by increasing the number of elements, i.e.
