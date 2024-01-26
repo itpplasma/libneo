@@ -375,7 +375,7 @@ contains
   end subroutine Biot_Savart_sum_coils
 
   subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil)
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil, avoid_div)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
@@ -386,6 +386,7 @@ contains
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
+    character(len = 1024), intent(in) :: avoid_div
     ! real(dp), intent(out), dimension(:, :, :, :, :), allocatable :: An
     ! real(dp), intent(out), dimension(:, :, :, :, :), allocatable :: dAn
     complex(dp), intent(out), dimension(:, :, :, :), allocatable :: AnR_array, Anphi_array, AnZ_array, &
@@ -393,7 +394,7 @@ contains
     integer, intent(out) :: ncoil
     integer :: nfft, kc, ks, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
-    real(dp) :: alpha, beta(3)
+    real(dp) :: alpha, epsilon, beta(3)
     real(dp), dimension(3,3) :: dAXZ_c, dAXYZ
     real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, AXYZ(3), dAX(3), dAY(3), XYZ_if(3), dist_if
     complex :: i
@@ -448,8 +449,8 @@ contains
       do kZ = 1, nZ
         do kR = 1, nR
           !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, AXYZ, dAX, dAY, alpha, beta) &
-          !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ)
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, AXYZ, dAX, dAY, epsilon, alpha, beta) &
+          !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, avoid_div)
           do kphi = 1, nphi
             XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)] !position at which vector potential should be evaluated
             AXYZ(:) = 0d0
@@ -464,7 +465,17 @@ contains
               dist_f = sqrt(sum(XYZ_f * XYZ_f))
               XYZ_if = XYZ_f - XYZ_i
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
-              alpha = log((dist_i+dist_f+dist_if)/(dist_i+dist_f-dist_if))
+              epsilon = dist_if/(dist_i + dist_f)
+              if ((avoid_div == '1').or.(avoid_div == '3')) then
+                !if (epsilon.gt.0.6d0) print*, epsilon, kphi
+                epsilon = min(epsilon,0.6d0)
+              endif
+              if ((avoid_div == '2').or.(avoid_div == '3')) then
+                !if ((dist_i.lt.6d0).or.(dist_f.lt.6d0)) print*, dist_i, dist_f, kphi
+                dist_i = min(dist_i, 6d0)
+                dist_f = min(dist_f, 6d0)
+              endif
+              alpha = log((1 + epsilon)/(1 - epsilon))
               beta = (XYZ_i/dist_i + XYZ_f/dist_f)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))
               AXYZ(:) = AXYZ + XYZ_if/dist_if*alpha
               dAX(:) = dAX(:) - XYZ_if(1)*beta !(/dAX_dX,dAX_dY,dAX_dZ/)
@@ -549,10 +560,7 @@ contains
     integer :: varid_AnR, varid_Anphi, varid_AnZ, varid_dAnphi_dR, varid_dAnphi_dZ
 
     status = nf90_create(filename, NF90_NETCDF4, ncid)
-    print*, filename
-    print*, 'do we go here?'
     call check(status, 'open')
-    print*, 'and here?'
 
     ! define dimensions
     status = nf90_def_dim(ncid, '2', 2, dimid_2)

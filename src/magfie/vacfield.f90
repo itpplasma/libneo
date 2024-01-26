@@ -17,7 +17,7 @@ program vacfield
   namelist /coil_field/ Rmin, Rmax, Zmin, Zmax, nR, nZ, nphi, nmax, prefactor
   integer :: argc, fid, status, num_coilfiles, kc, ncoil
   character(len = 1024) :: arg, err_msg, &
-    coil_type, field_type, grid_file, field_file, currents_file
+    coil_type, field_type, grid_file, field_file, currents_file, avoid_div
   character(len = :), dimension(:), allocatable :: coil_files
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
@@ -124,8 +124,11 @@ program vacfield
     print*, 'hello'
     call check_number_of_args(5 + num_coilfiles)
     call get_command_argument(5 + num_coilfiles, field_file)
+    call check_number_of_args(6 + num_coilfiles)
+    call get_command_argument(6 + num_coilfiles, avoid_div)
+    print*, 'avoid_div = ', avoid_div
     call Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
-      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil)
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil, avoid_div)
     call write_An_arrays(trim(field_file), ncoil, nmax, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array)
     !deallocate(Bnvac)
@@ -147,7 +150,7 @@ contains
   subroutine usage()
     write (*, '("Usage:")')
     write (*, '("  vacfield.x <coil_format> <n_files> <file_1> [ <file_2> ... ]")')
-    write (*, '("             <field_format> <grid_file> <field_file> [ <current_file> ]")')
+    write (*, '("             <field_format> <grid_file> <field_file> [ <current_file>, <avoid_div> ]")')
     write (*, '()')
     write (*, '("  coil_format   supportedd formats are AUG, GPEC, and Nemov")')
     write (*, '("  n_files       integer indicating the number of coil file names that follow")')
@@ -157,6 +160,10 @@ contains
     write (*, '("  grid_file     input file for namelist specifying grid parameters")')
     write (*, '("  field_file    output file, plaintext for ''sum'' and HDF5 for ''Fourier''")')
     write (*, '("  current_file  plaintext file containing currents for use with ''sum''")')
+    write (*, '("  avoid_div     string character for use with ''vector_potential'' indicating which measures are taken to &
+                              &  avoid divergences for evaluation points close to coils: &
+                              &  ''0'' = no measures, ''1'' = restrict epsilon, ''2'' = restrict dist_i and dist_f, &
+                              &  ''3'' = ristrict epsilon, dist_i and dist_f ")')
   end subroutine usage
 
 end program vacfield
