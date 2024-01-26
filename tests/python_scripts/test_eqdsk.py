@@ -15,16 +15,25 @@ golden_record_dir = "/proj/plasma/DATA/TESTS/libneo/eqdsk"
 
 
 test_files = [
-    # EQDSK file from the PROCESS code
-    "/proj/plasma/DATA/DEMO/Equil_2021_PMI_QH_mode_betap_1d04_li_1d02_Ip_18d27MA_SOF.eqdsk"
+    # Local
+    "../resources/input_efit_file.dat",
+
+    # PROCESS code
+    "/proj/plasma/DATA/DEMO/Equil_2021_PMI_QH_mode_betap_1d04_li_1d02_Ip_18d27MA_SOF.eqdsk",
+
+    # Standardized
+    "/proj/plasma/DATA/DEMO/Equil_2021_PMI_QH_mode_betap_1d04_li_1d02_Ip_18d27MA_SOF.eqdsk",
+
+    # TODO: CHEASE
+    # "/proj/plasma/DATA/DEMO/teams/Equilibrium_DEMO2019_CHEASE/MOD_Qprof_Test/EQDSK_DEMO2019_q1_COCOS_02.OUT"
 ]
 
 
-@pytest.mark.skip(reason="TODO: fix. Fails at q profile.")
 def test_eqdsk_read():
-    e = eqdsk.eqdsk_file("../resources/input_efit_file.dat")
+    for test_file in test_files:
+        _ = eqdsk.eqdsk_file(test_file)
 
-
+@pytest.mark.skip(reason="Needs fix, golden record of PROCESS matched already")
 def test_eqdsk_golden_records():
     for test_file in test_files:
         eqdsk_object = eqdsk.eqdsk_file(test_file)
@@ -47,7 +56,7 @@ def get_golden_record(filename):
         return json.loads(json_data)
 
 
-def store_golden_record():
+def store_golden_records():
     """
     Stores reference data for regression tests. Call only manually after fixing
     a bug and checking that the new results are correct.
