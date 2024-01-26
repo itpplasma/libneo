@@ -1,29 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-def slice_line(line):
-  """
-  This function takes a string as input and slices it into segments of 16
-  characters each. If the length of the string is less than 32, 48, 64, or 80,
-  it will return fewer segments.
-
-  Parameters:
-  line (str): The string to be sliced.
-
-  Returns:
-  list: A list of string segments, each of which is 16 characters long.
-  """
-  length = len(line)
-  if (length < 32):
-    return [line[0:16]]
-  if (length < 48):
-    return [line[0:16], line[16:32]]
-  if (length < 64):
-    return [line[0:16], line[16:32], line[32:48]]
-  if (length < 80):
-    return [line[0:16], line[16:32], line[32:48], line[48:64]]
-  return [line[0:16], line[16:32], line[32:48], line[48:64], line[64:80]]
-
 class eqdsk_file:
 
   def __init__ (self, filename:str):
@@ -519,3 +496,27 @@ class Point:
     self.x = x
     self.y = y
     self.z = z
+
+
+def slice_line(line):
+  """
+  This function takes a string as input and slices it into segments of 16
+  characters each. If the length of the string is less than 32, 48, 64, or 80,
+  it will return fewer segments.
+
+  Parameters:
+  line (str): The string to be sliced.
+
+  Returns:
+  list: A list of string segments, each of which is 16 characters long.
+  """
+  length = len(line)
+  if (length < 32):
+    return [line[0:16]]
+  if (length < 48):
+    return [line[0:16], line[16:32]]
+  if (length < 64):
+    return [line[0:16], line[16:32], line[32:48]]
+  if (length < 80):
+    return [line[0:16], line[16:32], line[32:48], line[48:64]]
+  return [line[0:16], line[16:32], line[32:48], line[48:64], line[64:80]]
