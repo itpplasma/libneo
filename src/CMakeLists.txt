@@ -135,6 +135,7 @@ target_link_libraries(vacfield.x PUBLIC
   hdf5_tools
   netcdf
   netcdff
+  magfie
   ${HDF5_HL_LIBRARIES}
   ${HDF5_LIBRARIES}
   ${fftw_lib}

@@ -377,7 +377,7 @@ contains
   subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil, avoid_div)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
-    !$ use omp_lib, only: omp_get_max_threads
+    use omp_lib, only: omp_get_max_threads, omp_get_num_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
@@ -401,6 +401,9 @@ contains
     type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dz, p_AnR, p_Anphi, p_AnZ,  p_dAnphi_dR, p_dAnphi_dz
     real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
     complex(c_double_complex), dimension(:), pointer :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    real(dp) :: dummy_r, dummy_z, dummy_phi
+
+    call read_field_input
 
     if (nmax > nphi / 4) then
       write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
@@ -447,12 +450,24 @@ contains
 
     do kc = 1, ncoil
       do kZ = 1, nZ
+        print*, 'kc = ', kc, 'kZ = ', kZ
         do kR = 1, nR
           !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, AXYZ, dAX, dAY, epsilon, alpha, beta) &
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, AXYZ, dAX, dAY, epsilon, alpha, beta, &
+          !$omp dummy_r, dummy_z, dummy_phi) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, avoid_div)
           do kphi = 1, nphi
+            if ((kc.eq.1).and.(kZ.eq.1).and.(kR.eq.1).and.(kphi.eq.1)) print*, 'get number of threads', omp_get_num_threads()
             XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)] !position at which vector potential should be evaluated
+            
+            if (avoid_div == '4') then
+              dummy_phi = atan2(XYZ_r(2),XYZ_r(1))
+              call stretch_coords(sqrt(XYZ_r(1)**2 + XYZ_r(2)**2), XYZ_r(3), dummy_r, dummy_z)
+              XYZ_r(1) = dummy_r*cos(dummy_phi)
+              XYZ_r(2) = dummy_r*sin(dummy_phi)
+              XYZ_r(3) = dummy_z
+            endif
+
             AXYZ(:) = 0d0
             dAX(:) = 0d0
             dAY(:) = 0d0
@@ -465,15 +480,15 @@ contains
               dist_f = sqrt(sum(XYZ_f * XYZ_f))
               XYZ_if = XYZ_f - XYZ_i
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
+              if ((avoid_div == '2').or.(avoid_div == '3')) then
+                !if ((dist_i.lt.6d0).or.(dist_f.lt.6d0)) print*, dist_i, dist_f, kphi
+                dist_i = max(dist_i, 6d0)
+                dist_f = max(dist_f, 6d0)
+              endif
               epsilon = dist_if/(dist_i + dist_f)
               if ((avoid_div == '1').or.(avoid_div == '3')) then
                 !if (epsilon.gt.0.6d0) print*, epsilon, kphi
                 epsilon = min(epsilon,0.6d0)
-              endif
-              if ((avoid_div == '2').or.(avoid_div == '3')) then
-                !if ((dist_i.lt.6d0).or.(dist_f.lt.6d0)) print*, dist_i, dist_f, kphi
-                dist_i = min(dist_i, 6d0)
-                dist_f = min(dist_f, 6d0)
               endif
               alpha = log((1 + epsilon)/(1 - epsilon))
               beta = (XYZ_i/dist_i + XYZ_f/dist_f)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))

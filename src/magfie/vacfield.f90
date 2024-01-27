@@ -163,7 +163,7 @@ contains
     write (*, '("  avoid_div     string character for use with ''vector_potential'' indicating which measures are taken to &
                               &  avoid divergences for evaluation points close to coils: &
                               &  ''0'' = no measures, ''1'' = restrict epsilon, ''2'' = restrict dist_i and dist_f, &
-                              &  ''3'' = ristrict epsilon, dist_i and dist_f ")')
+                              &  ''3'' = ristrict epsilon, dist_i and dist_f, ''4'' = use strech_coords ")')
   end subroutine usage
 
 end program vacfield
