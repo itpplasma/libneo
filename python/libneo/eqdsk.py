@@ -13,7 +13,7 @@ class eqdsk_file:
 
     with open(filename, "rb") as f:
       # First line
-      self.filenamedateEQDSK = f.read(48)
+      self.filenamedateEQDSK = f.read(48).decode("utf-8")
       line = f.readline().split()
 
       # number of r coordinates for the grid
@@ -184,8 +184,6 @@ class eqdsk_file:
         self.Bzn[k] = readblock(f, k)
 
       self.Bzn = self.Bzn.reshape(self.nzgr, self.nrgr)
-
-      self.rest = f.readlines()
 
 
   def sort_into_coilgroups(self, indices_coilgroupstarts:list, coilgroups:list, coiltags:list):
