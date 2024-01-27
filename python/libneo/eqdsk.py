@@ -88,31 +88,31 @@ class eqdsk_file:
       self.psieqprof = [1.0/(self.nrgr-1)*k for k in range(self.nrgr)]
       self.fprof = np.empty(self.nrgr)
       for k in range(self.nrgr):
-        self.fprof[k] = readblock(f, k)
+        self.fprof[k] = readblock(f)
 
 
       # Read p(psi) (size nrgr)
       self.ptotprof = np.empty(self.nrgr)
       for k in range(self.nrgr):
-        self.ptotprof[k] = readblock(f, k)
+        self.ptotprof[k] = readblock(f)
 
 
       # Read TT'(psi) - ff' (size nrgr)
       self.fdfdpsiprof = np.empty(self.nrgr)
       for k in range(self.nrgr):
-        self.fdfdpsiprof[k] = readblock(f, k)
+        self.fdfdpsiprof[k] = readblock(f)
 
 
       # Read p'  (size nrgr)
       self.dpressdpsiprof = np.empty(self.nrgr)
       for k in range(self.nrgr):
-        self.dpressdpsiprof[k] = readblock(f, k)
+        self.dpressdpsiprof[k] = readblock(f)
 
 
       # Read psi (size nrgr x nzgr in file?, nzgr x nrgr in 'output')
       self.PsiVs = np.empty(self.nrgr*self.nzgr)
       for k in range(self.nrgr*self.nzgr):
-          self.PsiVs[k] = readblock(f, k)
+          self.PsiVs[k] = readblock(f)
 
       self.psinorm = [(PsiV-self.PsiaxisVs+self.PsiedgeVs)/(-self.PsiaxisVs+self.PsiedgeVs) for PsiV in self.PsiVs]
       self.PsiVs = self.PsiVs.reshape(self.nzgr, self.nrgr)
@@ -121,7 +121,7 @@ class eqdsk_file:
       self.qprof = np.empty(self.nrgr)
       # self.rho_poloidal = np.empty(self.nrgr)
       for k in range(self.nrgr):
-        self.qprof[k] = readblock(f, k)
+        self.qprof[k] = readblock(f)
         # self.rho_poloidal[k] = float(k)/float(self.nrgr-1)
 
 
@@ -135,14 +135,14 @@ class eqdsk_file:
 
       self.Lcfs = np.empty(2*self.npbound)
       for k in range(2*self.npbound):
-        self.Lcfs[k] = readblock(f, k)
+        self.Lcfs[k] = readblock(f)
 
       self.Lcfs = self.Lcfs.reshape(self.npbound, 2)
       self.Lcfs = self.Lcfs.transpose()
 
       self.Limiter = np.empty(2*self.nplimiter)
       for k in range(2*self.nplimiter):
-        self.Limiter[k] = readblock(f, k)
+        self.Limiter[k] = readblock(f)
 
       self.Limiter = self.Limiter.reshape(self.nplimiter, 2)
       self.Limiter = self.Limiter.transpose()
@@ -161,7 +161,7 @@ class eqdsk_file:
       # Read PFcoilData
       self.PFcoilData = np.empty(5*self.ncoils)
       for k in range(5*self.ncoils):
-        self.PFcoilData[k] = readblock(f, k)
+        self.PFcoilData[k] = readblock(f)
 
       self.PFcoilData = self.PFcoilData.reshape(self.ncoils, 5)
 
@@ -174,14 +174,14 @@ class eqdsk_file:
       # Read Brn
       self.Brn = np.empty(self.nrgr*self.nzgr)
       for k in range(self.nrgr*self.nzgr):
-        self.Brn[k] = readblock(f, k)
+        self.Brn[k] = readblock(f)
 
       self.Brn = self.Brn.reshape(self.nzgr, self.nrgr)
 
       # Read Bzn
       self.Bzn = np.empty(self.nrgr*self.nzgr)
       for k in range(self.nrgr*self.nzgr):
-        self.Bzn[k] = readblock(f, k)
+        self.Bzn[k] = readblock(f)
 
       self.Bzn = self.Bzn.reshape(self.nzgr, self.nrgr)
 
@@ -511,39 +511,20 @@ class Point:
     self.z = z
 
 
-def slice_line(line):
+def readblock(file):
   """
-  This function takes a string as input and slices it into segments of 16
-  characters each. If the length of the string is less than 32, 48, 64, or 80,
-  it will return fewer segments.
-
-  Parameters:
-  line (str): The string to be sliced.
-
-  Returns:
-  list: A list of string segments, each of which is 16 characters long.
+  Reads a block of 16 characters from a file. Corrections in case of
+  newlines and double spaces are applied.
   """
-  length = len(line)
-  if (length < 32):
-    return [line[0:16]]
-  if (length < 48):
-    return [line[0:16], line[16:32]]
-  if (length < 64):
-    return [line[0:16], line[16:32], line[32:48]]
-  if (length < 80):
-    return [line[0:16], line[16:32], line[32:48], line[48:64]]
-  return [line[0:16], line[16:32], line[32:48], line[48:64], line[64:80]]
-
-def readblock(f, k):
-  dat = f.read(16)
+  dat = file.read(16)
   if(b'\n\n' in dat):
-    f.seek(-16, 1)
-    dat = f.read(18).replace(b'\n', b'')
+    file.seek(-16, 1)
+    dat = file.read(18).replace(b'\n', b'')
   if(b'\n' in dat):
-    f.seek(-16, 1)
-    dat = f.read(17).replace(b'\n', b'')
+    file.seek(-16, 1)
+    dat = file.read(17).replace(b'\n', b'')
   if(b'  ' in dat):
-    f.seek(-16, 1)
-    dat = f.read(17).replace(b'  ', b' ')
+    file.seek(-16, 1)
+    dat = file.read(17).replace(b'  ', b' ')
 
   return dat
