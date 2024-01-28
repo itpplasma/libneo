@@ -14,9 +14,10 @@ class FluxLabelConverter:
     """
     This is a class for the conversion between the poloidal and toroidal flux label s_pol and s_tor of a given flux surface.
     The conversion is based on the safety factor profile q as q = d{toroidal_flux}/d{polodial_flux}.
-    Therefore {toroidal_flux} = int_-inf^{polodial_flux}q({flux})d{flux} - , with {s} = {flux}/{flux_max}
-    gives {toroidal_flux} = {flux_max}*int_-inf^{s_pol}q(s)ds
-    and {s_tor} = {todroidal_flux}/{toroidal_flux_max} = int_-inf^{s_pol}q(s)ds / int_-inf^1q(s)ds
+    Therefore {toroidal_flux} = int_{poloidal_flux_min}^{polodial_flux}q({flux})d{flux} , with {s} = ({poloidal_flux}-{poloidal_flux_min})/({poloidal_flux_max}-{poloidal_flux_min})
+    gives {toroidal_flux} = ({poloidal_flux_max}-{poloidal_flux_min})*int_0^{s_pol}q(s)ds
+          {toroidal_flux_max}/({poloidal_flux_max}-{poloidal_flux_min}) = int_0^1q(s)ds
+    and {s_tor} = {todroidal_flux}/{toroidal_flux_max} = int_0^{s_pol}q(s)ds / int_0^1q(s)ds
     """
 
     def __init__(self, q_profile:np.ndarray):
@@ -28,8 +29,8 @@ class FluxLabelConverter:
         # Setup conversion spol -> stor
         interp_q = CubicSpline(spol_list, q_profile, extrapolate=True)
         self.interp_psitor = interp_q.antiderivative()
-        self.psitor_max = self.interp_psitor(1.0)
-        self.psitor_min = self.interp_psitor(0.0)
+        self.psitor_max_over_delta_psitol = self.interp_psitor(1.0)
+        self.psitor_min_over_delta_psitol = self.interp_psitor(0.0)
 
         # Setup conversion stor -> spol using previously made conversion spol -> stor
         self.interp_spol = CubicSpline(self.spol2stor(spol_list), 
@@ -40,7 +41,7 @@ class FluxLabelConverter:
         Converts the poloidal flux label s_pol to the toroidal flux label s_tor.
         """
 
-        stor = (self.interp_psitor(spol)-self.psitor_min)/(self.psitor_max - self.psitor_min)
+        stor = (self.interp_psitor(spol)-self.psitor_min_over_delta_psitol)/(self.psitor_max_over_delta_psitol - self.psitor_min_over_delta_psitol)
 
         return stor
 
