@@ -188,7 +188,10 @@ end subroutine vector_potentials
 subroutine vector_potential_single_mode(ntor_in, nR_in, nZ_in, Rmin_in, Rmax_in, Zmin_in, Zmax_in, Bn_R, Bn_Z)
   use iso_fortran_env, only: dp => real64
   use bdivfree_mod, only: nR, nZ, Rmin, Zmin, ntor, icp, ipoint, hR, hZ, Rpoi, Zpoi, AZnRe, AZnIm, ARnRe, ARnIm
-  integer, intent(in) :: nR_in, nZ_in
+
+  implicit none
+
+  integer, intent(in) :: ntor_in, nR_in, nZ_in
   real(dp), intent(in) :: Rmin_in, Rmax_in, Zmin_in, Zmax_in
   complex(dp), intent(in), dimension(nR_in, nZ_in) :: Bn_R, Bn_Z
   integer :: k, imi(nZ_in), ima(nZ_in), jmi(nR_in), jma(nR_in)
@@ -200,8 +203,8 @@ subroutine vector_potential_single_mode(ntor_in, nR_in, nZ_in, Rmin_in, Rmax_in,
   icp = nR * nZ
   Rmin = Rmin_in
   Zmin = Zmin_in
-  hR = (Rmax - Rmin) / dble(nR - 1)
-  hZ = (Zmax - Zmin) / dble(nZ - 1)
+  hR = (Rmax_in - Rmin_in) / dble(nR_in - 1)
+  hZ = (Zmax_in - Zmin_in) / dble(nZ_in - 1)
   allocate(Rpoi(nR), Zpoi(nZ), ipoint(nR, nZ))
   Rpoi(:) = Rmin + [(k * hr, k = 0, nR - 1)]
   Zpoi(:) = Zmin + [(k * hz, k = 0, nZ - 1)]
