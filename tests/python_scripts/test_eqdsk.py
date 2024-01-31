@@ -16,7 +16,7 @@ golden_record_dir = "/proj/plasma/DATA/TESTS/libneo/eqdsk"
 
 test_files = [
     # Local
-    "../resources/input_efit_file.dat",
+    "tests/resources/input_efit_file.dat",
 
     # PROCESS code
     "/proj/plasma/DATA/DEMO/Equil_2021_PMI_QH_mode_betap_1d04_li_1d02_Ip_18d27MA_SOF.eqdsk",
