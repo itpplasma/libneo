@@ -1,7 +1,7 @@
 #!/bin/sh
 
-mkdir build
-cd build
+mkdir Build-12-2-0
+cd Build-12-2-0
 cmake ..
 make
 cd -
