@@ -10,6 +10,7 @@ on package install.
 
 from .boozer import *
 from .eqdsk import *
+from .eqdsk_base import *
 from .convert_neo_in_to_fortran_namelist import *
 from .getHeaderDataVMEC import *
 from .flux_label_converter import *

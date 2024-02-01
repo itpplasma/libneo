@@ -21,6 +21,11 @@ jobs:
         run: |
           mkdir build && cd build && cmake .. && make -j2
 
+      - name: Build h5merge
+        run: |
+          cd tools/h5merge
+          mkdir build && cd build && cmake .. && make -j2
+
       - name: Test
         run: |
           cd build && ctest --output-on-failure

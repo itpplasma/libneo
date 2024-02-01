@@ -1,199 +1,189 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-def slice_line(line):
-  """
-  This function takes a string as input and slices it into segments of 16
-  characters each. If the length of the string is less than 32, 48, 64, or 80,
-  it will return fewer segments.
-
-  Parameters:
-  line (str): The string to be sliced.
-
-  Returns:
-  list: A list of string segments, each of which is 16 characters long.
-  """
-  length = len(line)
-  if (length < 32):
-    return [line[0:16]]
-  if (length < 48):
-    return [line[0:16], line[16:32]]
-  if (length < 64):
-    return [line[0:16], line[16:32], line[32:48]]
-  if (length < 80):
-    return [line[0:16], line[16:32], line[32:48], line[48:64]]
-  return [line[0:16], line[16:32], line[32:48], line[48:64], line[64:80]]
-
 class eqdsk_file:
 
   def __init__ (self, filename:str):
-    self.generate_from_file(filename)
-
     self.verbose = False
+    self.generate_from_file(filename)
 
 
   def generate_from_file(self, filename:str):
     """
     \note Might not be suitable for general format of eqdsk file.
     """
-    from numpy import array
+    import numpy as np
 
-    with open(filename) as f:
-      l = f.readlines()
+    with open(filename, "rb") as f:
+      # First line
+      self.filenamedateEQDSK = f.read(48).decode("utf-8")
+      line = f.readline().split()
 
-    self.filenamedateEQDSK = l[0][0:48]
-    l0split = l[0].split()
-    # number r coordinates for the grid
-    self.nrgr = int(l0split[-2])
-    # number z coordinates for the grid
-    self.nzgr = int(l0split[-1])
-    # Read boxlength
-    l1slices = l[1].strip().split()
-    if (len(l1slices) < 5):
-      l1slices += slice_line(l[1])
-    self.rboxlength = float(l1slices[0])
-    self.zboxlength = float(l1slices[1])
-    self.R0 = float(l1slices[2])
-    self.rboxleft = float(l1slices[3])
-    self.zbox_mid = float(l1slices[4])
-    self.R = [self.rboxleft + self.rboxlength/(self.nrgr-1)*k for k in range(self.nrgr)]
-    self.Z = [self.zbox_mid - self.zboxlength/2 + self.zboxlength/(self.nzgr-1)*k for k in range(self.nzgr)] # Needs to be transposed.
-    # Read magnetic axis
-    l2slices = l[2].strip().split()
-    print(len(l2slices))
-    if (len(l2slices) < 5):
-      l2slices = slice_line(l[2])
-    self.Rpsi0 = float(l2slices[0])
-    self.Zpsi0 = float(l2slices[1])
-    # Read psiaxis and psiedge
-    self.PsiaxisVs = float(l2slices[2])
-    self.PsiedgeVs = float(l2slices[3])
-    # Read B0 and current
-    self.Btor_at_R0=float(l2slices[4])
-    l3slices = l[3].strip().split()
-    if (len(l3slices) < 5):
-      l3slices = slice_line(l[3])
-    self.Ip=float(l3slices[0])
-    # Rest of line 3 (4 one-based) and the next line is ignored.
+      # number of r coordinates for the grid
+      self.nrgr = int(line[1])
+      # number of z coordinates for the grid
+      self.nzgr = int(line[2])
 
-    startline = 5 # 0-based index
-    # Read T(psi) - f (size nrgr)
-    self.psieqprof = [1.0/(self.nrgr-1)*k for k in range(self.nrgr)]
-    self.fprof = []
-    line_number = startline
-    while (len(self.fprof) < self.nrgr):
-      self.fprof += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
+      # Second line
+      rewind = 0
+      try:
+        rewind += 16
+        self.rboxlength = float(f.read(16))
+        rewind += 16
+        self.zboxlength = float(f.read(16))
+        rewind += 16
+        self.R0 = float(f.read(16))
+        rewind += 16
+        self.rboxleft = float(f.read(16))
+        rewind += 16
+        self.zbox_mid = float(f.read(16))
+        f.readline()
+      except:
+        f.seek(-rewind, 1)
+        line = f.readline().split()
+        self.rboxlength = float(line[0])
+        self.zboxlength = float(line[1])
+        self.R0 = float(line[2])
+        self.rboxleft = float(line[3])
+        self.zbox_mid = float(line[4])
 
-    # Read p(psi) (size nrgr)
-    self.ptotprof = []
-    if self.nrgr % 5 == 0:
-      line_number += 1
-    while (len(self.ptotprof) < self.nrgr):
-      self.ptotprof += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
+      self.R = ( self.rboxleft
+                      + np.linspace(0, self.rboxlength, self.nrgr) )
+      self.Z = ( self.zbox_mid - 0.5*self.zboxlength
+                      + np.linspace(0, self.zboxlength, self.nzgr) )
 
-    # Read TT'(psi) - ff' (size nrgr)
-    self.fdfdpsiprof = []
-    if self.nrgr % 5 == 0:
-      line_number += 1
-    while (len(self.fdfdpsiprof) < self.nrgr):
-      self.fdfdpsiprof += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
+      # Third line
+      rewind = 0
+      try:
+        # Read magnetic axis
+        rewind += 16
+        self.Rpsi0 = float(f.read(16))  # assumed to be the same as RMAXIS
+        rewind += 16
+        self.Zpsi0 = float(f.read(16))  # assumed to be the same as ZMAXIS
+        # Read psiaxis and psiedge
+        rewind += 16
+        self.PsiaxisVs = float(f.read(16))
+        rewind += 16
+        self.PsiedgeVs = float(f.read(16))
+        # Read B0 and current
+        rewind += 16
+        self.Btor_at_R0 = float(f.read(16))
+        f.readline()
+      except:
+        f.seek(-rewind, 1)
+        line = f.readline().split()
+        self.Rpsi0 = float(line[0])
+        self.Zpsi0 = float(line[1])
+        self.PsiaxisVs = float(line[2])
+        self.PsiedgeVs = float(line[3])
+        self.Btor_at_R0 = float(line[4])
 
-    # Read p'  (size nrgr)
-    self.dpressdpsiprof = []
-    if self.nrgr % 5 == 0:
-      line_number += 1
-    while (len(self.dpressdpsiprof) < self.nrgr):
-      self.dpressdpsiprof += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
+      # Fourth line
+      self.Ip = float(f.read(16))
+      f.readline()
 
-    # Read psi (size nrgr x nzgr in file?, nzgr x nrgr in 'output')
-    self.PsiVs = []
-    if self.nrgr % 5 == 0:
-      line_number += 1
-    while (len(self.PsiVs) < self.nrgr*self.nzgr):
-      self.PsiVs += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
-    self.psinorm = [(PsiV-self.PsiaxisVs+self.PsiedgeVs)/(-self.PsiaxisVs+self.PsiedgeVs) for PsiV in self.PsiVs]
-    self.PsiVs = array(self.PsiVs)
-    self.PsiVs = self.PsiVs.reshape(self.nzgr,self.nrgr)
+      # Fifth line
+      f.readline()
 
-    # Read Q profile
-    self.qprof = []
-    if (self.nrgr*self.nzgr) % 5 == 0:
-      line_number += 1
-    while (len(self.qprof) < self.nrgr):
-      self.qprof += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
+      # From sixth line:
 
-    # Read npbound and nblimiter (in one line)
-    if self.nrgr % 5 == 0:
-      line_number += 1
-    self.npbound = int(l[line_number].strip().split()[0])
-    self.nplimiter = int(l[line_number].strip().split()[1])
-    # Read boundary (LCFS)
-    line_number += 1
-    self.Lcfs = []
-    while (len(self.Lcfs) < 2*self.npbound):
-      self.Lcfs += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
-    self.Lcfs = array(self.Lcfs)
-    self.Lcfs = self.Lcfs.reshape(self.npbound, 2)
-    self.Lcfs = self.Lcfs.transpose()
+      # Read T(psi) - f (size nrgr)
+      self.psieqprof = [1.0/(self.nrgr-1)*k for k in range(self.nrgr)]
+      self.fprof = np.empty(self.nrgr)
+      for k in range(self.nrgr):
+        self.fprof[k] = readblock(f)
 
-    # Read limiter (LCFS)
-    if (2*self.npbound) % 5 == 0:
-      line_number += 1
-    self.Limiter = []
-    while (len(self.Limiter) < 2*self.nplimiter):
-      print(l[line_number])
-      self.Limiter += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
-    self.Limiter = array(self.Limiter)
-    self.Limiter = self.Limiter.reshape(self.nplimiter, 2)
-    self.Limiter = self.Limiter.transpose()
 
-    if (2*self.nplimiter) % 5 == 0:
-      line_number += 1
-    self.ncoils = int(l[line_number])
-    line_number += 1
-    # Read PFcoilData
-    self.PFcoilData = []
-    while (len(self.PFcoilData) < 5*self.ncoils):
-      self.PFcoilData += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
-    self.PFcoilData = array(self.PFcoilData)
-    self.PFcoilData = self.PFcoilData.reshape(self.ncoils, 5)
+      # Read p(psi) (size nrgr)
+      self.ptotprof = np.empty(self.nrgr)
+      for k in range(self.nrgr):
+        self.ptotprof[k] = readblock(f)
 
-    self.Rcond = self.PFcoilData[:,0]
-    self.Zcond = self.PFcoilData[:,1]
-    self.DRcond = self.PFcoilData[:,2]
-    self.DZcond = self.PFcoilData[:,3]
-    self.Icond = self.PFcoilData[:,4]
 
-    if (5*self.ncoils) % 5 == 0:
-      line_number += 1
-    # Read Brn
-    self.Brn = []
-    while (len(self.Brn) < self.nrgr*self.nzgr):
-      self.Brn += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
-    self.Brn = array(self.Brn)
-    self.Brn = self.Brn.reshape(self.nzgr, self.nrgr)
+      # Read TT'(psi) - ff' (size nrgr)
+      self.fdfdpsiprof = np.empty(self.nrgr)
+      for k in range(self.nrgr):
+        self.fdfdpsiprof[k] = readblock(f)
 
-    if (self.nrgr*self.nzgr) % 5 == 0:
-      line_number += 1
-    # Read Bzn
-    self.Bzn = []
-    while (len(self.Bzn) < self.nrgr*self.nzgr):
-      self.Bzn += [float(n) for n in slice_line(l[line_number])]
-      line_number += 1
-    self.Bzn = array(self.Bzn)
-    self.Bzn = self.Bzn.reshape(self.nzgr, self.nrgr)
 
-    self.rest = l[line_number:]
+      # Read p'  (size nrgr)
+      self.dpressdpsiprof = np.empty(self.nrgr)
+      for k in range(self.nrgr):
+        self.dpressdpsiprof[k] = readblock(f)
+
+
+      # Read psi (size nrgr x nzgr in file?, nzgr x nrgr in 'output')
+      self.PsiVs = np.empty(self.nrgr*self.nzgr)
+      for k in range(self.nrgr*self.nzgr):
+          self.PsiVs[k] = readblock(f)
+
+      self.psinorm = [(PsiV-self.PsiaxisVs+self.PsiedgeVs)/(-self.PsiaxisVs+self.PsiedgeVs) for PsiV in self.PsiVs]
+      self.PsiVs = self.PsiVs.reshape(self.nzgr, self.nrgr)
+
+      # Read Q profile
+      self.qprof = np.empty(self.nrgr)
+      # self.rho_poloidal = np.empty(self.nrgr)
+      for k in range(self.nrgr):
+        self.qprof[k] = readblock(f)
+        # self.rho_poloidal[k] = float(k)/float(self.nrgr-1)
+
+
+      line = f.readline().split()
+      if len(line) < 1:
+        line = f.readline().split()  # CHEASE case
+      if len(line) < 1:
+        line = f.readline().split()  # PROCESS case
+      self.npbound = int(line[0])
+      self.nplimiter = int(line[1])
+
+      self.Lcfs = np.empty(2*self.npbound)
+      for k in range(2*self.npbound):
+        self.Lcfs[k] = readblock(f)
+
+      self.Lcfs = self.Lcfs.reshape(self.npbound, 2)
+      self.Lcfs = self.Lcfs.transpose()
+
+      self.Limiter = np.empty(2*self.nplimiter)
+      for k in range(2*self.nplimiter):
+        self.Limiter[k] = readblock(f)
+
+      self.Limiter = self.Limiter.reshape(self.nplimiter, 2)
+      self.Limiter = self.Limiter.transpose()
+
+      try:
+        # Read number of coils
+        line = f.readline().split()
+        if len(line) < 1:
+          line = f.readline().split()  # PROCESS case
+        self.ncoils = int(line[0])
+      except ValueError:
+        return  # No coil data available
+      except IndexError:
+        return  # No coil data available
+
+      # Read PFcoilData
+      self.PFcoilData = np.empty(5*self.ncoils)
+      for k in range(5*self.ncoils):
+        self.PFcoilData[k] = readblock(f)
+
+      self.PFcoilData = self.PFcoilData.reshape(self.ncoils, 5)
+
+      self.Rcond = self.PFcoilData[:,0]
+      self.Zcond = self.PFcoilData[:,1]
+      self.DRcond = self.PFcoilData[:,2]
+      self.DZcond = self.PFcoilData[:,3]
+      self.Icond = self.PFcoilData[:,4]
+
+      # Read Brn
+      self.Brn = np.empty(self.nrgr*self.nzgr)
+      for k in range(self.nrgr*self.nzgr):
+        self.Brn[k] = readblock(f)
+
+      self.Brn = self.Brn.reshape(self.nzgr, self.nrgr)
+
+      # Read Bzn
+      self.Bzn = np.empty(self.nrgr*self.nzgr)
+      for k in range(self.nrgr*self.nzgr):
+        self.Bzn[k] = readblock(f)
+
+      self.Bzn = self.Bzn.reshape(self.nzgr, self.nrgr)
 
 
   def sort_into_coilgroups(self, indices_coilgroupstarts:list, coilgroups:list, coiltags:list):
@@ -370,7 +360,7 @@ class eqdsk_file:
 
 
   def increase_periodicity_in_coilgroups(self, periods:int):
-    """
+    r"""
     Increase the number of periods for the coilgroups.
 
     Increase the periodicity, by increasing the number of elements, i.e.
@@ -519,3 +509,22 @@ class Point:
     self.x = x
     self.y = y
     self.z = z
+
+
+def readblock(file):
+  """
+  Reads a block of 16 characters from a file. Corrections in case of
+  newlines and double spaces are applied.
+  """
+  dat = file.read(16)
+  if(b'\n\n' in dat):
+    file.seek(-16, 1)
+    dat = file.read(18).replace(b'\n', b'')
+  if(b'\n' in dat):
+    file.seek(-16, 1)
+    dat = file.read(17).replace(b'\n', b'')
+  if(b'  ' in dat):
+    file.seek(-16, 1)
+    dat = file.read(17).replace(b'  ', b' ')
+
+  return dat
