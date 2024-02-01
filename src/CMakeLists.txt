@@ -89,22 +89,8 @@ add_executable(standardise_geqdsk.x
     math_constants.f90
     libneo_kinds.f90
 )
-add_executable(vacfield.x
-    magfie/vacfield.f90
-    magfie/coil_tools.f90
-    fftw3.f90
-    math_constants.f90
-    libneo_kinds.f90
-    util.f90
-)
-add_executable(coil_convert.x
-    magfie/coil_convert.f90
-    magfie/coil_tools.f90
-    fftw3.f90
-    math_constants.f90
-    libneo_kinds.f90
-    util.f90
-)
+add_executable(vacfield.x magfie/vacfield.f90)
+add_executable(coil_convert.x magfie/coil_convert.f90)
 
 find_package(OpenMP)
 
@@ -118,6 +104,7 @@ include_directories(${HDF5_INCLUDE_DIRS})
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
 target_link_libraries(magfie
+# OpenMP::OpenMP_Fortran
   rkf45
   netcdf
   netcdff
@@ -129,26 +116,8 @@ target_link_libraries(magfie
   ${BLAS_LIBRARIES}
   ${LAPACK_LIBRARIES}
 )
-
-target_link_libraries(vacfield.x PUBLIC
-  OpenMP::OpenMP_Fortran
-  hdf5_tools
-  netcdf
-  netcdff
-  magfie
-  ${HDF5_HL_LIBRARIES}
-  ${HDF5_LIBRARIES}
-  ${fftw_lib}
-  ${fftw_omp_lib}
-)
-target_link_libraries(coil_convert.x PUBLIC
-  OpenMP::OpenMP_Fortran
-  hdf5_tools
-  ${HDF5_HL_LIBRARIES}
-  ${HDF5_LIBRARIES}
-  ${fftw_lib}
-  ${fftw_omp_lib}
-)
+target_link_libraries(vacfield.x PUBLIC magfie)
+target_link_libraries(coil_convert.x PUBLIC magfie)
 
 target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
 target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
