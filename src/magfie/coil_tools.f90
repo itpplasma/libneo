@@ -377,7 +377,7 @@ contains
   subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil, avoid_div)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
-    use omp_lib, only: omp_get_max_threads, omp_get_num_threads
+    !$ use omp_lib, only: omp_get_max_threads, omp_get_num_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
@@ -457,7 +457,7 @@ contains
           !$omp dummy_r, dummy_z, dummy_phi) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, avoid_div)
           do kphi = 1, nphi
-            if ((kc.eq.1).and.(kZ.eq.1).and.(kR.eq.1).and.(kphi.eq.1)) print*, 'get number of threads', omp_get_num_threads()
+            !$ if ((kc.eq.1).and.(kZ.eq.1).and.(kR.eq.1).and.(kphi.eq.1)) print*, 'get number of threads', omp_get_num_threads()
             XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)] !position at which vector potential should be evaluated
             
             if (avoid_div == '4') then
