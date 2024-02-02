@@ -103,14 +103,42 @@ contains
         local_coeff(0:spl%order) = spl%coeff(:, interval_index+1)
 
         ! Start with largest power and then multiply recursively
-        y = local_coeff(spl%order)
         dy = 0.0_dp
+        y = local_coeff(spl%order)
         do k_power = spl%order, 1, -1
             dy = local_coeff(k_power)*dble(k_power) + x_local*dy
             y = local_coeff(k_power) + x_local*y
         enddo
         y = local_coeff(0) + x_local*y
     end subroutine evaluate_splines_1d_der
+
+
+    subroutine evaluate_splines_1d_der2(x, spl, y, dy, d2y)
+        real(dp), intent(in) :: x
+        type(SplineData1D), intent(in) :: spl
+        real(dp), intent(out) :: y, dy, d2y
+
+        real(dp) :: x_norm, x_local, local_coeff(0:MAX_ORDER)
+        integer :: interval_index, k_power
+
+        x_norm = (x - spl%x_min) / spl%h_step
+        interval_index = max(0, min(spl%num_points-1, int(x_norm)))
+        x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
+
+        local_coeff(0:spl%order) = spl%coeff(:, interval_index+1)
+
+        ! Start with largest power and then multiply recursively
+        d2y = 0.0_dp
+        dy = 0.0_dp
+        y = local_coeff(spl%order)
+        do k_power = spl%order, 2, -1
+            y = local_coeff(k_power) + x_local*y
+            dy = local_coeff(k_power)*dble(k_power) + x_local*dy
+            d2y = local_coeff(k_power)*dble(k_power)*dble(k_power-1) + x_local*d2y
+        enddo
+        dy = local_coeff(1) + x_local*dy
+        y = local_coeff(0) + x_local*(local_coeff(1) + x_local*y)
+    end subroutine evaluate_splines_1d_der2
 
 
     subroutine construct_splines_2d(x_min, x_max, y, order, periodic, spl)
