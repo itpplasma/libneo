@@ -39,7 +39,8 @@ contains
 
         real(dp), dimension(N_POINTS) :: x, y
 
-        real(dp) :: x_eval, expected, actual
+        real(dp) :: x_eval, expected, d_expected, d2_expected, &
+            actual, d_actual, d2_actual
 
         type(SplineData1D) :: spl
 
@@ -52,10 +53,20 @@ contains
         x_eval = (x(30) + x(31))/2.0d0
 
         expected = cos(x_eval)
+        d_expected = -sin(x_eval)
+        d2_expected = -cos(x_eval)
 
         call evaluate_splines_1d(x_eval, spl, actual)
-
         if (abs(expected - actual) > TOL) error stop
+
+        call evaluate_splines_1d_der(x_eval, spl, actual, d_actual)
+        if (abs(expected - actual) > TOL) error stop
+        if (abs(d_expected - d_actual) > TOL) error stop
+
+        call evaluate_splines_1d_der2(x_eval, spl, actual, d_actual, d2_actual)
+        if (abs(expected - actual) > TOL) error stop
+        if (abs(d_expected - d_actual) > TOL) error stop
+        if (abs(d2_expected - d2_actual) > 1d-3) error stop
 
         call destroy_splines_1d(spl)
 
