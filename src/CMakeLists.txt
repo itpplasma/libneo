@@ -92,8 +92,6 @@ add_executable(standardise_geqdsk.x
 add_executable(vacfield.x magfie/vacfield.f90)
 add_executable(coil_convert.x magfie/coil_convert.f90)
 
-find_package(OpenMP)
-
 find_library(fftw_lib NAMES "fftw3")
 find_library(fftw_omp_lib NAMES "fftw3_omp")
 find_path(fftw_include_dir NAMES "fftw3.h")
@@ -104,7 +102,6 @@ include_directories(${HDF5_INCLUDE_DIRS})
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
 target_link_libraries(magfie
-# OpenMP::OpenMP_Fortran
   rkf45
   netcdf
   netcdff

@@ -27,7 +27,7 @@ module ode_integration
     end subroutine compute_derivative
   end interface
 
-  !$omp threadprivate(kount, ialloc, dxsav, dydx, xp, y)
+  !$omp threadprivate(kount, ialloc, dydx, xp, y)
   !$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
   !$omp threadprivate(ytemp1)
 
