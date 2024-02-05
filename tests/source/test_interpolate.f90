@@ -5,7 +5,7 @@ program test_interpolate
 
     implicit none
 
-    real(dp), parameter :: TOL = 1.0d-6
+    real(dp), parameter :: TOL_CRUDE = 1.0d-3, TOL = 1.0d-6, TOL_EXACT = 1.0d-11
 
     real(dp), parameter :: X_MIN = 1.23d0, X_MAX = TWOPI+1.23d0
 
@@ -25,7 +25,9 @@ program test_interpolate
     call test_spline_2d(spline_order=[5,5], periodic=[.True., .True.])
 
 
-    call test_spline_3d(spline_order=[5,3,3], periodic=[.False., .False., .True.])
+    call test_spline_3d(spline_order=[5,3,3], periodic=[.False.,.False.,.True.])
+    call test_spline_3d(spline_order=[3,5,3], periodic=[.False., .True.,.True.])
+    call test_spline_3d(spline_order=[3,3,3], periodic=[.True., .True., .True.])
 
 contains
 
@@ -56,14 +58,14 @@ contains
         d_expected = -sin(x_eval)
         d2_expected = -cos(x_eval)
 
-        call evaluate_splines_1d(x_eval, spl, actual)
+        call evaluate_splines_1d(spl, x_eval, actual)
         if (abs(expected - actual) > TOL) error stop
 
-        call evaluate_splines_1d_der(x_eval, spl, actual, d_actual)
+        call evaluate_splines_1d_der(spl, x_eval, actual, d_actual)
         if (abs(expected - actual) > TOL) error stop
         if (abs(d_expected - d_actual) > TOL) error stop
 
-        call evaluate_splines_1d_der2(x_eval, spl, actual, d_actual, d2_actual)
+        call evaluate_splines_1d_der2(spl, x_eval, actual, d_actual, d2_actual)
         if (abs(expected - actual) > TOL) error stop
         if (abs(d_expected - d_actual) > TOL) error stop
         if (abs(d2_expected - d2_actual) > 1d-3) error stop
@@ -109,7 +111,7 @@ contains
 
         expected = cos(x_eval(1))*cos(x_eval(2))
 
-        call evaluate_splines_2d(x_eval, spl, actual)
+        call evaluate_splines_2d(spl, x_eval, actual)
 
         if (abs(expected - actual) > TOL) error stop
 
@@ -131,6 +133,8 @@ contains
             integer :: k1, k2, k3
 
             real(dp) :: x_eval(3), expected, actual
+            real(dp), dimension(3) :: d_expected, d_actual
+            real(dp), dimension(6) :: d2_expected, d2_actual
 
             type(SplineData3D) :: spl
 
@@ -153,15 +157,41 @@ contains
                 [X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX], &
                 y, spline_order, periodic, spl)
 
+            x_eval(1) = x1(30)
+            x_eval(2) = x2(28)
+            x_eval(3) = x3(27)
+
+            expected = cos(x_eval(1))*cos(x_eval(2))*cos(x_eval(3))
+
+            call evaluate_splines_3d(spl, x_eval, actual)
+
+            if (abs(expected - actual) > TOL_EXACT) error stop
+
             x_eval(1) = (x1(30) + x1(31))/2.0d0
             x_eval(2) = (x2(28) + x2(29))/2.0d0
             x_eval(3) = (x3(27) + x3(28))/2.0d0
 
             expected = cos(x_eval(1))*cos(x_eval(2))*cos(x_eval(3))
+            d_expected(1) = -sin(x_eval(1))*cos(x_eval(2))*cos(x_eval(3))
+            d_expected(2) = -cos(x_eval(1))*sin(x_eval(2))*cos(x_eval(3))
+            d_expected(3) = -cos(x_eval(1))*cos(x_eval(2))*sin(x_eval(3))
+            d2_expected(1) = -cos(x_eval(1))*cos(x_eval(2))*cos(x_eval(3)) !11
+            d2_expected(2) = sin(x_eval(1))*sin(x_eval(2))*cos(x_eval(3))  !12
+            d2_expected(3) = sin(x_eval(1))*cos(x_eval(2))*sin(x_eval(3))  !13
+            d2_expected(4) = -cos(x_eval(1))*cos(x_eval(2))*cos(x_eval(3)) !22
+            d2_expected(5) = cos(x_eval(1))*sin(x_eval(2))*sin(x_eval(3))  !23
+            d2_expected(6) = -cos(x_eval(1))*cos(x_eval(2))*cos(x_eval(3)) !33
 
-            call evaluate_splines_3d(x_eval, spl, actual)
+            call evaluate_splines_3d(spl, x_eval, actual)
 
             if (abs(expected - actual) > TOL) error stop
+
+            call evaluate_splines_3d_der2( &
+                spl, x_eval, actual, d_actual, d2_actual)
+
+            if (abs(expected - actual) > TOL) error stop
+            if (any(abs(d_expected - d_actual) > TOL_CRUDE)) error stop
+            if (any(abs(d2_expected - d2_actual) > TOL_CRUDE)) error stop
 
             call destroy_splines_3d(spl)
 
