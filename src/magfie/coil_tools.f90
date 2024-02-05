@@ -390,7 +390,7 @@ contains
     integer, intent(in) :: nR, nphi, nZ
     complex(dp), intent(out), dimension(:, :, :, :), allocatable :: &
       AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
-    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
+    integer :: nfft, ncoil, kc, ks, ks_prev, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
     real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
       AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
@@ -447,7 +447,7 @@ contains
             actual_Z = Z(kZ)
           end if
           !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
+          !$omp private(kphi, ks, ks_prev, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
           !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
           !$omp actual_R, actual_Z, min_distance, max_eccentricity)
@@ -456,20 +456,22 @@ contains
             AXYZ(:) = 0d0
             grad_AX(:) = 0d0
             grad_AY(:) = 0d0
-            XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
+            ks_prev = coils(kc)%nseg
+            XYZ_f(:) = coils(kc)%XYZ(:, ks_prev) - XYZ_r
             dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
             do ks = 1, coils(kc)%nseg
               XYZ_i(:) = XYZ_f
               dist_i = dist_f
               XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
               dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
-              XYZ_if = XYZ_f - XYZ_i  ! TODO: avoid loss of precision
+              XYZ_if = coils(kc)%XYZ(:, ks) - coils(kc)%XYZ(:, ks_prev)
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
               eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
               AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
               common_gradient_term = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
               grad_AX(:) = grad_AX(:) - XYZ_if(1) * common_gradient_term
               grad_AY(:) = grad_AY(:) - XYZ_if(2) * common_gradient_term
+              ks_prev = ks
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
             Aphi(kphi) = AXYZ(2) * cosphi(kphi) - AXYZ(1) * sinphi(kphi)
