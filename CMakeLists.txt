@@ -34,12 +34,12 @@ include(CMakeSources.in)
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
   set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fcheck=all -fbacktrace \
-    -fno-realloc-lhs -fopenmp -std=f2008")
+    -fno-realloc-lhs -fopenmp -std=f2008 -Wall -Wextra")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
   set (CMAKE_Fortran_FLAGS "-cpp -heap-arrays -check all -traceback \
-    -assume norealloc_lhs -stand f08 -qopenmp")
+    -assume norealloc_lhs -stand f08 -qopenmp -warn all")
 
 endif ()
 
