@@ -219,7 +219,7 @@ contains
             spl%coeff(:, :, interval_index(1) + 1, interval_index(2) + 1)
 
         coeff_2(0:spl%order(2)) = coeff_local(spl%order(1), 0:spl%order(2))
-        do k2 = spl%order(2)-1, 0, -1
+        do k1 = spl%order(1)-1, 0, -1
             coeff_2(0:spl%order(2)) = coeff_local(k1, 0:spl%order(2)) &
                 + x_local(1)*coeff_2(0:spl%order(2))
         enddo
