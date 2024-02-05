@@ -12,7 +12,8 @@ module coil_tools
     coils_write_Nemov, coils_read_Nemov, &
     coils_write_GPEC, coils_read_GPEC, &
     read_currents, Biot_Savart_sum_coils, Biot_Savart_Fourier, &
-    write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier
+    write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier, &
+    Vector_Potential_Biot_Savart_Fourier, write_Anvac_Fourier
 
   type :: coil_t
     integer :: nseg = 0
@@ -204,7 +205,7 @@ contains
       action = 'read', form = 'formatted')
     read (fid, *) total
     ncoil = 0
-    do k = 1, total
+    do k = 1, total !figure out the number of coils in this loop
       read (fid, *) X, Y, Z, cur, kc
       ncoil = max(ncoil, kc)
     end do
@@ -212,7 +213,7 @@ contains
     rewind fid
     read (fid, *) total
     nseg = 0
-    do k = 1, total
+    do k = 1, total !figure out number of segments per coil and initialise the vertex coordinates in this loop
       read (fid, *) X, Y, Z, cur, kc
       if (abs(cur) > 0d0) then
         nseg = nseg + 1
@@ -224,7 +225,7 @@ contains
     rewind fid
     read (fid, *) total
     k = 1
-    do kc = 1, ncoil
+    do kc = 1, ncoil !save the vertex coordinates in coils in this loop
       do ks = 1, coils(kc)%nseg
         read (fid, *) coils(kc)%XYZ(:, ks), cur, idum
         k = k + 1
@@ -372,6 +373,263 @@ contains
     end do
     !$omp end parallel do
   end subroutine Biot_Savart_sum_coils
+
+  subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
+    !$ use omp_lib, only: omp_get_max_threads
+    use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
+      fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
+      FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
+    use math_constants, only: pi
+    type(coil_t), intent(in), dimension(:) :: coils
+    integer, intent(in) :: nmax
+    real(dp), intent(in) :: min_distance, max_eccentricity
+    logical, intent(in) :: use_convex_wall
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(in) :: nR, nphi, nZ
+    complex(dp), intent(out), dimension(:, :, :, :), allocatable :: &
+      AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    integer :: nfft, ncoil, kc, ks, ks_prev, kR, kphi, kZ
+    real(dp), dimension(nphi) :: phi, cosphi, sinphi
+    real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
+      AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
+    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_fft_output
+    real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
+    complex(c_double_complex), dimension(:), pointer :: fft_output
+
+    if (nmax > nphi / 4) then
+      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
+        'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
+      error stop
+    end if
+    nfft = nphi / 2 + 1
+    ncoil = size(coils)
+    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
+    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    cosphi(:) = cos(phi)
+    sinphi(:) = sin(phi)
+    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
+    allocate(AnR(0:nmax, nR, nZ, ncoil))
+    allocate(Anphi(0:nmax, nR, nZ, ncoil))
+    allocate(AnZ(0:nmax, nR, nZ, ncoil))
+    allocate(dAnphi_dR(0:nmax, nR, nZ, ncoil))
+    allocate(dAnphi_dZ(0:nmax, nR, nZ, ncoil))
+    ! prepare FFTW
+    !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
+    !$ call fftw_plan_with_nthreads(omp_get_max_threads())
+    p_AR = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_AR, AR, [nphi])
+    p_Aphi = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_Aphi, Aphi, [nphi])
+    p_AZ = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_AZ, AZ, [nphi])
+    p_dAphi_dR = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_dAphi_dR, dAphi_dR, [nphi])
+    p_dAphi_dZ = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_dAphi_dZ, dAphi_dZ, [nphi])
+    p_fft_output = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_fft_output, fft_output, [nfft])
+    plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
+
+    if (use_convex_wall) then
+      call read_field_input  ! read convex wall
+    end if
+
+    do kc = 1, ncoil
+      write (*, '("Computig Biot-Savart field for coil ", i0, " of ", i0, "...")') kc, ncoil
+      do kZ = 1, nZ
+        do kR = 1, nR
+          if (use_convex_wall) then
+            call stretch_coords(R(kR), Z(kZ), actual_R, actual_Z)
+          else
+            actual_R = R(kR)
+            actual_Z = Z(kZ)
+          end if
+          !$omp parallel do schedule(static) default(none) &
+          !$omp private(kphi, ks, ks_prev, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
+          !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term) &
+          !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
+          !$omp actual_R, actual_Z, min_distance, max_eccentricity)
+          do kphi = 1, nphi
+            XYZ_r(:) = [actual_R * cosphi(kphi), actual_R * sinphi(kphi), actual_Z]
+            AXYZ(:) = 0d0
+            grad_AX(:) = 0d0
+            grad_AY(:) = 0d0
+            ks_prev = coils(kc)%nseg
+            XYZ_f(:) = coils(kc)%XYZ(:, ks_prev) - XYZ_r
+            dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
+            do ks = 1, coils(kc)%nseg
+              XYZ_i(:) = XYZ_f
+              dist_i = dist_f
+              XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
+              dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
+              XYZ_if = coils(kc)%XYZ(:, ks) - coils(kc)%XYZ(:, ks_prev)
+              dist_if = sqrt(sum(XYZ_if * XYZ_if))
+              eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
+              AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
+              common_gradient_term(:) = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
+              grad_AX(:) = grad_AX - XYZ_if(1) * common_gradient_term
+              grad_AY(:) = grad_AY - XYZ_if(2) * common_gradient_term
+              ks_prev = ks
+            end do
+            AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
+            Aphi(kphi) = AXYZ(2) * cosphi(kphi) - AXYZ(1) * sinphi(kphi)
+            AZ(kphi) = AXYZ(3)
+            dAphi_dR(kphi) = grad_AY(1) * cosphi(kphi) ** 2 - grad_AX(2) * sinphi(kphi) ** 2 + &
+              (grad_AY(2) - grad_AX(1)) * cosphi(kphi) * sinphi(kphi)
+            dAphi_dZ(kphi) = grad_AY(3) * cosphi(kphi) - grad_AX(3) * sinphi(kphi)
+          end do
+          !$omp end parallel do
+          call fftw_execute_dft_r2c(plan_nphi, AR, fft_output)
+          AnR(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, Aphi, fft_output)
+          Anphi(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, AZ, fft_output)
+          AnZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, dAphi_dR, fft_output)
+          dAnphi_dR(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, dAphi_dZ, fft_output)
+          dAnphi_dZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+        end do
+      end do
+    end do
+    call fftw_destroy_plan(plan_nphi)
+    call fftw_free(p_AR)
+    call fftw_free(p_Aphi)
+    call fftw_free(p_AZ)
+    call fftw_free(p_dAphi_dR)
+    call fftw_free(p_dAphi_dZ)
+    call fftw_free(p_fft_output)
+    !$ call fftw_cleanup_threads()
+    ! nullify pointers past this point
+  end subroutine Vector_Potential_Biot_Savart_Fourier
+
+  subroutine write_Anvac_Fourier(filename, ncoil, nmax, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+    use netcdf
+    character(len = *), intent(in) :: filename
+    integer, intent(in) :: ncoil, nmax
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(in) :: nR, nphi, nZ
+    complex(dp), intent(in), dimension(:, :, :, :) :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    real(dp), dimension(:), allocatable :: R, Z, coil_number, ntor
+    integer :: status, ncid
+    integer :: dimid_R, dimid_Z, dimid_tor, dimid_coil
+    integer :: varid_R, varid_Z, varid_ntor, varid_coils, varid_nR, varid_nphi, varid_nZ
+    integer :: varid_actual_data
+    integer :: k
+
+    allocate(R(nR), Z(nZ), coil_number(ncoil), ntor(nmax))
+
+    R = linspace(Rmin, Rmax, nR, 0, 0)
+    Z = linspace(Zmin, Zmax, nZ, 0, 0)
+    coil_number = [(k, k = 1, ncoil)]
+    ntor = [(k, k = 0, nmax)]
+    
+    status = nf90_create(filename, NF90_NETCDF4, ncid)
+    call nc_check(status, 'open')
+
+    ! define dimensions metadata
+    status = nf90_def_dim(ncid, 'R', nR, dimid_R)
+    status = nf90_def_dim(ncid, 'Z', nZ, dimid_Z)
+    status = nf90_def_dim(ncid, 'ntor', nmax+1, dimid_tor)
+    status = nf90_def_dim(ncid, 'coil_number', ncoil, dimid_coil)
+
+    ! define variables metadata
+    status = nf90_def_var(ncid, 'R', NF90_DOUBLE, [dimid_R], varid_R)
+    status = nf90_def_var(ncid, 'Z', NF90_DOUBLE, [dimid_Z], varid_Z)
+    status = nf90_def_var(ncid, 'ntor', NF90_DOUBLE, [dimid_tor], varid_ntor)
+    status = nf90_def_var(ncid, 'coil_number', NF90_DOUBLE, [dimid_coil], varid_coils)
+    status = nf90_def_var(ncid, 'nR', NF90_DOUBLE, varid_nR)
+    status = nf90_def_var(ncid, 'nphi', NF90_DOUBLE, varid_nphi)
+    status = nf90_def_var(ncid, 'nZ', NF90_DOUBLE, varid_nZ)
+
+    ! write variables and comments metadata
+    status = nf90_put_var(ncid, varid_R, R)
+    status = nf90_put_att(ncid, varid_R, 'comment', 'R components of grid in cm')
+    status = nf90_put_var(ncid, varid_Z, Z)
+    status = nf90_put_att(ncid, varid_Z, 'comment', 'Z components of grid in cm')
+    status = nf90_put_var(ncid, varid_ntor, ntor)
+    status = nf90_put_att(ncid, varid_ntor, 'comment', 'toroidal mode numbers')
+    status = nf90_put_var(ncid, varid_coils, coil_number)
+    status = nf90_put_att(ncid, varid_coils, 'comment', 'coil numbers')
+    status = nf90_put_var(ncid, varid_nR, nR)
+    status = nf90_put_att(ncid, varid_nR, 'comment', 'number of grid points in R direction')
+    status = nf90_put_var(ncid, varid_nphi, nphi)
+    status = nf90_put_att(ncid, varid_nphi, 'comment', 'number of grid points in phi direction')
+    status = nf90_put_var(ncid, varid_nZ, nZ)
+    status = nf90_put_att(ncid, varid_nZ, 'comment', 'number of grid points in Z direction')
+
+    ! process actual data
+    status = nf90_def_var(ncid, 'AnR_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, real(AnR))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'real part of toroidal Fourier mode of R component of vector potential')
+    status = nf90_def_var(ncid, 'AnR_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, aimag(AnR))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'imaginary part of toroidal Fourier mode of R component of vector potential')
+
+    status = nf90_def_var(ncid, 'Anphi_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, real(Anphi))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'real part of toroidal Fourier mode of phi component of vector potential')
+    status = nf90_def_var(ncid, 'Anphi_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, aimag(Anphi))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'imaginary part of toroidal Fourier mode of phi component of vector potential')
+
+    status = nf90_def_var(ncid, 'AnZ_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, real(AnZ))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'real part of toroidal Fourier mode of Z component of vector potential')
+    status = nf90_def_var(ncid, 'AnZ_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, aimag(AnZ))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'imaginary part of toroidal Fourier mode of Z component of vector potential')
+
+    status = nf90_def_var(ncid, 'dAnphi_dR_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dR))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'real part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
+    status = nf90_def_var(ncid, 'dAnphi_dR_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dR))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'imaginary part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
+
+    status = nf90_def_var(ncid, 'dAnphi_dZ_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dZ))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'real part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
+    status = nf90_def_var(ncid, 'dAnphi_dZ_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
+    status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dZ))
+    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
+      'imaginary part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
+
+    status = nf90_close(ncid)
+    call nc_check(status, 'close')
+  end subroutine write_Anvac_Fourier
+
+  subroutine nc_check(status, operation)
+    use netcdf, only: NF90_NOERR, nf90_strerror
+    integer, intent(in) :: status
+    character(len=*), intent(in) :: operation
+
+    if (status == NF90_NOERR) return
+    write (*, '("Error encountered during ", a, ": ", a)') operation, nf90_strerror(status)
+    error stop
+  end subroutine nc_check
 
   subroutine Biot_Savart_Fourier(coils, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
