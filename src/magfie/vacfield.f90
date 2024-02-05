@@ -1,6 +1,7 @@
 program vacfield
 
   use iso_fortran_env, only: dp => real64, error_unit
+  use ieee_arithmetic, only: ieee_value, ieee_quiet_nan
   use hdf5_tools, only: h5_init, h5_deinit, h5overwrite
   use math_constants, only: current_si_to_cgs, C
   use coil_tools, only: coil_t, coil_init, coil_deinit, coils_append, &
@@ -12,7 +13,7 @@ program vacfield
 
   implicit none
 
-  real(dp) :: Rmin, Rmax, Zmin, Zmax, prefactor
+  real(dp) :: nan, Rmin, Rmax, Zmin, Zmax, prefactor
   integer :: nR, nZ, nphi, nmax
   namelist /coil_field/ Rmin, Rmax, Zmin, Zmax, nR, nZ, nphi, nmax, prefactor
   integer :: argc, fid, status, num_coilfiles, kc, ncoil
@@ -49,16 +50,17 @@ program vacfield
   call check_number_of_args(4 + num_coilfiles)
   call get_command_argument(4 + num_coilfiles, grid_file)
 
-  ! set default values for ASDEX Upgrade
-  ! Rmin = 75.0d0
-  ! Rmax = 267.0d0
-  ! Zmin = -154.0d0
-  ! Zmax = 150.4d0
-  ! nR = 150
-  ! nZ = 300
-  ! nphi = 512
-  ! nmax = 64
-  ! prefactor = 5 * current_si_to_cgs / C
+  ! set default values
+  nan = ieee_value(1d0, ieee_quiet_nan)
+  Rmin = nan
+  Rmax = nan
+  Zmin = nan
+  Zmax = nan
+  nR = 0
+  nZ = 0
+  nphi = 0
+  nmax = 0
+  prefactor = nan
 
   ! read namelist input
   open(newunit = fid, file = trim(grid_file), status = 'old', action = 'read')
