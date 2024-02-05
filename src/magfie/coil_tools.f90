@@ -384,8 +384,7 @@ contains
     type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
-    integer, intent(in) :: nR, nphi, nZ
-    character(len = 1024), intent(in) :: avoid_div
+    integer, intent(in) :: nR, nphi, nZ, avoid_div
     complex(dp), intent(out), dimension(:, :, :, :), allocatable :: AnR_array, Anphi_array, AnZ_array, &
                                                                      & dAnphi_dR_array, dAnphi_dZ_array
     integer, intent(out) :: ncoil
@@ -456,7 +455,7 @@ contains
           do kphi = 1, nphi
             XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)] !position at which vector potential should be evaluated
             
-            if (avoid_div == '4') then
+            if (avoid_div == 4) then
               dummy_phi = atan2(XYZ_r(2),XYZ_r(1))
               call stretch_coords(sqrt(XYZ_r(1)**2 + XYZ_r(2)**2), XYZ_r(3), dummy_r, dummy_z)
               XYZ_r(1) = dummy_r*cos(dummy_phi)
@@ -476,12 +475,12 @@ contains
               dist_f = sqrt(sum(XYZ_f * XYZ_f))
               XYZ_if = XYZ_f - XYZ_i
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
-              if ((avoid_div == '2').or.(avoid_div == '3')) then
+              if ((avoid_div == 2).or.(avoid_div == 3)) then
                 dist_i = max(dist_i, 6d0)
                 dist_f = max(dist_f, 6d0)
               endif
               epsilon = dist_if/(dist_i + dist_f)
-              if ((avoid_div == '1').or.(avoid_div == '3')) then
+              if ((avoid_div == 1).or.(avoid_div == 3)) then
                 epsilon = min(epsilon,0.6d0)
               endif
               alpha = log((1 + epsilon)/(1 - epsilon))
