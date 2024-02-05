@@ -349,7 +349,7 @@ contains
         ! Interpolation over x2
         coeff_3(0:spl%order(3)) = coeff_23(spl%order(2), 0:spl%order(3))
         do k2 = spl%order(2)-1, 0, -1
-            coeff_3(0:spl%order(3)) = coeff_23(k2, 0:spl%order(2)) &
+            coeff_3(0:spl%order(3)) = coeff_23(k2, 0:spl%order(3)) &
                 + x_local(2)*coeff_3(0:spl%order(3))
         enddo
 
@@ -363,7 +363,6 @@ contains
 
 
     subroutine evaluate_splines_3d_der2(spl, x, y, dy, d2y)
-        ! TODO: implement
 
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
@@ -427,10 +426,10 @@ contains
             coeff_3_dx1(0:N3) = coeff_23_dx1(N2, 0:N3)
             coeff_3_dx1x1(0:N3) = coeff_23_dx1x1(N2, 0:N3)
             do k2 = N2-1, 0, -1
-                coeff_3(0:N3) = coeff_23(k2, 0:N2) + x_local(2)*coeff_3(0:N3)
-                coeff_3_dx1(0:N3) = coeff_23_dx1(k2, 0:N2) &
+                coeff_3(0:N3) = coeff_23(k2, 0:N3) + x_local(2)*coeff_3(0:N3)
+                coeff_3_dx1(0:N3) = coeff_23_dx1(k2, 0:N3) &
                     + x_local(2)*coeff_3_dx1(0:N3)
-                coeff_3_dx1x1(0:N3) = coeff_23_dx1x1(k2, 0:N2) &
+                coeff_3_dx1x1(0:N3) = coeff_23_dx1x1(k2, 0:N3) &
                     + x_local(2)*coeff_3_dx1x1(0:N3)
             enddo
             ! First derivitatives over x2
