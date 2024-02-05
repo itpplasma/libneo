@@ -9,7 +9,7 @@ program vacfield
     coils_read_AUG, coils_read_Nemov, coils_read_GPEC, &
     read_currents, Biot_Savart_sum_coils, write_Bvac_Nemov, &
     Biot_Savart_Fourier, write_Bnvac_Fourier, &
-    Vector_Potential_Biot_Savart_Fourier, write_An_arrays
+    Vector_Potential_Biot_Savart_Fourier, write_Anvac_Fourier
 
   implicit none
 
@@ -128,7 +128,7 @@ program vacfield
     call get_command_argument(5 + num_coilfiles, field_file)
     call Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, avoid_div)
-    call write_An_arrays(trim(field_file), ncoil, size(coils), &
+    call write_Anvac_Fourier(trim(field_file), ncoil, size(coils), &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
