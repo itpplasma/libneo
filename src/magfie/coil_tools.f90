@@ -398,12 +398,12 @@ contains
     real(dp), dimension(3,3) :: dAXZ_c, dAXYZ
     real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, AXYZ(3), dAX(3), dAY(3), XYZ_if(3), dist_if
     complex :: i
-    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dz, p_AnR, p_Anphi, p_AnZ,  p_dAnphi_dR, p_dAnphi_dz
+    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_AnR, p_Anphi, p_AnZ,  p_dAnphi_dR, p_dAnphi_dz
     real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
     complex(c_double_complex), dimension(:), pointer :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
     real(dp) :: dummy_r, dummy_z, dummy_phi
 
-    call read_field_input
+    call read_field_input !just necessary to read in convex wal file if avoid_div = 4
 
     if (nmax > nphi / 4) then
       write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
@@ -434,8 +434,8 @@ contains
     call c_f_pointer(p_AZ, AZ, [nphi])
     p_dAphi_dR = fftw_alloc_real(int(nphi, c_size_t))
     call c_f_pointer(p_dAphi_dR, dAphi_dR, [nphi])
-    p_dAphi_dz = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_dAphi_dz, dAphi_dZ, [nphi])
+    p_dAphi_dZ = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_dAphi_dZ, dAphi_dZ, [nphi])
     p_AnR = fftw_alloc_complex(int(nfft, c_size_t))
     call c_f_pointer(p_AnR, AnR, [nfft])
     p_Anphi = fftw_alloc_complex(int(nfft, c_size_t))
@@ -526,12 +526,12 @@ contains
     call fftw_free(p_Aphi)
     call fftw_free(p_AZ)
     call fftw_free(p_dAphi_dR)
-    call fftw_free(p_dAphi_dz)
+    call fftw_free(p_dAphi_dZ)
     call fftw_free(p_AnR)
     call fftw_free(p_Anphi)
     call fftw_free(p_AnZ)
     call fftw_free(p_dAnphi_dR)
-    call fftw_free(p_dAnphi_dz)
+    call fftw_free(p_dAnphi_dZ)
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
   end subroutine Vector_Potential_Biot_Savart_Fourier
