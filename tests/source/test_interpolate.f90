@@ -161,8 +161,6 @@ contains
 
             call evaluate_splines_3d(x_eval, spl, actual)
 
-            print *, expected, actual
-
             if (abs(expected - actual) > TOL) error stop
 
             call destroy_splines_3d(spl)
