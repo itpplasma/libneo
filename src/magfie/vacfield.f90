@@ -23,7 +23,7 @@ program vacfield
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
   complex(dp), allocatable :: Bnvac(:, :, :, :, :)
-  complex(dp), dimension(:, :, :, :), allocatable :: AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array
+  complex(dp), dimension(:, :, :, :), allocatable :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
 
   argc = command_argument_count()
   if (argc < 1) then
@@ -127,9 +127,9 @@ program vacfield
     call check_number_of_args(5 + num_coilfiles)
     call get_command_argument(5 + num_coilfiles, field_file)
     call Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
-      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil, avoid_div)
-    call write_An_arrays(trim(field_file), ncoil, nmax, &
-      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array)
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, avoid_div)
+    call write_An_arrays(trim(field_file), ncoil, size(coils), &
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
     error stop

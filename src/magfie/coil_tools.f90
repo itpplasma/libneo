@@ -375,8 +375,9 @@ contains
   end subroutine Biot_Savart_sum_coils
 
   subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR_array, Anphi_array, AnZ_array, dAnphi_dR_array, dAnphi_dZ_array, ncoil, avoid_div)
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, avoid_div)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
+    !$ use omp_lib, only: omp_get_max_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
@@ -385,21 +386,15 @@ contains
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ, avoid_div
-    complex(dp), intent(out), dimension(:, :, :, :), allocatable :: AnR_array, Anphi_array, AnZ_array, &
-                                                                     & dAnphi_dR_array, dAnphi_dZ_array
-    integer, intent(out) :: ncoil
-    integer :: nfft, kc, ks, kR, kphi, kZ
+    complex(dp), intent(out), dimension(:, :, :, :), allocatable :: &
+      AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
-    real(dp) :: alpha, epsilon, beta(3)
-    real(dp), dimension(3,3) :: dAXZ_c, dAXYZ
-    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, AXYZ(3), dAX(3), dAY(3), XYZ_if(3), dist_if
-    complex :: i
-    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_AnR, p_Anphi, p_AnZ,  p_dAnphi_dR, p_dAnphi_dz
+    real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
+      AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
+    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_fft_output
     real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
-    complex(c_double_complex), dimension(:), pointer :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
-    real(dp) :: dummy_r, dummy_z, dummy_phi
-
-    call read_field_input !just necessary to read in convex wal file if avoid_div = 4
+    complex(c_double_complex), dimension(:), pointer :: fft_output
 
     if (nmax > nphi / 4) then
       write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
@@ -413,12 +408,11 @@ contains
     cosphi(:) = cos(phi)
     sinphi(:) = sin(phi)
     Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
-    !allocate(An(0:nmax, 3, nR, nZ, ncoil),dAn(0:nmax, 2, nR, nZ, ncoil))
-    allocate(AnR_array(0:nmax,nR,nZ,ncoil))
-    allocate(Anphi_array(0:nmax,nR,nZ,ncoil))
-    allocate(AnZ_array(0:nmax,nR,nZ,ncoil))
-    allocate(dAnphi_dR_array(0:nmax,nR,nZ,ncoil))
-    allocate(dAnphi_dZ_array(0:nmax,nR,nZ,ncoil))
+    allocate(AnR(0:nmax, nR, nZ, ncoil))
+    allocate(Anphi(0:nmax, nR, nZ, ncoil))
+    allocate(AnZ(0:nmax, nR, nZ, ncoil))
+    allocate(dAnphi_dR(0:nmax, nR, nZ, ncoil))
+    allocate(dAnphi_dZ(0:nmax, nR, nZ, ncoil))
     ! prepare FFTW
     !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
     !$ call fftw_plan_with_nthreads(omp_get_max_threads())
@@ -432,40 +426,34 @@ contains
     call c_f_pointer(p_dAphi_dR, dAphi_dR, [nphi])
     p_dAphi_dZ = fftw_alloc_real(int(nphi, c_size_t))
     call c_f_pointer(p_dAphi_dZ, dAphi_dZ, [nphi])
-    p_AnR = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_AnR, AnR, [nfft])
-    p_Anphi = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_Anphi, Anphi, [nfft])
-    p_AnZ = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_AnZ, AnZ, [nfft])
-    p_dAnphi_dR = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_dAnphi_dR, dAnphi_dR, [nfft])
-    p_dAnphi_dz = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_dAnphi_dz, dAnphi_dZ, [nfft])
+    p_fft_output = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_fft_output, fft_output, [nfft])
     plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
+
+    if (avoid_div == 4) then
+      call read_field_input  ! read convex wall
+    end if
 
     do kc = 1, ncoil
       write (*, '("Computig Biot-Savart field for coil ", i0, " of ", i0, "...")') kc, ncoil
       do kZ = 1, nZ
         do kR = 1, nR
+          if (avoid_div == 4) then
+            call stretch_coords(R(kR), Z(kZ), actual_R, actual_Z)
+          else
+            actual_R = R(kR)
+            actual_Z = Z(kZ)
+          end if
           !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, AXYZ, dAX, dAY, epsilon, alpha, beta, &
-          !$omp dummy_r, dummy_z, dummy_phi) &
-          !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, avoid_div)
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
+          !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term) &
+          !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
+          !$omp actual_R, actual_Z, avoid_div)
           do kphi = 1, nphi
-            XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)] !position at which vector potential should be evaluated
-            
-            if (avoid_div == 4) then
-              dummy_phi = atan2(XYZ_r(2),XYZ_r(1))
-              call stretch_coords(sqrt(XYZ_r(1)**2 + XYZ_r(2)**2), XYZ_r(3), dummy_r, dummy_z)
-              XYZ_r(1) = dummy_r*cos(dummy_phi)
-              XYZ_r(2) = dummy_r*sin(dummy_phi)
-              XYZ_r(3) = dummy_z
-            endif
-
+            XYZ_r(:) = [actual_R * cosphi(kphi), actual_R * sinphi(kphi), actual_Z]
             AXYZ(:) = 0d0
-            dAX(:) = 0d0
-            dAY(:) = 0d0
+            grad_AX(:) = 0d0
+            grad_AY(:) = 0d0
             XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
             dist_f = sqrt(sum(XYZ_f * XYZ_f))
             do ks = 1, coils(kc)%nseg
@@ -473,39 +461,39 @@ contains
               dist_i = dist_f
               XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
               dist_f = sqrt(sum(XYZ_f * XYZ_f))
-              XYZ_if = XYZ_f - XYZ_i
+              XYZ_if = XYZ_f - XYZ_i  ! TODO: avoid loss of precision
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
-              if ((avoid_div == 2).or.(avoid_div == 3)) then
+              if ((avoid_div == 2) .or. (avoid_div == 3)) then
                 dist_i = max(dist_i, 6d0)
                 dist_f = max(dist_f, 6d0)
               endif
-              epsilon = dist_if/(dist_i + dist_f)
-              if ((avoid_div == 1).or.(avoid_div == 3)) then
-                epsilon = min(epsilon,0.6d0)
+              eccentricity = dist_if / (dist_i + dist_f)
+              if ((avoid_div == 1) .or. (avoid_div == 3)) then
+                eccentricity = min(eccentricity, 0.6d0)
               endif
-              alpha = log((1 + epsilon)/(1 - epsilon))
-              beta = (XYZ_i/dist_i + XYZ_f/dist_f)/(dist_i*dist_f+sum(XYZ_i * XYZ_f))
-              AXYZ(:) = AXYZ + XYZ_if/dist_if*alpha
-              dAX(:) = dAX(:) - XYZ_if(1)*beta !(/dAX_dX,dAX_dY,dAX_dZ/)
-              dAY(:) = dAY(:) - XYZ_if(2)*beta !(/dAY_dX,dAY_dY,dAY_dZ/)
+              AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
+              common_gradient_term = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
+              grad_AX(:) = grad_AX(:) - XYZ_if(1) * common_gradient_term
+              grad_AY(:) = grad_AY(:) - XYZ_if(2) * common_gradient_term
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
             Aphi(kphi) = AXYZ(2) * cosphi(kphi) - AXYZ(1) * sinphi(kphi)
             AZ(kphi) = AXYZ(3)
-            dAphi_dR(kphi) = dAY(1)*cosphi(kphi)**2 - dAX(2)*sinphi(kphi)**2 + (dAY(2)-dAX(1))*cosphi(kphi)*sinphi(kphi)
-            dAphi_dZ(kphi) = dAY(3)*cosphi(kphi) - dAX(3)*sinphi(kphi)
+            dAphi_dR(kphi) = grad_AY(1) * cosphi(kphi) ** 2 - grad_AX(2) * sinphi(kphi) ** 2 + &
+              (grad_AY(2) - grad_AX(1)) * cosphi(kphi) * sinphi(kphi)
+            dAphi_dZ(kphi) = grad_AY(3) * cosphi(kphi) - grad_AX(3) * sinphi(kphi)
           end do
           !$omp end parallel do
-          call fftw_execute_dft_r2c(plan_nphi, AR, AnR)
-          call fftw_execute_dft_r2c(plan_nphi, Aphi, Anphi)
-          call fftw_execute_dft_r2c(plan_nphi, AZ, AnZ)
-          call fftw_execute_dft_r2c(plan_nphi, dAphi_dR, dAnphi_dR)
-          call fftw_execute_dft_r2c(plan_nphi, dAphi_dZ, dAnphi_dZ)
-          AnR_array(0:nmax, kR, kZ, kc) = AnR(1:nmax+1) / dble(nphi)
-          Anphi_array(0:nmax, kR, kZ, kc) = Anphi(1:nmax+1) / dble(nphi)
-          AnZ_array(0:nmax, kR, kZ, kc) = AnZ(1:nmax+1) / dble(nphi)
-          dAnphi_dR_array(0:nmax, kR, kZ, kc) = dAnphi_dR(1:nmax+1) / dble(nphi)
-          dAnphi_dZ_array(0:nmax, kR, kZ, kc) = dAnphi_dZ(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, AR, fft_output)
+          AnR(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, Aphi, fft_output)
+          Anphi(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, AZ, fft_output)
+          AnZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, dAphi_dR, fft_output)
+          dAnphi_dR(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          call fftw_execute_dft_r2c(plan_nphi, dAphi_dZ, fft_output)
+          dAnphi_dZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
         end do
       end do
     end do
@@ -515,11 +503,7 @@ contains
     call fftw_free(p_AZ)
     call fftw_free(p_dAphi_dR)
     call fftw_free(p_dAphi_dZ)
-    call fftw_free(p_AnR)
-    call fftw_free(p_Anphi)
-    call fftw_free(p_AnZ)
-    call fftw_free(p_dAnphi_dR)
-    call fftw_free(p_dAnphi_dZ)
+    call fftw_free(p_fft_output)
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
   end subroutine Vector_Potential_Biot_Savart_Fourier
