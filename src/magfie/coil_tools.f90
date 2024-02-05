@@ -374,8 +374,8 @@ contains
     !$omp end parallel do
   end subroutine Biot_Savart_sum_coils
 
-  subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, avoid_div)
+  subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
@@ -384,8 +384,10 @@ contains
     use math_constants, only: pi
     type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
+    real(dp), intent(in) :: min_distance, max_eccentricity
+    logical, intent(in) :: use_convex_wall
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
-    integer, intent(in) :: nR, nphi, nZ, avoid_div
+    integer, intent(in) :: nR, nphi, nZ
     complex(dp), intent(out), dimension(:, :, :, :), allocatable :: &
       AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
     integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
@@ -430,7 +432,7 @@ contains
     call c_f_pointer(p_fft_output, fft_output, [nfft])
     plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
 
-    if (avoid_div == 4) then
+    if (use_convex_wall) then
       call read_field_input  ! read convex wall
     end if
 
@@ -438,7 +440,7 @@ contains
       write (*, '("Computig Biot-Savart field for coil ", i0, " of ", i0, "...")') kc, ncoil
       do kZ = 1, nZ
         do kR = 1, nR
-          if (avoid_div == 4) then
+          if (use_convex_wall) then
             call stretch_coords(R(kR), Z(kZ), actual_R, actual_Z)
           else
             actual_R = R(kR)
@@ -448,29 +450,22 @@ contains
           !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
           !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
-          !$omp actual_R, actual_Z, avoid_div)
+          !$omp actual_R, actual_Z, min_distance, max_eccentricity)
           do kphi = 1, nphi
             XYZ_r(:) = [actual_R * cosphi(kphi), actual_R * sinphi(kphi), actual_Z]
             AXYZ(:) = 0d0
             grad_AX(:) = 0d0
             grad_AY(:) = 0d0
             XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
-            dist_f = sqrt(sum(XYZ_f * XYZ_f))
+            dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
             do ks = 1, coils(kc)%nseg
               XYZ_i(:) = XYZ_f
               dist_i = dist_f
               XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
-              dist_f = sqrt(sum(XYZ_f * XYZ_f))
+              dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
               XYZ_if = XYZ_f - XYZ_i  ! TODO: avoid loss of precision
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
-              if ((avoid_div == 2) .or. (avoid_div == 3)) then
-                dist_i = max(dist_i, 6d0)
-                dist_f = max(dist_f, 6d0)
-              endif
-              eccentricity = dist_if / (dist_i + dist_f)
-              if ((avoid_div == 1) .or. (avoid_div == 3)) then
-                eccentricity = min(eccentricity, 0.6d0)
-              endif
+              eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
               AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
               common_gradient_term = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
               grad_AX(:) = grad_AX(:) - XYZ_if(1) * common_gradient_term

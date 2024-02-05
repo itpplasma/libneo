@@ -18,11 +18,10 @@
   ! prefactor in Biot-Savart law, e.g. 5 windings
   ! and conversion from A to statA / c_0
   prefactor = 5.0e-1
-  ! switch to avoid singularity near coils
-  ! 0: no measures
-  ! 1: set maximum eccentricity
-  ! 2: set minimum distance
-  ! 3: set minimum eccentricity and distance
-  ! 4: use stretch_coords
-  avoid_div = 0
+  ! minimum distance to avoid singularity near coils
+  min_distance = 0.0
+  ! maximum eccentricity to avoid singularity near coils
+  max_eccentricity = 1.0
+  ! use stretch_coords to avoid singularity near coils
+  use_convex_wall = .false.
 /
