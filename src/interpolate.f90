@@ -32,6 +32,11 @@ module interpolate
         real(dp), dimension(:,:,:,:,:,:), allocatable :: coeff
     end type SplineData3D
 
+
+    interface disp
+        module procedure disp_3d
+    end interface disp
+
 contains
 
     subroutine construct_splines_1d(x_min, x_max, y, order, periodic, spl)
@@ -93,23 +98,23 @@ contains
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(out) :: y, dy
 
-        real(dp) :: x_norm, x_local, local_coeff(0:MAX_ORDER)
+        real(dp) :: x_norm, x_local, coeff_local(0:MAX_ORDER)
         integer :: interval_index, k_power
 
         x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
 
-        local_coeff(0:spl%order) = spl%coeff(:, interval_index+1)
+        coeff_local(0:spl%order) = spl%coeff(:, interval_index+1)
 
         ! Start with largest power and then multiply recursively
         dy = 0.0_dp
-        y = local_coeff(spl%order)
+        y = coeff_local(spl%order)
         do k_power = spl%order, 1, -1
-            dy = local_coeff(k_power)*dble(k_power) + x_local*dy
-            y = local_coeff(k_power) + x_local*y
+            dy = coeff_local(k_power)*dble(k_power) + x_local*dy
+            y = coeff_local(k_power) + x_local*y
         enddo
-        y = local_coeff(0) + x_local*y
+        y = coeff_local(0) + x_local*y
     end subroutine evaluate_splines_1d_der
 
 
@@ -118,26 +123,26 @@ contains
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(out) :: y, dy, d2y
 
-        real(dp) :: x_norm, x_local, local_coeff(0:MAX_ORDER)
+        real(dp) :: x_norm, x_local, coeff_local(0:MAX_ORDER)
         integer :: interval_index, k_power
 
         x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
 
-        local_coeff(0:spl%order) = spl%coeff(:, interval_index+1)
+        coeff_local(0:spl%order) = spl%coeff(:, interval_index+1)
 
         ! Start with largest power and then multiply recursively
         d2y = 0.0_dp
         dy = 0.0_dp
-        y = local_coeff(spl%order)
+        y = coeff_local(spl%order)
         do k_power = spl%order, 2, -1
-            y = local_coeff(k_power) + x_local*y
-            dy = local_coeff(k_power)*dble(k_power) + x_local*dy
-            d2y = local_coeff(k_power)*dble(k_power)*dble(k_power-1) + x_local*d2y
+            y = coeff_local(k_power) + x_local*y
+            dy = coeff_local(k_power)*dble(k_power) + x_local*dy
+            d2y = coeff_local(k_power)*dble(k_power)*dble(k_power-1) + x_local*d2y
         enddo
-        dy = local_coeff(1) + x_local*dy
-        y = local_coeff(0) + x_local*(local_coeff(1) + x_local*y)
+        dy = coeff_local(1) + x_local*dy
+        y = coeff_local(0) + x_local*(coeff_local(1) + x_local*y)
     end subroutine evaluate_splines_1d_der2
 
 
@@ -172,7 +177,7 @@ contains
             else
                 call spl_reg(spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
             endif
-            spl%coeff(1, :, i1, :) = splcoe
+            spl%coeff(0, :, i1, :) = splcoe
         enddo
         deallocate(splcoe)
 
@@ -180,7 +185,7 @@ contains
         allocate(splcoe(0:spl%order(1), spl%num_points(1)))
         do i2=1,spl%num_points(2)
             do k2=0,spl%order(2)
-                splcoe(0,:) = spl%coeff(1, k2, :, i2)
+                splcoe(0,:) = spl%coeff(0, k2, :, i2)
                 if(spl%periodic(1)) then
                     call spl_per(spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                 else
@@ -200,7 +205,7 @@ contains
         real(dp), intent(out) :: y
 
         real(dp) :: x_norm(2), x_local(2)
-        real(dp) :: coeff_2(0:MAX_ORDER), coeff_12(0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: coeff_2(0:MAX_ORDER), coeff_local(0:MAX_ORDER,0:MAX_ORDER)
         integer :: interval_index(2), k1, k2, j
 
         do j=1,2
@@ -209,13 +214,13 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
 
-        coeff_12(0:spl%order(1),0:spl%order(2)) = &
+        coeff_local(0:spl%order(1),0:spl%order(2)) = &
             spl%coeff(:, :, interval_index(1) + 1, interval_index(2) + 1)
 
-        coeff_2(0:spl%order(2)) = coeff_12(spl%order(1), 0:spl%order(2))
+        coeff_2(0:spl%order(2)) = coeff_local(spl%order(1), 0:spl%order(2))
         do k1 = spl%order(1)-1, 0, -1
-            coeff_2(0:spl%order(1)) = &
-                coeff_12(k1, 0:spl%order(2)) + x_local(1)*coeff_2(0:spl%order(1))
+            coeff_2(0:spl%order(1)) = coeff_local(k1, 0:spl%order(2)) &
+                + x_local(1)*coeff_2(0:spl%order(1))
         enddo
 
         y = coeff_2(spl%order(2))
@@ -264,7 +269,7 @@ contains
             else
                 call spl_reg(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
             endif
-            spl%coeff(1, 1, :, i1, i2, :) = splcoe
+            spl%coeff(0, 0, :, i1, i2, :) = splcoe
         enddo
         enddo
         deallocate(splcoe)
@@ -274,13 +279,15 @@ contains
         do i1=1,spl%num_points(1)
         do i3=1,spl%num_points(3)
             do k3=0,spl%order(3)
-                splcoe(0,:) = spl%coeff(1, 1, k3, i1, :, i3)
+                splcoe(0,:) = spl%coeff(0, 0, k3, i1, :, i3)
                 if(spl%periodic(1)) then
-                    call spl_per(spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
+                    call spl_per( &
+                        spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
                 else
-                    call spl_reg(spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
+                    call spl_reg( &
+                        spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
                 endif
-                spl%coeff(1, :, k3, i1, :, i3) = splcoe
+                spl%coeff(0, :, k3, i1, :, i3) = splcoe
             enddo
         enddo
         enddo
@@ -292,13 +299,15 @@ contains
         do i3=1,spl%num_points(3)
             do k2=0,spl%order(2)
             do k3=0,spl%order(3)
-                splcoe(0,:) = spl%coeff(1, k2, k3, i1, :, i3)
+                splcoe(0,:) = spl%coeff(0, k2, k3, :, i2, i3)
                 if(spl%periodic(1)) then
-                    call spl_per(spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
+                    call spl_per( &
+                        spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                 else
-                    call spl_reg(spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
+                    call spl_reg( &
+                        spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                 endif
-                spl%coeff(:, k2, k3, i1, :, i3) = splcoe
+                spl%coeff(:, k2, k3, :, i2, i3) = splcoe
             enddo
             enddo
         enddo
@@ -313,8 +322,8 @@ contains
         real(dp), intent(out) :: y
 
         real(dp) :: x_norm(3), x_local(3)
-        real(dp) :: coeff_2(0:MAX_ORDER), coeff_12(0:MAX_ORDER,0:MAX_ORDER), &
-            coeff_123(0:MAX_ORDER,0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: coeff_3(0:MAX_ORDER), coeff_23(0:MAX_ORDER,0:MAX_ORDER), &
+            coeff_local(0:MAX_ORDER,0:MAX_ORDER,0:MAX_ORDER)
         integer :: interval_index(3), k1, k2, k3, j
 
         do j=1,3
@@ -323,28 +332,32 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
 
-        coeff_123(0:spl%order(1), 0:spl%order(2), 0:spl%order(3)) = &
+        coeff_local(0:spl%order(1), 0:spl%order(2), 0:spl%order(3)) = &
             spl%coeff(:, :, :, &
             interval_index(1) + 1, interval_index(2) + 1, interval_index(3) + 1)
 
-        coeff_12(0:spl%order(1), 0:spl%order(2)) = &
-            coeff_123(1, 0:spl%order(2), 0:spl%order(3))
+        ! Interpolation over x1
+        coeff_23(0:spl%order(2), 0:spl%order(3)) = &
+            coeff_local(spl%order(1), 0:spl%order(2), 0:spl%order(3))
         do k1 = spl%order(1)-1, 0, -1
-            coeff_12(0:spl%order(1), 0:spl%order(2)) = &
-            coeff_123(k1, 0:spl%order(2), 0:spl%order(3)) &
-                + x_local(1)*coeff_12(0:spl%order(1), 0:spl%order(2))
+            coeff_23(0:spl%order(2), 0:spl%order(3)) = &
+            coeff_local(k1, 0:spl%order(2), 0:spl%order(3)) &
+                + x_local(1)*coeff_23(0:spl%order(2), 0:spl%order(3))
         enddo
 
-        coeff_2(0:spl%order(2)) = coeff_12(spl%order(1), 0:spl%order(2))
-        do k2 = spl%order(1)-1, 0, -1
-            coeff_2(0:spl%order(1)) = &
-                coeff_12(k1, 0:spl%order(2)) + x_local(2)*coeff_2(0:spl%order(2))
+        ! Interpolation over x2
+        coeff_3(0:spl%order(3)) = coeff_23(spl%order(2), 0:spl%order(3))
+        do k2 = spl%order(2)-1, 0, -1
+            coeff_3(0:spl%order(3)) = coeff_23(k2, 0:spl%order(2)) &
+                + x_local(2)*coeff_3(0:spl%order(3))
         enddo
 
-        y = coeff_2(spl%order(3))
+        ! Interpolation over x3
+        y = coeff_3(spl%order(3))
         do k3 = spl%order(3)-1, 0, -1
-            y = coeff_2(k3) + x_local(3)*y
+            y = coeff_3(k3) + x_local(3)*y
         enddo
+
     end subroutine evaluate_splines_3d
 
 
@@ -353,4 +366,16 @@ contains
 
         if(allocated(spl%coeff)) deallocate(spl%coeff)
     end subroutine destroy_splines_3d
+
+
+    subroutine disp_3d(spl)
+        type(SplineData3D), intent(in) :: spl
+        print *, "SplineData3D"
+        print *, "  order = ", spl%order
+        print *, "  num_points = ", spl%num_points
+        print *, "  periodic = ", spl%periodic
+        print *, "  x_min = ", spl%x_min
+        print *, "  x_max = ", spl%x_min + (spl%num_points-1)*spl%h_step
+        print *, "  h_step = ", spl%h_step
+    end subroutine disp_3d
 end module interpolate
