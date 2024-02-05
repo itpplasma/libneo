@@ -4,6 +4,7 @@ Test for flux_label_converter.py
 # %% standard modules
 import numpy as np
 from numpy.testing import assert_allclose
+from scipy.interpolate import CubicSpline
 import pytest
 
 # module to test
@@ -53,14 +54,14 @@ test_edge_polflux = 0.0
 
 def test_FluxConverter():
 
+    converter = FluxConverter(test_q_profile, test_axis_polflux, test_edge_polflux)
     test_polflux_profile = np.linspace(test_axis_polflux, test_edge_polflux, len(test_q_profile))
-    converter = FluxConverter(test_q_profile, test_polflux_profile)
 
     result_torflux_profile = converter.polflux2torflux(test_polflux_profile)
     result_polflux_profile = converter.torflux2polflux(result_torflux_profile)
 
     assert_allclose(result_polflux_profile, test_polflux_profile, atol=1e-15) # choice of atol due to used control data precision
-    print("Interpolation of polflux over torflux is selfconsistent")
+    print("Conversion between polflux torflux is selfconsistent")
 
     control_torflux_profile = np.array([  0.        ,   0.79529968,   1.59375918,   2.39571   ,
     3.2013764 ,   4.01095914,   4.82445535,   5.64180945,
@@ -110,35 +111,87 @@ def test_FluxConverter():
     260.52885531])
 
     assert_allclose(result_torflux_profile, control_torflux_profile)
-    print("Interpolation of torflux over polflux is consistent with control data")
+    print("Result of FluxConverter (polflux -> torflux) is consistent with control data")
 
     print('----------------------------------------------------------------')
     print('Result of conversion:')
     print("polflux = ", test_polflux_profile[:5],'...',test_polflux_profile[-5:])
     print("torflux = ", result_torflux_profile[:5],'...',result_torflux_profile[-5:])
+    print('----------------------------------------------------------------')
 
-def can_import_FluxLabelConverter():
-    try:
-        from libneo import FluxLabelConverter
-        return True
-    except ImportError:
-        return False
+def test_compare_FluxConverter_to_direct_conversion():
 
-@pytest.mark.skipif(not can_import_FluxLabelConverter(), reason="FluxLabelConverter not available")
-def test_compare_FluxConverter_to_FluxLabelConverter():
+    """
+    Comparison of FluxConverter conversion routine with a direct transformation:
+    {toroidal_flux} = int_{poloidal_flux_min}^{polodial_flux}q({flux})d{flux}
+    """
 
-    from libneo import FluxLabelConverter
+    test_polflux_profile = np.linspace(test_axis_polflux, test_edge_polflux, len(test_q_profile))
+    interp_q = CubicSpline(test_polflux_profile, test_q_profile, extrapolate=True)
+    interp_torflux = interp_q.antiderivative()
+    direct_conversion_torflux_profile = interp_torflux(test_polflux_profile)
 
     # standard calculation of torflux profile with FluxConverter
-    test_polflux_profile = np.linspace(test_axis_polflux, test_edge_polflux, len(test_q_profile))
-    converter = FluxConverter(test_q_profile, test_polflux_profile)
+    converter = FluxConverter(test_q_profile, test_axis_polflux, test_edge_polflux)
     result_torflux_profile = converter.polflux2torflux(test_polflux_profile)
 
-    # alternative calculation of torflux profile with FluxLabelConverter
-    label_converter = FluxLabelConverter(test_q_profile)
-    s_pol = np.linspace(0.0, 1.0, len(test_q_profile))
-    s_tor = label_converter.spol2stor(s_pol)
-    alternative_torflux_profile = s_tor * label_converter.torflux_max_over_delta_polflux * (test_polflux_profile[-1]-test_polflux_profile[0])
+    assert_allclose(direct_conversion_torflux_profile, result_torflux_profile)
+    print("Result of FluxConverter (polflux -> torflux) is consistent with direct conversion method")
 
-    assert_allclose(alternative_torflux_profile, result_torflux_profile)
-    print("Interpolation of torflux over polflux is consistent with alternative FluxLabelConverter result")
+def test_FluxConverter_label_conversion():
+
+    converter = FluxConverter(test_q_profile)
+
+    test_spol = np.linspace(0.0, 1.0, len(test_q_profile))
+    result_stor = converter.spol2stor(test_spol)
+    result_spol = converter.stor2spol(result_stor)
+
+    assert_allclose(result_spol, test_spol)
+    print("Conversion between spol & stor is selfconsistent")
+
+    control_stor = np.array([0.        , 0.00305264, 0.0061174 , 0.00919556, 0.01228799,
+       0.01539545, 0.01851793, 0.02165522, 0.02480711, 0.02797305,
+       0.0311526 , 0.03434537, 0.03755084, 0.04076859, 0.0439983 ,
+       0.04723965, 0.05049237, 0.05375624, 0.05703107, 0.06031671,
+       0.06361302, 0.06691991, 0.07023729, 0.07356508, 0.07690323,
+       0.08025168, 0.08361038, 0.08697933, 0.09035848, 0.09374782,
+       0.09714737, 0.10055711, 0.10397706, 0.10740721, 0.11084758,
+       0.11429816, 0.11775894, 0.12122991, 0.12471108, 0.12820247,
+       0.13170412, 0.13521611, 0.13873857, 0.1422717 , 0.14581576,
+       0.14937107, 0.15293801, 0.156517  , 0.16010853, 0.1637131 ,
+       0.16733124, 0.17096348, 0.17461034, 0.17827235, 0.18195001,
+       0.18564378, 0.18935413, 0.19308149, 0.19682629, 0.20058895,
+       0.20436986, 0.20816943, 0.21198805, 0.21582611, 0.21968398,
+       0.22356206, 0.22746073, 0.23138036, 0.23532135, 0.23928408,
+       0.24326894, 0.2472763 , 0.25130655, 0.25536006, 0.25943721,
+       0.2635384 , 0.26766399, 0.27181438, 0.27598996, 0.28019112,
+       0.28441826, 0.28867178, 0.29295209, 0.29725959, 0.30159472,
+       0.30595789, 0.31034954, 0.31477012, 0.31922009, 0.3236999 ,
+       0.32821003, 0.33275096, 0.3373232 , 0.34192725, 0.34656362,
+       0.35123286, 0.35593551, 0.36067213, 0.3654433 , 0.37024961,
+       0.37509166, 0.37997009, 0.38488553, 0.38983863, 0.39483008,
+       0.39986057, 0.40493083, 0.41004157, 0.41519357, 0.4203876 ,
+       0.42562446, 0.43090498, 0.43623001, 0.44160041, 0.4470171 ,
+       0.452481  , 0.45799307, 0.46355429, 0.46916568, 0.47482827,
+       0.48054317, 0.48631146, 0.49213432, 0.49801292, 0.50394848,
+       0.50994227, 0.51599559, 0.5221098 , 0.5282863 , 0.53452652,
+       0.54083196, 0.54720417, 0.55364474, 0.56015535, 0.56673771,
+       0.57339363, 0.58012495, 0.5869336 , 0.59382159, 0.60079102,
+       0.60784406, 0.61498299, 0.62221018, 0.62952811, 0.63693937,
+       0.64444668, 0.65205288, 0.65976098, 0.66757413, 0.67549562,
+       0.68352897, 0.69167787, 0.69994624, 0.70833825, 0.71685832,
+       0.72551116, 0.73430183, 0.74323576, 0.75231876, 0.76155712,
+       0.77095769, 0.7805279 , 0.79027589, 0.80021058, 0.8103417 ,
+       0.82067991, 0.83123653, 0.84202313, 0.85305031, 0.86432628,
+       0.87585399, 0.88762812, 0.89963264, 0.91183917, 0.92421066,
+       0.93670646, 0.94928847, 0.9619269 , 0.97460007, 0.98729352,
+       1.        ])
+
+    assert_allclose(result_stor, control_stor, atol=1e-6) # choice of atol due to used control data precision
+    print("Result of FLuxConverter (spol -> stor) is consistent with control data")
+
+    print('----------------------------------------------------------------')
+    print('Result of conversion:')
+    print("s_pol = ", test_spol[:5],'...',test_spol[-5:])
+    print("s_tor = ", result_stor[:5],'...',result_stor[-5:])
+    print('----------------------------------------------------------------')
