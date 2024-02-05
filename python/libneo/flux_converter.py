@@ -13,42 +13,34 @@ from scipy.interpolate import CubicSpline
 
 class FluxConverter:
     """
-    This is a class for the conversion between the poloidal and toroidal flux label psipol and phitor of a given flux surface.
+    This is a class for the conversion between the poloidal and toroidal flux polflux and torflux of a given flux surface.
     The conversion is based on the safety factor profile q as q = d{toroidal_flux}/d{polodial_flux}.
     Therefore {toroidal_flux} = int_{poloidal_flux_min}^{polodial_flux}q({flux})d{flux}
     """
 
-    def __init__(self, q_profile:np.ndarray, psipol_profile:np.ndarray):
+    def __init__(self, q_profile:np.ndarray, polflux_profile:np.ndarray):
         
-        interp_q = CubicSpline(psipol_profile, q_profile, extrapolate=True)
-        self.interp_phitor = interp_q.antiderivative()
+        interp_q = CubicSpline(polflux_profile, q_profile, extrapolate=True)
+        self.interp_torflux = interp_q.antiderivative()
 
-        # Setup conversion phitor -> psipol using previously made conversion psipol -> phitor
-        self.interp_psipol = CubicSpline(self.psipol2phitor(psipol_profile), 
-                                        psipol_profile, extrapolate=True) 
+        # Setup conversion torflux -> polflux using previously made conversion polflux -> torflux
+        self.interp_polflux = CubicSpline(self.polflux2torflux(polflux_profile), 
+                                        polflux_profile, extrapolate=True) 
         
-    def psipol2phitor(self, psipol):
+    def polflux2torflux(self, polflux):
         """
-        Converts the poloidal flux psipol to the toroidal flux phitor.
-        """
-
-        phitor = self.interp_phitor(psipol)
-
-        return phitor
-
-    def phitor2psipol(self, phitor):
-        """
-        Converts the toroidal flux phitor to the poloidal flux psipol.
+        Converts the poloidal flux polflux to the toroidal flux torflux.
         """
 
-        psipol = self.interp_psipol(phitor)
+        torflux = self.interp_torflux(polflux)
 
-        return psipol
+        return torflux
 
-################################################################################
-################################################################################
-################################################################################
+    def torflux2polflux(self, torflux):
+        """
+        Converts the toroidal flux torflux to the poloidal flux polflux.
+        """
 
-if __name__=='__main__':
-    print('This file contains a class for the conversion between the poloidal and') 
-    print('toroidal flux psipol and phitor of a given flux surface.')
+        polflux = self.interp_polflux(torflux)
+
+        return polflux

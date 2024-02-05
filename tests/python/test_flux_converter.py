@@ -3,13 +3,14 @@ Test for flux_label_converter.py
 """
 # %% standard modules
 import numpy as np
+from numpy.testing import assert_allclose
+import pytest
 
 # module to test
 from libneo import FluxConverter
 
-def test_FluxConverter():
-
-    test_q_profile = np.array([0.107328883E+01, 0.107720493E+01, 0.108176034E+01, 0.108662293E+01, 0.109180789E+01,
+# testing data
+test_q_profile = np.array([0.107328883E+01, 0.107720493E+01, 0.108176034E+01, 0.108662293E+01, 0.109180789E+01,
     0.109715777E+01, 0.110237995E+01, 0.110759326E+01, 0.111264174E+01, 0.111749784E+01,
     0.112223282E+01, 0.112679797E+01, 0.113119024E+01, 0.113545534E+01, 0.113960896E+01,
     0.114366003E+01, 0.114762476E+01, 0.115151626E+01, 0.115534554E+01, 0.115912742E+01,
@@ -47,21 +48,21 @@ def test_FluxConverter():
     0.441836509E+01, 0.444296595E+01, 0.445858607E+01, 0.446785744E+01, 0.447329187E+01,
     0.447746807E+01])
 
-    test_axis_psipol = -133.14471161454674
-    test_edge_psipol = 0
+test_axis_polflux = -133.14471161454674
+test_edge_polflux = 0.0
 
-    test_psipol_profile = np.linspace(test_axis_psipol, test_edge_psipol, len(test_q_profile))
-    converter = FluxConverter(test_q_profile, test_psipol_profile)
+def test_FluxConverter():
 
-    result_phitor_profile = converter.psipol2phitor(test_psipol_profile)
-    result_psipol_profile = converter.phitor2psipol(result_phitor_profile)
+    test_polflux_profile = np.linspace(test_axis_polflux, test_edge_polflux, len(test_q_profile))
+    converter = FluxConverter(test_q_profile, test_polflux_profile)
 
-    from numpy.testing import assert_allclose
+    result_torflux_profile = converter.polflux2torflux(test_polflux_profile)
+    result_polflux_profile = converter.torflux2polflux(result_torflux_profile)
 
-    assert_allclose(result_psipol_profile, test_psipol_profile, atol=1e-15) # choice of atol due to used control data precision
-    print("Interpolation of psipol over phitor is selfconsistent")
+    assert_allclose(result_polflux_profile, test_polflux_profile, atol=1e-15) # choice of atol due to used control data precision
+    print("Interpolation of polflux over torflux is selfconsistent")
 
-    control_phitor_profile = np.array([  0.        ,   0.79529968,   1.59375918,   2.39571   ,
+    control_torflux_profile = np.array([  0.        ,   0.79529968,   1.59375918,   2.39571   ,
     3.2013764 ,   4.01095914,   4.82445535,   5.64180945,
     6.46296881,   7.28778702,   8.11615171,   8.94795915,
     9.78307726,  10.62139507,  11.46282612,  12.30729084,
@@ -108,24 +109,36 @@ def test_FluxConverter():
     247.31703819, 250.60971409, 253.91144158, 257.21845125,
     260.52885531])
 
-    assert_allclose(result_phitor_profile, control_phitor_profile)
-    print("Interpolation of phitor over psipol is consistent with control data")
-
-    # the following profile was generated with FluxLabelConverter as:
-    try:
-        from libneo import FluxLabelConverter
-        label_converter = FluxLabelConverter(test_q_profile)
-        s_pol = np.linspace(0.0, 1.0, len(test_q_profile))
-        s_tor = label_converter.spol2stor(s_pol)
-        alternative_phitor_profile = s_tor * label_converter.phitor_max_over_delta_psipol * (test_psipol_profile[-1]-test_psipol_profile[0])
-
-        assert_allclose(alternative_phitor_profile, result_phitor_profile)
-        print("Interpolation of phitor over psipol is consistent with alternative FluxLabelConverter result")
-    except:
-        print("Generating alternative_phitor_profile failed. Skipping test.")
+    assert_allclose(result_torflux_profile, control_torflux_profile)
+    print("Interpolation of torflux over polflux is consistent with control data")
 
     print('----------------------------------------------------------------')
     print('Result of conversion:')
-    print("psipol = ", test_psipol_profile[:5],'...',test_psipol_profile[-5:])
-    print("phitor = ", result_phitor_profile[:5],'...',result_phitor_profile[-5:])
-    
+    print("polflux = ", test_polflux_profile[:5],'...',test_polflux_profile[-5:])
+    print("torflux = ", result_torflux_profile[:5],'...',result_torflux_profile[-5:])
+
+def can_import_FluxLabelConverter():
+    try:
+        from libneo import FluxLabelConverter
+        return True
+    except ImportError:
+        return False
+
+@pytest.mark.skipif(not can_import_FluxLabelConverter(), reason="FluxLabelConverter not available")
+def test_compare_FluxConverter_to_FluxLabelConverter():
+
+    from libneo import FluxLabelConverter
+
+    # standard calculation of torflux profile with FluxConverter
+    test_polflux_profile = np.linspace(test_axis_polflux, test_edge_polflux, len(test_q_profile))
+    converter = FluxConverter(test_q_profile, test_polflux_profile)
+    result_torflux_profile = converter.polflux2torflux(test_polflux_profile)
+
+    # alternative calculation of torflux profile with FluxLabelConverter
+    label_converter = FluxLabelConverter(test_q_profile)
+    s_pol = np.linspace(0.0, 1.0, len(test_q_profile))
+    s_tor = label_converter.spol2stor(s_pol)
+    alternative_torflux_profile = s_tor * label_converter.torflux_max_over_delta_polflux * (test_polflux_profile[-1]-test_polflux_profile[0])
+
+    assert_allclose(alternative_torflux_profile, result_torflux_profile)
+    print("Interpolation of torflux over polflux is consistent with alternative FluxLabelConverter result")

@@ -28,9 +28,9 @@ class FluxLabelConverter:
 
         # Setup conversion spol -> stor
         interp_q = CubicSpline(spol_list, q_profile, extrapolate=True)
-        self.interp_phitor_over_delta_psipol = interp_q.antiderivative()
-        self.phitor_max_over_delta_psipol = self.interp_phitor_over_delta_psipol(1.0)
-        self.phitor_min_over_delta_psipol = self.interp_phitor_over_delta_psipol(0.0)
+        self.interp_torflux_over_delta_polflux = interp_q.antiderivative()
+        self.torflux_max_over_delta_polflux = self.interp_torflux_over_delta_polflux(1.0)
+        self.torflux_min_over_delta_polflux = self.interp_torflux_over_delta_polflux(0.0)
 
         # Setup conversion stor -> spol using previously made conversion spol -> stor
         self.interp_spol = CubicSpline(self.spol2stor(spol_list), 
@@ -41,7 +41,7 @@ class FluxLabelConverter:
         Converts the poloidal flux label s_pol to the toroidal flux label s_tor.
         """
 
-        stor = (self.interp_phitor_over_delta_psipol(spol)-self.phitor_min_over_delta_psipol)/(self.phitor_max_over_delta_psipol - self.phitor_min_over_delta_psipol)
+        stor = (self.interp_torflux_over_delta_polflux(spol)-self.torflux_min_over_delta_polflux)/(self.torflux_max_over_delta_polflux - self.torflux_min_over_delta_polflux)
 
         return stor
 
@@ -53,11 +53,3 @@ class FluxLabelConverter:
         spol = self.interp_spol(stor)
 
         return spol
-
-################################################################################
-################################################################################
-################################################################################
-
-if __name__=='__main__':
-    print('This file contains a class for the conversion between the poloidal and') 
-    print('toroidal flux label s_pol and s_tor of a given flux surface.')
