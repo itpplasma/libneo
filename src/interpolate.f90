@@ -71,9 +71,9 @@ contains
     end subroutine destroy_splines_1d
 
 
-    subroutine evaluate_splines_1d(x, spl, y)
-        real(dp), intent(in) :: x
+    subroutine evaluate_splines_1d(spl, x, y)
         type(SplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
         real(dp), intent(out) :: y
 
         real(dp) :: x_norm, x_local, local_coeff(0:MAX_ORDER)
@@ -93,9 +93,9 @@ contains
     end subroutine evaluate_splines_1d
 
 
-    subroutine evaluate_splines_1d_der(x, spl, y, dy)
-        real(dp), intent(in) :: x
+    subroutine evaluate_splines_1d_der(spl, x, y, dy)
         type(SplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy
 
         real(dp) :: x_norm, x_local, coeff_local(0:MAX_ORDER)
@@ -103,24 +103,24 @@ contains
 
         x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
-        x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
+        x_local = (x_norm - dble(interval_index))*spl%h_step
 
         coeff_local(0:spl%order) = spl%coeff(:, interval_index+1)
 
-        ! Start with largest power and then multiply recursively
-        dy = 0.0_dp
         y = coeff_local(spl%order)
-        do k_power = spl%order, 1, -1
-            dy = coeff_local(k_power)*dble(k_power) + x_local*dy
+        do k_power = spl%order-1, 0, -1
             y = coeff_local(k_power) + x_local*y
         enddo
-        y = coeff_local(0) + x_local*y
+        dy = coeff_local(spl%order)*spl%order
+        do k_power = spl%order-1, 1, -1
+            dy = coeff_local(k_power)*k_power + x_local*dy
+        enddo
     end subroutine evaluate_splines_1d_der
 
 
-    subroutine evaluate_splines_1d_der2(x, spl, y, dy, d2y)
-        real(dp), intent(in) :: x
+    subroutine evaluate_splines_1d_der2(spl, x, y, dy, d2y)
         type(SplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy, d2y
 
         real(dp) :: x_norm, x_local, coeff_local(0:MAX_ORDER)
@@ -128,21 +128,22 @@ contains
 
         x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
-        x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
+        x_local = (x_norm - dble(interval_index))*spl%h_step
 
         coeff_local(0:spl%order) = spl%coeff(:, interval_index+1)
 
-        ! Start with largest power and then multiply recursively
-        d2y = 0.0_dp
-        dy = 0.0_dp
         y = coeff_local(spl%order)
-        do k_power = spl%order, 2, -1
+        do k_power = spl%order-1, 0, -1
             y = coeff_local(k_power) + x_local*y
-            dy = coeff_local(k_power)*dble(k_power) + x_local*dy
-            d2y = coeff_local(k_power)*dble(k_power)*dble(k_power-1) + x_local*d2y
         enddo
-        dy = coeff_local(1) + x_local*dy
-        y = coeff_local(0) + x_local*(coeff_local(1) + x_local*y)
+        dy = coeff_local(spl%order)*spl%order
+        do k_power = spl%order-1, 1, -1
+            dy = coeff_local(k_power)*k_power + x_local*dy
+        enddo
+        d2y = coeff_local(spl%order)*spl%order*(spl%order-1)
+        do k_power = spl%order-1, 2, -1
+            d2y = coeff_local(k_power)*k_power*(k_power-1) + x_local*d2y
+        enddo
     end subroutine evaluate_splines_1d_der2
 
 
@@ -199,9 +200,9 @@ contains
     end subroutine construct_splines_2d
 
 
-    subroutine evaluate_splines_2d(x, spl, y)
-        real(dp), intent(in) :: x(2)
+    subroutine evaluate_splines_2d(spl, x, y)
         type(SplineData2D), intent(in) :: spl
+        real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y
 
         real(dp) :: x_norm(2), x_local(2)
@@ -219,8 +220,8 @@ contains
 
         coeff_2(0:spl%order(2)) = coeff_local(spl%order(1), 0:spl%order(2))
         do k1 = spl%order(1)-1, 0, -1
-            coeff_2(0:spl%order(1)) = coeff_local(k1, 0:spl%order(2)) &
-                + x_local(1)*coeff_2(0:spl%order(1))
+            coeff_2(0:spl%order(2)) = coeff_local(k1, 0:spl%order(2)) &
+                + x_local(1)*coeff_2(0:spl%order(2))
         enddo
 
         y = coeff_2(spl%order(2))
@@ -261,8 +262,8 @@ contains
 
         ! Spline over x3
         allocate(splcoe(0:spl%order(3), spl%num_points(3)))
-        do i1=1,spl%num_points(1)
         do i2=1,spl%num_points(2)
+        do i1=1,spl%num_points(1)
             splcoe(0,:) = y(i1, i2, :)
             if (spl%periodic(3)) then
                 call spl_per(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
@@ -276,11 +277,11 @@ contains
 
         ! Spline over x2
         allocate(splcoe(0:spl%order(2), spl%num_points(2)))
-        do i1=1,spl%num_points(1)
         do i3=1,spl%num_points(3)
+        do i1=1,spl%num_points(1)
             do k3=0,spl%order(3)
                 splcoe(0,:) = spl%coeff(0, 0, k3, i1, :, i3)
-                if(spl%periodic(1)) then
+                if(spl%periodic(2)) then
                     call spl_per( &
                         spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
                 else
@@ -295,10 +296,10 @@ contains
 
         ! Spline over x1
         allocate(splcoe(0:spl%order(1), spl%num_points(1)))
-        do i2=1,spl%num_points(2)
         do i3=1,spl%num_points(3)
-            do k2=0,spl%order(2)
+        do i2=1,spl%num_points(2)
             do k3=0,spl%order(3)
+            do k2=0,spl%order(2)
                 splcoe(0,:) = spl%coeff(0, k2, k3, :, i2, i3)
                 if(spl%periodic(1)) then
                     call spl_per( &
@@ -316,9 +317,9 @@ contains
     end subroutine construct_splines_3d
 
 
-    subroutine evaluate_splines_3d(x, spl, y)
-        real(dp), intent(in) :: x(3)
+    subroutine evaluate_splines_3d(spl, x, y)
         type(SplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y
 
         real(dp) :: x_norm(3), x_local(3)
@@ -359,6 +360,128 @@ contains
         enddo
 
     end subroutine evaluate_splines_3d
+
+
+    subroutine evaluate_splines_3d_der2(spl, x, y, dy, d2y)
+        ! TODO: implement
+
+        type(SplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y, dy(3), d2y(6)
+
+        real(dp) :: x_norm(3), x_local(3)
+
+        real(dp) :: coeff_local(0:MAX_ORDER,0:MAX_ORDER,0:MAX_ORDER)
+
+        real(dp) :: coeff_23(0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1(0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1x1(0:MAX_ORDER,0:MAX_ORDER)
+
+        real(dp) :: coeff_3(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1x1(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1x2(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2x2(0:MAX_ORDER)
+
+        integer :: interval_index(3), k1, k2, k3, j
+
+        dy = 0d0
+        d2y = 0d0
+
+        do j=1,3
+            x_norm(j) = (x(j) - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
+        end do
+
+        associate(N1 => spl%order(1), N2 => spl%order(2), N3 => spl%order(3))
+
+            coeff_local(0:N1, 0:N2, 0:N3) = &
+                spl%coeff(:, :, :, &
+                interval_index(1) + 1, &
+                interval_index(2) + 1, &
+                interval_index(3) + 1)
+
+            ! Interpolation over x1
+            coeff_23(0:N2, 0:N3) = coeff_local(N1, 0:N2, 0:N3)
+            do k1 = N1-1, 0, -1
+                coeff_23(0:N2, 0:N3) = coeff_local(k1, 0:N2, 0:N3) &
+                    + x_local(1)*coeff_23(0:N2, 0:N3)
+            enddo
+            ! First derivitative over x1
+            coeff_23_dx1(0:N2, 0:N3) = coeff_local(N1, 0:N2, 0:N3)*N1
+            do k1 = N1-1, 1, -1
+                coeff_23_dx1(0:N2, 0:N3) = coeff_local(k1, 0:N2, 0:N3)*k1 &
+                    + x_local(1)*coeff_23_dx1(0:N2, 0:N3)
+            enddo
+            ! Second derivitative over x1
+            coeff_23_dx1x1(0:N2,0:N3) = coeff_local(N1, 0:N2, 0:N3)*N1*(N1-1)
+            do k1 = N1-1, 2, -1
+                coeff_23_dx1x1(0:N2, 0:N3)=coeff_local(k1,0:N2,0:N3)*k1*(k1-1) &
+                    + x_local(1)*coeff_23_dx1x1(0:N2, 0:N3)
+            enddo
+
+            ! Interpolation over x2 and pure derivatives over x1
+            coeff_3(0:N3) = coeff_23(N2, 0:N3)
+            coeff_3_dx1(0:N3) = coeff_23_dx1(N2, 0:N3)
+            coeff_3_dx1x1(0:N3) = coeff_23_dx1x1(N2, 0:N3)
+            do k2 = N2-1, 0, -1
+                coeff_3(0:N3) = coeff_23(k2, 0:N2) + x_local(2)*coeff_3(0:N3)
+                coeff_3_dx1(0:N3) = coeff_23_dx1(k2, 0:N2) &
+                    + x_local(2)*coeff_3_dx1(0:N3)
+                coeff_3_dx1x1(0:N3) = coeff_23_dx1x1(k2, 0:N2) &
+                    + x_local(2)*coeff_3_dx1x1(0:N3)
+            enddo
+            ! First derivitatives over x2
+            coeff_3_dx2(0:N3) = coeff_23(N2, 0:N3)*N2
+            coeff_3_dx1x2(0:N3) = coeff_23_dx1(N2, 0:N3)*N2
+            do k2 = N2-1, 1, -1
+                coeff_3_dx2(0:N3) = coeff_23(k2, 0:N3)*k2 &
+                    + x_local(2)*coeff_3_dx2(0:N3)
+                coeff_3_dx1x2(0:N3) = coeff_23_dx1(k2, 0:N3)*k2 &
+                    + x_local(2)*coeff_3_dx1x2(0:N3)
+            enddo
+            ! Second derivitative over x2
+            coeff_3_dx2x2(0:N3) = coeff_23(N2, 0:N3)*N2*(N2-1)
+            do k2 = N2-1, 2, -1
+                coeff_3_dx2x2(0:N3) = coeff_23(k2, 0:N3)*k2*(k2-1) &
+                    + x_local(2)*coeff_3_dx2x2(0:N3)
+            enddo
+
+            ! Interpolation over x3
+            y = coeff_3(N3)
+            dy(1) = coeff_3_dx1(N3)
+            dy(2) = coeff_3_dx2(N3)
+            d2y(1) = coeff_3_dx1x1(N3)
+            d2y(2) = coeff_3_dx1x2(N3)
+            d2y(4) = coeff_3_dx2x2(N3)
+            do k3 = N3-1, 0, -1
+                y = coeff_3(k3) + x_local(3)*y
+                dy(1) = coeff_3_dx1(k3) + x_local(3)*dy(1)
+                dy(2) = coeff_3_dx2(k3) + x_local(3)*dy(2)
+                d2y(1) = coeff_3_dx1x1(k3) + x_local(3)*d2y(1)
+                d2y(2) = coeff_3_dx1x2(k3) + x_local(3)*d2y(2)
+                d2y(4) = coeff_3_dx2x2(k3) + x_local(3)*d2y(4)
+            enddo
+            ! First derivitatives over x3
+            dy(3) = coeff_3(N3)*N3
+            d2y(3) = coeff_3_dx1(N3)*N3
+            d2y(5) = coeff_3_dx2(N3)*N3
+            do k3 = N3-1, 1, -1
+                dy(3) = coeff_3(k3)*k3 + x_local(3)*dy(3)
+                d2y(3) = coeff_3_dx1(k3)*k3 + x_local(3)*d2y(3)
+                d2y(5) = coeff_3_dx2(k3)*k3 + x_local(3)*d2y(5)
+            enddo
+            ! Second derivitative over x3
+            d2y(6) = coeff_3(N3)*N3*(N3-1)
+            do k3 = N3-1, 2, -1
+                d2y(6) = coeff_3(k3)*k3*(k3-1) + x_local(3)*d2y(6)
+            enddo
+
+        end associate
+
+    end subroutine evaluate_splines_3d_der2
 
 
     subroutine destroy_splines_3d(spl)
