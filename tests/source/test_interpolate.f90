@@ -104,7 +104,7 @@ contains
         call construct_splines_2d([X_MIN, X_MIN], [X_MAX, X_MAX], &
             y, spline_order, periodic, spl)
 
-        x_eval(1) = (x1(30) + x1(31))/2.0d0
+        x_eval(1) = (x1(55) + x1(56))/2.0d0
         x_eval(2) = (x2(28) + x2(29))/2.0d0
 
         expected = cos(x_eval(1))*cos(x_eval(2))
@@ -160,6 +160,8 @@ contains
             expected = cos(x_eval(1))*cos(x_eval(2))*cos(x_eval(3))
 
             call evaluate_splines_3d(x_eval, spl, actual)
+
+            print *, expected, actual
 
             if (abs(expected - actual) > TOL) error stop
 
