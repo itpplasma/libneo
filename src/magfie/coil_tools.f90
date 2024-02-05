@@ -468,9 +468,9 @@ contains
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
               eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
               AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
-              common_gradient_term = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
-              grad_AX(:) = grad_AX(:) - XYZ_if(1) * common_gradient_term
-              grad_AY(:) = grad_AY(:) - XYZ_if(2) * common_gradient_term
+              common_gradient_term(:) = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
+              grad_AX(:) = grad_AX - XYZ_if(1) * common_gradient_term
+              grad_AY(:) = grad_AY - XYZ_if(2) * common_gradient_term
               ks_prev = ks
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
@@ -528,13 +528,13 @@ contains
     ntor = [(k, k = 0, nmax)]
     
     status = nf90_create(filename, NF90_NETCDF4, ncid)
-    call check(status, 'open')
+    call nc_check(status, 'open')
 
     ! define dimensions metadata
     status = nf90_def_dim(ncid, 'R', nR, dimid_R)
     status = nf90_def_dim(ncid, 'Z', nZ, dimid_Z)
     status = nf90_def_dim(ncid, 'ntor', nmax+1, dimid_tor)
-    status = nf90_def_dim(ncid, 'coil number', ncoil, dimid_coil)
+    status = nf90_def_dim(ncid, 'coil_number', ncoil, dimid_coil)
 
     ! define variables metadata
     status = nf90_def_var(ncid, 'R', NF90_DOUBLE, [dimid_R], varid_R)
@@ -562,65 +562,74 @@ contains
     status = nf90_put_att(ncid, varid_nZ, 'comment', 'number of grid points in Z direction')
 
     ! process actual data
-    status = nf90_def_var(ncid, 'AnR_real', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+    status = nf90_def_var(ncid, 'AnR_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, real(AnR))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'real part of toroidal Fourier mode of R component of vector potential')
-    status = nf90_def_var(ncid, 'AnR_imag', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+      'real part of toroidal Fourier mode of R component of vector potential')
+    status = nf90_def_var(ncid, 'AnR_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, aimag(AnR))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'imaginary part of toroidal Fourier mode of R component of vector potential')
+      'imaginary part of toroidal Fourier mode of R component of vector potential')
 
-    status = nf90_def_var(ncid, 'Anphi_real', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+    status = nf90_def_var(ncid, 'Anphi_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, real(Anphi))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'real part of toroidal Fourier mode of phi component of vector potential')
-    status = nf90_def_var(ncid, 'Anphi_imag', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+      'real part of toroidal Fourier mode of phi component of vector potential')
+    status = nf90_def_var(ncid, 'Anphi_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, aimag(Anphi))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'imaginary part of toroidal Fourier mode of phi component of vector potential')
+      'imaginary part of toroidal Fourier mode of phi component of vector potential')
 
-    status = nf90_def_var(ncid, 'AnZ_real', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+    status = nf90_def_var(ncid, 'AnZ_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, real(AnZ))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'real part of toroidal Fourier mode of Z component of vector potential')
-    status = nf90_def_var(ncid, 'AnZ_imag', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+      'real part of toroidal Fourier mode of Z component of vector potential')
+    status = nf90_def_var(ncid, 'AnZ_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, aimag(AnZ))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'imaginary part of toroidal Fourier mode of Z component of vector potential')
+      'imaginary part of toroidal Fourier mode of Z component of vector potential')
 
-    status = nf90_def_var(ncid, 'dAnphi_dR_real', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+    status = nf90_def_var(ncid, 'dAnphi_dR_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dR))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'real part of derivative of toroidal Fourier mode of phi component of vector potential with respect to R')
-    status = nf90_def_var(ncid, 'dAnphi_dR_imag', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+      'real part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
+    status = nf90_def_var(ncid, 'dAnphi_dR_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dR))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'imaginary part of derivative of toroidal Fourier mode of phi component of vector potential with respect to R')
+      'imaginary part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
 
-    status = nf90_def_var(ncid, 'dAnphi_dZ_real', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+    status = nf90_def_var(ncid, 'dAnphi_dZ_real', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dZ))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'real part of derivative of toroidal Fourier mode of phi component of vector potential with respect to Z')
-    status = nf90_def_var(ncid, 'dAnphi_dZ_imag', NF90_DOUBLE, [dimid_tor,dimid_R,dimid_Z,dimid_coil], varid_actual_data)
+      'real part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
+    status = nf90_def_var(ncid, 'dAnphi_dZ_imag', NF90_DOUBLE, &
+      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
     status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dZ))
     status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-    'imaginary part of derivative of toroidal Fourier mode of phi component of vector potential with respect to Z')
+      'imaginary part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
 
     status = nf90_close(ncid)
-    call check(status, 'close')
+    call nc_check(status, 'close')
   end subroutine write_Anvac_Fourier
 
-  subroutine check(status, operation)
-    use netcdf
+  subroutine nc_check(status, operation)
+    use netcdf, only: NF90_NOERR, nf90_strerror
     integer, intent(in) :: status
     character(len=*), intent(in) :: operation
 
     if (status == NF90_NOERR) return
-    print*, "Error encountered during ", operation
-    print*, nf90_strerror(status)
-    STOP
-  end subroutine check
+    write (*, '("Error encountered during ", a, ": ", a)') operation, nf90_strerror(status)
+    error stop
+  end subroutine nc_check
 
   subroutine Biot_Savart_Fourier(coils, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)

@@ -18,7 +18,7 @@ program vacfield
   logical :: use_convex_wall
   namelist /coil_field/ Rmin, Rmax, Zmin, Zmax, nR, nZ, nphi, nmax, prefactor, &
     min_distance, max_eccentricity, use_convex_wall
-  integer :: argc, fid, status, num_coilfiles, kc, ncoil
+  integer :: argc, fid, status, num_coilfiles, kc
   character(len = 1024) :: arg, err_msg, &
     coil_type, field_type, grid_file, field_file, currents_file
   character(len = :), dimension(:), allocatable :: coil_files
@@ -58,11 +58,11 @@ program vacfield
   Rmax = nan
   Zmin = nan
   Zmax = nan
-  nR = 0
-  nZ = 0
-  nphi = 0
+  nR = 1
+  nZ = 1
+  nphi = 1
   nmax = 0
-  prefactor = nan
+  prefactor = current_si_to_cgs / c
   min_distance = 0.0d0
   max_eccentricity = 1.0d0
   use_convex_wall = .false.
@@ -132,7 +132,7 @@ program vacfield
     call get_command_argument(5 + num_coilfiles, field_file)
     call Vector_Potential_Biot_Savart_Fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
-    call write_Anvac_Fourier(trim(field_file), ncoil, size(coils), &
+    call write_Anvac_Fourier(trim(field_file), size(coils), nmax, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
