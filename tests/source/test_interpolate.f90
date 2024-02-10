@@ -46,28 +46,34 @@ contains
 
         type(SplineData1D) :: spl
 
+        print *, "Testing 1D spline with order ", spline_order, &
+                 " and periodic = ", periodic
+
         call linspace(X_MIN, X_MAX, N_POINTS, x)
 
         y = cos(x)
 
         call construct_splines_1d(X_MIN, X_MAX, y, spline_order, periodic, spl)
 
-        x_eval = (x(30) + x(31))/2.0d0
+        x_eval = 0.5d0*(x(10) + x(11))
 
         expected = cos(x_eval)
         d_expected = -sin(x_eval)
         d2_expected = -cos(x_eval)
 
         call evaluate_splines_1d(spl, x_eval, actual)
+        print *, "expected, actual: ", expected, actual
         if (abs(expected - actual) > TOL) error stop
 
         call evaluate_splines_1d_der(spl, x_eval, actual, d_actual)
+        print *, "d_expected, d_actual: ", d_expected, d_actual
         if (abs(expected - actual) > TOL) error stop
         if (abs(d_expected - d_actual) > TOL) error stop
 
         call evaluate_splines_1d_der2(spl, x_eval, actual, d_actual, d2_actual)
         if (abs(expected - actual) > TOL) error stop
         if (abs(d_expected - d_actual) > TOL) error stop
+        print *, "d2_expected, d2_actual: ", d2_expected, d2_actual
         if (abs(d2_expected - d2_actual) > 1d-3) error stop
 
         call destroy_splines_1d(spl)
