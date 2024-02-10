@@ -19,8 +19,6 @@ class FluxConverter:
     gives {Torflux} = ({EdgeRibbonPolflux}-{AxisRibbonPolflux})*int_0^{spol}q(s)ds
           {EdgeTorflux}/({EdgeRibbonPolflux}-{AxisRibbonPolflux}) = int_0^1q(s)ds
     and {stor} = {Tolflux}/{EdgeTorflux} = int_0^{spol}q(s)ds / int_0^1q(s)ds
-    
-    q_profile: np.ndarray, equidiistant array of the safety factor profile q in terms of poloidal flux
 
     Furthermore, the absolute fluxes Polflux & Torflux can also be converted with the class using
     the conversion Polflux -> spol -> stor -> Torflux with the methods Polflux2Torflux and Torflux2Polflux.
@@ -33,6 +31,10 @@ class FluxConverter:
 
     def __init__(self, q_profile:np.ndarray, AxisPolflux:float=np.nan, EdgePolflux:float=np.nan):
         """
+        q_profile: np.ndarray, equidiistant array of the safety factor profile q in terms of poloidal flux
+        AxisPolflux: (optional) float, poloidal flux at the magnetic axis (either disk or ribbon flux)
+        EdgePolflux: (optional) float, poloidal flux at the magnetic edge (either disk or ribbon flux, sames as axis)
+        
         Assumes that the q profile is given on equidistant spol profile from 0 to 1.
         """
         spol_profile = np.linspace(0.0, 1.0, q_profile.shape[0])
