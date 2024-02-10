@@ -332,17 +332,13 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
 
-        coeff_local(:, :, :) = &
-            spl%coeff(:, :, :, &
+        coeff_local(:, :, :) = spl%coeff(:, :, :, &
             interval_index(1) + 1, interval_index(2) + 1, interval_index(3) + 1)
 
         ! Interpolation over x1
-        coeff_23(:, :) = &
-            coeff_local(spl%order(1), :, :)
+        coeff_23(:, :) = coeff_local(spl%order(1), :, :)
         do k1 = spl%order(1)-1, 0, -1
-            coeff_23(:, :) = &
-            coeff_local(k1, :, :) &
-                + x_local(1)*coeff_23(:, :)
+            coeff_23(:, :) = coeff_local(k1, :, :) + x_local(1)*coeff_23(:, :)
         enddo
 
         ! Interpolation over x2
@@ -424,7 +420,7 @@ contains
             coeff_3_dx1(:) = coeff_23_dx1(N2, :)
             coeff_3_dx1x1(:) = coeff_23_dx1x1(N2, :)
             do k2 = N2-1, 0, -1
-                coeff_3(:) = coeff_23(k2, :) + x_local(2)*coeff_3(:)
+                coeff_3(:) = coeff_23(k2, :) + x_local(2)*coeff_3
                 coeff_3_dx1(:) = coeff_23_dx1(k2, :) &
                     + x_local(2)*coeff_3_dx1
                 coeff_3_dx1x1(:) = coeff_23_dx1x1(k2, :) &
