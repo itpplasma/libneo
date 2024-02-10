@@ -13,60 +13,77 @@ from scipy.interpolate import CubicSpline
 class FluxConverter:
     """
     This is a class for the conversion between the poloidal and toroidal flux of a given flux surface.
-    The conversion is based on the safety factor profile q as q = d{toroidal_flux}/d{polodial_flux}.
-    Therefore {toroidal_flux} = int_{poloidal_flux_min}^{polodial_flux}q({flux})d{flux} , with {s} = ({poloidal_flux}-{poloidal_flux_min})/({poloidal_flux_max}-{poloidal_flux_min})
-    gives {toroidal_flux} = ({poloidal_flux_max}-{poloidal_flux_min})*int_0^{s_pol}q(s)ds
-          {toroidal_flux_max}/({poloidal_flux_max}-{poloidal_flux_min}) = int_0^1q(s)ds
-    and {s_tor} = {todroidal_flux}/{toroidal_flux_max} = int_0^{s_pol}q(s)ds / int_0^1q(s)ds
+    The conversion is based on the safety factor profile q as q = d{Torflux}/d{RibbonPolflux}.
+    Therefore {Torflux} = int_{AxisRibbonPolflux}^{RibbonPolflux}q({flux})d{flux} , 
+    with {s} = ({RibbonPolflux}-{AxisRibbonPolflux})/({EdgeRibbonPolflux}-{AxisRibbonPolflux})
+    gives {Torflux} = ({EdgeRibbonPolflux}-{AxisRibbonPolflux})*int_0^{spol}q(s)ds
+          {EdgeTorflux}/({EdgeRibbonPolflux}-{AxisRibbonPolflux}) = int_0^1q(s)ds
+    and {stor} = {Tolflux}/{EdgeTorflux} = int_0^{spol}q(s)ds / int_0^1q(s)ds
     
     q_profile: np.ndarray, equidiistant array of the safety factor profile q in terms of poloidal flux
 
-    Furthermore, the absolute fluxes polflux & torfluc can also be converted with the class using
-    the conversion polflux -> s_pol -> s_tor -> torflux with the methods polflux2torflux and torflux2polflux.
+    Furthermore, the absolute fluxes Polflux & Torflux can also be converted with the class using
+    the conversion Polflux -> spol -> stor -> Torflux with the methods Polflux2Torflux and Torflux2Polflux.
     For that it requires the absolute poloidal flux as reference,
 
-    axis_polflux: float, poloidal flux at the magnetic axis
-    edge_polflux: float, poloidal flux at the magnetic edge
+    AxisPolflux: float, poloidal flux at the magnetic axis (either disk or ribbon flux)
+    EdgePolflux: float, poloidal flux at the magnetic edge (either disk or ribbon flux, sames as axis)
 
     """
 
-    def __init__(self, q_profile:np.ndarray, axis_polflux:float=np.nan, edge_polflux:float=np.nan):
+    def __init__(self, q_profile:np.ndarray, AxisPolflux:float=np.nan, EdgePolflux:float=np.nan):
         """
-        Assumes that the q profile is given on equidistant s_pol profile from 0 to 1.
+        Assumes that the q profile is given on equidistant spol profile from 0 to 1.
         """
-        spol_list = np.linspace(0.0, 1.0, q_profile.shape[0])
+        spol_profile = np.linspace(0.0, 1.0, q_profile.shape[0])
 
         # Setup conversion spol -> stor
-        interp_q = CubicSpline(spol_list, q_profile, extrapolate=True)
-        self.interp_torflux_over_delta_polflux = interp_q.antiderivative()
-        self.torflux_max_over_delta_polflux = self.interp_torflux_over_delta_polflux(1.0)
-        self.torflux_min_over_delta_polflux = self.interp_torflux_over_delta_polflux(0.0)
+        q = CubicSpline(spol_profile, q_profile, extrapolate=True)
+        self.__get_Torflux_DeltaRibbonPolflux_ratio = q.antiderivative()
+        self.__EdgeTorflux_DeltaRibbonPolflux_ratio = self.__get_Torflux_DeltaRibbonPolflux_ratio(1.0)
+        self.__AxisTorflux_DeltaRibbonPolflux_ratio = self.__get_Torflux_DeltaRibbonPolflux_ratio(0.0)
 
         # Setup conversion stor -> spol using previously made conversion spol -> stor
-        self.interp_spol = CubicSpline(self.spol2stor(spol_list), 
-                                        spol_list, extrapolate=True)
+        self.__spol = CubicSpline(self.spol2stor(spol_profile), 
+                                        spol_profile, extrapolate=True)
 
-        # Setup for conversion polflux <-> torflux
-        self.axis_polflux = axis_polflux
-        self.edge_polflux = edge_polflux
-        self.delta_polflux = edge_polflux - axis_polflux
-        self.torflux_max = self.torflux_max_over_delta_polflux * self.delta_polflux
+        # Setup for conversion Polflux <-> Torflux
+        self.set_absolute_fluxes(AxisPolflux, EdgePolflux)
+
+    def set_absolute_fluxes(self, AxisPolflux:float, EdgePolflux:float):
+        self.__AxisPolflux = AxisPolflux
+        self.__EdgePolflux = EdgePolflux
+        self.__DeltaPolflux = EdgePolflux - AxisPolflux
+        self.__set_EdgeTorflux()
+
+    def __set_EdgeTorflux(self):
+        if self.__is_DiskPolflux():
+            self.__EdgeTorflux = self.__EdgeTorflux_DeltaRibbonPolflux_ratio * (-self.__DeltaPolflux)
+        else:
+            self.__EdgeTorflux = self.__EdgeTorflux_DeltaRibbonPolflux_ratio * (+self.__DeltaPolflux)
+
+    def __is_DiskPolflux(self):
+        """
+        While the RibbonPolflux is zero at the axis, the DiskPolflux is not.
+        """
+        return self.__AxisPolflux != 0.0
 
     def spol2stor(self, spol):
         """
-        Converts the poloidal flux label s_pol to the toroidal flux label s_tor.
+        Converts the poloidal flux label spol to the toroidal flux label stor.
         """
 
-        stor = (self.interp_torflux_over_delta_polflux(spol)-self.torflux_min_over_delta_polflux)/(self.torflux_max_over_delta_polflux - self.torflux_min_over_delta_polflux)
+        stor = (self.__get_Torflux_DeltaRibbonPolflux_ratio(spol) - self.__AxisTorflux_DeltaRibbonPolflux_ratio)           \
+              /(self.__EdgeTorflux_DeltaRibbonPolflux_ratio   - self.__AxisTorflux_DeltaRibbonPolflux_ratio)
 
         return stor
 
     def stor2spol(self, stor):
         """
-        Converts the toroidal flux label s_tor to the poloidal flux label s_pol.
+        Converts the toroidal flux label stor to the poloidal flux label spol.
         """
 
-        spol = self.interp_spol(stor)
+        spol = self.__spol(stor)
 
         return spol
 
@@ -75,12 +92,13 @@ class FluxConverter:
         Converts the poloidal flux polflux to the toroidal flux torflux.
         """
 
-        if np.isnan(self.axis_polflux) or np.isnan(self.edge_polflux):
-            raise ValueError("The poloidal flux axis and edge must be set in initialization to use this method.")
+        if np.isnan(self.__AxisPolflux) or np.isnan(self.__EdgePolflux):
+            raise ValueError("To use this method, the poloidal flux on axis and edge must be set during \n" + 
+                             "initialization or with obj.set_absolute_fluxes(AxisPolflux, EdgePolflux).")
 
-        spol = (polflux-self.axis_polflux)/self.delta_polflux
+        spol = (polflux-self.__AxisPolflux)/self.__DeltaPolflux
         stor = self.spol2stor(spol)
-        torflux = stor * self.torflux_max
+        torflux = stor * self.__EdgeTorflux
 
         return torflux
 
@@ -89,11 +107,12 @@ class FluxConverter:
         Converts the toroidal flux torflux to the poloidal flux polflux.
         """
 
-        if np.isnan(self.axis_polflux) or np.isnan(self.edge_polflux):
-            raise ValueError("The poloidal flux axis and edge must be set in initialization to use this method.")
+        if np.isnan(self.__AxisPolflux) or np.isnan(self.__EdgePolflux):
+            raise ValueError("To use this method, the poloidal flux on axis and edge must be set during \n" + 
+                             "initialization or with obj.set_absolute_fluxes(AxisPolflux, EdgePolflux).")
 
-        stor = torflux / self.torflux_max
+        stor = torflux / self.__EdgeTorflux
         spol = self.stor2spol(stor)
-        polflux = spol * self.delta_polflux + self.axis_polflux
+        polflux = spol * self.__DeltaPolflux + self.__AxisPolflux
 
         return polflux
