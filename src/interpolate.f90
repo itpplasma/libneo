@@ -3,8 +3,6 @@ module interpolate
 
     implicit none
 
-    integer, parameter :: MAX_ORDER = 5
-
     type :: SplineData1D
         integer :: order
         integer :: num_points
@@ -76,19 +74,19 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y
 
-        real(dp) :: x_norm, x_local, local_coeff(0:MAX_ORDER)
+        real(dp) :: x_norm, x_local, coeff_local(0:spl%order)
         integer :: interval_index, k_power
 
         x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
 
-        local_coeff(0:spl%order) = spl%coeff(:, interval_index+1)
+        coeff_local(:) = spl%coeff(:, interval_index+1)
 
         ! Start with largest power and then multiply recursively
-        y = local_coeff(spl%order)
-        do k_power = spl%order, 0, -1
-            y = local_coeff(k_power) + x_local*y
+        y = coeff_local(spl%order)
+        do k_power = spl%order-1, 0, -1
+            y = coeff_local(k_power) + x_local*y
         enddo
     end subroutine evaluate_splines_1d
 
@@ -98,14 +96,14 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy
 
-        real(dp) :: x_norm, x_local, coeff_local(0:MAX_ORDER)
+        real(dp) :: x_norm, x_local, coeff_local(0:spl%order)
         integer :: interval_index, k_power
 
         x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
 
-        coeff_local(0:spl%order) = spl%coeff(:, interval_index+1)
+        coeff_local(:) = spl%coeff(:, interval_index+1)
 
         y = coeff_local(spl%order)
         do k_power = spl%order-1, 0, -1
@@ -123,14 +121,14 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy, d2y
 
-        real(dp) :: x_norm, x_local, coeff_local(0:MAX_ORDER)
+        real(dp) :: x_norm, x_local, coeff_local(0:spl%order)
         integer :: interval_index, k_power
 
         x_norm = (x - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
 
-        coeff_local(0:spl%order) = spl%coeff(:, interval_index+1)
+        coeff_local(:) = spl%coeff(:, interval_index+1)
 
         y = coeff_local(spl%order)
         do k_power = spl%order-1, 0, -1
@@ -206,7 +204,8 @@ contains
         real(dp), intent(out) :: y
 
         real(dp) :: x_norm(2), x_local(2)
-        real(dp) :: coeff_2(0:MAX_ORDER), coeff_local(0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: coeff_2(0:spl%order(2)), &
+                    coeff_local(0:spl%order(1),0:spl%order(2))
         integer :: interval_index(2), k1, k2, j
 
         do j=1,2
@@ -215,13 +214,12 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
 
-        coeff_local(0:spl%order(1),0:spl%order(2)) = &
+        coeff_local(:,:) = &
             spl%coeff(:, :, interval_index(1) + 1, interval_index(2) + 1)
 
-        coeff_2(0:spl%order(2)) = coeff_local(spl%order(1), 0:spl%order(2))
+        coeff_2(:) = coeff_local(spl%order(1), 0:spl%order(2))
         do k1 = spl%order(1)-1, 0, -1
-            coeff_2(0:spl%order(2)) = coeff_local(k1, 0:spl%order(2)) &
-                + x_local(1)*coeff_2(0:spl%order(2))
+            coeff_2(:) = coeff_local(k1, :) + x_local(1)*coeff_2
         enddo
 
         y = coeff_2(spl%order(2))
@@ -323,8 +321,9 @@ contains
         real(dp), intent(out) :: y
 
         real(dp) :: x_norm(3), x_local(3)
-        real(dp) :: coeff_3(0:MAX_ORDER), coeff_23(0:MAX_ORDER,0:MAX_ORDER), &
-            coeff_local(0:MAX_ORDER,0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: coeff_3(0:spl%order(3)), &
+                    coeff_23(0:spl%order(2),0:spl%order(3)), &
+                    coeff_local(0:spl%order(1),0:spl%order(2),0:spl%order(3))
         integer :: interval_index(3), k1, k2, k3, j
 
         do j=1,3
@@ -333,24 +332,19 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
 
-        coeff_local(0:spl%order(1), 0:spl%order(2), 0:spl%order(3)) = &
-            spl%coeff(:, :, :, &
+        coeff_local(:, :, :) = spl%coeff(:, :, :, &
             interval_index(1) + 1, interval_index(2) + 1, interval_index(3) + 1)
 
         ! Interpolation over x1
-        coeff_23(0:spl%order(2), 0:spl%order(3)) = &
-            coeff_local(spl%order(1), 0:spl%order(2), 0:spl%order(3))
+        coeff_23(:, :) = coeff_local(spl%order(1), :, :)
         do k1 = spl%order(1)-1, 0, -1
-            coeff_23(0:spl%order(2), 0:spl%order(3)) = &
-            coeff_local(k1, 0:spl%order(2), 0:spl%order(3)) &
-                + x_local(1)*coeff_23(0:spl%order(2), 0:spl%order(3))
+            coeff_23(:, :) = coeff_local(k1, :, :) + x_local(1)*coeff_23(:, :)
         enddo
 
         ! Interpolation over x2
-        coeff_3(0:spl%order(3)) = coeff_23(spl%order(2), 0:spl%order(3))
+        coeff_3(:) = coeff_23(spl%order(2), :)
         do k2 = spl%order(2)-1, 0, -1
-            coeff_3(0:spl%order(3)) = coeff_23(k2, 0:spl%order(3)) &
-                + x_local(2)*coeff_3(0:spl%order(3))
+            coeff_3(:) = coeff_23(k2, :) + x_local(2)*coeff_3
         enddo
 
         ! Interpolation over x3
@@ -370,18 +364,18 @@ contains
 
         real(dp) :: x_norm(3), x_local(3)
 
-        real(dp) :: coeff_local(0:MAX_ORDER,0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: coeff_local(0:spl%order(1),0:spl%order(2),0:spl%order(3))
 
-        real(dp) :: coeff_23(0:MAX_ORDER, 0:MAX_ORDER)
-        real(dp) :: coeff_23_dx1(0:MAX_ORDER,0:MAX_ORDER)
-        real(dp) :: coeff_23_dx1x1(0:MAX_ORDER,0:MAX_ORDER)
+        real(dp) :: coeff_23(0:spl%order(2),0:spl%order(3))
+        real(dp) :: coeff_23_dx1(0:spl%order(2),0:spl%order(3))
+        real(dp) :: coeff_23_dx1x1(0:spl%order(2),0:spl%order(3))
 
-        real(dp) :: coeff_3(0:MAX_ORDER)
-        real(dp) :: coeff_3_dx1(0:MAX_ORDER)
-        real(dp) :: coeff_3_dx2(0:MAX_ORDER)
-        real(dp) :: coeff_3_dx1x1(0:MAX_ORDER)
-        real(dp) :: coeff_3_dx1x2(0:MAX_ORDER)
-        real(dp) :: coeff_3_dx2x2(0:MAX_ORDER)
+        real(dp) :: coeff_3(0:spl%order(3))
+        real(dp) :: coeff_3_dx1(0:spl%order(3))
+        real(dp) :: coeff_3_dx2(0:spl%order(3))
+        real(dp) :: coeff_3_dx1x1(0:spl%order(3))
+        real(dp) :: coeff_3_dx1x2(0:spl%order(3))
+        real(dp) :: coeff_3_dx2x2(0:spl%order(3))
 
         integer :: interval_index(3), k1, k2, k3, j
 
@@ -396,56 +390,56 @@ contains
 
         associate(N1 => spl%order(1), N2 => spl%order(2), N3 => spl%order(3))
 
-            coeff_local(0:N1, 0:N2, 0:N3) = &
+            coeff_local(:, :, :) = &
                 spl%coeff(:, :, :, &
                 interval_index(1) + 1, &
                 interval_index(2) + 1, &
                 interval_index(3) + 1)
 
             ! Interpolation over x1
-            coeff_23(0:N2, 0:N3) = coeff_local(N1, 0:N2, 0:N3)
+            coeff_23(:, :) = coeff_local(N1, :, :)
             do k1 = N1-1, 0, -1
-                coeff_23(0:N2, 0:N3) = coeff_local(k1, 0:N2, 0:N3) &
-                    + x_local(1)*coeff_23(0:N2, 0:N3)
+                coeff_23(:, :) = coeff_local(k1, :, :) &
+                    + x_local(1)*coeff_23(:, :)
             enddo
             ! First derivitative over x1
-            coeff_23_dx1(0:N2, 0:N3) = coeff_local(N1, 0:N2, 0:N3)*N1
+            coeff_23_dx1(:, :) = coeff_local(N1, :, :)*N1
             do k1 = N1-1, 1, -1
-                coeff_23_dx1(0:N2, 0:N3) = coeff_local(k1, 0:N2, 0:N3)*k1 &
-                    + x_local(1)*coeff_23_dx1(0:N2, 0:N3)
+                coeff_23_dx1(:, :) = coeff_local(k1, :, :)*k1 &
+                    + x_local(1)*coeff_23_dx1(:, :)
             enddo
             ! Second derivitative over x1
-            coeff_23_dx1x1(0:N2,0:N3) = coeff_local(N1, 0:N2, 0:N3)*N1*(N1-1)
+            coeff_23_dx1x1(0:N2,0:N3) = coeff_local(N1, :, :)*N1*(N1-1)
             do k1 = N1-1, 2, -1
-                coeff_23_dx1x1(0:N2, 0:N3)=coeff_local(k1,0:N2,0:N3)*k1*(k1-1) &
-                    + x_local(1)*coeff_23_dx1x1(0:N2, 0:N3)
+                coeff_23_dx1x1(:, :)=coeff_local(k1,0:N2,0:N3)*k1*(k1-1) &
+                    + x_local(1)*coeff_23_dx1x1(:, :)
             enddo
 
             ! Interpolation over x2 and pure derivatives over x1
-            coeff_3(0:N3) = coeff_23(N2, 0:N3)
-            coeff_3_dx1(0:N3) = coeff_23_dx1(N2, 0:N3)
-            coeff_3_dx1x1(0:N3) = coeff_23_dx1x1(N2, 0:N3)
+            coeff_3(:) = coeff_23(N2, :)
+            coeff_3_dx1(:) = coeff_23_dx1(N2, :)
+            coeff_3_dx1x1(:) = coeff_23_dx1x1(N2, :)
             do k2 = N2-1, 0, -1
-                coeff_3(0:N3) = coeff_23(k2, 0:N3) + x_local(2)*coeff_3(0:N3)
-                coeff_3_dx1(0:N3) = coeff_23_dx1(k2, 0:N3) &
-                    + x_local(2)*coeff_3_dx1(0:N3)
-                coeff_3_dx1x1(0:N3) = coeff_23_dx1x1(k2, 0:N3) &
-                    + x_local(2)*coeff_3_dx1x1(0:N3)
+                coeff_3(:) = coeff_23(k2, :) + x_local(2)*coeff_3
+                coeff_3_dx1(:) = coeff_23_dx1(k2, :) &
+                    + x_local(2)*coeff_3_dx1
+                coeff_3_dx1x1(:) = coeff_23_dx1x1(k2, :) &
+                    + x_local(2)*coeff_3_dx1x1
             enddo
             ! First derivitatives over x2
-            coeff_3_dx2(0:N3) = coeff_23(N2, 0:N3)*N2
-            coeff_3_dx1x2(0:N3) = coeff_23_dx1(N2, 0:N3)*N2
+            coeff_3_dx2(:) = coeff_23(N2, :)*N2
+            coeff_3_dx1x2(:) = coeff_23_dx1(N2, :)*N2
             do k2 = N2-1, 1, -1
-                coeff_3_dx2(0:N3) = coeff_23(k2, 0:N3)*k2 &
-                    + x_local(2)*coeff_3_dx2(0:N3)
-                coeff_3_dx1x2(0:N3) = coeff_23_dx1(k2, 0:N3)*k2 &
-                    + x_local(2)*coeff_3_dx1x2(0:N3)
+                coeff_3_dx2(:) = coeff_23(k2, :)*k2 &
+                    + x_local(2)*coeff_3_dx2(:)
+                coeff_3_dx1x2(:) = coeff_23_dx1(k2, :)*k2 &
+                    + x_local(2)*coeff_3_dx1x2
             enddo
             ! Second derivitative over x2
-            coeff_3_dx2x2(0:N3) = coeff_23(N2, 0:N3)*N2*(N2-1)
+            coeff_3_dx2x2(:) = coeff_23(N2, :)*N2*(N2-1)
             do k2 = N2-1, 2, -1
-                coeff_3_dx2x2(0:N3) = coeff_23(k2, 0:N3)*k2*(k2-1) &
-                    + x_local(2)*coeff_3_dx2x2(0:N3)
+                coeff_3_dx2x2(:) = coeff_23(k2, :)*k2*(k2-1) &
+                    + x_local(2)*coeff_3_dx2x2
             enddo
 
             ! Interpolation over x3
