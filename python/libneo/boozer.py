@@ -9,6 +9,41 @@ Created on Wed Mar 23 10:17:41 2016
 __all__ = ['write_boozer_head', 'append_boozer_block_head',
            'append_boozer_block', 'convert_to_boozer', 'BoozerFile']
 
+def get_boozer_harmonics(fun, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+  import numpy as np
+
+  ns = spol.shape[0]
+
+  fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
+
+  # Loop over flux surface index
+  ths = np.zeros((ns - 1, nth))
+  phs = np.zeros((ns - 1, nth, nph))
+
+  for ks in np.arange(ns - 1):
+      print(f"ks = {ks}/{ns-2}")
+      for kth in np.arange(nth):
+          thb = kth * 2 * np.pi / nth
+          ths[ks, kth] = thb + dth_of_thb[ks](thb)
+          G = G_of_thb[ks](thb)
+          for kph in np.arange(nph):
+              phb = kph * 2 * np.pi / nph
+              phs[ks, kth, kph] = phb - G
+
+  for kth in np.arange(nth):
+      print(f"kth = {kth}/{nth-1}")
+      thb = kth * 2 * np.pi / nth
+      for kph in np.arange(nph):
+          phb = kph * 2 * np.pi / nph
+
+          fun_values = fun(spol[:-1], ths[:, kth], phs[:, kth, kph], n=n)
+
+          for m in np.arange(-m0b, m0b + 1):
+              # Take a sum over all theta values here
+              fmn[:, m + m0b] += fun_values * np.exp(-1j * (m * thb + n * phb))
+
+  return fmn / ((2 * np.pi) ** 2 * nth * nph)
+
 
 def write_boozer_head(filename, version, shot: int, m0b, n0b, nsurf_fmt, nfp, psi_tor_a, aminor, Rmajor):
   import getpass
