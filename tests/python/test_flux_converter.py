@@ -10,7 +10,7 @@ from scipy.interpolate import CubicSpline
 from libneo import FluxConverter
 
 # control & testing data
-Torflux_ControlProfile = -np.array([  0.        ,   0.79529968,   1.59375918,   2.39571   ,
+torflux_control_profile = -np.array([  0.        ,   0.79529968,   1.59375918,   2.39571   ,
     3.2013764 ,   4.01095914,   4.82445535,   5.64180945,
     6.46296881,   7.28778702,   8.11615171,   8.94795915,
     9.78307726,  10.62139507,  11.46282612,  12.30729084,
@@ -57,7 +57,7 @@ Torflux_ControlProfile = -np.array([  0.        ,   0.79529968,   1.59375918,   
     247.31703819, 250.60971409, 253.91144158, 257.21845125,
     260.52885531])
 
-stor_ControlProfile = np.array([0.        , 0.00305264, 0.0061174 , 0.00919556, 0.01228799,
+stor_control_profile = np.array([0.        , 0.00305264, 0.0061174 , 0.00919556, 0.01228799,
     0.01539545, 0.01851793, 0.02165522, 0.02480711, 0.02797305,
     0.0311526 , 0.03434537, 0.03755084, 0.04076859, 0.0439983 ,
     0.04723965, 0.05049237, 0.05375624, 0.05703107, 0.06031671,
@@ -133,65 +133,65 @@ q_profile = np.array([0.107328883E+01, 0.107720493E+01, 0.108176034E+01, 0.10866
     0.441836509E+01, 0.444296595E+01, 0.445858607E+01, 0.446785744E+01, 0.447329187E+01,
     0.447746807E+01])
 
-AxisDiskPolflux = -133.14471161454674
-EdgeDiskPolflux = 0.0
+axis_disk_polflux = -133.14471161454674
+edge_disk_polflux = 0.0
 
 def test_FluxConverter():
 
-    converter = FluxConverter(q_profile, AxisDiskPolflux, EdgeDiskPolflux)
-    DiskPolflux_TestProfile = np.linspace(AxisDiskPolflux, EdgeDiskPolflux, len(q_profile))
+    converter = FluxConverter(q_profile, axis_disk_polflux, edge_disk_polflux)
+    disk_polflux_test_profile = np.linspace(axis_disk_polflux, edge_disk_polflux, len(q_profile))
 
-    Torflux_ResultProfile = converter.polflux2torflux(DiskPolflux_TestProfile)
-    DiskPolflux_ResultProfile = converter.torflux2polflux(Torflux_ResultProfile)
+    torflux_result_profile = converter.polflux2torflux(disk_polflux_test_profile)
+    disk_polflux_result_profile = converter.torflux2polflux(torflux_result_profile)
 
-    assert_allclose(DiskPolflux_ResultProfile, DiskPolflux_TestProfile, atol=1e-15) # choice of atol due to used control data precision
+    assert_allclose(disk_polflux_result_profile, disk_polflux_test_profile, atol=1e-15) # choice of atol due to used control data precision
     print("Conversion between polflux and torflux is selfconsistent")
 
-    assert_allclose(Torflux_ResultProfile, Torflux_ControlProfile)
+    assert_allclose(torflux_result_profile, torflux_control_profile)
     print("Result of FluxConverter (polflux -> torflux) is consistent with control data")
 
     print('----------------------------------------------------------------')
     print('Result of conversion:')
-    print("polflux = ", DiskPolflux_TestProfile[:5],'...',DiskPolflux_TestProfile[-5:])
-    print("torflux = ", Torflux_ResultProfile[:5],'...',Torflux_ResultProfile[-5:])
+    print("polflux = ", disk_polflux_test_profile[:5],'...',disk_polflux_test_profile[-5:])
+    print("torflux = ", torflux_result_profile[:5],'...',torflux_result_profile[-5:])
     print('----------------------------------------------------------------')
 
 def test_compare_FluxConverter_to_direct_conversion():
 
     """
     Comparison of FluxConverter conversion routine with a direct transformation:
-    {Torflux} = int_{AxisRibbonPolflux}^{RibbonPolflux}q({flux})d{flux}
+    {torflux} = int_{axis_ribbon_polflux}^{ribbon_polflux}q({flux})d{flux}
     """
-    DiskPolflux_TestProfile = np.linspace(AxisDiskPolflux, EdgeDiskPolflux, len(q_profile))
-    # q = d{Torflux}/d{RibbonPolflux}, so need RibbonPolflux profile for direct conversion
-    # dRibbonPolflux = -dDiskPolflux -> so extra minus to q
-    q = CubicSpline(DiskPolflux_TestProfile, -q_profile, extrapolate=True)
-    get_Torflux = q.antiderivative()
-    Torflux_DirectConversionProfile = get_Torflux(DiskPolflux_TestProfile)
+    disk_polflux_test_profile = np.linspace(axis_disk_polflux, edge_disk_polflux, len(q_profile))
+    # q = d{torflux}/d{ribbon_polflux}, so need ribbon_polflux profile for direct conversion
+    # d{ribbon_polflux} = -d{disk_polflux} -> so extra minus to q
+    q = CubicSpline(disk_polflux_test_profile, -q_profile, extrapolate=True)
+    get_torflux = q.antiderivative()
+    torflux_DirectConversionProfile = get_torflux(disk_polflux_test_profile)
 
-    # standard calculation of torflux profile with FluxConverter and DiskPolflux profile
-    converter = FluxConverter(q_profile, AxisDiskPolflux, EdgeDiskPolflux)
-    Torflux_ResultProfile = converter.polflux2torflux(DiskPolflux_TestProfile)
+    # standard calculation of torflux profile with FluxConverter and disk_polflux profile
+    converter = FluxConverter(q_profile, axis_disk_polflux, edge_disk_polflux)
+    torflux_result_profile = converter.polflux2torflux(disk_polflux_test_profile)
 
-    assert_allclose(Torflux_DirectConversionProfile, Torflux_ResultProfile)
+    assert_allclose(torflux_DirectConversionProfile, torflux_result_profile)
     print("Result of FluxConverter (polflux -> torflux) is consistent with direct conversion method")
 
 def test_FluxConverter_label_conversion():
 
     converter = FluxConverter(q_profile)
 
-    spol_TestProfile = np.linspace(0.0, 1.0, len(q_profile))
-    stor_ResultProfile = converter.spol2stor(spol_TestProfile)
-    spol_ResultProfile = converter.stor2spol(stor_ResultProfile)
+    spol_test_profile = np.linspace(0.0, 1.0, len(q_profile))
+    stor_result_profile = converter.spol2stor(spol_test_profile)
+    spol_result_profile = converter.stor2spol(stor_result_profile)
 
-    assert_allclose(spol_ResultProfile, spol_TestProfile)
+    assert_allclose(spol_result_profile, spol_test_profile)
     print("Conversion between spol & stor is selfconsistent")
 
-    assert_allclose(stor_ResultProfile, stor_ControlProfile, atol=1e-6) # choice of atol due to used control data precision
+    assert_allclose(stor_result_profile, stor_control_profile, atol=1e-6) # choice of atol due to used control data precision
     print("Result of FLuxConverter (spol -> stor) is consistent with control data")
 
     print('----------------------------------------------------------------')
     print('Result of conversion:')
-    print("s_pol = ", spol_TestProfile[:5],'...',spol_TestProfile[-5:])
-    print("s_tor = ", stor_ResultProfile[:5],'...',stor_ResultProfile[-5:])
+    print("s_pol = ", spol_test_profile[:5],'...',spol_test_profile[-5:])
+    print("s_tor = ", stor_result_profile[:5],'...',stor_result_profile[-5:])
     print('----------------------------------------------------------------')
