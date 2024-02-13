@@ -7,6 +7,7 @@ Created on Wed Mar 23 10:17:41 2016
 """
 import numpy as np
 import libneo
+import libneo.efit_to_boozer as efit_to_boozer
 
 __all__ = ['get_magnetic_axis',
            'get_boozer_transform','get_boozer_harmonics','write_boozer_head',
@@ -18,6 +19,7 @@ length_cgs_to_si = 1e-2
 def get_boozer_transform(spol, nth):
   from scipy.interpolate import CubicSpline
 
+  efit_to_boozer.efit_to_boozer.init()
 
   R_axis, Z_axis = get_magnetic_axis()
 
@@ -51,7 +53,7 @@ def get_boozer_transform(spol, nth):
         G,
         _,
         _,
-      ) = libneo.efit_to_boozer.efit_to_boozer.magdata(
+      ) = efit_to_boozer.efit_to_boozer.magdata(
         inp_label, s, psi, th_symflux)
       Gs.append(G)
       ths.append(th_symflux + G / q)
@@ -129,7 +131,7 @@ def get_magnetic_axis():
     _,
     _,
     _,
-  ) = libneo.efit_to_boozer.efit_to_boozer.magdata(inp_label, si, psi, theta)
+  ) = efit_to_boozer.efit_to_boozer.magdata(inp_label, si, psi, theta)
 
   R_axis = R * length_cgs_to_si
   Z_axis = Z * length_cgs_to_si
