@@ -38,7 +38,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -heap-arrays -check all -traceback \
+  set (CMAKE_Fortran_FLAGS "-cpp -check all -traceback \
     -assume norealloc_lhs -stand f08 -qopenmp -warn all")
 
 endif ()

@@ -28,7 +28,7 @@ elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 #	include_directories(${INCLUDEDIRS_MPI_INTEL})
 #	link_directories(${LINKDIRS_MPI_INTEL})
 
-	set (CMAKE_Fortran_FLAGS "-cpp -heap-arrays")
+	set (CMAKE_Fortran_FLAGS "-cpp")
         #set (CMAKE_Fortran_FLAGS_RELEASE "")
         #set (CMAKE_Fortran_FLAGS_DEBUG "")
 endif ()
