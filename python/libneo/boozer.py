@@ -5,18 +5,29 @@ Created on Wed Mar 23 10:17:41 2016
 
 @author: Christopher Albert
 """
+import numpy as np
+import libneo
 
-__all__ = ['get_boozer_harmonics','write_boozer_head',
+__all__ = ['get_magnetic_axis',
+           'get_boozer_transform','get_boozer_harmonics','write_boozer_head',
            'append_boozer_block_head', 'append_boozer_block',
            'convert_to_boozer', 'BoozerFile']
 
-def get_boozer_transform():
-  # %% Interpolate G function over Boozer theta angle
+length_cgs_to_si = 1e-2
+
+def get_boozer_transform(spol, nth):
+  from scipy.interpolate import CubicSpline
+
+
+  R_axis, Z_axis = get_magnetic_axis()
+
+  ns = spol.shape[0]
+
   G_of_thb = []
   dth_of_thb = []
-  for ks in np.arange(ns_eqarc - 1):
+  for ks in np.arange(ns - 1):
     psi = np.array(0.0)
-    s = np.array(spol_eqarc[ks])
+    s = np.array(spol[ks])
 
     ths = []       # Boozer theta angle
     th_geoms = []  # Geometric theta angle
@@ -25,21 +36,21 @@ def get_boozer_transform():
       inp_label = 1
       (
         q,
-        dq_ds,
-        C_norm,
-        dC_norm_ds,
-        sqrtg,
-        bmod,
-        dbmod_dtheta,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
         R,
-        dR_ds,
-        dR_dtheta,
+        _,
+        _,
         Z,
-        dZ_ds,
-        dZ_dtheta,
+        _,
+        _,
         G,
-        dG_ds,
-        dG_dtheta,
+        _,
+        _,
       ) = libneo.efit_to_boozer.efit_to_boozer.magdata(
         inp_label, s, psi, th_symflux)
       Gs.append(G)
@@ -57,11 +68,10 @@ def get_boozer_transform():
     G_of_thb.append(CubicSpline(ths, Gs, bc_type="periodic"))
     dth_of_thb.append(CubicSpline(ths, th_geoms - ths, bc_type="periodic"))
 
-    return dth_of_thb, G_of_thb
+  return dth_of_thb, G_of_thb
 
 
 def get_boozer_harmonics(fun, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
-  import numpy as np
 
   ns = spol.shape[0]
 
@@ -87,13 +97,44 @@ def get_boozer_harmonics(fun, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
     for kph in np.arange(nph):
       phb = kph * 2 * np.pi / nph
 
-      fun_values = fun(spol[:-1], ths[:, kth], phs[:, kth, kph], n=n)
+      fun_values = fun(spol[:-1], ths[:, kth], phs[:, kth, kph])
 
       for m in np.arange(-m0b, m0b + 1):
         # Take a sum over all theta values here
         fmn[:, m + m0b] += fun_values * np.exp(-1j * (m * thb + n * phb))
 
   return fmn / ((2 * np.pi) ** 2 * nth * nph)
+
+
+def get_magnetic_axis():
+  psi = np.array(0.0)
+  theta = np.array(0.0)
+  si = np.array(0.0)
+
+  inp_label = 1
+  (
+    _,
+    _,
+    _,
+    _,
+    _,
+    _,
+    _,
+    R,
+    _,
+    _,
+    Z,
+    _,
+    _,
+    _,
+    _,
+    _,
+  ) = libneo.efit_to_boozer.efit_to_boozer.magdata(inp_label, si, psi, theta)
+
+  R_axis = R * length_cgs_to_si
+  Z_axis = Z * length_cgs_to_si
+
+  return R_axis, Z_axis
 
 
 def write_boozer_head(filename, version, shot: int, m0b, n0b, nsurf_fmt, nfp, psi_tor_a, aminor, Rmajor):
