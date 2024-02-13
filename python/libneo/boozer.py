@@ -10,6 +10,56 @@ __all__ = ['get_boozer_harmonics','write_boozer_head',
            'append_boozer_block_head', 'append_boozer_block',
            'convert_to_boozer', 'BoozerFile']
 
+def get_boozer_transform():
+  # %% Interpolate G function over Boozer theta angle
+  G_of_thb = []
+  dth_of_thb = []
+  for ks in np.arange(ns_eqarc - 1):
+    psi = np.array(0.0)
+    s = np.array(spol_eqarc[ks])
+
+    ths = []       # Boozer theta angle
+    th_geoms = []  # Geometric theta angle
+    Gs = []
+    for th_symflux in 2 * np.pi * np.arange(2 * nth) / (2 * nth):
+      inp_label = 1
+      (
+        q,
+        dq_ds,
+        C_norm,
+        dC_norm_ds,
+        sqrtg,
+        bmod,
+        dbmod_dtheta,
+        R,
+        dR_ds,
+        dR_dtheta,
+        Z,
+        dZ_ds,
+        dZ_dtheta,
+        G,
+        dG_ds,
+        dG_dtheta,
+      ) = libneo.efit_to_boozer.efit_to_boozer.magdata(
+        inp_label, s, psi, th_symflux)
+      Gs.append(G)
+      ths.append(th_symflux + G / q)
+      th_geoms.append(np.arctan2(
+          Z*length_cgs_to_si - Z_axis,
+          R*length_cgs_to_si - R_axis))
+    Gs = np.array(Gs)
+    Gs = np.append(Gs, Gs[0])
+    ths = np.unwrap(ths)
+    ths = np.append(ths, ths[0] + 2 * np.pi)
+    th_geoms = np.unwrap(th_geoms)
+    th_geoms = np.append(th_geoms, th_geoms[0] + 2 * np.pi)
+
+    G_of_thb.append(CubicSpline(ths, Gs, bc_type="periodic"))
+    dth_of_thb.append(CubicSpline(ths, th_geoms - ths, bc_type="periodic"))
+
+    return dth_of_thb, G_of_thb
+
+
 def get_boozer_harmonics(fun, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   import numpy as np
 

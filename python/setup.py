@@ -1,3 +1,5 @@
+# For similar setup, see https://github.com/simonsobs/pspy/blob/master/setup.py
+
 import os
 import setuptools
 from numpy.distutils.core import setup, Extension
@@ -31,6 +33,7 @@ setup(
                   library_dirs=[libneo_build_path]),
         Extension('libneo.efit_to_boozer',
                 sources=[
+                     '../../efit_to_boozer/SRC/odeint_allroutines.f',
                      '../../efit_to_boozer/SRC/efit_to_boozer.f90',
                      '../../efit_to_boozer/SRC/field_divB0.f90',
                      '../../efit_to_boozer/SRC/efit_to_boozer_mod.f90',
@@ -44,8 +47,12 @@ setup(
                      '../../efit_to_boozer/SRC/spline_and_interpolate_magdata.f90',
                      'f2py_interfaces/f2py_efit_to_boozer.f90'
                      ],
-                  include_dirs=[libneo_build_path],
-                  libraries=['libneo'],
-                  library_dirs=[libneo_build_path])
-    ]
+                    f2py_options = [
+                        'skip:','oddorderspline', 'polleg',
+                        'binomial', 'odeint_allroutines', 'alloc_odeint',
+                        'odeint', 'rkck', 'rkqs', ':'
+                    ],
+                    libraries=['blas', 'lapack'],
+                )
+    ],
 )
