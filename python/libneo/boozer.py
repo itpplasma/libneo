@@ -5,9 +5,143 @@ Created on Wed Mar 23 10:17:41 2016
 
 @author: Christopher Albert
 """
+import numpy as np
+import libneo
+import libneo.efit_to_boozer as efit_to_boozer
 
-__all__ = ['write_boozer_head', 'append_boozer_block_head',
-           'append_boozer_block', 'convert_to_boozer', 'BoozerFile']
+__all__ = ['get_magnetic_axis',
+           'get_boozer_transform','get_boozer_harmonics','write_boozer_head',
+           'append_boozer_block_head', 'append_boozer_block',
+           'convert_to_boozer', 'BoozerFile']
+
+length_cgs_to_si = 1e-2
+
+def get_boozer_transform(spol, nth):
+  from scipy.interpolate import CubicSpline
+
+  efit_to_boozer.efit_to_boozer.init()
+
+  R_axis, Z_axis = get_magnetic_axis()
+
+  ns = spol.shape[0]
+
+  G_of_thb = []
+  dth_of_thb = []
+  for ks in np.arange(ns - 1):
+    psi = np.array(0.0)
+    s = np.array(spol[ks])
+
+    th_boozers = []
+    th_geoms = []
+    Gs = []
+    for th_symflux in 2 * np.pi * np.arange(2 * nth) / (2 * nth):
+      inp_label = 1
+      (
+        q,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        R,
+        _,
+        _,
+        Z,
+        _,
+        _,
+        G,
+        _,
+        _,
+      ) = efit_to_boozer.efit_to_boozer.magdata(
+        inp_label, s, psi, th_symflux)
+      Gs.append(G)
+      th_boozers.append(th_symflux + G / q)
+      th_geoms.append(np.arctan2(
+          Z*length_cgs_to_si - Z_axis,
+          R*length_cgs_to_si - R_axis))
+    Gs = np.array(Gs)
+    Gs = np.append(Gs, Gs[0])
+    th_boozers = np.unwrap(th_boozers)
+    th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
+    th_geoms = np.unwrap(th_geoms)
+    th_geoms = np.append(th_geoms, th_geoms[0] + 2 * np.pi)
+
+    G_of_thb.append(CubicSpline(th_boozers, Gs, bc_type="periodic"))
+    dth_of_thb.append(CubicSpline(th_boozers, th_geoms - th_boozers, bc_type="periodic"))
+
+  return dth_of_thb, G_of_thb
+
+
+def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+  """
+  f(spol, th_geom, ph) of normalized poloidal flux and geometric angles
+
+  Returns: Fourier harmonics fmn in terms of Boozer angles
+  """
+
+  ns = spol.shape[0]
+
+  fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
+
+  # Loop over flux surface index
+  th_geoms = np.zeros((ns - 1, nth))
+  phs = np.zeros((ns - 1, nth, nph))
+
+  for ks in np.arange(ns - 1):
+    print(f"ks = {ks}/{ns-2}")
+    for kth in np.arange(nth):
+      thb = kth * 2 * np.pi / nth
+      th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
+      G = G_of_thb[ks](thb)
+      for kph in np.arange(nph):
+        phb = kph * 2 * np.pi / nph
+        phs[ks, kth, kph] = phb - G
+
+  for kth in np.arange(nth):
+    print(f"kth = {kth}/{nth-1}")
+    thb = kth * 2 * np.pi / nth
+    for kph in np.arange(nph):
+      phb = kph * 2 * np.pi / nph
+
+      f_values = f(spol[:-1], th_geoms[:, kth], phs[:, kth, kph])
+
+      for m in np.arange(-m0b, m0b + 1):
+        # Take a sum over all theta values here
+        fmn[:, m + m0b] += f_values * np.exp(-1j * (m * thb + n * phb))
+
+  return fmn / ((2 * np.pi) ** 2 * nth * nph)
+
+
+def get_magnetic_axis():
+  psi = np.array(0.0)
+  theta = np.array(0.0)
+  si = np.array(0.0)
+
+  inp_label = 1
+  (
+    _,
+    _,
+    _,
+    _,
+    _,
+    _,
+    _,
+    R,
+    _,
+    _,
+    Z,
+    _,
+    _,
+    _,
+    _,
+    _,
+  ) = efit_to_boozer.efit_to_boozer.magdata(inp_label, si, psi, theta)
+
+  R_axis = R * length_cgs_to_si
+  Z_axis = Z * length_cgs_to_si
+
+  return R_axis, Z_axis
 
 
 def write_boozer_head(filename, version, shot: int, m0b, n0b, nsurf_fmt, nfp, psi_tor_a, aminor, Rmajor):

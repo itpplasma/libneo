@@ -9,7 +9,7 @@ enable_language(Fortran)
 if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   set(CMAKE_Fortran_FLAGS "-O2 -cpp -fPIC -Wall -fcheck=bounds -std=f2008")
 elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(CMAKE_Fortran_FLAGS "-O2 -cpp -mkl -heap-arrays -stand f08")
+  set(CMAKE_Fortran_FLAGS "-O2 -cpp -mkl -stand f08")
 endif ()
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})
 
