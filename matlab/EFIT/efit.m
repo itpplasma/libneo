@@ -392,7 +392,7 @@ classdef efit < handle
             %##############################################################
             
             %calculate contours
-            x = linspace(obj.rcentr - obj.rdim / 2, obj.rcentr + obj.rdim / 2, obj.nw);
+            x = linspace(obj.rleft, obj.rleft + obj.rdim, obj.nw);
             y = linspace(obj.zmid - obj.zdim / 2, obj.zmid + obj.zdim / 2, obj.nh);
             [X, Y] = meshgrid(x, y);
             
