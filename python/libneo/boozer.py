@@ -31,8 +31,8 @@ def get_boozer_transform(spol, nth):
     psi = np.array(0.0)
     s = np.array(spol[ks])
 
-    ths = []       # Boozer theta angle
-    th_geoms = []  # Geometric theta angle
+    th_boozers = []
+    th_geoms = []
     Gs = []
     for th_symflux in 2 * np.pi * np.arange(2 * nth) / (2 * nth):
       inp_label = 1
@@ -56,38 +56,43 @@ def get_boozer_transform(spol, nth):
       ) = efit_to_boozer.efit_to_boozer.magdata(
         inp_label, s, psi, th_symflux)
       Gs.append(G)
-      ths.append(th_symflux + G / q)
+      th_boozers.append(th_symflux + G / q)
       th_geoms.append(np.arctan2(
           Z*length_cgs_to_si - Z_axis,
           R*length_cgs_to_si - R_axis))
     Gs = np.array(Gs)
     Gs = np.append(Gs, Gs[0])
-    ths = np.unwrap(ths)
-    ths = np.append(ths, ths[0] + 2 * np.pi)
+    th_boozers = np.unwrap(th_boozers)
+    th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
     th_geoms = np.unwrap(th_geoms)
     th_geoms = np.append(th_geoms, th_geoms[0] + 2 * np.pi)
 
-    G_of_thb.append(CubicSpline(ths, Gs, bc_type="periodic"))
-    dth_of_thb.append(CubicSpline(ths, th_geoms - ths, bc_type="periodic"))
+    G_of_thb.append(CubicSpline(th_boozers, Gs, bc_type="periodic"))
+    dth_of_thb.append(CubicSpline(th_boozers, th_geoms - th_boozers, bc_type="periodic"))
 
   return dth_of_thb, G_of_thb
 
 
-def get_boozer_harmonics(fun, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+  """
+  f(spol, th_geom, ph) of normalized poloidal flux and geometric angles
+
+  Returns: Fourier harmonics fmn in terms of Boozer angles
+  """
 
   ns = spol.shape[0]
 
   fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
 
   # Loop over flux surface index
-  ths = np.zeros((ns - 1, nth))
+  th_geoms = np.zeros((ns - 1, nth))
   phs = np.zeros((ns - 1, nth, nph))
 
   for ks in np.arange(ns - 1):
     print(f"ks = {ks}/{ns-2}")
     for kth in np.arange(nth):
       thb = kth * 2 * np.pi / nth
-      ths[ks, kth] = thb + dth_of_thb[ks](thb)
+      th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
       G = G_of_thb[ks](thb)
       for kph in np.arange(nph):
         phb = kph * 2 * np.pi / nph
@@ -99,11 +104,11 @@ def get_boozer_harmonics(fun, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
     for kph in np.arange(nph):
       phb = kph * 2 * np.pi / nph
 
-      fun_values = fun(spol[:-1], ths[:, kth], phs[:, kth, kph])
+      f_values = f(spol[:-1], th_geoms[:, kth], phs[:, kth, kph])
 
       for m in np.arange(-m0b, m0b + 1):
         # Take a sum over all theta values here
-        fmn[:, m + m0b] += fun_values * np.exp(-1j * (m * thb + n * phb))
+        fmn[:, m + m0b] += f_values * np.exp(-1j * (m * thb + n * phb))
 
   return fmn / ((2 * np.pi) ** 2 * nth * nph)
 
