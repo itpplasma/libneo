@@ -292,7 +292,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G
       phb = kph * 2 * np.pi / nph
 
       f_values = f(spol[:-1], th_geoms[:, kth], phs[:, kth, kph])
-      f_values = f_values / B0_boozer_splined(spol[:-1], thb*np.ones_like(spol[:-1]))
+      f_values = f_values / B0_boozer_splined(spol, thb*np.ones_like(spol[:-1]))
 
       for m in np.arange(-m0b, m0b + 1):
         # Take a sum over all theta values here
@@ -304,9 +304,10 @@ def B0_boozer_splined(spol, theta, nth=16):
 
   B0_of_boozer = get_B0_of_s_theta_boozer(spol, nth)
   print(f"shape = {len(B0_of_boozer)}")
+  print(f"len spol = {len(spol)}")
   B0_spl = []
-  for i in np.arange(spol.shape[0]-1):
-    B0_spl.append(B0_of_boozer[i](theta))
+  for i in np.arange(len(spol)-1):
+    B0_spl.append(B0_of_boozer[i](theta[i]))
   return B0_spl
 
 
