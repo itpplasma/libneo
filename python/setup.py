@@ -10,6 +10,7 @@ from setuptools import setup, find_packages
 from setuptools.command.build_ext import build_ext
 from numpy.distutils.core import Extension
 
+name = "libneo"
 libneo_build_path = os.environ.get("LIBNEO_BUILD_PATH", "../../../build")
 
 
@@ -66,6 +67,25 @@ class MakeBuild(build_ext):
         if res.returncode != 0:
             raise Exception("f2py failed")
 
+        if not os.path.exists(self.build_lib): os.makedirs(self.build_lib)
+        print(self.build_lib)
+
+
+        outdir_lib = os.path.join(self.build_lib, "_" + name)
+        outdir_python = os.path.join(self.build_lib, name + "/")
+
+        if not os.path.exists(outdir_lib): os.makedirs(outdir_lib)
+        if not os.path.exists(outdir_python): os.makedirs(outdir_python)
+
+        for f in self.build_path.glob('*.so'):
+            shutil.copy2(f, outdir_lib)
+        for f in self.build_path.glob('*.py'):
+            shutil.copy2(f, outdir_python)
+
+
+
+
+
     def _options_if_defined(self, ext):
         print("EXT: ", ext.__dict__)
         if not "f2py_options" in ext.__dict__:
@@ -99,14 +119,14 @@ setup(
         'numpy'
     ],
     ext_modules=[
-        Extension('libneo.magfie',
+        Extension('magfie',
                   sources=['f2py_interfaces/f2py_magfie.f90',
                            'magfie/magfie_vmec.f90',
                            'spline_vmec_data.f90'],
                   include_dirs=[libneo_build_path],
                   libraries=['libneo'],
                   library_dirs=[libneo_build_path]),
-        Extension('libneo.efit_to_boozer',
+        Extension('efit_to_boozer',
                 sources=[
                      'f2py_interfaces/f2py_efit_to_boozer.f90',
                      'efit_to_boozer/SRC/odeint_allroutines.f',
@@ -129,7 +149,12 @@ setup(
                     ],
                     include_dirs=['efit_to_boozer/OBJS'],
                     libraries=['blas', 'lapack'],
-                )
+                ),
+        Extension('interpolate',
+                    sources=[
+                        'interpolate.f90',
+                    ],
+                ),
     ],
     cmdclass = {"build_ext" : MakeBuild},
 )
