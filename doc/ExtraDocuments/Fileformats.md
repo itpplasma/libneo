@@ -4,15 +4,15 @@ In this section we explain the different file formats that one might encounter w
 
 For syntax: The name of each section is given by the file format (i.e. how the data is structured/arranged in the file). In paranthese one finds the type of field (2D or 3D) that is usually stored, as well as a common code that generates the files in question. Finally the file type (different from format) i.e. the `.extension` of the file (e.g. textfile, binary netcdf, ...) is listed as well.
 
-## gfiles/EQDSK format (axissymmetric 2D equillibrium, EFIT, textfile)
+## gfiles/EQDSK format (axisymmetric 2D equillibrium, EFIT, textfile)
 
-[Original documentation from 1997](https://w3.pppl.gov/ntcc/TORAY/G_EQDSK.pdf) (note that there are some mistakes, e.g. `rcentr` does not exist) <br>
+[Original documentation from 1997](https://w3.pppl.gov/ntcc/TORAY/G_EQDSK.pdf) (note that `xdum` stands for a place holder to keep the formating of columns) <br>
 
-Units: SI (NOTE: converters using gfiles as source may give out the quantities in cgs units after conversion) <br>
+Units: SI (**note**: converters using gfiles as source may give out the quantities in cgs units after conversion) <br>
 entries per line: 5 (or less if end of points) <br>
 values format: ~ 16 characters (including sign and exponent notation) <br>
 
-While the general structure (see link above) should be the same for all files of that format, additional linebreaks and different formating of floating point numbers (number of digits) make it not possible to have one uniform reader routine for these textfiles. The user still has to choose the right reader routine for their present case, modify them accordingly or write their own.
+While the general structure (see link above) should be the same for all files of that format, additional linebreaks and different formating of floating point numbers (trailing spaces) makes reading these textfiles with practically most programming languages besides FORTRAN cumbersome. Therefore, if one works e.g. in Python it not possible to have one uniform reader routine for these textfiles. The user still has to choose the right reader routine for their present case, modify them accordingly or write their own. For FORTRAN however, this should not be a problem. If however, FORTRAN should actually fail to read it, a preprocessing of the file should be prefered, instead of including an extra reader for these edgecases in the main FORTRAN code.
 
 To give some orientation, for files which look like
 
@@ -29,13 +29,13 @@ To give some orientation, for files which look like
      +1.92499100e+06 +1.91352411e+06 +1.90209288e+06 +1.89069842e+06 +1.87934049e+06 
     ...
 
-where there is a line break in between the data blocks and the shot information (width in $R$ and $Z$ of box where data points are contained, leftmost $R$, ...) are listed in a different format than the quantity values in the subsequent blocks, the [eqdsk.py](https://github.com/itpplasma/libneo/blob/main/python/libneo/eqdsk.py) PYTHON class from libneo, can usually be used. You have to add libneo/python/ to your library [search path](https://note.nkmk.me/en/python-import-module-search-path/), see also [Libaris](https://gitlab.tugraz.at/plasma/info/-/tree/main/TOPIC_Compilation_and_Libraries/Libraries.md). Alternatively, you can just make a symbolic link in the same directory you want to import the reader.
+where there is a line break in between the data blocks and the shot information (width in $R$ and $Z$ of box where data points are contained, leftmost $R$, ...) are listed in a different format than the quantity values in the subsequent blocks, the [eqdsk.py](https://github.com/itpplasma/libneo/blob/main/python/libneo/eqdsk.py) Python class from libneo, can usually be used. You have to add libneo/python/ to your library [search path](https://note.nkmk.me/en/python-import-module-search-path/), see also [Libraries](https://gitlab.tugraz.at/plasma/info/-/tree/main/TOPIC_Compilation_and_Libraries/Libraries.md). Alternatively, you can just make a symbolic link in the same directory you want to import the reader.
 
     from libneo import eqdsk # You have to add libneo/python/ to your library search path
                              # or have symbolic link in same directory
     eqdsk_data = eqdsk.eqdsk_file(filename) # Creates a python dictionary eqdsk_data
 
-Note that this reader routine was desinged with having additionally coil information also present in the file (towards the end of the file), which is not the case for the format described in the linked documentation.
+Note that this reader routine was designed with having additional coil information positioned after the contents described in the linked documentation
 
 A reader that is more simpler and oriented on files that look like
 
@@ -53,15 +53,15 @@ A reader that is more simpler and oriented on files that look like
      0.153492648E+07 0.151262906E+07 0.148577727E+07 0.145611416E+07 0.142509588E+07
     ...
 
-where there is no additional linebreaks and the shot data is formated in the same ways as the actual data, readers like [poor_eqdsk.py](https://github.com/itpplasma/ntv-demo/blob/main/python/poor_eqdsk.py) from the ntv-demo repo may be used. However, again it has to be streched that there is not 1 uniform reader and you might very well needing to write one yourself. We will therefore explain the parts of the file, so that you can extract the necessary information yourself if needed.
+where there is no additional linebreaks and the shot data is formated in the same ways as the actual data, readers like [poor_eqdsk.py](https://github.com/itpplasma/ntv-demo/blob/main/python/poor_eqdsk.py) from the ntv-demo repo may be used. However, again it has to be stressed that there is not one uniform reader and you might very well need to write one yourself. We will therefore explain the parts of the file, so that you can extract the necessary information yourself if needed.
 
-- `PsiaxisVs` ... the POLOIDAL magnetic flux at the magnetic axis NORMALIZED by a factor $1/(2\pi)$ <br>
-to get the actual poloidal flux (e.g. for the input of VMEC) one has to multiply by $2\pi$ first <br>
+- `PsiaxisVs` ... the **poloidal** magnetic flux at the magnetic axis **normalized** by a factor $1/(2\pi)$ <br>
+to get the actual poloidal flux (e.g. for the input of `VMEC`) one has to multiply by $2\pi$ first <br>
 IF this value is $\neq 0$ it is the poloidal disk flux $\psi_\text{pol}^\text{disk}$, see also [lookup for flux coordinates](https://gitlab.tugraz.at/plasma/info/-/tree/main/TOPIC_MHD_Equilibria/Lookup_flux_coordinates.md) or D'haeseleer.
-- `PsiedgeVs` ... the POLOIDAL magnetic flux at the edge i.e. boundary flux surface NORMALIZED by a factor $1/(2\pi)$ <br>
-to get the actual poloidal flux (e.g. for the input of VMEC) one has to multiply by $2\pi$ first
+- `PsiedgeVs` ... the **poloidal** magnetic flux at the edge i.e. boundary flux surface **normalized** by a factor $1/(2\pi)$ <br>
+to get the actual poloidal flux (e.g. for the input of `VMEC`) one has to multiply by $2\pi$ first
 
-NOTE that depending on the further application you have to convert this into the TOROIDAL flux (e.g. for VMEC) instead. This can be done with by using the `qprof` safety factor profil (see also the [FluxConverter](https://github.com/itpplasma/libneo/blob/main/python/libneo/flux_converter.py) of libneo) 
+**Note** that depending on the further application you have to convert this into the **toroidal** flux (e.g. for `VMEC`) instead. This can be done with by using the `qprof` safety factor profil (see also the [FluxConverter](https://github.com/itpplasma/libneo/blob/main/python/libneo/flux_converter.py) of libneo) 
 
 ### TODO
 
@@ -84,34 +84,34 @@ It turns out that the majority of quantities provided in the EQDSK format (press
 
 defined by in terms of geometrical poloidal angle $\theta$ equidistant points, forming a closed flux surface
 
-## MARSQ_file (axissymmetric 2D equillibrium, MARSQ, matlab-strcture)
-load by MATLAB internal routine `load()` or for example PYTHON `loadmat()` <br>
+## MARSQ_file (axisymmetric 2D equillibrium, MARSQ, matlab-strcture)
+load by MATLAB internal routine `load()` or for example Python `loadmat()` <br>
 structure with field names like `R_MARS` or `rho_Boozer` (different coordinate systems possible/mixed) <br>
 e.g. <br>
 
-$\rho_{Boozer} = [1 \times 100]$ - equidistant array of BOOZER flux lable <br>
+$\rho_{Boozer} = [1 \times 100]$ - equidistant array of BOOZER flux label <br>
 $\vartheta_{Boozer} = [1 \times 50] $ - equidistant arra of BOOZER theta angle<br>
-$R_{BOOZE} = [100 \times 50] $ $\rightarrow$ points in CYLINDRICAL coordinates ($R$) on a BOOZER equidistant grid<br>
-$Z_{BOOZE} = [100 \times 50] $ $\rightarrow$ points in CYLINDRICAL coordinates ($Z$) on a BOOZER equidistant grid<br>
-$Bz_{Boozer} = [100 \times 50] $ $\rightarrow$ CYLINDRICAL covariant component on a BOOZER equidistant grid <br>
+$R_{BOOZE} = [100 \times 50] $ &rarr; points in CYLINDRICAL coordinates ($R$) on a BOOZER equidistant grid<br>
+$Z_{BOOZE} = [100 \times 50] $ &rarr; points in CYLINDRICAL coordinates ($Z$) on a BOOZER equidistant grid<br>
+$Bz_{Boozer} = [100 \times 50] $ &rarr; CYLINDRICAL covariant component on a BOOZER equidistant grid <br>
 
-flux lable is actually stored as $\rho_{Boozer} =\sqrt{s}$ i.e. square root of normalised, poloidal flux.
+flux label is actually stored as $\rho_{Boozer} =\sqrt{s}$ i.e. square root of normalised, poloidal flux.
 
 TODO
 
 ## XPLASMA.OUT (,MARS,textfile)
 TODO
 
-## vmec_files (3D equillibrium, VMEC, binary netcdf file)
+## vmec_files (3D equillibrium, `VMEC`, binary netcdf file)
 TODO
 
-## boozX_files (3D equillibrium, BOOZX, binary netcdf file)
+## boozX_files (3D equillibrium, `BOOZX`, binary netcdf file)
 TODO
 
 ## `.bc`-files or boozerfiles (2D or 3D equi., ITP converter routines, textfile)
 TODO
 
-The lenght of the values was shortend to the usual precission for better readability.
+The length of the values was shortend to the usual precision for better readability.
 
     CC Boozer-coordinate data file
     CC Version: 
@@ -130,11 +130,11 @@ The lenght of the values was shortend to the usual precission for better readabi
 
 ### Meaning of quantities
 
-Here we list the meaning of the quantities in the file. While the actual names may differ between versions of Boozer files, their position in the file should stay the same, which is the relevant criteria for readers implemented in our codes like [NEO-2](https://gitlab.tugraz.at/plasma/info/-/tree/main/codes/NEO2.md).
+Here we list the meaning of the quantities in the file. While the actual names may differ between versions of Boozer files, their position in the file should stay the same, which is the relevant criterion for readers implemented in our codes like [NEO-2](https://gitlab.tugraz.at/plasma/info/-/tree/main/codes/NEO2.md).
 
 #### Quantities common for all surfaces
 - `m0b` & `n0b` <br>
-Give (or should give) the maximum mode number in poloidal ($m$) or toroidal ($n$) regard. Therefore in the file above there are $24 + 1$ different poloidal mode numbers and $0 + 1$ toroidal mode numbers. Depending on the specific form of the boozer file, one can calculate the total number of modes present per surface (see below).
+Give (or should give) the maximum mode number in poloidal ($m$) or toroidal ($n$) regard. Therefore in the file above there are $24 + 1$ different poloidal mode numbers and $0 + 1$ toroidal mode numbers. Depending on the specific form of the Boozer file, one can calculate the total number of modes present per surface (see below).
 
 - `nsurf` <br>
 Number of surfaces in the file
@@ -143,7 +143,7 @@ Number of surfaces in the file
 Number of period, also often called `nfp`, see [Number of Field Periods](/doc/ExtraDocuments/Conventions.md#number-of-field-periods) in the Convention section.
 
 - `flux` <br>
-The toroidal magnetic flux at the edge/seperatrix (NOT normalised by a factor $2\pi$). The flux has a sign, therefore depending on the coordinate system used in the boozer file & in the application reading the boozer file, an additional conversion has to be done.
+The toroidal magnetic flux at the edge/seperatrix (NOT normalised by a factor $2\pi$). The flux has a sign, therefore depending on the coordinate system used in the Boozer file & in the application reading the Boozer file, an additional conversion has to be done.
 
 - `a` <br> TODO
 - `R` <br> TODO
@@ -157,10 +157,10 @@ While the file presented above is a common variant at our institute, it is by fa
 
 #### The form of the Fourier series
 
-The Fourier series is expressed in terms of real coefficients i.e. the series consists of $\sin$ and $\cos$ instead of complex exponentials. This is signified by the ending of the coefficients i.e.
+The Fourier series is expressed in terms of real coefficients i.e. the series consists of $\sin$ and cosine instead of complex exponentials. This is signified by the ending of the coefficients i.e.
 
 - `*s` for coefficients of the $\sin$ part (e.g. `zmns`) and
-- `*c` for coefficients of the $\cos$ part (e.g. `rmnc`).
+- `*c` for coefficients of the cosine part (e.g. `rmnc`).
 
 A very general way of writing such a Fourier series is
 
@@ -175,7 +175,7 @@ by
 $f^\text{s}_{mn} = -\Im{f_{mn}}$ <br>
 $f^\text{c}_{mn} = \Re{f_{mn}}$.
 
-As now for reel functions like physical quantities, the complex coefficients have to fullfill
+As now for real functions like physical quantities, the complex coefficients have to fulfill
 
 ${f_{mn}}^* = f_{-m-n}$,
 
@@ -184,16 +184,16 @@ which further leads to
 $f^\text{s}_{mn} = -f^\text{s}_{-m-n}$ <br>
 $f^\text{c}_{mn} = +f^\text{c}_{-m-n}$
 
-One therfore only needs to know half of the coefficients. Concrete this means, that one can choose EITHER $m$ or $n$, to be non-negative (you only can do this for one of them, as else you would be missing modes). We commonly choose the poloidal mode $m$ for that. The coefficients are then redefined as
+One therfore only needs to know half of the coefficients. This means, that one can choose **either** $m$ or $n$, to be non-negative (you only can do this for one of them, as else you would be missing modes). We commonly choose the poloidal mode $m$ for that. The coefficients are then redefined as
 
 ${f^\text{s}_{00}}' = 0$<br>
 $f^\text{s}_{mn}\sin{(m\theta + n\varphi)} + f^\text{s}_{-m-n}\sin{(-m\theta - n\varphi)}=2f^\text{s}_{mn}\sin{(m\theta + n\varphi)}$ <br>
-$\rightarrow$<br>
+&rarr;<br>
 ${f^\text{s}_{mn}}' \equiv 2f^\text{s}_{mn}$<br>
 
 ${f^\text{c}_{00}}' = f^\text{c}_{00}$<br>
 $f^\text{c}_{mn}\cos{(m\theta + n\varphi)} + f^\text{c}_{-m-n}\cos{(-m\theta - n\varphi)}=2f^\text{c}_{mn}\cos{(m\theta + n\varphi)}$ <br>
-$\rightarrow$<br>
+&rarr;<br>
 ${f^\text{c}_{mn}}' \equiv 2f^\text{c}_{mn}$<br>
 
 and the sum goes like
@@ -208,24 +208,24 @@ ${f^\text{c}_{0n}}' = 2{f^\text{c}_{0n}} = +2f^\text{c}_{-0-n} = +2f^\text{c}_{0
 one can again recombine to (analoge to the previous one)
 
 ${f^\text{s}_{0n}}'' \equiv 2{f^\text{s}_{0n}}'$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $n>0$<br>
-${f^\text{s}_{0n}}'' \equiv 0$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $n<0$ $\rightarrow$ left out in Boozer file<br>
+${f^\text{s}_{0n}}'' \equiv 0$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $n<0$ &rarr; left out in Boozer file<br>
 ${f^\text{s}_{00}}'' \equiv {f^\text{s}_{00}}' = 0$<br>
 ${f^\text{s}_{mn}}'' \equiv {f^\text{s}_{mn}}'$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $m \ne 0$
 
 ${f^\text{c}_{0n}}'' \equiv 2{f^\text{c}_{0n}}'$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $n>0$<br>
-${f^\text{c}_{0n}}'' \equiv 0$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $n<0$ $\rightarrow$ left out in Boozer file<br>
+${f^\text{c}_{0n}}'' \equiv 0$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $n<0$ &rarr; left out in Boozer file<br>
 ${f^\text{c}_{00}}'' \equiv {f^\text{c}_{00}}' = {f^\text{c}_{00}}$<br>
 ${f^\text{c}_{mn}}'' \equiv {f^\text{c}_{mn}}'$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; for $m \ne 0$
 
-In this new definition, both for $\sin$ and $\cos$ ,there are no negative modes if $m=0$. One can now choose (but does not have to) leave out these zeros when writing the Boozer file. Depening on the choice, the number of present modes in the file changes (see below). 
+In this new definition, both for $\sin$ and cosine ,there are no negative modes if $m=0$. One can now choose (but does not have to) leave out these zeros when writing the Boozer file. Depening on the choice, the number of present modes in the file changes (see below). 
 
-However, for the reconstruction the definition of the modes is actually not relevant (assuming one can read out all the rows properly from the file). Because no matter which definition of coefficient is present, as long as one adds all PRESENT modes up with the correct mode numbers $m$ & $n$, one gets the correct quantity back.
+However, for the reconstruction the definition of the modes is actually not relevant (assuming one can read out all the rows properly from the file). Because no matter which definition of coefficient is present, as long as one adds all **present** modes up with the correct mode numbers $m$ & $n$, one gets the correct quantity back.
 
-TD;LR: While from the understanding there are different definitions of the fouriercoefficients, as long as one reads the PRESENT modes out literally (i.e.
+TD;LR: While from the understanding there are different definitions of the fouriercoefficients, as long as one reads the **present** modes out literally (i.e.
 
-`m=0 n=-1 rmnc=0.5 rmns=0.2` $\rightarrow$ $0.5\cos{(0\theta - \varphi)} + 0.2\sin{(0\theta -\varphi)}$<br>
-`m=1 n=+1 rmnc=0.2 rmns=0.5` $\rightarrow$ $0.2\cos{(\theta + \varphi)} + 0.5\sin{(\theta +\varphi)}$<br>
-`m=0 n=-1 rmnc=0.0 rmns=0.0` $\rightarrow$ $0.0\cos{(0\theta - \varphi)} + 0.0\sin{(0\theta -\varphi)}$<br>
+`m=0 n=-1 rmnc=0.5 rmns=0.2` &rarr; $0.5\cos{(0\theta - \varphi)} + 0.2\sin{(0\theta -\varphi)}$<br>
+`m=1 n=+1 rmnc=0.2 rmns=0.5` &rarr; $0.2\cos{(\theta + \varphi)} + 0.5\sin{(\theta +\varphi)}$<br>
+`m=0 n=-1 rmnc=0.0 rmns=0.0` &rarr; $0.0\cos{(0\theta - \varphi)} + 0.0\sin{(0\theta -\varphi)}$<br>
 $\ldots$
 
 ) and adds them all up, one does always end up with the correct value.
@@ -241,8 +241,8 @@ This format is sometimes refered to at ITP as "Strumberger Format"
 - $m \ge 0$ and for each $m$ toroidal modes $n \in [-\text{n0b},\text{n0b}]$ <br>
 The total number of modes is therefore $(\text{m0b}+1)*(2*\text{n0b}+1)$
 
-#### Assuming stellerator symmetry
+#### Assuming stellarator symmetry
 
 TODO
 
-If stellerator symmetry is present, only the $\sin$ OR $\cos$ contribution for a quantity e.g. the Radius $R$ is non-zero. Each quantity therefore then only has one column of coefficients assigned to it, reducing the overall columns to 6 instead of 8.
+If stellarator symmetry is present, only the $\sin$ OR cosine contribution for a quantity e.g. the Radius $R$ is non-zero. Each quantity therefore then only has one column of coefficients assigned to it, reducing the overall columns to 6 instead of 8.
