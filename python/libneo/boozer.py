@@ -15,6 +15,7 @@ __all__ = ['get_magnetic_axis',
            'convert_to_boozer', 'BoozerFile']
 
 length_cgs_to_si = 1e-2
+debug = False
 
 def get_boozer_transform(spol, nth):
   from scipy.interpolate import CubicSpline
@@ -138,7 +139,7 @@ def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   phs = np.zeros((ns - 1, nth, nph))
 
   for ks in np.arange(ns - 1):
-    print(f"ks = {ks}/{ns-2}")
+    if debug: print(f"ks = {ks}/{ns-2}")
     for kth in np.arange(nth):
       thb = kth * 2 * np.pi / nth
       th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
@@ -148,7 +149,7 @@ def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
         phs[ks, kth, kph] = phb - G
 
   for kth in np.arange(nth):
-    print(f"kth = {kth}/{nth-1}")
+    if debug: print(f"kth = {kth}/{nth-1}")
     thb = kth * 2 * np.pi / nth
     for kph in np.arange(nph):
       phb = kph * 2 * np.pi / nph
