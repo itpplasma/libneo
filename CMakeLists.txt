@@ -2,7 +2,7 @@
 # List of source files are in CMakeSources.in.
 
 # Basic cmake settings/requirements
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.20)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
 # Basic project settings.
@@ -77,13 +77,6 @@ add_link_options(${NETCDF_FLIBS})
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 
-# RKF45 from https://people.sc.fsu.edu/~jburkardt/
-# licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
-add_library ( rkf45 SHARED
-  src/contrib/rkf45.f90
-)
-
-
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
@@ -129,6 +122,9 @@ execute_process(
           "import numpy.f2py; print(numpy.f2py.get_include())"
   OUTPUT_VARIABLE F2PY_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+# Print F2PY headers
+message(STATUS "F2PY headers: ${F2PY_INCLUDE_DIR}")
 
 #add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
 #target_link_libraries(fortranobject PUBLIC Python::NumPy)

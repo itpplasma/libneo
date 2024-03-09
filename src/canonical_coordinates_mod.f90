@@ -4,14 +4,6 @@ module chamb_mod
 !$omp threadprivate(rnegflag)
 end module chamb_mod
 
-module parmot_mod
-  use libneo_kinds, only : real_kind
-
-  implicit none
-
-  real(kind=real_kind) :: rmu, ro0, eeff
-end module parmot_mod
-
 module new_vmec_stuff_mod
   use libneo_kinds, only : real_kind
 
