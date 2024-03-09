@@ -20,5 +20,5 @@ module field_eq_mod
   real(kind=real_kind) :: psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
 
   ! Make temporary variables threadprivate
-  !$omp threadprivate(psif)
+  !$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2)
 end module field_eq_mod
