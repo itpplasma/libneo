@@ -83,13 +83,9 @@ add_library ( rkf45 SHARED
   src/contrib/rkf45.f90
 )
 
-# Main goal (of the created build file): creating the library file.
-add_library(libneo SHARED ${SOURCE_FILES})
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-target_link_libraries(libneo
-  rkf45 ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 #set_target_properties(libneo PROPERTIES VERSION ${libneo_VERSION})
 
@@ -117,3 +113,37 @@ list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib"
 if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
+
+# Python bindings
+cmake_minimum_required(VERSION 3.17.2...3.26)
+project(${SKBUILD_PROJECT_NAME} LANGUAGES C Fortran)
+
+find_package(
+  Python
+  COMPONENTS Interpreter Development.Module NumPy
+  REQUIRED)
+
+# F2PY headers
+execute_process(
+  COMMAND "${PYTHON_EXECUTABLE}" -c
+          "import numpy.f2py; print(numpy.f2py.get_include())"
+  OUTPUT_VARIABLE F2PY_INCLUDE_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+#add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
+#target_link_libraries(fortranobject PUBLIC Python::NumPy)
+#target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
+#set_property(TARGET fortranobject PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+#add_custom_command(
+#  OUTPUT interpolatemodule.c interpolate-f2pywrappers.f90
+#  DEPENDS src/interpolate.f90
+#  VERBATIM
+#  COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
+#  "${CMAKE_CURRENT_SOURCE_DIR}/src/interpolate.f90" -m example --lower)
+
+#python_add_library(example MODULE "${CMAKE_CURRENT_BINARY_DIR}/interpolatemodule.c"
+#                   "${CMAKE_CURRENT_SOURCE_DIR}/src/interpolate.f90" WITH_SOABI)
+#target_link_libraries(example PRIVATE fortranobject)
+
+#install(TARGETS example DESTINATION .)

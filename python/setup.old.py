@@ -7,7 +7,7 @@ import sys
 
 from pathlib import Path
 from setuptools import setup, find_packages
-from setuptools.command.build_ext import build_ext
+from numpy.distutils.command import build_ext
 from numpy.distutils.core import Extension
 
 name = "libneo"

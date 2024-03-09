@@ -1,0 +1,13 @@
+[build-system]
+requires = ["scikit-build-core", "numpy"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "libneo"
+version = "0.0.1"
+dependencies = ["numpy"]
+
+[tool.scikit-build]
+ninja.minimum-version = "1.10"
+cmake.minimum-version = "3.17.2"
+build-dir = "build"

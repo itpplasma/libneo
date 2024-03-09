@@ -2,10 +2,40 @@
 # The file CMakeLists.txt contains the main configuration code.
 # Main goal (of the created build file): creating the library file.
 
-add_library(mc_efit SHARED
+add_library(neo SHARED
+    arnoldi.f90
+    boozer.f90
+    io.f90
     libneo_kinds.f90
     math_constants.f90
+    ode_integration.f90
+    rusage_type.f90
+    solve_systems.f90
+    system_utility.f90
+    util.f90
+    interpolate.f90
+
+    # VMEC
+    canonical_coordinates_mod.f90
+    nctools_module.f90
+    new_vmec_allocation_stuff.f90
+    spline_vmec_data.f90
+    vmecinm_m.f90
     spl_three_to_five.f90
+    plag_coeff.f90
+    odeint_rkf45.f90
+    binsrc.f90
+    get_canonical_coordinates.f90
+    boozer_converter.f90
+    magfie/magfie_vmec.f90
+
+    # For CPU time measurements
+    local_rusage.c
+)
+target_link_libraries(neo
+  rkf45 ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+
+add_library(mc_efit SHARED
     magfie/polylag_3.f
     magfie/polylag_5.f
     magfie/spline5_RZ.f90
