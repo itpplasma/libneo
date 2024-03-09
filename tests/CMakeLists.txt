@@ -6,9 +6,7 @@ set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
 include_directories(${MPI_Fortran_INCLUDE_PATH})
-include_directories(${PROJECT_BINARY_DIR})
 
-include_directories(${CMAKE_BINARY_DIR}/src/)
 include_directories(${CMAKE_SOURCE_DIR}/src/MyMPILib)
 include_directories(${CMAKE_SOURCE_DIR}/src/hdf5_tools)
 include_directories(${MPI_Fortran_INCLUDE_PATH})

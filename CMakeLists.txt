@@ -3,21 +3,20 @@
 
 # Basic cmake settings/requirements
 cmake_minimum_required(VERSION 3.20)
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
 # Basic project settings.
 project(libneo)
 
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 # The version number.
 set (libneo_VERSION_MAJOR 0)
-set (libneo_VERSION_MINOR 1)
+set (libneo_VERSION_MINOR 0)
+set (libneo_VERSION_PATCH 3)
 
 enable_language(Fortran)
 enable_testing()
-
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
-# set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 
 if (EXISTS ${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
   include (${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
@@ -27,19 +26,15 @@ find_program (BASH_PROGRAM bash)
 
 find_package (MPI REQUIRED)
 
-# Include file for the sources.
-include(CMakeSources.in)
-
-
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
   set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fcheck=all -fbacktrace \
-    -fno-realloc-lhs -fopenmp -Wall -Wextra")
+                            -fno-realloc-lhs -fopenmp -Wall -Wextra")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
   set (CMAKE_Fortran_FLAGS "-cpp -check all -traceback \
-    -assume norealloc_lhs -qopenmp -warn all")
+                            -assume norealloc_lhs -qopenmp -warn all")
 
 endif ()
 
@@ -80,16 +75,7 @@ add_subdirectory(src/hdf5_tools)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
-#set_target_properties(libneo PROPERTIES VERSION ${libneo_VERSION})
-
-add_subdirectory(src)
-include_directories("${CMAKE_BINARY_DIR}/src")
-
-add_subdirectory(src/efit_to_boozer)
-target_include_directories(efit_to_boozer BEFORE
-  PUBLIC
-  src/efit_to_boozer/
-)
+include(CMakeSources.in)
 
 add_subdirectory(tests)
 
@@ -141,21 +127,6 @@ execute_process(
   OUTPUT_VARIABLE F2PY_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-# Check if f90wrap package ist installed
-execute_process(
-    COMMAND "${Python_EXECUTABLE}" -m "f90wrap"
-    RESULT_VARIABLE F90WRAP_RESULT
-    OUTPUT_QUIET
-    ERROR_QUIET
-)
-
-if (F90WRAP_RESULT EQUAL 0)
-    message(STATUS "Python f90wrap found.")
-else()
-    message(STATUS "Python f90wrap not found, skipping interface build.")
-    return()
-endif()
-
 # Grab the variables from a local Python installation
 # F2PY headers
 execute_process(
@@ -198,24 +169,37 @@ target_link_libraries(fortranobject PUBLIC Python::NumPy)
 target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
 set_property(TARGET fortranobject PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-function(build_f2py_module MODULE_NAME)
-  add_custom_command(
-    OUTPUT ${MODULE_NAME}module.c f2py_${MODULE_NAME}-f2pywrappers.f90
-    DEPENDS src/f2py_interfaces/f2py_${MODULE_NAME}.f90
-    VERBATIM
-    COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_${MODULE_NAME}.f90" -m ${MODULE_NAME} --lower
+add_custom_command(
+  OUTPUT _magfiemodule.c _magfie-f2pywrappers.f
+  DEPENDS src/f2py_interfaces/f2py_magfie.f90
+  VERBATIM
+  COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/magfie/magfie_vmec.f90"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/spline_vmec_data.f90"
+  -m _magfie --lower
+)
+
+Python_add_library(_magfie WITH_SOABI
+  "${CMAKE_CURRENT_BINARY_DIR}/_magfiemodule.c"
+  "${CMAKE_CURRENT_BINARY_DIR}/_magfie-f2pywrappers.f"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
   )
 
-  python_add_library(_${MODULE_NAME} MODULE "${CMAKE_CURRENT_BINARY_DIR}/${MODULE_NAME}module.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_${MODULE_NAME}.f90" WITH_SOABI)
-endfunction()
-
-build_f2py_module(magfie)
-target_link_libraries(_magfie PRIVATE fortranobject magfie)
-
-# build_f2py_module(efit_to_boozer)
-# target_link_libraries(_efit_to_boozer PRIVATE fortranobject efit_to_boozer)
-
+target_link_libraries(_magfie PUBLIC fortranobject magfie)
 install(TARGETS _magfie DESTINATION .)
-# install(TARGETS _efit_to_boozer DESTINATION .)
+
+# Check if f90wrap package ist installed
+execute_process(
+    COMMAND "${Python_EXECUTABLE}" -m "f90wrap"
+    RESULT_VARIABLE F90WRAP_RESULT
+    OUTPUT_QUIET
+    ERROR_QUIET
+)
+
+if (F90WRAP_RESULT EQUAL 0)
+    message(STATUS "Python f90wrap found.")
+else()
+    message(STATUS "Python f90wrap not found, skipping interface build.")
+    return()
+endif()
