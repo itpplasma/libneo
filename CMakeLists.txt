@@ -34,12 +34,12 @@ include(CMakeSources.in)
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
   set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fcheck=all -fbacktrace \
-    -fno-realloc-lhs -fopenmp -std=f2008 -Wall -Wextra")
+    -fno-realloc-lhs -fopenmp -Wall -Wextra")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
   set (CMAKE_Fortran_FLAGS "-cpp -check all -traceback \
-    -assume norealloc_lhs -stand f08 -qopenmp -warn all")
+    -assume norealloc_lhs -qopenmp -warn all")
 
 endif ()
 
@@ -83,7 +83,16 @@ find_package(LAPACK REQUIRED)
 #set_target_properties(libneo PROPERTIES VERSION ${libneo_VERSION})
 
 add_subdirectory(src)
+include_directories("${CMAKE_BINARY_DIR}/src")
+
+add_subdirectory(src/efit_to_boozer)
+target_include_directories(efit_to_boozer BEFORE
+  PUBLIC
+  src/efit_to_boozer/
+)
+
 add_subdirectory(tests)
+
 
 # MacOS RPATH specifics
 # see https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/RPATH-handling
@@ -108,13 +117,22 @@ if("${isSystemDir}" STREQUAL "-1")
 endif("${isSystemDir}" STREQUAL "-1")
 
 # Python bindings
-cmake_minimum_required(VERSION 3.17.2...3.26)
-project(${SKBUILD_PROJECT_NAME} LANGUAGES C Fortran)
 
+# Grab Python
 find_package(
   Python
   COMPONENTS Interpreter Development.Module NumPy
   REQUIRED)
+
+if (Python_FOUND)
+    message(STATUS "Python found: ${Python_EXECUTABLE}")
+    message(STATUS "Python version: ${Python_VERSION}")
+    message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
+    message(STATUS "Python libraries: ${Python_LIBRARIES}")
+else()
+    message("Python with NumPy not found, skipping interface build.")
+    return()
+endif()
 
 # F2PY headers
 execute_process(
@@ -123,23 +141,81 @@ execute_process(
   OUTPUT_VARIABLE F2PY_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-# Print F2PY headers
-message(STATUS "F2PY headers: ${F2PY_INCLUDE_DIR}")
+# Check if f90wrap package ist installed
+execute_process(
+    COMMAND "${Python_EXECUTABLE}" -m "f90wrap"
+    RESULT_VARIABLE F90WRAP_RESULT
+    OUTPUT_QUIET
+    ERROR_QUIET
+)
 
-#add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
-#target_link_libraries(fortranobject PUBLIC Python::NumPy)
-#target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
-#set_property(TARGET fortranobject PROPERTY POSITION_INDEPENDENT_CODE ON)
+if (F90WRAP_RESULT EQUAL 0)
+    message(STATUS "Python f90wrap found.")
+else()
+    message(STATUS "Python f90wrap not found, skipping interface build.")
+    return()
+endif()
 
-#add_custom_command(
-#  OUTPUT interpolatemodule.c interpolate-f2pywrappers.f90
-#  DEPENDS src/interpolate.f90
-#  VERBATIM
-#  COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
-#  "${CMAKE_CURRENT_SOURCE_DIR}/src/interpolate.f90" -m example --lower)
+# Grab the variables from a local Python installation
+# F2PY headers
+execute_process(
+    COMMAND "${Python_EXECUTABLE}"
+    -c "import numpy; print(numpy.__version__)"
+    OUTPUT_VARIABLE NUMPY_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 
-#python_add_library(example MODULE "${CMAKE_CURRENT_BINARY_DIR}/interpolatemodule.c"
-#                   "${CMAKE_CURRENT_SOURCE_DIR}/src/interpolate.f90" WITH_SOABI)
-#target_link_libraries(example PRIVATE fortranobject)
+if (${NUMPY_VERSION} VERSION_GREATER_EQUAL "1.21.1")
+	execute_process(
+        COMMAND "${Python_EXECUTABLE}"
+        -c "import numpy.f2py; print(numpy.f2py.get_include())"
+        OUTPUT_VARIABLE F2PY_INCLUDE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+	)
+else()
+    execute_process(
+        COMMAND "${Python_EXECUTABLE}"
+        -c "import numpy; print(numpy.get_include())"
+        OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    set(F2PY_INCLUDE_DIR "${NUMPY_INCLUDE_DIR}/../../f2py/src/")
+endif()
 
-#install(TARGETS example DESTINATION .)
+include_directories(
+    BEFORE
+    ${Python_INCLUDE_DIRS}
+    ${Python_NumPy_INCLUDE_DIRS}
+    ${F2PY_INCLUDE_DIR}
+)
+
+message(STATUS "Python f2py include dir: ${F2PY_INCLUDE_DIR}")
+message(STATUS "Python numpy include dir: ${Python_NumPy_INCLUDE_DIRS}")
+message(STATUS "Python binary output dir: ${CMAKE_CURRENT_BINARY_DIR}")
+
+add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
+target_link_libraries(fortranobject PUBLIC Python::NumPy)
+target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
+set_property(TARGET fortranobject PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+function(build_f2py_module MODULE_NAME)
+  add_custom_command(
+    OUTPUT ${MODULE_NAME}module.c f2py_${MODULE_NAME}-f2pywrappers.f90
+    DEPENDS src/f2py_interfaces/f2py_${MODULE_NAME}.f90
+    VERBATIM
+    COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_${MODULE_NAME}.f90" -m ${MODULE_NAME} --lower
+  )
+
+  python_add_library(_${MODULE_NAME} MODULE "${CMAKE_CURRENT_BINARY_DIR}/${MODULE_NAME}module.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_${MODULE_NAME}.f90" WITH_SOABI)
+endfunction()
+
+build_f2py_module(magfie)
+target_link_libraries(_magfie PRIVATE fortranobject magfie)
+
+# build_f2py_module(efit_to_boozer)
+# target_link_libraries(_efit_to_boozer PRIVATE fortranobject efit_to_boozer)
+
+install(TARGETS _magfie DESTINATION .)
+# install(TARGETS _efit_to_boozer DESTINATION .)

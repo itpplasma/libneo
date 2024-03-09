@@ -30,7 +30,7 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   complex(kind=complex_kind) :: four_ampl
   complex(kind=complex_kind), dimension(:,:), allocatable :: expon
 
-  integer, parameter :: mp=4 ! power of Lagrange's polynomial =3
+  integer, parameter :: mp=4 ! power of Lagrange polynomial =3
   integer,          dimension(mp)    :: indx,indy
   real(kind=real_kind), dimension(mp)    :: xp,yp
   real(kind=real_kind), dimension(mp,mp) :: fp

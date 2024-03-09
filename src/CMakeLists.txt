@@ -96,17 +96,17 @@ include_directories(${HDF5_INCLUDE_DIRS})
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
 target_link_libraries(magfie
-  neo
-  rkf45
-  netcdf
-  netcdff
-  hdf5_tools
-  ${fftw_lib}
-  ${fftw_omp_lib}
-  ${HDF5_HL_LIBRARIES}
-  ${HDF5_LIBRARIES}
-  ${BLAS_LIBRARIES}
-  ${LAPACK_LIBRARIES}
+neo
+rkf45
+netcdf
+netcdff
+hdf5_tools
+${fftw_lib}
+${fftw_omp_lib}
+${HDF5_HL_LIBRARIES}
+${HDF5_LIBRARIES}
+${BLAS_LIBRARIES}
+${LAPACK_LIBRARIES}
 )
 target_link_libraries(vacfield.x PUBLIC magfie)
 target_link_libraries(coil_convert.x PUBLIC magfie)
