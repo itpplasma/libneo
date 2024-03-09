@@ -55,9 +55,6 @@ class FluxConverter:
         return self.__axis_polflux != 0.0
 
     def spol2stor(self, spol):
-        """
-        Converts the poloidal flux label spol to the toroidal flux label stor.
-        """
 
         stor = (self.__get_torflux_delta_ribbon_polflux_ratio(spol) - self.__axis_torflux_delta_ribbon_polflux_ratio) \
                / (self.__edge_torflux_delta_ribbon_polflux_ratio - self.__axis_torflux_delta_ribbon_polflux_ratio)
@@ -65,18 +62,26 @@ class FluxConverter:
         return stor
 
     def stor2spol(self, stor):
-        """
-        Converts the toroidal flux label stor to the poloidal flux label spol.
-        """
 
         spol = self.__spol(stor)
 
         return spol
 
+    def stor2sqrtspol(self, stor):
+
+        spol = self.stor2spol(stor)
+        sqrtspol = np.sqrt(spol)
+
+        return sqrtspol
+
+    def sqrtspol2stor(self, sqrtspol):
+
+        spol = sqrtspol**2
+        stor = self.spol2stor(spol)
+
+        return stor
+
     def polflux2torflux(self, polflux):
-        """
-        Converts the poloidal flux polflux to the toroidal flux torflux.
-        """
 
         if np.isnan(self.__axis_polflux) or np.isnan(self.__edge_polflux):
             raise ValueError(
@@ -90,9 +95,6 @@ class FluxConverter:
         return torflux
 
     def torflux2polflux(self, torflux):
-        """
-        Converts the toroidal flux torflux to the poloidal flux polflux.
-        """
 
         if np.isnan(self.__axis_polflux) or np.isnan(self.__edge_polflux):
             raise ValueError(
