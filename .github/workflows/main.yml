@@ -7,19 +7,17 @@ on: [push, pull_request]
 jobs:
   GNU:
     runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/itpplasma/devel:latest
 
     name: Build and test
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Deps
-        run: |
-          sudo ./install_deps.sh
-
       - name: Build
         run: |
-          mkdir build && cd build && cmake .. && make -j2
+          ./build.sh
 
       - name: Build h5merge
         run: |
