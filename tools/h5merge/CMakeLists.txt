@@ -19,6 +19,8 @@ include_directories(${HDF5_INCLUDE_DIRS})
 
 find_library(HDF5_TOOLS_LIB NAMES hdf5_tools libhdf5_tools.a PATHS ${CMAKE_SOURCE_DIR}/../../build/ ${CMAKE_BINARY_DIR}/ PATH_SUFFIXES src/hdf5_tools/ NO_DEFAULT_PATH)
 
+include_directories(${CMAKE_SOURCE_DIR}/../../build/ ${CMAKE_BINARY_DIR})
+
 set(Interface_Libs
   ${HDF5_TOOLS_LIB}
   ${HDF5_Fortran_HL_LIBRARIES}
