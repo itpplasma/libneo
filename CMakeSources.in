@@ -39,7 +39,12 @@ add_library(neo SHARED
     src/local_rusage.c
 )
 target_link_libraries(neo
-  rkf45 ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  rkf45
+  ${BLAS_LIBRARIES}
+  ${LAPACK_LIBRARIES}
+  netcdf
+  netcdff
+)
 
 add_library(magfie SHARED
 

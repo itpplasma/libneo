@@ -200,6 +200,95 @@ execute_process(
 if (F90WRAP_RESULT EQUAL 0)
     message(STATUS "Python f90wrap found.")
 else()
-    message(STATUS "Python f90wrap not found, skipping interface build.")
+    message(STATUS "Python f90wrap not found, skipping further interface builds.")
     return()
 endif()
+
+set(FILES_TO_WRAP
+  interpolate.f90
+)
+
+set(EXCLUDE_BASENAMESs
+)
+
+foreach(file ${FILES_TO_WRAP})
+    get_filename_component(basename ${file} NAME_WE)
+    list(APPEND PREPROCESSED_SOURCES
+        ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
+    )
+    if(NOT ${basename} IN_LIST EXCLUDE_BASENAMES)
+        list(APPEND F90WRAP_OUTPUT
+            ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_${basename}.f90.f90
+        )
+    endif()
+endforeach()
+
+if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
+  list(APPEND F90WRAP_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
+endif()
+
+list(TRANSFORM FILES_TO_WRAP PREPEND ${PROJECT_SOURCE_DIR}/src/)
+
+set(F2PY_MODULE_NAME "_interpolate")
+
+set(F2PY_MODULE_C "${F2PY_MODULE_NAME}module.c")
+set(GENERATED_MODULE_FILE "${F2PY_MODULE_NAME}.${Python_SOABI}")
+set(F2PY_WRAPPERS "${CMAKE_CURRENT_BINARY_DIR}/${F2PY_MODULE_C}")
+
+add_custom_target(F90WrapOutput)
+
+foreach (file_to_wrap ${FILES_TO_WRAP})
+    get_filename_component(basename ${file_to_wrap} NAME_WE)
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
+        COMMAND gfortran -E -cpp
+            -o ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
+            ${file_to_wrap}
+    DEPENDS ${file_to_wrap}
+)
+endforeach()
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py ${F90WRAP_OUTPUT}
+	COMMAND ${Python_EXECUTABLE}
+        -m f90wrap
+        --f90wrap
+        -m interpolate
+        -k ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
+        ${CMAKE_CURRENT_BINARY_DIR}/*.f90.i
+        > ${CMAKE_CURRENT_BINARY_DIR}/f90wrap.log 2>&1
+	DEPENDS ${PREPROCESSED_SOURCES}
+    COMMENT "Processing preprocessed sources with f90wrap"
+)
+
+add_custom_command(OUTPUT ${F2PY_WRAPPERS}
+    COMMAND ${Python_EXECUTABLE}
+        -m f90wrap
+        --f2py-f90wrap
+        ${F90WRAP_OUTPUT}
+        -m ${F2PY_MODULE_NAME}
+        --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
+        --lower
+        > ${CMAKE_CURRENT_BINARY_DIR}/f2py.log 2>&1
+    DEPENDS ${F90WRAP_OUTPUT}
+    COMMENT "Processing wrapped sources with f2py"
+)
+
+add_library(${F2PY_MODULE_NAME} SHARED
+   ${F2PY_WRAPPERS}
+   ${F2PY_INCLUDE_DIR}/fortranobject.c
+   ${F90WRAP_OUTPUT}
+)
+
+add_dependencies(${F2PY_MODULE_NAME} neo)
+
+target_link_libraries(${F2PY_MODULE_NAME} PRIVATE ${Python_LIBRARIES} neo)
+
+set_target_properties(
+    ${F2PY_MODULE_NAME}
+    PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "${GENERATED_MODULE_FILE}"
+    SUFFIX ".so"
+    LINKER_LANGUAGE C
+)
+
+install(TARGETS _interpolate DESTINATION .)
