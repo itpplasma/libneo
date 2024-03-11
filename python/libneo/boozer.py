@@ -15,6 +15,7 @@ __all__ = ['get_magnetic_axis',
            'convert_to_boozer', 'BoozerFile']
 
 length_cgs_to_si = 1e-2
+debug = False
 
 def get_boozer_transform(spol, nth):
   from scipy.interpolate import CubicSpline
@@ -73,6 +74,55 @@ def get_boozer_transform(spol, nth):
   return dth_of_thb, G_of_thb
 
 
+def get_B0_of_s_theta_boozer(spol, nth):
+  from scipy.interpolate import CubicSpline
+
+  efit_to_boozer.efit_to_boozer.init()
+
+  ns = spol.shape[0]
+
+  B0 = []
+  for ks in np.arange(ns - 1):
+    psi = np.array(0.0)
+    s = np.array(spol[ks])
+
+    th_boozers = []
+    B0mod = []
+    for th_symflux in 2 * np.pi * np.arange(2 * nth) / (2 * nth):
+      inp_label = 1
+      (
+        q,
+        _,
+        _,
+        _,
+        _,
+        B0mod_temp,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        G,
+        _,
+        _,
+      ) = efit_to_boozer.efit_to_boozer.magdata(
+        inp_label, s, psi, th_symflux)
+      th_boozers.append(th_symflux + G / q)
+      B0mod.append(B0mod_temp)
+
+    th_boozers = np.unwrap(th_boozers)
+    th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
+
+    B0mod = np.array(B0mod)
+    B0mod = np.append(B0mod, B0mod[0])
+    B0.append(CubicSpline(th_boozers, B0mod, bc_type='periodic'))
+
+  return B0
+
+
+
 def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   """
   f(spol, th_geom, ph) of normalized poloidal flux and geometric angles
@@ -89,7 +139,7 @@ def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   phs = np.zeros((ns - 1, nth, nph))
 
   for ks in np.arange(ns - 1):
-    print(f"ks = {ks}/{ns-2}")
+    if debug: print(f"ks = {ks}/{ns-2}")
     for kth in np.arange(nth):
       thb = kth * 2 * np.pi / nth
       th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
@@ -99,12 +149,56 @@ def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
         phs[ks, kth, kph] = phb - G
 
   for kth in np.arange(nth):
-    print(f"kth = {kth}/{nth-1}")
+    if debug: print(f"kth = {kth}/{nth-1}")
     thb = kth * 2 * np.pi / nth
     for kph in np.arange(nph):
       phb = kph * 2 * np.pi / nph
 
       f_values = f(spol[:-1], th_geoms[:, kth], phs[:, kth, kph])
+
+      for m in np.arange(-m0b, m0b + 1):
+        # Take a sum over all theta values here
+        fmn[:, m + m0b] += f_values * np.exp(-1j * (m * thb + n * phb))
+
+  return fmn / ((2 * np.pi) ** 2 * nth * nph)
+
+
+def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+  """
+  f(spol, th_geom, ph) of normalized poloidal flux and geometric angles
+
+  Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given 
+  toroidal mode number n
+  """
+
+  ns = spol.shape[0]
+
+  fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
+
+  # Loop over flux surface index
+  th_geoms = np.zeros((ns - 1, nth))
+  phs = np.zeros((ns - 1, nth, nph))
+
+  for ks in np.arange(ns - 1):
+    if debug: print(f"ks = {ks}/{ns-2}")
+    for kth in np.arange(nth):
+      thb = kth * 2 * np.pi / nth
+      th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
+      G = G_of_thb[ks](thb)
+      for kph in np.arange(nph):
+        phb = kph * 2 * np.pi / nph
+        phs[ks, kth, kph] = phb - G
+
+  B0 = get_B0_of_s_theta_boozer(spol, nth)
+
+  for kth in np.arange(nth):
+    if debug: print(f"kth = {kth}/{nth-1}")
+    thb = kth * 2 * np.pi / nth
+    for kph in np.arange(nph):
+      phb = kph * 2 * np.pi / nph
+
+      f_values = np.array(f(spol[:-1], th_geoms[:, kth], phs[:, kth, kph])) \
+        / np.array([spline(thb) for spline in B0])
 
       for m in np.arange(-m0b, m0b + 1):
         # Take a sum over all theta values here
