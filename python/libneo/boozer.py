@@ -180,7 +180,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G
   phs = np.zeros((ns - 1, nth, nph))
 
   for ks in np.arange(ns - 1):
-    print(f"ks = {ks}/{ns-2}")
+    if debug: print(f"ks = {ks}/{ns-2}")
     for kth in np.arange(nth):
       thb = kth * 2 * np.pi / nth
       th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
@@ -192,7 +192,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G
   B0 = get_B0_of_s_theta_boozer(spol, nth)
 
   for kth in np.arange(nth):
-    print(f"kth = {kth}/{nth-1}")
+    if debug: print(f"kth = {kth}/{nth-1}")
     thb = kth * 2 * np.pi / nth
     for kph in np.arange(nph):
       phb = kph * 2 * np.pi / nph
