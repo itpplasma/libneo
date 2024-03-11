@@ -59,3 +59,5 @@ bvec.dat
 mmat.dat
 xsol.dat
 yvec.dat
+include/
+lib/

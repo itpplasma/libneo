@@ -1,0 +1,14 @@
+[build-system]
+requires = ["scikit-build-core", "numpy", "f90wrap"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "libneo"
+version = "0.0.3"
+dependencies = ["numpy"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
+
+[tool.scikit-build]
+build-dir = "build"

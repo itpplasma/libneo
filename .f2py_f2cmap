@@ -1,0 +1,9 @@
+{
+    'real': {
+        'sp': 'float',
+        'dp': 'double',
+        'real_kind': 'double',
+        'kind1.d0': 'double',
+        '8': 'double'
+    }
+}

@@ -1,7 +1,14 @@
 # This file provides the list of source files for libneo.
 # The file CMakeLists.txt contains the main configuration code.
 
-set(SOURCE_FILES
+# RKF45 from https://people.sc.fsu.edu/~jburkardt/
+# licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
+add_library ( rkf45 SHARED
+    src/contrib/rkf45.f90
+)
+
+# Main goal (of the created build file): creating the library file.
+add_library(neo SHARED
     src/arnoldi.f90
     src/boozer.f90
     src/io.f90
@@ -31,3 +38,85 @@ set(SOURCE_FILES
     # For CPU time measurements
     src/local_rusage.c
 )
+target_link_libraries(neo
+  rkf45
+  ${BLAS_LIBRARIES}
+  ${LAPACK_LIBRARIES}
+  netcdf
+  netcdff
+)
+
+add_library(magfie SHARED
+
+    # BDIVFREE
+    src/magfie/amn_mod.f90
+    src/magfie/bdivfree.f90
+    src/magfie/bdivfree_mod.f90
+    src/magfie/inthecore_mod.f90
+    src/magfie/theta_rz_mod.f90
+    src/magfie/input_files.f90
+    src/magfie/field_eq_mod.f90
+    src/magfie/extract_fluxcoord_mod.f90
+    src/magfie/field_divB0.f90
+    src/magfie/period_mod.f90
+    src/magfie/field_c_mod.f90
+    src/magfie/field_mod.f90
+    src/magfie/spline5_RZ.f90
+    src/magfie/field_mesh3d.f90
+    src/magfie/magfield_mod.f90
+    src/magfie/polylag_3.f
+    src/magfie/magfie_cyl.f90
+    src/magfie/geqdsk_tools.f90
+    src/magfie/coil_tools.f90
+    src/fftw3.f90
+)
+set_source_files_properties(src/boozer.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=unused-variable;-Wno-error=maybe-uninitialized")
+set_source_files_properties(src/field_divB0.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=compare-reals;-Wno-error=conversion")
+set_source_files_properties(src/field_mesh3d.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=compare-reals")
+
+add_library(mc_efit SHARED
+    src/MC/alpha_lifetime_mod.f90
+    src/MC/chamb_divB0.f90
+    src/MC/rng.f90
+    src/MC/collis_nbi.f90
+    src/MC/sub_alpha_lifetime.f90
+)
+target_link_libraries(mc_efit neo magfie)
+
+
+add_executable(standardise_geqdsk.x
+    src/magfie/standardise_geqdsk.f90
+)
+target_link_libraries(standardise_geqdsk.x magfie)
+
+add_executable(vacfield.x src/magfie/vacfield.f90)
+add_executable(coil_convert.x src/magfie/coil_convert.f90)
+
+find_library(fftw_lib NAMES "fftw3")
+find_library(fftw_omp_lib NAMES "fftw3_omp")
+find_path(fftw_include_dir NAMES "fftw3.h")
+
+# Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
+include_directories(${HDF5_INCLUDE_DIRS})
+
+set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
+
+target_link_libraries(magfie
+neo
+rkf45
+netcdf
+netcdff
+hdf5_tools
+${fftw_lib}
+${fftw_omp_lib}
+${HDF5_HL_LIBRARIES}
+${HDF5_LIBRARIES}
+${BLAS_LIBRARIES}
+${LAPACK_LIBRARIES}
+)
+target_link_libraries(vacfield.x PUBLIC magfie)
+target_link_libraries(coil_convert.x PUBLIC magfie)
+
+target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
+target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})
+target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${fftw_include_dir})

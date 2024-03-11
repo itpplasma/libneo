@@ -63,7 +63,7 @@
 !
   double precision, parameter :: pi=3.14159265358979d0
 !
-  integer :: nr_in,np_in,nz_in,ntor_in,ip,np,n,ir,iz  
+  integer :: nr_in,np_in,nz_in,ntor_in,ip,np,n,ir,iz
   integer, dimension(:), allocatable :: imi,ima,jmi,jma
 !
   integer :: nashli_rukami
@@ -80,7 +80,7 @@
   double complex :: four_ampl
   double complex, dimension(:,:), allocatable :: expon
 !
-  integer, parameter :: mp=4 ! power of Lagrange's polynomial =3
+  integer, parameter :: mp=4 ! power of Lagrange polynomial =3
   integer,          dimension(mp)    :: indx,indy
   double precision, dimension(mp)    :: xp,yp
   double precision, dimension(mp,mp) :: fp
@@ -203,14 +203,14 @@
      a_re(nashli_rukami,iz) = 0.
      sumbz=0.d0
      do ir=nashli_rukami+1,nr
-        irmax = min(ir+1,nr) 
+        irmax = min(ir+1,nr)
         irmin = irmax - 3
         sumbz = sumbz + sum(dummy(irmin:irmax)*weight)
         a_re(ir,iz)=sumbz
      enddo
      sumbz=0.d0
      do ir=nashli_rukami-1,1,-1
-        irmin = max(ir-1,1) 
+        irmin = max(ir-1,1)
         irmax = irmin + 3
         sumbz = sumbz - sum(dummy(irmin:irmax)*weight)
         a_re(ir,iz)=sumbz
@@ -365,7 +365,7 @@
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
       subroutine indef_bdf(u,umin,dum1,nup,indu)
-! defines interval for 1D interpolation on uniform mesh, normally 
+! defines interval for 1D interpolation on uniform mesh, normally
 ! looks for the central interval of stencil, but
 ! stops moving of stencil at the boundary (works for mp=4 only!)
 ! Input:
@@ -381,8 +381,8 @@
       implicit double precision (a-h,o-z)
 !
       parameter(mp=4)
-      integer indu(mp)  
-                             
+      integer indu(mp)
+
       indu(1) = int((u-umin)*dum1)
       if( indu(1) .le. 0 ) indu(1) = 1
       indu(mp) = indu(1) + mp - 1
@@ -394,7 +394,7 @@
          indu(i) = indu(i-1) + 1
       enddo
 
-      return 
+      return
       end
 !---------------------------------------------------------------------
       subroutine indsmp_bdf(index,nup,indu)
@@ -410,8 +410,8 @@
 
 ! the power 3 of polinomial is fixed strictly:
       parameter(mp=4)
-      integer indu(mp)  
-                             
+      integer indu(mp)
+
       indu(1) = index - 1
       if( indu(1) .le. 0 ) indu(1) = 1
       indu(mp) = indu(1) + mp - 1
@@ -423,7 +423,7 @@
          indu(i) = indu(i-1) + 1
       enddo
 
-      return 
+      return
       end
 !---------------------------------------------------------------------
       subroutine plag2d_bdf(x,y,fp,dxm1,dym1,xp,yp,polyl2d)
@@ -475,9 +475,9 @@
 !
   subroutine invert_mono_reg(nx,arry,xmin,xmax,ny,arrx,ymin,ymax)
 !
-! Inverts the monotonous function y(x) given on the equidistant grid 
-! of x values on the interval [xmin,xmax] by the array y_i=arry(i). 
-! The result, function x(y), is given on the equidistant grid of y values 
+! Inverts the monotonous function y(x) given on the equidistant grid
+! of x values on the interval [xmin,xmax] by the array y_i=arry(i).
+! The result, function x(y), is given on the equidistant grid of y values
 ! at the interval [ymin,ymax] by the array x_i=arrx(i).
 !
   implicit none
@@ -519,7 +519,7 @@
     y2=arry(ix2)
     y3=arry(ix3)
     y4=arry(ix4)
-    arrx(iy) = x1*(y-y2)/(y1-y2)*(y-y3)/(y1-y3)*(y-y4)/(y1-y4)    & 
+    arrx(iy) = x1*(y-y2)/(y1-y2)*(y-y3)/(y1-y3)*(y-y4)/(y1-y4)    &
              + x2*(y-y3)/(y2-y3)*(y-y4)/(y2-y4)*(y-y1)/(y2-y1)    &
              + x3*(y-y4)/(y3-y4)*(y-y1)/(y3-y1)*(y-y2)/(y3-y2)    &
              + x4*(y-y1)/(y4-y1)*(y-y2)/(y4-y2)*(y-y3)/(y4-y3)
@@ -781,14 +781,14 @@
 !                                   ipoint(i,j) contains the pointer to k
 !
   implicit double precision (a-h,o-z)
-! 
+!
   dimension f(nx,ny),spl(6,6,icount),ipoint(nx,ny)
-! 
+!
   integer,          dimension(:), allocatable :: imi,ima,jmi,jma
   double precision, dimension(:), allocatable :: ai,bi,ci,di,ei,fi
-! 
+!
   nmax=max(nx,ny)
-! 
+!
   allocate( ai(nmax),bi(nmax),ci(nmax),di(nmax),ei(nmax),fi(nmax) )
   allocate(imi(ny),ima(ny),jmi(nx),jma(nx))
 !
@@ -796,7 +796,7 @@
   ima=nx
   jmi=1
   jma=ny
-! 
+!
   spl=0.d0
   ipoint=-1
 !
@@ -928,11 +928,11 @@
   use field_eq_mod, only : nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint  &
                          , psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use extract_fluxcoord_mod, only : psif_extract,theta_extract
-! 
+!
   implicit none
-! 
+!
   real(kind=8), parameter :: pi=3.14159265358979d0
-! 
+!
   integer :: npoint,i,j,ierr,k
   real(kind=8) :: rrr,zzz,theta,theta_r,theta_z,theta_rr,theta_rz,theta_zz
   real(kind=8) :: theta_s,theta_t,theta_ss,theta_st,theta_tt
@@ -940,15 +940,15 @@
   real(kind=8) :: theta_qt,t_r,t_z,t_rr,t_rz,t_zz
   real(kind=8) :: rho2,rho4,dr,dz,flabel,dflabel,ddflabel,dx,dfl_dpsi,ddfl_dpsi
   real(kind=8) :: s0,ds0ds,dds0ds
-! 
+!
   if(icall.eq.0) then
     icall=1
     call load_theta
   endif
-! 
+!
   call spline(nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint,rrr,zzz, &
               psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierr)
-! 
+!
   sqpsi_qt=sqrt(abs(psif-psiaxis))
 !
   k=min(int(sqpsi_qt/hsqpsi),nsqp)
@@ -984,7 +984,7 @@
   t_rr=2.d0*sigma_qt*dr*dz/rho4
   t_zz=-t_rr
   t_rz=sigma_qt*(dz**2-dr**2)/rho4
-! 
+!
   call spline(nlab,nthe,flab,theqt,hlabel,htheqt,icp_pt,splthet,ipoint_pt, &
               flabel,theta_qt,                                             &
               theta,theta_s,theta_t,theta_ss,theta_st,theta_tt,ierr)
@@ -1152,7 +1152,7 @@
   subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
                           ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
-! Caution: derivatives are not computed, for derivatives call 
+! Caution: derivatives are not computed, for derivatives call
 ! a driver routine "field_fourier_derivs"
 !
   use amn_mod
@@ -1302,7 +1302,7 @@
         splatet(m,n,6,:)=f
       enddo
     enddo
-!   
+!
 ! Formfactors:
 !
 !
@@ -1409,7 +1409,7 @@
            +dx*(12.d0*splapsi(:,:,5,k)+dx*20.d0*splapsi(:,:,6,k)))
   amntet_ss=2.d0*splatet(:,:,3,k)+dx*(6.d0*splatet(:,:,4,k)               &
            +dx*(12.d0*splatet(:,:,5,k)+dx*20.d0*splatet(:,:,6,k)))
-!   
+!
 ! Formfactors:
 !
   k=min(nsqpsi_ff,max(1,ceiling((s0-sqpsimin_ff)/hsqpsi_ff)))
@@ -1524,7 +1524,7 @@
   subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
                                  ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
 !
-! Computes the field and its derivatives using central differences 
+! Computes the field and its derivatives using central differences
 ! for the field components computed by "field_fourier".
 !
   implicit none
@@ -1533,7 +1533,7 @@
   double precision :: rrr,ppp,zzz,r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ       &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ,del              &
                      ,rm,zm,Br0,Bp0,Bz0,dBrdR0,dBrdp0,dBrdZ0               &
-                     ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0 
+                     ,dBpdR0,dBpdp0,dBpdZ0,dBzdR0,dBzdp0,dBzdZ0
 !
     del=eps*r
 !

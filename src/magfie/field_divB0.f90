@@ -251,7 +251,7 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 
 end subroutine field_eq
 
-! ----------- Runov's Original Method --------------------------------
+! ----------- Runov Original Method --------------------------------
 subroutine read_dimeq0(nrad,nzet)
   use input_files, only : eqfile
 

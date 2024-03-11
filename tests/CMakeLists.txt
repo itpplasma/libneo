@@ -1,14 +1,12 @@
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-set (MAIN_LIB ${MAIN_LIB} libneo)
+set (MAIN_LIB ${MAIN_LIB} neo)
 set (HDF5_TOOLS_LIB ${HDF5_TOOLS_LIB} hdf5_tools)
 set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
 include_directories(${MPI_Fortran_INCLUDE_PATH})
-include_directories(${PROJECT_BINARY_DIR})
 
-include_directories(${CMAKE_BINARY_DIR}/src/)
 include_directories(${CMAKE_SOURCE_DIR}/src/MyMPILib)
 include_directories(${CMAKE_SOURCE_DIR}/src/hdf5_tools)
 include_directories(${MPI_Fortran_INCLUDE_PATH})

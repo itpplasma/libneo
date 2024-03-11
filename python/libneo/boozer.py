@@ -7,7 +7,7 @@ Created on Wed Mar 23 10:17:41 2016
 """
 import numpy as np
 import libneo
-import libneo.efit_to_boozer as efit_to_boozer
+import _efit_to_boozer as efit_to_boozer
 
 __all__ = ['get_magnetic_axis',
            'get_boozer_transform','get_boozer_harmonics','write_boozer_head',
