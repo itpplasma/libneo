@@ -160,7 +160,7 @@ def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
         # Take a sum over all theta values here
         fmn[:, m + m0b] += f_values * np.exp(-1j * (m * thb + n * phb))
 
-  return fmn / ((2 * np.pi) ** 2 * nth * nph)
+  return fmn / (nth * nph)
 
 
 def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
