@@ -794,6 +794,7 @@ subroutine stretch_coords(r,z,rm,zm)
   data icall /0/, delta/1./
   save
   !----------- 1st call --------------------------------------------------------
+  !$omp critical
   if(icall .eq. 0) then
     icall = 1
     nrz = 0
@@ -870,6 +871,7 @@ subroutine stretch_coords(r,z,rm,zm)
     rho_wall(1) = rho_wall(nrhotht)
 
   end if
+  !$omp end critical
   !----------- end of the 1st call --------------------------------------------
   rm = r
   zm = z
