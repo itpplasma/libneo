@@ -3,6 +3,8 @@ module interpolate
 
     implicit none
 
+    real(8) :: twopi = 8d0*atan(1d0)
+
     type :: SplineData1D
         integer :: order
         integer :: num_points
@@ -74,10 +76,15 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y
 
-        real(dp) :: x_norm, x_local, coeff_local(0:spl%order)
+        real(dp) :: x_norm, x_local, coeff_local(0:spl%order), xj
         integer :: interval_index, k_power
 
-        x_norm = (x - spl%x_min) / spl%h_step
+        if (spl%periodic) then
+            xj = modulo(x, twopi)
+        else
+            xj = x
+        end if
+        x_norm = (xj - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step  ! Distance to grid point
 
@@ -203,13 +210,18 @@ contains
         real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y
 
-        real(dp) :: x_norm(2), x_local(2)
+        real(dp) :: x_norm(2), x_local(2), xj
         real(dp) :: coeff_2(0:spl%order(2)), &
                     coeff_local(0:spl%order(1),0:spl%order(2))
         integer :: interval_index(2), k1, k2, j
 
         do j=1,2
-            x_norm(j) = (x(j) - spl%x_min(j))/spl%h_step(j)
+            if (spl%periodic(j)) then
+                xj = modulo(x(j), twopi)
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
             interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
@@ -320,14 +332,19 @@ contains
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y
 
-        real(dp) :: x_norm(3), x_local(3)
+        real(dp) :: x_norm(3), x_local(3), xj
         real(dp) :: coeff_3(0:spl%order(3)), &
                     coeff_23(0:spl%order(2),0:spl%order(3)), &
                     coeff_local(0:spl%order(1),0:spl%order(2),0:spl%order(3))
         integer :: interval_index(3), k1, k2, k3, j
 
         do j=1,3
-            x_norm(j) = (x(j) - spl%x_min(j))/spl%h_step(j)
+            if (spl%periodic(j)) then
+                xj = modulo(x(j), twopi)
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
             interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
@@ -362,7 +379,7 @@ contains
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y, dy(3), d2y(6)
 
-        real(dp) :: x_norm(3), x_local(3)
+        real(dp) :: x_norm(3), x_local(3), xj
 
         real(dp) :: coeff_local(0:spl%order(1),0:spl%order(2),0:spl%order(3))
 
@@ -383,7 +400,12 @@ contains
         d2y = 0d0
 
         do j=1,3
-            x_norm(j) = (x(j) - spl%x_min(j))/spl%h_step(j)
+            if (spl%periodic(j)) then
+                xj = modulo(x(j), twopi)
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
             interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
