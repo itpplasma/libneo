@@ -35,7 +35,7 @@ class SemiPeriodicFourierSpline:
     def _compute_and_set_fourier_coefs(self, r, angle, F):
         from libneo import get_half_fft
         self._fourier_coefs = np.zeros((len(r), len(self.modenumbers)), dtype=complex)
-        for i, r in enumerate(r):
+        for i, _ in enumerate(r):
             fm, _ = get_half_fft(F[i, :], angle)
             self._fourier_coefs[i, :] = fm[:len(self.modenumbers)]
 

@@ -105,4 +105,3 @@ if __name__ == '__main__':
     print("All tests passed.")
     test_trial_theta_geom_func_visual_check()
     test_get_fourier_coefs_visual_check()
-# %%
