@@ -16,4 +16,7 @@ from .getHeaderDataVMEC import *
 from .flux_converter import *
 from .interpolate import *
 from .SemiPeriodicFourierSpline import SemiPeriodicFourierSpline
+from .SemiPeriodicFourierSpline import SemiPeriodicFourierSpline_ExceedingNyquistLimit
 from .fourier_utils import fourier_coefs_half, fourier_coefs_full
+from .fourier_utils import get_half_fft
+
