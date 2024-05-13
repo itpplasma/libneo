@@ -5,9 +5,8 @@ import matplotlib.pyplot as plt
 # modules to test
 from libneo import fourier_coefs_half, fourier_coefs_full, get_half_fft
 
-x = np.linspace(0, 2*np.pi, 100)
-
 def test_fourier_coefs_half():
+    x = np.linspace(0, 2*np.pi, 100)
     m = np.arange(0, 5)
     fm = fourier_coefs_half(trial_trigonometric_func(x)[:-1], x, m)
     new_x = np.sort(np.random.uniform(0, 2*np.pi, 20))
@@ -17,6 +16,7 @@ def test_fourier_coefs_half():
     assert np.allclose(np.real(f_eval), trial_trigonometric_func(new_x))
 
 def test_fourier_coefs_full():
+    x = np.linspace(0, 2*np.pi, 100)
     m = np.arange(-4, 5)
     fm = fourier_coefs_full(trial_trigonometric_func(x)[:-1], x, m)
     new_x = np.sort(np.random.uniform(0, 2*np.pi, 20))
@@ -26,6 +26,7 @@ def test_fourier_coefs_full():
     assert np.allclose(np.real(f_eval), trial_trigonometric_func(new_x))
 
 def test_fourier_coefs_half_on_complex_function():
+    x = np.linspace(0, 2*np.pi, 100)
     m = np.arange(0, 5)
     fm = fourier_coefs_half(complex_trial_func(x)[:-1], x, m)
     new_x = np.sort(np.random.uniform(0, 2*np.pi, 20))
@@ -36,6 +37,7 @@ def test_fourier_coefs_half_on_complex_function():
     assert not np.allclose(np.imag(f_eval), np.imag(complex_trial_func(new_x)))
 
 def test_fourier_coefs_full_on_complex_function():
+    x = np.linspace(0, 2*np.pi, 100)
     m = np.arange(-4, 5)
     fm = fourier_coefs_full(complex_trial_func(x)[:-1], x, m)
     new_x = np.sort(np.random.uniform(0, 2*np.pi, 20))
@@ -133,6 +135,7 @@ def get_intermediate_steps(grid):
     return grid[:-1] + 0.5*np.diff(grid)
 
 def test_fourier_coefs_visual_check():
+    x = np.linspace(0, 2*np.pi, 100)
     m = np.arange(-4, 5)
     fm = fourier_coefs_full(trial_trigonometric_func(x)[:-1], x, m)
     m_half = np.arange(0, 5)
