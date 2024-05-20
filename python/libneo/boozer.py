@@ -17,20 +17,20 @@ __all__ = ['get_magnetic_axis',
 length_cgs_to_si = 1e-2
 debug = False
 
-def get_boozer_transform(spol, nth):
+def get_boozer_transform(stor, nth):
   from scipy.interpolate import CubicSpline
 
   efit_to_boozer.efit_to_boozer.init()
 
   R_axis, Z_axis = get_magnetic_axis()
 
-  ns = spol.shape[0]
+  ns = stor.shape[0]
 
   G_of_thb = []
   dth_of_thb = []
   for ks in np.arange(ns - 1):
     psi = np.array(0.0)
-    s = np.array(spol[ks])
+    s = np.array(stor[ks])
 
     th_boozers = []
     th_geoms = []
@@ -74,17 +74,17 @@ def get_boozer_transform(spol, nth):
   return dth_of_thb, G_of_thb
 
 
-def get_B0_of_s_theta_boozer(spol, nth):
+def get_B0_of_s_theta_boozer(stor, nth):
   from scipy.interpolate import CubicSpline
 
   efit_to_boozer.efit_to_boozer.init()
 
-  ns = spol.shape[0]
+  ns = stor.shape[0]
 
   B0 = []
   for ks in np.arange(ns - 1):
     psi = np.array(0.0)
-    s = np.array(spol[ks])
+    s = np.array(stor[ks])
 
     th_boozers = []
     B0mod = []
@@ -167,7 +167,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G
   """
   f(spol, th_geom, ph) of normalized poloidal flux and geometric angles
 
-  Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given 
+  Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given
   toroidal mode number n
   """
 
