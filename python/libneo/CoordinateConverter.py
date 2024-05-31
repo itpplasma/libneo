@@ -8,47 +8,78 @@ class PolarCoordConverter(ABC):
         pass
 
     @staticmethod
-    def convert(coordsystem: dict, new_coordsystem: dict, radius: float, angle: float)->np.ndarray:
+    def convert(coordsystem: dict, new_coordsystem: dict, radius, angle)->np.ndarray:
+        if not isinstance(radius, np.ndarray):
+            radius = np.array([radius])
+        if not isinstance(angle, np.ndarray):
+            angle = np.array([angle])
+        if ((angle.ndim == 1) & ((len(radius) != len(angle)) and (len(radius) > 1))):
+            raise ValueError("The length of radius and angle should be the same.")
+        if ((angle.ndim == 2) & (len(radius) != angle.shape[0])):
+            raise ValueError("The angle needs to be of shape (len(radius),n_angle).")
         coordsystem, new_coordsystem = PolarCoordConverter.order_monotonically(coordsystem, new_coordsystem)
         new_radius = np.interp(radius, coordsystem['radius'], new_coordsystem['radius'])
-        new_angle_over_old_radius = []
-        for i in range(len(coordsystem['radius'])):
-            new_angle_over_old_radius.append(np.interp(angle, coordsystem['angle'][i], new_coordsystem['angle'][i]))
-        interp = lambda fp, xp, x: np.interp(x, xp, fp)
-        new_angle = np.apply_along_axis(interp, axis=0, arr=new_angle_over_old_radius, xp=coordsystem['radius'], x=radius)
-        return new_radius, new_angle
+        new_angle = []
+        for k in range(len(radius)):
+            new_angle_over_radius = PolarCoordConverter.get_new_angle_on_coordsystem_radius_levels(angle[k], coordsystem, new_coordsystem)
+            interp = lambda fp, xp, x: np.interp(x, xp, fp)
+            new_angle.append(np.apply_along_axis(interp, axis=0, arr=new_angle_over_radius, xp=coordsystem['radius'], x=radius[k]))
+        return new_radius, np.array(new_angle)
 
     @staticmethod
-    def order_monotonically(coord: dict, new_coord: dict)->dict:
-        ordered_coord, ordered_new_coord = coord.copy(), new_coord.copy()
-        id_radius = np.argsort(ordered_coord['radius'])
-        ordered_coord['radius'] = ordered_coord['radius'][id_radius]
-        ordered_coord['angle'] = ordered_coord['angle'][id_radius]
-        ordered_new_coord['radius'] = ordered_new_coord['radius'][id_radius]
-        ordered_new_coord['angle'] = ordered_new_coord['angle'][id_radius]
-        id_angle = np.argsort(ordered_coord['angle'], axis=1)
-        ordered_coord['angle'] = np.take_along_axis(ordered_coord['angle'], id_angle, axis=1)
-        ordered_new_coord['angle'] = np.take_along_axis(ordered_new_coord['angle'], id_angle, axis=1)
+    def order_monotonically(coordsystem: dict, new_coordsystem: dict)->dict:
+        radius, angle = coordsystem['radius'].copy(), coordsystem['angle'].copy()
+        new_radius, new_angle = new_coordsystem['radius'].copy(), new_coordsystem['angle'].copy()
+        ordered_by_radius = sorted(list(zip(radius, angle, new_radius, new_angle)), key=lambda x: x[0])
+        radius, angle, new_radius, new_angle = zip(*ordered_by_radius)
+        radius, angle, new_radius, new_angle = list(radius), list(angle), list(new_radius), list(new_angle)
+        for i in range(len(radius)):
+            angle_i, new_angle_i = angle[i], new_angle[i]
+            ordered_by_angle = sorted(list(zip(angle_i, new_angle_i)), key=lambda x: x[0])
+            angle_i, new_angle_i = zip(*ordered_by_angle)
+            angle[i], new_angle[i] = list(angle_i), list(new_angle_i)
+        ordered_coord = {'radius': radius, 'angle': angle}
+        ordered_new_coord = {'radius': new_radius, 'angle': new_angle}
         return ordered_coord, ordered_new_coord
 
-def len_including_scalar(arr):
-    try:
-        return len(arr)
-    except TypeError:
-        return None
+    @staticmethod
+    def get_new_angle_on_coordsystem_radius_levels(angle, coordsystem, new_coordsystem):
+        new_angle_over_radius = []
+        for i in range(len(coordsystem['radius'])):
+            angle = PolarCoordConverter.shift_angle_to_period(angle, coordsystem['angle'][i])
+            angle = PolarCoordConverter.shift_angle_away_from_discontinuity(angle, coordsystem['angle'][i], new_coordsystem['angle'][i])
+            new_angle_over_radius.append(np.interp(angle, coordsystem['angle'][i], new_coordsystem['angle'][i]))
+        return np.unwrap(np.array(new_angle_over_radius), axis=0)
 
-            
-def interpolate2D(xy:np.ndarray, z:np.ndarray, x0y0:np.ndarray)->float:
-    from numpy import interp
-    z_at_x0_along_y = interp(x0[0], xy[0], z)
-    z_at_x0_y0 = interp(x0y0[1], xy[1], z_at_x0_along_y)
-    return z_at_x0_y0
+    @staticmethod
+    def shift_angle_to_period(angle, coordsystem_angle):
+        period_start = min(coordsystem_angle)
+        period_end = max(np.unwrap(coordsystem_angle))
+        period = period_end - period_start
+        angle_in_period = np.mod(angle - period_start, period) + period_start
+        return angle_in_period
 
-def convert2Dcoords(old_coords:np.ndarray, new_coords:np.ndarray, point_oldcoords:np.ndarray)->np.ndarray: 
-    point_new_coords = np.array([np.nan, np.nan])
-    point_new_coords[0] = interpolate2D(xy=old_coords,z=new_coords[0], x0y0=point_oldcoords)
-    point_new_coords[1] = interpolate2D(xy=old_coords,z=new_coords[1], x0y0=point_oldcoords)
-    return point_new_coords
+    @staticmethod
+    def shift_angle_away_from_discontinuity(angle, coordsystem_angle, new_coordsystem_angle):
+        dicontinuity = np.where(np.abs(np.diff(new_coordsystem_angle)) > np.pi)[0]
+        if len(dicontinuity) == 0:
+            return angle
+        angle_before_discontinuity = coordsystem_angle[dicontinuity[0]]
+        angle_after_discontinuity = coordsystem_angle[dicontinuity[0]+1]
+        I = is_in_discontinuity(angle, angle_before_discontinuity, angle_after_discontinuity)
+        angle_shifted = angle.copy()
+        if isinstance(angle, np.ndarray):
+            angle_shifted[I] = angle_before_discontinuity
+        elif I:
+            angle_shifted = angle_before_discontinuity
+        return angle_shifted
+    
+def is_in_discontinuity(angle, angle_before_discontinuity, angle_after_discontinuity):
+    angles_over_dicontinuity = np.unwrap(np.array([angle_before_discontinuity, 
+                                                   angle_after_discontinuity]))
+    return np.logical_and(angles_over_dicontinuity[0] < angle, 
+                          angle < angles_over_dicontinuity[1])
+
 
 class MarsCoords2StorThetageom(PolarCoordConverter):
     def __init__(self, src:str):
@@ -58,22 +89,43 @@ class MarsCoords2StorThetageom(PolarCoordConverter):
         from omfit_classes.omfit_mars import OMFITmars
         from neo2_mars import mars_sqrtspol2stor
         mars = OMFITmars(mars_dir)
-        sqrtspol = mars['sim0']['s']
+        sqrtspol = mars['sim0']['s'].values
         R, Z = mars.get_RZ()
         R = R[sqrtspol<=1.0,:]
         Z = Z[sqrtspol<=1.0,:]
         sqrtspol = sqrtspol[sqrtspol<=1.0]
         chi = mars['sim0']['R']['chi'].values
-        chi = np.meshgrid(chi,sqrtspol)[0]
+        chi_end = chi[-1] - 2*np.finfo(chi[-1]).eps
+        interp = lambda fp, xp, x: np.interp(x, xp, fp)
+        R[:,-1] = np.apply_along_axis(interp, axis=1, arr=R, xp=chi, x=chi_end)
+        Z[:,-1] = np.apply_along_axis(interp, axis=1, arr=Z, xp=chi, x=chi_end)
+        chi[-1] = chi_end
+        chi = np.meshgrid(chi, sqrtspol)[0]
         stor = mars_sqrtspol2stor(mars_dir,sqrtspol)
-        theta_geom = np.arctan2(Z-Z[0],R-R[0])
-        theta_geom = np.mod(theta_geom,2*np.pi)
-        idx = np.argsort(theta_geom, axis=1)
-        theta_geom = np.take_along_axis(theta_geom, idx, axis=1)
-        chi = np.take_along_axis(chi, idx, axis=1)
-        self.idx = idx
-        self.coords = {'radius': sqrtspol, 'angle': chi}
-        self.new_coords = {'radius': stor, 'angle': theta_geom}
+        geom = np.arctan2(Z-Z[0,0],R-R[0,0])
+        geom[sqrtspol==0,:] = chi[0].copy()
+        sqrtspol = sqrtspol.tolist()
+        chi = chi.tolist()
+        geom = geom.tolist()
+        stor = stor.tolist()
+
+        geom_lower_bound = -np.pi
+        geom_upper_bound = np.pi - 1e-10
+        geom_wrap = np.unwrap(geom, axis=1)
+        for i, s in enumerate(sqrtspol):
+            if s == 0:
+                continue
+            temp_chi = chi[i].copy()
+            chi[i].append(np.interp(geom_lower_bound, geom_wrap[i,:]-2*np.pi, temp_chi))
+            chi[i].append(np.interp(geom_upper_bound, geom_wrap[i,:], temp_chi))
+            geom[i].append(geom_lower_bound)
+            geom[i].append(geom_upper_bound)
+        self.mars_coords = {'radius': sqrtspol, 'angle': chi}
+        self.stor_geom_coords = {'radius': stor, 'angle': geom}
+
+    def stor_thetageom2mars(self, stor, theta_geom):
+        sqrtspol, chi = PolarCoordConverter.convert(self.stor_geom_coords, self.mars_coords, stor, theta_geom)
+        return sqrtspol, chi
 
 if __name__=="__main__":
     mars_dir = "/proj/plasma/DATA/DEMO/MARS/MARSQ_KNTV10_NEO2profs_KEYTORQ_1/"
