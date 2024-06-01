@@ -198,6 +198,59 @@ def is_imag_part_vanisching(x):
 def is_complex(x):
     return np.iscomplexobj(x)
 
+def test_angle_conversion_example_visual_check():
+    chi = np.linspace(-np.pi, np.pi, 50)
+    boundary = -np.pi + 2
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    geom = trial_geom_func(chi, boundary)
+    ax[0].plot(chi, geom, 'b-', label='geom angle function')
+    ax[0].set_xlabel('chi [1]')
+    ax[0].set_ylabel('geom [1]')
+
+    geom_ordered, chi_ordered = sort_by_first_list(geom, chi)
+    chi_ordered_unwrapped = np.unwrap(chi_ordered)
+    geom_equi = np.linspace(-np.pi, np.pi, 50)
+    chi_ordered_unwrapped_equi = np.interp(geom_equi, geom_ordered, chi_ordered_unwrapped)
+    ax[1].plot(geom_ordered, chi_ordered_unwrapped, 'ko', label=' unwrapped chi angle function')
+    ax[1].plot(geom_equi, chi_ordered_unwrapped_equi, 'g.', label='interpolated unwrapped chi function')
+    ax[1].plot(geom_ordered, chi_ordered, 'b-', label='chi angle function')
+
+    delta_ordered_unwrapped_equi = chi_ordered_unwrapped_equi - geom_equi
+    ax[1].plot(geom_equi, delta_ordered_unwrapped_equi, 'm.', label='chi_unwrapped - geom')
+    ax[1].axhline(y=-np.pi, color='r', linestyle='--', label='period')
+    ax[1].axhline(y=np.pi, color='r', linestyle='--')
+    ax[1].legend()
+    ax[1].set_xlabel('geom [1]')
+    ax[1].set_ylabel('chi [1]')
+    ax[1].axis('equal')
+
+    delta_m, m = get_half_fft(delta_ordered_unwrapped_equi, geom_equi)
+    delta_fourier = lambda geom: np.real(delta_m.dot(np.exp(1.0j * np.outer(m, geom))))
+    geom_eval = np.linspace(-np.pi, np.pi, 100)
+    chi_eval = np.mod(delta_fourier(geom_eval) + geom_eval + np.pi, 2*np.pi) - np.pi
+    ax[0].plot(chi_eval, geom_eval, 'g.', label='fourier reconstruction (geom_equi)')
+    ax[0].axvline(x=-np.pi, color='r', linestyle='--', label='period')
+    ax[0].axvline(x=np.pi, color='r', linestyle='--')
+    ax[0].legend()
+    ax[0].axis('equal')
+    plt.suptitle('Conversion between geom and chi angle functions')
+    plt.show()
+
+def trial_geom_func(x, boundary: float=-np.pi):
+    angle = (x - np.pi - boundary) + np.sin((x - np.pi - boundary)) + 0.3*np.sin(2*(x - np.pi - boundary))
+    return np.mod(angle + np.pi, 2*np.pi) - np.pi
+
+def sort_by_first_list(list1, list2):
+    if isinstance(list1, np.ndarray):
+        list1 = list1.tolist()
+    if isinstance(list2, np.ndarray):
+        list2 = list2.tolist()
+    total_list = list(zip(list1, list2))
+    total_list.sort(key=lambda x: x[0])
+    tupel1, tupel2 = zip(*total_list)
+    return list(tupel1), list(tupel2)
+
+
 if __name__ == '__main__':
     test_fourier_coefs_half()
     test_fourier_coefs_full()
@@ -214,3 +267,4 @@ if __name__ == '__main__':
     test_fourier_coefs_visual_check()
     test_get_half_fft_visual_check()
     test_get_half_fft_coefficients_visual_check()
+    test_angle_conversion_example_visual_check()
