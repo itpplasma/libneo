@@ -17,7 +17,6 @@ class PolarCoordConverter(ABC):
             raise ValueError("The length of radius and angle should be the same.")
         if ((angle.ndim == 2) & (len(radius) != angle.shape[0])):
             raise ValueError("The angle needs to be of shape (len(radius),n_angle).")
-        #coordsystem, new_coordsystem = PolarCoordConverter.order_monotonically(coordsystem, new_coordsystem)
         new_radius = np.interp(radius, coordsystem['radius'], new_coordsystem['radius'])
         new_angle = []
         for k in range(len(radius)):
@@ -46,8 +45,6 @@ class PolarCoordConverter(ABC):
     def get_new_angle_on_coordsystem_radius_levels(angle, coordsystem, new_coordsystem):
         new_angle_over_radius = []
         for i in range(len(coordsystem['radius'])):
-            #angle = PolarCoordConverter.shift_angle_to_period(angle, coordsystem['angle'][i])
-            #angle = PolarCoordConverter.shift_angle_away_from_discontinuity(angle, coordsystem['angle'][i], new_coordsystem['angle'][i])
             new_angle_over_radius.append(np.interp(angle, coordsystem['angle'][i], new_coordsystem['angle'][i]))
         return np.unwrap(np.array(new_angle_over_radius), axis=0)
 
@@ -81,9 +78,11 @@ def is_in_discontinuity(angle, angle_before_discontinuity, angle_after_discontin
                           angle < angles_over_dicontinuity[1])
 
 
-class MarsCoords2StorThetageom(PolarCoordConverter):
-    def __init__(self, mars_dir:str):
+class StorGeom2MarsCoords(PolarCoordConverter):
+
+    def __init__(self, mars_dir: str, n_geom: int=100, max_poloidal_mode: int=49):
         self._load_points_from(mars_dir)
+        self._set_splines_over_stor_geom(n_geom, max_poloidal_mode)
 
     def _load_points_from(self, mars_dir: str):
         from omfit_classes.omfit_mars import OMFITmars
@@ -104,39 +103,53 @@ class MarsCoords2StorThetageom(PolarCoordConverter):
         stor = mars_sqrtspol2stor(mars_dir,sqrtspol)
         geom = np.arctan2(Z-Z[0,0],R-R[0,0])
         geom[sqrtspol==0,:] = chi[0].copy()
+        chi[0,-1] = chi[0,0]
         sqrtspol = sqrtspol.tolist()
         chi = chi.tolist()
         geom = geom.tolist()
         stor = stor.tolist()
 
         geom_lower_bound = -np.pi
-        geom_upper_bound = np.pi - 1e-10
-        geom_wrap = np.unwrap(geom, axis=1)
+        geom_wrap = np.unwrap(geom, axis=1) - 2*np.pi
         for i, s in enumerate(sqrtspol):
             if s == 0:
                 continue
             temp_chi = chi[i].copy()
-            chi[i].append(np.interp(geom_lower_bound, geom_wrap[i,:]-2*np.pi, temp_chi))
-            chi[i].append(np.interp(geom_upper_bound, geom_wrap[i,:], temp_chi))
+            chi_at_geom_lower_bound = np.interp(geom_lower_bound, geom_wrap[i,:]-2*np.pi, temp_chi)
             geom[i].append(geom_lower_bound)
-            geom[i].append(geom_upper_bound)
+            chi[i].append(chi_at_geom_lower_bound)
         mars_coords = {'radius': sqrtspol, 'angle': chi}
         stor_geom_coords = {'radius': stor, 'angle': geom}
         self.stor_geom_coords, self.mars_coords = PolarCoordConverter.order_monotonically(stor_geom_coords, mars_coords)
+        for i, s in enumerate(sqrtspol):
+            if s == 0:
+                continue
+            #chi_unwrapped = np.unwrap(self.mars_coords['angle'][i])
+            #chi_in_period = np.mod(chi_unwrapped + np.pi, 2*np.pi) - np.pi
+            #self.mars_coords['angle'][i] = chi_in_period.tolist()
+            self.stor_geom_coords['angle'][i].append(np.pi)
+            self.mars_coords['angle'][i].append(self.mars_coords['angle'][i][0])
 
-    def _set_splines(self):
+    def _set_splines_over_stor_geom(self, n_geom, max_poloidal_mode):
         from scipy.interpolate import CubicSpline
         self.stor2sqrtspol = CubicSpline(self.stor_geom_coords['radius'], self.mars_coords['radius'])
-        geom2chi = []
+        self.stor_geom2chi = self._get_chi_spline_over_stor_geom(n_geom, max_poloidal_mode) 
+        
+    def _get_chi_spline_over_stor_geom(self, n_geom, max_poloidal_mode):
+        from scipy.interpolate import CubicSpline
+        from .SemiPeriodicFourierSpline import SemiPeriodicFourierSpline
+        stor = np.array(self.stor_geom_coords['radius'])
+        geom = np.linspace(-np.pi, np.pi, n_geom)
+        angle_delta = []
         for i in range(len(self.stor_geom_coords['radius'])):
-            spline = CubicSplines(self.stor_geom_coords['angle'][i], self.mars_coords['angle'][i],'periodic')
-            
+            chi_spline = CubicSpline(self.stor_geom_coords['angle'][i], self.mars_coords['angle'][i], bc_type='periodic')
+            angle_delta.append(chi_spline(geom) - geom)
+        angle_delta = np.array(angle_delta)
+        angle_delta_spline = SemiPeriodicFourierSpline(stor, geom, angle_delta, max_poloidal_mode)
+        chi_spline_over_stor_geom = lambda stor, theta_geom: theta_geom + angle_delta_spline(stor, theta_geom)
+        return chi_spline_over_stor_geom
 
-    def stor_thetageom2mars(self, stor, theta_geom):
-        sqrtspol, chi = PolarCoordConverter.convert(self.stor_geom_coords, self.mars_coords, stor, theta_geom)
+    def __call__(self, stor, theta_geom):
+        sqrtspol = self.stor2sqrtspol(stor)
+        chi = self.stor_geom2chi(stor, theta_geom)
         return sqrtspol, chi
-
-if __name__=="__main__":
-    mars_dir = "/proj/plasma/DATA/DEMO/MARS/MARSQ_KNTV10_NEO2profs_KEYTORQ_1/"
-
-    

@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Import modules to test
-from libneo import PolarCoordConverter, MarsCoords2StorThetageom
+from libneo import PolarCoordConverter, StorGeom2MarsCoords
 
 mars_dir = "/proj/plasma/DATA/DEMO/MARS/MARSQ_KNTV10_NEO2profs_KEYTORQ_1/"
 sqrtspol = np.linspace(0,1,5)
@@ -91,11 +91,11 @@ def test_PolarCoordConverter_shift_angle_away_from_discontinuity():
     assert np.allclose(original_angle[6:], angle[6:])
 
 def test_MarsCoords2StorThetageom_init():
-    mars = MarsCoords2StorThetageom(mars_dir)
+    mars = StorGeom2MarsCoords(mars_dir)
     assert mars is not None
 
 def test_MarsCoords2StorThetageom_coords_shape():
-    converter = MarsCoords2StorThetageom(mars_dir)
+    converter = StorGeom2MarsCoords(mars_dir)
     mars_coords = converter.mars_coords
     stor_geom_coords = converter.stor_geom_coords
     assert len(mars_coords['angle']) == len(mars_coords['radius'])
@@ -141,21 +141,20 @@ def test_PolarCoordConverter_convert_invers_visual_check():
     plt.show()
 
 def test_MarsCoords2StorThetageom_visual_check():
-    converter = MarsCoords2StorThetageom(mars_dir)
+    converter = StorGeom2MarsCoords(mars_dir)
     test_stor = np.linspace(0.0, 1, 5)
     test_theta_geom = np.linspace(-np.pi, np.pi, 800)
-    test_theta_geom = np.meshgrid(test_theta_geom, test_stor)[0]
-    sqrtspol, chi = converter.stor_thetageom2mars(test_stor, test_theta_geom)
     plt.figure()
-    for i in range(0,len(test_stor)):
-        plt.plot(test_theta_geom[i], chi[i], '.', label=f"stor={test_stor[i]}")
+    for stor in test_stor[:1]:
+        sqrtspol, chi = converter(stor, test_theta_geom)
+        plt.plot(test_theta_geom, chi, '.', label=f"stor={stor}")
     plt.xlabel('theta_geom [1]')
     plt.ylabel('chi [1]')
     plt.legend()
     plt.show()
 
 def test_MarsCoords2StorThetageom_coords_domain_visual_check():
-    converter = MarsCoords2StorThetageom(mars_dir)
+    converter = StorGeom2MarsCoords(mars_dir)
     mars_coords = converter.mars_coords
     stor_geom_coords = converter.stor_geom_coords
     fig, ax = plt.subplots(1,2, figsize=(10,5))
@@ -190,13 +189,13 @@ def test_MarsCoords2StorThetageom_coords_domain_visual_check():
 
 def test_MarsCoords2StorThetageom_performance():
     import time
-    converter = MarsCoords2StorThetageom(mars_dir)
+    converter = StorGeom2MarsCoords(mars_dir)
     test_stor = np.linspace(0.0, 1, 100)
     test_theta_geom = np.linspace(-np.pi, np.pi, 100)
     start = time.time()
     for _ in range(10):
         for stor in test_stor:
-            sqrtspol, chi = converter.stor_thetageom2mars(stor, test_theta_geom)
+            sqrtspol, chi = converter(stor, test_theta_geom)
     print(f"Elapsed time for 100 surfaces: {time.time()-start}")
 
 def test_MarsCoord2StorThetageom_performance_profile():
@@ -217,13 +216,13 @@ if __name__ == "__main__":
     # test_PolarCoordConverter_shift_angle_away_from_discontinuity()
     # test_MarsCoords2StorThetageom_init()
     # test_MarsCoords2StorThetageom_coords_shape()
-    # print("All tests passed!")
+    print("All tests passed!")
 
     # test_MarsCoords2StorThetageom_performance()
-    test_MarsCoord2StorThetageom_performance_profile()
+    # test_MarsCoord2StorThetageom_performance_profile()
 
     # test_PolarCoordConverter_convert_visual_check()
     # test_PolarCoordConverter_convert_invers_visual_check()
-    # test_MarsCoords2StorThetageom_visual_check()
-    # test_MarsCoords2StorThetageom_coords_domain_visual_check()
+    #test_MarsCoords2StorThetageom_visual_check()
+    test_MarsCoords2StorThetageom_coords_domain_visual_check()
 # %%
