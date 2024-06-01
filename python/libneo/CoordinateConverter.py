@@ -17,7 +17,7 @@ class PolarCoordConverter(ABC):
             raise ValueError("The length of radius and angle should be the same.")
         if ((angle.ndim == 2) & (len(radius) != angle.shape[0])):
             raise ValueError("The angle needs to be of shape (len(radius),n_angle).")
-        coordsystem, new_coordsystem = PolarCoordConverter.order_monotonically(coordsystem, new_coordsystem)
+        #coordsystem, new_coordsystem = PolarCoordConverter.order_monotonically(coordsystem, new_coordsystem)
         new_radius = np.interp(radius, coordsystem['radius'], new_coordsystem['radius'])
         new_angle = []
         for k in range(len(radius)):
@@ -46,8 +46,8 @@ class PolarCoordConverter(ABC):
     def get_new_angle_on_coordsystem_radius_levels(angle, coordsystem, new_coordsystem):
         new_angle_over_radius = []
         for i in range(len(coordsystem['radius'])):
-            angle = PolarCoordConverter.shift_angle_to_period(angle, coordsystem['angle'][i])
-            angle = PolarCoordConverter.shift_angle_away_from_discontinuity(angle, coordsystem['angle'][i], new_coordsystem['angle'][i])
+            #angle = PolarCoordConverter.shift_angle_to_period(angle, coordsystem['angle'][i])
+            #angle = PolarCoordConverter.shift_angle_away_from_discontinuity(angle, coordsystem['angle'][i], new_coordsystem['angle'][i])
             new_angle_over_radius.append(np.interp(angle, coordsystem['angle'][i], new_coordsystem['angle'][i]))
         return np.unwrap(np.array(new_angle_over_radius), axis=0)
 
@@ -82,8 +82,8 @@ def is_in_discontinuity(angle, angle_before_discontinuity, angle_after_discontin
 
 
 class MarsCoords2StorThetageom(PolarCoordConverter):
-    def __init__(self, src:str):
-        self._load_points_from(src)
+    def __init__(self, mars_dir:str):
+        self._load_points_from(mars_dir)
 
     def _load_points_from(self, mars_dir: str):
         from omfit_classes.omfit_mars import OMFITmars
@@ -120,8 +120,17 @@ class MarsCoords2StorThetageom(PolarCoordConverter):
             chi[i].append(np.interp(geom_upper_bound, geom_wrap[i,:], temp_chi))
             geom[i].append(geom_lower_bound)
             geom[i].append(geom_upper_bound)
-        self.mars_coords = {'radius': sqrtspol, 'angle': chi}
-        self.stor_geom_coords = {'radius': stor, 'angle': geom}
+        mars_coords = {'radius': sqrtspol, 'angle': chi}
+        stor_geom_coords = {'radius': stor, 'angle': geom}
+        self.stor_geom_coords, self.mars_coords = PolarCoordConverter.order_monotonically(stor_geom_coords, mars_coords)
+
+    def _set_splines(self):
+        from scipy.interpolate import CubicSpline
+        self.stor2sqrtspol = CubicSpline(self.stor_geom_coords['radius'], self.mars_coords['radius'])
+        geom2chi = []
+        for i in range(len(self.stor_geom_coords['radius'])):
+            spline = CubicSplines(self.stor_geom_coords['angle'][i], self.mars_coords['angle'][i],'periodic')
+            
 
     def stor_thetageom2mars(self, stor, theta_geom):
         sqrtspol, chi = PolarCoordConverter.convert(self.stor_geom_coords, self.mars_coords, stor, theta_geom)
