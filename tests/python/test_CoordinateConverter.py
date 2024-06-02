@@ -145,7 +145,7 @@ def test_MarsCoords2StorThetageom_visual_check():
     test_stor = np.linspace(0.0, 1, 5)
     test_theta_geom = np.linspace(-np.pi, np.pi, 800)
     plt.figure()
-    for stor in test_stor[:1]:
+    for stor in test_stor:
         sqrtspol, chi = converter(stor, test_theta_geom)
         plt.plot(test_theta_geom, chi, '.', label=f"stor={stor}")
     plt.xlabel('theta_geom [1]')
@@ -187,17 +187,6 @@ def test_MarsCoords2StorThetageom_coords_domain_visual_check():
     ax[1].legend()
     plt.show()
 
-def test_MarsCoords2StorThetageom_performance():
-    import time
-    converter = StorGeom2MarsCoords(mars_dir)
-    test_stor = np.linspace(0.0, 1, 100)
-    test_theta_geom = np.linspace(-np.pi, np.pi, 100)
-    start = time.time()
-    for _ in range(10):
-        for stor in test_stor:
-            sqrtspol, chi = converter(stor, test_theta_geom)
-    print(f"Elapsed time for 100 surfaces: {time.time()-start}")
-
 def test_MarsCoord2StorThetageom_performance_profile():
     import cProfile
     import pstats
@@ -205,24 +194,30 @@ def test_MarsCoord2StorThetageom_performance_profile():
     p = pstats.Stats('mars_coords2stor_thetageom.profile')
     p.strip_dirs().sort_stats('cumulative').print_stats(20)
 
+def test_MarsCoords2StorThetageom_performance():
+    converter = StorGeom2MarsCoords(mars_dir)
+    test_stor = np.linspace(0.0, 1, 100)
+    test_theta_geom = np.linspace(-np.pi, np.pi, 100)
+    for _ in range(20):
+        for stor in test_stor:
+            sqrtspol, chi = converter(stor, test_theta_geom)
+
 
 if __name__ == "__main__":
-    # test_PolarCoordConverter_convert_unity()
-    # test_PolarCoordConverter_convert()
-    # test_PolarCoordConverter_convert_different_number_of_coordinate_points_per_radius()
-    # test_PolarCoordConverter_convert_output_shape()
-    # test_PolarCoordConverter_order_monotonically()
-    # test_PolarCoordConverter_shift_angle_to_period()
-    # test_PolarCoordConverter_shift_angle_away_from_discontinuity()
-    # test_MarsCoords2StorThetageom_init()
-    # test_MarsCoords2StorThetageom_coords_shape()
+    test_PolarCoordConverter_convert_unity()
+    test_PolarCoordConverter_convert()
+    test_PolarCoordConverter_convert_different_number_of_coordinate_points_per_radius()
+    test_PolarCoordConverter_convert_output_shape()
+    test_PolarCoordConverter_order_monotonically()
+    test_PolarCoordConverter_shift_angle_to_period()
+    test_PolarCoordConverter_shift_angle_away_from_discontinuity()
+    test_MarsCoords2StorThetageom_init()
+    test_MarsCoords2StorThetageom_coords_shape()
     print("All tests passed!")
 
-    # test_MarsCoords2StorThetageom_performance()
-    # test_MarsCoord2StorThetageom_performance_profile()
+    test_MarsCoord2StorThetageom_performance_profile()
 
-    # test_PolarCoordConverter_convert_visual_check()
-    # test_PolarCoordConverter_convert_invers_visual_check()
-    #test_MarsCoords2StorThetageom_visual_check()
+    test_PolarCoordConverter_convert_visual_check()
+    test_PolarCoordConverter_convert_invers_visual_check()
+    test_MarsCoords2StorThetageom_visual_check()
     test_MarsCoords2StorThetageom_coords_domain_visual_check()
-# %%
