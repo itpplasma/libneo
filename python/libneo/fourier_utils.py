@@ -29,7 +29,7 @@ def get_half_fft(f, x):
         raise ValueError("Function has to be real valued!")
     xi_equi = np.linspace(x[0], x[-1], len(x))[:-1] # skip last point that is repeated as
     sample_rate = (xi_equi[1] - xi_equi[0])         # DFT sum goes for xi only until i=N-1
-    fi_equi = CubicSpline(x, f, extrapolate='periodic')(xi_equi)
+    fi_equi = CubicSpline(x, f)(xi_equi)
     fm = np.fft.rfft(fi_equi)/len(fi_equi) # normalisation absorbed into coefs
     if len(xi_equi) % 2 == 0:
         fm[1:-1] *= 2.0 # for even samples, the 0th and highest mode dont have hermitian counterparts
