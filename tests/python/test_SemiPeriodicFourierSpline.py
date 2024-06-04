@@ -29,12 +29,12 @@ def test_fourier_coefs_shape():
     coefs = spline._fourier_coefs
     assert coefs.shape == (len(s), max_m+1)
 
-def test_get_fourier_coefs():
+def test_get_fourier_coefs_splines():
     Angle, S = np.meshgrid(angle, s)
     F = trial_trigonometric_func(S, Angle)
     spline = SemiPeriodicFourierSpline(s, angle, F)
-    assert np.allclose(spline._get_fourier_coefs(s), spline._fourier_coefs)
-    assert spline._get_fourier_coefs(s).shape == (len(s), len(spline.modenumbers))
+    assert np.allclose(spline._fourier_coefs_splines(s), spline._fourier_coefs)
+    assert spline._fourier_coefs_splines(s).shape == (len(s), len(spline._modenumbers))
 
 def test_call():
     Angle, S = np.meshgrid(angle, s)
@@ -53,8 +53,8 @@ def test_get_fourier_coefs_visual_check():
     spline = SemiPeriodicFourierSpline(s, angle, F)
     plt.figure()
     r_plot = np.linspace(0, 1, 30)
-    coefs_plot = spline._get_fourier_coefs(r_plot)
-    for i,m in enumerate(spline.modenumbers):
+    coefs_plot = spline._fourier_coefs_splines(r_plot)
+    for i,m in enumerate(spline._modenumbers):
         plt.plot(r_plot, coefs_plot[:,i].real, '-', label=f'real m={m}')
         plt.plot(r_plot, coefs_plot[:,i].imag, '.--', label=f'imag m={m}')
     plt.xlabel('s [1]')
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     test_init()
     test_SemiPeriodicFourierSpline_ExceedingNyquistLimit()
     test_fourier_coefs_shape()
-    test_get_fourier_coefs()
+    test_get_fourier_coefs_splines()
     test_call()
     print("All tests passed.")
     test_trial_theta_geom_func_visual_check()
