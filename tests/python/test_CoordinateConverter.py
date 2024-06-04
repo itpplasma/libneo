@@ -104,6 +104,17 @@ def test_MarsCoords2StorThetageom_coords_shape():
         assert isinstance(mars_coords['radius'][i],float)
         assert len(mars_coords['angle'][i]) == len(stor_geom_coords['angle'][i])
 
+def test_MarsCoord2StorThetageom_stor2sqrtspol():
+    converter = StorGeom2MarsCoords(mars_dir)
+    stor2sqrtspol = converter._stor2sqrtspol
+    assert stor2sqrtspol(0) == 0
+    assert stor2sqrtspol(1) == 1
+    assert not stor2sqrtspol(0.5) == 0.5
+    from neo2_mars import mars_sqrtspol2stor
+    sqrtspol = np.linspace(0, 1, 100)
+    stor = mars_sqrtspol2stor(mars_dir, sqrtspol)
+    assert np.allclose(sqrtspol, stor2sqrtspol(stor),atol=1e-2)
+
 def test_PolarCoordConverter_convert_visual_check():
     radius, angle = 0.9*np.array(new_coordsystem['radius']), np.linspace(-np.pi, np.pi, 100)
     angle = np.meshgrid(angle, radius)[0]
@@ -213,9 +224,10 @@ if __name__ == "__main__":
     test_PolarCoordConverter_shift_angle_away_from_discontinuity()
     test_MarsCoords2StorThetageom_init()
     test_MarsCoords2StorThetageom_coords_shape()
+    test_MarsCoord2StorThetageom_stor2sqrtspol()
     print("All tests passed!")
 
-    test_MarsCoord2StorThetageom_performance_profile()
+    #test_MarsCoord2StorThetageom_performance_profile()
 
     test_PolarCoordConverter_convert_visual_check()
     test_PolarCoordConverter_convert_invers_visual_check()

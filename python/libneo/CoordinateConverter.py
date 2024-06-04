@@ -131,8 +131,8 @@ class StorGeom2MarsCoords(PolarCoordConverter):
 
     def _set_conversion_func(self, max_poloidal_mode):
         from scipy.interpolate import CubicSpline
-        self.stor2sqrtspol = CubicSpline(self.stor_geom_coords['radius'], self.mars_coords['radius'])
-        self.stor_geom2chi = self._get_chi_func_over_stor_geom(max_poloidal_mode) 
+        self._stor2sqrtspol = CubicSpline(self.stor_geom_coords['radius'], self.mars_coords['radius'])
+        self._stor_geom2chi = self._get_chi_func_over_stor_geom(max_poloidal_mode) 
         
     def _get_chi_func_over_stor_geom(self, max_poloidal_mode):
         from scipy.interpolate import CubicSpline
@@ -142,10 +142,10 @@ class StorGeom2MarsCoords(PolarCoordConverter):
         geom = np.array(self.stor_geom_coords['angle'])
         angle_delta = chi_unwrapped - geom
         angle_delta_spline = SemiPeriodicFourierSpline(stor, geom, angle_delta, max_poloidal_mode)
-        chi_spline_over_stor_geom = lambda stor, geom: np.mod(geom + angle_delta_spline(stor, geom) + np.pi, 2*np.pi) - np.pi
+        chi_spline_over_stor_geom = lambda stor, geom: np.mod(geom + angle_delta_spline(stor, geom, grid=False) + np.pi, 2*np.pi) - np.pi
         return chi_spline_over_stor_geom
 
     def __call__(self, stor, geom):
-        sqrtspol = self.stor2sqrtspol(stor)
-        chi = self.stor_geom2chi(stor, geom)
+        sqrtspol = self._stor2sqrtspol(stor)
+        chi = self._stor_geom2chi(stor, geom)
         return sqrtspol, chi
