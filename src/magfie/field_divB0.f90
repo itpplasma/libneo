@@ -124,6 +124,7 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 
   real(kind=real_kind) :: rrr,zzz
   real(kind=real_kind) :: psihat,fpol,fpol_prime
+  real(kind=real_kind), allocatable, dimension(:) :: psi0_intermediary, psi_intermediary
 
   !-------first call: read data from disk-------------------------------
   if (icall_eq < 1) then
@@ -165,9 +166,15 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
       call window_filter(nrad,nwindow_r,psi(:,i),psi0(:,i))
     end do
 
+    ! the intermediaries are redundant when window_filter uses assumed-shape arrays,
+    ! which necessitates an interface, preferably obtained by putting it inside a module
+    allocate(psi0_intermediary(nzet), psi_intermediary(nzet))
     do i=1,nrad
-      call window_filter(nzet,nwindow_z,psi0(i,:),psi(i,:))
+      psi0_intermediary(:) = psi0(i,:)
+      call window_filter(nzet,nwindow_z,psi0_intermediary,psi_intermediary)
+      psi(i,:) = psi_intermediary
     end do
+    deallocate(psi0_intermediary, psi_intermediary)
     ! End filtering
 
     rad = rad*1.d2 ! cm
