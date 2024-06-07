@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-22.04
     container:
       image: ghcr.io/itpplasma/devel:latest
+      options: --user root
 
     name: Build and test
     steps:
