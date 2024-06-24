@@ -1730,6 +1730,7 @@ subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
   use inthecore_mod, only : psi_sep,psi_cut
   use libneo_kinds, only : complex_kind, real_kind
   use theta_rz_mod,  only : psiaxis
+  use field_sub,   only : inthecore,localizer
 
   implicit none
 
