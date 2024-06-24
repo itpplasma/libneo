@@ -2,7 +2,7 @@
 # List of source files are in CMakeSources.in.
 
 # Basic cmake settings/requirements
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.18)
 
 # Basic project settings.
 project(libneo)
