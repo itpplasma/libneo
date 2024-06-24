@@ -25,6 +25,7 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
   use field_eq_mod, only : psi_axis,psi_sep,psif,ierrfield
   use libneo_kinds, only : real_kind
+  use field_sub,    only : field
 
   implicit none
 
