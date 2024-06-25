@@ -7,6 +7,7 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
     rpoi,zpoi,apav,rbpav_coef,aznre,aznim,arnre,arnim
   use libneo_kinds, only : complex_kind, real_kind
   use math_constants, only : PI
+  use field_sub, only : stretch_coords
 
   implicit none
 
@@ -1581,6 +1582,7 @@ subroutine field_fourier_derivs(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
   ! for the field components computed by "field_fourier".
 
   use libneo_kinds, only : real_kind
+  use field_sub, only : field_eq, inthecore, stretch_coords
 
   implicit none
 
@@ -1730,6 +1732,7 @@ subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
   use inthecore_mod, only : psi_sep,psi_cut
   use libneo_kinds, only : complex_kind, real_kind
   use theta_rz_mod,  only : psiaxis
+  use field_sub,   only : inthecore,localizer
 
   implicit none
 

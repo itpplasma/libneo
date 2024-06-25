@@ -1,3 +1,9 @@
+module field_sub
+
+implicit none
+
+contains
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine read_field_input
   use input_files, only : iunit, gfile, pfile, convexfile, fluxdatapath, ieqfile
@@ -637,6 +643,7 @@ subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
   implicit real(8) (a-h, o-z)
 
   integer, parameter :: nr=64, np=37, nz=64
+  integer :: i, j, k, icall
 
   dimension Bz(nr,np,nz)
   dimension Br(nr,np,nz),Bp(nr,np,nz)
@@ -1279,3 +1286,5 @@ subroutine add_scaled(Br, Bp, Bz, dBrdR, dBrdp, dBrdZ, dBpdR, dBpdp, dBpdZ, dBzd
   dBzdp=dBzdp+scale*dBzdp1
   dBzdZ=dBzdZ+scale*dBzdZ1
 end subroutine add_scaled
+
+end module field_sub

@@ -382,6 +382,8 @@ contains
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
     use math_constants, only: pi
+    use field_sub, only: read_field_input, stretch_coords
+
     type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
     real(dp), intent(in) :: min_distance, max_eccentricity
@@ -526,7 +528,7 @@ contains
     Z = linspace(Zmin, Zmax, nZ, 0, 0)
     coil_number = [(k, k = 1, ncoil)]
     ntor = [(k, k = 0, nmax)]
-    
+
     status = nf90_create(filename, NF90_NETCDF4, ncid)
     call nc_check(status, 'open')
 
