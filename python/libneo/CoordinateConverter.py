@@ -4,9 +4,10 @@ import numpy as np
 class StorGeom2MarsCoords:
 
     def __init__(self, mars_dir: str, max_poloidal_mode: int=None):
+        self.max_poloidal_mode = max_poloidal_mode
         self.stor_geom_coords, self.mars_coords = self.load_points_from(
             mars_dir)
-        self._set_conversion_func(max_poloidal_mode)
+        self._set_conversion_func()
 
     @staticmethod
     def load_points_from(mars_dir: str):
@@ -51,19 +52,21 @@ class StorGeom2MarsCoords:
         stor_geom_coords = {'radius': stor, 'angle': geom}
         return order_monotonically(stor_geom_coords, mars_coords)
 
-    def _set_conversion_func(self, max_poloidal_mode):
+    def _set_conversion_func(self):
         from scipy.interpolate import CubicSpline
-        self._stor2sqrtspol = CubicSpline(self.stor_geom_coords['radius'], self.mars_coords['radius'])
-        self._stor_geom2chi = self._get_chi_func_over_stor_geom(max_poloidal_mode)
+        self._stor2sqrtspol = CubicSpline(self.stor_geom_coords['radius'],
+            self.mars_coords['radius'])
+        self._stor_geom2chi = self._get_chi_func_over_stor_geom()
 
-    def _get_chi_func_over_stor_geom(self, max_poloidal_mode):
+    def _get_chi_func_over_stor_geom(self):
         from scipy.interpolate import CubicSpline
         from .SemiPeriodicFourierSpline import SemiPeriodicFourierSpline
         stor = np.array(self.stor_geom_coords['radius'])
         chi_unwrapped = np.unwrap(self.mars_coords['angle'])
         geom = np.array(self.stor_geom_coords['angle'])
         angle_delta = chi_unwrapped - geom
-        angle_delta_spline = SemiPeriodicFourierSpline(stor, geom, angle_delta, max_poloidal_mode)
+        angle_delta_spline = SemiPeriodicFourierSpline(
+            stor, geom, angle_delta, self.max_poloidal_mode)
         chi_spline_over_stor_geom = lambda stor, geom: np.mod(geom + angle_delta_spline(stor, geom, grid=False) + np.pi, 2*np.pi) - np.pi
         return chi_spline_over_stor_geom
 
@@ -81,7 +84,8 @@ def order_monotonically(coordsystem: dict, new_coordsystem: dict)->dict:
     radius, angle, new_radius, new_angle = list(radius), list(angle), list(new_radius), list(new_angle)
     for i in range(len(radius)):
         angle_i, new_angle_i = angle[i], new_angle[i]
-        ordered_by_angle = sorted(list(zip(angle_i, new_angle_i)), key=lambda x: x[0])
+        ordered_by_angle = sorted(list(zip(angle_i, new_angle_i)),
+            key=lambda x: x[0])
         angle_i, new_angle_i = zip(*ordered_by_angle)
         angle[i], new_angle[i] = list(angle_i), list(new_angle_i)
     ordered_coord = {'radius': radius, 'angle': angle}
