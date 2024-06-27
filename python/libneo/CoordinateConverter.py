@@ -1,24 +1,6 @@
 # %%
 import numpy as np
 
-def convert(coordsystem: dict, new_coordsystem: dict, radius, angle)->np.ndarray:
-    if not isinstance(radius, np.ndarray):
-        radius = np.array([radius])
-    if not isinstance(angle, np.ndarray):
-        angle = np.array([angle])
-    if ((angle.ndim == 1) & ((len(radius) != len(angle)) and (len(radius) > 1))):
-        raise ValueError("The length of radius and angle should be the same.")
-    if ((angle.ndim == 2) & (len(radius) != angle.shape[0])):
-        raise ValueError("The angle needs to be of shape (len(radius),n_angle).")
-    coordsystem, new_coordsystem = order_monotonically(coordsystem, new_coordsystem)
-    new_radius = np.interp(radius, coordsystem['radius'], new_coordsystem['radius'])
-    new_angle = []
-    for k in range(len(radius)):
-        new_angle_over_radius = get_new_angle_on_coordsystem_radius_levels(angle[k], coordsystem, new_coordsystem)
-        interp = lambda fp, xp, x: np.interp(x, xp, fp)
-        new_angle.append(np.apply_along_axis(interp, axis=0, arr=new_angle_over_radius, xp=coordsystem['radius'], x=radius[k]))
-    return new_radius, np.array(new_angle)
-
 def order_monotonically(coordsystem: dict, new_coordsystem: dict)->dict:
     radius, angle = coordsystem['radius'].copy(), coordsystem['angle'].copy()
     new_radius, new_angle = new_coordsystem['radius'].copy(), new_coordsystem['angle'].copy()
@@ -33,42 +15,6 @@ def order_monotonically(coordsystem: dict, new_coordsystem: dict)->dict:
     ordered_coord = {'radius': radius, 'angle': angle}
     ordered_new_coord = {'radius': new_radius, 'angle': new_angle}
     return ordered_coord, ordered_new_coord
-
-def get_new_angle_on_coordsystem_radius_levels(angle, coordsystem, new_coordsystem):
-    new_angle_over_radius = []
-    for i in range(len(coordsystem['radius'])):
-        angle = shift_angle_to_period(angle, coordsystem['angle'][i])
-        angle = shift_angle_away_from_discontinuity(angle, coordsystem['angle'][i], new_coordsystem['angle'][i])
-        new_angle_over_radius.append(np.interp(angle, coordsystem['angle'][i], new_coordsystem['angle'][i]))
-    return np.unwrap(np.array(new_angle_over_radius), axis=0)
-
-def shift_angle_to_period(angle, coordsystem_angle):
-    period_start = min(coordsystem_angle)
-    period_end = max(np.unwrap(coordsystem_angle))
-    period = period_end - period_start
-    angle_in_period = np.mod(angle - period_start, period) + period_start
-    return angle_in_period
-
-def shift_angle_away_from_discontinuity(angle, coordsystem_angle, new_coordsystem_angle):
-    dicontinuity = np.where(np.abs(np.diff(new_coordsystem_angle)) > np.pi)[0]
-    if len(dicontinuity) == 0:
-        return angle
-    angle_before_discontinuity = coordsystem_angle[dicontinuity[0]]
-    angle_after_discontinuity = coordsystem_angle[dicontinuity[0]+1]
-    I = is_in_discontinuity(angle, angle_before_discontinuity, angle_after_discontinuity)
-    angle_shifted = angle.copy()
-    if isinstance(angle, np.ndarray):
-        angle_shifted[I] = angle_before_discontinuity
-    elif I:
-        angle_shifted = angle_before_discontinuity
-    return angle_shifted
-    
-def is_in_discontinuity(angle, angle_before_discontinuity, angle_after_discontinuity):
-    angles_over_dicontinuity = np.unwrap(np.array([angle_before_discontinuity, 
-                                                   angle_after_discontinuity]))
-    return np.logical_and(angles_over_dicontinuity[0] < angle, 
-                          angle < angles_over_dicontinuity[1])
-
 
 class StorGeom2MarsCoords:
 

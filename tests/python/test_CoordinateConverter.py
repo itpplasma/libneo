@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Import modules to test
 from libneo import StorGeom2MarsCoords
-from libneo import convert, order_monotonically, shift_angle_to_period, shift_angle_away_from_discontinuity
+from libneo import order_monotonically
 
 mars_dir = "/proj/plasma/DATA/DEMO/MARS/MARSQ_KNTV10_NEO2profs_KEYTORQ_1/"
 sqrtspol = np.linspace(0,1,5)
@@ -14,52 +14,7 @@ chi[-1] = chi[-1] - 0.1
 coordsystem = {'radius': sqrtspol.tolist(), 'angle': np.meshgrid(chi, sqrtspol)[0].tolist()}
 new_coordsystem = {'radius': (1/2*sqrtspol).tolist(), 'angle': np.mod(np.meshgrid(chi, sqrtspol)[0], 2*np.pi).tolist()}
 
-def test_PolarCoordConverter_convert_unity():
-    radius, angle = 0.5, -1/2*np.pi
-    new_radius, new_angle = convert(coordsystem, coordsystem, radius, angle)
-    assert new_radius == radius
-    assert new_angle == angle
-
-def test_PolarCoordConverter_convert():
-    radius, angle = 0.5, -1/2*np.pi
-    new_radius, new_angle = convert(coordsystem, new_coordsystem, radius, angle)
-    assert new_radius == radius * 1/2
-    assert new_angle == np.mod(angle, 2*np.pi)
-
-def test_PolarCoordConverter_convert_different_number_of_coordinate_points_per_radius():
-    import copy
-    radius, angle = 0.5, -1/2*np.pi
-    modified_coordsystem = copy.deepcopy(coordsystem)
-    modified_coordsystem['angle'][2] = modified_coordsystem['angle'][2][:-1]
-    modified_new_coordsystem = copy.deepcopy(new_coordsystem)
-    modified_new_coordsystem['angle'][2] = modified_new_coordsystem['angle'][2][:-1]
-    new_radius, new_angle = convert(modified_coordsystem, modified_new_coordsystem, radius, angle)
-    assert new_radius == radius * 1/2
-    assert new_angle == np.mod(angle, 2*np.pi)
-    for i in range(len(modified_coordsystem['angle'])):
-        if i == 2:
-            continue
-        assert modified_coordsystem['angle'][i] == coordsystem['angle'][i]
-        assert modified_new_coordsystem['angle'][i] == new_coordsystem['angle'][i]
-        assert modified_coordsystem['angle'][2] != coordsystem['angle'][i]
-        assert modified_new_coordsystem['angle'][2] != new_coordsystem['angle'][i]
-        assert modified_coordsystem['angle'][2] != modified_coordsystem['angle'][i]
-        assert modified_new_coordsystem['angle'][2] != modified_new_coordsystem['angle'][i]
-
-def test_PolarCoordConverter_convert_output_shape():
-    radius, angle = 0.5*np.ones_like(coordsystem['radius']), chi
-    assert pytest.raises(ValueError, convert, coordsystem, new_coordsystem, radius, angle)
-    radius, angle = 0.5*np.ones_like(new_coordsystem['radius']), chi[:5]
-    new_radius, new_angle = convert(coordsystem, new_coordsystem, radius, angle)
-    assert new_radius.shape == radius.shape
-    assert new_angle.shape == angle.shape
-    angle = np.meshgrid(chi, radius)[0]
-    assert pytest.raises(ValueError, convert, coordsystem, new_coordsystem, radius, angle[:-1])
-    new_radius, new_angle = convert(coordsystem, new_coordsystem, radius, angle)
-    assert new_radius.shape == radius.shape
-    assert new_angle.shape == (len(radius), len(angle[0]))
-
-def test_PolarCoordConverter_order_monotonically():
+def test_order_monotonically():
     coordsystem = {'radius': [1, 3, 2], 'angle': [[3, 1, 2], [7, 9, 8], [4, 5 ,6]]}
     new_coordsystem = {'radius': [1, 2, 3], 'angle': [[1, 2, 3], [4, 5, 6], [7, 8 ,9]]}
     coordsystem, new_coordsystem = order_monotonically(coordsystem, new_coordsystem)
@@ -72,24 +27,6 @@ def test_PolarCoordConverter_order_monotonically():
 
 def is_monotonically_increasing(arr):
     return np.all(np.diff(arr) > 0)
-
-def test_PolarCoordConverter_shift_angle_to_period():
-    angle = np.linspace(-np.pi, np.pi, 10) + 0.1
-    coordsystem_angle = np.linspace(-np.pi, np.pi, 30)
-    angle_in_period = shift_angle_to_period(angle, coordsystem_angle)
-    assert np.allclose(angle_in_period[angle < np.pi], angle[angle < np.pi])
-    assert np.allclose(angle_in_period[angle > np.pi], angle[angle > np.pi] - 2*np.pi)
-
-def test_PolarCoordConverter_shift_angle_away_from_discontinuity(): 
-    angle = np.linspace(0, 2*np.pi, 11)
-    coord_angle = np.linspace(0, 2*np.pi, 10)
-    new_coord_angle = np.concatenate([np.linspace(0, np.pi, 5), np.linspace(-np.pi, -1e-10, 5)])
-    original_angle = angle.copy()
-    angle = shift_angle_away_from_discontinuity(angle, coord_angle, new_coord_angle)
-    assert np.allclose(original_angle[0:5], angle[0:5])
-    assert ~np.allclose(original_angle[5], angle[5])
-    assert np.allclose(angle[5], coord_angle[4])
-    assert np.allclose(original_angle[6:], angle[6:])
 
 def test_MarsCoords2StorThetageom_init():
     mars = StorGeom2MarsCoords(mars_dir)
@@ -115,42 +52,6 @@ def test_MarsCoord2StorThetageom_stor2sqrtspol():
     sqrtspol = np.linspace(0, 1, 100)
     stor = mars_sqrtspol2stor(mars_dir, sqrtspol)
     assert np.allclose(sqrtspol, stor2sqrtspol(stor),atol=1e-2)
-
-def test_PolarCoordConverter_convert_visual_check():
-    radius, angle = 0.9*np.array(new_coordsystem['radius']), np.linspace(-np.pi, np.pi, 100)
-    angle = np.meshgrid(angle, radius)[0]
-    new_radius, new_angle = convert(coordsystem, new_coordsystem, radius, angle)
-    plt.figure()
-    for i in range(len(radius)):
-        plt.plot(angle[i], new_angle[i], '.', label=f"radius={radius[i]}")
-    plt.xlabel('angle [1]')
-    plt.ylabel('new_angle [1]')
-    plt.axvline(x=np.min(np.array(coordsystem['angle'])), color='k', linestyle='--', label='period by provided data')
-    plt.axvline(x=np.max(np.array(coordsystem['angle'])), color='k', linestyle='--')
-    c, new_c = order_monotonically(coordsystem, new_coordsystem)
-    discontinuity = np.where(np.abs(np.diff(new_c['angle'][0])) > np.pi)[0]
-    plt.axvline(x=c['angle'][0][discontinuity[0]], color='r', linestyle='--', label='discontinuity by provided data')
-    plt.axvline(x=c['angle'][0][discontinuity[0]+1], color='r', linestyle='--')
-    plt.legend()
-    plt.show()
-
-def test_PolarCoordConverter_convert_invers_visual_check():
-    radius, angle = 0.9*np.array(new_coordsystem['radius']), np.linspace(0, 2*np.pi, 100)
-    angle = np.meshgrid(angle, radius)[0]
-    new_radius, new_angle = convert(new_coordsystem, coordsystem, radius, angle)
-    plt.figure()
-    for i in range(len(radius)):
-        plt.plot(angle[i], new_angle[i], '.', label=f"radius={radius[i]}")
-    plt.xlabel('new_angle [1]')
-    plt.ylabel('angle [1]')
-    plt.axvline(x=np.min(np.array(new_coordsystem['angle'])), color='k', linestyle='--', label='period by provided data')
-    plt.axvline(x=np.max(np.array(new_coordsystem['angle'])), color='k', linestyle='--')
-    new_c, c = order_monotonically(new_coordsystem, coordsystem)
-    discontinuity = np.where(np.abs(np.diff(c['angle'][0])) > np.pi)[0]
-    plt.axvline(x=new_c['angle'][0][discontinuity[0]], color='r', linestyle='--', label='discontinuity by provided data')
-    plt.axvline(x=new_c['angle'][0][discontinuity[0]+1], color='r', linestyle='--')
-    plt.legend()
-    plt.show()
 
 def test_MarsCoords2StorThetageom_visual_check():
     converter = StorGeom2MarsCoords(mars_dir)
@@ -216,13 +117,6 @@ def test_MarsCoords2StorThetageom_performance():
 
 
 if __name__ == "__main__":
-    test_PolarCoordConverter_convert_unity()
-    test_PolarCoordConverter_convert()
-    test_PolarCoordConverter_convert_different_number_of_coordinate_points_per_radius()
-    test_PolarCoordConverter_convert_output_shape()
-    test_PolarCoordConverter_order_monotonically()
-    test_PolarCoordConverter_shift_angle_to_period()
-    test_PolarCoordConverter_shift_angle_away_from_discontinuity()
     test_MarsCoords2StorThetageom_init()
     test_MarsCoords2StorThetageom_coords_shape()
     test_MarsCoord2StorThetageom_stor2sqrtspol()
@@ -230,7 +124,5 @@ if __name__ == "__main__":
 
     #test_MarsCoord2StorThetageom_performance_profile()
 
-    test_PolarCoordConverter_convert_visual_check()
-    test_PolarCoordConverter_convert_invers_visual_check()
     test_MarsCoords2StorThetageom_visual_check()
     test_MarsCoords2StorThetageom_coords_domain_visual_check()
