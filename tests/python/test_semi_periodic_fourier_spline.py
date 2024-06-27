@@ -29,12 +29,12 @@ def test_fourier_coefs_shape():
     coefs = spline._fourier_coefs
     assert coefs.shape == (len(s), max_m+1)
 
-def test_get_fourier_coefs():
+def test_get_fourier_coefs_splines():
     Angle, S = np.meshgrid(angle, s)
     F = trial_trigonometric_func(S, Angle)
     spline = SemiPeriodicFourierSpline(s, angle, F)
-    assert np.allclose(spline._get_fourier_coefs(s), spline._fourier_coefs)
-    assert spline._get_fourier_coefs(s).shape == (len(s), len(spline.modenumbers))
+    assert np.allclose(spline._fourier_coefs_splines(s), spline._fourier_coefs)
+    assert spline._fourier_coefs_splines(s).shape == (len(s), len(spline._modenumbers))
 
 def test_call():
     Angle, S = np.meshgrid(angle, s)
@@ -53,8 +53,8 @@ def test_get_fourier_coefs_visual_check():
     spline = SemiPeriodicFourierSpline(s, angle, F)
     plt.figure()
     r_plot = np.linspace(0, 1, 30)
-    coefs_plot = spline._get_fourier_coefs(r_plot)
-    for i,m in enumerate(spline.modenumbers):
+    coefs_plot = spline._fourier_coefs_splines(r_plot)
+    for i,m in enumerate(spline._modenumbers):
         plt.plot(r_plot, coefs_plot[:,i].real, '-', label=f'real m={m}')
         plt.plot(r_plot, coefs_plot[:,i].imag, '.--', label=f'imag m={m}')
     plt.xlabel('s [1]')
@@ -65,8 +65,8 @@ def test_get_fourier_coefs_visual_check():
 
 def test_trial_theta_geom_func_visual_check():
     angle = np.linspace(-np.pi, np.pi, 100)
-    Angle_plot, S = np.meshgrid(angle, s)
-    Theta_geom = theta_geom_func(S, Angle_plot)
+    Angle, S = np.meshgrid(angle, s)
+    Theta_geom = theta_geom_func(S, Angle)
     spline = SemiPeriodicFourierSpline(s, angle, Theta_geom)
     plt.figure()
     angle_plot = np.linspace(-np.pi, np.pi,19)
@@ -79,15 +79,33 @@ def test_trial_theta_geom_func_visual_check():
     plt.xlabel('R [1]')
     plt.ylabel('Z [1]')
     plt.legend()
-    plt.title('Theta_geom rays as function of equidistant input angle \n spline datasize N='+str(len(angle))+'x'+str(len(s))+' [angle x s]')
+    plt.title('Theta_geom rays as function of equidistant input angle \n splined form uniform datapoints N='+str(len(angle))+'x'+str(len(s))+' [angle x s]')
+    plt.show()
+
+def test_trial_theta_geom_func_different_angle_per_surface_visual_check():
+    angle = np.linspace(-np.pi, np.pi, 100)
+    Angle, S = np.meshgrid(angle, s)
+    Angle[:,1:-1] = Angle[:,1:-1]*(S[:,1:-1] + 1)/2 # uneven distributed angles, but same endpoints
+    Theta_geom = theta_geom_func(S, Angle)
+    spline = SemiPeriodicFourierSpline(s, Angle, Theta_geom)
+    plt.figure()
+    angle_plot = np.linspace(-np.pi, np.pi,19)
+    s_plot = np.linspace(0, 1, 9)
+    Angle_plot, S_plot = np.meshgrid(angle_plot, s_plot)
+    R, Z = polar2cart(S_plot, theta_geom_func(S_plot, Angle_plot))
+    plt.plot(R.flatten(), Z.flatten(), 'o', label='via base func')
+    R, Z = polar2cart(S_plot, spline(s_plot, angle_plot))
+    plt.plot(R.flatten(), Z.flatten(), 'x', label='via spline')
+    plt.xlabel('R [1]')
+    plt.ylabel('Z [1]')
+    plt.legend()
+    plt.title('Theta_geom rays as function of equidistant input angle \n splined from uneven distributed datapoints N='+str(len(angle))+'x'+str(len(s))+' [angle x s]')
     plt.show()
 
 def trial_trigonometric_func(s,angle):
     return s*np.cos(angle)*np.sin(angle)
 
 def theta_geom_func(s,chi):
-    R, Z = s*np.cos(chi), s*np.sin(chi)
-    theta_geom = np.arctan2(Z,R)
     theta_geom = chi
     return theta_geom
 
@@ -100,8 +118,9 @@ if __name__ == '__main__':
     test_init()
     test_SemiPeriodicFourierSpline_ExceedingNyquistLimit()
     test_fourier_coefs_shape()
-    test_get_fourier_coefs()
+    test_get_fourier_coefs_splines()
     test_call()
     print("All tests passed.")
     test_trial_theta_geom_func_visual_check()
+    test_trial_theta_geom_func_different_angle_per_surface_visual_check()
     test_get_fourier_coefs_visual_check()
