@@ -20,4 +20,5 @@ from .SemiPeriodicFourierSpline import SemiPeriodicFourierSpline_ExceedingNyquis
 from .fourier_utils import fourier_coefs_half, fourier_coefs_full
 from .fourier_utils import get_half_fft
 
-from .CoordinateConverter import PolarCoordConverter, StorGeom2MarsCoords
+from .CoordinateConverter import StorGeom2MarsCoords
+from .CoordinateConverter import convert, order_monotonically, shift_angle_to_period, shift_angle_away_from_discontinuity
