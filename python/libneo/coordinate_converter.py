@@ -60,7 +60,7 @@ class StorGeom2MarsCoords:
 
     def _get_chi_func_over_stor_geom(self):
         from scipy.interpolate import CubicSpline
-        from .SemiPeriodicFourierSpline import SemiPeriodicFourierSpline
+        from .semi_periodic_fourier_spline import SemiPeriodicFourierSpline
         stor = np.array(self.stor_geom_coords['radius'])
         chi_unwrapped = np.unwrap(self.mars_coords['angle'])
         geom = np.array(self.stor_geom_coords['angle'])
