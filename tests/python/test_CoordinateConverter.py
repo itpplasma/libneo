@@ -32,10 +32,9 @@ def test_MarsCoords2StorThetageom_init():
     mars = StorGeom2MarsCoords(mars_dir)
     assert mars is not None
 
-def test_MarsCoords2StorThetageom_coords_shape():
-    converter = StorGeom2MarsCoords(mars_dir)
-    mars_coords = converter.mars_coords
-    stor_geom_coords = converter.stor_geom_coords
+def test_MarsCoords2StorThetageom_load_points_from():
+    mars_coords, stor_geom_coords = StorGeom2MarsCoords.load_points_from(
+        mars_dir)
     assert len(mars_coords['angle']) == len(mars_coords['radius'])
     assert len(mars_coords['radius']) == len(stor_geom_coords['radius'])
     for i in range(len(mars_coords['radius'])):
@@ -118,7 +117,7 @@ def test_MarsCoords2StorThetageom_performance():
 
 if __name__ == "__main__":
     test_MarsCoords2StorThetageom_init()
-    test_MarsCoords2StorThetageom_coords_shape()
+    test_MarsCoords2StorThetageom_load_points_from()
     test_MarsCoord2StorThetageom_stor2sqrtspol()
     print("All tests passed!")
 

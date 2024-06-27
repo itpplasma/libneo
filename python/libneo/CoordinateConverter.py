@@ -1,28 +1,15 @@
 # %%
 import numpy as np
 
-def order_monotonically(coordsystem: dict, new_coordsystem: dict)->dict:
-    radius, angle = coordsystem['radius'].copy(), coordsystem['angle'].copy()
-    new_radius, new_angle = new_coordsystem['radius'].copy(), new_coordsystem['angle'].copy()
-    ordered_by_radius = sorted(list(zip(radius, angle, new_radius, new_angle)), key=lambda x: x[0])
-    radius, angle, new_radius, new_angle = zip(*ordered_by_radius)
-    radius, angle, new_radius, new_angle = list(radius), list(angle), list(new_radius), list(new_angle)
-    for i in range(len(radius)):
-        angle_i, new_angle_i = angle[i], new_angle[i]
-        ordered_by_angle = sorted(list(zip(angle_i, new_angle_i)), key=lambda x: x[0])
-        angle_i, new_angle_i = zip(*ordered_by_angle)
-        angle[i], new_angle[i] = list(angle_i), list(new_angle_i)
-    ordered_coord = {'radius': radius, 'angle': angle}
-    ordered_new_coord = {'radius': new_radius, 'angle': new_angle}
-    return ordered_coord, ordered_new_coord
-
 class StorGeom2MarsCoords:
 
     def __init__(self, mars_dir: str, max_poloidal_mode: int=None):
-        self._load_points_from(mars_dir)
+        self.stor_geom_coords, self.mars_coords = self.load_points_from(
+            mars_dir)
         self._set_conversion_func(max_poloidal_mode)
 
-    def _load_points_from(self, mars_dir: str):
+    @staticmethod
+    def load_points_from(mars_dir: str):
         from omfit_classes.omfit_mars import OMFITmars
         from neo2_mars import mars_sqrtspol2stor
         mars = OMFITmars(mars_dir)
@@ -62,13 +49,13 @@ class StorGeom2MarsCoords:
 
         mars_coords = {'radius': sqrtspol, 'angle': chi}
         stor_geom_coords = {'radius': stor, 'angle': geom}
-        self.stor_geom_coords, self.mars_coords = order_monotonically(stor_geom_coords, mars_coords)
+        return order_monotonically(stor_geom_coords, mars_coords)
 
     def _set_conversion_func(self, max_poloidal_mode):
         from scipy.interpolate import CubicSpline
         self._stor2sqrtspol = CubicSpline(self.stor_geom_coords['radius'], self.mars_coords['radius'])
-        self._stor_geom2chi = self._get_chi_func_over_stor_geom(max_poloidal_mode) 
-        
+        self._stor_geom2chi = self._get_chi_func_over_stor_geom(max_poloidal_mode)
+
     def _get_chi_func_over_stor_geom(self, max_poloidal_mode):
         from scipy.interpolate import CubicSpline
         from .SemiPeriodicFourierSpline import SemiPeriodicFourierSpline
@@ -84,3 +71,19 @@ class StorGeom2MarsCoords:
         sqrtspol = self._stor2sqrtspol(stor)
         chi = self._stor_geom2chi(stor, geom)
         return sqrtspol, chi
+
+
+def order_monotonically(coordsystem: dict, new_coordsystem: dict)->dict:
+    radius, angle = coordsystem['radius'].copy(), coordsystem['angle'].copy()
+    new_radius, new_angle = new_coordsystem['radius'].copy(), new_coordsystem['angle'].copy()
+    ordered_by_radius = sorted(list(zip(radius, angle, new_radius, new_angle)), key=lambda x: x[0])
+    radius, angle, new_radius, new_angle = zip(*ordered_by_radius)
+    radius, angle, new_radius, new_angle = list(radius), list(angle), list(new_radius), list(new_angle)
+    for i in range(len(radius)):
+        angle_i, new_angle_i = angle[i], new_angle[i]
+        ordered_by_angle = sorted(list(zip(angle_i, new_angle_i)), key=lambda x: x[0])
+        angle_i, new_angle_i = zip(*ordered_by_angle)
+        angle[i], new_angle[i] = list(angle_i), list(new_angle_i)
+    ordered_coord = {'radius': radius, 'angle': angle}
+    ordered_new_coord = {'radius': new_radius, 'angle': new_angle}
+    return ordered_coord, ordered_new_coord
