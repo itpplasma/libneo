@@ -14,7 +14,7 @@ include_directories(${MPI_Fortran_INCLUDE_PATH})
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
 
-execute_process(COMMAND nc-config --flibs
+execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 
