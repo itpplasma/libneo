@@ -5,14 +5,21 @@ implicit none
 contains
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine read_field_input
+subroutine read_field_input(input_file)
   use input_files, only : iunit, gfile, pfile, convexfile, fluxdatapath, ieqfile
   use field_c_mod, only : ntor, icftype
   use field_eq_mod, only : nwindow_r, nwindow_z
   use field_mod, only : ipert, iequil, ampl
   use inthecore_mod, only : cutoff
 
-  open(iunit, file='field_divB0.inp')
+  character(*), intent(in), optional :: input_file
+
+  if (present(input_file)) then
+    open(iunit, file=input_file)
+  else
+    open(iunit, file='field_divB0.inp')
+  end if
+
   read(iunit,*) ipert        ! 0=eq only, 1=vac, 2=vac+plas no derivatives,
                              ! 3=plas+vac with derivatives
   read(iunit,*) iequil       ! 0=perturbation alone, 1=with equilibrium
