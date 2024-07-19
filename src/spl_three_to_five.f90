@@ -592,6 +592,7 @@ subroutine spl_reg(ns,n,h,splcoe)
   real(kind=real_kind) :: h
   real(kind=real_kind), dimension(0:ns,n) :: splcoe
   real(kind=real_kind), dimension(:), allocatable :: a,b,c,d,e,f
+integer :: i
 
   if(ns.eq.3) then
     allocate(a(n),b(n),c(n),d(n))
@@ -606,6 +607,7 @@ subroutine spl_reg(ns,n,h,splcoe)
   elseif(ns.eq.4) then
     allocate(a(n),b(n),c(n),d(n),e(n))
     a=splcoe(0,:)
+print *,'4-th order spline!'
 
     call spl_four_reg(n,h,a,b,c,d,e)
 
@@ -614,6 +616,10 @@ subroutine spl_reg(ns,n,h,splcoe)
     splcoe(3,:)=d
     splcoe(4,:)=e
     deallocate(a,b,c,d,e)
+do i=1,n
+write (3001,*) splcoe(:,i)
+enddo
+stop
   elseif(ns.eq.5) then
     allocate(a(n),b(n),c(n),d(n),e(n),f(n))
     a=splcoe(0,:)
