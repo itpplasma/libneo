@@ -14,6 +14,7 @@ end module exchange_get_cancoord_mod
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine get_canonical_coordinates
   use libneo_kinds, only : real_kind
+  use odeint_sub, only : odeint_allroutines
 
   use canonical_coordinates_mod, only : ns_c,n_theta_c,n_phi_c,           &
                                         hs_c,h_theta_c,h_phi_c,           &

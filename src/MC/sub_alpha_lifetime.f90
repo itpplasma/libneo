@@ -151,6 +151,7 @@ subroutine orbit_timestep(z,dtau,dtaumin,ierr)
   use collis_alp, only : swcoll,iswmod
   ! end collisions
   use libneo_kinds, only : real_kind
+  use odeint_sub, only : odeint_allroutines
 
   implicit none
 
@@ -283,6 +284,7 @@ end subroutine rhs_mflint
 subroutine integrate_mfl(npoi,dphii,rbeg,phibeg,zbeg,         &
                                xstart,bstart,volstart,bmod00,ierr)
   use libneo_kinds, only : real_kind
+  use odeint_sub, only : odeint_allroutines
 
   implicit none
 
@@ -391,6 +393,7 @@ end subroutine binsrc
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine regst(z,dtau,ierr)
   use libneo_kinds, only : real_kind
+  use odeint_sub, only : odeint_allroutines
 
   implicit none
 
