@@ -4,6 +4,7 @@ module geqdsk_tools
   use math_constants, only : pi, length_si_to_cgs, magneticflux_si_to_cgs, &
        magneticfield_si_to_cgs, clight => C, current_si_to_cgs, &
        pressure_si_to_cgs
+  use plag_coeff_sub, only : plag_coeff
 
   implicit none
 

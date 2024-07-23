@@ -1,6 +1,8 @@
 subroutine boozer_converter
 
   use libneo_kinds, only : real_kind
+  use binsrc_sub, only : binsrc
+  use plag_coeff_sub, only : plag_coeff
   use vector_potentail_mod,   only : ns,hs
   use new_vmec_stuff_mod,     only : n_theta,n_phi,h_theta,h_phi,ns_s,ns_tp
   use boozer_coordinates_mod, only : ns_s_B,ns_tp_B,ns_B,n_theta_B,n_phi_B, &

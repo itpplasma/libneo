@@ -7,6 +7,7 @@
 !> There is no test with incorrect input.
 program test_binsrc
 
+  use binsrc_sub, only : binsrc
   use libneo_kinds, only : real_kind
 
   implicit none
