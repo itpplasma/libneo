@@ -419,10 +419,15 @@ contains
                 interval_index(3) + 1)
 
             ! Interpolation over x1
-            coeff_23(:, :) = coeff_local(N1, :, :)
-            do k1 = N1-1, 0, -1
-                coeff_23(:, :) = coeff_local(k1, :, :) &
-                    + x_local(1)*coeff_23(:, :)
+
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23(k2, k3) = coeff_local(N1, k2, k3)
+                    do k1 = N1-1, 0, -1
+                        coeff_23(k2, k3) = coeff_local(k1, k2, k3) &
+                            + x_local(1)*coeff_23(k2, k3)
+                    enddo
+                enddo
             enddo
             ! First derivitative over x1
             coeff_23_dx1(:, :) = coeff_local(N1, :, :)*N1
