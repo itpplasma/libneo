@@ -419,7 +419,6 @@ contains
                 interval_index(3) + 1)
 
             ! Interpolation over x1
-
             do k3 = 0, N3
                 do k2 = 0, N2
                     coeff_23(k2, k3) = coeff_local(0, k2, k3)
@@ -429,17 +428,27 @@ contains
                     enddo
                 enddo
             enddo
+
             ! First derivitative over x1
-            coeff_23_dx1(:, :) = coeff_local(0, :, :)*N1
-            do k1 = 1, N1-1
-                coeff_23_dx1(:, :) = coeff_local(k1, :, :)*(N1-k1) &
-                    + x_local(1)*coeff_23_dx1(:, :)
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23_dx1(k2, k3) = coeff_local(0, k2, k3)*N1
+                    do k1 = 1, N1-1
+                        coeff_23_dx1(k2, k3) = coeff_local(k1, k2, k3)*(N1-k1) &
+                            + x_local(1)*coeff_23_dx1(k2, k3)
+                    enddo
+                enddo
             enddo
+
             ! Second derivitative over x1
-            coeff_23_dx1x1(0:N2,0:N3) = coeff_local(0, :, :)*N1*(N1-1)
-            do k1 = 1, N1-2
-                coeff_23_dx1x1(:, :)=coeff_local(k1,0:N2,0:N3)*(N1-k1)*(N1-k1-1) &
-                    + x_local(1)*coeff_23_dx1x1(:, :)
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23_dx1x1(k2,k3) = coeff_local(0, k2, k3)*N1*(N1-1)
+                    do k1 = 1, N1-2
+                        coeff_23_dx1x1(k2, k3)=coeff_local(k1,k2,k3)*(N1-k1)*(N1-k1-1) &
+                            + x_local(1)*coeff_23_dx1x1(k2, k3)
+                    enddo
+                enddo
             enddo
 
             ! Interpolation over x2 and pure derivatives over x1
