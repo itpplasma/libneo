@@ -413,7 +413,7 @@ contains
         associate(N1 => spl%order(1), N2 => spl%order(2), N3 => spl%order(3))
 
             coeff_local(:, :, :) = &
-                spl%coeff(:, :, :, &
+                spl%coeff(N1:0:-1, :, :, &   ! Flip order for cache efficiency
                 interval_index(1) + 1, &
                 interval_index(2) + 1, &
                 interval_index(3) + 1)
@@ -422,23 +422,23 @@ contains
 
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23(k2, k3) = coeff_local(N1, k2, k3)
-                    do k1 = N1-1, 0, -1
+                    coeff_23(k2, k3) = coeff_local(0, k2, k3)
+                    do k1 = 1, N1
                         coeff_23(k2, k3) = coeff_local(k1, k2, k3) &
                             + x_local(1)*coeff_23(k2, k3)
                     enddo
                 enddo
             enddo
             ! First derivitative over x1
-            coeff_23_dx1(:, :) = coeff_local(N1, :, :)*N1
-            do k1 = N1-1, 1, -1
-                coeff_23_dx1(:, :) = coeff_local(k1, :, :)*k1 &
+            coeff_23_dx1(:, :) = coeff_local(0, :, :)*N1
+            do k1 = 1, N1-1
+                coeff_23_dx1(:, :) = coeff_local(k1, :, :)*(N1-k1) &
                     + x_local(1)*coeff_23_dx1(:, :)
             enddo
             ! Second derivitative over x1
-            coeff_23_dx1x1(0:N2,0:N3) = coeff_local(N1, :, :)*N1*(N1-1)
-            do k1 = N1-1, 2, -1
-                coeff_23_dx1x1(:, :)=coeff_local(k1,0:N2,0:N3)*k1*(k1-1) &
+            coeff_23_dx1x1(0:N2,0:N3) = coeff_local(0, :, :)*N1*(N1-1)
+            do k1 = 1, N1-2
+                coeff_23_dx1x1(:, :)=coeff_local(k1,0:N2,0:N3)*(N1-k1)*(N1-k1-1) &
                     + x_local(1)*coeff_23_dx1x1(:, :)
             enddo
 
