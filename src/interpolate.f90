@@ -280,7 +280,7 @@ contains
             else
                 call spl_reg(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
             endif
-            spl%coeff(0, 0, :, i1, i2, :) = splcoe
+            spl%coeff(order(1), 0, :, i1, i2, :) = splcoe
         enddo
         enddo
         deallocate(splcoe)
@@ -290,7 +290,7 @@ contains
         do i3=1,spl%num_points(3)
         do i1=1,spl%num_points(1)
             do k3=0,spl%order(3)
-                splcoe(0,:) = spl%coeff(0, 0, k3, i1, :, i3)
+                splcoe(0,:) = spl%coeff(order(1), 0, k3, i1, :, i3)
                 if(spl%periodic(2)) then
                     call spl_per( &
                         spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
@@ -298,7 +298,7 @@ contains
                     call spl_reg( &
                         spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
                 endif
-                spl%coeff(0, :, k3, i1, :, i3) = splcoe
+                spl%coeff(order(1), :, k3, i1, :, i3) = splcoe
             enddo
         enddo
         enddo
@@ -310,7 +310,7 @@ contains
         do i2=1,spl%num_points(2)
             do k3=0,spl%order(3)
             do k2=0,spl%order(2)
-                splcoe(0,:) = spl%coeff(0, k2, k3, :, i2, i3)
+                splcoe(0,:) = spl%coeff(order(1), k2, k3, :, i2, i3)
                 if(spl%periodic(1)) then
                     call spl_per( &
                         spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
@@ -318,7 +318,7 @@ contains
                     call spl_reg( &
                         spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                 endif
-                spl%coeff(:, k2, k3, :, i2, i3) = splcoe
+                spl%coeff(order(1):0:-1, k2, k3, :, i2, i3) = splcoe
             enddo
             enddo
         enddo
@@ -353,8 +353,8 @@ contains
             interval_index(1) + 1, interval_index(2) + 1, interval_index(3) + 1)
 
         ! Interpolation over x1
-        coeff_23(:, :) = coeff_local(spl%order(1), :, :)
-        do k1 = spl%order(1)-1, 0, -1
+        coeff_23(:, :) = coeff_local(0, :, :)
+        do k1 = 1, spl%order(1)
             coeff_23(:, :) = coeff_local(k1, :, :) + x_local(1)*coeff_23(:, :)
         enddo
 
@@ -413,7 +413,7 @@ contains
         associate(N1 => spl%order(1), N2 => spl%order(2), N3 => spl%order(3))
 
             coeff_local(:, :, :) = &
-                spl%coeff(N1:0:-1, :, :, &   ! Flip order for cache efficiency
+                spl%coeff(:, :, :, &
                 interval_index(1) + 1, &
                 interval_index(2) + 1, &
                 interval_index(3) + 1)
