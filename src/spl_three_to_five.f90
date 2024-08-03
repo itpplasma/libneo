@@ -1,3 +1,7 @@
+module spl_three_to_five_sub
+
+contains
+
 subroutine spl_five_reg(n,h,a,b,c,d,e,f)
   use libneo_kinds, only : real_kind
 
@@ -694,3 +698,5 @@ subroutine spl_per(ns,n,h,splcoe)
   endif
 
 end subroutine spl_per
+
+end module spl_three_to_five_sub
