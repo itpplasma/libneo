@@ -615,7 +615,7 @@ classdef efit < handle
         end
         function write2000(obj, varstr, varint)
             %2000 format (6a8,3i4)
-            fmt = '%s%4i%4i%4i';
+            fmt = '%s%4i%5i%5i';
 
             %open file with permission to write. append data
             fid = fopen(obj.fname, 'a');
