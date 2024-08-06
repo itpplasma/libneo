@@ -238,7 +238,7 @@ classdef efit < handle
             
             %put name at the end
             if nargin < 2 || isempty(name)
-                gname = [gname, '_', erase(obj.CASE{1}, ' ')];
+                gname = [gname, '_', erase(obj.CASE{1}(1:4), ' ')];
             else
                 gname = [gname, '_', name];
             end
