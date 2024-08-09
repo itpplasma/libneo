@@ -20,9 +20,9 @@ module libneo_field
 
         select case(field_type)
             case("example")
-                field = create_example_field(ampl, ampl2)
+                allocate(field, source=create_example_field(ampl, ampl2))
             case("biotsavart")
-                field = create_biotsavart_field(coils_file)
+                allocate(field, source=create_biotsavart_field(coils_file))
             case default
                 print *, "Invalid field type"
                 error stop
