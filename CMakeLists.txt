@@ -72,13 +72,14 @@ add_link_options(${NETCDF_FLIBS})
 
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
+# add_subdirectory(src/field)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
 include(CMakeSources.in)
 
-add_subdirectory(tests)
+add_subdirectory(test)
 
 
 # MacOS RPATH specifics

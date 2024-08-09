@@ -1,4 +1,4 @@
-module biotsavart
+module libneo_biotsavart
 use, intrinsic :: iso_fortran_env, only: dp => real64
 implicit none
 
@@ -190,4 +190,4 @@ function cross_product(a, b) result(c)
 end function cross_product
 
 
-end module biotsavart
+end module libneo_biotsavart
