@@ -1,7 +1,7 @@
 module libneo_biotsavart_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use libneo_field_base, only: field_t
-use biotsavart, only: coils_t
+use libneo_biotsavart, only: coils_t
 
 implicit none
 
@@ -20,7 +20,7 @@ contains
 
 
 subroutine biotsavart_field_init(self, coils_file)
-    use biotsavart, only: load_coils_from_file, coils_init
+    use libneo_biotsavart, only: load_coils_from_file, coils_init
 
     class(biotsavart_field_t), intent(out) :: self
     character(*), intent(in), optional :: coils_file
@@ -44,7 +44,7 @@ end subroutine compute_abfield
 
 
 subroutine compute_afield(self, x, A)
-    use biotsavart, only: compute_vector_potential
+    use libneo_biotsavart, only: compute_vector_potential
 
     class(biotsavart_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
@@ -55,7 +55,7 @@ end subroutine compute_afield
 
 
 subroutine compute_bfield(self, x, B)
-    use biotsavart, only: compute_magnetic_field
+    use libneo_biotsavart, only: compute_magnetic_field
 
     class(biotsavart_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
