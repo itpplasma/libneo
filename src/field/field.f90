@@ -3,13 +3,9 @@ module libneo_field
     use libneo_field_base, only: field_t
     use libneo_example_field, only: example_field_t
     use libneo_biotsavart_field, only: biotsavart_field_t
-
-
     implicit none
 
-
     contains
-
 
     subroutine create_field(field, field_type, ampl, ampl2, coils_file)
         class(field_t), allocatable, intent(inout) :: field
@@ -48,6 +44,5 @@ module libneo_field
         allocate(biotsavart_field)
         call biotsavart_field%biotsavart_field_init(coils_file)
     end function create_biotsavart_field
-
 
 end module libneo_field
