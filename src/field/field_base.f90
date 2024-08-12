@@ -1,4 +1,4 @@
-module libneo_field_base
+module neo_field_base
 use, intrinsic :: iso_fortran_env, only: dp => real64
 implicit none
 
@@ -36,4 +36,4 @@ interface
     end subroutine
 end interface
 
-end module libneo_field_base
+end module neo_field_base

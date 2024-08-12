@@ -20,7 +20,7 @@ program test_biotsavart
 
 
     subroutine test_load_coils_file
-        use libneo_biotsavart, only: coils_t, load_coils_from_file, coils_deinit
+        use neo_biotsavart, only: coils_t, load_coils_from_file, coils_deinit
 
         type(coils_t) :: coils
 
@@ -44,7 +44,7 @@ program test_biotsavart
 
 
     subroutine test_compute_vector_potential
-        use libneo_biotsavart, only: coils_t, compute_vector_potential, &
+        use neo_biotsavart, only: coils_t, compute_vector_potential, &
                                      coils_deinit, clight
 
         real(dp), parameter :: tol = 1.0e-9
@@ -83,7 +83,7 @@ program test_biotsavart
 
 
     function vector_potential_straight_wire(x, L, current) result(A)
-        use libneo_biotsavart, only: clight
+        use neo_biotsavart, only: clight
 
         real(dp), dimension(3), intent(in) :: x
         real(dp), intent(in) :: L, current
@@ -101,7 +101,7 @@ program test_biotsavart
 
 
     subroutine test_compute_vector_potential_circular_loop
-        use libneo_biotsavart, only: coils_t, compute_vector_potential, &
+        use neo_biotsavart, only: coils_t, compute_vector_potential, &
                                      coils_deinit, clight, calc_norm
 
         real(dp), parameter :: tol = 1.0e-5
@@ -140,7 +140,7 @@ program test_biotsavart
 
 
     function vector_potential_circular_loop_on_axis(z, R0, current) result(A)
-        use libneo_biotsavart, only: clight
+        use neo_biotsavart, only: clight
 
         real(dp), intent(in) :: z, R0, current
 
@@ -151,7 +151,7 @@ program test_biotsavart
 
 
     subroutine test_compute_magnetic_field
-        use libneo_biotsavart, only: coils_t, compute_magnetic_field, &
+        use neo_biotsavart, only: coils_t, compute_magnetic_field, &
                                      coils_deinit, clight, calc_norm
 
         real(dp), parameter :: tol = 1.0e-9
@@ -189,7 +189,7 @@ program test_biotsavart
 
 
     function magnetic_field_straight_wire(x, L, current) result(B)
-        use libneo_biotsavart, only: clight
+        use neo_biotsavart, only: clight
 
         real(dp), dimension(3), intent(in) :: x
         real(dp), intent(in) :: L, current
@@ -210,7 +210,7 @@ program test_biotsavart
 
 
     subroutine test_compute_magnetic_field_circular_loop
-        use libneo_biotsavart, only: coils_t, compute_magnetic_field, &
+        use neo_biotsavart, only: coils_t, compute_magnetic_field, &
                                      coils_deinit, clight, calc_norm
 
         real(dp), parameter :: tol = 1.0e-5
@@ -248,7 +248,7 @@ program test_biotsavart
 
 
     function magnetic_field_circular_loop_on_axis(z, R0, current) result(B)
-        use libneo_biotsavart, only: clight
+        use neo_biotsavart, only: clight
 
         real(dp), intent(in) :: z, R0, current
 
@@ -269,7 +269,7 @@ program test_biotsavart
 
 
     subroutine create_straight_wire_coils_file
-        use libneo_biotsavart, only: coils_t, save_coils_to_file
+        use neo_biotsavart, only: coils_t, save_coils_to_file
 
         type(coils_t) :: coils
 
@@ -279,7 +279,7 @@ program test_biotsavart
 
 
     subroutine init_straight_wire_coils(coils)
-        use libneo_biotsavart, only: coils_t, coils_init
+        use neo_biotsavart, only: coils_t, coils_init
 
         type(coils_t), intent(out) :: coils
 
@@ -297,7 +297,7 @@ program test_biotsavart
 
 
     subroutine init_circular_loop_coils(coils, number_of_segments)
-        use libneo_biotsavart, only: coils_t, coils_init
+        use neo_biotsavart, only: coils_t, coils_init
 
         type(coils_t), intent(out) :: coils
         integer, intent(in) :: number_of_segments

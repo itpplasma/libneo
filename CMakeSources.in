@@ -39,7 +39,7 @@ add_library(neo SHARED
     src/local_rusage.c
 )
 
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:libneo_field>)
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
 
 target_link_libraries(neo PRIVATE
   rkf45

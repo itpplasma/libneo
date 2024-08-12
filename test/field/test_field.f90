@@ -14,7 +14,7 @@ contains
 
 
 subroutine test_create_field
-    use libneo_field, only: field_t, example_field_t, create_field
+    use neo_field, only: field_t, example_field_t, create_field
 
     class(field_t), allocatable :: field
 
@@ -31,7 +31,7 @@ end subroutine test_create_field
 
 
 subroutine test_create_example_field
-    use libneo_field, only: field_t, example_field_t, create_example_field
+    use neo_field, only: field_t, example_field_t, create_example_field
 
     class(field_t), allocatable :: field
 
@@ -48,7 +48,7 @@ end subroutine test_create_example_field
 
 
 subroutine test_create_biotsavart_field
-    use libneo_field, only: field_t, create_field, create_biotsavart_field
+    use neo_field, only: field_t, create_field, create_biotsavart_field
 
     class(field_t), allocatable :: field
 

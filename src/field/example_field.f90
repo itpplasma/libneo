@@ -1,6 +1,6 @@
-module libneo_example_field
+module neo_example_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
-use libneo_field_base, only: field_t
+use neo_field_base, only: field_t
 implicit none
 
 type, extends(field_t) :: example_field_t
@@ -82,4 +82,4 @@ subroutine compute_abfield(self, x, A, B)
     call self%compute_bfield(x, B)
 end subroutine compute_abfield
 
-end module libneo_example_field
+end module neo_example_field

@@ -8,7 +8,7 @@ contains
 
 
 function compute_cartesian_curla(field, x, tol) result(curla)
-    use libneo_field_base, only: field_t
+    use neo_field_base, only: field_t
 
     class(field_t), intent(in) :: field
     real(dp), intent(in) :: x(3)
@@ -38,7 +38,7 @@ end function compute_cartesian_curla
 
 
 function compute_cartesian_divb(field, x, tol) result(divb)
-    use libneo_field_base, only: field_t
+    use neo_field_base, only: field_t
 
     class(field_t), intent(in) :: field
     real(dp), intent(in) :: x(3)

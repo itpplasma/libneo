@@ -1,8 +1,8 @@
-module libneo_field
+module neo_field
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use libneo_field_base, only: field_t
-    use libneo_example_field, only: example_field_t
-    use libneo_biotsavart_field, only: biotsavart_field_t
+    use neo_field_base, only: field_t
+    use neo_example_field, only: example_field_t
+    use neo_biotsavart_field, only: biotsavart_field_t
     implicit none
 
     contains
@@ -45,4 +45,4 @@ module libneo_field
         call biotsavart_field%biotsavart_field_init(coils_file)
     end function create_biotsavart_field
 
-end module libneo_field
+end module neo_field

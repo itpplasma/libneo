@@ -13,7 +13,7 @@ contains
 
 
 subroutine test_biotsavart_field_init
-    use libneo_biotsavart_field, only: biotsavart_field_t
+    use neo_biotsavart_field, only: biotsavart_field_t
 
     real(dp), parameter :: tol = 1.0e-9_dp
 
@@ -42,7 +42,7 @@ end subroutine test_biotsavart_field_init
 
 
 subroutine test_curla_equal_b
-    use libneo_biotsavart_field, only: biotsavart_field_t
+    use neo_biotsavart_field, only: biotsavart_field_t
     use util_for_test_field, only: compute_cartesian_curla
 
     real(dp), parameter :: tol = 1.0e-9_dp
@@ -73,7 +73,7 @@ end subroutine test_curla_equal_b
 
     
 subroutine create_straight_wire_coils_file(filename)
-    use libneo_biotsavart, only: coils_t, save_coils_to_file
+    use neo_biotsavart, only: coils_t, save_coils_to_file
 
     character(len=*), intent(in) :: filename
 
@@ -85,7 +85,7 @@ end subroutine create_straight_wire_coils_file
 
 
 subroutine init_straight_wire_coils(coils)
-    use libneo_biotsavart, only: coils_t, coils_init
+    use neo_biotsavart, only: coils_t, coils_init
 
     type(coils_t), intent(out) :: coils
 

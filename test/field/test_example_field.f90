@@ -15,7 +15,7 @@ contains
 
 
 subroutine test_example_field_init
-    use libneo_example_field, only: example_field_t
+    use neo_example_field, only: example_field_t
 
     real(dp), parameter :: tol = 1.0e-9_dp
 
@@ -39,7 +39,7 @@ end subroutine test_example_field_init
 
 
 subroutine test_curla_equal_b
-    use libneo_example_field, only: example_field_t
+    use neo_example_field, only: example_field_t
     use util_for_test_field, only: compute_cartesian_curla
 
     real(dp), parameter :: tol = 1.0e-9_dp
@@ -67,7 +67,7 @@ end subroutine test_curla_equal_b
 
 
 subroutine test_divb_0
-    use libneo_example_field, only: example_field_t
+    use neo_example_field, only: example_field_t
     use util_for_test_field, only: compute_cartesian_divb
 
     real(dp), parameter :: tol = 1.0e-9_dp
@@ -94,7 +94,7 @@ end subroutine test_divb_0
 
 
 subroutine test_compute_abfield
-    use libneo_example_field, only: example_field_t
+    use neo_example_field, only: example_field_t
 
     real(dp), parameter :: tol = 1.0e-9_dp
 
