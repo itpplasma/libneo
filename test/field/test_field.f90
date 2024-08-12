@@ -1,6 +1,6 @@
-program test_libneo_field
+program test_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
-use test_util, only: print_test, print_ok, print_fail
+use util_for_test, only: print_test, print_ok, print_fail
 
 implicit none
 
@@ -20,7 +20,7 @@ subroutine test_create_field
 
     call print_test("test_create_field")
 
-    field = create_field("example")
+    call create_field(field, "example")
     if (.not.allocated(field)) then
         call print_fail
         return
@@ -37,7 +37,7 @@ subroutine test_create_example_field
 
     call print_test("test_create_example_field")
 
-    field = create_example_field()
+    allocate(field, source=create_example_field())
     if (.not.allocated(field)) then
         call print_fail
         return
@@ -54,7 +54,7 @@ subroutine test_create_biotsavart_field
 
     call print_test("test_create_biotsavart_field")
 
-    field = create_biotsavart_field()
+    allocate(field, source=create_biotsavart_field())
     if (.not.allocated(field)) then
         call print_fail
         return
@@ -64,5 +64,5 @@ subroutine test_create_biotsavart_field
 end subroutine test_create_biotsavart_field
     
 
-end program test_libneo_field
+end program test_field
 

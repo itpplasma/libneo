@@ -1,6 +1,6 @@
 program test_example_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
-use test_util, only: print_test, print_ok, print_fail
+use util_for_test, only: print_test, print_ok, print_fail
 
 implicit none
 
@@ -40,7 +40,7 @@ end subroutine test_example_field_init
 
 subroutine test_curla_equal_b
     use libneo_example_field, only: example_field_t
-    use test_libneo_field_util, only: compute_cartesian_curla
+    use util_for_test_field, only: compute_cartesian_curla
 
     real(dp), parameter :: tol = 1.0e-9_dp
 
@@ -68,7 +68,7 @@ end subroutine test_curla_equal_b
 
 subroutine test_divb_0
     use libneo_example_field, only: example_field_t
-    use test_libneo_field_util, only: compute_cartesian_divb
+    use util_for_test_field, only: compute_cartesian_divb
 
     real(dp), parameter :: tol = 1.0e-9_dp
 

@@ -1,4 +1,4 @@
-module test_libneo_field_util
+module util_for_test_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 
 implicit none
@@ -65,4 +65,4 @@ function compute_cartesian_divb(field, x, tol) result(divb)
 end function compute_cartesian_divb
 
 
-end module test_libneo_field_util
+end module util_for_test_field

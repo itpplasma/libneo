@@ -1,4 +1,4 @@
-module test_util
+module util_for_test
     ! TODO move to libneo
     implicit none
 
@@ -19,4 +19,4 @@ module test_util
         print *, "    .................................................... FAIL"
     end subroutine print_fail
 
-end module test_util
+end module util_for_test

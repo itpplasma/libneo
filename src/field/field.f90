@@ -11,9 +11,8 @@ module libneo_field
     contains
 
 
-    function create_field(field_type, ampl, ampl2, coils_file) result(field)
-        class(field_t), allocatable :: field
-
+    subroutine create_field(field, field_type, ampl, ampl2, coils_file)
+        class(field_t), allocatable, intent(inout) :: field
         character(*), intent(in) :: field_type
         real(dp), intent(in), optional :: ampl, ampl2
         character(*), intent(in), optional :: coils_file
@@ -27,7 +26,7 @@ module libneo_field
                 print *, "Invalid field type"
                 error stop
         end select
-    end function create_field
+    end subroutine create_field
 
 
     function create_example_field(ampl, ampl2) result(example_field)
