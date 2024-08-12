@@ -29,7 +29,7 @@ find_package (MPI REQUIRED)
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fcheck=all -fbacktrace \
+  set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fPIC -fcheck=all -fbacktrace -fmax-errors=1 \
                             -fno-realloc-lhs -fopenmp -Wall -Wextra")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")

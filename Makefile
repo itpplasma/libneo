@@ -5,10 +5,10 @@ BUILD_NINJA := $(BUILD_DIR)/build.ninja
 all: ninja
 
 $(BUILD_NINJA):
-	cmake -G Ninja -B $(BUILD_DIR)
+	cmake --preset default
 
 ninja: $(BUILD_NINJA)
-	cd $(BUILD_DIR) && ninja
+	cmake --build --preset default
 
 install: ninja
 	cd $(BUILD_DIR) && ninja install
