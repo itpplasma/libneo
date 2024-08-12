@@ -1,22 +1,18 @@
 module libneo_example_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use libneo_field_base, only: field_t
-
 implicit none
-
 
 type, extends(field_t) :: example_field_t
     real(dp) :: ampl, ampl2
     contains
-        procedure :: example_field_init
-        procedure :: compute_afield
-        procedure :: compute_bfield
-        procedure :: compute_abfield
+    procedure :: example_field_init
+    procedure :: compute_afield
+    procedure :: compute_bfield
+    procedure :: compute_abfield
 end type example_field_t
 
-
 contains
-
 
 subroutine example_field_init(self, ampl, ampl2)
     class(example_field_t), intent(out) :: self
@@ -33,7 +29,6 @@ subroutine example_field_init(self, ampl, ampl2)
         self%ampl2 = 2.0d-6
     end if
 end subroutine example_field_init
-
 
 subroutine compute_afield(self, x, A)
     class(example_field_t), intent(in) :: self
@@ -56,7 +51,6 @@ subroutine compute_afield(self, x, A)
     A(3) = AZ
 end subroutine compute_afield
 
-
 subroutine compute_bfield(self, x, B)
     class(example_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
@@ -78,7 +72,6 @@ subroutine compute_bfield(self, x, B)
     B(3) = BZ
 end subroutine compute_bfield
 
-
 subroutine compute_abfield(self, x, A, B)
     class(example_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
@@ -88,6 +81,5 @@ subroutine compute_abfield(self, x, A, B)
 
     call self%compute_bfield(x, B)
 end subroutine compute_abfield
-
 
 end module libneo_example_field
