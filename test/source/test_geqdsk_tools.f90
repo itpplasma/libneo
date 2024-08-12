@@ -61,7 +61,7 @@ contains
 
     type(geqdsk_t) :: geqdsk_in, geqdsk_out
 
-    character(len=*), parameter :: infilename = '../../tests/resources/input_efit_file.dat', &
+    character(len=*), parameter :: infilename = '../../test/resources/input_efit_file.dat', &
                                  & outfilename = 'geqdsk_output'
     integer :: file_unit, ios
 
@@ -115,7 +115,7 @@ contains
 
     type(geqdsk_t) :: geqdsk
 
-    character(len=*), parameter :: infilename = '../../tests/resources/input_efit_file.dat'
+    character(len=*), parameter :: infilename = '../../test/resources/input_efit_file.dat'
 
     sucess = .false.
 
@@ -165,7 +165,7 @@ contains
 
     type(geqdsk_t) :: geqdsk
 
-    character(len=*), parameter :: infilename = '../../tests/resources/input_efit_file.dat'
+    character(len=*), parameter :: infilename = '../../test/resources/input_efit_file.dat'
 
     sucess = .false.
 

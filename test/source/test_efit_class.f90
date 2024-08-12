@@ -9,7 +9,7 @@ program test_efit_class
   real, parameter :: tolerance = 1.0e-12
   logical :: error_found = .false.
 
-  call efit_file_orig%read_data('../../tests/resources/input_efit_file.dat')
+  call efit_file_orig%read_data('../../test/resources/input_efit_file.dat')
 
   call efit_file_orig%write_data('output_efit_file.dat')
 

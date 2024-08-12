@@ -101,7 +101,7 @@ add_fortran_test(test_interpolate)
 # Afterwards fail condition is set: test will fail if the output
 # contains 'STOP'.
 add_test(NAME test_arnoldi
-         COMMAND ../../tests/python/test_arnoldi.py && test_arnoldi.x)
+         COMMAND ../../test/python/test_arnoldi.py && test_arnoldi.x)
 set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_mympilib

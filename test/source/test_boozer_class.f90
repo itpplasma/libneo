@@ -9,7 +9,7 @@ program test_boozer_class
   real, parameter :: tolerance = 1.0e-12
   logical :: error_found = .false.
 
-  call boozer_file_orig%read_data('../../tests/resources/input_boozer_file.dat')
+  call boozer_file_orig%read_data('../../test/resources/input_boozer_file.dat')
 
   call boozer_file_orig%write_data('output_boozer_file.dat')
 

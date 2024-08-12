@@ -14,7 +14,7 @@ test_to_execute=$1
 if [ "x$2" == "xyes" ] ; then
   echo "running test_arnoldi.py"
   pwd
-  ../tests/python_scripts/test_arnoldi.py
+  ../test/python_scripts/test_arnoldi.py
 fi
 
 ./$test_to_execute | grep -i " STOP "
