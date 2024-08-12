@@ -73,6 +73,7 @@ add_link_options(${NETCDF_FLIBS})
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/field)
+add_subdirectory(src/polylag)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
