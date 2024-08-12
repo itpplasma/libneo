@@ -10,23 +10,24 @@ subroutine test_plag1d
 use neo_polylag_5, only: indef, plag1d
 use util, only: linspace
 
-integer, parameter :: nx = 10
-real(dp), parameter :: tol = 1.0e-6_dp
+real(dp), parameter :: tol = 1.0e-9_dp, x_min = 0.0_dp, x_max = 1.0_dp
 
-real(dp), dimension(nx) :: x
-real(dp) :: x_min, one_over_dx, x_test, f_test, df_test
+integer :: nx
+real(dp), dimension(:), allocatable :: x
+real(dp) :: one_over_dx, x_test, f_test, df_test
 integer, dimension(6) :: index
 real(dp), dimension(6) :: xp, fp
 
-call linspace(0.0_dp, 1.0_dp, nx, x)
-x_min = minval(x)
+nx = int((x_max - x_min)/tol**(1.0_dp/5.0_dp))
+allocate(x(nx))
+
+call linspace(x_min, x_max, nx, x)
 one_over_dx = 1.0_dp / (x(2) - x(1))
 
 x_test = 0.5_dp
 call indef(x_test, x_min, one_over_dx, nx, index)
 
-xp = x(index-2)
-print *, "xp: ", xp
+xp = x(index)
 fp = example_function(xp)
 
 call plag1d(x_test, fp, one_over_dx, xp, f_test, df_test)

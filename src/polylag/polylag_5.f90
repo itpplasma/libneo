@@ -1,6 +1,6 @@
 module neo_polylag_5
-!use, intrinsic :: iso_fortran_env, only: dp => real64
-!implicit none
+use, intrinsic :: iso_fortran_env, only: dp => real64
+implicit none
 
 integer, parameter :: mp=6
 
@@ -19,10 +19,11 @@ subroutine indef(u,umin,dum1,nup,indu)
 !    indu(mp) - relative index of stencil points
 !
 ! the power 5 of polinomial is fixed strictly:
+real(dp), intent(in) :: u, umin, dum1
+integer, intent(in) :: nup 
+integer, dimension(mp), intent(out) :: indu
 
-implicit double precision (a-h,o-z)
-
-integer indu(mp)  
+integer :: i
                         
 indu(1) = int((u-umin)*dum1)+1
 if( indu(1) .le. 0 ) indu(1) = 1
@@ -50,10 +51,12 @@ subroutine plag1d(x,fp,dxm1,xp,polyl1d,p1x1d)
 ! Output parameters:
 ! polyl1d - polynomial itself
 ! poly1x - its derivative
+real(dp), intent(in) :: x, dxm1
+real(dp), dimension(mp), intent(in) :: xp, fp
+real(dp), intent(out) :: polyl1d, p1x1d
 
-implicit double precision (a-h,o-z)
-
-dimension cx(mp),xp(mp),cx1(mp),fp(mp)
+real(dp), dimension(mp) :: cx, cx1
+integer :: i
 
 call coefs(x,xp,dxm1,cx)
 polyl1d = 0.d0
@@ -71,9 +74,6 @@ end subroutine plag1d
 
 subroutine plag3d(x,y,z,fp,dxm1,dym1,dzm1,xp,yp,zp, &
                     polyl3d,poly1x,poly1y,poly1z)
-
-implicit double precision (a-h,o-z)
-
 ! 3D interpolation by means of Lagrange polynomial
 ! the power 5 is fixed strictly:
 ! uniform mesh (increasingly ordered) in all dimensions is implied
@@ -88,8 +88,13 @@ implicit double precision (a-h,o-z)
 ! poly1x - its x-derivative
 ! poly1y - its y-derivative
 ! poly1z - its z-derivative
-dimension cx(mp),cy(mp),cz(mp),fp(mp,mp,mp),xp(mp)
-dimension yp(mp),zp(mp),cx1(mp),cy1(mp),cz1(mp)
+real(dp), intent(in) :: x, y, z, dxm1, dym1, dzm1
+real(dp), dimension(mp,mp,mp), intent(in) :: fp
+real(dp), dimension(mp), intent(in) :: xp, yp, zp
+real(dp), intent(out) :: polyl3d, poly1x, poly1y, poly1z
+
+real(dp), dimension(mp) :: cx, cy, cz, cx1, cy1, cz1
+integer :: i, j, k
 
 call coefs(x,xp,dxm1,cx)
 call coefs(y,yp,dym1,cy)
@@ -138,10 +143,12 @@ end subroutine plag3d
 
 
 subroutine coefs(u,up,dum1,cu)
+real(dp), intent(in) :: u, dum1
+real(dp), dimension(mp), intent(in) :: up
 
-implicit double precision (a-h,o-z)
+real(dp) :: du5
+real(dp), dimension(mp) :: cu
 
-dimension up(mp),cu(mp)
 du5 = dum1**5
 cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * &
         (u - up(5)) * (u - up(6)) * (-du5)/120.d0
@@ -159,10 +166,12 @@ end subroutine coefs
 
 
 subroutine coefs1(u,up,dum1,cu1)
+real(dp), intent(in) :: u, dum1
+real(dp), dimension(mp), intent(in) :: up
 
-implicit double precision (a-h,o-z)
+real(dp) :: du5
+real(dp), dimension(mp) :: cu1
 
-dimension up(mp), cu1(mp)
 du5 = dum1**5
 cu1(1) = ((u - up(3)) * (u - up(4)) * &
           (u - up(5)) * (u - up(6)) + &
