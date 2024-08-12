@@ -23,7 +23,7 @@ subroutine test_create_field
     call create_field(field, "example")
     if (.not.allocated(field)) then
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok
@@ -40,7 +40,7 @@ subroutine test_create_example_field
     allocate(field, source=create_example_field())
     if (.not.allocated(field)) then
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok
@@ -57,7 +57,7 @@ subroutine test_create_biotsavart_field
     allocate(field, source=create_biotsavart_field())
     if (.not.allocated(field)) then
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok

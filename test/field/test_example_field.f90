@@ -27,11 +27,11 @@ subroutine test_example_field_init
 
     if (abs(example_field%ampl - 1.0_dp) > tol) then
         call print_fail
-        return
+        error stop
     end if
     if (abs(example_field%ampl2 - 2.0_dp) > tol) then
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok
@@ -59,7 +59,7 @@ subroutine test_curla_equal_b
     if (maxval(abs(B - B_from_A)) > tol) then
         print *, "curl A != B"
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok
@@ -86,7 +86,7 @@ subroutine test_divb_0
     if (abs(divb) > tol) then
         print *, "div B = ", divb
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok
@@ -112,13 +112,13 @@ subroutine test_compute_abfield
     if (maxval(abs(A - temp)) > tol) then
         print *, "A from afield != from abfield"
         call print_fail
-        return
+        error stop
     end if
     call example_field%compute_bfield(x, temp)
     if (maxval(abs(B - temp)) > tol) then
         print *, "B from bfield != from abfield"
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok

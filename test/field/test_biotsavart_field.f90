@@ -29,12 +29,12 @@ subroutine test_biotsavart_field_init
     if (maxval(abs(A)) > tol) then
         print *, "A != 0 of default biotsavart field"
         call print_fail
-        return
+        error stop
     end if
     if (maxval(abs(B)) > tol) then
         print *, "B != 0 of default biotsavart field"
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok
@@ -65,7 +65,7 @@ subroutine test_curla_equal_b
     if (maxval(abs(B - B_from_A)) > tol) then
         print *, "curl A != B"
         call print_fail
-        return
+        error stop
     end if
 
     call print_ok
