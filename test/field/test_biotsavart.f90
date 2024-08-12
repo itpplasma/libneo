@@ -168,7 +168,7 @@ program test_biotsavart
         x_test(:, 1) = [1.0d0, 0.0d0, 0.0d0]
         x_test(:, 2) = [0.0d0, 0.2d0, -0.3d0]
         x_test(:, 3) = [1.0d2, -1.0d2, 1.0d2]
-        
+
         do i = 1, N_TEST
             x = x_test(:, i)
             B = compute_magnetic_field(coils, x)
@@ -246,7 +246,7 @@ program test_biotsavart
         call print_ok
     end subroutine test_compute_magnetic_field_circular_loop
 
-    
+
     function magnetic_field_circular_loop_on_axis(z, R0, current) result(B)
         use libneo_biotsavart, only: clight
 
@@ -325,5 +325,5 @@ program test_biotsavart
         call system("rm -f " // test_coils_file)
     end subroutine remove_test_coils_file
 
-    
+
 end program test_biotsavart
