@@ -27,6 +27,11 @@ target_link_libraries(test_biotsavart_field.x PRIVATE neo
                                                       util_for_test)
 add_test(NAME test_biotsavart_field COMMAND test_biotsavart_field.x)
 
+add_executable(test_field_mesh.x test_field_mesh.f90)
+target_link_libraries(test_field_mesh.x PRIVATE neo
+                                               util_for_test)
+add_test(NAME test_field_mesh COMMAND test_field_mesh.x)
+
 add_executable(test_polylag_field.x test_polylag_field.f90)
 target_link_libraries(test_polylag_field.x PRIVATE neo
                                                   util_for_test_field
@@ -38,5 +43,6 @@ set_tests_properties(
     test_field
     test_example_field
     test_biotsavart_field
+    test_field_mesh
     test_polylag_field
     PROPERTIES LABELS "field")
