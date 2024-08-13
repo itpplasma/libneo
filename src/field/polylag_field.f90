@@ -1,11 +1,11 @@
 module neo_polylag_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_base, only: field_t
-use neo_ab_mesh, only: ab_mesh_t
+use neo_field_mesh, only: field_mesh_t
 implicit none
 
 type, extends(field_t) :: polylag_field_t
-    type(ab_mesh_t) :: mesh
+    type(field_mesh_t) :: field_mesh
     contains
         procedure :: polylag_field_init
         procedure :: compute_abfield
@@ -15,11 +15,19 @@ end type polylag_field_t
 
 contains
 
-subroutine polylag_field_init(self, field, n1, n2, n3)
+subroutine polylag_field_init(self, limits, field, n_nodes)
     class(polylag_field_t), intent(out) :: self
+    real(dp), dimension(3,2), intent(in):: limits
     class(field_t), intent(in), optional :: field
-    integer, intent(in), optional :: n1, n2, n3
+    integer, dimension(3), intent(in), optional :: n_nodes
 
+    if (.not. present(field)) then
+        call self%field_mesh%field_mesh_init_with_field(limits)
+    elseif (.not. present(n_nodes)) then
+        call self%field_mesh%field_mesh_init_with_field(limits, field)
+    else
+        call self%field_mesh%field_mesh_init_with_field(limits, field, n_nodes)
+    end if
 end subroutine polylag_field_init
 
 subroutine compute_abfield(self, x, A, B)

@@ -14,10 +14,14 @@ subroutine test_polylag_field_init
     real(dp), parameter :: tol = 1.0e-9_dp
 
     type(polylag_field_t) :: polylag_field
+    real(dp), dimension(3,2) :: limits
 
     call print_test("test_polylag_field_init")
 
-    call polylag_field%polylag_field_init()
+    limits(1,:) = [1.0_dp, 2.0_dp]
+    limits(2,:) = [1.0_dp, 2.0_dp]
+    limits(3,:) = [1.0_dp, 2.0_dp]
+    call polylag_field%polylag_field_init(limits)
 
     call print_ok
 end subroutine test_polylag_field_init
@@ -30,13 +34,17 @@ subroutine test_curla_equal_b
     real(dp), parameter :: tol = 1.0e-9_dp
 
     type(polylag_field_t) :: polylag_field
+    real(dp), dimension(3,2) :: limits
     real(dp) :: x(3), B(3), B_from_A(3)
 
     call print_test("test_curla_equal_b")
 
     x = [1.0_dp, 1.0_dp, 1.0_dp]
 
-    call polylag_field%polylag_field_init()
+    limits(1,:) = [1.0_dp, 2.0_dp]
+    limits(2,:) = [1.0_dp, 2.0_dp]
+    limits(3,:) = [1.0_dp, 2.0_dp]
+    call polylag_field%polylag_field_init(limits)
     call polylag_field%compute_bfield(x, B)
     B_from_A = compute_cartesian_curla(polylag_field, x, tol)
 

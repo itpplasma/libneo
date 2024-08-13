@@ -13,12 +13,12 @@ end type field_mesh_t
 
 contains
 
-subroutine field_mesh_init_with_field(self, field, limits, n_nodes)
+subroutine field_mesh_init_with_field(self, limits, field, n_nodes)
     use neo_field_base, only: field_t
 
     class(field_mesh_t), intent(out) :: self
-    class(field_t), intent(in) :: field
-    real(dp), dimension(3,2), intent(in), optional :: limits
+    real(dp), dimension(3,2), intent(in) :: limits
+    class(field_t), intent(in), optional :: field
     integer, dimension(3), intent(in), optional :: n_nodes
 
     integer :: i, j, k
@@ -33,20 +33,29 @@ subroutine field_mesh_init_with_field(self, field, limits, n_nodes)
     self%x2 = linspace(limits(2,1), limits(2,2), size(self%x2))
     self%x3 = linspace(limits(3,1), limits(3,2), size(self%x3))
 
-    do i = 1, size(self%x1)
-        do j = 1, size(self%x2)
-            do k = 1, size(self%x3)
-                x = [self%x1(i), self%x2(j), self%x3(k)]
-                call field%compute_abfield(x, A, B)
-                self%A1(i,j,k) = A(1)
-                self%A2(i,j,k) = A(2)
-                self%A3(i,j,k) = A(3)
-                self%B1(i,j,k) = B(1)
-                self%B2(i,j,k) = B(2)
-                self%B3(i,j,k) = B(3)
+    if (present(field)) then
+        do i = 1, size(self%x1)
+            do j = 1, size(self%x2)
+                do k = 1, size(self%x3)
+                    x = [self%x1(i), self%x2(j), self%x3(k)]
+                    call field%compute_abfield(x, A, B)
+                    self%A1(i,j,k) = A(1)
+                    self%A2(i,j,k) = A(2)
+                    self%A3(i,j,k) = A(3)
+                    self%B1(i,j,k) = B(1)
+                    self%B2(i,j,k) = B(2)
+                    self%B3(i,j,k) = B(3)
+                end do
             end do
         end do
-    end do
+    else
+        self%A1 = 0.0_dp
+        self%A2 = 0.0_dp
+        self%A3 = 0.0_dp
+        self%B1 = 0.0_dp
+        self%B2 = 0.0_dp
+        self%B3 = 0.0_dp
+    end if
 end subroutine field_mesh_init_with_field
 
 function linspace(start, stop, n) result(x)
