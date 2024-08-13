@@ -1,5 +1,6 @@
 program test_polylag_5
 use, intrinsic :: iso_fortran_env, only: dp => real64
+use util_for_test, only: print_test, print_ok, print_fail
 implicit none
 
 call test_plag1d
@@ -19,6 +20,8 @@ real(dp) :: dx, x_test, f_test, df_test
 integer, dimension(6) :: index
 real(dp), dimension(6) :: xp, fp
 
+call print_test("test_plag1d")
+
 nx = int((x_max - x_min)/tol**(1.0_dp/5.0_dp))
 allocate(x(nx))
 
@@ -35,12 +38,16 @@ call plag1d(x_test, xp, fp, dx, f_test, df_test)
 
 if (abs(f_test - f_1d(x_test)) > tol) then
     print *, "plag1d: ", f_test, " original: ", f_1d(x_test)
+    call print_fail
     error stop
 end if
 if (abs(df_test - df_1d(x_test)) > tol) then
     print *, "plag1d derivative: ", df_test, " original: ", df_1d(x_test)
+    call print_fail
     error stop
 end if
+
+call print_ok
 end subroutine test_plag1d
 
 elemental function f_1d(x) result(f)
@@ -75,6 +82,8 @@ subroutine test_plag3d
     real(dp), dimension(6) :: xp, yp, zp
     real(dp), dimension(6,6,6) :: fp
     integer :: i, j, k
+
+    call print_test("test_plag3d")
 
     nx = int((x_max - x_min)/tol**(1.0_dp/5.0_dp))
     ny = int((y_max - y_min)/tol**(1.0_dp/5.0_dp))
@@ -112,20 +121,26 @@ subroutine test_plag3d
 
     if (abs(f_test - f_3d(x_test, y_test, z_test)) > tol) then
         print *, "plag3d: ", f_test, " original: ", f_3d(x_test, y_test, z_test)
+        call print_fail
         error stop
     end if
     if (abs(dfdx_test - df_3d(x_test, y_test, z_test, 'x')) > tol) then
         print *, "plag3d derivative x: ", dfdx_test, " original: ", df_3d(x_test, y_test, z_test, 'x')
+        call print_fail
         error stop
     end if
     if (abs(dfdy_test - df_3d(x_test, y_test, z_test, 'y')) > tol) then
         print *, "plag3d derivative y: ", dfdy_test, " original: ", df_3d(x_test, y_test, z_test, 'y')
+        call print_fail
         error stop
     end if
     if (abs(dfdz_test - df_3d(x_test, y_test, z_test, 'z')) > tol) then
         print *, "plag3d derivative z: ", dfdz_test, " original: ", df_3d(x_test, y_test, z_test, 'z')
+        call print_fail
         error stop
     end if
+
+    call print_ok
 end subroutine test_plag3d
 
 elemental function f_3d(x, y, z) result(f)

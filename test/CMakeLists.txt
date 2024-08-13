@@ -111,5 +111,6 @@ add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
 
+add_subdirectory(util_for_test)
 add_subdirectory(field)
 add_subdirectory(polylag)

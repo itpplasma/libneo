@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/field)
 
-add_library(util_for_test OBJECT util_for_test.f90)
-
 add_executable(test_biotsavart.x test_biotsavart.f90)
 target_link_libraries(test_biotsavart.x PRIVATE neo
                                                 util_for_test)
