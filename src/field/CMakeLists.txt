@@ -8,3 +8,6 @@ add_library(neo_field OBJECT
     field_mesh.f90
     polylag_field.f90
     field.f90)
+
+include_directories(${CMAKE_BINARY_DIR}/src/polylag)
+target_link_libraries(neo_field PRIVATE neo_polylag)

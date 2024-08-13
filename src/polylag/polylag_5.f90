@@ -59,18 +59,18 @@ end subroutine plag1d
 
 
 !> Lagrange interpolation on uniform (increasingly ordered) mesh 3D
-subroutine plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, &
+subroutine get_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, &
                   f, dfdx, dfdy, dfdz)
     real(dp), intent(in) :: x, y, z, dx, dy, dz
     real(dp), dimension(mp), intent(in) :: xp, yp, zp
     real(dp), dimension(mp,mp,mp), intent(in) :: fp
     real(dp), intent(out) :: f, dfdx, dfdy, dfdz
 
-    call f_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, f)
-    call df_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, dfdx, dfdy, dfdz)
-end subroutine plag3d
+    call get_f_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, f)
+    call get_df_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, dfdx, dfdy, dfdz)
+end subroutine get_plag3d
 
-subroutine f_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, f)
+subroutine get_f_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, f)
     real(dp), intent(in) :: x, y, z, dx, dy, dz
     real(dp), dimension(mp), intent(in) :: xp, yp, zp
     real(dp), dimension(mp,mp,mp), intent(in) :: fp
@@ -89,9 +89,9 @@ subroutine f_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, f)
             enddo
         enddo
     enddo
-end subroutine f_plag3d
+end subroutine get_f_plag3d
 
-subroutine df_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, dfdx, dfdy, dfdz)
+subroutine get_df_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, dfdx, dfdy, dfdz)
     real(dp), intent(in) :: x, y, z, dx, dy, dz
     real(dp), dimension(mp), intent(in) :: xp, yp, zp
     real(dp), dimension(mp,mp,mp), intent(in) :: fp
@@ -118,7 +118,7 @@ subroutine df_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, dfdx, dfdy, dfdz)
             enddo
         enddo
     enddo
-end subroutine df_plag3d
+end subroutine get_df_plag3d
 
 
 function calc_coefs(u,up,du) result(coefs)

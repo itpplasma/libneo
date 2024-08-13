@@ -5,6 +5,8 @@ implicit none
 type :: field_mesh_t
     real(dp), dimension(:), allocatable :: x1, x2, x3
     real(dp), dimension(:,:,:), allocatable :: A1, A2, A3, B1, B2, B3
+    integer :: n1, n2, n3
+    real(dp) :: dx1, dx2, dx3
     contains
     procedure :: field_mesh_init_with_field
     procedure :: field_mesh_allocate
@@ -32,6 +34,9 @@ subroutine field_mesh_init_with_field(self, limits, field, n_nodes)
     self%x1 = linspace(limits(1,1), limits(1,2), size(self%x1))
     self%x2 = linspace(limits(2,1), limits(2,2), size(self%x2))
     self%x3 = linspace(limits(3,1), limits(3,2), size(self%x3))
+    self%dx1 = self%x1(2) - self%x1(1)
+    self%dx2 = self%x2(2) - self%x2(1)
+    self%dx3 = self%x3(2) - self%x3(1)
 
     if (present(field)) then
         do i = 1, size(self%x1)
@@ -72,19 +77,22 @@ function linspace(start, stop, n) result(x)
     end do
 end function linspace
 
-subroutine field_mesh_allocate(self, nx, ny, nz)
+subroutine field_mesh_allocate(self, n1, n2, n3)
     class(field_mesh_t), intent(inout) :: self
-    integer, intent(in) :: nx, ny, nz
+    integer, intent(in) :: n1, n2, n3
 
-    allocate(self%x1(nx))
-    allocate(self%x2(ny))
-    allocate(self%x3(nz))
-    allocate(self%A1(nx,ny,nz))
-    allocate(self%A2(nx,ny,nz))
-    allocate(self%A3(nx,ny,nz))
-    allocate(self%B1(nx,ny,nz))
-    allocate(self%B2(nx,ny,nz))
-    allocate(self%B3(nx,ny,nz))
+    allocate(self%x1(n1))
+    allocate(self%x2(n2))
+    allocate(self%x3(n3))
+    allocate(self%A1(n1,n2,n3))
+    allocate(self%A2(n1,n2,n3))
+    allocate(self%A3(n1,n2,n3))
+    allocate(self%B1(n1,n2,n3))
+    allocate(self%B2(n1,n2,n3))
+    allocate(self%B3(n1,n2,n3))
+    self%n1 = n1
+    self%n2 = n2
+    self%n3 = n3
 end subroutine field_mesh_allocate
 
 subroutine field_mesh_deallocate(self)
@@ -99,6 +107,12 @@ subroutine field_mesh_deallocate(self)
     deallocate(self%B1)
     deallocate(self%B2)
     deallocate(self%B3)
+    self%n1 = 0
+    self%n2 = 0
+    self%n3 = 0
+    self%dx1 = 0.0_dp
+    self%dx2 = 0.0_dp
+    self%dx3 = 0.0_dp
 end subroutine field_mesh_deallocate
 
 end module neo_field_mesh

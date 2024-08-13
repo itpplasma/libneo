@@ -66,7 +66,7 @@ end function df_1d
 
 
 subroutine test_plag3d
-    use neo_polylag_5, only: find_node_index, plag3d
+    use neo_polylag_5, only: find_node_index, get_plag3d
     use util, only: linspace
 
     real(dp), parameter :: tol = 1.0e-9_dp
@@ -116,7 +116,7 @@ subroutine test_plag3d
         end do
     end do
 
-    call plag3d(x_test, y_test, z_test, xp, yp, zp, fp, dx, dy, dz, &
+    call get_plag3d(x_test, y_test, z_test, xp, yp, zp, fp, dx, dy, dz, &
                 f_test, dfdx_test, dfdy_test, dfdz_test)
 
     if (abs(f_test - f_3d(x_test, y_test, z_test)) > tol) then

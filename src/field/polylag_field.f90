@@ -40,6 +40,7 @@ subroutine compute_abfield(self, x, A, B)
 end subroutine compute_abfield
 
 subroutine compute_afield(self, x, A)
+    use neo_polylag_5, only: find_node_index, get_f_plag3d
     class(polylag_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: A(3)
