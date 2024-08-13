@@ -40,12 +40,41 @@ subroutine compute_abfield(self, x, A, B)
 end subroutine compute_abfield
 
 subroutine compute_afield(self, x, A)
-    use neo_polylag_5, only: find_node_index, get_f_plag3d
+    use neo_polylag_5, only: find_node_index, calc_coefs
+    
+    integer, parameter :: mp=6
+
     class(polylag_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: A(3)
 
+    integer, dimension(mp) :: index1, index2, index3
+    real(dp), dimension(mp) :: x1_coefs, x2_coefs, x3_coefs
+    integer :: i, j, k
+    real(dp), dimension(3) :: Ap
+    
+    !call find_node_index(x1, x1_min, dx1, n1, index1)
+    ! call find_node_index(x(1), self%field_mesh%x1(1), self%field_mesh%dx1, &
+    !                      self%field_mesh%n1, index1)
+    ! call find_node_index(x(2), self%field_mesh%x2(1), self%field_mesh%dx2, &
+    !                      self%field_mesh%n2, index2)
+    ! call find_node_index(x(3), self%field_mesh%x3(1), self%field_mesh%dx3, &
+    !                      self%field_mesh%n3, index3)
+    ! x1_coefs = calc_coefs(x(1), self%field_mesh%x1(index1), &
+    !                       self%field_mesh%dx1)
+    ! x2_coefs = calc_coefs(x(2), self%field_mesh%x2(index2), &
+    !                       self%field_mesh%dx2)
+    ! x3_coefs = calc_coefs(x(3), self%field_mesh%x3(index3), &
+    !                       self%field_mesh%dx3)
     A = 0.0_dp
+    ! do k = 1, mp
+    !     do j = 1, mp
+    !         do i = 1, mp
+    !             Ap = self%field_mesh%A(:,index1(i),index2(j),index3(k))
+    !             A = A + Ap * x1_coefs(i) * x2_coefs(j) * x3_coefs(k)
+    !         end do
+    !     end do
+    ! end do
 end subroutine compute_afield
 
 subroutine compute_bfield(self, x, B)

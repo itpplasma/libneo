@@ -50,39 +50,15 @@ subroutine test_field_mesh_init_with_field
          field_mesh%x2(node(2)), &
          field_mesh%x3(node(3))]
     call field%compute_abfield(x, A, B)
-    if (abs(A(1) - field_mesh%A1(node(1), node(2), node(3))) > tol) then
-        print *, "A(1) = ", A(1)
-        print *, "field_mesh%A1 = ", field_mesh%A1(node(1), node(2), node(3))
+    if (any(abs(field_mesh%A(:,node(1),node(2),node(3)) - A) > tol)) then
+        print *, "field_mesh%A = ", field_mesh%A(:,node(1),node(2),node(3))
+        print *, "A = ", A
         call print_fail
         error stop
     end if
-    if (abs(A(2) - field_mesh%A2(node(1), node(2), node(3))) > tol) then
-        print *, "A(2) = ", A(2)
-        print *, "field_mesh%A2 = ", field_mesh%A2(node(1), node(2), node(3))
-        call print_fail
-        error stop
-    end if
-    if (abs(A(3) - field_mesh%A3(node(1), node(2), node(3))) > tol) then
-        print *, "A(3) = ", A(3)
-        print *, "field_mesh%A3 = ", field_mesh%A3(node(1), node(2), node(3))
-        call print_fail
-        error stop
-    end if
-    if (abs(B(1) - field_mesh%B1(node(1), node(2), node(3))) > tol) then
-        print *, "B(1) = ", B(1)
-        print *, "field_mesh%B1 = ", field_mesh%B1(node(1), node(2), node(3))
-        call print_fail
-        error stop
-    end if
-    if (abs(B(2) - field_mesh%B2(node(1), node(2), node(3))) > tol) then
-        print *, "B(2) = ", B(2)
-        print *, "field_mesh%B2 = ", field_mesh%B2(node(1), node(2), node(3))
-        call print_fail
-        error stop
-    end if
-    if (abs(B(3) - field_mesh%B3(node(1), node(2), node(3))) > tol) then
-        print *, "B(3) = ", B(3)
-        print *, "field_mesh%B3 = ", field_mesh%B3(node(1), node(2), node(3))
+    if (any(abs(field_mesh%B(:,node(1),node(2),node(3)) - B) > tol)) then
+        print *, "field_mesh%B = ", field_mesh%B(:,node(1),node(2),node(3))
+        print *, "B = ", B
         call print_fail
         error stop
     end if
@@ -106,34 +82,13 @@ subroutine test_field_mesh_init_with_field_default
     limits(3,:) = [1.0_dp, 2.0_dp]
     call field_mesh%field_mesh_init_with_field(limits)
 
-    
-    if (any(abs(field_mesh%A1) > tol)) then
-        print *, "field_mesh%A1 =/= 0.0_dp"
+    if (any(abs(field_mesh%A - 0.0_dp) > tol)) then
+        print *, "field_mesh%A =/= 0.0_dp"
         call print_fail
         error stop
     end if
-    if (any(abs(field_mesh%A2) > tol)) then
-        print *, "field_mesh%A2 =/= 0.0_dp"
-        call print_fail
-        error stop
-    end if
-    if (any(abs(field_mesh%A3) > tol)) then
-        print *, "field_mesh%A3 =/= 0.0_dp"
-        call print_fail
-        error stop
-    end if
-    if (any(abs(field_mesh%B1) > tol)) then
-        print *, "field_mesh%B1 =/= 0.0_dp"
-        call print_fail
-        error stop
-    end if
-    if (any(abs(field_mesh%B2) > tol)) then
-        print *, "field_mesh%B2 =/= 0.0_dp"
-        call print_fail
-        error stop
-    end if
-    if (any(abs(field_mesh%B3) > tol)) then
-        print *, "field_mesh%B3 =/= 0.0_dp"
+    if (any(abs(field_mesh%B - 0.0_dp) > tol)) then
+        print *, "field_mesh%B =/= 0.0_dp"
         call print_fail
         error stop
     end if

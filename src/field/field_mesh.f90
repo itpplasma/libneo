@@ -4,7 +4,7 @@ implicit none
 
 type :: field_mesh_t
     real(dp), dimension(:), allocatable :: x1, x2, x3
-    real(dp), dimension(:,:,:), allocatable :: A1, A2, A3, B1, B2, B3
+    real(dp), dimension(:,:,:,:), allocatable :: A, B
     integer :: n1, n2, n3
     real(dp) :: dx1, dx2, dx3
     contains
@@ -44,22 +44,14 @@ subroutine field_mesh_init_with_field(self, limits, field, n_nodes)
                 do k = 1, size(self%x3)
                     x = [self%x1(i), self%x2(j), self%x3(k)]
                     call field%compute_abfield(x, A, B)
-                    self%A1(i,j,k) = A(1)
-                    self%A2(i,j,k) = A(2)
-                    self%A3(i,j,k) = A(3)
-                    self%B1(i,j,k) = B(1)
-                    self%B2(i,j,k) = B(2)
-                    self%B3(i,j,k) = B(3)
+                    self%A(:,i,j,k) = A
+                    self%B(:,i,j,k) = B
                 end do
             end do
         end do
     else
-        self%A1 = 0.0_dp
-        self%A2 = 0.0_dp
-        self%A3 = 0.0_dp
-        self%B1 = 0.0_dp
-        self%B2 = 0.0_dp
-        self%B3 = 0.0_dp
+        self%A = 0.0_dp
+        self%B = 0.0_dp
     end if
 end subroutine field_mesh_init_with_field
 
@@ -84,15 +76,11 @@ subroutine field_mesh_allocate(self, n1, n2, n3)
     allocate(self%x1(n1))
     allocate(self%x2(n2))
     allocate(self%x3(n3))
-    allocate(self%A1(n1,n2,n3))
-    allocate(self%A2(n1,n2,n3))
-    allocate(self%A3(n1,n2,n3))
-    allocate(self%B1(n1,n2,n3))
-    allocate(self%B2(n1,n2,n3))
-    allocate(self%B3(n1,n2,n3))
     self%n1 = n1
     self%n2 = n2
     self%n3 = n3
+    allocate(self%A(3,n1,n2,n3))
+    allocate(self%B(3,n1,n2,n3))
 end subroutine field_mesh_allocate
 
 subroutine field_mesh_deallocate(self)
@@ -101,12 +89,8 @@ subroutine field_mesh_deallocate(self)
     deallocate(self%x1)
     deallocate(self%x2)
     deallocate(self%x3)
-    deallocate(self%A1)
-    deallocate(self%A2)
-    deallocate(self%A3)
-    deallocate(self%B1)
-    deallocate(self%B2)
-    deallocate(self%B3)
+    deallocate(self%A)
+    deallocate(self%B)
     self%n1 = 0
     self%n2 = 0
     self%n3 = 0
