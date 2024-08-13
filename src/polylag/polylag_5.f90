@@ -6,81 +6,78 @@ integer, parameter :: mp=6
 
 contains
 
-subroutine indef(u,umin,dum1,nup,indu)
+subroutine find_node_index(u,u_min,du,nu,u_index)
 ! defines interval for 1D interpolation on uniform mesh, normally 
 ! looks for the central interval of stencil, but
 ! stops moving of stencil at the boundary (works for mp=4 only!)
 ! Input:
 !    u - coordinate of a point (to be interpolated)
 !    umin - minimal value of u
-!    dum1 = 1./h reciprocal to length of mesh interval
-!    nup - total number of mesh points
+!    du = h - length of mesh interval
+!    nu - total number of mesh points
 ! Output:
 !    indu(mp) - relative index of stencil points
 !
 ! the power 5 of polinomial is fixed strictly:
-real(dp), intent(in) :: u, umin, dum1
-integer, intent(in) :: nup 
-integer, dimension(mp), intent(out) :: indu
+real(dp), intent(in) :: u, u_min, du
+integer, intent(in) :: nu 
+integer, dimension(mp), intent(out) :: u_index
 
 integer :: i
                         
-indu(1) = int((u-umin)*dum1)+1
-if( indu(1) .le. 0 ) indu(1) = 1
-indu(mp) = indu(1) + mp - 1
-if( indu(mp) .gt. nup ) then
-    indu(mp) = nup
-    indu(1) = indu(mp) - mp + 1
+u_index(1) = int((u-u_min)/du)+1
+if( u_index(1) .le. 0 ) u_index(1) = 1
+u_index(mp) = u_index(1) + mp - 1
+if( u_index(mp) .gt. nu ) then
+    u_index(mp) = nu
+    u_index(1) = u_index(mp) - mp + 1
 endif
 do i=2,mp-1
-    indu(i) = indu(i-1) + 1
+    u_index(i) = u_index(i-1) + 1
 enddo
-end subroutine indef
+end subroutine find_node_index
 
 
-subroutine plag1d(x,fp,dxm1,xp,polyl1d,p1x1d)
+subroutine plag1d(x, xp, fp, dx, f, dfdx)
 ! 1D interpolation by means of Lagrange polynomial
 ! the power 5 is fixed strictly:
 ! uniform mesh (increasingly ordered) in all dimensions is implied
 !
 ! Input parameters:
 !   x - coordinate of the point for interpolation
-!   dxm1 - 1./h_x
+!   dx - h_x
 !   xp - vertices of stencil
 !
 ! Output parameters:
 ! polyl1d - polynomial itself
 ! poly1x - its derivative
-real(dp), intent(in) :: x, dxm1
+real(dp), intent(in) :: x, dx
 real(dp), dimension(mp), intent(in) :: xp, fp
-real(dp), intent(out) :: polyl1d, p1x1d
+real(dp), intent(out) :: f, dfdx
 
-real(dp), dimension(mp) :: cx, cx1
+real(dp), dimension(mp) :: x_coefs, dx_coefs
 integer :: i
 
-call coefs(x,xp,dxm1,cx)
-polyl1d = 0.d0
+x_coefs = calc_coefs(x,xp,dx)
+dx_coefs = calc_derivative_coefs(x,xp,dx)
+f = 0.0_dp
+dfdx = 0.0_dp
 do i=1,mp
-    polyl1d = polyl1d + fp(i)*cx(i)
-enddo
-
-call coefs1(x,xp,dxm1,cx1)
-p1x1d = 0.d0
-do i=1,mp
-    p1x1d = p1x1d + fp(i)*cx1(i)
+    f = f + fp(i) * x_coefs(i)
+    dfdx = dfdx + fp(i) * dx_coefs(i)
 enddo
 end subroutine plag1d
 
 
-subroutine plag3d(x,y,z,fp,dxm1,dym1,dzm1,xp,yp,zp, &
-                    polyl3d,poly1x,poly1y,poly1z)
+subroutine plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, &
+                  f, dfdx, dfdy, dfdz)
 ! 3D interpolation by means of Lagrange polynomial
 ! the power 5 is fixed strictly:
 ! uniform mesh (increasingly ordered) in all dimensions is implied
 !
 ! Input parameters:
 !   x,y,z - coordinates of the point for interpolation
-!   dxm1,dym1,dzm1 - steps in each direction
+!   dx,dy,dz - steps in each direction
 !   xp,yp,zp - vertices of stencil
 !
 ! Output parameters:
@@ -88,151 +85,130 @@ subroutine plag3d(x,y,z,fp,dxm1,dym1,dzm1,xp,yp,zp, &
 ! poly1x - its x-derivative
 ! poly1y - its y-derivative
 ! poly1z - its z-derivative
-real(dp), intent(in) :: x, y, z, dxm1, dym1, dzm1
+real(dp), intent(in) :: x, y, z, dx, dy, dz
 real(dp), dimension(mp,mp,mp), intent(in) :: fp
 real(dp), dimension(mp), intent(in) :: xp, yp, zp
-real(dp), intent(out) :: polyl3d, poly1x, poly1y, poly1z
+real(dp), intent(out) :: f, dfdx, dfdy, dfdz
 
-real(dp), dimension(mp) :: cx, cy, cz, cx1, cy1, cz1
+real(dp), dimension(mp) :: x_coefs, y_coefs, z_coefs
+real(dp), dimension(mp) :: dx_coefs, dy_coefs, dz_coefs
 integer :: i, j, k
 
-call coefs(x,xp,dxm1,cx)
-call coefs(y,yp,dym1,cy)
-call coefs(z,zp,dzm1,cz)
+x_coefs = calc_coefs(x,xp,dx)
+y_coefs = calc_coefs(y,yp,dy)
+z_coefs = calc_coefs(z,zp,dz)
+dx_coefs = calc_derivative_coefs(x,xp,dx)
+dy_coefs = calc_derivative_coefs(y,yp,dy)
+dz_coefs = calc_derivative_coefs(z,zp,dz)
 
-polyl3d = 0.d0
+f = 0.0_dp
+dfdx = 0.0_dp
+dfdy = 0.0_dp
+dfdz = 0.0_dp
 do k=1,mp
     do j=1,mp
-    do i=1,mp
-        polyl3d = polyl3d + fp(i,j,k)*cx(i)*cy(j)*cz(k)
-    enddo
-    enddo
-enddo
-
-call coefs1(x,xp,dxm1,cx1)
-call coefs1(y,yp,dym1,cy1)
-call coefs1(z,zp,dzm1,cz1)
-
-poly1x = 0.d0
-do k=1,mp
-    do j=1,mp
-    do i=1,mp
-        poly1x = poly1x + fp(i,j,k)*cx1(i)*cy(j)*cz(k)
-    enddo
-    enddo
-enddo
-
-poly1y = 0.d0
-do k=1,mp
-    do j=1,mp
-    do i=1,mp
-        poly1y = poly1y + fp(i,j,k)*cx(i)*cy1(j)*cz(k)
-    enddo
-    enddo
-enddo
-
-poly1z = 0.d0
-do k=1,mp
-    do j=1,mp
-    do i=1,mp
-        poly1z = poly1z + fp(i,j,k)*cx(i)*cy(j)*cz1(k)
-    enddo
+        do i=1,mp
+            f = f + fp(i,j,k) * x_coefs(i) * y_coefs(j) * z_coefs(k)
+            dfdx = dfdx + fp(i,j,k) * dx_coefs(i) * y_coefs(j) * z_coefs(k)
+            dfdy = dfdy + fp(i,j,k) * x_coefs(i) * dy_coefs(j) * z_coefs(k)
+            dfdz = dfdz + fp(i,j,k) * x_coefs(i) * y_coefs(j) * dz_coefs(k)
+        enddo
     enddo
 enddo
 end subroutine plag3d
 
 
-subroutine coefs(u,up,dum1,cu)
-real(dp), intent(in) :: u, dum1
+function calc_coefs(u,up,du) result(coefs)
+real(dp), intent(in) :: u, du
 real(dp), dimension(mp), intent(in) :: up
+real(dp), dimension(mp) :: coefs
 
 real(dp) :: du5
-real(dp), dimension(mp) :: cu
 
-du5 = dum1**5
-cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * &
-        (u - up(5)) * (u - up(6)) * (-du5)/120.d0
-cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * &
-        (u - up(5)) * (u - up(6)) * (du5)/24.d0
-cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * &
-        (u - up(5)) * (u - up(6)) * (-du5)/12.d0
-cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * &
-        (u - up(5)) * (u - up(6)) * (du5)/12.d0
-cu(5) = (u - up(1)) * (u - up(2)) * (u - up(3)) * &
-        (u - up(4)) * (u - up(6)) * (-du5)/24.d0
-cu(6) = (u - up(1)) * (u - up(2)) * (u - up(3)) * &
-        (u - up(4)) * (u - up(5)) * (du5)/120.d0
-end subroutine coefs
+du5 = du**5
+coefs(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * &
+           (u - up(5)) * (u - up(6)) / (-du5)/120.d0
+coefs(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * &
+           (u - up(5)) * (u - up(6)) / (du5)/24.d0
+coefs(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * &
+           (u - up(5)) * (u - up(6)) / (-du5)/12.d0
+coefs(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * &
+           (u - up(5)) * (u - up(6)) / (du5)/12.d0
+coefs(5) = (u - up(1)) * (u - up(2)) * (u - up(3)) * &
+           (u - up(4)) * (u - up(6)) / (-du5)/24.d0
+coefs(6) = (u - up(1)) * (u - up(2)) * (u - up(3)) * &
+           (u - up(4)) * (u - up(5)) / (du5)/120.d0
+end function calc_coefs
 
 
-subroutine coefs1(u,up,dum1,cu1)
-real(dp), intent(in) :: u, dum1
+function calc_derivative_coefs(u,up,du) result(coefs)
+real(dp), intent(in) :: u, du
 real(dp), dimension(mp), intent(in) :: up
+real(dp), dimension(mp) :: coefs
 
 real(dp) :: du5
-real(dp), dimension(mp) :: cu1
 
-du5 = dum1**5
-cu1(1) = ((u - up(3)) * (u - up(4)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(2)) * (u - up(4)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(2)) * (u - up(3)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(2)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(6)) + &
-          (u - up(2)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(5)))*(-du5)/120.d0
-cu1(2) = ((u - up(3)) * (u - up(4)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(4)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(3)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(5)))*(du5)/24.d0
-cu1(3) = ((u - up(2)) * (u - up(4)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(4)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(4)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(4)) * (u - up(5)))*(-du5)/12.d0
-cu1(4) = ((u - up(2)) * (u - up(3)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(3)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(5)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(3)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(3)) * (u - up(5)))*(du5)/12.d0
-cu1(5) = ((u - up(2)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(4)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(3)) * (u - up(6)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(3)) * (u - up(4)))*(-du5)/24.d0
-cu1(6) = ((u - up(2)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(5)) + &
-          (u - up(1)) * (u - up(3)) * &
-          (u - up(4)) * (u - up(5)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(4)) * (u - up(5)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(3)) * (u - up(5)) + &
-          (u - up(1)) * (u - up(2)) * &
-          (u - up(3)) * (u - up(4)))*(du5)/120.d0
-end subroutine coefs1
+du5 = du**5
+coefs(1) = ((u - up(3)) * (u - up(4)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(2)) * (u - up(4)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(2)) * (u - up(3)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(2)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(6)) + &
+            (u - up(2)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(5)))/(-du5)/120.d0
+coefs(2) = ((u - up(3)) * (u - up(4)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(4)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(3)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(5)))/(du5)/24.d0
+coefs(3) = ((u - up(2)) * (u - up(4)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(4)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(4)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(4)) * (u - up(5)))/(-du5)/12.d0
+coefs(4) = ((u - up(2)) * (u - up(3)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(3)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(5)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(3)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(3)) * (u - up(5)))/(du5)/12.d0
+coefs(5) = ((u - up(2)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(4)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(3)) * (u - up(6)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(3)) * (u - up(4)))/(-du5)/24.d0
+coefs(6) = ((u - up(2)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(5)) + &
+            (u - up(1)) * (u - up(3)) * &
+            (u - up(4)) * (u - up(5)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(4)) * (u - up(5)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(3)) * (u - up(5)) + &
+            (u - up(1)) * (u - up(2)) * &
+            (u - up(3)) * (u - up(4)))/(du5)/120.d0
+end function calc_derivative_coefs
 
 end module neo_polylag_5
