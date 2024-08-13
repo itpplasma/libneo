@@ -5,4 +5,5 @@ add_library(neo_field OBJECT
     example_field.f90
     biotsavart.f90
     biotsavart_field.f90
+    polylag_field.f90
     field.f90)
