@@ -6,8 +6,9 @@ add_library(neo_field OBJECT
     biotsavart.f90
     biotsavart_field.f90
     field_mesh.f90
+    ../polylag/polylag_5.f90
     polylag_field.f90
     field.f90)
 
-include_directories(${CMAKE_BINARY_DIR}/src/polylag)
-target_link_libraries(neo_field PRIVATE neo_polylag)
+# target_link_libraries(neo_field PRIVATE $<TARGET_OBJECTS:neo_polylag>)
+# target_include_directories(neo_field PRIVATE ${CMAKE_BINARY_DIR}/src/polylag)
