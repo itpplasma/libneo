@@ -101,7 +101,7 @@ add_fortran_test(test_interpolate)
 # Afterwards fail condition is set: test will fail if the output
 # contains 'STOP'.
 add_test(NAME test_arnoldi
-         COMMAND ../../tests/python/test_arnoldi.py && test_arnoldi.x)
+         COMMAND ../../test/python/test_arnoldi.py && test_arnoldi.x)
 set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_mympilib
@@ -110,3 +110,7 @@ set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived 
 add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
+
+add_subdirectory(util_for_test)
+add_subdirectory(field)
+add_subdirectory(polylag)

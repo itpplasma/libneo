@@ -8,6 +8,7 @@ cmake_minimum_required(VERSION 3.18)
 project(libneo)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
@@ -29,7 +30,7 @@ find_package (MPI REQUIRED)
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fcheck=all -fbacktrace \
+  set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fPIC -fcheck=all -fbacktrace \
                             -fno-realloc-lhs -fopenmp -Wall -Wextra")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
@@ -72,13 +73,15 @@ add_link_options(${NETCDF_FLIBS})
 
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
+add_subdirectory(src/polylag)
+add_subdirectory(src/field)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
 include(CMakeSources.in)
 
-add_subdirectory(tests)
+add_subdirectory(test)
 
 
 # MacOS RPATH specifics

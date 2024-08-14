@@ -12,7 +12,7 @@ from libneo import eqdsk
 
 test_files = [
     # Local
-    "tests/resources/input_efit_file.dat",
+    "test/resources/input_efit_file.dat",
 ]
 
 

@@ -38,13 +38,18 @@ add_library(neo SHARED
     # For CPU time measurements
     src/local_rusage.c
 )
-target_link_libraries(neo
+
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
+
+target_link_libraries(neo PRIVATE
   rkf45
   ${BLAS_LIBRARIES}
   ${LAPACK_LIBRARIES}
   netcdf
   netcdff
 )
+
 
 add_library(magfie SHARED
 
