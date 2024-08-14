@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.10)
-
 add_library(neo_field OBJECT
     field_base.f90
     example_field.f90

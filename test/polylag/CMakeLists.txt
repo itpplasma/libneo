@@ -1,4 +1,3 @@
-cmake_minimum_required(VERSION 3.10)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/polylag)
 
 add_executable(test_polylag_5.x test_polylag_5.f90)
