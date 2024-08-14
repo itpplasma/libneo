@@ -7,7 +7,6 @@ target_link_libraries(test_biotsavart.x PRIVATE neo
 add_test(NAME test_biotsavart COMMAND test_biotsavart.x)
 
 add_library(util_for_test_field OBJECT util_for_test_field.f90)
-include_directories(${CMAKE_BINARY_DIR}/src/field)
 target_link_libraries(util_for_test_field PRIVATE neo)
 
 add_executable(test_field.x test_field.f90)
