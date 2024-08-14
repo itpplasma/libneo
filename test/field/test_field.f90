@@ -8,6 +8,7 @@ implicit none
 call test_create_field
 call test_create_example_field
 call test_create_biotsavart_field
+call test_create_polylag_field
 
 
 contains
@@ -62,6 +63,28 @@ subroutine test_create_biotsavart_field
 
     call print_ok
 end subroutine test_create_biotsavart_field
+
+
+subroutine test_create_polylag_field
+    use neo_field, only: field_t, create_polylag_field
+
+    class(field_t), allocatable :: field
+    real(dp), dimension(3,2) :: limits
+
+    call print_test("test_create_polylag_field")
+
+    limits(1,:) = [1.0_dp, 10.0_dp]
+    limits(2,:) = [1.0_dp, 10.0_dp]
+    limits(3,:) = [1.0_dp, 10.0_dp]
+
+    allocate(field, source=create_polylag_field(limits))
+    if (.not.allocated(field)) then
+        call print_fail
+        error stop
+    end if
+
+    call print_ok
+end subroutine test_create_polylag_field
     
 
 end program test_field
