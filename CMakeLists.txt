@@ -83,7 +83,7 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
 include(CMakeSources.in)
-install(TARGETS libneo DESTINATION .)
+install(TARGETS neo DESTINATION .)
 
 add_subdirectory(test)
 
