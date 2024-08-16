@@ -122,6 +122,11 @@ if (Python_FOUND)
     message(STATUS "Python version: ${Python_VERSION}")
     message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
     message(STATUS "Python libraries: ${Python_LIBRARIES}")
+
+    if (NOT TARGET Python::Python)
+        message(STATUS "Fixing Python target not found on macos")
+        set(Python_LIBRARIES "/opt/homebrew/opt/python@3.11/Frameworks/Python.framework/Versions/3.11/lib/libpython3.11.dylib")
+    endif()
 else()
     message("Python with NumPy not found, skipping interface build.")
     return()
@@ -298,4 +303,4 @@ set_target_properties(
     LINKER_LANGUAGE C
 )
 
-install(TARGETS _interpolate DESTINATION .)
+install(TARGETS ${F2PY_MODULE_NAME} DESTINATION .)
