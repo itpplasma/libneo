@@ -26,7 +26,7 @@ endif()
 
 find_program (BASH_PROGRAM bash)
 
-find_package (MPI REQUIRED)
+find_package (MPI REQUIRED COMPONENTS Fortran)
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
@@ -214,7 +214,6 @@ endif()
 
 set(FILES_TO_WRAP
   interpolate.f90
-  field/field.f90
 )
 
 set(EXCLUDE_BASENAMESs

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 enable_language (Fortran)
 
 # MPI
-find_package(MPI REQUIRED)
+find_package (MPI REQUIRED COMPONENTS Fortran)
 
 include (${CMAKE_SOURCE_DIR}/src/MyMPILib/ProjectConfig.cmake.in)
 option(MPE_SUPPORT "Should the library be built with MPE-Support?" OFF)
