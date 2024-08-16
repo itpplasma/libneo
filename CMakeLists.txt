@@ -33,6 +33,9 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
   set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fPIC -fcheck=all -fbacktrace \
                             -fno-realloc-lhs -fopenmp -Wall -Wextra")
 
+  # https://github.com/numpy/numpy/issues/25777
+  set (CMAKE_C_FLAGS "-Wno-error=incompatible-pointer-types")
+
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
   set (CMAKE_Fortran_FLAGS "-cpp -check all -traceback \
