@@ -83,6 +83,7 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
 include(CMakeSources.in)
+install(TARGETS libneo DESTINATION .)
 
 add_subdirectory(test)
 
@@ -213,6 +214,7 @@ endif()
 
 set(FILES_TO_WRAP
   interpolate.f90
+  field/field.f90
 )
 
 set(EXCLUDE_BASENAMESs
