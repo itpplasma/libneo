@@ -122,11 +122,6 @@ if (Python_FOUND)
     message(STATUS "Python version: ${Python_VERSION}")
     message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
     message(STATUS "Python libraries: ${Python_LIBRARIES}")
-
-    if (NOT TARGET Python::Python)
-        message(STATUS "Fixing Python target not found on macos")
-        set(Python_LIBRARIES "/opt/homebrew/opt/python@3.11/Frameworks/Python.framework/Versions/3.11/lib/libpython3.11.dylib")
-    endif()
 else()
     message("Python with NumPy not found, skipping interface build.")
     return()
@@ -284,7 +279,7 @@ add_custom_command(OUTPUT ${F2PY_WRAPPERS}
     COMMENT "Processing wrapped sources with f2py"
 )
 
-add_library(${F2PY_MODULE_NAME} SHARED
+Python_add_library(${F2PY_MODULE_NAME} WITH_SOABI
    ${F2PY_WRAPPERS}
    ${F2PY_INCLUDE_DIR}/fortranobject.c
    ${F90WRAP_OUTPUT}
@@ -292,7 +287,7 @@ add_library(${F2PY_MODULE_NAME} SHARED
 
 add_dependencies(${F2PY_MODULE_NAME} neo)
 
-target_link_libraries(${F2PY_MODULE_NAME} PRIVATE ${Python_LIBRARIES} neo)
+target_link_libraries(${F2PY_MODULE_NAME} PRIVATE neo)
 
 set_target_properties(
     ${F2PY_MODULE_NAME}
