@@ -373,6 +373,99 @@ contains
     end subroutine evaluate_splines_3d
 
 
+    subroutine evaluate_splines_3d_der(spl, x, y, dy)
+
+        type(SplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y, dy(3)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+
+        real(dp) :: coeff_23(0:spl%order(2),0:spl%order(3))
+        real(dp) :: coeff_23_dx1(0:spl%order(2),0:spl%order(3))
+
+        real(dp) :: coeff_3(0:spl%order(3))
+        real(dp) :: coeff_3_dx1(0:spl%order(3))
+        real(dp) :: coeff_3_dx2(0:spl%order(3))
+
+        integer :: interval_index(3), k1, k2, k3, j
+
+        dy = 0d0
+
+        do j=1,3
+            if (spl%periodic(j)) then
+                xj = modulo(x(j), twopi)
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
+        end do
+
+        associate(N1 => spl%order(1), N2 => spl%order(2), N3 => spl%order(3))
+
+            ! Interpolation over x1
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
+                        interval_index(2) + 1, interval_index(3) + 1)
+                    do k1 = 1, N1
+                        coeff_23(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
+                            interval_index(2) + 1, interval_index(3) + 1) &
+                            + x_local(1)*coeff_23(k2, k3)
+                    enddo
+                enddo
+            enddo
+
+            ! First derivitative over x1
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23_dx1(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
+                        interval_index(2) + 1, interval_index(3) + 1)*N1
+                    do k1 = 1, N1-1
+                        coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
+                            interval_index(2) + 1, interval_index(3) + 1)*(N1-k1) &
+                            + x_local(1)*coeff_23_dx1(k2, k3)
+                    enddo
+                enddo
+            enddo
+
+            ! Interpolation over x2 and pure derivatives over x1
+            coeff_3(:) = coeff_23(N2, :)
+            coeff_3_dx1(:) = coeff_23_dx1(N2, :)
+            do k2 = N2-1, 0, -1
+                coeff_3(:) = coeff_23(k2, :) + x_local(2)*coeff_3
+                coeff_3_dx1(:) = coeff_23_dx1(k2, :) &
+                    + x_local(2)*coeff_3_dx1
+            enddo
+            ! First derivitatives over x2
+            coeff_3_dx2(:) = coeff_23(N2, :)*N2
+            do k2 = N2-1, 1, -1
+                coeff_3_dx2(:) = coeff_23(k2, :)*k2 &
+                    + x_local(2)*coeff_3_dx2(:)
+            enddo
+
+            ! Interpolation over x3
+            y = coeff_3(N3)
+            dy(1) = coeff_3_dx1(N3)
+            dy(2) = coeff_3_dx2(N3)
+            do k3 = N3-1, 0, -1
+                y = coeff_3(k3) + x_local(3)*y
+                dy(1) = coeff_3_dx1(k3) + x_local(3)*dy(1)
+                dy(2) = coeff_3_dx2(k3) + x_local(3)*dy(2)
+            enddo
+            ! First derivitatives over x3
+            dy(3) = coeff_3(N3)*N3
+            do k3 = N3-1, 1, -1
+                dy(3) = coeff_3(k3)*k3 + x_local(3)*dy(3)
+            enddo
+
+        end associate
+
+    end subroutine evaluate_splines_3d_der
+
+
     subroutine evaluate_splines_3d_der2(spl, x, y, dy, d2y)
 
         type(SplineData3D), intent(in) :: spl
