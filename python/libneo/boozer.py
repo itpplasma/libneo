@@ -123,14 +123,14 @@ def get_B0_of_s_theta_boozer(stor, nth):
 
 
 
-def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+def get_boozer_harmonics(f, stor, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   """
-  f(spol, th_geom, ph) of normalized poloidal flux and geometric angles
+  f(stor, th_geom, ph) of normalized toroidal flux and geometric angles
 
   Returns: Fourier harmonics fmn in terms of Boozer angles
   """
 
-  ns = spol.shape[0]
+  ns = stor.shape[0]
 
   fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
 
@@ -154,7 +154,7 @@ def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
     for kph in np.arange(nph):
       phb = kph * 2 * np.pi / nph
 
-      f_values = f(spol[:-1], th_geoms[:, kth], phs[:, kth, kph])
+      f_values = f(stor[:-1], th_geoms[:, kth], phs[:, kth, kph])
 
       for m in np.arange(-m0b, m0b + 1):
         # Take a sum over all theta values here
@@ -163,15 +163,15 @@ def get_boozer_harmonics(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   return fmn / (nth * nph)
 
 
-def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+def get_boozer_harmonics_divide_f_by_B0(f, stor, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   """
-  f(spol, th_geom, ph) of normalized poloidal flux and geometric angles
+  f(stor, th_geom, ph) of normalized toroidal flux and geometric angles
 
   Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given
   toroidal mode number n
   """
 
-  ns = spol.shape[0]
+  ns = stor.shape[0]
 
   fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
 
@@ -189,7 +189,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G
         phb = kph * 2 * np.pi / nph
         phs[ks, kth, kph] = phb - G
 
-  B0 = get_B0_of_s_theta_boozer(spol, nth)
+  B0 = get_B0_of_s_theta_boozer(stor, nth)
 
   for kth in np.arange(nth):
     if debug: print(f"kth = {kth}/{nth-1}")
@@ -197,7 +197,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, spol, nth, nph, m0b, n, dth_of_thb, G
     for kph in np.arange(nph):
       phb = kph * 2 * np.pi / nph
 
-      f_values = np.array(f(spol[:-1], th_geoms[:, kth], phs[:, kth, kph])) \
+      f_values = np.array(f(stor[:-1], th_geoms[:, kth], phs[:, kth, kph])) \
         / np.array([spline(thb) for spline in B0])
 
       for m in np.arange(-m0b, m0b + 1):
