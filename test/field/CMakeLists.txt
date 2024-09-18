@@ -36,6 +36,31 @@ target_link_libraries(test_polylag_field.x PRIVATE neo
                                                   util_for_test)
 add_test(NAME test_polylag_field COMMAND test_polylag_field.x)
 
+add_executable(setup_test_jorek_field.x setup_test_jorek_field.f90)
+target_link_libraries(setup_test_jorek_field.x PRIVATE neo
+                                                       hdf5_tools
+                                                       util_for_test)
+add_test(NAME setup_test_jorek_field COMMAND setup_test_jorek_field.x)
+set_tests_properties(setup_test_jorek_field PROPERTIES 
+                     FIXTURES_SETUP "SetupTestFieldJorek")
+
+add_executable(test_jorek_field.x test_jorek_field.f90)
+target_link_libraries(test_jorek_field.x PRIVATE neo
+                                                 hdf5_tools
+                                                 util_for_test)
+add_test(NAME test_jorek_field COMMAND test_jorek_field.x)
+set_tests_properties(test_jorek_field PROPERTIES 
+                     FIXTURES_REQUIRED "SetupTestFieldJorek")
+
+add_executable(cleanup_test_jorek_field.x cleanup_test_jorek_field.f90)
+target_link_libraries(cleanup_test_jorek_field.x PRIVATE neo
+                                                         hdf5_tools
+                                                         util_for_test)
+add_test(NAME cleanup_test_jorek_field COMMAND cleanup_test_jorek_field.x)
+set_tests_properties(cleanup_test_jorek_field PROPERTIES 
+                     FIXTURES_CLEANUP "SetupTestFieldJorek")
+
+
 set_tests_properties(
     test_biotsavart
     test_field
@@ -43,4 +68,5 @@ set_tests_properties(
     test_biotsavart_field
     test_field_mesh
     test_polylag_field
+    test_jorek_field
     PROPERTIES LABELS "field")
