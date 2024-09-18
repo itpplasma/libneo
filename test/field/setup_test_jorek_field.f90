@@ -15,7 +15,7 @@ contains
 subroutine create_mockup_jorek_output()
     integer, parameter :: n_var = 17, n_R = 100, n_Z = 100, n_phi = 33
     integer(hid_t) :: file_id
-    character(len=*), parameter :: filename = 'test_jorek_output.h5'
+    character(len=*), parameter :: filename = 'jorek_output.h5'
     character(len=100) :: comment, description
     integer :: dimensions(3)
     integer, parameter :: ndim = 3, index_now = 1000
