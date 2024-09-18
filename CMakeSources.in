@@ -107,8 +107,6 @@ else()
 endif()
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
-include_directories(${HDF5_INCLUDE_DIRS})
-
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
 target_link_libraries(magfie
@@ -118,8 +116,6 @@ netcdf
 netcdff
 hdf5_tools
 ${FFTW_LIBRARIES}
-${HDF5_HL_LIBRARIES}
-${HDF5_LIBRARIES}
 ${BLAS_LIBRARIES}
 ${LAPACK_LIBRARIES}
 )
