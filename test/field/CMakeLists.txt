@@ -60,6 +60,11 @@ add_test(NAME cleanup_test_jorek_field COMMAND cleanup_test_jorek_field.x)
 set_tests_properties(cleanup_test_jorek_field PROPERTIES 
                      FIXTURES_CLEANUP "SetupTestFieldJorek")
 
+add_executable(test_mesh.x test_mesh.f90)
+target_link_libraries(test_mesh.x PRIVATE neo
+                                          util_for_test)
+add_test(NAME test_mesh COMMAND test_mesh.x)
+
 
 set_tests_properties(
     test_biotsavart
@@ -69,4 +74,5 @@ set_tests_properties(
     test_field_mesh
     test_polylag_field
     test_jorek_field
+    test_mesh
     PROPERTIES LABELS "field")
