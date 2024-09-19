@@ -53,23 +53,39 @@ subroutine test_mesh_init
         call print_fail
         error stop
     end if
+    if (mesh%n1 /= n(1)) then
+        print *, "mesh%n1 =/= n(1)"
+        call print_fail
+        error stop
+    end if
+    if (mesh%n2 /= n(2)) then
+        print *, "mesh%n2 =/= n(2)"
+        call print_fail
+        error stop
+    end if
+    if (mesh%n3 /= n(3)) then
+        print *, "mesh%n3 =/= n(3)"
+        call print_fail
+        error stop
+    end if
+    if (abs(mesh%dx1 - x1(2) + x1(1)) > tol) then
+        print *, "mesh%dx1 =/= x1(2) - x1(1)"
+        call print_fail
+        error stop
+    end if
+    if (abs(mesh%dx2 - x2(2) + x2(1)) > tol) then
+        print *, "mesh%dx2 =/= x2(2) - x2(1)"
+        call print_fail
+        error stop
+    end if
+    if (abs(mesh%dx3 - x3(2) + x3(1)) > tol) then
+        print *, "mesh%dx3 =/= x3(2) - x3(1)"
+        call print_fail
+        error stop
+    end if
 
     call print_ok
 end subroutine test_mesh_init
-
-function linspace(start, stop, n) result(x)
-    real(dp), intent(in) :: start, stop
-    integer, intent(in) :: n
-    real(dp) :: x(n)
-    real(dp) :: dx
-    integer :: i
-
-    dx = (stop - start) / (n - 1)
-    x(1) = start
-    do i = 2, n
-        x(i) = x(i-1) + dx
-    end do
-end function linspace
 
 function trial_func(x1, x2, x3) result(y)
     real(dp), dimension(:), intent(in) :: x1, x2, x3
@@ -124,5 +140,20 @@ subroutine test_mesh_init_with_default
 
     call print_ok
 end subroutine test_mesh_init_with_default
+
+
+function linspace(start, stop, n) result(x)
+    real(dp), intent(in) :: start, stop
+    integer, intent(in) :: n
+    real(dp) :: x(n)
+    real(dp) :: dx
+    integer :: i
+
+    dx = (stop - start) / (n - 1)
+    x(1) = start
+    do i = 2, n
+        x(i) = x(i-1) + dx
+    end do
+end function linspace
 
 end program test_mesh

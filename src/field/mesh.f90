@@ -30,6 +30,9 @@ subroutine mesh_init(self, x1, x2, x3, value)
     self%x1 = x1
     self%x2 = x2
     self%x3 = x3
+    self%n1 = n1
+    self%n2 = n2
+    self%n3 = n3
     self%dx1 = self%x1(2) - self%x1(1)
     self%dx2 = self%x2(2) - self%x2(1)
     self%dx3 = self%x3(2) - self%x3(1)
