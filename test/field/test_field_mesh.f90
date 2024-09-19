@@ -19,18 +19,18 @@ subroutine test_field_mesh_init_with_field
     type(field_mesh_t) :: field_mesh
     class(field_t), allocatable :: field
     real(dp), dimension(3,2) :: limits
-    integer, dimension(3) :: n_nodes
+    integer, dimension(3) :: n_points
     real(dp), dimension(3) :: x, A, B
     integer, dimension(3) :: node
 
     call print_test("test_field_mesh_init_with_field")
 
     call create_field(field, "example")
-    n_nodes = [10, 10, 10]
+    n_points = [10, 10, 10]
     limits(1,:) = [1.0_dp, 2.0_dp]
     limits(2,:) = [1.0_dp, 2.0_dp]
     limits(3,:) = [1.0_dp, 2.0_dp]
-    call field_mesh%field_mesh_init_with_field(limits, field, n_nodes)
+    call field_mesh%field_mesh_init_with_field(limits, field, n_points)
 
     node = [5, 5, 5]
     x = [field_mesh%A1%x1(node(1)), &

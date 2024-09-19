@@ -36,7 +36,7 @@ subroutine test_against_original_field
     class(field_t), allocatable :: field
     type(polylag_field_t) :: polylag_field
     real(dp), dimension(3,2) :: limits
-    integer, dimension(3) :: n_nodes
+    integer, dimension(3) :: n_points
     real(dp) :: x(3), B(3), B_original(3)
 
     call print_test("test_against_original_field")
@@ -48,9 +48,9 @@ subroutine test_against_original_field
     limits(1,:) = [1.0_dp, 2.0_dp]
     limits(2,:) = [1.0_dp, 2.0_dp]
     limits(3,:) = [1.0_dp, 2.0_dp]
-    n_nodes = int((limits(:,2) - limits(:,1))/tol**(1.0_dp/5.0_dp)) + 1
+    n_points = int((limits(:,2) - limits(:,1))/tol**(1.0_dp/5.0_dp)) + 1
 
-    call polylag_field%polylag_field_init(limits, field, n_nodes)
+    call polylag_field%polylag_field_init(limits, field, n_points)
     call polylag_field%compute_bfield(x, B)
     call field%compute_bfield(x, B_original)
 
@@ -76,7 +76,7 @@ subroutine test_curla_equal_b
     class(field_t), allocatable :: field
     type(polylag_field_t) :: polylag_field
     real(dp), dimension(3,2) :: limits
-    integer, dimension(3) :: n_nodes
+    integer, dimension(3) :: n_points
     real(dp) :: x(3), B(3), curl_A(3)
 
     call print_test("test_curla_equal_b")
@@ -88,9 +88,9 @@ subroutine test_curla_equal_b
     limits(1,:) = [1.0_dp, 2.0_dp]
     limits(2,:) = [1.0_dp, 2.0_dp]
     limits(3,:) = [1.0_dp, 2.0_dp]
-    n_nodes = int((limits(:,2) - limits(:,1))/tol**(1.0_dp/5.0_dp)) + 1
+    n_points = int((limits(:,2) - limits(:,1))/tol**(1.0_dp/5.0_dp)) + 1
 
-    call polylag_field%polylag_field_init(limits, field, n_nodes)
+    call polylag_field%polylag_field_init(limits, field, n_points)
     call polylag_field%compute_bfield(x, B)
     curl_A = compute_cartesian_curla(polylag_field, x, tol)
 

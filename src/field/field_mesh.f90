@@ -12,23 +12,23 @@ end type field_mesh_t
 
 contains
 
-subroutine field_mesh_init_with_field(self, limits, field, n_nodes)
+subroutine field_mesh_init_with_field(self, limits, field, n_points)
     use neo_field_base, only: field_t
 
     class(field_mesh_t), intent(out) :: self
     real(dp), dimension(3,2), intent(in) :: limits
     class(field_t), intent(in), optional :: field
-    integer, dimension(3), intent(in), optional :: n_nodes
+    integer, dimension(3), intent(in), optional :: n_points
 
     integer :: i, j, k
     real(dp), dimension(:), allocatable :: x1, x2, x3
     real(dp), dimension(3) :: x, A, B
 
-    if (present(n_nodes)) then
-        allocate(x1(n_nodes(1)), x2(n_nodes(2)), x3(n_nodes(3)))
-        x1 = linspace(limits(1,1), limits(1,2), n_nodes(1))
-        x2 = linspace(limits(2,1), limits(2,2), n_nodes(2))
-        x3 = linspace(limits(3,1), limits(3,2), n_nodes(3))
+    if (present(n_points)) then
+        allocate(x1(n_points(1)), x2(n_points(2)), x3(n_points(3)))
+        x1 = linspace(limits(1,1), limits(1,2), n_points(1))
+        x2 = linspace(limits(2,1), limits(2,2), n_points(2))
+        x3 = linspace(limits(3,1), limits(3,2), n_points(3))
     else
         allocate(x1(10), x2(10), x3(10))
     end if
