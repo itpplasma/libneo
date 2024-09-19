@@ -21,13 +21,7 @@ subroutine polylag_field_init(self, limits, field, n_points)
     class(field_t), intent(in), optional :: field
     integer, dimension(3), intent(in), optional :: n_points
 
-    if (.not. present(field)) then
-        call self%field_mesh%field_mesh_init_with_field(limits)
-    elseif (.not. present(n_points)) then
-        call self%field_mesh%field_mesh_init_with_field(limits, field)
-    else
-        call self%field_mesh%field_mesh_init_with_field(limits, field, n_points)
-    end if
+    call self%field_mesh%field_mesh_init_with_field(limits, field, n_points)
 end subroutine polylag_field_init
 
 subroutine compute_abfield(self, x, A, B)
