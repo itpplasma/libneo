@@ -7,6 +7,7 @@ type :: mesh_t
     real(dp), dimension(:,:,:), allocatable :: value
     integer :: n1, n2, n3
     real(dp) :: dx1, dx2, dx3
+    logical :: periodic(3)
     contains
     procedure :: mesh_init
     procedure :: mesh_deinit
@@ -14,11 +15,12 @@ end type mesh_t
 
 contains
 
-subroutine mesh_init(self, x1, x2, x3, value)
+subroutine mesh_init(self, x1, x2, x3, value, periodic)
 
     class(mesh_t), intent(out) :: self
     real(dp), dimension(:), intent(in) :: x1, x2, x3
     real(dp), dimension(:,:,:), intent(in), optional :: value
+    logical, intent(in), optional :: periodic(3)
 
     integer :: n1, n2, n3
 
@@ -41,6 +43,11 @@ subroutine mesh_init(self, x1, x2, x3, value)
     else
         self%value = 0.0_dp
     end if
+    if (present(periodic)) then
+        self%periodic = periodic
+    else
+        self%periodic = .false.
+    end if
 end subroutine mesh_init
 
 subroutine mesh_deinit(self)
@@ -54,6 +61,7 @@ subroutine mesh_deinit(self)
     self%dx1 = 0.0_dp
     self%dx2 = 0.0_dp
     self%dx3 = 0.0_dp
+    self%periodic = .false.
 end subroutine mesh_deinit
     
 end module neo_mesh

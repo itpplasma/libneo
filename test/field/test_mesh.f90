@@ -18,7 +18,8 @@ subroutine test_mesh_init
                                                     reshape([1.0_dp, 2.0_dp, &
                                                              0.0_dp, 2.0_dp, &
                                                             -1.0_dp, 0.0_dp], [2, 3]))
-
+    logical, parameter :: periodic(3) = [.true., .false., .true.]
+        
     type(mesh_t) :: mesh
     real(dp), dimension(:), allocatable :: x1, x2, x3
     real(dp), dimension(:,:,:), allocatable :: values
@@ -31,7 +32,7 @@ subroutine test_mesh_init
     x3 = linspace(limits(3,1), limits(3,2), n(3))
     allocate(values(n(1), n(2), n(3)))
     values = trial_func(x1, x2, x3)
-    call mesh%mesh_init(x1, x2, x3, values)
+    call mesh%mesh_init(x1, x2, x3, values, periodic)
 
     if (any(abs(mesh%x1 - x1) > tol)) then
         print *, "mesh%x1 =/= x1"
@@ -83,6 +84,11 @@ subroutine test_mesh_init
         call print_fail
         error stop
     end if
+    if (any(mesh%periodic .neqv. periodic)) then
+        print *, "mesh%periodic =/= periodic"
+        call print_fail
+        error stop
+    end if
 
     call print_ok
 end subroutine test_mesh_init
@@ -116,7 +122,7 @@ subroutine test_mesh_init_with_default
     real(dp), dimension(:), allocatable :: x1, x2, x3
     integer, dimension(3) :: mesh_shape, value_shape
 
-    call print_test("test_mesh_init")
+    call print_test("test_mesh_init_with_default")
 
     allocate(x1(n(1)), x2(n(2)), x3(n(3)))
     x1 = linspace(limits(1,1), limits(1,2), n(1))
@@ -134,6 +140,11 @@ subroutine test_mesh_init_with_default
     end if
     if (any(abs(mesh%value) > tol)) then
         print *, "mesh%value =/= 0"
+        call print_fail
+        error stop
+    end if
+    if (any(mesh%periodic)) then
+        print *, "mesh%periodic =/= .false."
         call print_fail
         error stop
     end if
