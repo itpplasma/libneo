@@ -9,6 +9,8 @@ call test_create_field
 call test_create_example_field
 call test_create_biotsavart_field
 call test_create_polylag_field
+call test_create_spline_field
+call test_create_spline_field_from_mesh
 
 
 contains
@@ -85,6 +87,53 @@ subroutine test_create_polylag_field
 
     call print_ok
 end subroutine test_create_polylag_field
+
+
+subroutine test_create_spline_field
+    use neo_field, only: field_t, create_spline_field
+
+    class(field_t), allocatable :: field
+    real(dp), dimension(3,2) :: limits
+
+    call print_test("test_create_spline_field")
+
+    limits(1,:) = [1.0_dp, 10.0_dp]
+    limits(2,:) = [1.0_dp, 10.0_dp]
+    limits(3,:) = [1.0_dp, 10.0_dp]
+
+    allocate(field, source=create_spline_field(limits))
+    if (.not.allocated(field)) then
+        call print_fail
+        error stop
+    end if
+
+    call print_ok
+end subroutine test_create_spline_field
+
+
+subroutine test_create_spline_field_from_mesh
+    use neo_field, only: field_t, create_spline_field_from_mesh
+    use neo_field, only: field_mesh_t
+
+    class(field_t), allocatable :: field
+    type(field_mesh_t) :: field_mesh
+    real(dp), dimension(3,2) :: limits
+
+    call print_test("test_create_spline_field_from_mesh")
+
+    limits(1,:) = [1.0_dp, 10.0_dp]
+    limits(2,:) = [1.0_dp, 10.0_dp]
+    limits(3,:) = [1.0_dp, 10.0_dp]
+
+    call field_mesh%field_mesh_init_with_field(limits)
+    allocate(field, source=create_spline_field_from_mesh(field_mesh))
+    if (.not.allocated(field)) then
+        call print_fail
+        error stop
+    end if
+
+    call print_ok
+end subroutine test_create_spline_field_from_mesh
     
 
 end program test_field
