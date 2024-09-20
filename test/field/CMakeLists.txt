@@ -65,6 +65,12 @@ target_link_libraries(test_mesh.x PRIVATE neo
                                           util_for_test)
 add_test(NAME test_mesh COMMAND test_mesh.x)
 
+add_executable(test_spline_field.x test_spline_field.f90)
+target_link_libraries(test_spline_field.x PRIVATE neo
+                                              util_for_test_field
+                                              util_for_test)
+add_test(NAME test_spline_field COMMAND test_spline_field.x)
+
 
 set_tests_properties(
     test_biotsavart
@@ -75,4 +81,5 @@ set_tests_properties(
     test_polylag_field
     test_jorek_field
     test_mesh
+    test_spline_field
     PROPERTIES LABELS "field")
