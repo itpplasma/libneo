@@ -6,7 +6,6 @@ use interpolate, only: SplineData3D, construct_splines_3d, evaluate_splines_3d
 implicit none
 
 type, extends(field_t) :: spline_field_t
-    type(field_mesh_t) :: field_mesh
     type(SplineData3D) :: A1_spline, A2_spline, A3_spline, &
                           B1_spline, B2_spline, B3_spline
     contains
@@ -18,20 +17,16 @@ end type spline_field_t
 
 contains
 
-subroutine spline_field_init(self, limits, field, n_points, periodic)
+subroutine spline_field_init(self, field_mesh)
     class(spline_field_t), intent(out) :: self
-    real(dp), dimension(3,2), intent(in):: limits
-    class(field_t), intent(in), optional :: field
-    integer, dimension(3), intent(in), optional :: n_points
-    logical, intent(in), optional :: periodic(3)
+    type(field_mesh_t), intent(in) :: field_mesh
 
-    call self%field_mesh%field_mesh_init_with_field(limits, field, n_points, periodic)
-    call make_spline_from_mesh(self%field_mesh%A1, self%A1_spline)
-    call make_spline_from_mesh(self%field_mesh%A2, self%A2_spline)
-    call make_spline_from_mesh(self%field_mesh%A3, self%A3_spline)
-    call make_spline_from_mesh(self%field_mesh%B1, self%B1_spline)
-    call make_spline_from_mesh(self%field_mesh%B2, self%B2_spline)
-    call make_spline_from_mesh(self%field_mesh%B3, self%B3_spline)
+    call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
+    call make_spline_from_mesh(field_mesh%A2, self%A2_spline)
+    call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
+    call make_spline_from_mesh(field_mesh%B1, self%B1_spline)
+    call make_spline_from_mesh(field_mesh%B2, self%B2_spline)
+    call make_spline_from_mesh(field_mesh%B3, self%B3_spline)
 end subroutine spline_field_init
 
 subroutine make_spline_from_mesh(mesh, spline, order_in)
