@@ -19,7 +19,6 @@ add_library(neo SHARED
     src/solve_systems.f90
     src/system_utility.f90
     src/util.f90
-    src/interpolate.f90
 
     # VMEC
     src/canonical_coordinates_mod.f90
@@ -40,6 +39,7 @@ add_library(neo SHARED
 )
 
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
 
 target_link_libraries(neo PRIVATE
