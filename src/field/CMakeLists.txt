@@ -6,5 +6,6 @@ add_library(neo_field OBJECT
     field_mesh.f90
     polylag_field.f90
     spline_field.f90
+    jorek_field.f90
     mesh.f90
     field.f90)
