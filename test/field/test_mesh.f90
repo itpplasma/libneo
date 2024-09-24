@@ -84,7 +84,7 @@ subroutine test_mesh_init
         call print_fail
         error stop
     end if
-    if (any(mesh%periodic .neqv. periodic)) then
+    if (any(mesh%is_periodic .neqv. periodic)) then
         print *, "mesh%periodic =/= periodic"
         call print_fail
         error stop
@@ -143,7 +143,7 @@ subroutine test_mesh_init_with_default
         call print_fail
         error stop
     end if
-    if (any(mesh%periodic)) then
+    if (any(mesh%is_periodic)) then
         print *, "mesh%periodic =/= .false."
         call print_fail
         error stop

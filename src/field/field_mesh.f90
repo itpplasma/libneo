@@ -12,14 +12,14 @@ end type field_mesh_t
 
 contains
 
-subroutine field_mesh_init_with_field(self, limits, field, n_points, periodic)
+subroutine field_mesh_init_with_field(self, limits, field, n_points, is_periodic)
     use neo_field_base, only: field_t
 
     class(field_mesh_t), intent(out) :: self
     real(dp), dimension(3,2), intent(in) :: limits
     class(field_t), intent(in), optional :: field
     integer, dimension(3), intent(in), optional :: n_points
-    logical, intent(in), optional :: periodic(3)
+    logical, intent(in), optional :: is_periodic(3)
 
     integer :: i, j, k
     real(dp), dimension(:), allocatable :: x1, x2, x3
@@ -34,12 +34,12 @@ subroutine field_mesh_init_with_field(self, limits, field, n_points, periodic)
         allocate(x1(10), x2(10), x3(10))
     end if
 
-    call self%A1%mesh_init(x1, x2, x3, periodic=periodic)
-    call self%A2%mesh_init(x1, x2, x3, periodic=periodic)
-    call self%A3%mesh_init(x1, x2, x3, periodic=periodic)
-    call self%B1%mesh_init(x1, x2, x3, periodic=periodic)
-    call self%B2%mesh_init(x1, x2, x3, periodic=periodic)
-    call self%B3%mesh_init(x1, x2, x3, periodic=periodic)
+    call self%A1%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%A2%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%A3%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%B1%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%B2%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%B3%mesh_init(x1, x2, x3, is_periodic=is_periodic)
 
     if (present(field)) then
         do i = 1, size(x1)

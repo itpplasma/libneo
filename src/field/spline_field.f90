@@ -46,7 +46,7 @@ subroutine make_spline_from_mesh(mesh, spline, order_in)
     end if
     x_min = [mesh%x1(1), mesh%x2(1), mesh%x3(1)]
     x_max = [mesh%x1(mesh%n1), mesh%x2(mesh%n2), mesh%x3(mesh%n3)]
-    call construct_splines_3d(x_min, x_max, mesh%value, order, mesh%periodic, spline)
+    call construct_splines_3d(x_min, x_max, mesh%value, order, mesh%is_periodic, spline)
 end subroutine make_spline_from_mesh
 
 subroutine compute_abfield(self, x, A, B)
