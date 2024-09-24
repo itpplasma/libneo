@@ -15,7 +15,7 @@ contains
 
 
 subroutine test_jorek_field_init
-    class(jorek_field_t), allocatable :: field
+    type(jorek_field_t) :: field
     character(len=100) :: filename
     integer(hid_t) :: file_id
     integer :: dimensions(3), n_var
@@ -25,14 +25,7 @@ subroutine test_jorek_field_init
 
     call get_filename(filename)
 
-    call h5_init()
-    call h5_open(filename, file_id)
-    call h5_get(file_id, 'dim', dimensions)
-    call h5_get(file_id, 'n_var', n_var)
-    allocate(values(dimensions(1), dimensions(2), dimensions(3), n_var))
-    call h5_get(file_id, 'values', values)
-    call h5_close(file_id)
-    call h5_deinit()
+    call field%jorek_field_init(filename)
 
     call print_ok
 end subroutine test_jorek_field_init
