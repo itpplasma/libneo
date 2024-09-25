@@ -1,8 +1,6 @@
 program setup_test_jorek_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use util_for_test, only: print_test, print_ok, print_fail
-use util_for_test_jorek_field, only: save_filename
-use hdf5_tools, only: hid_t, h5_init, h5_create, h5_add, h5_close, h5_deinit
 
 implicit none
 
@@ -15,25 +13,20 @@ contains
 
 subroutine create_mockup_jorek_output()
     use util, only: linspace
-
-    integer, parameter :: n_var = 17, n_R = 100, n_Z = 100, n_phi = 33
-    real(dp), parameter :: Rmin = 1.0_dp, Rmax = 2.0_dp
-    real(dp), parameter :: Zmin = -1.0_dp, Zmax = 1.0_dp
-    real(dp), parameter :: phimin = 0.0_dp, phimax = 6.283
-    integer, parameter :: ndim = 3, index_now = 1000
-    real(dp), parameter :: t_now = 10000, time = 0.01
-    character(len=5), parameter :: variables(17) = (/"p","h","i"," "," "," "," "," ", & 
-                                                    " "," "," "," ","A","_","R"," "," "/)
+    use util_for_test_jorek_field, only: Rmin, Rmax, Zmin, Zmax, phimin, phimax, &
+                                     n_var, n_R, n_Z, n_phi, ndim, index_now, &
+                                     t_now, time, variables, save_filename, &
+                                     comment, description
+    use hdf5_tools, only: hid_t, h5_init, h5_create, h5_add, h5_close, h5_deinit
 
     character(len=100) :: filename
     integer(hid_t) :: file_id
-    character(len=100) :: comment, description
     integer :: dims(3)
     real(dp), dimension(:), allocatable :: R
     real(dp), dimension(:,:,:,:), allocatable :: values
 
-    comment = 'Output produced by jorek2_postproc command "rectangular_torus"'
-    description = 'Diagnostic export from JOREK'
+    call print_test("create_mockup_jorek_output")
+
     dims = (/n_phi, n_Z, n_R/)
     allocate(R(n_R))
     call linspace(Rmin, Rmax, n_R, R)
@@ -43,7 +36,6 @@ subroutine create_mockup_jorek_output()
     filename = make_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax)
     call save_filename(filename)
 
-    call print_test("create_mockup_jorek_output")
     call h5_init()
     call h5_create(filename, file_id)
     call h5_add(file_id, 'comment', comment)

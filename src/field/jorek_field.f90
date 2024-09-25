@@ -63,7 +63,7 @@ subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
     A_Z = values(2,:,:,:)
     A_3 = values(3,:,:,:)
     do idx_R = 1, n_R
-        A_phi(idx_R,:,:) = A_3(idx_R,:,:) * R(idx_R)
+        A_phi(idx_R,:,:) = A_3(idx_R,:,:) / R(idx_R)
     end do
     B_R = values(12,:,:,:)
     B_Z = values(13,:,:,:)
