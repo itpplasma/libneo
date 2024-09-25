@@ -11,6 +11,7 @@ call test_create_biotsavart_field
 call test_create_polylag_field
 call test_create_spline_field
 call test_create_spline_field_from_mesh
+call test_create_jorek_field
 
 
 contains
@@ -134,6 +135,26 @@ subroutine test_create_spline_field_from_mesh
 
     call print_ok
 end subroutine test_create_spline_field_from_mesh
+
+
+subroutine test_create_jorek_field
+    use neo_field, only: field_t, create_field
+    use util_for_test_jorek_field, only: get_filename
+
+    class(field_t), allocatable :: field
+    character(len=256) :: filename
+
+    call print_test("test_create_jorek_field")
+
+    call get_filename(filename)
+    call create_field(field, "jorek", filename=filename)
+    if (.not.allocated(field)) then
+        call print_fail
+        error stop
+    end if
+
+    call print_ok
+end subroutine test_create_jorek_field
     
 
 end program test_field

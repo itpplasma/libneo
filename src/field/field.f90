@@ -6,6 +6,7 @@ module neo_field
     use neo_polylag_field, only: polylag_field_t
     use neo_spline_field, only: spline_field_t
     use neo_field_mesh, only: field_mesh_t
+    use neo_jorek_field, only: jorek_field_t
     implicit none
 
     contains
@@ -13,7 +14,8 @@ module neo_field
     subroutine create_field(field, field_type, ampl, ampl2, &
                                                coils_file, &
                                                limits, field_to_interpolate, n_points, &
-                                               field_mesh)
+                                               field_mesh, &
+                                               filename)
         class(field_t), allocatable, intent(inout) :: field
         character(*), intent(in) :: field_type
         real(dp), intent(in), optional :: ampl, ampl2
@@ -22,6 +24,7 @@ module neo_field
         class(field_t), intent(in), optional :: field_to_interpolate
         integer, dimension(3), intent(in), optional :: n_points
         class(field_mesh_t), intent(in), optional :: field_mesh
+        character(*), intent(in), optional :: filename
 
         select case(field_type)
             case("example")
@@ -38,6 +41,8 @@ module neo_field
                     allocate(field, source= &
                             create_spline_field(limits, field_to_interpolate, n_points))
                 end if
+            case("jorek")
+                allocate(field, source=create_jorek_field(filename))
             case default
                 print *, "Invalid field type"
                 error stop
@@ -94,5 +99,14 @@ module neo_field
         allocate(spline_field)
         call spline_field%spline_field_init(field_mesh)
     end function create_spline_field_from_mesh
+
+
+    function create_jorek_field(filename) result(jorek_field)
+        character(*), intent(in) :: filename
+        class(jorek_field_t), allocatable :: jorek_field
+
+        allocate(jorek_field)
+        call jorek_field%jorek_field_init(filename)
+    end function create_jorek_field
 
 end module neo_field
