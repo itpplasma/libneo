@@ -54,6 +54,7 @@ module hdf5_tools
      module procedure h5_add_complex_2
      module procedure h5_add_complex_3
      module procedure h5_add_string
+     module procedure h5_add_string_1
      module procedure h5_add_logical
   end interface h5_add
 
@@ -1870,6 +1871,48 @@ contains
 
     call h5_check()
   end subroutine h5_add_string
+
+  !**********************************************************
+  ! Add 1-dim string matrix
+  !**********************************************************
+
+  subroutine h5_add_string_1(h5id, dataset, value, lbounds, ubounds, comment, unit)
+    integer(HID_T)                              :: h5id
+    character(len=*)                            :: dataset
+    character(len=*), dimension(:)              :: value
+    integer, dimension(:)                       :: lbounds, ubounds
+    character(len=*), optional                  :: comment
+    character(len=*), optional                  :: unit
+
+    integer(HSIZE_T), dimension(:), allocatable :: dims
+    integer(HID_T)                              :: dataset_id, dataspace_id, type_id 
+    integer(SIZE_T)                             :: size, character_size
+    integer                                     :: rank = 1
+
+    if (h5overwrite) call h5_delete(h5id, dataset)
+    allocate(dims(rank))
+    dims = ubounds - lbounds + 1
+    size = rank
+    character_size = len(value(lbounds))
+    call h5screate_simple_f(rank, dims, dataspace_id, h5error)
+    call h5tcopy_f(H5T_FORTRAN_S1, type_id, h5error)
+    call h5tset_size_f(type_id, character_size, h5error)
+    call h5dcreate_f(h5id, trim(dataset), type_id, dataspace_id, dataset_id, h5error)
+    call h5dwrite_f(dataset_id, type_id, value, dims, h5error)
+
+    call h5ltset_attribute_int_f(h5id, dataset, 'lbounds', lbounds, size, h5error)
+    call h5ltset_attribute_int_f(h5id, dataset, 'ubounds', ubounds, size, h5error)
+
+    call h5_set_optional_attributes_float(h5id, dataset, comment, unit)
+
+    call h5dclose_f(dataset_id, h5error)
+    call h5sclose_f(dataspace_id, h5error)
+    call h5tclose_f(type_id, h5error)
+
+    deallocate(dims)
+
+    call h5_check()
+  end subroutine h5_add_string_1
 
   !**********************************************************
   ! Get string

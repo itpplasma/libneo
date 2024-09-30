@@ -77,6 +77,7 @@ add_link_options(${NETCDF_FLIBS})
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
+add_subdirectory(src/interpolate)
 add_subdirectory(src/field)
 
 find_package(BLAS REQUIRED)
@@ -235,6 +236,8 @@ if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
 endif()
 
 list(TRANSFORM FILES_TO_WRAP PREPEND ${PROJECT_SOURCE_DIR}/src/)
+list(REMOVE_ITEM FILES_TO_WRAP ${PROJECT_SOURCE_DIR}/src/interpolate.f90)
+list(APPEND FILES_TO_WRAP ${PROJECT_SOURCE_DIR}/src/interpolate/interpolate.f90)
 
 set(F2PY_MODULE_NAME "_interpolate")
 

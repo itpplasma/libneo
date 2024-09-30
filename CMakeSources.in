@@ -19,7 +19,6 @@ add_library(neo SHARED
     src/solve_systems.f90
     src/system_utility.f90
     src/util.f90
-    src/interpolate.f90
 
     # VMEC
     src/canonical_coordinates_mod.f90
@@ -40,6 +39,8 @@ add_library(neo SHARED
 )
 
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
+target_link_libraries(neo PRIVATE hdf5_tools)
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
 
 target_link_libraries(neo PRIVATE
@@ -107,8 +108,6 @@ else()
 endif()
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
-include_directories(${HDF5_INCLUDE_DIRS})
-
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
 target_link_libraries(magfie
@@ -118,8 +117,6 @@ netcdf
 netcdff
 hdf5_tools
 ${FFTW_LIBRARIES}
-${HDF5_HL_LIBRARIES}
-${HDF5_LIBRARIES}
 ${BLAS_LIBRARIES}
 ${LAPACK_LIBRARIES}
 )

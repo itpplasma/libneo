@@ -43,6 +43,7 @@ add_library(hdf5_tools
 	${CMAKE_SOURCE_DIR}/src/hdf5_tools/hdf5_tools.f90
 	${CMAKE_SOURCE_DIR}/src/hdf5_tools/hdf5_tools_f2003.f90
 )
+target_link_libraries(hdf5_tools PUBLIC ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 
 if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   install (TARGETS hdf5_tools DESTINATION ${CMAKE_SOURCE_DIR}/lib)
