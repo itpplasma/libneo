@@ -11,7 +11,6 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
 elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   set(CMAKE_Fortran_FLAGS "-O2 -cpp -mkl -stand f08")
 endif ()
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR})
 
 ### Find HDF5
 find_package(HDF5 COMPONENTS Fortran Fortran_HL)
@@ -40,8 +39,8 @@ include_directories(${HDF5_INCLUDE_DIRS})
 
 ### Define executable
 add_library(hdf5_tools
-	${CMAKE_SOURCE_DIR}/src/hdf5_tools/hdf5_tools.f90
-	${CMAKE_SOURCE_DIR}/src/hdf5_tools/hdf5_tools_f2003.f90
+	        hdf5_tools.f90
+	        hdf5_tools_f2003.f90
 )
 target_link_libraries(hdf5_tools PUBLIC ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 
