@@ -42,6 +42,7 @@ target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
 target_link_libraries(neo PRIVATE hdf5_tools)
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_poincare_plot>)
 
 target_link_libraries(neo PRIVATE
   rkf45
