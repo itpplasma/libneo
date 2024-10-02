@@ -71,11 +71,11 @@ subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
 
     is_periodic = [.false., .false., .true.]
     call field_mesh%A1%mesh_init(R, Z, phi, A_R, is_periodic)
-    call field_mesh%A2%mesh_init(R, Z, phi, A_Z, is_periodic)
-    call field_mesh%A3%mesh_init(R, Z, phi, A_phi, is_periodic)
+    call field_mesh%A2%mesh_init(R, Z, phi, -A_phi, is_periodic)
+    call field_mesh%A3%mesh_init(R, Z, phi, A_Z, is_periodic)
     call field_mesh%B1%mesh_init(R, Z, phi, B_R, is_periodic)
-    call field_mesh%B2%mesh_init(R, Z, phi, B_Z, is_periodic)
-    call field_mesh%B3%mesh_init(R, Z, phi, B_phi, is_periodic)
+    call field_mesh%B2%mesh_init(R, Z, phi, -B_phi, is_periodic)
+    call field_mesh%B3%mesh_init(R, Z, phi, B_Z, is_periodic)
 
     deallocate(A_R, A_Z, A_phi, A_3, B_R, B_Z, B_phi, values)
 

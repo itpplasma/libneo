@@ -82,18 +82,16 @@ subroutine get_homogenous_field(R, values)
     real(dp), dimension(:,:,:,:), intent(out) :: values
 
     integer :: dims(4)
-    real(dp), dimension(:,:,:), allocatable :: Aphi, A3, Bz
+    real(dp), dimension(:,:,:), allocatable :: A_Z, B_phi
 
     values = 0.0_dp
     dims = shape(values)
-    allocate(Aphi(dims(1), dims(2), dims(3)))
-    allocate(A3(dims(1), dims(2), dims(3)))
-    allocate(Bz(dims(1), dims(2), dims(3)))
-    Aphi = 0.5_dp
-    A3 = Aphi * spread(spread(R, dim=1, ncopies=dims(1)), dim=2, ncopies=dims(2))
-    Bz = 1.0_dp
-    values(:, :, :, 3) = A3
-    values(:, :, :, 13) = Bz
+    allocate(A_Z(dims(1), dims(2), dims(3)))
+    allocate(B_phi(dims(1), dims(2), dims(3)))
+    A_Z = 1.0_dp * spread(spread(R, dim=1, ncopies=dims(1)), dim=2, ncopies=dims(2))
+    B_phi = -1.0_dp
+    values(:, :, :, 2) = A_Z
+    values(:, :, :, 14) = B_phi
 end subroutine get_homogenous_field
 
 
