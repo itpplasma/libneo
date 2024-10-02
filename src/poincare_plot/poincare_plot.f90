@@ -6,103 +6,72 @@ implicit none
 contains
 
 
-subroutine make_poincare_plot(field, rmn, rmx, zmn, zmx, idir, nplot, rmnplot, &
-                              rmxplot, phi0, zet0, ah, hn1, nphi)
-    use ode_integration, only: odeint
+subroutine make_poincare_plot(field, Rmin, Rmax, Zmin, Zmax, idir, &
+                              R_start, phi_start, Z_start, n_periods)
+    use ode_integration, only: odeint_allroutines
     use neo_field_base, only: field_t
 
     class(field_t), intent(in) :: field
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    real(dp), intent(in) :: R_start, phi_start, Z_start
+    integer, intent(in) :: idir, n_periods
 
     real(dp), parameter :: pi = 3.14159265358979d0
     real(dp), parameter :: per_phi = 2*pi
-    real(dp), parameter :: neqn = 2
-    integer :: idir,nplot,nphi,iunit,npoint,i,j,nok,nbad
-    
+    integer, parameter :: neqn = 2
+   
+    real(dp) :: relerr
+    integer :: file_id
+    real(dp) :: phi, phiout
+    integer :: period
     real(dp) :: y(2)
-    real(dp) :: rmn,rmx,zmn,zmx,raxis,zaxis,rmnplot,rmxplot,phi0,zet0
-    real(dp) :: ah,hn1,hn1min,relerr,phiout,divB,epsB
-    real(dp) :: phi,rrr,ppp,zzz,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
-                        ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
+    real(dp) :: R, Z
+    real(dp) :: Br, Bp, Bz
 
-    phi0 = phi0*2.*pi
-    ah = (rmxplot - rmnplot)/(nplot-1)
-    if(nplot .gt. 50) STOP 'too large number of plots'
-
-    ! parameters for ODEINT
-    hn1 = 0.1*idir
-    hn1min = 0.
-    !  relerr = 1.e-12
     relerr = 1.e-8
-    !  nphi = 1000
-    nphi = 3000
-    !  nphi = 10000
-    do i=1, nplot
-        iunit = 50 + (i-1)*idir
-        npoint = 0
-        phi = phi0
 
-        y(1) = rmnplot + (i-1)*ah
-        y(2) = zet0
-        write(*,*)'surface #',i
-        do j=1,nphi
-    print *,j,nphi
-
-            phiout = phi + per_phi*idir
-
-            call odeint(y,neqn,phi,phiout,relerr,hn1,hn1min,nok,nbad,fieldline_derivative) 
-
-            npoint = npoint + 1
-            phi = phiout
-            rrr = y(1)  ! cylindic R
-            ppp = phi   ! cylindic $\phi$
-            zzz = y(2)  ! cylindic Z
-            ppp = set_to_period(ppp)
-            call field(rrr,ppp,zzz,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ                &
-                ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
-
-            divB = Br/rrr + dBrdR + dBzdZ + dBpdp/rrr
-            epsB = divB*rrr/Bp
-            write(iunit,*)rrr,zzz,phi !,epsB,Br,Bp,Bz,rad_old,theta_old
-
-            if( y(1).lt.rmn .or. y(1).gt.rmx .or.            &
-                        y(2).lt.zmn .or. y(2).gt.zmx ) exit
-        enddo
-        close(iunit)
-        write(*,*) npoint, 'points within the domain'
+    open(newunit=file_id, file='poincare_plot.dat', status='replace')
+    y(1) = R_start
+    phi = phi_start
+    y(2) = Z_start
+    do period = 1, n_periods
+        phiout = phi + per_phi*idir
+        call odeint_allroutines(y, neqn, phi , phiout , relerr, fieldline_derivative) 
+        phi = phiout
+        R = y(1)
+        phi = set_to_period(phi)
+        Z = y(2)
+        write(file_id,*) R, phi, Z
+        if( R.lt.Rmin .or. R.gt.Rmax .or. Z.lt.Zmin .or. Z.gt.Zmax ) exit
     enddo
-
+    close(file_id)
+    write(*,*) period, 'finished periods of' , n_periods
 end subroutine make_poincare_plot
 
-subroutine fieldline_derivative(phi,y,dy_dphi)
+subroutine fieldline_derivative(phi,y,dy_dphi,ierr)
     real(dp), intent(in) :: phi
-    real(dp), intent(in) :: y(2)
-    real(dp), intent(out) :: dy_dphi(2)
+    real(dp), intent(in), dimension(:) :: y
+    real(dp), intent(out), dimension(:) :: dy_dphi
+    integer, intent(out) :: ierr
 
-    real(dp) :: rrr,ppp,zzz
+    real(dp) :: R, Z
     real(dp) :: Br,Bp, Bz
 
-    rrr = y(1)
-    zzz = y(2)
-    ppp = phi
-    ppp = set_to_period(ppp)
-
-    
-    call dummy_field(rrr, ppp, zzz, Br, Bp, Bz)
-    dy_dphi(1) = Br*rrr/Bp
-    dy_dphi(2) = Bz*rrr/Bp
-
-    return
+    R = y(1)
+    Z = y(2)
+    call dummy_field(R, set_to_period(phi), Z, Br, Bp, Bz)
+    dy_dphi(1) = Br*R/Bp
+    dy_dphi(2) = Bz*R/Bp
+    ierr = 0
 end subroutine fieldline_derivative
 
-subroutine dummy_field(rrr, ppp, zzz, Br, Bp, Bz)
-    real(dp), intent(in) :: rrr, ppp, zzz
+subroutine dummy_field(R, phi, Z, Br, Bp, Bz)
+    real(dp), intent(in) :: R, phi, Z
     real(dp), intent(out) :: Br, Bp, Bz
 
     Br = 0.0_dp
     Bp = 0.0_dp
-    Bz = 0.0_dp
-
-    return
+    Bz = 1.0_dp
 end subroutine dummy_field
 
 function set_to_period(x)
@@ -110,8 +79,6 @@ function set_to_period(x)
     real(dp) :: set_to_period
 
     set_to_period = x
-    
-    return
 end function set_to_period
 
 end module neo_poincare_plot

@@ -79,7 +79,6 @@ add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)
 add_subdirectory(src/field)
-add_subdirectory(src/poincare_plot)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
