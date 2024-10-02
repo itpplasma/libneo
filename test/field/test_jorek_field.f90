@@ -2,7 +2,7 @@ program test_jorek_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_jorek_field, only: jorek_field_t
 use util_for_test, only: print_test, print_ok, print_fail
-use util_for_test_jorek_field, only: get_filename
+use util_for_test_jorek_field, only: get_filename, filename_len
 
 implicit none
 
@@ -16,7 +16,7 @@ contains
 
 subroutine test_jorek_field_init
     type(jorek_field_t) :: field
-    character(len=100) :: filename
+    character(len=filename_len) :: filename
 
     call print_test("test_jorek_field_init")
 
@@ -30,7 +30,7 @@ end subroutine test_jorek_field_init
 
 subroutine test_jorek_trial_field
     type(jorek_field_t) :: field
-    character(len=100) :: trial_filename
+    character(len=filename_len) :: trial_filename
 
     call print_test("test_trial_field")
 
