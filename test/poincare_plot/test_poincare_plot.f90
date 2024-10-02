@@ -7,7 +7,8 @@ real(dp), parameter :: pi = 3.14159265358979_dp
 character(len=*), parameter :: config_file = 'poincare_plot.inp'
 
 call make_poincare_plot_input
-call test_poincare_plot_call
+call test_make_poincare_plot
+call test_make_poincare_plot_flux_pumping
 call remove_poincare_plot_input
 
 contains
@@ -15,7 +16,7 @@ contains
 subroutine make_poincare_plot_input
     integer :: n_fieldlines = 10
     real(dp) :: fieldline_start_Rmin = 1.75_dp, fieldline_start_Rmax = 2.0_dp
-    real(dp) :: fieldline_start_phi = 0.0_dp, fieldline_start_Z = 0.0_dp
+    real(dp) :: fieldline_start_phi = 0.0_dp, fieldline_start_Z = -0.2_dp
     integer :: n_periods = 100
     real(dp) :: period_length = 2.0_dp * pi
     real(dp) :: integrate_err = 1.0e-6_dp
@@ -45,21 +46,38 @@ subroutine make_poincare_plot_input
     call print_ok
 end subroutine make_poincare_plot_input
 
-subroutine test_poincare_plot_call
+subroutine test_make_poincare_plot
     use neo_poincare_plot, only: make_poincare_plot
+    use neo_jorek_field, only: jorek_field_t
+    use util_for_test_jorek_field, only: get_filename, filename_len
 
-    logical :: exists
+    type(jorek_field_t) :: field
+    character(len=filename_len) :: jorek_file
 
-    call print_test("test_poincare_plot_call")
+    call print_test("test_make_poincare_plot")
 
-    inquire(file=trim(config_file), exist=exists)
-    if (.not. exists) then
-        call print_fail
-        error stop
-    else
-        call print_ok
-    endif
-end subroutine test_poincare_plot_call
+    call get_filename(jorek_file)
+    call field%jorek_field_init(jorek_file)
+    call make_poincare_plot(field, config_file)
+    call print_ok
+end subroutine test_make_poincare_plot
+
+subroutine test_make_poincare_plot_flux_pumping
+    use neo_poincare_plot, only: make_poincare_plot
+    use neo_jorek_field, only: jorek_field_t
+
+    type(jorek_field_t) :: field
+    character(len=512) :: jorek_file
+
+    call print_test("test_make_poincare_plot_flux_pumping")
+
+    jorek_file ="/proj/plasma/DATA/AUG/JOREK/2024-05_test_haowei_flux_pumping/" // &
+    "exprs_Rmin1.140_Rmax2.130_Zmin-0.921_Zmax0.778_phimin0.000_phimax6.283_s40000.h5"
+
+    call field%jorek_field_init(jorek_file)
+    call make_poincare_plot(field, config_file)
+    call print_ok
+end subroutine test_make_poincare_plot_flux_pumping
 
 subroutine remove_poincare_plot_input
     integer :: stat, file_id

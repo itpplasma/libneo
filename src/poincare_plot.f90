@@ -101,10 +101,11 @@ subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
     RZ(1) = R(1)
     RZ(2) = Z(1)
     phi = config%fieldline_start_phi
-    do period = 2, config%n_periods + 1
+    do period = 2, config%n_periods
         phi_end = phi + config%period_length
         call integrate_RZ_along_fieldline(field, RZ, phi, phi_end, config%integrate_err) 
         phi = phi_end
+        print *, "RZ = ", RZ
         if(is_in_plot_region(RZ, config)) then
             R(period) = RZ(1)
             Z(period) = RZ(2)
@@ -113,9 +114,9 @@ subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
             Z(period:) = Z(period-1)
             exit
         end if
+        write(*,*) period, 'finished periods of' , config%n_periods
     enddo
     close(file_id)
-    write(*,*) period, 'finished periods of' , config%n_periods
 end subroutine get_poincare_RZ_of_fieldline
 
 subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
@@ -147,6 +148,9 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
             dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
             dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
             ierr = 0
+            ! print *, "dRZ_dphi = ", dRZ_dphi
+            print *, "RphiZ = ", RphiZ
+            print *, "B = ", B
         end subroutine fieldline_derivative
 end subroutine integrate_RZ_along_fieldline
 
