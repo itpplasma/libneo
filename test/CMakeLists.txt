@@ -114,4 +114,4 @@ set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WA
 add_subdirectory(util_for_test)
 add_subdirectory(field)
 add_subdirectory(polylag)
-add_subdirectory(poincare_plot)
+add_subdirectory(poincare)
