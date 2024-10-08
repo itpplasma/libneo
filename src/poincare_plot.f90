@@ -1,9 +1,9 @@
-module neo_poincare_plot
+module neo_poincare
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_base, only: field_t
 implicit none
 
-type :: poincare_plot_config_t
+type :: poincare_config_t
     integer :: n_fieldlines
     real(dp) :: fieldline_start_Rmin, fieldline_start_Rmax
     real(dp) :: fieldline_start_phi, fieldline_start_Z
@@ -11,7 +11,7 @@ type :: poincare_plot_config_t
     real(dp) :: period_length
     real(dp) :: integrate_err
     real(dp) :: plot_Rmin, plot_Rmax, plot_Zmin, plot_Zmax
-end type poincare_plot_config_t
+end type poincare_config_t
 
 real(dp), parameter :: pi = 3.14159265358979d0
 integer, parameter :: poincare_dim = 2
@@ -19,12 +19,12 @@ integer, parameter :: poincare_dim = 2
 contains
 
 
-subroutine make_poincare_plot(field, config_file)
+subroutine make_poincare(field, config_file)
 
     class(field_t), intent(in) :: field
     character(len=*), intent(in) :: config_file
 
-    type(poincare_plot_config_t) :: config
+    type(poincare_config_t) :: config
 
     integer :: fieldline
     real(dp), dimension(:), allocatable :: R, Z
@@ -42,10 +42,10 @@ subroutine make_poincare_plot(field, config_file)
         call write_poincare_RZ_to_file(R, Z, fieldline)
     enddo
     deallocate(R, Z)
-end subroutine make_poincare_plot
+end subroutine make_poincare
 
 subroutine read_config_file(config, config_file)
-    type(poincare_plot_config_t), intent(out) :: config
+    type(poincare_config_t), intent(out) :: config
     character(len=*), intent(in) :: config_file
 
     integer :: file_id
@@ -55,7 +55,7 @@ subroutine read_config_file(config, config_file)
     real(dp) :: fieldline_start_phi, fieldline_start_Z
     real(dp) :: plot_Rmin, plot_Rmax, plot_Zmin, plot_Zmax
 
-    namelist /poincare_plot/ &
+    namelist /poincare/ &
                 n_fieldlines, &
                 fieldline_start_Rmin, &
                 fieldline_start_Rmax, &
@@ -69,7 +69,7 @@ subroutine read_config_file(config, config_file)
                 plot_Zmax, &
                 integrate_err
     open(newunit=file_id, file=config_file, status='old')
-    read(file_id, nml=poincare_plot)
+    read(file_id, nml=poincare)
     close(file_id)
     config%n_fieldlines = n_fieldlines
     config%fieldline_start_Rmin = fieldline_start_Rmin
@@ -88,7 +88,7 @@ end subroutine read_config_file
 subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
 
     class(field_t), intent(in) :: field
-    type(poincare_plot_config_t), intent(in) :: config
+    type(poincare_config_t), intent(in) :: config
     real(dp), dimension(:), intent(inout) :: R, Z
 
     integer :: file_id
@@ -148,7 +148,7 @@ end subroutine integrate_RZ_along_fieldline
 
 function is_in_plot_region(RZ, config)
     real(dp), intent(in) :: RZ(poincare_dim)
-    type(poincare_plot_config_t), intent(in) :: config
+    type(poincare_config_t), intent(in) :: config
     logical :: is_in_plot_region
 
     is_in_plot_region = .false.
@@ -174,4 +174,4 @@ subroutine write_poincare_RZ_to_file(R, Z, fieldline)
     close(file_id)
 end subroutine write_poincare_RZ_to_file
 
-end module neo_poincare_plot
+end module neo_poincare
