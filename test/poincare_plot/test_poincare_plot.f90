@@ -28,9 +28,9 @@ subroutine make_poincare_plot_input_jorek_field
     config%fieldline_start_Rmax = 2.0_dp
     config%fieldline_start_phi = 0.0_dp
     config%fieldline_start_Z = -0.2_dp
-    config%n_periods = 100
+    config%n_periods = 10
     config%period_length = 2.0_dp * pi
-    config%integrate_err = 1.0e-6_dp
+    config%integrate_err = 1.0e-8_dp
     config%plot_Rmin = 1.0_dp
     config%plot_Rmax = 2.25_dp
     config%plot_Zmin = -1.0_dp
@@ -50,9 +50,9 @@ subroutine make_poincare_plot_input_circular_tokamak_field
     config%fieldline_start_Rmax = 1.5_dp
     config%fieldline_start_phi = 0.0_dp
     config%fieldline_start_Z = 0.0_dp
-    config%n_periods = 100
+    config%n_periods = 50
     config%period_length = 2.0_dp * pi
-    config%integrate_err = 1.0e-6_dp
+    config%integrate_err = 1.0e-8_dp
     config%plot_Rmin = 0.2_dp
     config%plot_Rmax = 2.25_dp
     config%plot_Zmin = -0.8_dp
@@ -102,11 +102,9 @@ subroutine make_poincare_plot_input(config)
     plot_Zmin = config%plot_Zmin
     plot_Zmax = config%plot_Zmax
 
-    call print_test("make_poincare_plot_input")
     open(newunit=file_id, file=config_file, status='unknown')
     write(file_id, nml=poincare_plot)
     close(file_id)
-    call print_ok
 end subroutine make_poincare_plot_input
 
 

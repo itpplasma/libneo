@@ -33,7 +33,7 @@ module neo_circular_tokamak_field
         if (present(B_pol_ampl)) then
             self%B_pol_ampl = B_pol_ampl
         else
-            self%B_pol_ampl = 1.0_dp
+            self%B_pol_ampl = 0.314159_dp
         end if
         if (present(B_tor_ampl)) then
             self%B_tor_ampl = B_tor_ampl

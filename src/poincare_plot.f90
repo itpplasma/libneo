@@ -20,7 +20,6 @@ contains
 
 
 subroutine make_poincare_plot(field, config_file)
-    use ode_integration, only: odeint_allroutines
 
     class(field_t), intent(in) :: field
     character(len=*), intent(in) :: config_file
@@ -87,7 +86,6 @@ subroutine read_config_file(config, config_file)
 end subroutine read_config_file
 
 subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
-    use ode_integration, only: odeint_allroutines
 
     class(field_t), intent(in) :: field
     type(poincare_plot_config_t), intent(in) :: config
@@ -97,7 +95,6 @@ subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
     real(dp) :: RZ(poincare_dim), phi, phi_end
     integer :: period
 
-    open(newunit=file_id, file='poincare_plot.dat', status='replace')
     RZ(1) = R(1)
     RZ(2) = Z(1)
     phi = config%fieldline_start_phi
@@ -105,7 +102,6 @@ subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
         phi_end = phi + config%period_length
         call integrate_RZ_along_fieldline(field, RZ, phi, phi_end, config%integrate_err) 
         phi = phi_end
-        print *, "RZ = ", RZ
         if(is_in_plot_region(RZ, config)) then
             R(period) = RZ(1)
             Z(period) = RZ(2)
@@ -116,7 +112,6 @@ subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
         end if
         write(*,*) period, 'finished periods of' , config%n_periods
     enddo
-    close(file_id)
 end subroutine get_poincare_RZ_of_fieldline
 
 subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
@@ -148,9 +143,6 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
             dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
             dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
             ierr = 0
-            ! print *, "dRZ_dphi = ", dRZ_dphi
-            print *, "RphiZ = ", RphiZ
-            print *, "B = ", B
         end subroutine fieldline_derivative
 end subroutine integrate_RZ_along_fieldline
 
@@ -174,33 +166,12 @@ subroutine write_poincare_RZ_to_file(R, Z, fieldline)
     integer :: period
     character(len=256) :: output_file
 
-    write(output_file, '(A,I0,A)') 'poincare_plot_', fieldline, '.dat'
+    write(output_file, '(A,I0,A)') 'poincare_', fieldline, '.dat'
     open(newunit=file_id, file=output_file, status='replace')
     do period = 1, size(R)
         write(file_id,*) R(period), Z(period)
     enddo
     close(file_id)
 end subroutine write_poincare_RZ_to_file
-
-function set_to_period(x, period_length_in) result(x_in_period)
-    real(dp), intent(in) :: x
-    real(dp), intent(in), optional :: period_length_in
-    real(dp) :: x_in_period
-
-    real(dp) :: period_length
-
-    if (.not. present(period_length_in)) then
-        period_length = 2*pi
-    else
-        period_length = period_length_in
-    end if
-    if (x .ge. period_length) then
-        x_in_period = x - (int(x / period_length)) * period_length
-    elseif (x .lt. 0.) then
-        x_in_period = x + (int(abs(x) / period_length) + 1) * period_length
-    else
-        x_in_period = x
-    end if
-end function set_to_period
 
 end module neo_poincare_plot
