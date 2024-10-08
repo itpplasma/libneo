@@ -26,22 +26,48 @@ subroutine make_poincare(field, config)
 
     integer :: fieldline
     real(dp), dimension(:), allocatable :: R, Z
-    real(dp) :: delta_R
+    real(dp), dimension(:), allocatable :: start_R, start_Z
 
     allocate(R(config%n_periods), Z(config%n_periods))
-    delta_R = (config%fieldline_start_Rmax - config%fieldline_start_Rmin) &
-                        / (config%n_fieldlines - 1)
+    allocate(start_R(config%n_fieldlines), start_Z(config%n_fieldlines))
+    call get_fieldlines_startpoints(config, start_R, start_Z)
     do fieldline = 1, config%n_fieldlines
-        R(1) = config%fieldline_start_Rmin + (fieldline - 1) * delta_R
-        Z(1) = config%fieldline_start_Z
+        R(1) = start_R(fieldline)
+        Z(1) = start_Z(fieldline)
         write(*,*) 'fieldline #', fieldline
-        call get_poincare_RZ_of_fieldline(field, config, R, Z)
+        call get_poincare_RZ(field, config, R, Z)
         call write_poincare_RZ_to_file(R, Z, fieldline)
     enddo
     deallocate(R, Z)
+    deallocate(start_R, start_Z)
 end subroutine make_poincare
 
-subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
+subroutine get_fieldlines_startpoints(config, start_R, start_Z)
+    type(poincare_config_t), intent(in) :: config
+    real(dp), dimension(:), intent(out) :: start_R, start_Z
+
+    real(dp) :: delta_R
+    integer :: fieldline
+
+    if (config%n_fieldlines .gt. 1) then
+        delta_R = (config%fieldline_start_Rmax - config%fieldline_start_Rmin) &
+                  / (config%n_fieldlines - 1)
+            do fieldline = 1, config%n_fieldlines
+                start_R = config%fieldline_start_Rmin + &
+                            (fieldline - 1) * delta_R
+                start_Z = config%fieldline_start_Z
+            end do
+    elseif (config%n_fieldlines .eq. 1) then
+        start_R(1) = config%fieldline_start_Rmin
+        start_Z(1) = config%fieldline_start_Z
+    else
+        write(*,*) 'Error: n_fieldlines must be greater than 0'
+        stop
+    end if
+
+end subroutine get_fieldlines_startpoints
+
+subroutine get_poincare_RZ(field, config, R, Z)
 
     class(field_t), intent(in) :: field
     type(poincare_config_t), intent(in) :: config
@@ -65,9 +91,9 @@ subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
             Z(period:) = Z(period-1)
             exit
         end if
-        write(*,*) period, 'finished periods of' , config%n_periods
+        write(*,*) period, '/', config%n_periods, 'periods finished'
     enddo
-end subroutine get_poincare_RZ_of_fieldline
+end subroutine get_poincare_RZ
 
 subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
     use ode_integration, only: odeint_allroutines
@@ -128,6 +154,7 @@ subroutine write_poincare_RZ_to_file(R, Z, fieldline)
     enddo
     close(file_id)
 end subroutine write_poincare_RZ_to_file
+
 
 subroutine read_config_file(config, config_file)
     type(poincare_config_t), intent(out) :: config
