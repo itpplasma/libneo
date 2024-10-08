@@ -19,18 +19,15 @@ integer, parameter :: poincare_dim = 2
 contains
 
 
-subroutine make_poincare(field, config_file)
+subroutine make_poincare(field, config)
 
     class(field_t), intent(in) :: field
-    character(len=*), intent(in) :: config_file
-
-    type(poincare_config_t) :: config
+    type(poincare_config_t), intent(in) :: config
 
     integer :: fieldline
     real(dp), dimension(:), allocatable :: R, Z
     real(dp) :: delta_R
 
-    call read_config_file(config, config_file)
     allocate(R(config%n_periods), Z(config%n_periods))
     delta_R = (config%fieldline_start_Rmax - config%fieldline_start_Rmin) &
                         / (config%n_fieldlines - 1)
@@ -44,54 +41,12 @@ subroutine make_poincare(field, config_file)
     deallocate(R, Z)
 end subroutine make_poincare
 
-subroutine read_config_file(config, config_file)
-    type(poincare_config_t), intent(out) :: config
-    character(len=*), intent(in) :: config_file
-
-    integer :: file_id
-    integer :: n_periods, n_fieldlines
-    real(dp) :: integrate_err, period_length
-    real(dp) :: fieldline_start_Rmin, fieldline_start_Rmax
-    real(dp) :: fieldline_start_phi, fieldline_start_Z
-    real(dp) :: plot_Rmin, plot_Rmax, plot_Zmin, plot_Zmax
-
-    namelist /poincare/ &
-                n_fieldlines, &
-                fieldline_start_Rmin, &
-                fieldline_start_Rmax, &
-                fieldline_start_phi, &
-                fieldline_start_Z, &
-                n_periods, &
-                period_length, &
-                plot_Rmin, &
-                plot_Rmax, &
-                plot_Zmin, &
-                plot_Zmax, &
-                integrate_err
-    open(newunit=file_id, file=config_file, status='old')
-    read(file_id, nml=poincare)
-    close(file_id)
-    config%n_fieldlines = n_fieldlines
-    config%fieldline_start_Rmin = fieldline_start_Rmin
-    config%fieldline_start_Rmax = fieldline_start_Rmax
-    config%fieldline_start_phi = fieldline_start_phi
-    config%fieldline_start_Z = fieldline_start_Z
-    config%n_periods = n_periods
-    config%period_length = period_length
-    config%integrate_err = integrate_err
-    config%plot_Rmin = plot_Rmin
-    config%plot_Rmax = plot_Rmax
-    config%plot_Zmin = plot_Zmin
-    config%plot_Zmax = plot_Zmax
-end subroutine read_config_file
-
 subroutine get_poincare_RZ_of_fieldline(field, config, R, Z)
 
     class(field_t), intent(in) :: field
     type(poincare_config_t), intent(in) :: config
     real(dp), dimension(:), intent(inout) :: R, Z
 
-    integer :: file_id
     real(dp) :: RZ(poincare_dim), phi, phi_end
     integer :: period
 
@@ -173,5 +128,46 @@ subroutine write_poincare_RZ_to_file(R, Z, fieldline)
     enddo
     close(file_id)
 end subroutine write_poincare_RZ_to_file
+
+subroutine read_config_file(config, config_file)
+    type(poincare_config_t), intent(out) :: config
+    character(len=*), intent(in) :: config_file
+
+    integer :: file_id
+    integer :: n_periods, n_fieldlines
+    real(dp) :: integrate_err, period_length
+    real(dp) :: fieldline_start_Rmin, fieldline_start_Rmax
+    real(dp) :: fieldline_start_phi, fieldline_start_Z
+    real(dp) :: plot_Rmin, plot_Rmax, plot_Zmin, plot_Zmax
+
+    namelist /poincare/ &
+                n_fieldlines, &
+                fieldline_start_Rmin, &
+                fieldline_start_Rmax, &
+                fieldline_start_phi, &
+                fieldline_start_Z, &
+                n_periods, &
+                period_length, &
+                plot_Rmin, &
+                plot_Rmax, &
+                plot_Zmin, &
+                plot_Zmax, &
+                integrate_err
+    open(newunit=file_id, file=config_file, status='old')
+    read(file_id, nml=poincare)
+    close(file_id)
+    config%n_fieldlines = n_fieldlines
+    config%fieldline_start_Rmin = fieldline_start_Rmin
+    config%fieldline_start_Rmax = fieldline_start_Rmax
+    config%fieldline_start_phi = fieldline_start_phi
+    config%fieldline_start_Z = fieldline_start_Z
+    config%n_periods = n_periods
+    config%period_length = period_length
+    config%integrate_err = integrate_err
+    config%plot_Rmin = plot_Rmin
+    config%plot_Rmax = plot_Rmax
+    config%plot_Zmin = plot_Zmin
+    config%plot_Zmax = plot_Zmax
+end subroutine read_config_file
 
 end module neo_poincare

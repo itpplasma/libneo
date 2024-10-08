@@ -109,28 +109,31 @@ end subroutine write_poincare_config
 
 
 subroutine test_make_poincare
-    use neo_poincare, only: make_poincare
+    use neo_poincare, only: make_poincare, read_config_file, poincare_config_t
     use neo_jorek_field, only: jorek_field_t
     use util_for_test_jorek_field, only: get_filename, filename_len
 
-    type(jorek_field_t) :: field
     character(len=filename_len) :: jorek_file
+    type(jorek_field_t) :: field
+    type(poincare_config_t) :: config
 
     call print_test("test_make_poincare")
 
     call get_filename(jorek_file)
     call field%jorek_field_init(jorek_file)
-    call make_poincare(field, config_file)
+    call read_config_file(config, config_file)
+    call make_poincare(field, config)
     call print_ok
 end subroutine test_make_poincare
 
 
 subroutine test_make_poincare_flux_pumping
-    use neo_poincare, only: make_poincare
+    use neo_poincare, only: make_poincare, read_config_file, poincare_config_t
     use neo_jorek_field, only: jorek_field_t
 
-    type(jorek_field_t) :: field
     character(len=512) :: jorek_file
+    type(jorek_field_t) :: field
+    type(poincare_config_t) :: config
 
     call print_test("test_make_poincare_flux_pumping")
 
@@ -138,19 +141,25 @@ subroutine test_make_poincare_flux_pumping
     "exprs_Rmin1.140_Rmax2.130_Zmin-0.921_Zmax0.778_phimin0.000_phimax6.283_s40000.h5"
 
     call field%jorek_field_init(jorek_file)
-    call make_poincare(field, config_file)
+    call read_config_file(config, config_file)
+    call make_poincare(field, config)
     call print_ok
 end subroutine test_make_poincare_flux_pumping
 
 
 subroutine test_make_poincare_circular_tokamak_field()
-    use neo_poincare, only: make_poincare
+    use neo_poincare, only: make_poincare, read_config_file, poincare_config_t
     use neo_circular_tokamak_field, only: circular_tokamak_field_t
 
     type(circular_tokamak_field_t) :: field
+    type(poincare_config_t) :: config
 
+    call print_test("test_make_poincare_circular_tokamak_field")
     call field%circular_tokamak_field_init()
-    call make_poincare(field, config_file)
+    call read_config_file(config, config_file)
+    call make_poincare(field, config)
+
+    call print_ok
 end subroutine test_make_poincare_circular_tokamak_field
 
 
