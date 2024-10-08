@@ -16,10 +16,10 @@ subroutine create_mockup_jorek_output()
     use util_for_test_jorek_field, only: Rmin, Rmax, Zmin, Zmax, phimin, phimax, &
                                      n_var, n_R, n_Z, n_phi, ndim, index_now, &
                                      t_now, time, variables, save_filename, &
-                                     comment, description
+                                     comment, description, filename_len
     use hdf5_tools, only: hid_t, h5_init, h5_create, h5_add, h5_close, h5_deinit
 
-    character(len=100) :: filename
+    character(len=filename_len) :: filename
     integer(hid_t) :: file_id
     integer :: dims(3)
     real(dp), dimension(:), allocatable :: R
@@ -59,20 +59,22 @@ subroutine create_mockup_jorek_output()
 end subroutine create_mockup_jorek_output
 
 function make_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax) result(filename)
+    use iso_c_binding
+    use util_for_test_jorek_field, only: filename_len
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax, phimin, phimax
-    character(len=100) :: filename
+    character(len=filename_len) :: filename
 
-    character(len=100) :: tmp_filename
+    character(len=filename_len) :: tmp_filename
+    character(len=filename_len) :: current_directory
+    integer :: ierr
 
-    ! Generate the filename using formatted output
     write(tmp_filename, '(A,F5.3,A,F5.3,A,F6.3,A,F5.3,A,F5.3,A,F5.3,A)') &
         'exprs_Rmin', Rmin, '_Rmax', Rmax, &
         '_Zmin', Zmin, '_Zmax', Zmax, &
         '_phimin', phimin, '_phimax', phimax, &
         '.h5'
-
-    ! Store the result into the output filename
-    filename = trim(tmp_filename)
+    call getcwd(current_directory, ierr)
+    filename = trim(adjustl(current_directory)) // '/' // trim(tmp_filename)
 end function make_filename
 
 subroutine get_homogenous_field(R, values)
@@ -80,18 +82,16 @@ subroutine get_homogenous_field(R, values)
     real(dp), dimension(:,:,:,:), intent(out) :: values
 
     integer :: dims(4)
-    real(dp), dimension(:,:,:), allocatable :: Aphi, A3, Bz
+    real(dp), dimension(:,:,:), allocatable :: A_Z, B_phi
 
     values = 0.0_dp
     dims = shape(values)
-    allocate(Aphi(dims(1), dims(2), dims(3)))
-    allocate(A3(dims(1), dims(2), dims(3)))
-    allocate(Bz(dims(1), dims(2), dims(3)))
-    Aphi = 0.5_dp
-    A3 = Aphi * spread(spread(R, dim=1, ncopies=dims(1)), dim=2, ncopies=dims(2))
-    Bz = 1.0_dp
-    values(:, :, :, 3) = A3
-    values(:, :, :, 13) = Bz
+    allocate(A_Z(dims(1), dims(2), dims(3)))
+    allocate(B_phi(dims(1), dims(2), dims(3)))
+    A_Z = 1.0_dp * spread(spread(R, dim=1, ncopies=dims(1)), dim=2, ncopies=dims(2))
+    B_phi = -1.0_dp
+    values(:, :, :, 2) = A_Z
+    values(:, :, :, 14) = B_phi
 end subroutine get_homogenous_field
 
 

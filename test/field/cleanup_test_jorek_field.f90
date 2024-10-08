@@ -13,7 +13,7 @@ contains
 
 
 subroutine remove_mockup_jorek_output()
-    character(len=100) :: filename
+    character(len=256) :: filename
     integer :: stat, unit_id
     logical :: exists
 

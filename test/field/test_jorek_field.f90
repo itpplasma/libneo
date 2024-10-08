@@ -2,7 +2,7 @@ program test_jorek_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_jorek_field, only: jorek_field_t
 use util_for_test, only: print_test, print_ok, print_fail
-use util_for_test_jorek_field, only: get_filename
+use util_for_test_jorek_field, only: get_filename, filename_len
 
 implicit none
 
@@ -16,7 +16,7 @@ contains
 
 subroutine test_jorek_field_init
     type(jorek_field_t) :: field
-    character(len=100) :: filename
+    character(len=filename_len) :: filename
 
     call print_test("test_jorek_field_init")
 
@@ -30,7 +30,7 @@ end subroutine test_jorek_field_init
 
 subroutine test_jorek_trial_field
     type(jorek_field_t) :: field
-    character(len=100) :: trial_filename
+    character(len=filename_len) :: trial_filename
 
     call print_test("test_trial_field")
 
@@ -50,9 +50,9 @@ subroutine is_trial_field(field)
     integer, parameter :: n = 1000
     real(dp), parameter :: tol = 1.0e-10_dp
 
-    real(dp) :: A_trial(3) = (/0.0_dp, 0.0_dp, 0.5_dp/), A(3)
+    real(dp) :: A_trial(3), A(3)
     real(dp) :: B_trial(3) = (/0.0_dp, 1.0_dp, 0.0_dp/), B(3)
-    real(dp) :: x(3,n)
+    real(dp) :: x(3,n), R
     integer :: idx
 
     x(1,:) = get_random_numbers(Rmin, Rmax, n)
@@ -61,6 +61,8 @@ subroutine is_trial_field(field)
 
     do idx = 1, n
         call field%compute_abfield(x(:,idx), A, B)
+        R = x(1,idx)
+        A_trial = (/0.0_dp, 0.0_dp, 1.0_dp/) * R
         if (any(abs(A - A_trial) > tol) .or. any(abs(B - B_trial) > tol)) then
             print *, "mis-match at x = ", x(:,idx)
             print *, "A = ", A, "B = ", B

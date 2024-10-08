@@ -12,9 +12,10 @@ integer, parameter :: ndim = 3, index_now = 1000
 real(dp), parameter :: t_now = 10000, time = 0.01
 character(len=5), parameter :: variables(17) = (/"p","h","i"," "," "," "," "," ", & 
                                                 " "," "," "," ","A","_","R"," "," "/)
-character(len=*), parameter :: save_location = 'jorek_filename.txt'
+character(len=*), parameter :: save_location = '../jorek_filename.txt'
 character(len=*), parameter :: comment = 'Mockup output from JOREK'
 character(len=*), parameter :: description = 'Diagnostic export from JOREK'
+integer, parameter :: filename_len = 512
 
 
 contains
