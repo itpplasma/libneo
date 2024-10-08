@@ -51,11 +51,11 @@ subroutine get_fieldlines_startpoints(config, start_R, start_Z)
 
     if (config%n_fieldlines .gt. 1) then
         delta_R = (config%fieldline_start_Rmax - config%fieldline_start_Rmin) &
-                  / (config%n_fieldlines - 1)
+                  / real(config%n_fieldlines - 1, kind=dp)
             do fieldline = 1, config%n_fieldlines
-                start_R = config%fieldline_start_Rmin + &
+                start_R(fieldline) = config%fieldline_start_Rmin + &
                             (fieldline - 1) * delta_R
-                start_Z = config%fieldline_start_Z
+                start_Z(fieldline) = config%fieldline_start_Z
             end do
     elseif (config%n_fieldlines .eq. 1) then
         start_R(1) = config%fieldline_start_Rmin
@@ -123,6 +123,9 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
             call field%compute_bfield(RphiZ, B)
             dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
             dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
+            print *, "RphiZ = ", RphiZ
+            print *, "B = ", B
+            print *, "dRZ_dphi = ", dRZ_dphi
             ierr = 0
         end subroutine fieldline_derivative
 end subroutine integrate_RZ_along_fieldline

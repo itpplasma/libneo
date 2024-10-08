@@ -12,7 +12,7 @@ jorek_config%n_fieldlines = 10
 jorek_config%fieldline_start_Rmin = 1.75_dp
 jorek_config%fieldline_start_Rmax = 2.0_dp
 jorek_config%fieldline_start_phi = 0.0_dp
-jorek_config%fieldline_start_Z = -0.2_dp
+jorek_config%fieldline_start_Z = 0.0_dp
 jorek_config%n_periods = 10
 jorek_config%period_length = 2.0_dp * pi
 jorek_config%integrate_err = 1.0e-8_dp
@@ -21,8 +21,8 @@ jorek_config%plot_Rmax = 2.25_dp
 jorek_config%plot_Zmin = -1.0_dp
 jorek_config%plot_Zmax = 1.0_dp
 
-call test_make_poincare
-!call test_make_poincare_flux_pumping
+!call test_make_poincare
+call test_make_poincare_flux_pumping
 call test_get_poincare_RZ_for_closed_fieldline
 call test_read_config_file
 
@@ -64,8 +64,10 @@ subroutine test_make_poincare_flux_pumping
     "exprs_Rmin1.140_Rmax2.130_Zmin-0.921_Zmax0.778_phimin0.000_phimax6.283_s40000.h5"
 
     call field%jorek_field_init(jorek_file)
+    call write_poincare_config(jorek_config)
     call read_config_file(config, config_file)
     call make_poincare(field, config)
+    call remove_poincare_config
     call print_ok
 end subroutine test_make_poincare_flux_pumping
 
