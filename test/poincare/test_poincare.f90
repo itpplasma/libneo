@@ -21,8 +21,8 @@ jorek_config%plot_Rmax = 2.25_dp
 jorek_config%plot_Zmin = -1.0_dp
 jorek_config%plot_Zmax = 1.0_dp
 
-!call test_make_poincare
-call test_make_poincare_flux_pumping
+call test_make_poincare
+!call test_make_poincare_flux_pumping
 call test_get_poincare_RZ_for_closed_fieldline
 call test_read_config_file
 
@@ -30,22 +30,31 @@ contains
 
 
 subroutine test_make_poincare
-    use neo_poincare, only: make_poincare, read_config_file, poincare_config_t
-    use neo_jorek_field, only: jorek_field_t
+    use neo_poincare, only: make_poincare, poincare_config_t
+    use neo_circular_tokamak_field, only: circular_tokamak_field_t
     use util_for_test_jorek_field, only: get_filename, filename_len
 
     character(len=filename_len) :: jorek_file
-    type(jorek_field_t) :: field
+    type(circular_tokamak_field_t) :: field
     type(poincare_config_t) :: config
 
     call print_test("test_make_poincare")
 
-    call get_filename(jorek_file)
-    call field%jorek_field_init(jorek_file)
-    call write_poincare_config(jorek_config)
-    call read_config_file(config, config_file)
+    call field%circular_tokamak_field_init()
+    config%fieldline_start_Rmin = 1.1_dp
+    config%fieldline_start_Rmax = 1.5_dp
+    config%fieldline_start_phi = 0.0_dp
+    config%fieldline_start_Z = 0.0_dp
+    config%n_fieldlines = 10
+    config%n_periods = 11
+    config%period_length = 2.0_dp * pi
+    config%integrate_err = 1.0e-6_dp
+    config%plot_Rmin = 0.5_dp
+    config%plot_Rmax = 2.0_dp
+    config%plot_Zmin = -1.0_dp
+    config%plot_Zmax = 1.0_dp
+
     call make_poincare(field, config)
-    call remove_poincare_config
     call print_ok
 end subroutine test_make_poincare
 
