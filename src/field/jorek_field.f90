@@ -2,11 +2,14 @@ module neo_jorek_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_mesh, only: field_mesh_t
 use neo_spline_field, only: spline_field_t
+use interpolate, only: SplineData3D
+use neo_mesh, only: mesh_t
 
 implicit none
 
 
 type, extends(spline_field_t) :: jorek_field_t
+    type(SplineData3D) :: fluxfunction_spline
     contains
         procedure :: jorek_field_init
 end type jorek_field_t
@@ -21,35 +24,24 @@ subroutine jorek_field_init(self, jorek_filename)
     character(*), intent(in), optional :: jorek_filename
 
     type(field_mesh_t) :: field_mesh
+    type(mesh_t) :: fluxfunction_mesh
 
     call load_field_mesh_from_jorek(jorek_filename, field_mesh)
+    call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call self%spline_field_init(field_mesh)
-
 end subroutine jorek_field_init
 
 subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
-    use neo_field_mesh, only: linspace
-
     character(*), intent(in) :: jorek_filename
     type(field_mesh_t), intent(out) :: field_mesh
 
     integer :: n_R, n_Z, n_phi, idx_R
-    real(dp) :: Rmin, Rmax, Zmin, Zmax, phimin, phimax
     real(dp), dimension(:), allocatable :: R, Z, phi
     real(dp), dimension(:,:,:,:), allocatable :: values
     real(dp), dimension(:,:,:), allocatable :: A_R, A_Z, A_phi, A_3, B_R, B_Z, B_phi
     logical :: is_periodic(3)
 
-    
-    call read_dims_and_values_from_jorek(jorek_filename, n_R, n_phi, n_Z, values)
-    allocate(R(n_R), phi(n_phi), Z(n_Z))
-
-    call get_ranges_from_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax, &
-                                  jorek_filename)
-    R = linspace(Rmin, Rmax, n_R)
-    Z = linspace(Zmin, Zmax, n_Z)
-    phi = linspace(phimin, phimax, n_phi)
-
+    call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
     allocate(A_R(n_R, n_phi, n_Z), A_Z(n_R, n_phi, n_Z), &
              A_phi(n_R, n_phi, n_Z), A_3(n_R, n_phi, n_Z), &
              B_R(n_R, n_phi, n_Z), B_Z(n_R, n_phi, n_Z), B_phi(n_R, n_phi, n_Z))
@@ -72,9 +64,49 @@ subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
     call field_mesh%B2%mesh_init(R, phi, Z, -B_phi, is_periodic)
     call field_mesh%B3%mesh_init(R, phi, Z, B_Z, is_periodic)
 
-    deallocate(A_R, A_Z, A_phi, A_3, B_R, B_Z, B_phi, values)
-
+    deallocate(A_R, A_Z, A_phi, A_3, B_R, B_Z, B_phi, values, R, Z, phi)
 end subroutine load_field_mesh_from_jorek
+
+subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
+    character(*), intent(in) :: jorek_filename
+    type(mesh_t), intent(out) :: fluxfunction_mesh
+
+    integer :: n_R, n_Z, n_phi
+    real(dp), dimension(:), allocatable :: R, Z, phi
+    real(dp), dimension(:,:,:,:), allocatable :: values
+    real(dp), dimension(:,:,:), allocatable :: fluxfunction
+    logical :: is_periodic(3)
+
+    call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
+    allocate(fluxfunction(n_R, n_phi, n_Z))
+             
+    fluxfunction = values(11,:,:,:)
+
+    is_periodic = [.false., .true., .false.]
+    call fluxfunction_mesh%mesh_init(R, phi, Z, fluxfunction, is_periodic)
+    deallocate(fluxfunction, values, R, Z, phi)
+end subroutine load_fluxfunction_mesh_from_jorek
+
+
+subroutine get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, & 
+                                                          n_R, n_phi, n_Z)
+    use neo_field_mesh, only: linspace
+
+    character(*), intent(in) :: jorek_filename
+    real(dp), dimension(:), allocatable, intent(out) :: R, phi, Z
+    real(dp), dimension(:,:,:,:), allocatable, intent(out) :: values
+    integer, intent(out) :: n_R, n_Z, n_phi
+
+    real(dp) :: Rmin, Rmax, Zmin, Zmax, phimin, phimax
+    
+    call read_dims_and_values_from_jorek(jorek_filename, n_R, n_phi, n_Z, values)
+    allocate(R(n_R), phi(n_phi), Z(n_Z))
+    call get_ranges_from_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax, &
+                                jorek_filename)
+    R = linspace(Rmin, Rmax, n_R)
+    Z = linspace(Zmin, Zmax, n_Z)
+    phi = linspace(phimin, phimax, n_phi)
+end subroutine get_grid_and_values_from_jorek
 
 subroutine read_dims_and_values_from_jorek(jorek_filename, n_R, n_phi, n_Z, values)
     use hdf5_tools, only: hid_t, h5_init, h5_open, h5_get, h5_close, h5_deinit
