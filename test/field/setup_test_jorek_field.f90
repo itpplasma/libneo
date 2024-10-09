@@ -81,17 +81,23 @@ subroutine get_homogenous_field(R, values)
     real(dp), dimension(:), intent(in) :: R
     real(dp), dimension(:,:,:,:), intent(out) :: values
 
-    integer :: dims(4)
-    real(dp), dimension(:,:,:), allocatable :: A_Z, B_phi
+    integer :: dims(4), n_R, n_phi, n_Z
+    real(dp), dimension(:,:,:), allocatable :: A_Z, B_phi, fluxfunction
 
     values = 0.0_dp
     dims = shape(values)
-    allocate(A_Z(dims(1), dims(2), dims(3)))
-    allocate(B_phi(dims(1), dims(2), dims(3)))
-    A_Z = 1.0_dp * spread(spread(R, dim=1, ncopies=dims(1)), dim=2, ncopies=dims(2))
+    n_phi = dims(1)
+    n_Z = dims(2)
+    n_R = dims(3)
+    allocate(A_Z(n_phi, n_Z, n_R))
+    allocate(B_phi(n_phi, n_Z, n_R))
+    allocate(fluxfunction(n_phi, n_Z, n_R))
+    A_Z = 1.0_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
     B_phi = -1.0_dp
+    fluxfunction = -1.0_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
     values(:, :, :, 2) = A_Z
     values(:, :, :, 14) = B_phi
+    values(:, :, :, 11) = fluxfunction
 end subroutine get_homogenous_field
 
 
