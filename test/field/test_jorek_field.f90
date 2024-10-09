@@ -52,6 +52,7 @@ subroutine is_trial_field(field)
 
     real(dp) :: A_trial(3), A(3)
     real(dp) :: B_trial(3) = (/0.0_dp, 1.0_dp, 0.0_dp/), B(3)
+    real(dp) :: fluxfunction_trial, fluxfunction
     real(dp) :: x(3,n), R
     integer :: idx
 
@@ -70,8 +71,16 @@ subroutine is_trial_field(field)
             call print_fail
             error stop
         end if
+        call field%compute_fluxfunction(x(:,idx), fluxfunction)
+        fluxfunction_trial = -1.0_dp * R
+        if (abs(fluxfunction - fluxfunction_trial) > tol) then
+            print *, "mis-match at x = ", x(:,idx)
+            print *, "fluxfunction = ", fluxfunction, &
+                     "fluxfunction_trial = ", fluxfunction_trial
+            call print_fail
+            error stop
+        end if
     end do
-
 end subroutine is_trial_field
 
 function get_random_numbers(xmin, xmax, n, seed) result(x)

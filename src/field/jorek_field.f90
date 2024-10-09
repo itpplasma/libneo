@@ -1,7 +1,7 @@
 module neo_jorek_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_mesh, only: field_mesh_t
-use neo_spline_field, only: spline_field_t
+use neo_spline_field, only: spline_field_t, make_spline_from_mesh
 use interpolate, only: SplineData3D
 use neo_mesh, only: mesh_t
 
@@ -12,11 +12,11 @@ type, extends(spline_field_t) :: jorek_field_t
     type(SplineData3D) :: fluxfunction_spline
     contains
         procedure :: jorek_field_init
+        procedure :: compute_fluxfunction
 end type jorek_field_t
 
 
 contains
-
 
 subroutine jorek_field_init(self, jorek_filename)
 
@@ -27,8 +27,9 @@ subroutine jorek_field_init(self, jorek_filename)
     type(mesh_t) :: fluxfunction_mesh
 
     call load_field_mesh_from_jorek(jorek_filename, field_mesh)
-    call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call self%spline_field_init(field_mesh)
+    call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
+    call make_spline_from_mesh(fluxfunction_mesh, self%fluxfunction_spline)
 end subroutine jorek_field_init
 
 subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
@@ -187,5 +188,15 @@ subroutine get_ranges_from_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax, file
     read(filename(pos+len('phimax'):pos+len('phimax')+ndigits), *) phimax
 end subroutine get_ranges_from_filename
 
+
+subroutine compute_fluxfunction(self, x, fluxfunction)
+    use interpolate, only: evaluate_splines_3d
+
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: fluxfunction
+
+    call evaluate_splines_3d(self%fluxfunction_spline, x, fluxfunction)
+end subroutine compute_fluxfunction
 
 end module neo_jorek_field
