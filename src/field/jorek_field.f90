@@ -51,18 +51,18 @@ subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
     A_Z = values(2,:,:,:)
     A_3 = values(3,:,:,:)
     do idx_R = 1, n_R
-        A_phi(idx_R,:,:) = A_3(idx_R,:,:) / R(idx_R)
+        A_phi(idx_R,:,:) = -A_3(idx_R,:,:) / R(idx_R)
     end do
     B_R = values(12,:,:,:)
     B_Z = values(13,:,:,:)
-    B_phi = values(14,:,:,:)
+    B_phi = -values(14,:,:,:)
 
     is_periodic = [.false., .true., .false.]
     call field_mesh%A1%mesh_init(R, phi, Z, A_R, is_periodic)
-    call field_mesh%A2%mesh_init(R, phi, Z, -A_phi, is_periodic)
+    call field_mesh%A2%mesh_init(R, phi, Z, A_phi, is_periodic)
     call field_mesh%A3%mesh_init(R, phi, Z, A_Z, is_periodic)
     call field_mesh%B1%mesh_init(R, phi, Z, B_R, is_periodic)
-    call field_mesh%B2%mesh_init(R, phi, Z, -B_phi, is_periodic)
+    call field_mesh%B2%mesh_init(R, phi, Z, B_phi, is_periodic)
     call field_mesh%B3%mesh_init(R, phi, Z, B_Z, is_periodic)
 
     deallocate(A_R, A_Z, A_phi, A_3, B_R, B_Z, B_phi, values, R, Z, phi)
@@ -81,7 +81,7 @@ subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
     allocate(fluxfunction(n_R, n_phi, n_Z))
              
-    fluxfunction = values(11,:,:,:)
+    fluxfunction = -values(11,:,:,:)
 
     is_periodic = [.false., .true., .false.]
     call fluxfunction_mesh%mesh_init(R, phi, Z, fluxfunction, is_periodic)

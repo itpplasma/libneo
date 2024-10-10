@@ -92,9 +92,9 @@ subroutine get_homogenous_field(R, values)
     allocate(A_Z(n_phi, n_Z, n_R))
     allocate(B_phi(n_phi, n_Z, n_R))
     allocate(fluxfunction(n_phi, n_Z, n_R))
-    A_Z = 1.0_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
+    A_Z = -0.5_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
     B_phi = -1.0_dp
-    fluxfunction = -1.0_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
+    fluxfunction = -0.5_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
     values(:, :, :, 2) = A_Z
     values(:, :, :, 14) = B_phi
     values(:, :, :, 11) = fluxfunction
