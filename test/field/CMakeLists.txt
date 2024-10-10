@@ -68,6 +68,7 @@ add_executable(test_jorek_field.x test_jorek_field.f90)
 target_link_libraries(test_jorek_field.x PRIVATE neo
                                                  hdf5_tools
                                                  util_for_test
+                                                 util_for_test_field
                                                  util_for_test_jorek_field)
 add_test(NAME test_jorek_field COMMAND test_jorek_field.x)
 set_tests_properties(test_jorek_field PROPERTIES 
