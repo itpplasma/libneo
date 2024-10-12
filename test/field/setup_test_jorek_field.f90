@@ -72,7 +72,7 @@ function make_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax) result(filename)
         'exprs_Rmin', Rmin, '_Rmax', Rmax, &
         '_Zmin', Zmin, '_Zmax', Zmax, &
         '_phimin', phimin, '_phimax', phimax, &
-        '.h5'
+        '_s40000.h5'
     call getcwd(current_directory, ierr)
     filename = trim(adjustl(current_directory)) // '/' // trim(tmp_filename)
 end function make_filename

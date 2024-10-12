@@ -166,27 +166,33 @@ subroutine get_ranges_from_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax, file
     character(*), intent(in) :: filename
     real(dp), intent(out) :: Rmin, Rmax, Zmin, Zmax, phimin, phimax
 
-    integer, parameter :: ndigits = 4
-    integer :: pos
-
-    pos = index(filename, 'Rmin')
-    read(filename(pos+len('Rmin'):pos+len('Rmin')+ndigits), *) Rmin
-
-    pos = index(filename, 'Rmax')
-    read(filename(pos+len('Rmax'):pos+len('Rmax')+ndigits), *) Rmax
-
-    pos = index(filename, 'Zmin')
-    read(filename(pos+len('Zmin'):pos+len('Zmin')+ndigits), *) Zmin
-
-    pos = index(filename, 'Zmax')
-    read(filename(pos+len('Zmax'):pos+len('Zmax')+ndigits), *) Zmax
-
-    pos = index(filename, 'phimin')
-    read(filename(pos+len('phimin'):pos+len('phimin')+ndigits), *) phimin
-
-    pos = index(filename, 'phimax')
-    read(filename(pos+len('phimax'):pos+len('phimax')+ndigits), *) phimax
+    call get_value_from_filename(filename, 'Rmin', Rmin)
+    call get_value_from_filename(filename, 'Rmax', Rmax)
+    call get_value_from_filename(filename, 'Zmin', Zmin)
+    call get_value_from_filename(filename, 'Zmax', Zmax)
+    call get_value_from_filename(filename, 'phimin', phimin)
+    call get_value_from_filename(filename, 'phimax', phimax)
 end subroutine get_ranges_from_filename
+
+subroutine get_value_from_filename(filename, keyword, value)
+    character(*), intent(in) :: filename
+    character (*), intent(in) :: keyword
+    real(dp), intent(out) :: value
+
+    integer, parameter :: ndigits_max = 10
+    character(ndigits_max) :: value_str
+    integer :: keyword_start, value_start, value_end
+
+    keyword_start = index(filename, keyword)
+    value_start = len(keyword) + keyword_start
+    value_str = filename(value_start:)
+    value_end = index(value_str, '_') - 1
+    if (value_end < 0) then
+        value_end = len(value_str)
+    end if
+    value_str = value_str(:value_end)
+    read(value_str, *) value
+end subroutine get_value_from_filename
 
 
 subroutine compute_fluxfunction(self, x, fluxfunction)

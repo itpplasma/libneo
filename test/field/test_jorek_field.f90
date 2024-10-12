@@ -6,12 +6,69 @@ use util_for_test_jorek_field, only: get_filename, filename_len
 
 implicit none
 
-
+call test_get_ranges_from_filename
 call test_jorek_field_init
 call test_jorek_trial_field
-
+call test_jorek_flux_pumping_field
 
 contains
+
+
+subroutine test_get_ranges_from_filename
+    use neo_jorek_field, only: get_ranges_from_filename
+
+    real(dp), parameter :: tol = 1.0e-10_dp
+    real(dp), parameter :: expected_Rmin = 1.234_dp, expected_Rmax = 4.321_dp
+    real(dp), parameter :: expected_Zmin = -1.234_dp, expected_Zmax = 1.234_dp
+    real(dp), parameter :: expected_phimin = 1.234_dp, expected_phimax = 4.321_dp
+
+    real(dp) :: Rmin, Rmax, Zmin, Zmax, phimin, phimax
+    character(len=200) :: filename
+
+    call print_test("test_get_ranges_from_filename")
+
+    filename = "exprs_Rmin1.234_Rmax4.321_Zmin-1.234_Zmax1.234_phimin1.234_phimax4.321_s40000.h5"
+    call get_ranges_from_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax, filename)
+    if (is_not_same(Rmin, expected_Rmin, tol)) then
+        print *, "Rmin = ", Rmin, "expected_Rmin = ", expected_Rmin
+        call print_fail
+        error stop
+    end if
+    if (is_not_same(Rmax, expected_Rmax, tol)) then
+        print *, "Rmax = ", Rmax, "expected_Rmax = ", expected_Rmax
+        call print_fail
+        error stop
+    end if
+    if (is_not_same(Zmin, expected_Zmin, tol)) then
+        print *, "Zmin = ", Zmin, "expected_Zmin = ", expected_Zmin
+        call print_fail
+        error stop
+    end if
+    if (is_not_same(Zmax, expected_Zmax, tol)) then
+        print *, "Zmax = ", Zmax, "expected_Zmax = ", expected_Zmax
+        call print_fail
+        error stop
+    end if
+    if (is_not_same(phimin, expected_phimin, tol)) then
+        print *, "phimin = ", phimin, "expected_phimin = ", expected_phimin
+        call print_fail
+        error stop
+    end if
+    if (is_not_same(phimax, expected_phimax, tol)) then
+        print *, "phimax = ", phimax, "expected_phimax = ", expected_phimax
+        call print_fail
+        error stop
+    end if
+
+    call print_ok
+end subroutine test_get_ranges_from_filename
+
+function is_not_same(a, b, tol)
+    real(dp), intent(in) :: a, b, tol
+    logical :: is_not_same
+
+    is_not_same = abs(a - b) > tol
+end function is_not_same
 
 
 subroutine test_jorek_field_init
@@ -84,6 +141,16 @@ subroutine is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
     end do
 end subroutine is_trial_field
 
+
+subroutine test_jorek_flux_pumping_field
+    use neo_jorek_field, only: get_ranges_from_filename
+
+    type(jorek_field_t) :: field
+    character(len=200) :: flux_pumping_filename
+
+end subroutine test_jorek_flux_pumping_field
+
+
 subroutine is_curla_plus_fluxfunction_equal_b(field, &
                                               Rmin, Rmax, &
                                               phimin, phimax, &
@@ -118,9 +185,8 @@ subroutine is_curla_plus_fluxfunction_equal_b(field, &
             error stop
         end if
     end do
-
-    call print_ok
 end subroutine is_curla_plus_fluxfunction_equal_b
+
 
 function get_random_numbers(xmin, xmax, n, seed) result(x)
     real(dp), intent(in) :: xmin, xmax
@@ -135,5 +201,6 @@ function get_random_numbers(xmin, xmax, n, seed) result(x)
     call random_number(x)
     x = xmin + (xmax - xmin) * x
 end function get_random_numbers
+
 
 end program test_jorek_field
