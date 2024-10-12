@@ -124,17 +124,17 @@ subroutine read_dims_and_values_from_jorek(jorek_filename, n_R, n_phi, n_Z, valu
     call h5_init()
     call h5_open(jorek_filename, file_id)
     call h5_get(file_id, 'dim', flipped_dims)
-    n_R = flipped_dims(3)
-    n_Z = flipped_dims(2)
     n_phi = flipped_dims(1)
-    allocate(flipped_values(n_phi,n_Z, n_R, n_var))
+    n_R = flipped_dims(2)
+    n_Z = flipped_dims(3)
+    allocate(flipped_values(n_phi, n_R, n_Z, n_var))
     call h5_get(file_id, 'values', flipped_values)
     call h5_close(file_id)
     call h5_deinit()
-    call phi_Z_R_var2var_R_phi_Z(flipped_values, values)
+    call phi_R_Z_var2var_R_phi_Z(flipped_values, values)
 end subroutine read_dims_and_values_from_jorek
 
-subroutine phi_Z_R_var2var_R_phi_Z(flipped_array, array)
+subroutine phi_R_Z_var2var_R_phi_Z(flipped_array, array)
     real(dp), dimension(:,:,:,:), intent(in) :: flipped_array
     real(dp), dimension(:,:,:,:), allocatable :: array
 
@@ -144,8 +144,8 @@ subroutine phi_Z_R_var2var_R_phi_Z(flipped_array, array)
 
     dims = shape(flipped_array)
     n_phi = dims(1)
-    n_Z = dims(2)
-    n_R = dims(3)
+    n_R = dims(2)
+    n_Z = dims(3)
     n_var = dims(4)
 
     allocate(array(n_var, n_R, n_phi, n_Z))
@@ -155,12 +155,12 @@ subroutine phi_Z_R_var2var_R_phi_Z(flipped_array, array)
             do phi_idx = 1, n_phi
                 do Z_idx = 1, n_Z
                     array(var_idx,R_idx,phi_idx,Z_idx) = &
-                                            flipped_array(phi_idx,Z_idx,R_idx,var_idx)
+                                            flipped_array(phi_idx,R_idx,Z_idx,var_idx)
                 end do
             end do
         end do
     end do
-end subroutine phi_Z_R_var2var_R_phi_Z
+end subroutine phi_R_Z_var2var_R_phi_Z
 
 subroutine get_ranges_from_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax, filename)
     character(*), intent(in) :: filename
