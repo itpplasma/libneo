@@ -47,9 +47,9 @@ subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
              A_phi(n_R, n_phi, n_Z), A_3(n_R, n_phi, n_Z), &
              B_R(n_R, n_phi, n_Z), B_Z(n_R, n_phi, n_Z), B_phi(n_R, n_phi, n_Z))
 
-    A_R = values(1,:,:,:)
-    A_Z = values(2,:,:,:)
-    A_3 = values(3,:,:,:)
+    A_R = values(2,:,:,:)
+    A_Z = values(3,:,:,:)
+    A_3 = values(4,:,:,:)
     do idx_R = 1, n_R
         A_phi(idx_R,:,:) = -A_3(idx_R,:,:) / R(idx_R)
     end do

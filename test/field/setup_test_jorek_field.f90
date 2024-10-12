@@ -95,7 +95,7 @@ subroutine get_homogenous_field(R, values)
     A_Z = -0.5_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
     B_phi = -1.0_dp
     fluxfunction = -0.5_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=2, ncopies=n_Z)
-    values(:, :, :, 2) = A_Z
+    values(:, :, :, 3) = A_Z
     values(:, :, :, 14) = B_phi
     values(:, :, :, 11) = fluxfunction
 end subroutine get_homogenous_field
