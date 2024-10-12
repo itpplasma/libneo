@@ -104,7 +104,7 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
     real(dp), intent(in) :: relerr
 
     call odeint_allroutines(RZ, poincare_dim, phi_start, phi_end, &
-                            relerr, fieldline_derivative)
+                            relerr, fieldline_derivative, initial_stepsize=0.1_dp)
 
     contains 
 
@@ -114,6 +114,7 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
             real(dp), intent(out), dimension(:) :: dRZ_dphi
             integer, intent(out) :: ierr
         
+            real(dp), parameter :: tol = 1.0e-10_dp
             real(dp) :: RphiZ(3)
             real(dp) :: B(3)
         
@@ -121,11 +122,13 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
             RphiZ(2) = phi
             RphiZ(3) = RZ(2)
             call field%compute_bfield(RphiZ, B)
+            if (B(2) .lt. tol) then
+                print *, 'Error: B(2) vanishes'
+                ierr = 1
+                return
+            endif
             dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
             dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
-            print *, "RphiZ = ", RphiZ
-            print *, "B = ", B
-            print *, "dRZ_dphi = ", dRZ_dphi
             ierr = 0
         end subroutine fieldline_derivative
 end subroutine integrate_RZ_along_fieldline
