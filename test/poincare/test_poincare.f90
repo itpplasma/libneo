@@ -9,11 +9,11 @@ character(len=*), parameter :: config_file = 'poincare.inp'
 type(poincare_config_t) :: jorek_config
 
 jorek_config%n_fieldlines = 10
-jorek_config%fieldline_start_Rmin = 1.75_dp
+jorek_config%fieldline_start_Rmin = 1.8_dp
 jorek_config%fieldline_start_Rmax = 2.0_dp
 jorek_config%fieldline_start_phi = 0.0_dp
 jorek_config%fieldline_start_Z = 0.0_dp
-jorek_config%n_periods = 10
+jorek_config%n_periods = 50
 jorek_config%period_length = 2.0_dp * pi
 jorek_config%integrate_err = 1.0e-8_dp
 jorek_config%plot_Rmin = 1.0_dp
@@ -22,7 +22,6 @@ jorek_config%plot_Zmin = -1.0_dp
 jorek_config%plot_Zmax = 1.0_dp
 
 call test_make_poincare
-!call test_make_poincare_flux_pumping
 call test_get_poincare_RZ_for_closed_fieldline
 call test_read_config_file
 
@@ -32,9 +31,7 @@ contains
 subroutine test_make_poincare
     use neo_poincare, only: make_poincare, poincare_config_t
     use neo_circular_tokamak_field, only: circular_tokamak_field_t
-    use util_for_test_jorek_field, only: get_filename, filename_len
 
-    character(len=filename_len) :: jorek_file
     type(circular_tokamak_field_t) :: field
     type(poincare_config_t) :: config
 
@@ -46,7 +43,7 @@ subroutine test_make_poincare
     config%fieldline_start_phi = 0.0_dp
     config%fieldline_start_Z = 0.0_dp
     config%n_fieldlines = 10
-    config%n_periods = 11
+    config%n_periods = 50
     config%period_length = 2.0_dp * pi
     config%integrate_err = 1.0e-6_dp
     config%plot_Rmin = 0.5_dp
@@ -57,28 +54,6 @@ subroutine test_make_poincare
     call make_poincare(field, config)
     call print_ok
 end subroutine test_make_poincare
-
-
-subroutine test_make_poincare_flux_pumping
-    use neo_poincare, only: make_poincare, read_config_file, poincare_config_t
-    use neo_jorek_field, only: jorek_field_t
-
-    character(len=512) :: jorek_file
-    type(jorek_field_t) :: field
-    type(poincare_config_t) :: config
-
-    call print_test("test_make_poincare_flux_pumping")
-
-    jorek_file ="/proj/plasma/DATA/AUG/JOREK/2024-05_test_haowei_flux_pumping/" // &
-    "exprs_Rmin1.140_Rmax2.130_Zmin-0.921_Zmax0.778_phimin0.000_phimax6.283_s40000.h5"
-
-    call field%jorek_field_init(jorek_file)
-    call write_poincare_config(jorek_config)
-    call read_config_file(config, config_file)
-    call make_poincare(field, config)
-    call remove_poincare_config
-    call print_ok
-end subroutine test_make_poincare_flux_pumping
 
 
 subroutine test_get_poincare_RZ_for_closed_fieldline()
@@ -93,7 +68,6 @@ subroutine test_get_poincare_RZ_for_closed_fieldline()
     real(dp) :: B_tor_ampl, B_pol_ampl
     real(dp), dimension(:), allocatable :: R, Z, delta_theta
     real(dp) :: expected_delta_theta
-    integer :: period
 
     call print_test("test_get_poincare_RZ_for_closed_fieldline")
     B_tor_ampl = 1.0_dp
@@ -280,8 +254,6 @@ end subroutine write_poincare_config
 subroutine remove_poincare_config
     integer :: stat, file_id
     logical :: exists
-
-    call print_test("remove_poincare_config")
     
     open(newunit=file_id, iostat=stat, file=config_file, status='old')
     if (stat == 0) close(file_id, status='delete')
@@ -289,8 +261,6 @@ subroutine remove_poincare_config
     if (exists) then
         call print_fail
         error stop
-    else
-        call print_ok
     end if
 end subroutine remove_poincare_config
 

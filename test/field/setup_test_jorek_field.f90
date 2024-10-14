@@ -27,10 +27,10 @@ subroutine create_mockup_jorek_output()
 
     call print_test("create_mockup_jorek_output")
 
-    dims = (/n_phi, n_Z, n_R/)
+    dims = (/n_phi, n_R, n_Z/)
     allocate(R(n_R))
     call linspace(Rmin, Rmax, n_R, R)
-    allocate(values(n_phi, n_Z, n_R, n_var))
+    allocate(values(n_phi, n_R, n_Z, n_var))
     call get_homogenous_field(R, values)
     
     filename = make_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax)
@@ -41,14 +41,14 @@ subroutine create_mockup_jorek_output()
     call h5_add(file_id, 'comment', comment)
     call h5_add(file_id, 'description', description)
     call h5_add(file_id, 'dim', dims, lbounds=(/1/), ubounds=(/3/), &
-                                            comment='quantity nR nZ nPhi', unit='')
+                                            comment='quantity nPhi nR nZ', unit='')
     call h5_add(file_id, 'index_now', index_now)
     call h5_add(file_id, 'n_var', n_var)
     call h5_add(file_id, 'ndim', ndim)
     call h5_add(file_id, 't_now', t_now)
     call h5_add(file_id, 'time', time)
     call h5_add(file_id, 'values', values, lbounds=(/1,1,1,1/), &
-                                           ubounds=(/n_phi, n_Z, n_R, n_var/), &
+                                           ubounds=(/n_phi, n_R, n_Z, n_var/), &
                                            comment='Magnetic field values', unit='T')
     call h5_add(file_id, 'variables', variables, lbounds=(/1/), ubounds=(/17/))
     call h5_close(file_id)
@@ -72,7 +72,7 @@ function make_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax) result(filename)
         'exprs_Rmin', Rmin, '_Rmax', Rmax, &
         '_Zmin', Zmin, '_Zmax', Zmax, &
         '_phimin', phimin, '_phimax', phimax, &
-        '.h5'
+        '_s40000.h5'
     call getcwd(current_directory, ierr)
     filename = trim(adjustl(current_directory)) // '/' // trim(tmp_filename)
 end function make_filename
@@ -81,17 +81,23 @@ subroutine get_homogenous_field(R, values)
     real(dp), dimension(:), intent(in) :: R
     real(dp), dimension(:,:,:,:), intent(out) :: values
 
-    integer :: dims(4)
-    real(dp), dimension(:,:,:), allocatable :: A_Z, B_phi
+    integer :: dims(4), n_R, n_phi, n_Z
+    real(dp), dimension(:,:,:), allocatable :: A_Z, B_phi, fluxfunction
 
     values = 0.0_dp
     dims = shape(values)
-    allocate(A_Z(dims(1), dims(2), dims(3)))
-    allocate(B_phi(dims(1), dims(2), dims(3)))
-    A_Z = 1.0_dp * spread(spread(R, dim=1, ncopies=dims(1)), dim=2, ncopies=dims(2))
+    n_phi = dims(1)
+    n_R = dims(2)
+    n_Z = dims(3)
+    allocate(A_Z(n_phi, n_R, n_Z))
+    allocate(B_phi(n_phi, n_R, n_Z))
+    allocate(fluxfunction(n_phi, n_R, n_Z))
+    A_Z = -0.5_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=3, ncopies=n_Z)
     B_phi = -1.0_dp
-    values(:, :, :, 2) = A_Z
+    fluxfunction = -0.5_dp * spread(spread(R, dim=1, ncopies=n_phi), dim=3, ncopies=n_Z)
+    values(:, :, :, 3) = A_Z
     values(:, :, :, 14) = B_phi
+    values(:, :, :, 11) = fluxfunction
 end subroutine get_homogenous_field
 
 

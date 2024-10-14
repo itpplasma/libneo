@@ -95,13 +95,13 @@ add_fortran_test(test_interpolate)
 
 ## Custom tests
 
-# This requires an additional call to test_arnoldi.py, so use the script
+# This requires an additional call to setup_test_arnoldi.py, so use the script
 # instead of calling the executable directly.
-# \note Maybe this could be solved with test_arnoldi.py && test_arnoldi.x.
+# \note Maybe this could be solved with setup_test_arnoldi.py && test_arnoldi.x.
 # Afterwards fail condition is set: test will fail if the output
 # contains 'STOP'.
 add_test(NAME test_arnoldi
-         COMMAND ../../test/python/test_arnoldi.py && test_arnoldi.x)
+         COMMAND ../../test/source/setup_test_arnoldi.py && test_arnoldi.x)
 set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_mympilib

@@ -35,7 +35,7 @@ module ode_integration
 
 contains
 
-  subroutine odeint_allroutines(y,nvar,x1,x2,eps,derivs)
+  subroutine odeint_allroutines(y, nvar, x1, x2, eps, derivs, initial_stepsize)
     use libneo_kinds, only : real_kind
 
     implicit none
@@ -43,12 +43,17 @@ contains
     procedure(compute_derivative) :: derivs
     integer, intent(in) :: nvar
     real(kind=real_kind), intent(in) :: x1, x2, eps
+    real(kind=real_kind), intent(in), optional :: initial_stepsize
     real(kind=real_kind), intent(inout) :: y(nvar)
 
     integer :: nok,nbad
     real(kind=real_kind) :: h1,hmin
 
-    h1=x2-x1
+    if (present(initial_stepsize)) then
+      h1 = sign(initial_stepsize,x2-x1)
+    else
+        h1 = x2 - x1
+    end if
     hmin=0.d0
 
     call odeint(y,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs)

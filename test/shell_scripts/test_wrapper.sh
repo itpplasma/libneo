@@ -12,9 +12,9 @@
 test_to_execute=$1
 
 if [ "x$2" == "xyes" ] ; then
-  echo "running test_arnoldi.py"
+  echo "running setup_test_arnoldi.py"
   pwd
-  ../test/python_scripts/test_arnoldi.py
+  ../test/source/setup_test_arnoldi.py
 fi
 
 ./$test_to_execute | grep -i " STOP "
