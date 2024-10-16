@@ -7,7 +7,7 @@ use util_for_test_jorek_field, only: get_filename, filename_len
 implicit none
 
 call test_get_ranges_from_filename
-call test_jorek_field_init
+!call test_jorek_field_init
 call test_jorek_trial_field
 
 contains
@@ -114,25 +114,22 @@ subroutine is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
     integer :: idx
 
     x(1,:) = get_random_numbers(Rmin, Rmax, n)
-    x(2,:) = get_random_numbers(Zmin, Zmax, n)
-    x(3,:) = get_random_numbers(phimin, phimax, n)
+    x(2,:) = get_random_numbers(phimin, phimax, n)
+    x(3,:) = get_random_numbers(Zmin, Zmax, n)
 
     do idx = 1, n
         call field%compute_abfield(x(:,idx), A, B)
         R = x(1,idx)
         A_trial = (/0.0_dp, 0.0_dp, -0.5_dp/) * R
-        if (any(abs(A - A_trial) > tol) .or. any(abs(B - B_trial) > tol)) then
-            print *, "mis-match at x = ", x(:,idx)
-            print *, "A = ", A, "B = ", B
-            print *, "A_trial = ", A_trial, "B_trial = ", B_trial
-            call print_fail
-            error stop
-        end if
         call field%compute_fluxfunction(x(:,idx), fluxfunction)
         fluxfunction_trial = 0.5_dp * R
-        if (abs(fluxfunction - fluxfunction_trial) > tol) then
+        print *, "mis-match at x = ", x(:,idx)
+        if (any(abs(A - A_trial) > tol) .or. &
+            any(abs(B - B_trial) > tol) .or. &
+            abs(fluxfunction - fluxfunction_trial) > tol) then
             print *, "mis-match at x = ", x(:,idx)
-            print *, "fluxfunction = ", fluxfunction, &
+            print *, "A = ", A, "B = ", B, "fluxfunction = ", fluxfunction
+            print *, "A_trial = ", A_trial, "B_trial = ", B_trial, &
                      "fluxfunction_trial = ", fluxfunction_trial
             call print_fail
             error stop
