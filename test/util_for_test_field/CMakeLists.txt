@@ -1,0 +1,2 @@
+add_library(util_for_test_field util_for_test_field.f90)
+target_link_libraries(util_for_test_field PRIVATE $<TARGET_OBJECTS:neo_field>)
