@@ -52,11 +52,20 @@ subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
     A_Z = values(3,:,:,:)
     A_3 = values(4,:,:,:)
     do idx_R = 1, n_R
-        A_phi(idx_R,:,:) = -A_3(idx_R,:,:) / R(idx_R)
+        A_phi(idx_R,:,:) = A_3(idx_R,:,:) / R(idx_R)
     end do
     B_R = values(12,:,:,:)
     B_Z = values(13,:,:,:)
-    B_phi = -values(14,:,:,:)
+    B_phi = values(14,:,:,:)
+
+    call switch_phi_orientation(A_R)
+    call switch_phi_orientation(A_Z)
+    call switch_phi_orientation(A_phi)
+    A_phi = -A_phi
+    call switch_phi_orientation(B_R)
+    call switch_phi_orientation(B_Z)
+    call switch_phi_orientation(B_phi)
+    B_phi = -B_phi
 
     is_periodic = [.false., .true., .false.]
     call field_mesh%A1%mesh_init(R, phi, Z, A_R, is_periodic)
@@ -82,7 +91,9 @@ subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
     allocate(fluxfunction(n_R, n_phi, n_Z))
              
-    fluxfunction = -values(11,:,:,:)
+    fluxfunction = values(11,:,:,:)
+    call switch_phi_orientation(fluxfunction)
+    fluxfunction = -fluxfunction
 
     is_periodic = [.false., .true., .false.]
     call fluxfunction_mesh%mesh_init(R, phi, Z, fluxfunction, is_periodic)
@@ -194,6 +205,16 @@ subroutine get_value_from_filename(filename, keyword, value)
     value_str = value_str(:value_end)
     read(value_str, *) value
 end subroutine get_value_from_filename
+
+
+subroutine switch_phi_orientation(array)
+    real(dp), dimension(:,:,:), intent(inout) :: array
+
+    integer :: n_phi
+
+    n_phi = size(array, 2)
+    array = array(:, n_phi:1:-1, :)
+end subroutine switch_phi_orientation
 
 
 subroutine set_b_mesh_to_curla_plus_fluxfunction(field_mesh, fluxfunction_mesh)
