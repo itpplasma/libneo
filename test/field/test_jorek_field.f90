@@ -96,7 +96,7 @@ subroutine test_jorek_trial_field
     call field%jorek_field_init(trial_filename)
 
     call is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
-    !call is_curla_plus_fluxfunction_equal_b(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
+    call is_curla_plus_fluxfunction_equal_b(field, Rmin, Rmax, phimin, phimax, Zmin, Zmax)
 
     call print_ok
 end subroutine test_jorek_trial_field
