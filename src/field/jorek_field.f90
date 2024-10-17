@@ -82,7 +82,7 @@ subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
     allocate(fluxfunction(n_R, n_phi, n_Z))
              
-    fluxfunction = values(11,:,:,:)
+    fluxfunction = -values(11,:,:,:)
 
     is_periodic = [.false., .true., .false.]
     call fluxfunction_mesh%mesh_init(R, phi, Z, fluxfunction, is_periodic)
@@ -218,11 +218,7 @@ subroutine set_b_mesh_to_curla_plus_fluxfunction(field_mesh, fluxfunction_mesh)
                 fluxfunction = fluxfunction_mesh%value(idx_R, idx_phi, idx_Z)
 
                 BR = dAZ_dphi / R - dAphi_dZ
-                Bphi = (dAR_dZ - dAZ_dR) - fluxfunction / R
-                if (abs(Bphi) > 1.0e-10_dp .and. abs(Bphi + 0.99) < 1.0e-10_dp) then
-                    print *, "Bphi = ", Bphi
-                    print *, "knote = ", knote
-                endif
+                Bphi = (dAR_dZ - dAZ_dR) + fluxfunction / R
                 BZ = dAphi_dR + Aphi / R - dAR_dphi / R
 
                 field_mesh%B1%value(idx_R, idx_phi, idx_Z) = BR

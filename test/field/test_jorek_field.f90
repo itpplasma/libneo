@@ -7,7 +7,7 @@ use util_for_test_jorek_field, only: get_filename, filename_len
 implicit none
 
 call test_get_ranges_from_filename
-!call test_jorek_field_init
+call test_jorek_field_init
 call test_jorek_trial_field
 
 contains
@@ -122,7 +122,7 @@ subroutine is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
         R = x(1,idx)
         A_trial = (/0.0_dp, 0.0_dp, -0.5_dp/) * R
         call field%compute_fluxfunction(x(:,idx), fluxfunction)
-        fluxfunction_trial = -0.5_dp * R
+        fluxfunction_trial = 0.5_dp * R
         if (any(abs(A - A_trial) > tol) .or. &
             any(abs(B - B_trial) > tol) .or. &
             abs(fluxfunction - fluxfunction_trial) > tol) then
