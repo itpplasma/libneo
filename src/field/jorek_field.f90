@@ -82,7 +82,7 @@ subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
     allocate(fluxfunction(n_R, n_phi, n_Z))
              
-    fluxfunction = -values(11,:,:,:)
+    fluxfunction = values(11,:,:,:)
 
     is_periodic = [.false., .true., .false.]
     call fluxfunction_mesh%mesh_init(R, phi, Z, fluxfunction, is_periodic)
@@ -206,10 +206,10 @@ subroutine set_b_mesh_to_curla_plus_fluxfunction(field_mesh, fluxfunction_mesh)
     real(dp) :: Aphi, fluxfunction
     real(dp) :: BR, Bphi, BZ
 
-    do idx_R = 2, field_mesh%A1%n1 - 1
+    do idx_R = 1, field_mesh%A1%n1
         R = field_mesh%A1%x1(idx_R)
-        do idx_phi = 2, field_mesh%A1%n2 - 1
-            do idx_Z = 2, field_mesh%A1%n3 - 1
+        do idx_phi = 1, field_mesh%A1%n2
+            do idx_Z = 1, field_mesh%A1%n3
                 knote = [idx_R, idx_phi, idx_Z]
                 call compute_mesh_derivs(field_mesh%A1, knote, dummy, dAR_dphi, dAR_dZ)
                 call compute_mesh_derivs(field_mesh%A2, knote, dAphi_dR, dummy, dAphi_dZ)
@@ -218,8 +218,8 @@ subroutine set_b_mesh_to_curla_plus_fluxfunction(field_mesh, fluxfunction_mesh)
                 fluxfunction = fluxfunction_mesh%value(idx_R, idx_phi, idx_Z)
 
                 BR = dAZ_dphi / R - dAphi_dZ
-                Bphi = (dAZ_dR - dAR_dZ) + fluxfunction / R
-                if (abs(Bphi) > 1.0e-10_dp .and. abs(Bphi-0.9) > 1.0e-10_dp) then
+                Bphi = (dAR_dZ - dAZ_dR) - fluxfunction / R
+                if (abs(Bphi) > 1.0e-10_dp .and. abs(Bphi + 0.99) < 1.0e-10_dp) then
                     print *, "Bphi = ", Bphi
                     print *, "knote = ", knote
                 endif
@@ -243,15 +243,49 @@ subroutine compute_mesh_derivs(mesh, knote, df_dx1, df_dx2, df_dx3)
     idx1 = knote(1)
     idx2 = knote(2)
     idx3 = knote(3)
-    df_dx1 = (mesh%value(idx1+1, idx2, idx3) - &
-              mesh%value(idx1-1, idx2, idx3)) / &
-             (mesh%x1(idx1+1) - mesh%x1(idx1-1))
-    df_dx2 = (mesh%value(idx1, idx2+1, idx3) - &
-              mesh%value(idx1, idx2-1, idx3)) / &
-             (mesh%x2(idx2+1) - mesh%x2(idx2-1))
-    df_dx3 = (mesh%value(idx1, idx2, idx3+1) - &
-              mesh%value(idx1, idx2, idx3-1)) / &
-             (mesh%x3(idx3+1) - mesh%x3(idx3-1))
+
+    if (idx1 == 1) then
+        df_dx1 = (-0.5_dp * mesh%value(idx1 + 2, idx2, idx3) + &
+                  2_dp * mesh%value(idx1 + 1, idx2, idx3) - &
+                  1.5_dp * mesh%value(idx1, idx2, idx3)) / mesh%dx1
+    elseif (idx1 == mesh%n1) then
+        df_dx1 = (1.5_dp * mesh%value(idx1, idx2, idx3) - &
+                  2_dp * mesh%value(idx1 - 1, idx2, idx3) + &
+                  0.5_dp * mesh%value(idx1 - 2, idx2, idx3)) / mesh%dx1
+    else
+        df_dx1 = (mesh%value(idx1+1, idx2, idx3) - &
+                  mesh%value(idx1-1, idx2, idx3)) / &
+                 (mesh%x1(idx1+1) - mesh%x1(idx1-1))
+    end if
+
+    if (idx2 == 1) then
+        df_dx2 = (-0.5_dp * mesh%value(idx1, idx2 + 2, idx3) + &
+                  2_dp * mesh%value(idx1, idx2 + 1, idx3) - &
+                  1.5_dp * mesh%value(idx1, idx2, idx3)) / mesh%dx2
+    elseif (idx2 == mesh%n2) then
+        df_dx2 = (1.5_dp * mesh%value(idx1, idx2, idx3) - &
+                  2_dp * mesh%value(idx1, idx2 - 1, idx3) + &
+                  0.5_dp * mesh%value(idx1, idx2 - 2, idx3)) / mesh%dx2
+    else
+        df_dx2 = (mesh%value(idx1, idx2+1, idx3) - &
+                  mesh%value(idx1, idx2-1, idx3)) / &
+                 (mesh%x2(idx2+1) - mesh%x2(idx2-1))
+    endif
+
+
+    if (idx3 == 1) then
+        df_dx3 = (-0.5_dp * mesh%value(idx1, idx2, idx3 + 2) + &
+                  2_dp * mesh%value(idx1, idx2, idx3 + 1) - &
+                  1.5_dp * mesh%value(idx1, idx2, idx3)) / mesh%dx3
+    elseif (idx3 == mesh%n3) then
+        df_dx3 = (1.5_dp * mesh%value(idx1, idx2, idx3) - &
+                  2_dp * mesh%value(idx1, idx2, idx3 - 1) + &
+                  0.5_dp * mesh%value(idx1, idx2, idx3 - 2)) / mesh%dx3
+    else
+        df_dx3 = (mesh%value(idx1, idx2, idx3+1) - &
+                  mesh%value(idx1, idx2, idx3-1)) / &
+                 (mesh%x3(idx3+1) - mesh%x3(idx3-1))
+    endif
 end subroutine compute_mesh_derivs
 
 subroutine compute_fluxfunction(self, x, fluxfunction)
