@@ -25,19 +25,21 @@ subroutine make_poincare(field, config)
     type(poincare_config_t), intent(in) :: config
 
     integer :: fieldline
-    real(dp), dimension(:), allocatable :: R, Z
+    real(dp), dimension(:,:), allocatable :: R, Z
     real(dp), dimension(:), allocatable :: start_R, start_Z
 
-    allocate(R(config%n_periods), Z(config%n_periods))
-    allocate(start_R(config%n_fieldlines), start_Z(config%n_fieldlines))
+    allocate(R(config%n_fieldlines, config%n_periods))
+    allocate(Z(config%n_fieldlines, config%n_periods))
+    allocate(start_R(config%n_fieldlines))
+    allocate(start_Z(config%n_fieldlines))
     call get_fieldlines_startpoints(config, start_R, start_Z)
     do fieldline = 1, config%n_fieldlines
-        R(1) = start_R(fieldline)
-        Z(1) = start_Z(fieldline)
+        R(fieldline, 1) = start_R(fieldline)
+        Z(fieldline, 1) = start_Z(fieldline)
         write(*,*) 'fieldline #', fieldline
-        call get_poincare_RZ(field, config, R, Z)
-        call write_poincare_RZ_to_file(R, Z, fieldline)
+        call get_poincare_RZ(field, config, R(fieldline, :), Z(fieldline, :))
     enddo
+    call write_poincare_RZ_to_file(R, Z)
     deallocate(R, Z)
     deallocate(start_R, start_Z)
 end subroutine make_poincare
@@ -145,19 +147,28 @@ function is_in_plot_region(RZ, config)
         RZ(2) .le. config%plot_Zmax) is_in_plot_region = .true.
 end function is_in_plot_region
 
-subroutine write_poincare_RZ_to_file(R, Z, fieldline)
-    real(dp), dimension(:), intent(in) :: R, Z
-    integer, intent(in) :: fieldline
+subroutine write_poincare_RZ_to_file(R, Z, filename)
+    real(dp), dimension(:,:), intent(in) :: R, Z
+    character(*), intent(in), optional :: filename
 
     integer :: file_id
-    integer :: period
+    integer :: n_fieldlines, fieldline, period, n_periods
     character(len=256) :: output_file
 
-    write(output_file, '(A,I0,A)') 'poincare_', fieldline, '.dat'
+
+    if (present(filename)) then
+        output_file = filename
+    else
+        output_file = 'poincare.dat'
+    endif
+    n_fieldlines = size(R, 1)
+    n_periods = size(R, 2)
     open(newunit=file_id, file=output_file, status='replace')
-    do period = 1, size(R)
-        write(file_id,*) R(period), Z(period)
-    enddo
+    do fieldline = 1, n_fieldlines
+        do period = 1, n_periods
+            write(file_id,*) R(fieldline, period), Z(fieldline, period)
+        end do
+    end do
     close(file_id)
 end subroutine write_poincare_RZ_to_file
 
