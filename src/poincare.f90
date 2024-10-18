@@ -19,10 +19,11 @@ integer, parameter :: poincare_dim = 2
 contains
 
 
-subroutine make_poincare(field, config)
+subroutine make_poincare(field, config, output_filename)
 
     class(field_t), intent(in) :: field
     type(poincare_config_t), intent(in) :: config
+    character(len=*), intent(in), optional :: output_filename
 
     integer :: fieldline
     real(dp), dimension(:,:), allocatable :: R, Z
@@ -39,7 +40,7 @@ subroutine make_poincare(field, config)
         write(*,*) 'fieldline #', fieldline
         call get_poincare_RZ(field, config, R(fieldline, :), Z(fieldline, :))
     enddo
-    call write_poincare_RZ_to_file(R, Z)
+    call write_poincare_RZ_to_file(R, Z, output_filename)
     deallocate(R, Z)
     deallocate(start_R, start_Z)
 end subroutine make_poincare
