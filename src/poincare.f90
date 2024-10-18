@@ -168,6 +168,7 @@ subroutine write_poincare_RZ_to_file(R, Z, filename)
         do period = 1, n_periods
             write(file_id,*) R(fieldline, period), Z(fieldline, period)
         end do
+        write(file_id,*) ' '
     end do
     close(file_id)
 end subroutine write_poincare_RZ_to_file
