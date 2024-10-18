@@ -1,17 +1,17 @@
 program test_spline_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use util_for_test, only: print_test, print_ok, print_fail
+use neo_spline_field, only: spline_field_t
 implicit none
 
 call test_spline_field_init
 call test_against_original_field
 call test_curla_equal_b
+call test_compute_afield_derivatives
 
 contains
 
 subroutine test_spline_field_init
-    use neo_spline_field, only: spline_field_t
-
     type(spline_field_t) :: spline_field
 
     call print_test("test_spline_field_init")
@@ -23,7 +23,6 @@ end subroutine test_spline_field_init
 
 
 subroutine test_against_original_field
-    use neo_spline_field, only: spline_field_t
     use neo_field, only: create_field
     use neo_field_base, only: field_t
     use neo_field_mesh, only: field_mesh_t
@@ -65,7 +64,6 @@ subroutine test_against_original_field
 end subroutine test_against_original_field
 
 subroutine test_curla_equal_b
-    use neo_spline_field, only: spline_field_t
     use util_for_test_field, only: compute_cartesian_curla
 
     real(dp), parameter :: tol = 1.0e-7_dp
@@ -93,12 +91,12 @@ subroutine test_curla_equal_b
 end subroutine test_curla_equal_b
 
 subroutine test_compute_afield_derivatives
-    use neo_spline_field, only: spline_field_t
+    use util_for_test_field, only: compute_cartesian_curla
 
     real(dp), parameter :: tol = 1.0e-7_dp
 
     type(spline_field_t) :: spline_field
-    real(dp) :: x(3), A(3), A_original(3)
+    real(dp) :: x(3), curla(3), curla_spline_der(3)
 
     call print_test("test_compute_afield_derivatives")
 
@@ -106,16 +104,32 @@ subroutine test_compute_afield_derivatives
 
     x = [1.5_dp, 1.5_dp, 1.5_dp]
 
-    if (maxval(abs(A - A_original)) > tol) then
-        print *, "A != A_original"
-        print *, "A = ", A
-        print *, "A_original = ", A_original
+    curla = compute_cartesian_curla(spline_field, x, tol)
+    curla_spline_der = compute_cartesian_curla_from_spline_derivatives(spline_field, x)
+
+    if (maxval(abs(curla - curla_spline_der)) > tol) then
+        print *, "curla != curla_spline_der"
+        print *, "curla = ", curla
+        print *, "curla_spline_der = ", curla_spline_der
         call print_fail
         error stop
     end if
 
     call print_ok
 end subroutine test_compute_afield_derivatives
+
+function compute_cartesian_curla_from_spline_derivatives(spline_field, x) result(curla)
+    class(spline_field_t), intent(in) :: spline_field
+    real(dp), dimension(3), intent(in) :: x
+    real(dp) :: curla(3)
+
+    real(dp) :: dA_dx(3,3)
+
+    call spline_field%compute_afield_derivatives(x, dA_dx)
+    curla(1) = dA_dx(3,2) - dA_dx(2,3)
+    curla(2) = dA_dx(1,3) - dA_dx(3,1)
+    curla(3) = dA_dx(2,1) - dA_dx(1,2)
+end function compute_cartesian_curla_from_spline_derivatives
 
 subroutine get_example_spline_field(spline_field, tol)
     use neo_spline_field, only: spline_field_t
