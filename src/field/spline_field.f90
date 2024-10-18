@@ -85,11 +85,14 @@ subroutine compute_afield_derivatives(self, x, dA_dx)
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: dA_dx(3,3)
 
-    real(dp) :: dummy
+    real(dp) :: dummy, dA1_dx(3), dA2_dx(3), dA3_dx(3)
 
-    call evaluate_splines_3d_der(self%A1_spline, x, dummy, dA_dx(1,:))
-    call evaluate_splines_3d_der(self%A2_spline, x, dummy, dA_dx(2,:))
-    call evaluate_splines_3d_der(self%A3_spline, x, dummy, dA_dx(3,:))
+    call evaluate_splines_3d_der(self%A1_spline, x, dummy, dA1_dx)
+    call evaluate_splines_3d_der(self%A2_spline, x, dummy, dA2_dx)
+    call evaluate_splines_3d_der(self%A3_spline, x, dummy, dA3_dx)
+    dA_dx(1,:) = dA1_dx
+    dA_dx(2,:) = dA2_dx
+    dA_dx(3,:) = dA3_dx
 end subroutine compute_afield_derivatives
 
 end module neo_spline_field

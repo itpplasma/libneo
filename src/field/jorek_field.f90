@@ -28,9 +28,14 @@ subroutine jorek_field_init(self, jorek_filename)
 
     call load_field_mesh_from_jorek(jorek_filename, field_mesh)
     call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
-    call set_b_mesh_to_curla_plus_fluxfunction(field_mesh, fluxfunction_mesh)
-    call self%spline_field_init(field_mesh)
+    call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
+    call make_spline_from_mesh(field_mesh%A2, self%A2_spline)
+    call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
     call make_spline_from_mesh(fluxfunction_mesh, self%fluxfunction_spline)
+    call set_b_mesh_to_curla_plus_fluxfunction(self, field_mesh)
+    call make_spline_from_mesh(field_mesh%B1, self%B1_spline)
+    call make_spline_from_mesh(field_mesh%B2, self%B2_spline)
+    call make_spline_from_mesh(field_mesh%B3, self%B3_spline)
 end subroutine jorek_field_init
 
 subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
@@ -217,93 +222,69 @@ subroutine switch_phi_orientation(array)
 end subroutine switch_phi_orientation
 
 
-subroutine set_b_mesh_to_curla_plus_fluxfunction(field_mesh, fluxfunction_mesh)
+subroutine set_b_mesh_to_curla_plus_fluxfunction(jorek_field, field_mesh)
+    class(jorek_field_t), intent(in) :: jorek_field
     type(field_mesh_t), intent(inout) :: field_mesh
-    type(mesh_t), intent(in) :: fluxfunction_mesh
 
-    integer :: idx_R, idx_phi, idx_Z, knote(3)
-    real(dp) :: R
-    real(dp) :: dAphi_dZ, dAZ_dphi, dAR_dphi, dAphi_dR, dAZ_dR, dAR_dZ, dummy
-    real(dp) :: Aphi, fluxfunction
-    real(dp) :: BR, Bphi, BZ
+    real(dp), parameter :: eps = 1.0e-6_dp
 
-    do idx_R = 1, field_mesh%A1%n1
-        R = field_mesh%A1%x1(idx_R)
-        do idx_phi = 1, field_mesh%A1%n2
-            do idx_Z = 1, field_mesh%A1%n3
-                knote = [idx_R, idx_phi, idx_Z]
-                call compute_mesh_derivs(field_mesh%A1, knote, dummy, dAR_dphi, dAR_dZ)
-                call compute_mesh_derivs(field_mesh%A2, knote, dAphi_dR, dummy, dAphi_dZ)
-                call compute_mesh_derivs(field_mesh%A3, knote, dAZ_dR, dAZ_dphi, dummy)
-                Aphi = field_mesh%A2%value(idx_R, idx_phi, idx_Z)
-                fluxfunction = fluxfunction_mesh%value(idx_R, idx_phi, idx_Z)
+    real(dp) :: x(3)
+    real(dp), dimension(:), allocatable :: R, phi, Z
+    integer :: n_R, n_phi, n_Z, idx_R, idx_phi, idx_Z
+    real(dp) :: curla(3), fluxfunction
 
-                BR = dAZ_dphi / R - dAphi_dZ
-                Bphi = (dAR_dZ - dAZ_dR) + fluxfunction / R
-                BZ = dAphi_dR + Aphi / R - dAR_dphi / R
+    n_R = field_mesh%A1%n1
+    n_phi = field_mesh%A1%n2
+    n_Z = field_mesh%A1%n3
+    allocate(R(n_R), phi(n_phi), Z(n_Z))
+    R = field_mesh%A1%x1
+    phi = field_mesh%A1%x2
+    Z = field_mesh%A1%x3
 
-                field_mesh%B1%value(idx_R, idx_phi, idx_Z) = BR
-                field_mesh%B2%value(idx_R, idx_phi, idx_Z) = Bphi
-                field_mesh%B3%value(idx_R, idx_phi, idx_Z) = BZ
+    do idx_R = 1, n_R
+        x(1) = R(idx_R)
+        if (idx_R == 1) x(1) = x(1) + field_mesh%A1%dx1 * eps
+        if (idx_R == n_R) x(1) = x(1) - field_mesh%A1%dx1 * eps
+        do idx_phi = 1, n_phi
+            x(2) = phi(idx_phi)
+            do idx_Z = 1, n_Z
+                x(3) = Z(idx_Z)
+                if (idx_Z == 1) x(3) = x(3) + field_mesh%A1%dx3 * eps
+                if (idx_Z == n_Z) x(3) = x(3) - field_mesh%A1%dx3 * eps
+                call jorek_field%compute_fluxfunction(x, fluxfunction)
+                call compute_curla(jorek_field, x, curla)
+                field_mesh%B1%value(idx_R, idx_phi, idx_Z) = curla(1)
+                field_mesh%B2%value(idx_R, idx_phi, idx_Z) = curla(2) + fluxfunction / x(1)
+                field_mesh%B3%value(idx_R, idx_phi, idx_Z) = curla(3)
             end do
         end do
     end do
 end subroutine set_b_mesh_to_curla_plus_fluxfunction
 
-subroutine compute_mesh_derivs(mesh, knote, df_dx1, df_dx2, df_dx3)
-    type(mesh_t), intent(in) :: mesh
-    integer, intent(in) :: knote(3)
-    real(dp), intent(out) :: df_dx1, df_dx2, df_dx3
+subroutine compute_curla(jorek_field, x, curla)
+    class(jorek_field_t), intent(in) :: jorek_field
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: curla(3)
 
-    integer :: idx1, idx2, idx3
+    real(dp) :: dA_dx(3,3)
+    real(dp) :: dAphi_dZ, dAZ_dphi, dAR_dphi, dAphi_dR, dAZ_dR, dAR_dZ
+    real(dp) :: A(3), Aphi, R
 
-    idx1 = knote(1)
-    idx2 = knote(2)
-    idx3 = knote(3)
+    call jorek_field%compute_afield_derivatives(x, dA_dx)
+    dAR_dphi = dA_dx(1,2)
+    dAR_dZ = dA_dx(1,3)
+    dAphi_dR = dA_dx(2,1)
+    dAphi_dZ = dA_dx(2,3)
+    dAZ_dR = dA_dx(3,1)
+    dAZ_dphi = dA_dx(3,2)
+    call jorek_field%compute_afield(x, A)
+    Aphi = A(2)
+    R = x(1)
 
-    if (idx1 == 1) then
-        df_dx1 = (-0.5_dp * mesh%value(idx1 + 2, idx2, idx3) + &
-                  2_dp * mesh%value(idx1 + 1, idx2, idx3) - &
-                  1.5_dp * mesh%value(idx1, idx2, idx3)) / mesh%dx1
-    elseif (idx1 == mesh%n1) then
-        df_dx1 = (1.5_dp * mesh%value(idx1, idx2, idx3) - &
-                  2_dp * mesh%value(idx1 - 1, idx2, idx3) + &
-                  0.5_dp * mesh%value(idx1 - 2, idx2, idx3)) / mesh%dx1
-    else
-        df_dx1 = (mesh%value(idx1+1, idx2, idx3) - &
-                  mesh%value(idx1-1, idx2, idx3)) / &
-                 (mesh%x1(idx1+1) - mesh%x1(idx1-1))
-    end if
-
-    if (idx2 == 1) then
-        df_dx2 = (-0.5_dp * mesh%value(idx1, idx2 + 2, idx3) + &
-                  2_dp * mesh%value(idx1, idx2 + 1, idx3) - &
-                  1.5_dp * mesh%value(idx1, idx2, idx3)) / mesh%dx2
-    elseif (idx2 == mesh%n2) then
-        df_dx2 = (1.5_dp * mesh%value(idx1, idx2, idx3) - &
-                  2_dp * mesh%value(idx1, idx2 - 1, idx3) + &
-                  0.5_dp * mesh%value(idx1, idx2 - 2, idx3)) / mesh%dx2
-    else
-        df_dx2 = (mesh%value(idx1, idx2+1, idx3) - &
-                  mesh%value(idx1, idx2-1, idx3)) / &
-                 (mesh%x2(idx2+1) - mesh%x2(idx2-1))
-    endif
-
-
-    if (idx3 == 1) then
-        df_dx3 = (-0.5_dp * mesh%value(idx1, idx2, idx3 + 2) + &
-                  2_dp * mesh%value(idx1, idx2, idx3 + 1) - &
-                  1.5_dp * mesh%value(idx1, idx2, idx3)) / mesh%dx3
-    elseif (idx3 == mesh%n3) then
-        df_dx3 = (1.5_dp * mesh%value(idx1, idx2, idx3) - &
-                  2_dp * mesh%value(idx1, idx2, idx3 - 1) + &
-                  0.5_dp * mesh%value(idx1, idx2, idx3 - 2)) / mesh%dx3
-    else
-        df_dx3 = (mesh%value(idx1, idx2, idx3+1) - &
-                  mesh%value(idx1, idx2, idx3-1)) / &
-                 (mesh%x3(idx3+1) - mesh%x3(idx3-1))
-    endif
-end subroutine compute_mesh_derivs
+    curla(1) = dAZ_dphi / R - dAphi_dZ
+    curla(2) = dAR_dZ - dAZ_dR
+    curla(3) = dAphi_dR + Aphi / R - dAR_dphi / R
+end subroutine compute_curla
 
 subroutine compute_fluxfunction(self, x, fluxfunction)
     use interpolate, only: evaluate_splines_3d
