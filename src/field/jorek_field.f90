@@ -1,6 +1,7 @@
 module neo_jorek_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_mesh, only: field_mesh_t
+use neo_field_base, only: field_t
 use neo_spline_field, only: spline_field_t, make_spline_from_mesh
 use interpolate, only: SplineData3D
 use neo_mesh, only: mesh_t
@@ -8,10 +9,18 @@ use neo_mesh, only: mesh_t
 implicit none
 
 
-type, extends(spline_field_t) :: jorek_field_t
+type, extends(field_t) :: jorek_field_t
     type(SplineData3D) :: fluxfunction_spline
+    type(SplineData3D) :: A1_spline
+    type(SplineData3D) :: A2_spline
+    type(SplineData3D) :: A3_spline
     contains
         procedure :: jorek_field_init
+        procedure :: compute_abfield
+        procedure :: compute_afield
+        procedure :: compute_bfield
+        procedure :: compute_curla
+        procedure :: compute_afield_derivatives
         procedure :: compute_fluxfunction
 end type jorek_field_t
 
@@ -27,16 +36,100 @@ subroutine jorek_field_init(self, jorek_filename)
     type(mesh_t) :: fluxfunction_mesh
 
     call load_field_mesh_from_jorek(jorek_filename, field_mesh)
-    call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
     call make_spline_from_mesh(field_mesh%A2, self%A2_spline)
     call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
+
+    call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     call make_spline_from_mesh(fluxfunction_mesh, self%fluxfunction_spline)
-    call set_b_mesh_to_curla_plus_fluxfunction(self, field_mesh)
-    call make_spline_from_mesh(field_mesh%B1, self%B1_spline)
-    call make_spline_from_mesh(field_mesh%B2, self%B2_spline)
-    call make_spline_from_mesh(field_mesh%B3, self%B3_spline)
 end subroutine jorek_field_init
+
+subroutine compute_abfield(self, x, A, B)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: A(3), B(3)
+
+    call self%compute_afield(x, A)
+    call self%compute_bfield(x, B)
+end subroutine compute_abfield
+
+subroutine compute_afield(self, x, A)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: A(3)
+
+    call evaluate_splines_3d(self%A1_spline, x, A(1))
+    call evaluate_splines_3d(self%A2_spline, x, A(2))
+    call evaluate_splines_3d(self%A3_spline, x, A(3))
+end subroutine compute_afield
+
+subroutine compute_bfield(self, x, B)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: B(3)
+
+    real(dp) :: curla(3), fluxfunction, R
+
+    call self%compute_curla(x, curla)
+    call self%compute_fluxfunction(x, fluxfunction)
+    R = x(1)
+
+    B(1) = curla(1)
+    B(2) = curla(2) + fluxfunction / R
+    B(3) = curla(3)
+end subroutine compute_bfield
+
+subroutine compute_curla(self, x, curla)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: curla(3)
+
+    real(dp) :: dA_dx(3,3)
+    real(dp) :: dAphi_dZ, dAZ_dphi, dAR_dphi, dAphi_dR, dAZ_dR, dAR_dZ
+    real(dp) :: A(3), Aphi, R
+
+    call self%compute_afield_derivatives(x, dA_dx)
+    dAR_dphi = dA_dx(1,2)
+    dAR_dZ = dA_dx(1,3)
+    dAphi_dR = dA_dx(2,1)
+    dAphi_dZ = dA_dx(2,3)
+    dAZ_dR = dA_dx(3,1)
+    dAZ_dphi = dA_dx(3,2)
+    call self%compute_afield(x, A)
+    Aphi = A(2)
+    R = x(1)
+
+    curla(1) = dAZ_dphi / R - dAphi_dZ
+    curla(2) = dAR_dZ - dAZ_dR
+    curla(3) = dAphi_dR + Aphi / R - dAR_dphi / R
+end subroutine compute_curla
+
+subroutine compute_afield_derivatives(self, x, dA_dx)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: dA_dx(3,3)
+
+    real(dp) :: dA1_dx, dA2_dx, dA3_dx
+
+    call evaluate_splines_3d(self%A1_spline, x, dA1_dx)
+    call evaluate_splines_3d(self%A2_spline, x, dA2_dx)
+    call evaluate_splines_3d(self%A3_spline, x, dA3_dx)
+
+    dA_dx(1,1) = dA1_dx
+    dA_dx(2,1) = dA2_dx
+    dA_dx(3,1) = dA3_dx
+end subroutine compute_afield_derivatives
+
+subroutine compute_fluxfunction(self, x, fluxfunction)
+    use interpolate, only: evaluate_splines_3d
+
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: fluxfunction
+
+    call evaluate_splines_3d(self%fluxfunction_spline, x, fluxfunction)
+end subroutine compute_fluxfunction
+
 
 subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
     character(*), intent(in) :: jorek_filename
@@ -220,80 +313,5 @@ subroutine switch_phi_orientation(array)
     n_phi = size(array, 2)
     array = array(:, n_phi:1:-1, :)
 end subroutine switch_phi_orientation
-
-
-subroutine set_b_mesh_to_curla_plus_fluxfunction(jorek_field, field_mesh)
-    class(jorek_field_t), intent(in) :: jorek_field
-    type(field_mesh_t), intent(inout) :: field_mesh
-
-    real(dp), parameter :: eps = 1.0e-6_dp
-
-    real(dp) :: x(3)
-    real(dp), dimension(:), allocatable :: R, phi, Z
-    integer :: n_R, n_phi, n_Z, idx_R, idx_phi, idx_Z
-    real(dp) :: curla(3), fluxfunction
-
-    n_R = field_mesh%A1%n1
-    n_phi = field_mesh%A1%n2
-    n_Z = field_mesh%A1%n3
-    allocate(R(n_R), phi(n_phi), Z(n_Z))
-    R = field_mesh%A1%x1
-    phi = field_mesh%A1%x2
-    Z = field_mesh%A1%x3
-
-    do idx_R = 1, n_R
-        x(1) = R(idx_R)
-        if (idx_R == 1) x(1) = x(1) + field_mesh%A1%dx1 * eps
-        if (idx_R == n_R) x(1) = x(1) - field_mesh%A1%dx1 * eps
-        do idx_phi = 1, n_phi
-            x(2) = phi(idx_phi)
-            do idx_Z = 1, n_Z
-                x(3) = Z(idx_Z)
-                if (idx_Z == 1) x(3) = x(3) + field_mesh%A1%dx3 * eps
-                if (idx_Z == n_Z) x(3) = x(3) - field_mesh%A1%dx3 * eps
-                call jorek_field%compute_fluxfunction(x, fluxfunction)
-                call compute_curla(jorek_field, x, curla)
-                field_mesh%B1%value(idx_R, idx_phi, idx_Z) = curla(1)
-                field_mesh%B2%value(idx_R, idx_phi, idx_Z) = curla(2) + fluxfunction / x(1)
-                field_mesh%B3%value(idx_R, idx_phi, idx_Z) = curla(3)
-            end do
-        end do
-    end do
-end subroutine set_b_mesh_to_curla_plus_fluxfunction
-
-subroutine compute_curla(jorek_field, x, curla)
-    class(jorek_field_t), intent(in) :: jorek_field
-    real(dp), intent(in) :: x(3)
-    real(dp), intent(out) :: curla(3)
-
-    real(dp) :: dA_dx(3,3)
-    real(dp) :: dAphi_dZ, dAZ_dphi, dAR_dphi, dAphi_dR, dAZ_dR, dAR_dZ
-    real(dp) :: A(3), Aphi, R
-
-    call jorek_field%compute_afield_derivatives(x, dA_dx)
-    dAR_dphi = dA_dx(1,2)
-    dAR_dZ = dA_dx(1,3)
-    dAphi_dR = dA_dx(2,1)
-    dAphi_dZ = dA_dx(2,3)
-    dAZ_dR = dA_dx(3,1)
-    dAZ_dphi = dA_dx(3,2)
-    call jorek_field%compute_afield(x, A)
-    Aphi = A(2)
-    R = x(1)
-
-    curla(1) = dAZ_dphi / R - dAphi_dZ
-    curla(2) = dAR_dZ - dAZ_dR
-    curla(3) = dAphi_dR + Aphi / R - dAR_dphi / R
-end subroutine compute_curla
-
-subroutine compute_fluxfunction(self, x, fluxfunction)
-    use interpolate, only: evaluate_splines_3d
-
-    class(jorek_field_t), intent(in) :: self
-    real(dp), intent(in) :: x(3)
-    real(dp), intent(out) :: fluxfunction
-
-    call evaluate_splines_3d(self%fluxfunction_spline, x, fluxfunction)
-end subroutine compute_fluxfunction
 
 end module neo_jorek_field
