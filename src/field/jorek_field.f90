@@ -4,6 +4,7 @@ use neo_field_mesh, only: field_mesh_t
 use neo_field_base, only: field_t
 use neo_spline_field, only: spline_field_t, make_spline_from_mesh
 use interpolate, only: SplineData3D
+use interpolate, only: evaluate_splines_3d, evaluate_splines_3d_der
 use neo_mesh, only: mesh_t
 
 implicit none
@@ -109,20 +110,19 @@ subroutine compute_afield_derivatives(self, x, dA_dx)
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: dA_dx(3,3)
 
-    real(dp) :: dA1_dx, dA2_dx, dA3_dx
+    real(dp), dimension(3) :: dA1_dx, dA2_dx, dA3_dx
+    real(dp) :: dummy
 
-    call evaluate_splines_3d(self%A1_spline, x, dA1_dx)
-    call evaluate_splines_3d(self%A2_spline, x, dA2_dx)
-    call evaluate_splines_3d(self%A3_spline, x, dA3_dx)
+    call evaluate_splines_3d_der(self%A1_spline, x, dummy, dA1_dx)
+    call evaluate_splines_3d_der(self%A2_spline, x, dummy, dA2_dx)
+    call evaluate_splines_3d_der(self%A3_spline, x, dummy, dA3_dx)
 
-    dA_dx(1,1) = dA1_dx
-    dA_dx(2,1) = dA2_dx
-    dA_dx(3,1) = dA3_dx
+    dA_dx(1,:) = dA1_dx
+    dA_dx(2,:) = dA2_dx
+    dA_dx(3,:) = dA3_dx
 end subroutine compute_afield_derivatives
 
 subroutine compute_fluxfunction(self, x, fluxfunction)
-    use interpolate, only: evaluate_splines_3d
-
     class(jorek_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: fluxfunction
