@@ -3,15 +3,16 @@ use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_mesh, only: field_mesh_t
 use neo_field_base, only: field_t
 use neo_spline_field, only: spline_field_t, make_spline_from_mesh
-use interpolate, only: SplineData3D
-use interpolate, only: evaluate_splines_3d, evaluate_splines_3d_der
+use interpolate, only: SplineData3D, SplineData2D
+use interpolate, only: evaluate_splines_3d, evaluate_splines_3d_der, evaluate_splines_2d
 use neo_mesh, only: mesh_t
+use neo_mesh_2d, only: mesh_2d_t
 
 implicit none
 
 
 type, extends(field_t) :: jorek_field_t
-    type(SplineData3D) :: fluxfunction_spline
+    type(SplineData2D) :: fluxfunction_spline
     type(SplineData3D) :: A1_spline
     type(SplineData3D) :: A2_spline
     type(SplineData3D) :: A3_spline
@@ -34,7 +35,7 @@ subroutine jorek_field_init(self, jorek_filename)
     character(*), intent(in), optional :: jorek_filename
 
     type(field_mesh_t) :: field_mesh
-    type(mesh_t) :: fluxfunction_mesh
+    type(mesh_2d_t) :: fluxfunction_mesh
 
     call load_field_mesh_from_jorek(jorek_filename, field_mesh)
     call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
@@ -42,7 +43,7 @@ subroutine jorek_field_init(self, jorek_filename)
     call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
 
     call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
-    call make_spline_from_mesh(fluxfunction_mesh, self%fluxfunction_spline)
+    call make_spline_from_mesh_2d(fluxfunction_mesh, self%fluxfunction_spline)
 end subroutine jorek_field_init
 
 subroutine compute_abfield(self, x, A, B)
@@ -127,7 +128,11 @@ subroutine compute_fluxfunction(self, x, fluxfunction)
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: fluxfunction
 
-    call evaluate_splines_3d(self%fluxfunction_spline, x, fluxfunction)
+    real(dp) :: x_2d(2)
+
+    x_2d(1) = x(1)
+    x_2d(2) = x(3)
+    call evaluate_splines_2d(self%fluxfunction_spline, x_2d, fluxfunction)
 end subroutine compute_fluxfunction
 
 
@@ -178,23 +183,22 @@ end subroutine load_field_mesh_from_jorek
 
 subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     character(*), intent(in) :: jorek_filename
-    type(mesh_t), intent(out) :: fluxfunction_mesh
+    type(mesh_2d_t), intent(out) :: fluxfunction_mesh
 
     integer :: n_R, n_Z, n_phi
     real(dp), dimension(:), allocatable :: R, Z, phi
     real(dp), dimension(:,:,:,:), allocatable :: values
-    real(dp), dimension(:,:,:), allocatable :: fluxfunction
-    logical :: is_periodic(3)
+    real(dp), dimension(:,:), allocatable :: fluxfunction
+    logical :: is_periodic(2)
 
     call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
-    allocate(fluxfunction(n_R, n_phi, n_Z))
+    allocate(fluxfunction(n_R, n_Z))
              
-    fluxfunction = values(11,:,:,:)
-    call switch_phi_orientation(fluxfunction)
+    fluxfunction = values(11,:,1,:)
     fluxfunction = -fluxfunction
 
-    is_periodic = [.false., .true., .false.]
-    call fluxfunction_mesh%mesh_init(R, phi, Z, fluxfunction, is_periodic)
+    is_periodic = [.false., .false.]
+    call fluxfunction_mesh%mesh_init(R, Z, fluxfunction, is_periodic)
     deallocate(fluxfunction, values, R, Z, phi)
 end subroutine load_fluxfunction_mesh_from_jorek
 
@@ -313,5 +317,26 @@ subroutine switch_phi_orientation(array)
     n_phi = size(array, 2)
     array = array(:, n_phi:1:-1, :)
 end subroutine switch_phi_orientation
+
+
+subroutine make_spline_from_mesh_2d(mesh, spline, order_in)
+    use interpolate, only: construct_splines_2d
+
+    class(mesh_2d_t), intent(in) :: mesh
+    type(SplineData2D), intent(out) :: spline
+    integer, optional :: order_in(2)
+
+    real(dp) :: x_min(2), x_max(2)
+    integer :: order(2)
+        
+    if (present(order_in)) then
+        order = order_in
+    else
+        order = 3
+    end if
+    x_min = [mesh%x1(1), mesh%x2(1)]
+    x_max = [mesh%x1(mesh%n1), mesh%x2(mesh%n2)]
+    call construct_splines_2d(x_min, x_max, mesh%value, order, mesh%is_periodic, spline)
+end subroutine make_spline_from_mesh_2d
 
 end module neo_jorek_field
