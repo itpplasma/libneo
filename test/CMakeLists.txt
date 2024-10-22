@@ -112,6 +112,7 @@ add_test(NAME test_system_utility
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
 
 add_subdirectory(util_for_test)
+add_subdirectory(util_for_test_field)
 add_subdirectory(field)
 add_subdirectory(polylag)
 add_subdirectory(poincare)

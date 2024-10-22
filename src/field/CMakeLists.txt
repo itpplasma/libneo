@@ -9,4 +9,5 @@ add_library(neo_field OBJECT
     spline_field.f90
     jorek_field.f90
     mesh.f90
+    mesh_2d.f90
     field.f90)

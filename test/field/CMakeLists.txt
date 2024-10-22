@@ -1,8 +1,5 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/field)
 
-add_library(util_for_test_field OBJECT util_for_test_field.f90)
-target_link_libraries(util_for_test_field PRIVATE neo)
-
 add_library(util_for_test_jorek_field OBJECT util_for_test_jorek_field.f90)
 
 

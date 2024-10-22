@@ -2,7 +2,8 @@ module neo_spline_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_base, only: field_t
 use neo_field_mesh, only: field_mesh_t
-use interpolate, only: SplineData3D, construct_splines_3d, evaluate_splines_3d
+use interpolate, only: SplineData3D, construct_splines_3d
+use interpolate, only: evaluate_splines_3d, evaluate_splines_3d_der
 implicit none
 
 type, extends(field_t) :: spline_field_t
@@ -13,6 +14,7 @@ type, extends(field_t) :: spline_field_t
         procedure :: compute_abfield
         procedure :: compute_afield
         procedure :: compute_bfield
+        procedure :: compute_afield_derivatives
 end type spline_field_t
 
 contains
@@ -77,5 +79,20 @@ subroutine compute_bfield(self, x, B)
     call evaluate_splines_3d(self%B2_spline, x, B(2))
     call evaluate_splines_3d(self%B3_spline, x, B(3))
 end subroutine compute_bfield
+
+subroutine compute_afield_derivatives(self, x, dA_dx)
+    class(spline_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: dA_dx(3,3)
+
+    real(dp) :: dummy, dA1_dx(3), dA2_dx(3), dA3_dx(3)
+
+    call evaluate_splines_3d_der(self%A1_spline, x, dummy, dA1_dx)
+    call evaluate_splines_3d_der(self%A2_spline, x, dummy, dA2_dx)
+    call evaluate_splines_3d_der(self%A3_spline, x, dummy, dA3_dx)
+    dA_dx(1,:) = dA1_dx
+    dA_dx(2,:) = dA2_dx
+    dA_dx(3,:) = dA3_dx
+end subroutine compute_afield_derivatives
 
 end module neo_spline_field

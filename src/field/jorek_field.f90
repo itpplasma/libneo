@@ -1,36 +1,146 @@
 module neo_jorek_field
 use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_mesh, only: field_mesh_t
+use neo_field_base, only: field_t
 use neo_spline_field, only: spline_field_t, make_spline_from_mesh
-use interpolate, only: SplineData3D
+use interpolate, only: SplineData3D, SplineData2D
+use interpolate, only: evaluate_splines_3d, evaluate_splines_3d_der, evaluate_splines_2d
 use neo_mesh, only: mesh_t
+use neo_mesh_2d, only: mesh_2d_t
 
 implicit none
 
 
-type, extends(spline_field_t) :: jorek_field_t
-    type(SplineData3D) :: fluxfunction_spline
+type, extends(field_t) :: jorek_field_t
+    type(SplineData2D) :: fluxfunction_spline
+    type(SplineData3D) :: A1_spline
+    type(SplineData3D) :: A2_spline
+    type(SplineData3D) :: A3_spline
     contains
         procedure :: jorek_field_init
+        procedure :: compute_abfield
+        procedure :: compute_afield
+        procedure :: compute_bfield
+        procedure :: compute_curla
+        procedure :: compute_afield_derivatives
         procedure :: compute_fluxfunction
 end type jorek_field_t
 
 
 contains
 
-subroutine jorek_field_init(self, jorek_filename)
+subroutine jorek_field_init(self, jorek_filename, spline_order)
 
     class(jorek_field_t), intent(out) :: self
     character(*), intent(in), optional :: jorek_filename
+    integer, intent(in), optional :: spline_order(3)
 
     type(field_mesh_t) :: field_mesh
-    type(mesh_t) :: fluxfunction_mesh
+    type(mesh_2d_t) :: fluxfunction_mesh
 
     call load_field_mesh_from_jorek(jorek_filename, field_mesh)
-    call self%spline_field_init(field_mesh)
+    call make_spline_from_mesh(field_mesh%A1, self%A1_spline, spline_order)
+    call make_spline_from_mesh(field_mesh%A2, self%A2_spline, spline_order)
+    call make_spline_from_mesh(field_mesh%A3, self%A3_spline, spline_order)
+
     call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
-    call make_spline_from_mesh(fluxfunction_mesh, self%fluxfunction_spline)
+    if (present(spline_order)) then
+        call make_spline_from_mesh_2d(fluxfunction_mesh, self%fluxfunction_spline, &
+                                      order_in=(/spline_order(1), spline_order(3)/))
+    else
+        call make_spline_from_mesh_2d(fluxfunction_mesh, self%fluxfunction_spline)
+    endif
 end subroutine jorek_field_init
+
+subroutine compute_abfield(self, x, A, B)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: A(3), B(3)
+
+    call self%compute_afield(x, A)
+    call self%compute_bfield(x, B)
+end subroutine compute_abfield
+
+subroutine compute_afield(self, x, A)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: A(3)
+
+    call evaluate_splines_3d(self%A1_spline, x, A(1))
+    call evaluate_splines_3d(self%A2_spline, x, A(2))
+    call evaluate_splines_3d(self%A3_spline, x, A(3))
+end subroutine compute_afield
+
+subroutine compute_bfield(self, x, B)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: B(3)
+
+    real(dp) :: curla(3), fluxfunction, R
+
+    call self%compute_curla(x, curla)
+    call self%compute_fluxfunction(x, fluxfunction)
+    R = x(1)
+
+    B(1) = curla(1)
+    B(2) = curla(2) + fluxfunction / R
+    B(3) = curla(3)
+end subroutine compute_bfield
+
+subroutine compute_curla(self, x, curla)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: curla(3)
+
+    real(dp) :: dA_dx(3,3)
+    real(dp) :: dAphi_dZ, dAZ_dphi, dAR_dphi, dAphi_dR, dAZ_dR, dAR_dZ
+    real(dp) :: A(3), Aphi, R
+
+    call self%compute_afield_derivatives(x, dA_dx)
+    dAR_dphi = dA_dx(1,2)
+    dAR_dZ = dA_dx(1,3)
+    dAphi_dR = dA_dx(2,1)
+    dAphi_dZ = dA_dx(2,3)
+    dAZ_dR = dA_dx(3,1)
+    dAZ_dphi = dA_dx(3,2)
+    call self%compute_afield(x, A)
+    Aphi = A(2)
+    R = x(1)
+
+    curla(1) = dAZ_dphi / R - dAphi_dZ
+    curla(2) = dAR_dZ - dAZ_dR
+    curla(3) = dAphi_dR + Aphi / R - dAR_dphi / R
+end subroutine compute_curla
+
+subroutine compute_afield_derivatives(self, x, dA_dx)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: dA_dx(3,3)
+
+    real(dp), dimension(3) :: dA1_dx, dA2_dx, dA3_dx
+    real(dp) :: dummy
+
+    call evaluate_splines_3d_der(self%A1_spline, x, dummy, dA1_dx)
+    call evaluate_splines_3d_der(self%A2_spline, x, dummy, dA2_dx)
+    call evaluate_splines_3d_der(self%A3_spline, x, dummy, dA3_dx)
+
+    dA_dx(1,:) = dA1_dx
+    dA_dx(2,:) = dA2_dx
+    dA_dx(3,:) = dA3_dx
+end subroutine compute_afield_derivatives
+
+subroutine compute_fluxfunction(self, x, fluxfunction)
+    class(jorek_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: fluxfunction
+
+    real(dp) :: x_2d(2)
+
+    x_2d(1) = x(1)
+    x_2d(2) = x(3)
+    call evaluate_splines_2d(self%fluxfunction_spline, x_2d, fluxfunction)
+end subroutine compute_fluxfunction
+
 
 subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
     character(*), intent(in) :: jorek_filename
@@ -51,11 +161,20 @@ subroutine load_field_mesh_from_jorek(jorek_filename, field_mesh)
     A_Z = values(3,:,:,:)
     A_3 = values(4,:,:,:)
     do idx_R = 1, n_R
-        A_phi(idx_R,:,:) = -A_3(idx_R,:,:) / R(idx_R)
+        A_phi(idx_R,:,:) = A_3(idx_R,:,:) / R(idx_R)
     end do
     B_R = values(12,:,:,:)
     B_Z = values(13,:,:,:)
-    B_phi = -values(14,:,:,:)
+    B_phi = values(14,:,:,:)
+
+    call switch_phi_orientation(A_R)
+    call switch_phi_orientation(A_Z)
+    call switch_phi_orientation(A_phi)
+    A_phi = -A_phi
+    call switch_phi_orientation(B_R)
+    call switch_phi_orientation(B_Z)
+    call switch_phi_orientation(B_phi)
+    B_phi = -B_phi
 
     is_periodic = [.false., .true., .false.]
     call field_mesh%A1%mesh_init(R, phi, Z, A_R, is_periodic)
@@ -70,21 +189,22 @@ end subroutine load_field_mesh_from_jorek
 
 subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
     character(*), intent(in) :: jorek_filename
-    type(mesh_t), intent(out) :: fluxfunction_mesh
+    type(mesh_2d_t), intent(out) :: fluxfunction_mesh
 
     integer :: n_R, n_Z, n_phi
     real(dp), dimension(:), allocatable :: R, Z, phi
     real(dp), dimension(:,:,:,:), allocatable :: values
-    real(dp), dimension(:,:,:), allocatable :: fluxfunction
-    logical :: is_periodic(3)
+    real(dp), dimension(:,:), allocatable :: fluxfunction
+    logical :: is_periodic(2)
 
     call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
-    allocate(fluxfunction(n_R, n_phi, n_Z))
+    allocate(fluxfunction(n_R, n_Z))
              
-    fluxfunction = -values(11,:,:,:)
+    fluxfunction = values(11,:,1,:)
+    fluxfunction = -fluxfunction
 
-    is_periodic = [.false., .true., .false.]
-    call fluxfunction_mesh%mesh_init(R, phi, Z, fluxfunction, is_periodic)
+    is_periodic = [.false., .false.]
+    call fluxfunction_mesh%mesh_init(R, Z, fluxfunction, is_periodic)
     deallocate(fluxfunction, values, R, Z, phi)
 end subroutine load_fluxfunction_mesh_from_jorek
 
@@ -195,14 +315,34 @@ subroutine get_value_from_filename(filename, keyword, value)
 end subroutine get_value_from_filename
 
 
-subroutine compute_fluxfunction(self, x, fluxfunction)
-    use interpolate, only: evaluate_splines_3d
+subroutine switch_phi_orientation(array)
+    real(dp), dimension(:,:,:), intent(inout) :: array
 
-    class(jorek_field_t), intent(in) :: self
-    real(dp), intent(in) :: x(3)
-    real(dp), intent(out) :: fluxfunction
+    integer :: n_phi
 
-    call evaluate_splines_3d(self%fluxfunction_spline, x, fluxfunction)
-end subroutine compute_fluxfunction
+    n_phi = size(array, 2)
+    array = array(:, n_phi:1:-1, :)
+end subroutine switch_phi_orientation
+
+
+subroutine make_spline_from_mesh_2d(mesh, spline, order_in)
+    use interpolate, only: construct_splines_2d
+
+    class(mesh_2d_t), intent(in) :: mesh
+    type(SplineData2D), intent(out) :: spline
+    integer, optional :: order_in(2)
+
+    real(dp) :: x_min(2), x_max(2)
+    integer :: order(2)
+        
+    if (present(order_in)) then
+        order = order_in
+    else
+        order = 3
+    end if
+    x_min = [mesh%x1(1), mesh%x2(1)]
+    x_max = [mesh%x1(mesh%n1), mesh%x2(mesh%n2)]
+    call construct_splines_2d(x_min, x_max, mesh%value, order, mesh%is_periodic, spline)
+end subroutine make_spline_from_mesh_2d
 
 end module neo_jorek_field

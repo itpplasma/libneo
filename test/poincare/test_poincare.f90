@@ -24,6 +24,7 @@ jorek_config%plot_Zmax = 1.0_dp
 call test_make_poincare
 call test_get_poincare_RZ_for_closed_fieldline
 call test_read_config_file
+call draw_circular_tokamak_poincare
 
 contains
 
@@ -263,5 +264,45 @@ subroutine remove_poincare_config
         error stop
     end if
 end subroutine remove_poincare_config
+
+
+subroutine draw_circular_tokamak_poincare()
+    use neo_poincare, only: get_poincare_RZ, poincare_config_t
+    use neo_poincare, only: write_poincare_RZ_to_file
+    use neo_circular_tokamak_field, only: circular_tokamak_field_t
+
+    type(circular_tokamak_field_t) :: field
+    type(poincare_config_t) :: config
+
+    real(dp), parameter :: safety_factor = pi
+    real(dp), parameter :: R_axis = 2.0_dp, Z_axis = 0.0_dp
+    real(dp) :: B_tor_ampl, B_pol_ampl
+    real(dp), dimension(:,:), allocatable :: R, Z
+
+    call print_test("draw_circular_tokamak_poincare")
+    B_tor_ampl = 1.0_dp
+    B_pol_ampl = B_tor_ampl/safety_factor
+    call field%circular_tokamak_field_init(R_axis=R_axis, Z_axis=Z_axis, &
+                                           B_pol_ampl=B_pol_ampl, B_tor_ampl=B_tor_ampl)
+    config%n_fieldlines = 1
+    config%fieldline_start_phi = 0.0_dp
+    config%n_periods = 1000*(int(safety_factor) + 1)
+    config%period_length = 2.0_dp * pi
+    config%integrate_err = 1.0e-6_dp
+    config%plot_Rmin = 0.5_dp
+    config%plot_Rmax = 3.5_dp
+    config%plot_Zmin = -1.5_dp
+    config%plot_Zmax = 1.5_dp
+
+    allocate(R(config%n_fieldlines,config%n_periods))
+    allocate(Z(config%n_fieldlines,config%n_periods))
+    R(1,1) = 1.0_dp
+    Z(1,1) = 0.0_dp
+    call get_poincare_RZ(field, config, R(1,:), Z(1,:))
+    call write_poincare_RZ_to_file(R, Z, 'circular_tok_poincare.dat')
+
+    call print_ok
+end subroutine draw_circular_tokamak_poincare
+
 
 end program test_poincare
