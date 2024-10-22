@@ -29,21 +29,27 @@ end type jorek_field_t
 
 contains
 
-subroutine jorek_field_init(self, jorek_filename)
+subroutine jorek_field_init(self, jorek_filename, spline_order)
 
     class(jorek_field_t), intent(out) :: self
     character(*), intent(in), optional :: jorek_filename
+    integer, intent(in), optional :: spline_order(3)
 
     type(field_mesh_t) :: field_mesh
     type(mesh_2d_t) :: fluxfunction_mesh
 
     call load_field_mesh_from_jorek(jorek_filename, field_mesh)
-    call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
-    call make_spline_from_mesh(field_mesh%A2, self%A2_spline)
-    call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
+    call make_spline_from_mesh(field_mesh%A1, self%A1_spline, spline_order)
+    call make_spline_from_mesh(field_mesh%A2, self%A2_spline, spline_order)
+    call make_spline_from_mesh(field_mesh%A3, self%A3_spline, spline_order)
 
     call load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
-    call make_spline_from_mesh_2d(fluxfunction_mesh, self%fluxfunction_spline)
+    if (present(spline_order)) then
+        call make_spline_from_mesh_2d(fluxfunction_mesh, self%fluxfunction_spline, &
+                                      order_in=(/spline_order(1), spline_order(3)/))
+    else
+        call make_spline_from_mesh_2d(fluxfunction_mesh, self%fluxfunction_spline)
+    endif
 end subroutine jorek_field_init
 
 subroutine compute_abfield(self, x, A, B)
