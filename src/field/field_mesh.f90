@@ -6,11 +6,60 @@ implicit none
 type :: field_mesh_t
     type(mesh_t) :: A1, A2, A3, B1, B2, B3
     contains
+    procedure :: field_mesh_init_with_file
     procedure :: field_mesh_init_with_field
     procedure :: field_mesh_deinit
 end type field_mesh_t
 
 contains
+
+subroutine field_mesh_init_with_file(self, filename)
+
+    class(field_mesh_t), intent(out) :: self
+    character(*), intent(in) :: filename
+    integer :: unit
+    real(dp), dimension(3,2) :: limits
+    integer, dimension(3) :: n_points
+    logical :: is_periodic(3)
+    integer :: i, j, k
+    real(dp), dimension(:), allocatable :: x1, x2, x3
+    real(dp), dimension(3) :: x, A, B
+
+    open(newunit = unit, file = filename)
+    read(unit,*) n_points
+    read(unit,*) limits
+    read(unit,*) is_periodic
+
+    allocate(x1(n_points(1)), x2(n_points(2)), x3(n_points(3)))
+    x1 = linspace(limits(1,1), limits(1,2), n_points(1))
+    x2 = linspace(limits(2,1), limits(2,2), n_points(2))
+    x3 = linspace(limits(3,1), limits(3,2), n_points(3))
+
+    call self%A1%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%A2%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%A3%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%B1%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%B2%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+    call self%B3%mesh_init(x1, x2, x3, is_periodic=is_periodic)
+
+    do i = 1, size(x1)
+        do j = 1, size(x2)
+            do k = 1, size(x3)
+                x = [x1(i), x2(j), x3(k)]
+                read(unit,*) A, B
+                self%A1%value(i,j,k) = A(1)
+                self%A2%value(i,j,k) = A(2)
+                self%A3%value(i,j,k) = A(3)
+                self%B1%value(i,j,k) = B(1)
+                self%B2%value(i,j,k) = B(2)
+                self%B3%value(i,j,k) = B(3)
+            end do
+        end do
+    end do
+
+    close(unit)
+
+end subroutine field_mesh_init_with_file
 
 subroutine field_mesh_init_with_field(self, limits, field, n_points, is_periodic)
     use neo_field_base, only: field_t
