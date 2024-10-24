@@ -41,6 +41,8 @@ module neo_field
                     allocate(field, source= &
                             create_spline_field(limits, field_to_interpolate, n_points))
                 end if
+            case("spline_from_file")
+                allocate(field, source=create_spline_field_from_file(filename))
             case("jorek")
                 allocate(field, source=create_jorek_field(filename))
             case default
@@ -99,6 +101,18 @@ module neo_field
         allocate(spline_field)
         call spline_field%spline_field_init(field_mesh)
     end function create_spline_field_from_mesh
+
+
+    function create_spline_field_from_file(filename) result(spline_field_from_file)
+        character(*), intent(in) :: filename
+        class(spline_field_t), allocatable :: spline_field_from_file
+
+        type(field_mesh_t) :: field_mesh
+
+        call field_mesh%field_mesh_init_with_file(filename)
+        allocate(spline_field_from_file, source=create_spline_field_from_mesh(field_mesh))
+
+    end function create_spline_field_from_file
 
 
     function create_jorek_field(filename) result(jorek_field)
