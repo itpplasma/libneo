@@ -13,15 +13,17 @@ class FluxConverter:
     This is a class for the conversion between the poloidal and toroidal flux of a given flux surface.
     """
 
-    def __init__(self, q_profile: np.ndarray, axis_polflux: float = np.nan, edge_polflux: float = np.nan):
+    def __init__(self, q_profile: np.ndarray, spol_profile: np.ndarray = np.nan,
+                                              axis_polflux: float = np.nan, 
+                                              edge_polflux: float = np.nan):
         """
-        q_profile: np.ndarray, equidistant array of the safety factor profile q in terms of poloidal flux
+        q_profile: np.ndarray, safety factor profile q in terms of poloidal label spol
+        spol_profile: (optional) np.ndarry, if not provided, an equidistant profile from 0 to 1 is assumed
         axis_polflux: (optional) float, poloidal flux at the magnetic axis (either disk or ribbon flux)
         edge_polflux: (optional) float, poloidal flux at the magnetic edge (either disk or ribbon flux, sames as axis)
-
-        Assumes that the q profile is given on equidistant spol profile from 0 to 1.
         """
-        spol_profile = np.linspace(0.0, 1.0, q_profile.shape[0])
+        if np.any(np.isnan(spol_profile)):
+            spol_profile = np.linspace(0.0, 1.0, q_profile.shape[0])
 
         # Setup conversion spol -> stor
         q = CubicSpline(spol_profile, q_profile, extrapolate=True)
