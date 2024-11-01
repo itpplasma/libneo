@@ -138,7 +138,8 @@ edge_disk_polflux = 0.0
 
 def test_FluxConverter():
 
-    converter = FluxConverter(q_profile, axis_disk_polflux, edge_disk_polflux)
+    converter = FluxConverter(q_profile, axis_polflux=axis_disk_polflux, 
+                                         edge_polflux=edge_disk_polflux)
     disk_polflux_test_profile = np.linspace(axis_disk_polflux, edge_disk_polflux, len(q_profile))
 
     torflux_result_profile = converter.polflux2torflux(disk_polflux_test_profile)
@@ -170,7 +171,8 @@ def test_compare_FluxConverter_to_direct_conversion():
     torflux_DirectConversionProfile = get_torflux(disk_polflux_test_profile)
 
     # standard calculation of torflux profile with FluxConverter and disk_polflux profile
-    converter = FluxConverter(q_profile, axis_disk_polflux, edge_disk_polflux)
+    converter = FluxConverter(q_profile, axis_polflux=axis_disk_polflux, 
+                                         edge_polflux=edge_disk_polflux)
     torflux_result_profile = converter.polflux2torflux(disk_polflux_test_profile)
 
     assert_allclose(torflux_DirectConversionProfile, torflux_result_profile)
@@ -195,3 +197,21 @@ def test_FluxConverter_label_conversion():
     print("s_pol = ", spol_test_profile[:5],'...',spol_test_profile[-5:])
     print("s_tor = ", stor_result_profile[:5],'...',stor_result_profile[-5:])
     print('----------------------------------------------------------------')
+
+def test_FluxConverter_non_equidistant_spol():
+
+    trial_spol = np.linspace(0,1,20)
+    n_s = 10
+
+    spol = np.linspace(0,1,n_s)**2
+    q = spol**3
+    converter = FluxConverter(q_profile=q, spol_profile=spol)
+
+    spol_equidist = np.linspace(0,1,n_s)
+    q_equidist = spol_equidist**3
+    converter_equidist = FluxConverter(q_profile=q_equidist)
+
+    stor = converter.spol2stor(trial_spol)
+    stor_from_equidist_profiles = converter_equidist.spol2stor(trial_spol)
+
+    assert_allclose(stor, stor_from_equidist_profiles)
