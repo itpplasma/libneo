@@ -213,29 +213,24 @@ else()
 endif()
 
 set(FILES_TO_WRAP
-  interpolate.f90
+  interpolate/interpolate.f90
 )
-
-set(EXCLUDE_BASENAMESs
-)
+list(TRANSFORM FILES_TO_WRAP PREPEND ${PROJECT_SOURCE_DIR}/src/)
 
 foreach(file ${FILES_TO_WRAP})
     get_filename_component(basename ${file} NAME_WE)
     list(APPEND PREPROCESSED_SOURCES
         ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
     )
-    if(NOT ${basename} IN_LIST EXCLUDE_BASENAMES)
-        list(APPEND F90WRAP_OUTPUT
-            ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_${basename}.f90.f90
-        )
-    endif()
+    list(APPEND F90WRAP_OUTPUT
+        ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_${basename}.f90.f90
+    )
 endforeach()
 
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
   list(APPEND F90WRAP_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
 endif()
 
-list(TRANSFORM FILES_TO_WRAP PREPEND ${PROJECT_SOURCE_DIR}/src/)
 list(REMOVE_ITEM FILES_TO_WRAP ${PROJECT_SOURCE_DIR}/src/interpolate.f90)
 list(APPEND FILES_TO_WRAP ${PROJECT_SOURCE_DIR}/src/interpolate/interpolate.f90)
 
@@ -302,3 +297,4 @@ set_target_properties(
 )
 
 install(TARGETS ${F2PY_MODULE_NAME} DESTINATION .)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py DESTINATION .)
