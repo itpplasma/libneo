@@ -108,7 +108,6 @@ function compute_cylindrical_divb(field, x, tol) result(divb)
     integer :: i
 
     delta = sqrt(tol)
-    print *, delta
     do i = 1, 3
         x_temp = x
         x_temp(i) = x(i) + delta

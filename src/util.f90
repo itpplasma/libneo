@@ -19,4 +19,19 @@ contains
         end do
     end subroutine linspace
 
+
+    function get_random_numbers(xmin, xmax, n, seed) result(x)
+        real(dp), intent(in) :: xmin, xmax
+        integer, intent(in) :: n
+        integer, dimension(:), intent(in), optional :: seed
+        real(dp), dimension(:), allocatable :: x
+    
+        if (present(seed)) then
+            call random_seed(put=seed)
+        end if
+        allocate(x(n))
+        call random_number(x)
+        x = xmin + (xmax - xmin) * x
+    end function get_random_numbers
+
 end module util
