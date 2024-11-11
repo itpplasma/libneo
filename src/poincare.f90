@@ -37,8 +37,8 @@ subroutine make_poincare(field, config, output_filename)
     do fieldline = 1, config%n_fieldlines
         R(fieldline, 1) = start_R(fieldline)
         Z(fieldline, 1) = start_Z(fieldline)
-        write(*,*) 'fieldline #', fieldline
         call get_poincare_RZ(field, config, R(fieldline, :), Z(fieldline, :))
+        write(*,*) 'fieldline #', fieldline, 'finished'
     enddo
     call write_poincare_RZ_to_file(R, Z, output_filename)
     deallocate(R, Z)
@@ -94,7 +94,6 @@ subroutine get_poincare_RZ(field, config, R, Z)
             Z(period:) = Z(period-1)
             exit
         end if
-        write(*,*) period, '/', config%n_periods, 'periods finished'
     enddo
 end subroutine get_poincare_RZ
 
