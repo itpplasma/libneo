@@ -96,7 +96,7 @@ subroutine test_jorek_trial_field
     call field%jorek_field_init(trial_filename)
 
     call is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
-    call is_curla_plus_fluxfunction_equal_b(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
+    call is_curla_plus_fluxfunction_equal_b(field, Rmin, Rmax, phimin, phimax, Zmin, Zmax)
 
     call print_ok
 end subroutine test_jorek_trial_field
@@ -114,25 +114,21 @@ subroutine is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
     integer :: idx
 
     x(1,:) = get_random_numbers(Rmin, Rmax, n)
-    x(2,:) = get_random_numbers(Zmin, Zmax, n)
-    x(3,:) = get_random_numbers(phimin, phimax, n)
+    x(2,:) = get_random_numbers(phimin, phimax, n)
+    x(3,:) = get_random_numbers(Zmin, Zmax, n)
 
     do idx = 1, n
         call field%compute_abfield(x(:,idx), A, B)
         R = x(1,idx)
         A_trial = (/0.0_dp, 0.0_dp, -0.5_dp/) * R
-        if (any(abs(A - A_trial) > tol) .or. any(abs(B - B_trial) > tol)) then
-            print *, "mis-match at x = ", x(:,idx)
-            print *, "A = ", A, "B = ", B
-            print *, "A_trial = ", A_trial, "B_trial = ", B_trial
-            call print_fail
-            error stop
-        end if
         call field%compute_fluxfunction(x(:,idx), fluxfunction)
         fluxfunction_trial = 0.5_dp * R
-        if (abs(fluxfunction - fluxfunction_trial) > tol) then
+        if (any(abs(A - A_trial) > tol) .or. &
+            any(abs(B - B_trial) > tol) .or. &
+            abs(fluxfunction - fluxfunction_trial) > tol) then
             print *, "mis-match at x = ", x(:,idx)
-            print *, "fluxfunction = ", fluxfunction, &
+            print *, "A = ", A, "B = ", B, "fluxfunction = ", fluxfunction
+            print *, "A_trial = ", A_trial, "B_trial = ", B_trial, &
                      "fluxfunction_trial = ", fluxfunction_trial
             call print_fail
             error stop
