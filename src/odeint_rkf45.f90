@@ -24,6 +24,8 @@ subroutine odeint_allroutines(y, nvar, x1, x2, eps, derivs)
 
   call r8_rkf45 ( derivs, nvar, y, yp, x1, x2, epsrel, epsabs, flag )
 
+  if (product(flag - [3,4,5,8]).eq.0) print*, "the error flag in r8_rkf45 is: ", flag
+
   if (flag == 6) then
     epsrel = 10*epsrel
     epsabs = 10*epsabs
