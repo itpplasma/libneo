@@ -52,6 +52,7 @@ def read_eqdsk(filename):
         for k in range(eqdata['nrgr']):
             eqdata['fprof'][k] = readblock(f, k)
         f.readline()
+        eqdata['PsiVs'] = eqdata['PsiVs'].reshape(eqdata['nzgr'], eqdata['nrgr'])
 
         eqdata['ptotprof'] = np.empty(eqdata['nrgr'])
         for k in range(eqdata['nrgr']):
