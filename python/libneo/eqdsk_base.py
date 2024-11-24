@@ -75,10 +75,10 @@ def read_eqdsk(filename):
         eqdata['PsiVs'] = eqdata['PsiVs'].reshape(eqdata['nzgr'], eqdata['nrgr'])
 
         eqdata['qprof'] = np.empty(eqdata['nrgr'])
-        eqdata['rho_poloidal'] = np.empty(eqdata['nrgr'])
+        eqdata['s_pol'] = np.empty(eqdata['nrgr'])
         for k in range(eqdata['nrgr']):
             eqdata['qprof'][k] = readblock(f, k)
-            eqdata['rho_poloidal'][k] = float(k)/float(eqdata['nrgr']-1)
+            eqdata['s_pol'][k] = float(k)/float(eqdata['nrgr']-1)
         f.readline()
 
         line = f.readline().split()
