@@ -51,8 +51,6 @@ target_link_libraries(test_geqdsk_tools.x
 add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
 target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
-  ${HDF5_LIBRARIES}
-  ${HDF5_HL_LIBRARIES}
 )
 
 add_executable(test_mympilib.x
