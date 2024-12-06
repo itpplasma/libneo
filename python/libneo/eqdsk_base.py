@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 def readblock(f, k):
     if k > 0 and (k % 5) == 0:
@@ -98,3 +99,47 @@ def read_eqdsk(filename):
         eqdata['Limiter'] = eqdata['Limiter'].reshape(-1, 2)
 
         return eqdata
+
+
+def plot_poloidal_flux(eqdsks: list, labels: list, n_levels: int=10):
+    eqdsks = make_to_list_if_not(eqdsks)
+    labels = make_to_list_if_not(labels)
+    n_eqdsk = len(eqdsks)
+    for idx in range(n_eqdsk):
+        eqdsk = eqdsks[idx]
+        label = labels[idx]
+        plt.figure()
+        levels = np.linspace(eqdsk["PsiaxisVs"], eqdsk["PsiedgeVs"], n_levels)
+        if (levels[1]-levels[0]) < 0:
+            levels = levels[-1::-1]
+        plt.contourf(eqdsk["R"], eqdsk["Z"], eqdsk["PsiVs"], levels=levels)
+        plt.colorbar()
+        plt.axis("equal")
+        plt.title(label)
+        plt.grid(True)
+    plt.show()
+
+
+def plot_fpol(eqdsks: list, labels: list, markers: list=[]):
+    eqdsks = make_to_list_if_not(eqdsks)
+    labels = make_to_list_if_not(labels)
+    n_eqdsk = len(eqdsks)
+    _, ax = plt.subplots(nrows=max(n_eqdsk,2), ncols=1)
+    if len(markers)==0:
+        markers = ["-b"] * n_eqdsk
+    for idx in range(n_eqdsk):
+        eqdsk = eqdsks[idx]
+        label = labels[idx]
+        marker = markers[idx]
+        sqrtspol= np.sqrt(eqdsk["s_pol"])
+        ax[idx].plot(sqrtspol, eqdsk["fprof"], marker, label=label + " / " r"$B_\mathrm{toroidal}$ at axis=" + str(eqdsk["Btor_at_R0"]))
+        ax[idx].set_ylabel(r"$f_\mathrm{pol}$")
+        ax[idx].legend()
+    ax[-1].set_xlabel(r"$\rho_\mathrm{pol}$")
+    plt.show()
+
+
+def make_to_list_if_not(obj):
+    if not isinstance(obj, list):
+        obj = [obj]
+    return obj
