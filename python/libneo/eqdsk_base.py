@@ -139,6 +139,25 @@ def plot_fpol(eqdsks: list, labels: list, markers: list=[]):
     plt.show()
 
 
+def plot_fluxsurfaces(eqdsks: list, labels: list, n_surf: int=11):
+    eqdsks = make_to_list_if_not(eqdsks)
+    labels = make_to_list_if_not(labels)
+    n_eqdsk = len(eqdsks)
+    for idx in range(n_eqdsk):
+        eqdsk = eqdsks[idx]
+        label = labels[idx]
+        normalized_flux = ((eqdsk["PsiVs"] - eqdsk["PsiaxisVs"]) / 
+                           (eqdsk["PsiedgeVs"] - eqdsk["PsiaxisVs"]))
+        plt.figure()
+        levels = np.linspace(0, 1, n_surf)
+        fluxsurfaces = plt.contour(eqdsk["R"], eqdsk["Z"], normalized_flux, levels=levels)
+        plt.clabel(fluxsurfaces, inline=True, fontsize=8)
+        plt.axis("equal")
+        plt.title(label)
+        plt.grid(True)
+    plt.show()
+
+
 def make_to_list_if_not(obj):
     if not isinstance(obj, list):
         obj = [obj]
