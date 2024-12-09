@@ -18,19 +18,20 @@ subroutine test_spline_field_from_file_init
 
     class(field_t), allocatable :: field
     character(*), parameter :: filename = "field_from_gorilla"
-    real(dp) :: deviation
+    real(dp), dimension(2) :: deviation
     real(dp), parameter :: tol = 1.0e-7_dp
 
     call print_test("test_spline_field_from_file_init")
 
     call create_file(filename)
-    call create_field(field, "spline_from_file", filename=filename)
+    call create_field(field, "spline", filename=filename)
 
     deviation = compare_spline_with_file(field,filename)
     call unlink(filename)
 
-    if (deviation.gt.tol) then
-        print *, "error: tol = ", tol, " , compare_spline_with_file = ", deviation
+    if (deviation(1).gt.tol .or. deviation(2).gt.tol) then
+        print *, "error: tol = ", tol, " , deviation in A-field is = ", deviation(1), &
+                                       " , deviation in B-field is = ", deviation(2)
         call print_fail
         error stop
     end if
@@ -85,13 +86,13 @@ subroutine create_file(filename)
 
 end subroutine create_file
 
-function compare_spline_with_file(spline_field,filename) result(deviation)
+function compare_spline_with_file(spline_field, filename) result(deviation)           
     use neo_field_base, only: field_t
     use neo_spline_field, only: spline_field_t
 
     character(*), intent(in) :: filename
     class(field_t), intent(in) :: spline_field
-    real(dp) :: deviation
+    real(dp), dimension(2) :: deviation
     integer :: unit
     real(dp), dimension(3) :: A, A_spline, B, B_spline, x
     real(dp), dimension(3,2) :: limits
@@ -107,7 +108,8 @@ function compare_spline_with_file(spline_field,filename) result(deviation)
     call spline_field%compute_afield(x, A_spline)
     call spline_field%compute_bfield(x, B_spline)
 
-    deviation = abs(sum(A_spline-A)) + abs(sum(B_spline-B))
+    deviation(1) = abs(sum(A_spline-A))
+    deviation(2) = abs(sum(B_spline-B))
 
 end function compare_spline_with_file
 
