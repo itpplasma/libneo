@@ -148,7 +148,7 @@ def plot_fluxsurfaces(eqdsks: list, labels: list, n_surf: int=11):
     for idx in range(n_eqdsk):
         eqdsk = eqdsks[idx]
         label = labels[idx]
-        normalized_flux = ((eqdsk["PsiVs"] - eqdsk["PsiaxisVs"]) / 
+        normalized_flux = ((eqdsk["PsiVs"] - eqdsk["PsiaxisVs"]) /
                            (eqdsk["PsiedgeVs"] - eqdsk["PsiaxisVs"]))
         plt.figure()
         levels = np.linspace(0, 1, n_surf)
@@ -166,3 +166,33 @@ def make_to_list_if_not(obj):
     if not isinstance(obj, list):
         obj = [obj]
     return obj
+
+
+def approximate_fluxsurface_area_eqdsk(eqdsk, n_surf: int=11):
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    normalized_flux = ((eqdsk["PsiVs"] - eqdsk["PsiaxisVs"]) /
+                            (eqdsk["PsiedgeVs"] - eqdsk["PsiaxisVs"]))
+    spol = np.linspace(0, 1, n_surf)
+    Zmin = np.min(eqdsk["Lcfs"][:,1])
+    Zmax = np.max(eqdsk["Lcfs"][:,1])
+    I = (eqdsk["Z"] > Zmin) * (eqdsk["Z"] < Zmax)
+    fluxcontour = plt.contour(eqdsk["R"], eqdsk["Z"][I], normalized_flux[I], levels=spol)
+
+    def compute_distance(p1, p2):
+        return np.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+
+    circumference = []
+    for flux_contour in fluxcontour.allsegs:
+        total_length = 0
+        points = np.array(flux_contour[0])
+        for idx in range(1, len(points)):
+            total_length += compute_distance(points[idx-1], points[idx])
+        circumference.append(total_length)
+    plt.close()
+
+    area = 2*np.pi*eqdsk["R0"]*np.array(circumference)
+    area = area[:-1] # exclude separatrix
+    spol = spol[:-1]
+    return area, spol
