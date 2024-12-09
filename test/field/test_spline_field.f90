@@ -4,12 +4,115 @@ use util_for_test, only: print_test, print_ok, print_fail
 use neo_spline_field, only: spline_field_t
 implicit none
 
+call test_spline_field_from_file_init
 call test_spline_field_init
 call test_against_original_field
 call test_curla_equal_b
 call test_compute_afield_derivatives
 
 contains
+
+subroutine test_spline_field_from_file_init
+    use neo_field, only: create_field
+    use neo_field_base, only: field_t
+
+    class(field_t), allocatable :: field
+    character(*), parameter :: filename = "field_from_gorilla"
+    real(dp), dimension(2) :: deviation
+    real(dp), parameter :: tol = 1.0e-7_dp
+
+    call print_test("test_spline_field_from_file_init")
+
+    call create_file(filename)
+    call create_field(field, "spline", filename=filename)
+
+    deviation = compare_spline_with_file(field,filename)
+    call unlink(filename)
+
+    if (deviation(1).gt.tol .or. deviation(2).gt.tol) then
+        print *, "error: tol = ", tol, " , deviation in A-field is = ", deviation(1), &
+                                       " , deviation in B-field is = ", deviation(2)
+        call print_fail
+        error stop
+    end if
+    
+    call print_ok
+end subroutine test_spline_field_from_file_init
+
+subroutine create_file(filename)
+    use neo_example_field, only: example_field_t
+    use neo_field_mesh, only: linspace
+    use math_constants, only: pi
+
+    character(*), intent(in) :: filename
+    type(example_field_t) :: example_field
+    real(dp) :: x(3), A(3), B(3)
+    real(dp), dimension(:), allocatable :: x1, x2, x3
+    real(dp), dimension(3,2) :: limits !min/max for the three coordinates
+    integer, dimension(3) :: n_points !number of vetices per direction
+    logical :: is_periodic(3) !describes periodicity in three dimensions
+    integer :: unit, i, j, k
+
+    limits(1,:) = (/100.0_dp,200.0_dp/) !R
+    limits(2,:) = (/0.0_dp,2*pi/) !phi
+    limits(3,:) = (/-50.0_dp,50.0_dp/) !Z
+    n_points = 30
+    is_periodic = (/.false.,.true.,.false./)
+
+    allocate(x1(n_points(1)), x2(n_points(2)), x3(n_points(3)))
+    x1 = linspace(limits(1,1), limits(1,2), n_points(1))
+    x2 = linspace(limits(2,1), limits(2,2), n_points(2))
+    x3 = linspace(limits(3,1), limits(3,2), n_points(3))
+
+    call example_field%example_field_init(1.0_dp, 2.0_dp)
+
+    call unlink(filename)
+    open(newunit = unit, file = filename)
+    write(unit,*) n_points
+    write(unit,*) limits
+    write(unit,*) is_periodic 
+
+    do i = 1, size(x1)
+        do j = 1, size(x2)
+            do k = 1, size(x3)
+                x = [x1(i), x2(j), x3(k)]
+                call example_field%compute_abfield(x, A, B)
+                write(unit,*) A, B
+            end do
+        end do
+    end do
+
+    close(unit)
+
+end subroutine create_file
+
+function compare_spline_with_file(spline_field, filename) result(deviation)           
+    use neo_field_base, only: field_t
+    use neo_spline_field, only: spline_field_t
+
+    character(*), intent(in) :: filename
+    class(field_t), intent(in) :: spline_field
+    real(dp), dimension(2) :: deviation
+    integer :: unit
+    real(dp), dimension(3) :: A, A_spline, B, B_spline, x
+    real(dp), dimension(3,2) :: limits
+
+    open(newunit = unit, file = filename)
+    read(unit,*)
+    read(unit,*) limits
+    read(unit,*)
+    read(unit,*) A, B
+
+    x = (/limits(1,1), limits(2,1), limits(3,1)/)
+
+    call spline_field%compute_afield(x, A_spline)
+    call spline_field%compute_bfield(x, B_spline)
+
+    deviation(1) = abs(sum(A_spline-A))
+    deviation(2) = abs(sum(B_spline-B))
+
+end function compare_spline_with_file
+
 
 subroutine test_spline_field_init
     type(spline_field_t) :: spline_field
@@ -63,6 +166,7 @@ subroutine test_against_original_field
     call print_ok
 end subroutine test_against_original_field
 
+
 subroutine test_curla_equal_b
     use util_for_test_field, only: compute_cartesian_curla
 
@@ -89,6 +193,7 @@ subroutine test_curla_equal_b
 
     call print_ok
 end subroutine test_curla_equal_b
+
 
 subroutine test_compute_afield_derivatives
     use util_for_test_field, only: compute_cartesian_curla
@@ -130,6 +235,7 @@ function compute_cartesian_curla_from_spline_derivatives(spline_field, x) result
     curla(2) = dA_dx(1,3) - dA_dx(3,1)
     curla(3) = dA_dx(2,1) - dA_dx(1,2)
 end function compute_cartesian_curla_from_spline_derivatives
+
 
 subroutine get_example_spline_field(spline_field, tol)
     use neo_spline_field, only: spline_field_t

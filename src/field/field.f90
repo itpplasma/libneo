@@ -35,7 +35,9 @@ module neo_field
                 allocate(field, source= & 
                             create_polylag_field(limits, field_to_interpolate, n_points))
             case("spline")
-                if (present(field_mesh)) then
+                if (present(filename)) then
+                    allocate(field, source=create_spline_field_from_file(filename))
+                else if (present(field_mesh)) then
                     allocate(field, source=create_spline_field_from_mesh(field_mesh))
                 else
                     allocate(field, source= &
@@ -90,6 +92,18 @@ module neo_field
         call field_mesh%field_mesh_init_with_field(limits, field, n_points)
         allocate(spline_field, source=create_spline_field_from_mesh(field_mesh))
     end function create_spline_field
+
+
+    function create_spline_field_from_file(filename) result(spline_field_from_file)
+        character(*), intent(in) :: filename
+        class(spline_field_t), allocatable :: spline_field_from_file
+
+        type(field_mesh_t) :: field_mesh
+
+        call field_mesh%field_mesh_init_with_file(filename)
+        allocate(spline_field_from_file, source=create_spline_field_from_mesh(field_mesh))
+
+    end function create_spline_field_from_file
 
     
     function create_spline_field_from_mesh(field_mesh) result(spline_field)
