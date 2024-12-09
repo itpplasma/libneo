@@ -23,10 +23,11 @@ subroutine test_spline_field_from_file_init
 
     call print_test("test_spline_field_from_file_init")
 
-    !call create_file(filename)
+    call create_file(filename)
     call create_field(field, "spline_from_file", filename=filename)
 
     deviation = compare_spline_with_file(field,filename)
+    call unlink(filename)
 
     if (deviation.gt.tol) then
         print *, "error: tol = ", tol, " , compare_spline_with_file = ", deviation
@@ -64,6 +65,7 @@ subroutine create_file(filename)
 
     call example_field%example_field_init(1.0_dp, 2.0_dp)
 
+    call unlink(filename)
     open(newunit = unit, file = filename)
     write(unit,*) n_points
     write(unit,*) limits
