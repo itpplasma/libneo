@@ -17,64 +17,84 @@ __all__ = ['get_magnetic_axis',
 length_cgs_to_si = 1e-2
 debug = False
 
-def get_boozer_transform(stor, nth):
-  from scipy.interpolate import CubicSpline
+def get_boozer_transform(stor, num_theta):
+    from scipy.interpolate import CubicSpline
 
-  efit_to_boozer.efit_to_boozer.init()
+    efit_to_boozer.efit_to_boozer.init()
 
-  R_axis, Z_axis = get_magnetic_axis()
+    R_axis, Z_axis = get_magnetic_axis()
 
-  ns = stor.shape[0]
+    ns = stor.shape[0]
 
-  G_of_thb = []
-  dth_of_thb = []
-  for ks in np.arange(ns - 1):
-    psi = np.array(0.0)
-    s = np.array(stor[ks])
+    G_of_thb = []
+    dth_of_thb = []
+    for ks in np.arange(ns - 1):
+        psi = np.array(0.0)
+        s = np.array(stor[ks])
 
-    th_boozers = []
-    th_geoms = []
-    Gs = []
-    for th_symflux in 2 * np.pi * np.arange(2 * nth) / (2 * nth):
-      inp_label = 1
-      (
-        q,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        R,
-        _,
-        _,
-        Z,
-        _,
-        _,
-        G,
-        _,
-        _,
-      ) = efit_to_boozer.efit_to_boozer.magdata(
-        inp_label, s, psi, th_symflux)
-      Gs.append(G)
-      th_boozers.append(th_symflux + G / q)
-      th_geoms.append(np.arctan2(
-          Z*length_cgs_to_si - Z_axis,
-          R*length_cgs_to_si - R_axis))
-    Gs = np.array(Gs)
-    Gs = np.append(Gs, Gs[0])
-    th_boozers = np.unwrap(th_boozers)
-    th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
-    th_geoms = np.unwrap(th_geoms)
-    th_geoms = np.append(th_geoms, th_geoms[0] + 2 * np.pi)
+        th_boozers = []
+        th_geoms = []
+        Gs = []
 
-    G_of_thb.append(CubicSpline(th_boozers, Gs, bc_type="periodic"))
-    dth_of_thb.append(CubicSpline(th_boozers, th_geoms - th_boozers, bc_type="periodic"))
+        for th_symflux in 2 * np.pi * np.arange(2 * num_theta) / (2 * num_theta):
+            inp_label = 1
+            (
+                q,
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                R,
+                _,
+                _,
+                Z,
+                _,
+                _,
+                G,
+                _,
+                _,
+            ) = efit_to_boozer.efit_to_boozer.magdata(inp_label, s, psi, th_symflux)
+            Gs.append(G)
+            th_boozers.append(th_symflux + G / q)
+            th_geoms.append(np.arctan2(
+              Z*length_cgs_to_si - Z_axis,
+              R*length_cgs_to_si - R_axis))
+        
+        Gs = np.array(Gs)
+        Gs = np.append(Gs, Gs[0])
 
-  return dth_of_thb, G_of_thb
+        dth_of_thb_element, th_boozers, th_geoms = get_sign_dependent_thetas(th_geoms, th_boozers)
+
+        G_of_thb.append(CubicSpline(th_boozers, Gs, bc_type="periodic"))
+        dth_of_thb.append(CubicSpline(th_boozers, dth_of_thb_element, bc_type="periodic"))
+
+    return dth_of_thb, G_of_thb
+  
+def get_sign_dependent_thetas(th_geoms, th_boozers):
+
+  th_boozers = np.unwrap(th_boozers)
+  monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_geoms))))
+
+  th_geoms = np.unwrap(th_geoms)
+  monotone_sign_geoms = np.sign(np.mean(np.sign(np.diff(th_geoms))))
+
+  th_boozers = np.append(th_boozers, th_boozers[0] - monotone_sign_boozers * 2 * np.pi)
+  th_geoms = np.append(th_geoms, th_geoms[0] + monotone_sign_geoms * 2 * np.pi)
+
+  if monotone_sign_boozers == monotone_sign_geoms:
+    sign = -1
+  else:
+    sign = 1 
+
+  dth_of_thb_element = th_geoms - sign * th_boozers
+
+  return dth_of_thb_element, th_boozers, th_geoms
+  
 
 
-def get_B0_of_s_theta_boozer(stor, nth):
+def get_B0_of_s_theta_boozer(stor, num_theta):
   from scipy.interpolate import CubicSpline
 
   efit_to_boozer.efit_to_boozer.init()
@@ -88,7 +108,7 @@ def get_B0_of_s_theta_boozer(stor, nth):
 
     th_boozers = []
     B0mod = []
-    for th_symflux in 2 * np.pi * np.arange(2 * nth) / (2 * nth):
+    for th_symflux in 2 * np.pi * np.arange(2 * num_theta) / (2 * num_theta):
       inp_label = 1
       (
         q,
@@ -122,12 +142,12 @@ def get_B0_of_s_theta_boozer(stor, nth):
   return B0
 
 
-
-def get_boozer_harmonics(f, stor, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+def get_boozer_harmonics(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_thb):
   """
   f(stor, th_geom, ph) of normalized toroidal flux and geometric angles
 
   Returns: Fourier harmonics fmn in terms of Boozer angles
+  Set num_phi=1 for axisymmetric case.
   """
 
   ns = stor.shape[0]
@@ -135,35 +155,34 @@ def get_boozer_harmonics(f, stor, nth, nph, m0b, n, dth_of_thb, G_of_thb):
   fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
 
   # Loop over flux surface index
-  th_geoms = np.zeros((ns - 1, nth))
-  phs = np.zeros((ns - 1, nth, nph))
+  th_geoms = np.zeros((ns - 1, num_theta))
+  phs = np.zeros((ns - 1, num_theta, num_phi))
 
   for ks in np.arange(ns - 1):
     if debug: print(f"ks = {ks}/{ns-2}")
-    for kth in np.arange(nth):
-      thb = kth * 2 * np.pi / nth
+    for kth in np.arange(num_theta):
+      thb = kth * 2 * np.pi / num_theta
       th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
       G = G_of_thb[ks](thb)
-      for kph in np.arange(nph):
-        phb = kph * 2 * np.pi / nph
+      for kph in np.arange(num_phi):
+        phb = kph * 2 * np.pi / num_phi
         phs[ks, kth, kph] = phb - G
 
-  for kth in np.arange(nth):
-    if debug: print(f"kth = {kth}/{nth-1}")
-    thb = kth * 2 * np.pi / nth
-    for kph in np.arange(nph):
-      phb = kph * 2 * np.pi / nph
-
+  for kth in np.arange(num_theta):
+    if debug: print(f"kth = {kth}/{num_theta-1}")
+    thb = kth * 2 * np.pi / (num_theta)
+    for kph in np.arange(num_phi):
+      phb = kph * 2 * np.pi / (num_phi)
       f_values = f(stor[:-1], th_geoms[:, kth], phs[:, kth, kph])
 
       for m in np.arange(-m0b, m0b + 1):
         # Take a sum over all theta values here
         fmn[:, m + m0b] += f_values * np.exp(-1j * (m * thb + n * phb))
 
-  return fmn / (nth * nph)
+  return fmn / ((num_theta) * (num_phi))
 
 
-def get_boozer_harmonics_divide_f_by_B0(f, stor, nth, nph, m0b, n, dth_of_thb, G_of_thb):
+def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_thb):
   """
   f(stor, th_geom, ph) of normalized toroidal flux and geometric angles
 
@@ -176,26 +195,26 @@ def get_boozer_harmonics_divide_f_by_B0(f, stor, nth, nph, m0b, n, dth_of_thb, G
   fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
 
   # Loop over flux surface index
-  th_geoms = np.zeros((ns - 1, nth))
-  phs = np.zeros((ns - 1, nth, nph))
+  th_geoms = np.zeros((ns - 1, num_theta))
+  phs = np.zeros((ns - 1, num_theta, num_phi))
 
   for ks in np.arange(ns - 1):
     if debug: print(f"ks = {ks}/{ns-2}")
-    for kth in np.arange(nth):
-      thb = kth * 2 * np.pi / nth
+    for kth in np.arange(num_theta):
+      thb = kth * 2 * np.pi / num_theta
       th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
       G = G_of_thb[ks](thb)
-      for kph in np.arange(nph):
-        phb = kph * 2 * np.pi / nph
+      for kph in np.arange(num_phi):
+        phb = kph * 2 * np.pi / num_phi
         phs[ks, kth, kph] = phb - G
 
-  B0 = get_B0_of_s_theta_boozer(stor, nth)
+  B0 = get_B0_of_s_theta_boozer(stor, num_theta)
 
-  for kth in np.arange(nth):
-    if debug: print(f"kth = {kth}/{nth-1}")
-    thb = kth * 2 * np.pi / nth
-    for kph in np.arange(nph):
-      phb = kph * 2 * np.pi / nph
+  for kth in np.arange(num_theta):
+    if debug: print(f"kth = {kth}/{num_theta-1}")
+    thb = kth * 2 * np.pi / num_theta
+    for kph in np.arange(num_phi):
+      phb = kph * 2 * np.pi / num_phi
 
       f_values = np.array(f(stor[:-1], th_geoms[:, kth], phs[:, kth, kph])) \
         / np.array([spline(thb) for spline in B0])
@@ -204,7 +223,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, stor, nth, nph, m0b, n, dth_of_thb, G
         # Take a sum over all theta values here
         fmn[:, m + m0b] += f_values * np.exp(-1j * (m * thb + n * phb))
 
-  return fmn / ((2 * np.pi) ** 2 * nth * nph)
+  return fmn / (num_theta * num_phi)
 
 
 def get_magnetic_axis():
