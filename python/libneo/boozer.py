@@ -134,11 +134,8 @@ def get_B0_of_s_theta_boozer(stor, num_theta):
       B0mod.append(B0mod_temp)
 
     th_boozers = np.unwrap(th_boozers)
-    th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.plot(th_boozers)
-    plt.show()
+    monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_boozers))))
+    th_boozers = np.append(th_boozers, th_boozers[0] + monotone_sign_boozers * 2 * np.pi)
 
     B0mod = np.array(B0mod)
     B0mod = np.append(B0mod, B0mod[0])
