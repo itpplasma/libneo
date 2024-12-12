@@ -76,7 +76,6 @@ def get_sign_dependent_thetas(th_geoms, th_boozers):
 
   th_boozers = np.unwrap(th_boozers)
   monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_boozers))))
-  print(monotone_sign_boozers)
 
   th_geoms = np.unwrap(th_geoms)
   monotone_sign_geoms = np.sign(np.mean(np.sign(np.diff(th_geoms))))
@@ -156,19 +155,8 @@ def get_boozer_harmonics(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_t
 
   fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
 
-  # Loop over flux surface index
-  th_geoms = np.zeros((ns - 1, num_theta))
-  phs = np.zeros((ns - 1, num_theta, num_phi))
+  th_geoms, phs = get_thgeoms_phs(ns, num_theta, num_phi, dth_of_thb, G_of_thb)
 
-  for ks in np.arange(ns - 1):
-    if debug: print(f"ks = {ks}/{ns-2}")
-    for kth in np.arange(num_theta):
-      thb = kth * 2 * np.pi / num_theta
-      th_geoms[ks, kth] = thb + dth_of_thb[ks](thb)
-      G = G_of_thb[ks](thb)
-      for kph in np.arange(num_phi):
-        phb = kph * 2 * np.pi / num_phi
-        phs[ks, kth, kph] = phb - G
 
   for kth in np.arange(num_theta):
     if debug: print(f"kth = {kth}/{num_theta-1}")
@@ -183,23 +171,12 @@ def get_boozer_harmonics(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_t
 
   return fmn / ((num_theta) * (num_phi))
 
-
-def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_thb):
-  """
-  f(stor, th_geom, ph) of normalized toroidal flux and geometric angles
-
-  Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given
-  toroidal mode number n
-  """
-
-  ns = stor.shape[0]
-
-  fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
-
-  # Loop over flux surface index
+def get_thgeoms_phs(ns, num_theta, num_phi, dth_of_thb, G_of_thb):
+  
   th_geoms = np.zeros((ns - 1, num_theta))
   phs = np.zeros((ns - 1, num_theta, num_phi))
 
+  # Loop over flux surface index
   for ks in np.arange(ns - 1):
     if debug: print(f"ks = {ks}/{ns-2}")
     for kth in np.arange(num_theta):
@@ -210,8 +187,21 @@ def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth
         phb = kph * 2 * np.pi / num_phi
         phs[ks, kth, kph] = phb - G
 
+  return th_geoms, phs
+
+def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_thb):
+  """
+  f(stor, th_geom, ph) of normalized toroidal flux and geometric angles
+
+  Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given
+  toroidal mode number n
+  """
+
+  ns = stor.shape[0]
+  fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
+
+  th_geoms, phs = get_thgeoms_phs(ns, num_theta, num_phi, dth_of_thb, G_of_thb)
   B0 = get_B0_of_s_theta_boozer(stor, num_theta)
-  
 
   for kth in np.arange(num_theta):
     if debug: print(f"kth = {kth}/{num_theta-1}")
@@ -221,7 +211,7 @@ def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth
     for kph in np.arange(num_phi):
       phb = kph * 2 * np.pi / num_phi
 
-      f_values = np.array(f(stor[:-1], th_geoms[:, kth], phs[:, kth, kph])) \
+      f_values = np.array(f(stor[:-1], th_geoms[:, kth], phs[:, kth, kph]), dtype=complex) \
         / B0_arr
 
       for m in np.arange(-m0b, m0b + 1):
@@ -230,6 +220,67 @@ def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth
 
   return fmn / (num_theta * num_phi)
 
+def get_boozer_harmonics_divide_f_by_B0_1D(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_thb):
+  """
+  f_n(stor, th_geom) of normalized toroidal flux and geometric poloidal angle for given 
+  toroidal mode number n (also in geometric angle). Takes also the transformation from 
+  geometric to Boozer angle in toroidal direction into account (additional phase factor
+  depending on G(\vatheta_B)).
+
+  Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given
+  toroidal mode number n
+  """
+
+  ns = stor.shape[0]
+  fmn = np.zeros((ns - 1, 2 * m0b + 1), dtype=complex)
+
+  th_geoms, phs = get_thgeoms_phs(ns, num_theta, num_phi, dth_of_thb, G_of_thb)
+  B0 = get_B0_of_s_theta_boozer(stor, num_theta)
+
+  for kth in np.arange(num_theta):
+    if debug: print(f"kth = {kth}/{num_theta-1}")
+    thb = kth * 2 * np.pi / num_theta
+    B0_arr = np.array([spline(thb) for spline in B0])
+
+    G = np.array([G_of_thb[ks](thb) for ks in np.arange(ns - 1)])
+
+    f_values = np.array(f(stor[:-1], th_geoms[:, kth], phs[:, kth, 0]), dtype=complex) \
+      / B0_arr * np.exp(-1j * n * G)
+
+    for m in np.arange(-m0b, m0b + 1):
+      # Take a sum over all theta values here
+      fmn[:, m + m0b] += f_values * np.exp(-1j * (m * thb))
+
+  return fmn / (num_theta * num_phi)
+
+def get_boozer_harmonics_divide_f_by_B0_1D_fft(f, stor, num_theta, n, dth_of_thb=None, G_of_thb=None):
+  """
+  f_n(ind_stor, th_geom) of normalized toroidal flux (index is used as argument!) and 
+  geometric poloidal angle for given 
+  toroidal mode number n (also in geometric angle). Takes also the transformation from 
+  geometric to Boozer angle in toroidal direction into account (additional phase factor
+  depending on G(\vatheta_B)).
+
+  Returns: Fourier harmonics fmn in terms of Boozer angles, i.e. fmn(s,m) for a given
+  toroidal mode number n
+  """
+
+  ns = stor.shape[0]
+  fmn = np.zeros((ns - 1, num_theta), dtype=complex)
+
+  if dth_of_thb==None or G_of_thb==None:  
+    dth_of_thb, G_of_thb = get_boozer_transform(stor, num_theta)
+
+  th_geoms, phs = get_thgeoms_phs(ns, num_theta, 1, dth_of_thb, G_of_thb)
+  theta_boozers = np.linspace(0, 2*np.pi, num_theta, endpoint=False)
+
+  B0 = get_B0_of_s_theta_boozer(stor, num_theta)
+
+  fmn = np.zeros((ns -1, num_theta), dtype=complex)
+  for js, ks in enumerate(stor[:-1]):
+    FF = f(js, th_geoms[js,:]) / B0[js](theta_boozers) * np.exp(-1j * n * G_of_thb[js](theta_boozers))
+    fmn[js, :] = np.fft.fft(FF)
+  return fmn / num_theta
 
 def get_magnetic_axis():
   psi = np.array(0.0)
