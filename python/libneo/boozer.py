@@ -209,15 +209,18 @@ def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth
         phs[ks, kth, kph] = phb - G
 
   B0 = get_B0_of_s_theta_boozer(stor, num_theta)
+  
 
   for kth in np.arange(num_theta):
     if debug: print(f"kth = {kth}/{num_theta-1}")
     thb = kth * 2 * np.pi / num_theta
+    B0_arr = np.array([spline(thb) for spline in B0])
+
     for kph in np.arange(num_phi):
       phb = kph * 2 * np.pi / num_phi
 
       f_values = np.array(f(stor[:-1], th_geoms[:, kth], phs[:, kth, kph])) \
-        / np.array([spline(thb) for spline in B0])
+        / B0_arr
 
       for m in np.arange(-m0b, m0b + 1):
         # Take a sum over all theta values here
