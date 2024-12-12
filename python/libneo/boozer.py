@@ -75,12 +75,13 @@ def get_boozer_transform(stor, num_theta):
 def get_sign_dependent_thetas(th_geoms, th_boozers):
 
   th_boozers = np.unwrap(th_boozers)
-  monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_geoms))))
+  monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_boozers))))
+  print(monotone_sign_boozers)
 
   th_geoms = np.unwrap(th_geoms)
   monotone_sign_geoms = np.sign(np.mean(np.sign(np.diff(th_geoms))))
 
-  th_boozers = np.append(th_boozers, th_boozers[0] - monotone_sign_boozers * 2 * np.pi)
+  th_boozers = np.append(th_boozers, th_boozers[0] + monotone_sign_boozers * 2 * np.pi)
   th_geoms = np.append(th_geoms, th_geoms[0] + monotone_sign_geoms * 2 * np.pi)
 
   if monotone_sign_boozers == monotone_sign_geoms:
@@ -88,7 +89,7 @@ def get_sign_dependent_thetas(th_geoms, th_boozers):
   else:
     sign = 1 
 
-  dth_of_thb_element = th_geoms - sign * th_boozers
+  dth_of_thb_element = th_geoms + sign * th_boozers
 
   return dth_of_thb_element, th_boozers, th_geoms
   
@@ -134,6 +135,10 @@ def get_B0_of_s_theta_boozer(stor, num_theta):
 
     th_boozers = np.unwrap(th_boozers)
     th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(th_boozers)
+    plt.show()
 
     B0mod = np.array(B0mod)
     B0mod = np.append(B0mod, B0mod[0])
