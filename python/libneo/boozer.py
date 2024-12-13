@@ -23,42 +23,46 @@ def get_boozer_transform(stor, num_theta):
 
     efit_to_boozer.efit_to_boozer.init()
 
-    R_axis, Z_axis = get_magnetic_axis()
-
     ns = stor.shape[0]
 
     G_of_thb = []
     dth_of_thb = []
     for ks in np.arange(ns - 1):
-        psi = np.array(0.0)
-        s = np.array(stor[ks])
-
-        th_boozers = []
-        th_geoms = []
-        Gs = []
-
-        for th_symflux in 2 * np.pi * np.arange(2 * num_theta) / (2 * num_theta):
-            inp_label = 1
-            (q, _, _, _, _, _, _,
-             R, _, _, 
-             Z, _, _, 
-             G, _, _,
-            ) = efit_to_boozer.efit_to_boozer.magdata(inp_label, s, psi, th_symflux)
-            Gs.append(G)
-            th_boozers.append(th_symflux + G / q)
-            th_geoms.append(np.arctan2(
-              Z*length_cgs_to_si - Z_axis,
-              R*length_cgs_to_si - R_axis))
-        
-        Gs = np.array(Gs)
-        Gs = np.append(Gs, Gs[0])
-
+        th_boozers, th_geoms, G_s = get_angles_and_transformation(stor[ks], num_theta)
         dth, th_boozers, th_geoms = get_sign_dependent_thetas(th_geoms, th_boozers)
 
         G_of_thb.append(CubicSpline(th_boozers, Gs, bc_type="periodic"))
         dth_of_thb.append(CubicSpline(th_boozers, dth, bc_type="periodic"))
 
     return dth_of_thb, G_of_thb
+
+
+def get_angles_and_transformation(s, num_theta):
+    psi = np.array(0.0)
+    R_axis, Z_axis = get_magnetic_axis()
+
+    th_boozers = []
+    th_geoms = []
+    Gs = []
+
+    for th_symflux in 2 * np.pi * np.arange(2 * num_theta) / (2 * num_theta):
+        inp_label = 1
+        (q, _, _, _, _, _, _,
+        R, _, _, 
+        Z, _, _, 
+        G, _, _,
+        ) = efit_to_boozer.efit_to_boozer.magdata(inp_label, s, psi, th_symflux)
+        Gs.append(G)
+        th_boozers.append(th_symflux + G / q)
+        th_geoms.append(np.arctan2(
+          Z*length_cgs_to_si - Z_axis,
+          R*length_cgs_to_si - R_axis))
+    
+    Gs = np.array(Gs)
+    Gs = np.append(Gs, Gs[0])
+
+    return th_boozers, th_geoms, Gs
+
   
 def get_sign_dependent_thetas(th_geoms, th_boozers):
 
