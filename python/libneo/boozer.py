@@ -17,6 +17,7 @@ __all__ = ['get_magnetic_axis',
 length_cgs_to_si = 1e-2
 debug = False
 
+
 def get_boozer_transform(stor, num_theta):
     from scipy.interpolate import CubicSpline
 
@@ -38,23 +39,10 @@ def get_boozer_transform(stor, num_theta):
 
         for th_symflux in 2 * np.pi * np.arange(2 * num_theta) / (2 * num_theta):
             inp_label = 1
-            (
-                q,
-                _,
-                _,
-                _,
-                _,
-                _,
-                _,
-                R,
-                _,
-                _,
-                Z,
-                _,
-                _,
-                G,
-                _,
-                _,
+            (q, _, _, _, _, _, _,
+             R, _, _, 
+             Z, _, _, 
+             G, _, _,
             ) = efit_to_boozer.efit_to_boozer.magdata(inp_label, s, psi, th_symflux)
             Gs.append(G)
             th_boozers.append(th_symflux + G / q)
@@ -65,10 +53,10 @@ def get_boozer_transform(stor, num_theta):
         Gs = np.array(Gs)
         Gs = np.append(Gs, Gs[0])
 
-        dth_of_thb_element, th_boozers, th_geoms = get_sign_dependent_thetas(th_geoms, th_boozers)
+        dth, th_boozers, th_geoms = get_sign_dependent_thetas(th_geoms, th_boozers)
 
         G_of_thb.append(CubicSpline(th_boozers, Gs, bc_type="periodic"))
-        dth_of_thb.append(CubicSpline(th_boozers, dth_of_thb_element, bc_type="periodic"))
+        dth_of_thb.append(CubicSpline(th_boozers, dth, bc_type="periodic"))
 
     return dth_of_thb, G_of_thb
   
@@ -88,9 +76,9 @@ def get_sign_dependent_thetas(th_geoms, th_boozers):
   else:
     sign = 1 
 
-  dth_of_thb_element = th_geoms + sign * th_boozers
+  dth= th_geoms + sign * th_boozers
 
-  return dth_of_thb_element, th_boozers, th_geoms
+  return dth, th_boozers, th_geoms
   
 
 
@@ -1416,18 +1404,18 @@ class BoozerFile:
 
     from math import sqrt
     from numpy import array
-    from scipy.integrate import simps
+    from scipy.integrate import simpson
 
     iota = array(self.iota)
 
-    psi_pol_a = simps(iota, self.s)# Order of arguments is y, x.
+    psi_pol_a = simpson(iota, x=self.s)# Order of arguments is y, x.
 
     rho_poloidal = []
 
     rho_poloidal.append(0.0)
 
     for k in range(1+1, len(self.iota)+1):
-      rho_poloidal.append(sqrt(simps(iota[0:k], self.s[0:k])/ psi_pol_a))
+      rho_poloidal.append(sqrt(simpson(iota[0:k], x=self.s[0:k])/ psi_pol_a))
 
     # Interpolate first point
     rho_poloidal[0] = sqrt(self.s[0]/self.s[1])*rho_poloidal[1]

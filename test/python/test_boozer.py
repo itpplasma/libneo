@@ -6,12 +6,14 @@ from libneo.boozer import (get_boozer_harmonics_divide_f_by_B0, get_boozer_harmo
     get_boozer_harmonics_divide_f_by_B0_1D_fft)
 import matplotlib.pyplot as plt
 
+
 def test_get_boozer_transform():
     stor = np.array([0.9, 0.6])
     nth = np.array([32])
     dth_of_thb, G_of_thb = get_boozer_transform(stor, nth)
     print(dth_of_thb)
     print(G_of_thb)
+
 
 def test_get_boozer_harmonics_1D():
     nth = np.array([16])
@@ -46,6 +48,7 @@ def test_get_boozer_harmonics_1D():
     plt.xlabel('m')
     plt.ylabel(r'abs($C_n$)')
     plt.show()
+
 
 def test_get_boozer_harmonics_2D():
     nth = np.array([32])
@@ -153,6 +156,7 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D():
     plt.xlabel('m')
     plt.ylabel(r'abs($C_n$)')
     plt.show()
+
 
 def test_get_boozer_harmonics_divide_f_by_B0_2D():
     nth = np.array([64])
@@ -271,6 +275,7 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D_fft():
     plt.ylabel(r'abs($C_n$)')
     plt.show()
 
+
 def test_get_B0_of_s_theta_boozer():
     stor = np.array([0.3, 0.6])
     nth = np.array([32])
@@ -282,6 +287,7 @@ def test_get_B0_of_s_theta_boozer():
     plt.xlabel(r"$\vartheta$ [rad]")
     plt.title(f"stor = {stor[0]}, nth = {nth[0]}")
     plt.show()
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
