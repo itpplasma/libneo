@@ -115,8 +115,8 @@ endif("${isSystemDir}" STREQUAL "-1")
 # Grab Python
 find_package(
   Python
-  COMPONENTS Interpreter Development.Module NumPy
-  REQUIRED)
+  COMPONENTS Interpreter Development.Module numpy
+)
 
 if (Python_FOUND)
     message(STATUS "Python found: ${Python_EXECUTABLE}")
