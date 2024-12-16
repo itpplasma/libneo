@@ -25,3 +25,4 @@ install: ninja
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf tools/h5merge/build
