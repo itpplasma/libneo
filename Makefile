@@ -5,11 +5,11 @@ BUILD_NINJA := $(BUILD_DIR)/build.ninja
 all: ninja tools/h5merge/build/h5merge.x
 
 tools/h5merge/build/h5merge.x:
-    if [ ! -d "tools/h5merge/build" ] ; then \
-        echo "Creating 'build' directory..."; \
-        mkdir -p tools/h5merge/build; \
-    fi
-    cd tools/h5merge/build && cmake .. && make
+	if [ ! -d "tools/h5merge/build" ] ; then \
+    	echo "Creating 'build' directory..."; \
+    	mkdir -p tools/h5merge/build; \
+	fi
+	cd tools/h5merge/build && cmake .. && make
 
 $(BUILD_NINJA):
 	cmake --preset default
