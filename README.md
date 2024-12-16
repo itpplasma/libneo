@@ -8,6 +8,8 @@ Common code for plasma codes of ITPcp, in particular for different Neo-2 version
 `libneo` requires the following libraries to be available with
 development headers: GSL, FGSL, BLAS, LAPACK, SuiteSparse and SuperLU.
 
+For your own Debian or Ubuntu system, run `setup/debian.sh`
+
 ### Build
 `libneo` is built using `cmake`. The build process is as follows:
 

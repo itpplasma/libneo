@@ -1,4 +1,4 @@
 FROM debian:bookworm-slim
 
-ADD install_deps.sh /
-RUN sh /install_deps.sh
+ADD setup/debian.sh /tmp/setup.sh
+RUN sh /tmp/setup.sh
