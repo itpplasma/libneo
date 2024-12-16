@@ -1,9 +1,6 @@
 #!/bin/bash
 
-module load ninja
-module load gcc
-module load openmpi
+module load git cmake ninja 
+module load gcc openmpi
 module load mkl
-module load hdf5-serial
-module load netcdf-serial
-module load fftw-serial
+module load hdf5-serial netcdf-serial fftw-serial
