@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.12)
-# project (MyMPILib)
-enable_language (Fortran)
+
+project (MyMPILib)
+enable_language (C Fortran)
 
 # MPI
 find_package (MPI REQUIRED COMPONENTS Fortran)
 
-include (${PROJECT_SOURCE_DIR}/ProjectConfig.cmake.in)
+include(${PROJECT_SOURCE_DIR}/ProjectConfig.cmake.in)
 option(MPE_SUPPORT "Should the library be built with MPE-Support?" OFF)
 
 message(STATUS "The Compiler ID is ${CMAKE_Fortran_COMPILER_ID}")
