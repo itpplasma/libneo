@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.18)
 # Basic project settings.
 project(libneo)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -115,8 +115,8 @@ endif("${isSystemDir}" STREQUAL "-1")
 # Grab Python
 find_package(
   Python
-  COMPONENTS Interpreter Development.Module NumPy
-  REQUIRED)
+  COMPONENTS Interpreter Development.Module numpy
+)
 
 if (Python_FOUND)
     message(STATUS "Python found: ${Python_EXECUTABLE}")

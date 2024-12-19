@@ -1,24 +1,32 @@
 # libneo
-Common code for plasma codes of ITPcp, in particular for different Neo-2 versions.
-
+Common code for plasma codes of ITPcp, in particular for different NEO-2 versions.
 
 ## Getting started
 
 ### Prerequisites
-`libneo` requires the following libraries to be available with
-development headers: GSL, FGSL, BLAS, LAPACK, SuiteSparse and SuperLU.
+`libneo` requires CMake, Ninja, GCC+GFortran, OpenMPI, 
+a BLAS/LAPACK (OpenBLAS or MKL) and FFTW, NetCDF+NetCDF-Fortran 
+and HDF5 including development headers.
+
+For your own Debian or Ubuntu system, run `setup/debian.sh`.
+For usage on common computing clusters, load the modules in `setup/<machine>.sh`.
 
 ### Build
-`libneo` is built using `cmake`. The build process is as follows:
+For convenience, the build process can be automatically started by running
 
-    mkdir build
-    cd build
-    cmake ..
     make
 
+directly in the `libneo` directory. This will create a `build` subdirectory
+and run `cmake` with `ninja` internally. 
+
 ### Install Python interface
-The Python interface is located in the `python` subdirectory. Follow the
-`README.md` in that directory for installation instructions.
+The Python interface is located in the `python` subdirectory. This interface
+is only built if `python`, `numpy` and `f90wrap` are available. Please activate
+a suitable `venv` first, and then run
+
+    pip install -e .
+
+in the `libneo` directory for an editable build.
 
 ## doc
 Documentation, this includes user documentation and interface
@@ -26,9 +34,6 @@ documentation. The latter is generated via doxygen.
 
 ## matlab
 Matlab library that contains various functions, classes and code interfaces for general and specific uses.
-
-### BALANCE
-Interface for the balance code. Contains Matlab code that is used to run the code, make pre- and post processing. Contains Fortran source files that are used in the interface.
 
 ### EFIT
 A class to read/write/modify equilibrium g-files (commonly wrongly called efit files).
