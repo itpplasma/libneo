@@ -61,3 +61,4 @@ xsol.dat
 yvec.dat
 include/
 lib/
+.venv

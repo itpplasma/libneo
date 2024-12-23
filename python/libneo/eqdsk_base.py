@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 def readblock(f, k):
     if k > 0 and (k % 5) == 0:
@@ -98,3 +99,100 @@ def read_eqdsk(filename):
         eqdata['Limiter'] = eqdata['Limiter'].reshape(-1, 2)
 
         return eqdata
+
+
+def plot_poloidal_flux(eqdsks: list, labels: list, n_levels: int=10):
+    eqdsks = make_to_list_if_not(eqdsks)
+    labels = make_to_list_if_not(labels)
+    n_eqdsk = len(eqdsks)
+    for idx in range(n_eqdsk):
+        eqdsk = eqdsks[idx]
+        label = labels[idx]
+        plt.figure()
+        levels = np.linspace(eqdsk["PsiaxisVs"], eqdsk["PsiedgeVs"], n_levels)
+        if (levels[1]-levels[0]) < 0:
+            levels = levels[-1::-1]
+        plt.contourf(eqdsk["R"], eqdsk["Z"], eqdsk["PsiVs"], levels=levels)
+        plt.colorbar()
+        plt.axis("equal")
+        plt.xlabel(r"$R \; \mathrm{[m]}$")
+        plt.ylabel(r"$Z \; \mathrm{[m]}$")
+        plt.title(label)
+        plt.grid(True)
+    plt.show()
+
+
+def plot_fpol(eqdsks: list, labels: list, markers: list=[]):
+    eqdsks = make_to_list_if_not(eqdsks)
+    labels = make_to_list_if_not(labels)
+    n_eqdsk = len(eqdsks)
+    _, ax = plt.subplots(nrows=max(n_eqdsk,2), ncols=1)
+    if len(markers)==0:
+        markers = ["-b"] * n_eqdsk
+    for idx in range(n_eqdsk):
+        eqdsk = eqdsks[idx]
+        label = labels[idx]
+        marker = markers[idx]
+        sqrtspol= np.sqrt(eqdsk["s_pol"])
+        ax[idx].plot(sqrtspol, eqdsk["fprof"], marker, label=label + " / " r"$B_\mathrm{toroidal}$ at axis=" + str(eqdsk["Btor_at_R0"]))
+        ax[idx].set_ylabel(r"$f_\mathrm{pol}$")
+        ax[idx].legend()
+    ax[-1].set_xlabel(r"$\rho_\mathrm{pol}$")
+    plt.show()
+
+
+def plot_fluxsurfaces(eqdsks: list, labels: list, n_surf: int=11):
+    eqdsks = make_to_list_if_not(eqdsks)
+    labels = make_to_list_if_not(labels)
+    n_eqdsk = len(eqdsks)
+    for idx in range(n_eqdsk):
+        eqdsk = eqdsks[idx]
+        label = labels[idx]
+        normalized_flux = ((eqdsk["PsiVs"] - eqdsk["PsiaxisVs"]) /
+                           (eqdsk["PsiedgeVs"] - eqdsk["PsiaxisVs"]))
+        plt.figure()
+        levels = np.linspace(0, 1, n_surf)
+        fluxsurfaces = plt.contour(eqdsk["R"], eqdsk["Z"], normalized_flux, levels=levels)
+        plt.clabel(fluxsurfaces, inline=True, fontsize=8)
+        plt.axis("equal")
+        plt.xlabel(r"$R \; \mathrm{[m]}$")
+        plt.ylabel(r"$Z \; \mathrm{[m]}$")
+        plt.title(label)
+        plt.grid(True)
+    plt.show()
+
+
+def make_to_list_if_not(obj):
+    if not isinstance(obj, list):
+        obj = [obj]
+    return obj
+
+
+def approximate_fluxsurface_area_eqdsk(eqdsk, n_surf: int=11):
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    normalized_flux = ((eqdsk["PsiVs"] - eqdsk["PsiaxisVs"]) /
+                            (eqdsk["PsiedgeVs"] - eqdsk["PsiaxisVs"]))
+    spol = np.linspace(0, 1, n_surf)
+    Zmin = np.min(eqdsk["Lcfs"][:,1])
+    Zmax = np.max(eqdsk["Lcfs"][:,1])
+    I = (eqdsk["Z"] > Zmin) * (eqdsk["Z"] < Zmax)
+    fluxcontour = plt.contour(eqdsk["R"], eqdsk["Z"][I], normalized_flux[I], levels=spol)
+
+    def compute_distance(p1, p2):
+        return np.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+
+    circumference = []
+    for flux_contour in fluxcontour.allsegs:
+        total_length = 0
+        points = np.array(flux_contour[0])
+        for idx in range(1, len(points)):
+            total_length += compute_distance(points[idx-1], points[idx])
+        circumference.append(total_length)
+    plt.close()
+
+    area = 2*np.pi*eqdsk["R0"]*np.array(circumference)
+    area = area[:-1] # exclude separatrix
+    spol = spol[:-1]
+    return area, spol
