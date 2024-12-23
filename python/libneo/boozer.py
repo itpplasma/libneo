@@ -31,7 +31,7 @@ def get_boozer_transform(stor, num_theta):
         th_boozers, th_geoms, G_s = get_angles_and_transformation(stor[ks], num_theta)
         dth, th_boozers, th_geoms = get_sign_dependent_thetas(th_geoms, th_boozers)
 
-        G_of_thb.append(CubicSpline(th_boozers, Gs, bc_type="periodic"))
+        G_of_thb.append(CubicSpline(th_boozers, G_s, bc_type="periodic"))
         dth_of_thb.append(CubicSpline(th_boozers, dth, bc_type="periodic"))
 
     return dth_of_thb, G_of_thb
