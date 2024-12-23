@@ -264,10 +264,12 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D_fft():
 
         res = get_boozer_harmonics_divide_f_by_B0_1D_fft(f, stor=stor, num_theta=kth,
             n=2, dth_of_thb=dth_of_thb, G_of_thb=G_of_thb) 
+        res_modes = np.concatenate((np.arange(0, kth/2), np.arange(-kth/2, 0)))
+        print(res_modes)
 
         ind = int(((kth) - (2*m0b + 1))/ 2 )
 
-        plt.plot(np.arange(-nth/2,nth/2), np.abs(res[0,:]), label=str(kth))
+        plt.scatter(res_modes, np.abs(res[0,:]), label=str(kth))
         plt.plot(np.arange(-nth/2,nth/2), np.abs(fmn_fft), label='fft, '+str(kth), ls = '--')
         #assert np.isclose(np.abs(res[0]), np.abs(fmn_fft[0,ind:(2*kth+1)-ind]), atol=1e-3).all()
     plt.legend()
