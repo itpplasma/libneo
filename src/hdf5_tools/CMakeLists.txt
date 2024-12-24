@@ -45,9 +45,11 @@ add_library(hdf5_tools
 target_link_libraries(hdf5_tools PUBLIC ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 
 if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  install (TARGETS hdf5_tools DESTINATION ${CMAKE_SOURCE_DIR}/lib)
-  install (DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION ${CMAKE_SOURCE_DIR}/include)
+  install (TARGETS hdf5_tools DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/lib)
+  install (DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include)
 elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  install (TARGETS hdf5_tools DESTINATION ${CMAKE_SOURCE_DIR}/ifort/lib)
-  install (DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION ${CMAKE_SOURCE_DIR}/ifort/include)
+  install (TARGETS hdf5_tools DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/ifort/lib)
+  install (DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/ifort/include)
 endif ()
+
+add_library(LIBNEO::hdf5_tools ALIAS hdf5_tools)
