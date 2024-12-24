@@ -8,9 +8,9 @@ cmake_minimum_required(VERSION 3.18)
 project(libneo)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # The version number.
 set (libneo_VERSION_MAJOR 0)
@@ -20,8 +20,8 @@ set (libneo_VERSION_PATCH 3)
 enable_language(Fortran)
 enable_testing()
 
-if (EXISTS ${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
-  include (${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
+  include (${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
 endif()
 
 find_program (BASH_PROGRAM bash)
@@ -298,3 +298,8 @@ set_target_properties(
 
 install(TARGETS ${F2PY_MODULE_NAME} DESTINATION .)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py DESTINATION .)
+
+add_library(LIBNEO::magfie ALIAS magfie)
+add_library(LIBNEO::neo ALIAS neo)
+add_library(LIBNEO::MyMPILib ALIAS MyMPILib)
+add_library(LIBNEO::hdf5_tools ALIAS hdf5_tools)
