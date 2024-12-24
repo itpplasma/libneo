@@ -83,3 +83,5 @@ add_custom_target(
 )
 
 add_dependencies(MyMPILib Versioning)
+
+add_library(LIBNEO::MyMPILib ALIAS MyMPILib)

@@ -127,3 +127,6 @@ target_link_libraries(coil_convert.x PUBLIC magfie)
 target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
 target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
 target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
+
+add_library(LIBNEO::magfie ALIAS magfie)
+add_library(LIBNEO::neo ALIAS neo)

@@ -298,8 +298,3 @@ set_target_properties(
 
 install(TARGETS ${F2PY_MODULE_NAME} DESTINATION .)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py DESTINATION .)
-
-add_library(LIBNEO::magfie ALIAS magfie)
-add_library(LIBNEO::neo ALIAS neo)
-add_library(LIBNEO::MyMPILib ALIAS MyMPILib)
-add_library(LIBNEO::hdf5_tools ALIAS hdf5_tools)
