@@ -16,18 +16,15 @@ set(CMAKE_Fortran_FLAGS "-g -Wall")
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-find_package(HDF5 COMPONENTS Fortran Fortran_HL)
-if (NOT ${HDF5_FOUND})
-	message(FATAL_ERROR "HDF5 not found, please set environment variable HDF5_ROOT to the correct path")
-endif ()
-include_directories(${HDF5_INCLUDE_DIRS})
+find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL)
 
-find_library(HDF5_TOOLS_LIB NAMES hdf5_tools libhdf5_tools.a PATHS ${CMAKE_SOURCE_DIR}/../../build/ ${CMAKE_BINARY_DIR}/ PATH_SUFFIXES src/hdf5_tools/ NO_DEFAULT_PATH)
-
+find_library(HDF5_TOOLS_LIB NAMES hdf5_tools libhdf5_tools.${CMAKE_SHARED_LIBRARY_SUFFIX} PATHS ${CMAKE_SOURCE_DIR}/../../build/ ${CMAKE_BINARY_DIR}/ PATH_SUFFIXES src/hdf5_tools/ NO_DEFAULT_PATH)
 include_directories(${CMAKE_SOURCE_DIR}/../../build/include ${CMAKE_BINARY_DIR})
+set(HDF5_tools_lib ${CMAKE_BINARY_DIR}/libhdf5_tools)
 
 set(Interface_Libs
-  ${HDF5_TOOLS_LIB}
+  hdf5::hdf5
+  hdf5::hdf5_hl
   hdf5::hdf5_fortran
   hdf5::hdf5_hl_fortran
   ${LAPACK_LIBRARIES}
@@ -43,6 +40,18 @@ add_executable(${PROJECT_EXE_NAME}
 target_link_libraries(${PROJECT_EXE_NAME}
   ${Interface_Libs}
 )
+if(DEFINED ENV{CODE})
+	target_link_libraries(${PROJECT_EXE_NAME}
+		${LIBNEOLIB}
+    ${HDF5_TOOLS_LIB}
+	)
+else()
+	target_link_libraries(${PROJECT_EXE_NAME}
+		LIBNEO::neo
+    LIBNEO::hdf5_tools
+	)
+endif()
+
 
 ### For make install
 # install (TARGETS ${PROJECT_EXE_NAME} DESTINATION /temp/)
