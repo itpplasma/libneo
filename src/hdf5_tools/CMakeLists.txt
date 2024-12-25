@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.12)
 
 ### Define the project
 # project(hdf5_tools)
-enable_language(Fortran)
+enable_language(C Fortran)
 
 ### Set compiler flags
 if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -13,22 +13,18 @@ elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
 endif ()
 
 ### Find HDF5
-find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL)
-if (NOT ${HDF5_FOUND})
-	message(FATAL_ERROR "HDF5 not found, please set environment variable HDF5_ROOT to the correct path")
-endif ()
+find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL REQUIRED)
 
-### Define executable
-add_library(hdf5_tools
-	        hdf5_tools.f90
-	        hdf5_tools_f2003.f90
+add_library(hdf5_tools SHARED
+  hdf5_tools.f90
+  hdf5_tools_f2003.f90
 )
-#target_link_libraries(hdf5_tools PUBLIC ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 target_link_libraries(hdf5_tools PUBLIC
   hdf5::hdf5
   hdf5::hdf5_hl
   hdf5::hdf5_fortran
-  hdf5::hdf5_hl_fortran)
+  hdf5::hdf5_hl_fortran
+)
 
 if (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   install (TARGETS hdf5_tools DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/lib)

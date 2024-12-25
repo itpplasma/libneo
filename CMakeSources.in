@@ -41,13 +41,13 @@ add_library(neo SHARED
 
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
-target_link_libraries(neo PRIVATE hdf5_tools)
+target_link_libraries(neo PUBLIC hdf5_tools)
 target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
 
 target_link_libraries(neo PRIVATE
   rkf45
-  ${BLAS_LIBRARIES}
-  ${LAPACK_LIBRARIES}
+  BLAS::BLAS
+  LAPACK::LAPACK
   netcdf
   netcdff
 )
