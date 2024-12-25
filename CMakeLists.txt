@@ -112,18 +112,14 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 # Python bindings
 
-# Grab Python
-find_package(
-  Python
-  COMPONENTS Interpreter Development.Module numpy
-)
+find_package(Python COMPONENTS Interpreter Development NumPy)
 
-if (Python_FOUND)
-    message(STATUS "Python found: ${Python_EXECUTABLE}")
-    message(STATUS "Python version: ${Python_VERSION}")
-    message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
-    message(STATUS "Python libraries: ${Python_LIBRARIES}")
-else()
+message(STATUS "Python: ${Python_EXECUTABLE}")
+message(STATUS "Python version: ${Python_VERSION}")
+message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
+message(STATUS "Python libraries: ${Python_LIBRARIES}")
+
+if (NOT Python_FOUND)
     message("Python with NumPy not found, skipping interface build.")
     return()
 endif()
