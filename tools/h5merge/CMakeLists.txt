@@ -28,8 +28,8 @@ include_directories(${CMAKE_SOURCE_DIR}/../../build/include ${CMAKE_BINARY_DIR})
 
 set(Interface_Libs
   ${HDF5_TOOLS_LIB}
-  ${HDF5_Fortran_HL_LIBRARIES}
-  ${HDF5_Fortran_LIBRARIES}
+  hdf5::hdf5_fortran
+  hdf5::hdf5_hl_fortran
   ${LAPACK_LIBRARIES}
   ${BLAS_LIBRARIES}
 )
