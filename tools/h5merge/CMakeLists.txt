@@ -27,8 +27,8 @@ set(Interface_Libs
   hdf5::hdf5_hl
   hdf5::hdf5_fortran
   hdf5::hdf5_hl_fortran
-  ${LAPACK_LIBRARIES}
-  ${BLAS_LIBRARIES}
+  LAPACK::LAPACK
+  BLAS::BLAS
 )
 
 ### Define executable
@@ -47,8 +47,8 @@ if(DEFINED ENV{CODE})
 	)
 else()
 	target_link_libraries(${PROJECT_EXE_NAME}
-		LIBNEO::neo
-    LIBNEO::hdf5_tools
+    ${CMAKE_SOURCE_DIR}/../../build/libneo.so
+    ${CMAKE_SOURCE_DIR}/../../build/libhdf5_tools.so
 	)
 endif()
 
