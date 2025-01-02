@@ -7,10 +7,10 @@ cmake_minimum_required(VERSION 3.18)
 # Basic project settings.
 project(libneo)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # The version number.
 set (libneo_VERSION_MAJOR 0)
@@ -20,8 +20,8 @@ set (libneo_VERSION_PATCH 3)
 enable_language(Fortran)
 enable_testing()
 
-if (EXISTS ${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
-  include (${CMAKE_BINARY_DIR}/BuildConfig.cmake.in)
+if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
+  include (${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
 endif()
 
 find_program (BASH_PROGRAM bash)
@@ -112,18 +112,14 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 # Python bindings
 
-# Grab Python
-find_package(
-  Python
-  COMPONENTS Interpreter Development.Module NumPy
-  REQUIRED)
+find_package(Python COMPONENTS Interpreter Development NumPy)
 
-if (Python_FOUND)
-    message(STATUS "Python found: ${Python_EXECUTABLE}")
-    message(STATUS "Python version: ${Python_VERSION}")
-    message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
-    message(STATUS "Python libraries: ${Python_LIBRARIES}")
-else()
+message(STATUS "Python: ${Python_EXECUTABLE}")
+message(STATUS "Python version: ${Python_VERSION}")
+message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
+message(STATUS "Python libraries: ${Python_LIBRARIES}")
+
+if (NOT Python_FOUND)
     message("Python with NumPy not found, skipping interface build.")
     return()
 endif()
