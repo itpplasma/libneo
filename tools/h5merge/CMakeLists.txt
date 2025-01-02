@@ -20,7 +20,6 @@ find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL)
 
 find_library(HDF5_TOOLS_LIB NAMES hdf5_tools libhdf5_tools.${CMAKE_SHARED_LIBRARY_SUFFIX} PATHS ${CMAKE_SOURCE_DIR}/../../build/ ${CMAKE_BINARY_DIR}/ PATH_SUFFIXES src/hdf5_tools/ NO_DEFAULT_PATH)
 include_directories(${CMAKE_SOURCE_DIR}/../../build/include ${CMAKE_BINARY_DIR})
-set(HDF5_tools_lib ${CMAKE_BINARY_DIR}/libhdf5_tools)
 
 set(Interface_Libs
   hdf5::hdf5
