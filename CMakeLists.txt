@@ -131,32 +131,6 @@ execute_process(
   OUTPUT_VARIABLE F2PY_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-# Grab the variables from a local Python installation
-# F2PY headers
-execute_process(
-    COMMAND "${Python_EXECUTABLE}"
-    -c "import numpy; print(numpy.__version__)"
-    OUTPUT_VARIABLE NUMPY_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-if (${NUMPY_VERSION} VERSION_GREATER_EQUAL "1.21.1")
-	execute_process(
-        COMMAND "${Python_EXECUTABLE}"
-        -c "import numpy.f2py; print(numpy.f2py.get_include())"
-        OUTPUT_VARIABLE F2PY_INCLUDE_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-	)
-else()
-    execute_process(
-        COMMAND "${Python_EXECUTABLE}"
-        -c "import numpy; print(numpy.get_include())"
-        OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    set(F2PY_INCLUDE_DIR "${NUMPY_INCLUDE_DIR}/../../f2py/src/")
-endif()
-
 include_directories(
     BEFORE
     ${Python_INCLUDE_DIRS}
