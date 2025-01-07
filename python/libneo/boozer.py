@@ -34,7 +34,7 @@ def get_boozer_transform(stor, num_theta):
         G_of_thb.append(CubicSpline(th_boozers, G_s, bc_type="periodic"))
         dth_of_thb.append(CubicSpline(th_boozers, dth, bc_type="periodic"))
 
-    return dth_of_thb, G_of_thb
+    return dth_of_thb, G_of_thb, th_boozers, th_geoms
 
 
 def get_angles_and_transformation(s, num_theta):
@@ -261,16 +261,17 @@ def get_boozer_harmonics_divide_f_by_B0_1D_fft(f, stor, num_theta, n, dth_of_thb
   fmn = np.zeros((ns - 1, num_theta), dtype=complex)
 
   if dth_of_thb==None or G_of_thb==None:  
-    dth_of_thb, G_of_thb = get_boozer_transform(stor, num_theta)
+    dth_of_thb, G_of_thb, _, _ = get_boozer_transform(stor, num_theta)
 
   th_geoms, phs = get_thgeoms_phs(ns, num_theta, 1, dth_of_thb, G_of_thb)
   theta_boozers = np.linspace(0, 2*np.pi, num_theta, endpoint=False)
 
   B0 = get_B0_of_s_theta_boozer(stor, num_theta)
+  #breakpoint()
 
   fmn = np.zeros((ns -1, num_theta), dtype=complex)
-  for js, ks in enumerate(stor[:-1]):
-    FF = f(js, th_geoms[js,:]) / B0[js](theta_boozers) * np.exp(-1j * n * G_of_thb[js](theta_boozers))
+  for js, _ in enumerate(stor[:-1]):
+    FF = f(js, th_geoms[js,:]) / np.abs(B0[js](theta_boozers)) * np.exp(-1j * n * G_of_thb[js](theta_boozers))
     fmn[js, :] = np.fft.fft(FF)
   return fmn / num_theta
 
