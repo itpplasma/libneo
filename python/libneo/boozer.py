@@ -27,27 +27,36 @@ def get_boozer_transform(stor, num_theta):
 
     G_of_thb = []
     dth_of_thb = []
+    B0 = []
+    theta_boozers = np.zeros((ns - 1, 2*num_theta+1))
+    theta_geoms = np.zeros((ns - 1, 2*num_theta+1))
     for ks in np.arange(ns - 1):
-        th_boozers, th_geoms, G_s = get_angles_and_transformation(stor[ks], num_theta)
+        th_boozers, th_geoms, theta_symflux, G_s, B0_temp = get_angles_G_and_B0(stor[ks], num_theta)
         dth, th_boozers, th_geoms = get_sign_dependent_thetas(th_geoms, th_boozers)
 
         G_of_thb.append(CubicSpline(th_boozers, G_s, bc_type="periodic"))
         dth_of_thb.append(CubicSpline(th_boozers, dth, bc_type="periodic"))
+        B0.append(CubicSpline(th_boozers, B0_temp, bc_type='periodic'))
+        theta_boozers[ks, :] = th_boozers
+        theta_geoms[ks,:] = th_geoms
+        
+    return dth_of_thb, G_of_thb, theta_boozers, theta_geoms, theta_symflux, B0
 
-    return dth_of_thb, G_of_thb, th_boozers, th_geoms
 
-
-def get_angles_and_transformation(s, num_theta):
+def get_angles_G_and_B0(s, num_theta):
     psi = np.array(0.0)
     R_axis, Z_axis = get_magnetic_axis()
 
     th_boozers = []
     th_geoms = []
     Gs = []
+    B0mod = []
+    theta_symflux = 2 * np.pi * np.arange(2 * num_theta) / (2 * num_theta)
 
-    for th_symflux in 2 * np.pi * np.arange(2 * num_theta) / (2 * num_theta):
+    for th_symflux in theta_symflux:
         inp_label = 1
-        (q, _, _, _, _, _, _,
+        (q, _, _, _, _, 
+        B0mod_temp, _,
         R, _, _, 
         Z, _, _, 
         G, _, _,
@@ -57,11 +66,15 @@ def get_angles_and_transformation(s, num_theta):
         th_geoms.append(np.arctan2(
           Z*length_cgs_to_si - Z_axis,
           R*length_cgs_to_si - R_axis))
+        B0mod.append(B0mod_temp)
     
     Gs = np.array(Gs)
     Gs = np.append(Gs, Gs[0])
 
-    return th_boozers, th_geoms, Gs
+    B0mod = np.array(B0mod)
+    B0mod = np.append(B0mod, B0mod[0])
+
+    return th_boozers, th_geoms, theta_symflux, Gs, B0mod
 
   
 def get_sign_dependent_thetas(th_geoms, th_boozers):
@@ -258,22 +271,15 @@ def get_boozer_harmonics_divide_f_by_B0_1D_fft(f, stor, num_theta, n, dth_of_thb
   """
 
   ns = stor.shape[0]
-  fmn = np.zeros((ns - 1, num_theta), dtype=complex)
+  fmn = np.zeros((ns - 1, 2*num_theta+1), dtype=complex)
 
   if dth_of_thb==None or G_of_thb==None:  
-    dth_of_thb, G_of_thb, _, _ = get_boozer_transform(stor, num_theta)
+    dth_of_thb, G_of_thb, theta_boozers, th_geoms, theta_symflux, B0 = get_boozer_transform(stor, num_theta)
 
-  th_geoms, phs = get_thgeoms_phs(ns, num_theta, 1, dth_of_thb, G_of_thb)
-  theta_boozers = np.linspace(0, 2*np.pi, num_theta, endpoint=False)
-
-  B0 = get_B0_of_s_theta_boozer(stor, num_theta)
-  #breakpoint()
-
-  fmn = np.zeros((ns -1, num_theta), dtype=complex)
   for js, _ in enumerate(stor[:-1]):
-    FF = f(js, th_geoms[js,:]) / np.abs(B0[js](theta_boozers)) * np.exp(-1j * n * G_of_thb[js](theta_boozers))
+    FF = f(js, th_geoms[js,:]) / np.abs(B0[js](theta_boozers[js,:])) * np.exp(-1j * n * G_of_thb[js](theta_boozers[js,:]))
     fmn[js, :] = np.fft.fft(FF)
-  return fmn / num_theta
+  return fmn / (2*num_theta+1)
 
 def get_magnetic_axis():
   psi = np.array(0.0)
