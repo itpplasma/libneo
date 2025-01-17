@@ -1,7 +1,7 @@
 program test_interpolate
     use iso_fortran_env, only: dp => real64
     use math_constants
-    use util
+    use libneo_util
 
     implicit none
 

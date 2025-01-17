@@ -7,8 +7,8 @@ set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 
-include_directories(${CMAKE_SOURCE_DIR}/src/MyMPILib)
-include_directories(${CMAKE_SOURCE_DIR}/src/hdf5_tools)
+include_directories(${PROJECT_SOURCE_DIR}/src/MyMPILib)
+include_directories(${PROJECT_SOURCE_DIR}/src/hdf5_tools)
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
