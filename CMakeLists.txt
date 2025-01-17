@@ -32,7 +32,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
   set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fPIC -fcheck=all -fbacktrace \
                             -fno-realloc-lhs -fopenmp -Wall -Wextra -Werror \
-                            -Wno-unused-function -fmax-errors=1")
+                            -Wno-unused-function -fmax-errors=1 -Wl,--no-warn-execstack")
 
   # https://github.com/numpy/numpy/issues/25777
   set (CMAKE_C_FLAGS "-Wno-error=incompatible-pointer-types")
@@ -155,6 +155,7 @@ add_custom_command(
   DEPENDS src/f2py_interfaces/f2py_magfie.f90
   VERBATIM
   COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
+  --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
   "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/magfie/magfie_vmec.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/spline_vmec_data.f90"
