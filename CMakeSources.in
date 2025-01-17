@@ -77,9 +77,6 @@ add_library(magfie SHARED
     src/magfie/coil_tools.f90
     src/fftw3.f90
 )
-#set_source_files_properties(src/boozer.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=unused-variable;-Wno-error=maybe-uninitialized")
-#set_source_files_properties(src/field_divB0.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=compare-reals;-Wno-error=conversion")
-#set_source_files_properties(src/field_mesh3d.f90 PROPERTIES COMPILE_OPTIONS "-Wno-error=compare-reals")
 
 add_library(mc_efit SHARED
     src/MC/alpha_lifetime_mod.f90
