@@ -11,3 +11,6 @@ add_library(neo_field OBJECT
     mesh.f90
     mesh_2d.f90
     field.f90)
+add_dependencies(neo_field interpolate)
+
+add_library(LIBNEO::field ALIAS neo_field)
