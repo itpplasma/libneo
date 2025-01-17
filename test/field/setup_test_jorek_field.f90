@@ -12,7 +12,7 @@ contains
 
 
 subroutine create_mockup_jorek_output()
-    use util, only: linspace
+    use libneo_util, only: linspace
     use util_for_test_jorek_field, only: Rmin, Rmax, Zmin, Zmax, phimin, phimax, &
                                      n_var, n_R, n_Z, n_phi, ndim, index_now, &
                                      t_now, time, variables, save_filename, &
@@ -32,7 +32,7 @@ subroutine create_mockup_jorek_output()
     call linspace(Rmin, Rmax, n_R, R)
     allocate(values(n_phi, n_R, n_Z, n_var))
     call get_homogenous_field(R, values)
-    
+
     filename = make_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax)
     call save_filename(filename)
 
@@ -52,9 +52,9 @@ subroutine create_mockup_jorek_output()
                                            comment='Magnetic field values', unit='T')
     call h5_add(file_id, 'variables', variables, lbounds=(/1/), ubounds=(/17/))
     call h5_close(file_id)
-  
+
     call h5_deinit()
-    
+
     call print_ok
 end subroutine create_mockup_jorek_output
 
