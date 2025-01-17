@@ -11,6 +11,7 @@ add_library(neo_field OBJECT
     mesh.f90
     mesh_2d.f90
     field.f90)
-add_dependencies(neo_field interpolate)
 
+set_property(TARGET neo_field PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::field ALIAS neo_field)

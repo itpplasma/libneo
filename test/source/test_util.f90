@@ -10,7 +10,7 @@ program test_util
 contains
 
     subroutine test_linspace
-        use util, only : linspace
+        use libneo_util, only : linspace
 
         real(dp), dimension(5) :: expected, actual
 

@@ -10,7 +10,7 @@ contains
 
 subroutine test_plag1d
 use neo_polylag_5, only: find_node_index, plag1d
-use util, only: linspace
+use libneo_util, only: linspace
 
 real(dp), parameter :: tol = 1.0e-9_dp, x_min = 0.0_dp, x_max = 1.0_dp
 
@@ -67,7 +67,7 @@ end function df_1d
 
 subroutine test_plag3d
     use neo_polylag_5, only: find_node_index, get_plag3d
-    use util, only: linspace
+    use libneo_util, only: linspace
 
     real(dp), parameter :: tol = 1.0e-9_dp
     real(dp), parameter :: x_min = 0.0_dp, x_max = 1.0_dp
@@ -166,5 +166,5 @@ elemental function df_3d(x, y, z, variable) result(df)
         df = 0.0_dp
     end select
 end function df_3d
-    
+
 end program test_polylag_5

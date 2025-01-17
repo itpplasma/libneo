@@ -1,4 +1,4 @@
-module util
+module libneo_util
     use iso_fortran_env, only: dp => real64
 
     implicit none
@@ -25,7 +25,7 @@ contains
         integer, intent(in) :: n
         integer, dimension(:), intent(in), optional :: seed
         real(dp), dimension(:), allocatable :: x
-    
+
         if (present(seed)) then
             call random_seed(put=seed)
         end if
@@ -34,4 +34,4 @@ contains
         x = xmin + (xmax - xmin) * x
     end function get_random_numbers
 
-end module util
+end module libneo_util
