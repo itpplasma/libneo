@@ -147,6 +147,9 @@ contains
     integer, intent(out) :: varid
     character(len=*), intent(in), optional :: comment, unit
 
+    associate(dummy => var)
+    end associate
+
     call nf90_check(nf90_def_var(ncid, name, NF90_INT, varid = varid))
 
     if (present(comment)) then
@@ -217,6 +220,9 @@ contains
     double precision, intent(in) :: var
     integer, intent(out) :: varid
     character(len=*), intent(in), optional :: comment, unit
+
+    associate(dummy => var)
+    end associate
 
     call nf90_check(nf90_def_var(ncid, name, NF90_DOUBLE, varid = varid))
 

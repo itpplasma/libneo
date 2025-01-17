@@ -6,6 +6,10 @@ subroutine elefie(x, derphi)
   implicit none
 
   real(kind=real_kind), dimension(3) :: x,derphi
+
+  associate(dummy => x)
+  end associate
+
   derphi = 0d0
 end subroutine elefie
 
@@ -55,12 +59,14 @@ subroutine velo(tau,z,vz)
   real(kind=real_kind) rmumag,rovsqg,rosqgb,rovbm
   real(kind=real_kind) a_phi,a_b,a_c,hstar
   real(kind=real_kind) s_hc,hpstar,phidot,blodot,bra
-  real(kind=real_kind) pardeb
 
       dimension z(5), vz(5)
       dimension x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
       dimension derphi(3)
       dimension a_phi(3),a_b(3),a_c(3),hstar(3)
+
+      associate(dummy => tau)
+      end associate
 
       do 1 i=1,3
         x(i)=z(i)

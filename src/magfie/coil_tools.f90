@@ -59,7 +59,7 @@ contains
   subroutine process_fixed_number_of_args(offset, number, args)
     integer, intent(in) :: offset
     integer, intent(out) :: number
-    character(len = :), dimension(:), allocatable, intent(out) :: args
+    character(len = 1024), dimension(:), allocatable, intent(out) :: args
     character(len = 1024) :: decimal_number, err_msg
     integer :: k, status
 

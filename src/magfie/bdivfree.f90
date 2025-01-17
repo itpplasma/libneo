@@ -178,8 +178,6 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   call s2dcut(nr,nz,hr,hz,rbpav_dummy,imi,ima,jmi,jma,icp,rbpav_coef,ipoint)
 
   deallocate(expon,a_re,a_im,rbpav_dummy,imi,ima,jmi,jma,dummy,brm,bpm,bzm)
-
-102 format(1000e15.7)
 end subroutine vector_potentials
 
 
@@ -601,11 +599,11 @@ subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
 
   ixfix = -10
 
+  ymin=arry_in(0)
+  ymax=arry_in(nx)
+
   allocate(arry(-1:nx+1))
   arry(0:nx)=arry_in
-
-  ymin=arry(0)
-  ymax=arry(nx)
   arry(-1)=arry(nx-1)-ymax+ymin
   arry(nx+1)=arry(1)+ymax-ymin
 

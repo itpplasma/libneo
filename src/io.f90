@@ -163,8 +163,6 @@ contains
     return
 
     2000  format(6a8,3i4)
-    55    print *, 'READ_EQDIM1: Early EOF in',trim(filename); STOP
-    250   print *, 'READ_EQDIM1: Error reading ',trim(filename); STOP
   end subroutine read_dimension_of_efit_file
 
   !> \brief Read content from a efit file with given filename.
@@ -495,8 +493,8 @@ contains
     ! allocate storage arrays
     allocate(this%m(this%nsurf, mnmax_pert), this%n(this%nsurf, mnmax_pert), stat = i_alloc)
     if (i_alloc /= 0) then
-      stop "Allocation for the arrays containing the mode numbers&
-            & of the perturbation field failed!"
+      stop "Allocation for the arrays containing the mode numbers " // &
+            & "of the perturbation field failed!"
     end if
 
     allocate(this%s(this%nsurf), this%iota(this%nsurf), &
@@ -504,8 +502,8 @@ contains
         & this%pprime(this%nsurf), this%sqrt_g00(this%nsurf), &
         & stat = i_alloc)
     if (i_alloc /= 0) then
-      stop "Allocation for the real arrays containing&
-           & the radial dependent fields failed!"
+      stop "Allocation for the real arrays containing " // &
+           & "the radial dependent fields failed!"
     end if
 
     allocate(this%rmnc(this%nsurf, mnmax_pert), this%zmnc(this%nsurf, mnmax_pert),&
@@ -599,15 +597,15 @@ contains
 
     ! read input arrays
     do i =1, this%nsurf
-      write(r_un,'(a)') '        s               iota           Jpol/nper&
-                    &          Itor            pprime         sqrt g(0,0)'
-      write(r_un,'(a)') '                                          [A]&
-                    &           [A]             [Pa]         (dV/ds)/nper'
+      write(r_un,'(a)') '        s               iota           Jpol/nper' // &
+                    & '          Itor            pprime         sqrt g(0,0)'
+      write(r_un,'(a)') '                                          [A]' // &
+                    & '           [A]             [Pa]         (dV/ds)/nper'
       write(r_un,format_boozer_flux_head) this%s(i), this%iota(i), this%Jpol_nper(i), &
         & this%Itor(i), this%pprime(i), this%sqrt_g00(i) ! Header: values
-      write(r_un,'(a)') '    m    n      rmnc [m]         rmns [m]         &
-                    &zmnc [m]         zmns [m]         vmnc [ ]         &
-                    &vmns [ ]         bmnc [T]         bmns [T]'
+      write(r_un,'(a)') '    m    n      rmnc [m]         rmns [m]         ' // &
+                    & 'zmnc [m]         zmns [m]         vmnc [ ]         ' // &
+                    & 'vmns [ ]         bmnc [T]         bmns [T]'
 
       do j=1,mnmax_pert
 

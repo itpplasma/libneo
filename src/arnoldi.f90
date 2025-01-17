@@ -64,6 +64,8 @@ contains
 
     if (present(write_to_file_)) then
       write_to_file = write_to_file_
+    else
+      write_to_file = .false.
     end if
 
     if (write_to_file) then
@@ -109,7 +111,7 @@ contains
   !>                     ierr           - error code (0 - normal work, 1 - error)
   subroutine calc_ritz_eigenvalues(n,m,ritznum,next_iteration)
 
-    use libneo_kinds, only : real_kind, complex_kind
+    use libneo_kinds, only : complex_kind
 
     implicit none
 
@@ -118,7 +120,6 @@ contains
     complex(kind=complex_kind), dimension(m), intent(out) :: ritznum
 
     integer :: k,j
-    integer, parameter :: mpi_p_root = 0
 
     complex(kind=complex_kind), dimension(:),   allocatable :: fold,fnew,fzero
     complex(kind=complex_kind), dimension(:,:), allocatable :: qvecs,hmat,eigh
@@ -226,7 +227,7 @@ contains
       return
     endif
 
-    lwork=work(1)
+    lwork=int(real(work(1)))
     deallocate(work)
     allocate(work(lwork))
     print *,'lwork = ',lwork

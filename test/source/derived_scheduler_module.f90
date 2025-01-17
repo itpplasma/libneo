@@ -11,6 +11,9 @@ contains
   subroutine derived_initMaster(this)
     class(derived_scheduler) :: this
 
+    associate(dummy => this)
+    end associate
+
     write(*,*) 'Derived initMaster'
   end subroutine derived_initMaster
 end module derived_scheduler_module

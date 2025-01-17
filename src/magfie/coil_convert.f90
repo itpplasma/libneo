@@ -13,7 +13,7 @@ program coil_convert
 
   integer :: argc, in_ncoil, out_ncoil, kc
   character(len = 1024) :: arg, in_type, out_type
-  character(len = :), dimension(:), allocatable :: in_files, out_files
+  character(len = 1024), dimension(:), allocatable :: in_files, out_files
   type(coil_t), dimension(:), allocatable :: coils, more_coils
 
   argc = command_argument_count()
