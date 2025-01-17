@@ -1,5 +1,7 @@
 program test_arnoldi
+#ifdef PARALLEL
   use mpiprovider_module, only : mpro
+#endif
 
   use arnoldi, only: calc_ritz_eigenvalues, leigen,ngrow,tol,eigvecs
   use libneo_kinds, only : complex_kind
@@ -114,7 +116,7 @@ program test_arnoldi
 contains
 
   subroutine next_iteration(n, hold, hnew)
-    use libneo_kinds, only : real_kind, complex_kind
+    use libneo_kinds, only : complex_kind
 
     implicit none
 
@@ -125,9 +127,9 @@ contains
     complex(kind=complex_kind) :: alpha, beta, x(n), y(n)
 
     x = hold+yvec
-    y = cmplx(0d0,0d0)
-    alpha = cmplx(1d0,0d0)
-    beta = cmplx(0d0,0d0)
+    y = cmplx(0d0,0d0,kind=complex_kind)
+    alpha = cmplx(1d0,0d0,kind=complex_kind)
+    beta = cmplx(0d0,0d0,kind=complex_kind)
     call zgemv('N',n,n,alpha,mmat,n,x,1,beta,y,1)
     hnew = y
   end subroutine next_iteration

@@ -159,7 +159,7 @@ subroutine orbit_timestep(z,dtau,dtaumin,ierr)
   real(kind=real_kind), parameter :: relerr=1d-6
   real(kind=real_kind), parameter :: vdr_dv=0.03d0
 
-  integer :: ierr,j
+  integer :: ierr
   real(kind=real_kind) :: dtau,dtaumin,phi,tau1,tau2
 
   real(kind=real_kind), dimension(2)    :: y
@@ -400,7 +400,7 @@ subroutine regst(z,dtau,ierr)
   integer, parameter          :: ndim=5
   real(kind=real_kind), parameter :: relerr=1d-6
 
-  integer :: ierr,j
+  integer :: ierr
   real(kind=real_kind) :: dtau,tau1,tau2
 
   real(kind=real_kind), dimension(ndim) :: z
