@@ -4,6 +4,7 @@ use util_for_test, only: print_test, print_ok, print_fail
 use neo_poincare, only: poincare_config_t
 implicit none
 
+real(dp), parameter :: TOL = 1.0e-13_dp
 real(dp), parameter :: pi = 3.14159265358979_dp
 character(len=*), parameter :: config_file = 'poincare.inp'
 type(poincare_config_t) :: jorek_config
@@ -99,7 +100,7 @@ subroutine test_get_poincare_RZ_for_closed_fieldline()
         print *, "expected_delta_theta = ", expected_delta_theta
         error stop
     end if
-    if ((abs(R(config%n_periods) - R(1)) > config%integrate_err) .and. & 
+    if ((abs(R(config%n_periods) - R(1)) > config%integrate_err) .and. &
         (abs(Z(config%n_periods) - Z(1)) > config%integrate_err)) then
         call print_fail
         print *, "last point and first point not equal of closed fieldline"
@@ -125,7 +126,7 @@ function calc_delta_theta(R, Z, R_axis, Z_axis, period_length) result(delta_thet
         theta_start = atan2(Z(period) - Z_axis, R(period) - R_axis)
         theta_end = atan2(Z(period+1) - Z_axis, R(period+1) - R_axis)
         delta_theta(period) = modulo(theta_end - theta_start, period_length)
-    end do    
+    end do
 end function calc_delta_theta
 
 
@@ -145,22 +146,22 @@ subroutine test_read_config_file
         print *, "n_fieldlines = ", config%n_fieldlines
         error stop
     end if
-    if (config%fieldline_start_Rmin /= jorek_config%fieldline_start_Rmin) then
+    if (abs(config%fieldline_start_Rmin - jorek_config%fieldline_start_Rmin) > TOL) then
         call print_fail
         print *, "fieldline_start_Rmin = ", config%fieldline_start_Rmin
         error stop
     end if
-    if (config%fieldline_start_Rmax /= jorek_config%fieldline_start_Rmax) then
+    if (abs(config%fieldline_start_Rmax - jorek_config%fieldline_start_Rmax) > TOL) then
         call print_fail
         print *, "fieldline_start_Rmax = ", config%fieldline_start_Rmax
         error stop
     end if
-    if (config%fieldline_start_phi /= jorek_config%fieldline_start_phi) then
+    if (abs(config%fieldline_start_phi - jorek_config%fieldline_start_phi) > TOL) then
         call print_fail
         print *, "fieldline_start_phi = ", config%fieldline_start_phi
         error stop
     end if
-    if (config%fieldline_start_Z /= jorek_config%fieldline_start_Z) then
+    if (abs(config%fieldline_start_Z - jorek_config%fieldline_start_Z) > TOL) then
         call print_fail
         print *, "fieldline_start_Z = ", config%fieldline_start_Z
         error stop
@@ -170,32 +171,32 @@ subroutine test_read_config_file
         print *, "n_periods = ", config%n_periods
         error stop
     end if
-    if (config%period_length /= jorek_config%period_length) then
+    if (abs(config%period_length - jorek_config%period_length) > TOL) then
         call print_fail
         print *, "period_length = ", config%period_length
         error stop
     end if
-    if (config%integrate_err /= jorek_config%integrate_err) then
+    if (abs(config%integrate_err - jorek_config%integrate_err) > TOL) then
         call print_fail
         print *, "integrate_err = ", config%integrate_err
         error stop
     end if
-    if (config%plot_Rmin /= jorek_config%plot_Rmin) then
+    if (abs(config%plot_Rmin - jorek_config%plot_Rmin) > TOL) then
         call print_fail
         print *, "plot_Rmin = ", config%plot_Rmin
         error stop
     end if
-    if (config%plot_Rmax /= jorek_config%plot_Rmax) then
+    if (abs(config%plot_Rmax - jorek_config%plot_Rmax) > TOL) then
         call print_fail
         print *, "plot_Rmax = ", config%plot_Rmax
         error stop
     end if
-    if (config%plot_Zmin /= jorek_config%plot_Zmin) then
+    if (abs(config%plot_Zmin - jorek_config%plot_Zmin) > TOL) then
         call print_fail
         print *, "plot_Zmin = ", config%plot_Zmin
         error stop
     end if
-    if (config%plot_Zmax /= jorek_config%plot_Zmax) then
+    if (abs(config%plot_Zmax - jorek_config%plot_Zmax) > TOL) then
         call print_fail
         print *, "plot_Zmax = ", config%plot_Zmax
         error stop
@@ -255,7 +256,7 @@ end subroutine write_poincare_config
 subroutine remove_poincare_config
     integer :: stat, file_id
     logical :: exists
-    
+
     open(newunit=file_id, iostat=stat, file=config_file, status='old')
     if (stat == 0) close(file_id, status='delete')
     inquire(file=trim(config_file), exist=exists)
