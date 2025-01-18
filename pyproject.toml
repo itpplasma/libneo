@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core", "cmake", "numpy", "f90wrap"]
+requires = ["scikit-build-core", "numpy", "f90wrap"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -12,4 +12,4 @@ classifiers = [
 
 [tool.scikit-build]
 build-dir = "build"
-cmake.verbose = true
+build.verbose = true
