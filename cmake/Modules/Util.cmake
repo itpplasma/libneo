@@ -52,6 +52,8 @@ function(get_branch_or_main REPO_URL REMOTE_BRANCH)
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
 
+    message(STATUS "Branch ${BRANCH} exists: ${BRANCH_EXISTS}")
+
     if(BRANCH_EXISTS)
         set(${REMOTE_BRANCH} ${BRANCH} PARENT_SCOPE)
     else()
