@@ -11,17 +11,7 @@ function(find_or_fetch DEPENDENCY)
         set(${DEPENDENCY}_SOURCE_DIR $ENV{CODE}/${DEPENDENCY})
         message(STATUS "Using ${DEPENDENCY} in $ENV{CODE}/${DEPENDENCY}")
     else()
-        set(REPO_URL https://github.com/itpplasma/${DEPENDENCY}.git)
-        get_branch_or_main(${REPO_URL} REMOTE_BRANCH)
-        message(STATUS "Using ${DEPENDENCY} branch ${REMOTE_BRANCH} from ${REPO_URL}")
-
-        FetchContent_Declare(
-            ${DEPENDENCY}
-            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-            GIT_REPOSITORY ${REPO_URL}
-            GIT_TAG ${REMOTE_BRANCH}
-        )
-        FetchContent_Populate(${DEPENDENCY})
+        fetch(DEPENDENCY)
     endif()
 
     if(EXCLUDE_FROM_ALL)
@@ -36,6 +26,21 @@ function(find_or_fetch DEPENDENCY)
     endif()
 endfunction()
 
+function(fetch DEPENDENCY)
+    set(REPO_URL https://github.com/itpplasma/${DEPENDENCY}.git)
+    get_branch_or_main(${REPO_URL} REMOTE_BRANCH)
+    message(STATUS "Using ${DEPENDENCY} branch ${REMOTE_BRANCH} from ${REPO_URL}")
+
+    FetchContent_Declare(
+        ${DEPENDENCY}
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        GIT_REPOSITORY ${REPO_URL}
+        GIT_TAG ${REMOTE_BRANCH}
+    )
+    FetchContent_Populate(${DEPENDENCY})
+
+    set(${DEPENDENCY}_SOURCE_DIR ${${DEPENDENCY}_SOURCE_DIR} PARENT_SCOPE)
+endfunction()
 
 function(get_branch_or_main REPO_URL REMOTE_BRANCH)
     execute_process(
