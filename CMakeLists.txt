@@ -7,7 +7,11 @@ cmake_minimum_required(VERSION 3.18)
 # Basic project settings.
 project(libneo)
 
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
+
+include(Util)
+
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -216,7 +220,7 @@ set(F2PY_WRAPPERS "${CMAKE_CURRENT_BINARY_DIR}/${F2PY_MODULE_C}")
 
 add_custom_target(F90WrapOutput)
 
-foreach (file_to_wrap ${FILES_TO_WRAP})
+foreach(file_to_wrap ${FILES_TO_WRAP})
     get_filename_component(basename ${file_to_wrap} NAME_WE)
     add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
         COMMAND gfortran -E -cpp
@@ -273,4 +277,4 @@ set_target_properties(
 install(TARGETS ${F2PY_MODULE_NAME} DESTINATION .)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py DESTINATION libneo)
 
-add_subdirectory(${PROJECT_SOURCE_DIR}/../efit_to_boozer efit_to_boozer)
+find_or_fetch(efit_to_boozer FALSE)
