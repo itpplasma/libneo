@@ -48,7 +48,7 @@ subroutine r4_fehl ( f, neqn, y, t, h, yp, f1, f2, f3, f4, f5, s )
 !  Parameters:
 !
 !    Input, external F, a user-supplied subroutine to evaluate the
-!    derivatives Y'(T), of the form:
+!    derivatives dYdT(T), of the form:
 !
 !      subroutine f ( t, y, yp )
 !      real ( kind = 4 ) t
@@ -57,18 +57,18 @@ subroutine r4_fehl ( f, neqn, y, t, h, yp, f1, f2, f3, f4, f5, s )
 !
 !    Input, integer ( kind = 4 ) NEQN, the number of equations to be integrated.
 !
-!    Input, real ( kind = 4 ) Y(NEQN), the current value of the 
+!    Input, real ( kind = 4 ) Y(NEQN), the current value of the
 !    dependent variable.
 !
-!    Input, real ( kind = 4 ) T, the current value of the independent 
+!    Input, real ( kind = 4 ) T, the current value of the independent
 !    variable.
 !
 !    Input, real ( kind = 4 ) H, the step size to take.
 !
-!    Input, real ( kind = 4 ) YP(NEQN), the current value of the 
+!    Input, real ( kind = 4 ) YP(NEQN), the current value of the
 !    derivative of the dependent variable.
 !
-!    Output, real ( kind = 4 ) F1(NEQN), F2(NEQN), F3(NEQN), F4(NEQN), 
+!    Output, real ( kind = 4 ) F1(NEQN), F2(NEQN), F3(NEQN), F4(NEQN),
 !    F5(NEQN), derivative values needed for the computation.
 !
 !    Output, real ( kind = 4 ) S(NEQN), the estimate of the solution at T+H.
@@ -172,7 +172,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !    the call list are set for continuing the integration.  The user has
 !    only to call again (and perhaps define a new value for TOUT).
 !
-!    Before the first call, the user must 
+!    Before the first call, the user must
 !
 !    * supply the subroutine F(T,Y,YP) to evaluate the right hand side;
 !      and declare F in an EXTERNAL statement;
@@ -180,63 +180,63 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !    * initialize the parameters:
 !      NEQN, Y(1:NEQN), T, TOUT, RELERR, ABSERR, FLAG.
 !      In particular, T should initially be the starting point for integration,
-!      Y should be the value of the initial conditions, and FLAG should 
+!      Y should be the value of the initial conditions, and FLAG should
 !      normally be +1.
 !
 !    Normally, the user only sets the value of FLAG before the first call, and
 !    thereafter, the program manages the value.  On the first call, FLAG should
 !    normally be +1 (or -1 for single step mode.)  On normal return, FLAG will
-!    have been reset by the program to the value of 2 (or -2 in single 
-!    step mode), and the user can continue to call the routine with that 
+!    have been reset by the program to the value of 2 (or -2 in single
+!    step mode), and the user can continue to call the routine with that
 !    value of FLAG.
 !
-!    (When the input magnitude of FLAG is 1, this indicates to the program 
+!    (When the input magnitude of FLAG is 1, this indicates to the program
 !    that it is necessary to do some initialization work.  An input magnitude
-!    of 2 lets the program know that that initialization can be skipped, 
+!    of 2 lets the program know that that initialization can be skipped,
 !    and that useful information was computed earlier.)
 !
 !    The routine returns with all the information needed to continue
 !    the integration.  If the integration reached TOUT, the user need only
 !    define a new TOUT and call again.  In the one-step integrator
-!    mode, returning with FLAG = -2, the user must keep in mind that 
-!    each step taken is in the direction of the current TOUT.  Upon 
+!    mode, returning with FLAG = -2, the user must keep in mind that
+!    each step taken is in the direction of the current TOUT.  Upon
 !    reaching TOUT, indicated by the output value of FLAG switching to 2,
-!    the user must define a new TOUT and reset FLAG to -2 to continue 
+!    the user must define a new TOUT and reset FLAG to -2 to continue
 !    in the one-step integrator mode.
 !
 !    In some cases, an error or difficulty occurs during a call.  In that case,
 !    the output value of FLAG is used to indicate that there is a problem
 !    that the user must address.  These values include:
 !
-!    * 3, integration was not completed because the input value of RELERR, the 
-!      relative error tolerance, was too small.  RELERR has been increased 
+!    * 3, integration was not completed because the input value of RELERR, the
+!      relative error tolerance, was too small.  RELERR has been increased
 !      appropriately for continuing.  If the user accepts the output value of
 !      RELERR, then simply reset FLAG to 2 and continue.
 !
-!    * 4, integration was not completed because more than MAXNFE derivative 
+!    * 4, integration was not completed because more than MAXNFE derivative
 !      evaluations were needed.  This is approximately (MAXNFE/6) steps.
-!      The user may continue by simply calling again.  The function counter 
+!      The user may continue by simply calling again.  The function counter
 !      will be reset to 0, and another MAXNFE function evaluations are allowed.
 !
-!    * 5, integration was not completed because the solution vanished, 
-!      making a pure relative error test impossible.  The user must use 
-!      a non-zero ABSERR to continue.  Using the one-step integration mode 
+!    * 5, integration was not completed because the solution vanished,
+!      making a pure relative error test impossible.  The user must use
+!      a non-zero ABSERR to continue.  Using the one-step integration mode
 !      for one step is a good way to proceed.
 !
-!    * 6, integration was not completed because the requested accuracy 
-!      could not be achieved, even using the smallest allowable stepsize. 
+!    * 6, integration was not completed because the requested accuracy
+!      could not be achieved, even using the smallest allowable stepsize.
 !      The user must increase the error tolerances ABSERR or RELERR before
-!      continuing.  It is also necessary to reset FLAG to 2 (or -2 when 
-!      the one-step integration mode is being used).  The occurrence of 
-!      FLAG = 6 indicates a trouble spot.  The solution is changing 
-!      rapidly, or a singularity may be present.  It often is inadvisable 
+!      continuing.  It is also necessary to reset FLAG to 2 (or -2 when
+!      the one-step integration mode is being used).  The occurrence of
+!      FLAG = 6 indicates a trouble spot.  The solution is changing
+!      rapidly, or a singularity may be present.  It often is inadvisable
 !      to continue.
 !
 !    * 7, it is likely that this routine is inefficient for solving
 !      this problem.  Too much output is restricting the natural stepsize
-!      choice.  The user should use the one-step integration mode with 
-!      the stepsize determined by the code.  If the user insists upon 
-!      continuing the integration, reset FLAG to 2 before calling 
+!      choice.  The user should use the one-step integration mode with
+!      the stepsize determined by the code.  If the user insists upon
+!      continuing the integration, reset FLAG to 2 before calling
 !      again.  Otherwise, execution will be terminated.
 !
 !    * 8, invalid input parameters, indicates one of the following:
@@ -272,7 +272,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !  Parameters:
 !
 !    Input, external F, a user-supplied subroutine to evaluate the
-!    derivatives Y'(T), of the form:
+!    derivatives dYdT(T), of the form:
 !
 !      subroutine f ( t, y, yp )
 !      real ( kind = 4 ) t
@@ -291,10 +291,10 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !    variable.
 !
 !    Input, real ( kind = 4 ) TOUT, the output point at which solution is
-!    desired.  TOUT = T is allowed on the first call only, in which case 
+!    desired.  TOUT = T is allowed on the first call only, in which case
 !    the routine returns with FLAG = 2 if continuation is possible.
 !
-!    Input, real ( kind = 4 ) RELERR, ABSERR, the relative and absolute 
+!    Input, real ( kind = 4 ) RELERR, ABSERR, the relative and absolute
 !    error tolerances for the local error test.  At each step the code
 !    requires:
 !      abs ( local error ) <= RELERR * abs ( Y ) + ABSERR
@@ -303,10 +303,10 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !    set too small, it will reset RELERR to an acceptable value and return
 !    immediately for user action.
 !
-!    Input/output, integer ( kind = 4 ) FLAG, indicator for status of 
-!    integration.  On the first call, set FLAG to +1 for normal use, or to 
-!    -1 for single step mode.  On return, a value of 2 or -2 indicates normal 
-!    progress, while any other value indicates a problem that should be 
+!    Input/output, integer ( kind = 4 ) FLAG, indicator for status of
+!    integration.  On the first call, set FLAG to +1 for normal use, or to
+!    -1 for single step mode.  On return, a value of 2 or -2 indicates normal
+!    progress, while any other value indicates a problem that should be
 !    addressed.
 !
   implicit none
@@ -357,7 +357,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 
 ! Thread safety
 !$omp threadprivate(abserr_save,h,flag_save,init,kflag,kop,nfe,relerr_save)
-  
+
 !
 !  Check the input parameters.
 !
@@ -389,7 +389,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !
   if ( mflag /= 1 ) then
 
-    if ( t == tout .and. kflag /= 3 ) then
+    if ( abs(t-tout) <= 0.0 .and. kflag /= 3 ) then
       flag = 8
       return
     end if
@@ -409,7 +409,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 
         nfe = 0
 
-      else if ( kflag == 5 .and. abserr == 0.0E+00 ) then
+      else if ( kflag == 5 .and. abs(abserr) <= 0.0E+00 ) then
 
         write ( *, '(a)' ) ' '
         write ( *, '(a)' ) 'R4_RKF45 - Fatal error!'
@@ -473,7 +473,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 
   end if
 !
-!  Save the input value of FLAG.  
+!  Save the input value of FLAG.
 !  Set the continuation flag KFLAG for subsequent input checking.
 !
   flag_save = flag
@@ -484,11 +484,11 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
   relerr_save = relerr
   abserr_save = abserr
 !
-!  Restrict the relative error tolerance to be at least 
+!  Restrict the relative error tolerance to be at least
 !
-!    2 * EPS + REMIN 
+!    2 * EPS + REMIN
 !
-!  to avoid limiting precision difficulties arising from impossible 
+!  to avoid limiting precision difficulties arising from impossible
 !  accuracy requests.
 !
   relerr_min = 2.0E+00 * epsilon ( relerr_min ) + remin
@@ -519,7 +519,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
     call f ( t, y, yp )
     nfe = 1
 
-    if ( t == tout ) then
+    if ( abs(t-tout)<=0.0 ) then
       flag = 2
       return
     end if
@@ -671,7 +671,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !  solution at the beginning and end of the step.
 !
       eeoet = 0.0E+00
- 
+
       do k = 1, neqn
 
         et = abs ( y(k) ) + abs ( f1(k) ) + ae
@@ -720,7 +720,7 @@ subroutine r4_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 
     end do
 !
-!  We exited the loop because we took a successful step.  
+!  We exited the loop because we took a successful step.
 !  Store the solution for T+H, and evaluate the derivative there.
 !
     t = t + h
@@ -815,7 +815,7 @@ subroutine r8_fehl ( f, neqn, y, t, h, yp, f1, f2, f3, f4, f5, s )
 !  Parameters:
 !
 !    Input, external F, a user-supplied subroutine to evaluate the
-!    derivatives Y'(T), of the form:
+!    derivatives dYdT(T), of the form:
 !
 !      subroutine f ( t, y, yp )
 !      real ( kind = 8 ) t
@@ -1039,7 +1039,7 @@ subroutine r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !  Parameters:
 !
 !    Input, external F, a user-supplied subroutine to evaluate the
-!    derivatives Y'(T), of the form:
+!    derivatives dYdT(T), of the form:
 !
 !      subroutine f ( t, y, yp )
 !      real ( kind = 8 ) t
@@ -1070,10 +1070,10 @@ subroutine r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !    set too small, it will reset RELERR to an acceptable value and return
 !    immediately for user action.
 !
-!    Input/output, integer ( kind = 4 ) FLAG, indicator for status of 
-!    integration.  On the first call, set FLAG to +1 for normal use, or to -1 
-!    for single step mode.  On return, a value of 2 or -2 indicates normal 
-!    progress, while any other value indicates a problem that should 
+!    Input/output, integer ( kind = 4 ) FLAG, indicator for status of
+!    integration.  On the first call, set FLAG to +1 for normal use, or to -1
+!    for single step mode.  On return, a value of 2 or -2 indicates normal
+!    progress, while any other value indicates a problem that should
 !    be addressed.
 !
   implicit none
@@ -1155,7 +1155,7 @@ subroutine r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 !
   if ( mflag /= 1 ) then
 
-    if ( t == tout .and. kflag /= 3 ) then
+    if ( abs(t-tout)<=0.0 .and. kflag /= 3 ) then
       flag = 8
       return
     end if
@@ -1175,7 +1175,7 @@ subroutine r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
 
         nfe = 0
 
-      else if ( kflag == 5 .and. abserr == 0.0D+00 ) then
+      else if ( kflag == 5 .and. abs(abserr) <= 0.0D+00 ) then
 
         write ( *, '(a)' ) ' '
         write ( *, '(a)' ) 'R8_RKF45 - Fatal error!'
@@ -1285,7 +1285,7 @@ subroutine r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
     call f ( t, y, yp )
     nfe = 1
 
-    if ( t == tout ) then
+    if ( abs(t-tout)<=0.0 ) then
       flag = 2
       return
     end if
@@ -1329,7 +1329,7 @@ subroutine r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
   end if
 !
 !  Unnecessary frequency of output.
-!  Seems like an error I'm willing to tolerate!
+!  Seems like an error I am willing to tolerate!
 !
 ! if ( kop == 100 ) then
   if ( kop == 10000 ) then

@@ -142,7 +142,7 @@ contains
       if ((x+h-x2)*(x+h-x1) .gt. 0.0) h=x2-x
       call rkqs(y,dydx,nvar,x,h,eps,yscal,hdid,hnext,derivs)
 
-      if (hdid .eq. h) then
+      if (abs(hdid-h) <= 0.0d0) then
         nok = nok+1
       else
         nbad = nbad+1
@@ -273,7 +273,7 @@ contains
       h = sign(max(abs(htemp),0.1*abs(h)),h)
       xnew = x+h
 
-      if (xnew.eq.x) then
+      if (abs(xnew - x) <= 0.0d0) then
         print *,'stepsize underflow in rkqs, x,y = ', x, y
         stop
       end if

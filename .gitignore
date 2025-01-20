@@ -62,3 +62,4 @@ yvec.dat
 include/
 lib/
 .venv
+dist/

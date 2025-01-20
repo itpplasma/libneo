@@ -69,6 +69,8 @@ subroutine boozer_converter
   if(use_B_r) then
     allocate(aiota_arr(ns_B))
     allocate(Gfunc(ns_B,n_theta_B,n_phi_B), Bcovar_symfl(3,ns_B,n_theta_B,n_phi_B))
+  else
+    allocate(aiota_arr(1), Gfunc(1,1,1), Bcovar_symfl(1,1,1,1))
   end if
 
   allocate(Bcovar_theta_V(n_theta_B,n_phi_B),Bcovar_varphi_V(n_theta_B,n_phi_B), &
@@ -280,7 +282,6 @@ subroutine boozer_converter
       end do
 
     end do
-    deallocate(aiota_arr,Gfunc,Bcovar_symfl)
   end if
 
   ! End compute radial covariant magnetic field component in Boozer coordinates
@@ -289,7 +290,7 @@ subroutine boozer_converter
   deallocate(Bcovar_theta_V,Bcovar_varphi_V,bmod_Vg,alam_2D,          &
              deltheta_BV_Vg,delphi_BV_Vg,deltheta_BV_Bg,delphi_BV_Bg, &
              wint_t,wint_p,coef,theta_V,theta_B,phi_V,phi_B,          &
-             perqua_t,perqua_p,perqua_2D)
+             perqua_t,perqua_p,perqua_2D,Gfunc,Bcovar_symfl, aiota_arr)
 
   print *,'done'
 
@@ -956,6 +957,7 @@ subroutine delthe_delphi_BV(isw,r,vartheta,varphi,deltheta_BV,delphi_BV, &
   !-------------------------------
   ! Begin interpolation of all over $\theta$
 
+  dsp_all_dt=0d0
   sp_all(:,1:nstp)=stp_all(:,nstp,1:nstp)
   dsp_all_dt(:,1:nstp)=sp_all(:,1:nstp)*derf1(nstp)
 

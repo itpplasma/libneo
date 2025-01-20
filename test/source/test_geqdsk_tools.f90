@@ -126,8 +126,8 @@ contains
     if (geqdsk%cocos%index == 15) then
       sucess = .true.
     else
-      write(*,*) "ERROR cocos index ", geqdsk%cocos%index, " does not&
-          & match the expected value 15!"
+      write(*,*) "ERROR cocos index ", geqdsk%cocos%index, " does not" // &
+          &" match the expected value 15!"
     end if
 
   end subroutine test_classify
@@ -178,8 +178,8 @@ contains
     if (geqdsk%cocos%index == 3) then
       sucess = .true.
     else
-      write(*,*) "ERROR cocos index ", geqdsk%cocos%index, " does not&
-          & match the expected value 3 after standardisation!"
+      write(*,*) "ERROR cocos index ", geqdsk%cocos%index, " does not" // &
+          &" match the expected value 3 after standardisation!"
     end if
 
   end subroutine

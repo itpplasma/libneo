@@ -52,6 +52,9 @@ subroutine vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s, &
   integer :: lasym_int
   logical :: lasym
 
+  associate(dummy => nsurfb)
+  end associate
+
   fac_b = fac_b0 * vmec_B_scale
   fac_r = fac_r0 * vmec_RZ_scale
 
@@ -120,6 +123,15 @@ subroutine stevvo(RT0,R0i,L1i,cbfi,bz0i,bf0)
 
   integer :: L1i
   real(kind=real_kind) :: RT0,R0i,cbfi,bz0i,bf0
+
+  associate(dummy => R0i)
+  end associate
+  associate(dummy => cbfi)
+  end associate
+  associate(dummy => bz0i)
+  end associate
+  associate(dummy => bf0)
+  end associate
 
   L1i=nper
   RT0=rmajor*1.d2

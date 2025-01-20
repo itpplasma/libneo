@@ -138,6 +138,9 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
   real(kind=real_kind) :: rrr,zzz
   real(kind=real_kind) :: psihat,fpol,fpol_prime
 
+  associate(dummy => ppp)
+  end associate
+
   !-------first call: read data from disk-------------------------------
   if (icall_eq < 1) then
     if (.not. skip_read) then
@@ -362,8 +365,6 @@ subroutine read_dimeq1(nwEQD,nhEQD)
   return
 
 2000  format(6a8,3i4)
-55    print *, 'READ_EQDIM1: Early EOF in',trim(gfile); STOP
-250   print *, 'READ_EQDIM1: Error reading ',trim(gfile); STOP
 end subroutine read_dimeq1
 
 
@@ -520,7 +521,6 @@ subroutine set_eqcoords(nwEQD,nhEQD,xdim,zdim,r1,zmid,rad,zet)
     zet(k) = z1 + (k-1)*(zdim/(nhEQD-1))
   end do
 
-2010  format(5(e16.9))
 end subroutine set_eqcoords
 
 
@@ -657,6 +657,13 @@ subroutine read_field0(rad,phi,zet,rmin,pmin,zmin,hrm1,hpm1,hzm1,Br,Bp,Bz)
   dimension rad(nr), phi(np), zet(nz)
   data icall/0/
   save
+
+  associate(dummy => hrm1)
+  end associate
+  associate(dummy => hpm1)
+  end associate
+  associate(dummy => hzm1)
+  end associate
 
   !-------first call: read data from disk-------------------------------
   open(1,file=cfile,status='old',action='read')
@@ -890,11 +897,7 @@ subroutine stretch_coords(r,z,rm,zm)
   rm = r
   zm = z
   rho = sqrt((r-R0)**2 + z**2)
-  if (z.eq.0.d0.and.r-r0.eq.0.d0) then
-    tht = 0.d0
-  else
-    tht = atan2(z,(r-R0))
-  end if
+  tht = atan2(z,(r-R0))
   if(tht .lt. 0.) tht = tht + TWOPI
   i = modulo(int(tht/htht), nrhotht-1) + 1
   rho_c = (rho_wall(i+1) - rho_wall(i))/(tht_wall(i+1) - tht_wall(i))   &

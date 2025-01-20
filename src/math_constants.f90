@@ -13,7 +13,7 @@ module math_constants
   real(kind=real_kind), parameter :: SQRT2 = 1.41421356237309504880168872420969807856967_real_kind
   !> Defined as \f$ \gamma = \int\limits_{1}^{\infty} 1/floor(x) - 1/x dx \f$
   !> or alternatively \f$ \sum\limits_{k=1}^{\infty} ( 1/k - \ln ((k+1)/k)\f$
-  !> or \f$ \Gamma'(1) = - \gamma \f$.
+  !> or \f$ \Gamma_prime(1) = - \gamma \f$.
   real(kind=real_kind), parameter :: EULER = 0.5772156649015328606065120900824024310422_real_kind
 
   !> Imaginary unit:

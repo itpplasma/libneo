@@ -330,7 +330,7 @@ subroutine field_mesh3d(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
         else
           fp(i,j,k) = Bp(indx(i),indy(j),indz(k))
         endif
-        if(fp(i,j,k).eq.0.d0) then
+        if(abs(fp(i,j,k)).le.0.d0) then
           ierrfield=1
           print *,'boundary touched'
 

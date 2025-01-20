@@ -21,7 +21,7 @@ program vacfield
   integer :: argc, fid, status, num_coilfiles, kc
   character(len = 1024) :: arg, err_msg, &
     coil_type, field_type, grid_file, field_file, currents_file
-  character(len = :), dimension(:), allocatable :: coil_files
+  character(len = 1024), dimension(:), allocatable :: coil_files
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
   complex(dp), allocatable :: Bnvac(:, :, :, :, :)
