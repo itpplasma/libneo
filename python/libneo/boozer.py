@@ -12,6 +12,7 @@ import _efit_to_boozer as efit_to_boozer
 __all__ = ['get_magnetic_axis',
            'get_boozer_transform','get_boozer_harmonics','write_boozer_head',
            'append_boozer_block_head', 'append_boozer_block',
+           'append_boozer_block_stellerator_symmetry',
            'convert_to_boozer', 'BoozerFile']
 
 length_cgs_to_si = 1e-2
@@ -372,6 +373,15 @@ def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, b
       f.write(' {:16.8e} {:16.8e}'.format(bmnc[k], bmns[k]))
       f.write('\n')
 
+def append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc, enfp):
+  from numpy import array, int32
+  _append_boozer_block_stellerator_symmetry(filename, 
+                                            mb, 
+                                            array(nb/enfp, dtype=int32),
+                                            rmnc, 
+                                            zmns, 
+                                            vmns, 
+                                            bmnc)
 
 def _append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc):
   with open(filename, 'a') as f:
