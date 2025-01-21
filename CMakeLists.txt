@@ -276,5 +276,3 @@ set_target_properties(
 
 install(TARGETS ${F2PY_MODULE_NAME} DESTINATION .)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py DESTINATION libneo)
-
-find_or_fetch(efit_to_boozer)
