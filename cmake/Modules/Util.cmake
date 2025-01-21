@@ -1,35 +1,24 @@
 include(FetchContent)
 
 function(find_or_fetch DEPENDENCY)
-    if(NOT ARGC GREATER 1)
-        set(EXCLUDE_FROM_ALL TRUE)
-    else()
-        set(EXCLUDE_FROM_ALL ${ARGV1})
-    endif()
 
-    if(DEFINED ENV{CODE})
-        set(${DEPENDENCY}_SOURCE_DIR $ENV{CODE}/${DEPENDENCY})
+    if(DEFINED ENV{CODE} AND EXISTS $ENV{CODE}/${DEPENDENCY})
+        set(SOURCE_DIR $ENV{CODE}/${DEPENDENCY})
         message(STATUS "Using ${DEPENDENCY} in $ENV{CODE}/${DEPENDENCY}")
     else()
-        fetch(DEPENDENCY)
+        fetch(${DEPENDENCY} SOURCE_DIR)
     endif()
 
-    if(EXCLUDE_FROM_ALL)
-        add_subdirectory(${${DEPENDENCY}_SOURCE_DIR}
-            ${CMAKE_CURRENT_BINARY_DIR}/${DEPENDENCY}
-            EXCLUDE_FROM_ALL
-        )
-    else()
-        add_subdirectory(${${DEPENDENCY}_SOURCE_DIR}
-            ${CMAKE_CURRENT_BINARY_DIR}/${DEPENDENCY}
-        )
-    endif()
+    add_subdirectory(${SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}/${DEPENDENCY}
+        EXCLUDE_FROM_ALL
+    )
 endfunction()
 
-function(fetch DEPENDENCY)
+function(fetch DEPENDENCY SOURCE_DIR)
     set(REPO_URL https://github.com/itpplasma/${DEPENDENCY}.git)
     get_branch_or_main(${REPO_URL} REMOTE_BRANCH)
-    message(STATUS "Using ${DEPENDENCY} branch ${REMOTE_BRANCH} from ${REPO_URL}")
+    message(STATUS "Fetch ${DEPENDENCY} branch ${REMOTE_BRANCH} from ${REPO_URL}")
 
     FetchContent_Declare(
         ${DEPENDENCY}
@@ -39,7 +28,9 @@ function(fetch DEPENDENCY)
     )
     FetchContent_Populate(${DEPENDENCY})
 
-    set(${DEPENDENCY}_SOURCE_DIR ${${DEPENDENCY}_SOURCE_DIR} PARENT_SCOPE)
+    message(STATUS "Fetched ${DEPENDENCY} to ${${DEPENDENCY}_SOURCE_DIR}")
+
+    set(SOURCE_DIR ${${DEPENDENCY}_SOURCE_DIR} PARENT_SCOPE)
 endfunction()
 
 function(get_branch_or_main REPO_URL REMOTE_BRANCH)
