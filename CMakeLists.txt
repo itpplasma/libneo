@@ -21,12 +21,8 @@ set (libneo_VERSION_MAJOR 0)
 set (libneo_VERSION_MINOR 0)
 set (libneo_VERSION_PATCH 3)
 
-enable_language(Fortran)
+enable_language(C Fortran)
 enable_testing()
-
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
-  include (${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
-endif()
 
 find_program (BASH_PROGRAM bash)
 
