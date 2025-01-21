@@ -40,14 +40,14 @@ def test_get_boozer_harmonics_1D():
         G_of_thb.append(lambda thb: 0.0)
 
         res = get_boozer_harmonics(f, stor=stor, num_theta=kth, num_phi=nph, m0b=m0b,
-            n=2, dth_of_thb=dth_of_thb, G_of_thb=G_of_thb) 
+            n=2, dth_of_thb=dth_of_thb, G_of_thb=G_of_thb)
 
         plt.plot(m, np.abs(res[0]), label=str(kth))
         plt.plot(np.arange(kth), np.abs(fmn_fft[0,:]), label='fft, '+str(kth), ls = '--')
     plt.legend()
     plt.xlabel('m')
     plt.ylabel(r'abs($C_n$)')
-    plt.show()
+    plt.savefig('test_get_boozer_harmonics_1D.png')
 
 
 def test_get_boozer_harmonics_2D():
@@ -65,7 +65,7 @@ def test_get_boozer_harmonics_2D():
 
     dth_of_thb.append(lambda thb: 0.1 * np.cos(thb))
     G_of_thb.append(lambda thb: 0.5 * np.sin(thb))
-    
+
     plt.figure()
 
     for kth in nth:
@@ -75,10 +75,10 @@ def test_get_boozer_harmonics_2D():
         phi = np.zeros((kth, nph))
         for i, phib in enumerate(phi_b):
             phi[:,i] = phib - G_of_thb[0](theta_b)
-        
+
         THTH = np.tile(theta, (nph,1))
         PHIPHI = phi
-        FF = f(stor[0], THTH, PHIPHI.T) 
+        FF = f(stor[0], THTH, PHIPHI.T)
         f_fft = np.fft.fft2(FF)
         fmn_fft = f_fft / (kth * nph)
 
@@ -98,11 +98,11 @@ def test_get_boozer_harmonics_2D():
         plt.plot(m, np.abs(res[0]), label=str(kth), lw=3)
         for n_mode in [2]: # check the toroidal modes corresponding to the ones in the defined function
             plt.plot(np.arange(kth), np.abs(fmn_fft[n_mode, :]), label="fft, n=" + str(n_mode), ls="--")
-    
+
     plt.legend()
     plt.xlabel("m")
     plt.ylabel(r"abs($C_n$)")
-    plt.show()
+    plt.savefig('test_get_boozer_harmonics_2D.png')
 
 
 def test_get_boozer_harmonics_divide_f_by_B0_1D():
@@ -131,21 +131,21 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D():
         theta = theta_b + dth_of_thb[stor_ind](theta_b)
 
         B0_arr = np.array(B0[stor_ind](theta_b))
-        
+
         phi_b = np.linspace(0, 2 * np.pi, nph, endpoint=False)
         phi = np.zeros((kth*2+1, nph))
         for i, phib in enumerate(phi_b):
             phi[:,i] = phib - G_of_thb[stor_ind](theta_b)
-        
-        THTH = theta 
+
+        THTH = theta
         PHIPHI = phi
         FF = f(stor[stor_ind], THTH, 0.0) / B0_arr * np.exp(-1j* n * G_of_thb[stor_ind](theta_b))
-        f_fft = np.fft.fft(FF) 
+        f_fft = np.fft.fft(FF)
         fmn_fft = f_fft / ((2*kth+1) * nph)
         fmn_fft = np.fft.fftshift(fmn_fft)
 
         res = get_boozer_harmonics_divide_f_by_B0_1D(f, stor=stor, num_theta=kth, num_phi=nph, m0b=m0b,
-            n=2, dth_of_thb=dth_of_thb, G_of_thb=G_of_thb) 
+            n=2, dth_of_thb=dth_of_thb, G_of_thb=G_of_thb)
 
         ind = int(((2*kth+1) - (2*m0b + 1))/ 2 )
 
@@ -155,7 +155,7 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D():
     plt.legend()
     plt.xlabel('m')
     plt.ylabel(r'abs($C_n$)')
-    plt.show()
+    plt.savefig('test_get_boozer_harmonics_divide_f_by_B0_1D.png')
 
 
 def test_get_boozer_harmonics_divide_f_by_B0_2D():
@@ -191,7 +191,7 @@ def test_get_boozer_harmonics_divide_f_by_B0_2D():
         phi = np.zeros((2*kth+1, nph))
         for i, phib in enumerate(phi_b):
             phi[:,i] = phib - G_of_thb[stor_ind](theta_b)
-        
+
         THTH = np.tile(theta, (nph,1))
         PHIPHI = phi
         FF = f(stor[0], THTH, PHIPHI.T) / B0_arr
@@ -215,11 +215,11 @@ def test_get_boozer_harmonics_divide_f_by_B0_2D():
         plt.plot(m, np.abs(res[0]), label=str(kth), lw=3)
         for n_mode in [2]: # check the toroidal modes corresponding to the ones in the defined function
             plt.plot(m, np.abs(fmn_fft[n_mode, ind:(2*kth+1)-ind]), label="fft, n=" + str(n_mode), ls="--")
-    
+
     plt.legend()
     plt.xlabel("m")
     plt.ylabel(r"abs($C_{mn}$)")
-    plt.show()
+    plt.savefig('test_get_boozer_harmonics_divide_f_by_B0_2D.png')
 
 
 
@@ -249,21 +249,21 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D_fft():
         theta = theta_b + dth_of_thb[stor_ind](theta_b)
 
         B0_arr = np.array(B0[stor_ind](theta_b))
-        
+
         phi_b = np.linspace(0, 2 * np.pi, nph, endpoint=False)
         phi = np.zeros((kth, nph))
         for i, phib in enumerate(phi_b):
             phi[:,i] = phib - G_of_thb[stor_ind](theta_b)
-        
-        THTH = theta 
+
+        THTH = theta
         PHIPHI = phi
         FF = f(stor[stor_ind], THTH) / B0_arr * np.exp(-1j* n * G_of_thb[stor_ind](theta_b))
-        f_fft = np.fft.fft(FF) 
+        f_fft = np.fft.fft(FF)
         fmn_fft = f_fft / ((kth) * nph)
         fmn_fft = np.fft.fftshift(fmn_fft)
 
         res = get_boozer_harmonics_divide_f_by_B0_1D_fft(f, stor=stor, num_theta=kth,
-            n=2, dth_of_thb=dth_of_thb, G_of_thb=G_of_thb) 
+            n=2, dth_of_thb=dth_of_thb, G_of_thb=G_of_thb)
         res_modes = np.concatenate((np.arange(0, kth/2), np.arange(-kth/2, 0)))
         print(res_modes)
 
@@ -275,7 +275,7 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D_fft():
     plt.legend()
     plt.xlabel('m')
     plt.ylabel(r'abs($C_n$)')
-    plt.show()
+    plt.savefig('test_get_boozer_harmonics_divide_f_by_B0_1D_fft.png')
 
 
 def test_get_B0_of_s_theta_boozer():
@@ -288,7 +288,7 @@ def test_get_B0_of_s_theta_boozer():
     plt.ylabel(r"$B_0$ [G]")
     plt.xlabel(r"$\vartheta$ [rad]")
     plt.title(f"stor = {stor[0]}, nth = {nth[0]}")
-    plt.show()
+    plt.savefig('test_get_B0_of_s_theta_boozer.png')
 
 
 if __name__ == "__main__":

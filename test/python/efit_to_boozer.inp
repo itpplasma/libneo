@@ -1,1 +1,7 @@
-/Users/markusmarkl/plasma/6codes/0projects/2024-mastu-rmps/MHD_current/efit_to_boozer.inp
+3600      nstep    - number of integration steps
+500       nlabel   - grid size over radial variable
+500       ntheta   - grid size over poloidal angle
+10000     nsurfmax - number of starting points for separarix search
+2000      nsurf    - number of flux surfaces in Boozer file
+12        mpol     - number of poloidal modes in Boozer file
+2119063900.d0 psimax - psi of plasma boundary

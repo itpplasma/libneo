@@ -63,3 +63,4 @@ include/
 lib/
 .venv
 dist/
+test/**/*.png
