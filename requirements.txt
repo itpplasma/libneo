@@ -1,0 +1,8 @@
+f90nml
+ipython
+matplotlib
+netCDF4
+numpy
+omfit_classes
+scikit_learn
+scipy
