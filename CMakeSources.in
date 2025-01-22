@@ -130,9 +130,9 @@ add_library(LIBNEO::neo ALIAS neo)
 
 install(TARGETS neo magfie mc_efit hdf5_tools rkf45
     standardise_geqdsk.x vacfield.x coil_convert.x
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION .
+    ARCHIVE DESTINATION .
+    RUNTIME DESTINATION .
     INCLUDES DESTINATION include
 )
 
