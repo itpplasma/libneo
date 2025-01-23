@@ -3,12 +3,12 @@
 
 # RKF45 from https://people.sc.fsu.edu/~jburkardt/
 # licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
-add_library ( rkf45 SHARED
+add_library ( rkf45 STATIC
     src/contrib/rkf45.f90
 )
 
 # Main goal (of the created build file): creating the library file.
-add_library(neo SHARED
+add_library(neo STATIC
     src/arnoldi.f90
     src/boozer.f90
     src/io.f90
@@ -53,7 +53,7 @@ target_link_libraries(neo PRIVATE
 )
 
 
-add_library(magfie SHARED
+add_library(magfie STATIC
 
     # BDIVFREE
     src/magfie/amn_mod.f90
@@ -78,7 +78,7 @@ add_library(magfie SHARED
     src/fftw3.f90
 )
 
-add_library(mc_efit SHARED
+add_library(mc_efit STATIC
     src/MC/alpha_lifetime_mod.f90
     src/MC/chamb_divB0.f90
     src/MC/rng.f90

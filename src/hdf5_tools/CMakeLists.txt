@@ -15,7 +15,7 @@ endif ()
 ### Find HDF5
 find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL REQUIRED)
 
-add_library(hdf5_tools SHARED
+add_library(hdf5_tools STATIC
   hdf5_tools.f90
   hdf5_tools_f2003.f90
 )

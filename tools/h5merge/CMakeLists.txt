@@ -18,7 +18,6 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL)
 
-find_library(HDF5_TOOLS_LIB NAMES hdf5_tools libhdf5_tools.${CMAKE_SHARED_LIBRARY_SUFFIX} PATHS ${CMAKE_SOURCE_DIR}/../../build/ ${CMAKE_BINARY_DIR}/ PATH_SUFFIXES src/hdf5_tools/ NO_DEFAULT_PATH)
 include_directories(${CMAKE_SOURCE_DIR}/../../build/include ${CMAKE_BINARY_DIR})
 
 set(Interface_Libs
@@ -37,19 +36,10 @@ add_executable(${PROJECT_EXE_NAME}
 
 ### Linking
 target_link_libraries(${PROJECT_EXE_NAME}
+  ${CMAKE_SOURCE_DIR}/../../build/libneo.a
+  ${CMAKE_SOURCE_DIR}/../../build/src/hdf5_tools/libhdf5_tools.a
   ${Interface_Libs}
 )
-if(DEFINED ENV{CODE})
-	target_link_libraries(${PROJECT_EXE_NAME}
-		${LIBNEOLIB}
-    ${HDF5_TOOLS_LIB}
-	)
-else()
-	target_link_libraries(${PROJECT_EXE_NAME}
-    ${CMAKE_SOURCE_DIR}/../../build/libneo.so
-    ${CMAKE_SOURCE_DIR}/../../build/libhdf5_tools.so
-	)
-endif()
 
 
 ### For make install
