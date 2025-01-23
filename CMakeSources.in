@@ -127,13 +127,3 @@ target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${FFT
 
 add_library(LIBNEO::magfie ALIAS magfie)
 add_library(LIBNEO::neo ALIAS neo)
-
-install(TARGETS neo magfie mc_efit hdf5_tools rkf45
-    standardise_geqdsk.x vacfield.x coil_convert.x
-    LIBRARY DESTINATION .
-    ARCHIVE DESTINATION .
-    RUNTIME DESTINATION .
-    INCLUDES DESTINATION include
-)
-
-install(DIRECTORY include/ DESTINATION include FILES_MATCHING PATTERN "*.mod")

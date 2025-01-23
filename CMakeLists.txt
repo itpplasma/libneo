@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.18)
 # Basic project settings.
 project(libneo)
 
-
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
 include(Util)
@@ -148,7 +148,6 @@ message(STATUS "Python binary output dir: ${CMAKE_CURRENT_BINARY_DIR}")
 add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
 target_link_libraries(fortranobject PUBLIC Python::NumPy)
 target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
-set_property(TARGET fortranobject PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_custom_command(
   OUTPUT _magfiemodule.c _magfie-f2pywrappers.f
