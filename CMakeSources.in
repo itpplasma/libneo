@@ -39,12 +39,12 @@ add_library(neo STATIC
     src/local_rusage.c
 )
 
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
-target_link_libraries(neo PUBLIC hdf5_tools)
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
+target_link_libraries(neo INTERFACE $<TARGET_OBJECTS:neo_polylag>)
+target_link_libraries(neo INTERFACE $<TARGET_OBJECTS:interpolate>)
+target_link_libraries(neo INTERFACE hdf5_tools)
+target_link_libraries(neo INTERFACE $<TARGET_OBJECTS:neo_field>)
 
-target_link_libraries(neo PRIVATE
+target_link_libraries(neo INTERFACE
   rkf45
   BLAS::BLAS
   LAPACK::LAPACK
@@ -82,15 +82,19 @@ add_library(magfie STATIC
     src/magfie/coil_tools.f90
     src/fftw3.f90
 )
-target_link_libraries(magfie PUBLIC
+target_link_libraries(magfie INTERFACE
+    neo
     rkf45
     netcdf
     netcdff
     hdf5_tools
+    FFTW::DoubleThreads
+    FFTW::Double
+    OpenMP::OpenMP_C
+    OpenMP::OpenMP_Fortran
 )
 set_target_properties(magfie PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
-    INTERFACE_LINK_LIBRARIES "LIBNEO::neo;FFTW::DoubleThreads;FFTW::Double;OpenMP::OpenMP_C;OpenMP::OpenMP_Fortran"
 )
 add_library(LIBNEO::magfie ALIAS magfie)
 
@@ -124,11 +128,8 @@ endif()
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
-target_link_libraries(vacfield.x PUBLIC magfie)
-target_link_libraries(coil_convert.x PUBLIC magfie)
+target_link_libraries(vacfield.x magfie)
+target_link_libraries(coil_convert.x magfie)
 
-target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
-target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
-target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
 
 
