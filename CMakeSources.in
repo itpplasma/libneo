@@ -108,15 +108,15 @@ endif()
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
-target_link_libraries(magfie
-neo
-rkf45
-netcdf
-netcdff
-hdf5_tools
-${FFTW_LIBRARIES}
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
+target_link_libraries(magfie PUBLIC
+    neo
+    rkf45
+    netcdf
+    netcdff
+    hdf5_tools
+    ${FFTW_LIBRARIES}
+    ${BLAS_LIBRARIES}
+    ${LAPACK_LIBRARIES}
 )
 target_link_libraries(vacfield.x PUBLIC magfie)
 target_link_libraries(coil_convert.x PUBLIC magfie)
