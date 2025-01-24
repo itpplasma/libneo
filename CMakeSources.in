@@ -126,4 +126,12 @@ target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_IN
 target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
 
 add_library(LIBNEO::magfie ALIAS magfie)
+set_target_properties(magfie PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
+    INTERFACE_LINK_LIBRARIES "OpenMP::OpenMP_C;OpenMP::OpenMP_Fortran"
+)
+
 add_library(LIBNEO::neo ALIAS neo)
+set_target_properties(neo PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
+)

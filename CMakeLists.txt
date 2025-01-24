@@ -83,6 +83,7 @@ add_subdirectory(src/field)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
+find_package(OpenMP REQUIRED)
 
 include(CMakeSources.in)
 
