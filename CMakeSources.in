@@ -37,14 +37,15 @@ add_library(neo STATIC
 
     # For CPU time measurements
     src/local_rusage.c
+
 )
 
-target_link_libraries(neo INTERFACE $<TARGET_OBJECTS:neo_polylag>)
-target_link_libraries(neo INTERFACE $<TARGET_OBJECTS:interpolate>)
-target_link_libraries(neo INTERFACE hdf5_tools)
-target_link_libraries(neo INTERFACE $<TARGET_OBJECTS:neo_field>)
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
+target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
+target_link_libraries(neo PUBLIC hdf5_tools)
+target_link_libraries(neo PUBLIC neo_field)
 
-target_link_libraries(neo INTERFACE
+target_link_libraries(neo PUBLIC
   rkf45
   BLAS::BLAS
   LAPACK::LAPACK
@@ -82,7 +83,7 @@ add_library(magfie STATIC
     src/magfie/coil_tools.f90
     src/fftw3.f90
 )
-target_link_libraries(magfie INTERFACE
+target_link_libraries(magfie PUBLIC
     neo
     rkf45
     netcdf
@@ -130,6 +131,3 @@ set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
 target_link_libraries(vacfield.x magfie)
 target_link_libraries(coil_convert.x magfie)
-
-
-

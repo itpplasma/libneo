@@ -1,4 +1,4 @@
-add_library(neo_field OBJECT
+add_library(neo_field STATIC
     field_base.f90
     example_field.f90
     circular_tokamak_field.f90
