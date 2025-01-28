@@ -3,12 +3,12 @@
 
 # RKF45 from https://people.sc.fsu.edu/~jburkardt/
 # licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
-add_library ( rkf45 SHARED
+add_library (rkf45 STATIC
     src/contrib/rkf45.f90
 )
 
 # Main goal (of the created build file): creating the library file.
-add_library(neo SHARED
+add_library(neo STATIC
     src/arnoldi.f90
     src/boozer.f90
     src/io.f90
@@ -37,23 +37,31 @@ add_library(neo SHARED
 
     # For CPU time measurements
     src/local_rusage.c
+
 )
 
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
-target_link_libraries(neo PUBLIC hdf5_tools)
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_field>)
+target_link_libraries(neo PUBLIC
+    $<TARGET_OBJECTS:neo_polylag>
+    $<TARGET_OBJECTS:interpolate>
+    hdf5_tools
+    neo_field
+    rkf45
+)
 
 target_link_libraries(neo PRIVATE
-  rkf45
   BLAS::BLAS
   LAPACK::LAPACK
   netcdf
   netcdff
 )
 
+add_library(LIBNEO::neo ALIAS neo)
+set_target_properties(neo PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
+)
 
-add_library(magfie SHARED
+
+add_library(magfie STATIC
 
     # BDIVFREE
     src/magfie/amn_mod.f90
@@ -77,8 +85,23 @@ add_library(magfie SHARED
     src/magfie/coil_tools.f90
     src/fftw3.f90
 )
+target_link_libraries(magfie PRIVATE
+    neo
+    rkf45
+    netcdf
+    netcdff
+    hdf5_tools
+    FFTW::DoubleThreads
+    FFTW::Double
+    OpenMP::OpenMP_C
+    OpenMP::OpenMP_Fortran
+)
+set_target_properties(magfie PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+add_library(LIBNEO::magfie ALIAS magfie)
 
-add_library(mc_efit SHARED
+add_library(mc_efit STATIC
     src/MC/alpha_lifetime_mod.f90
     src/MC/chamb_divB0.f90
     src/MC/rng.f90
@@ -108,31 +131,5 @@ endif()
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
-target_link_libraries(magfie
-neo
-rkf45
-netcdf
-netcdff
-hdf5_tools
-${FFTW_LIBRARIES}
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
-)
-target_link_libraries(vacfield.x PUBLIC magfie)
-target_link_libraries(coil_convert.x PUBLIC magfie)
-
-target_include_directories(magfie PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
-target_include_directories(vacfield.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
-target_include_directories(coil_convert.x PUBLIC ${hdf5_tools_include_dir} ${FFTW_INCLUDE_DIRS})
-
-add_library(LIBNEO::magfie ALIAS magfie)
-add_library(LIBNEO::neo ALIAS neo)
-
-install(TARGETS neo magfie mc_efit standardise_geqdsk.x vacfield.x coil_convert.x
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    RUNTIME DESTINATION bin
-    INCLUDES DESTINATION include
-)
-
-install(DIRECTORY include/ DESTINATION include FILES_MATCHING PATTERN "*.mod")
+target_link_libraries(vacfield.x magfie)
+target_link_libraries(coil_convert.x magfie)

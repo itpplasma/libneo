@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.18)
 # Basic project settings.
 project(libneo)
 
-
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
 include(Util)
@@ -21,12 +21,8 @@ set (libneo_VERSION_MAJOR 0)
 set (libneo_VERSION_MINOR 0)
 set (libneo_VERSION_PATCH 3)
 
-enable_language(Fortran)
+enable_language(C Fortran)
 enable_testing()
-
-if (EXISTS ${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
-  include (${CMAKE_CURRENT_BINARY_DIR}/BuildConfig.cmake.in)
-endif()
 
 find_program (BASH_PROGRAM bash)
 
@@ -87,6 +83,7 @@ add_subdirectory(src/field)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
+find_package(OpenMP REQUIRED)
 
 include(CMakeSources.in)
 
@@ -103,16 +100,16 @@ set(CMAKE_SKIP_BUILD_RPATH FALSE)
 # (but later on when installing)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
 
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # the RPATH to be used when installing, but only if it's not a system directory
-list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "$ORIGIN/lib" isSystemDir)
 if("${isSystemDir}" STREQUAL "-1")
-    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+    set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
 # Python bindings
@@ -152,7 +149,6 @@ message(STATUS "Python binary output dir: ${CMAKE_CURRENT_BINARY_DIR}")
 add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
 target_link_libraries(fortranobject PUBLIC Python::NumPy)
 target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
-set_property(TARGET fortranobject PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_custom_command(
   OUTPUT _magfiemodule.c _magfie-f2pywrappers.f

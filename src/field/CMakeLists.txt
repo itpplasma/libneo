@@ -1,4 +1,4 @@
-add_library(neo_field OBJECT
+add_library(neo_field STATIC
     field_base.f90
     example_field.f90
     circular_tokamak_field.f90
@@ -12,6 +12,9 @@ add_library(neo_field OBJECT
     mesh_2d.f90
     field.f90)
 
+target_link_libraries(neo_field PRIVATE
+    hdf5_tools
+)
 set_property(TARGET neo_field PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::field ALIAS neo_field)

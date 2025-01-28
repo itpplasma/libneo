@@ -73,7 +73,7 @@ ${PROJECT_SOURCE_DIR}/Internal/wuMergeChunk_module.f90
 ${PROJECT_SOURCE_DIR}/Generic/initWorkunit_module.f90
 ${PROJECT_SOURCE_DIR}/Generic/genericWorkunit_module.f90
 )
-target_link_libraries(MyMPILib PUBLIC MPI::MPI_Fortran)
+target_link_libraries(MyMPILib PRIVATE MPI::MPI_Fortran)
 install(TARGETS MyMPILib ARCHIVE DESTINATION lib)
 
 add_custom_target(
