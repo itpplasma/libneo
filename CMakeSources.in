@@ -3,7 +3,7 @@
 
 # RKF45 from https://people.sc.fsu.edu/~jburkardt/
 # licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
-add_library ( rkf45 STATIC
+add_library (rkf45 STATIC
     src/contrib/rkf45.f90
 )
 
@@ -40,13 +40,15 @@ add_library(neo STATIC
 
 )
 
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:neo_polylag>)
-target_link_libraries(neo PUBLIC $<TARGET_OBJECTS:interpolate>)
-target_link_libraries(neo PUBLIC hdf5_tools)
-target_link_libraries(neo PUBLIC neo_field)
-
 target_link_libraries(neo PUBLIC
-  rkf45
+    $<TARGET_OBJECTS:neo_polylag>
+    $<TARGET_OBJECTS:interpolate>
+    hdf5_tools
+    neo_field
+    rkf45
+)
+
+target_link_libraries(neo PRIVATE
   BLAS::BLAS
   LAPACK::LAPACK
   netcdf
@@ -83,7 +85,7 @@ add_library(magfie STATIC
     src/magfie/coil_tools.f90
     src/fftw3.f90
 )
-target_link_libraries(magfie PUBLIC
+target_link_libraries(magfie PRIVATE
     neo
     rkf45
     netcdf

@@ -12,7 +12,7 @@ add_library(neo_field STATIC
     mesh_2d.f90
     field.f90)
 
-target_link_libraries(neo_field PUBLIC
+target_link_libraries(neo_field PRIVATE
     hdf5_tools
 )
 set_property(TARGET neo_field PROPERTY
