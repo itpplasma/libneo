@@ -19,7 +19,7 @@ add_library(hdf5_tools STATIC
   hdf5_tools.f90
   hdf5_tools_f2003.f90
 )
-target_link_libraries(hdf5_tools PUBLIC
+target_link_libraries(hdf5_tools PRIVATE
   hdf5::hdf5
   hdf5::hdf5_hl
   hdf5::hdf5_fortran
