@@ -47,7 +47,7 @@ module libneo_collisions
         real(kind=real_kind), intent(in) :: vel, dens_e, temp_b, coulomb_log
         real(kind=real_kind), intent(out) :: coll_freq
 
-        coll_freq = 5.8 * 10**-6 * dens_e * coulomb_log * temp_b**-1.5 * (m_e*vel**2 * 0.5)**-1.0
+        coll_freq = 5.8 * 10**-6 * dens_e * coulomb_log * temp_b**-0.5 * (m_e*vel**2 * 0.5)**-1.0
 
     end subroutine
 
@@ -59,7 +59,7 @@ module libneo_collisions
         real(kind=real_kind), intent(in) :: vel, dens_e, coulomb_log
         real(kind=real_kind), intent(out) :: coll_freq
 
-        coll_freq = 7.7 * 10**-6 * dens_e * coulomb_log * (m_e*vel**2 * 0.5)**-3.0
+        coll_freq = 7.7 * 10**-6 * dens_e * coulomb_log * (m_e*vel**2 * 0.5)**-1.5
 
     end subroutine
 
