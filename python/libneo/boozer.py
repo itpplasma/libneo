@@ -9,8 +9,7 @@ import numpy as np
 import libneo
 
 
-__all__ = ['get_magnetic_axis',
-           'get_boozer_transform','get_boozer_harmonics','write_boozer_head',
+__all__ = ['write_boozer_head',
            'append_boozer_block_head', 'append_boozer_block',
            'append_boozer_block_stellerator_symmetry',
            'convert_to_boozer', 'BoozerFile']
