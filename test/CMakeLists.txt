@@ -20,8 +20,8 @@ execute_process(COMMAND nf-config --flibs
 
 set (COMMON_LIBS ${MAIN_LIB} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${NETCDF_LIBRARIES})
 
-add_executable(test_perp_coll_frequency.x collisions/test_perp_coll_frequency.f90)
-target_link_libraries(test_perp_coll_frequency.x
+add_executable(test_collision_freqs.x collisions/test_collision_freqs.f90)
+target_link_libraries(test_collision_freqs.x
   neo
 )
 
