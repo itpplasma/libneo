@@ -8,6 +8,10 @@ if (NOT fortran_stdlib_FOUND)
     set(FORTRAN_STDLIB_LIBRARY ${prefix}/src/fortran_stdlib-build/src/libfortran_stdlib.a)
     set(FORTRAN_STDLIB_INCLUDE_DIR ${prefix}/src/fortran_stdlib-build/src/mod_files)
 
+    execute_process(
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${FORTRAN_STDLIB_INCLUDE_DIR}
+    )
+
     ExternalProject_Add(
         fortran_stdlib
         GIT_REPOSITORY https://github.com/fortran-lang/stdlib.git
@@ -15,7 +19,7 @@ if (NOT fortran_stdlib_FOUND)
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/fortran_stdlib
         CMAKE_ARGS -DBUILD_TESTING="off"
         BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> #--target fortran_stdlib/install
-        INSTALL_COMMAND make
+        INSTALL_COMMAND ""
         BUILD_BYPRODUCTS ${FORTRAN_STDLIB_LIBRARY}
             ${FORTRAN_STDLIB_INCLUDE_DIR}
     )
@@ -26,9 +30,6 @@ if (NOT fortran_stdlib_FOUND)
         INTERFACE_INCLUDE_DIRECTORIES ${FORTRAN_STDLIB_INCLUDE_DIR}
     )
 endif()
-## Add the library to your project
-#add_subdirectory(${fortran_stdlib_SOURCE_DIR})
-#add_subdirectory(${fortran_stdlib_BINARY_DIR})
 
 add_library(collision_freqs STATIC
     collision_freqs.f90)
