@@ -39,7 +39,7 @@ jobs:
 
       - name: Verify fypp installation
         run: |
-          source venv/bin/activate
+          . venv/bin/activate
           fypp --version  # Verify if fypp is available
 
       - name: Build
