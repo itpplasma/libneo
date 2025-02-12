@@ -19,15 +19,10 @@ jobs:
       - name: Fix permissions
         run: |
           git config --global --add safe.directory `pwd`
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
           
       - name: Create and Activate Virtual Environment
         run: |
-          python -m venv venv
+          python3.11 -m venv venv
           . venv/bin/activate
           pip install --upgrade pip
           pip install fypp
