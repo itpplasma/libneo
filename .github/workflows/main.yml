@@ -20,12 +20,27 @@ jobs:
         run: |
           git config --global --add safe.directory `pwd`
           
-      - name: Create and Activate Virtual Environment
+      - name: Install dependencies and fypp
         run: |
-          python3.11 -m venv venv
-          . venv/bin/activate
+          # Install dependencies
+          sudo apt update
+          sudo apt install -y python3-venv python3-pip
+
+          # Create and activate virtual environment
+          python3 -m venv venv
+          source venv/bin/activate
+
+          # Install fypp in the virtual environment
           pip install --upgrade pip
           pip install fypp
+
+          # Add virtual environment to PATH
+          echo "$(pwd)/venv/bin" >> $GITHUB_PATH
+
+      - name: Verify fypp installation
+        run: |
+          source venv/bin/activate
+          fypp --version  # Verify if fypp is available
 
       - name: Build
         run: |
