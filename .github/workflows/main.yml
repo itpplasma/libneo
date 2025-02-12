@@ -28,7 +28,7 @@ jobs:
       - name: Create and Activate Virtual Environment
         run: |
           python -m venv venv
-          source venv/bin/activate
+          . venv/bin/activate
           pip install --upgrade pip
           pip install fypp
 
