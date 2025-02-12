@@ -28,7 +28,7 @@ jobs:
 
           # Create and activate virtual environment
           python3 -m venv venv
-          source venv/bin/activate
+          . venv/bin/activate
 
           # Install fypp in the virtual environment
           pip install --upgrade pip
