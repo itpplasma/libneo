@@ -23,6 +23,7 @@ set (COMMON_LIBS ${MAIN_LIB} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${NETCDF_LIBR
 add_executable(test_collision_freqs.x collisions/test_collision_freqs.f90)
 target_link_libraries(test_collision_freqs.x
   neo
+  collision_freqs
 )
 
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
