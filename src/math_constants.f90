@@ -29,7 +29,7 @@ module math_constants
 
   ! Masses of some particles/atoms. Atoms get designated with m\_ and
   ! symbol (e.g. D for deuterium).
-  real(kind=real_kind), parameter, public :: m_e = 9.109382150e-28 !< Electron mass [g]
+  real(kind=real_kind), parameter, public :: m_e = 9.1093837139e-28 !< Electron mass [g]
   real(kind=real_kind), parameter, public :: m_p = 1.672621637e-24 !< Proton mass [g]
   real(kind=real_kind), parameter, public :: m_a = 6.644656200e-24 !< alpha particle mass [g]
   real(kind=real_kind), parameter, public :: m_D = 3.343583719e-24 !< Deuterium mass [g]
