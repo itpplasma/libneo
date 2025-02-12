@@ -20,6 +20,13 @@ jobs:
         run: |
           git config --global --add safe.directory `pwd`
 
+      - name: Create and Activate Virtual Environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install fypp
+
       - name: Build
         run: |
           make
