@@ -81,6 +81,7 @@ add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)
 add_subdirectory(src/field)
 add_subdirectory(src/collisions)
+add_subdirectory(src/transport)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
