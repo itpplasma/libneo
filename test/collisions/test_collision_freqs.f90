@@ -1,4 +1,4 @@
-program test_perp_coll_frequency
+program test_collision_freqs
 
     use libneo_kinds, only : real_kind
     use libneo_collisions, only: calc_perp_coll_freq_slow_limit_ee, calc_perp_coll_freq_fast_limit_ee, &

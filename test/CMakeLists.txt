@@ -97,7 +97,7 @@ add_fortran_test(test_geqdsk_tools)
 add_fortran_test(test_hdf5_tools)
 add_fortran_test(test_util)
 add_fortran_test(test_interpolate)
-add_fortran_test(test_perp_coll_frequency)
+add_fortran_test(test_collision_freqs)
 
 ## Custom tests
 
