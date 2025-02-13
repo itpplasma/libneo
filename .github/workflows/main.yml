@@ -32,7 +32,7 @@ jobs:
 
           # Install fypp in the virtual environment
           pip install --upgrade pip
-          pip install fypp
+          pip install fypp numpy
 
           # Add virtual environment to PATH
           echo "$(pwd)/venv/bin" >> $GITHUB_PATH
