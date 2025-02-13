@@ -29,6 +29,8 @@ if (NOT fortran_stdlib_FOUND)
         IMPORTED_LOCATION ${FORTRAN_STDLIB_LIBRARY}
         INTERFACE_INCLUDE_DIRECTORIES ${FORTRAN_STDLIB_INCLUDE_DIR}
     )
+else()
+    message(STATUS "fortran_stdlib found")
 endif()
 
 add_library(collision_freqs STATIC
@@ -40,7 +42,7 @@ set_property(TARGET collision_freqs PROPERTY
 
 add_library(LIBNEO::collision_freqs ALIAS collision_freqs)
 
-add_dependencies(collision_freqs fortran_stdlib)
+add_dependencies(collision_freqs fortran_stdlib::fortran_stdlib)
 
 target_link_libraries(collision_freqs PUBLIC fortran_stdlib::fortran_stdlib)
 target_include_directories(collision_freqs PUBLIC ${FORTRAN_STDLIB_INCLUDE_DIR})

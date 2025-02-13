@@ -71,7 +71,7 @@ module libneo_collisions
         z_ab = mass_b * vel**2d0 /(2.0d0 * temp_b * ev_to_cgs)
         psi_of_x = lig(p, z_ab)
 
-        coll_freq = 2d0 * nue_0 * ((1.0d0 - 1.0d0/(2.0d0 * z_ab)) * psi_of_x *2.0d0 /sqrt(pi) \
+        coll_freq = 2d0 * nue_0 * ((1.0d0 - 1.0d0/(2.0d0 * z_ab)) * psi_of_x *2.0d0 /sqrt(pi) &
             + 2.0d0 / sqrt(pi) * z_ab**0.5d0 * exp(-z_ab))
 
     end subroutine
