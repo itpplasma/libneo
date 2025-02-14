@@ -20,6 +20,14 @@ execute_process(COMMAND nf-config --flibs
 
 set (COMMON_LIBS ${MAIN_LIB} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${NETCDF_LIBRARIES})
 
+add_executable(test_transport.x transport/test_transport.f90)
+target_link_libraries(test_transport.x
+  neo
+  transport
+  collision_freqs
+  util_for_test
+)
+
 add_executable(test_collision_freqs.x collisions/test_collision_freqs.f90)
 target_link_libraries(test_collision_freqs.x
   neo
@@ -98,6 +106,7 @@ add_fortran_test(test_hdf5_tools)
 add_fortran_test(test_util)
 add_fortran_test(test_interpolate)
 add_fortran_test(test_collision_freqs)
+add_fortran_test(test_transport)
 
 ## Custom tests
 

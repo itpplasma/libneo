@@ -7,5 +7,7 @@ set_property(TARGET transport PROPERTY
 
 add_library(LIBNEO::transport ALIAS transport)
 
-target_link_libraries(transport PUBLIC neo)
+add_dependencies(transport collision_freqs)
+
+target_link_libraries(transport PUBLIC collision_freqs)
 
