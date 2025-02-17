@@ -1,7 +1,7 @@
 program test_transport
 
     !use libneo_kinds, only: real_kind
-    use libneo_transport, only: D_one_over_nu_11, init_gauss_laguerre_integration
+    use libneo_transport, only: calc_D_one_over_nu_11e, init_gauss_laguerre_integration
 
     implicit none
 
@@ -14,7 +14,7 @@ program test_transport
         implicit none
 
         call init_gauss_laguerre_integration(5.0d0/2.0d0)
-        call D_one_over_nu_11
+        !call D_one_over_nu_11
 
     end subroutine
 

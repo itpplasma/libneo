@@ -43,23 +43,40 @@ module libneo_transport
 
     end subroutine
 
-    subroutine D_one_over_nu_11e(D11)
+    subroutine calc_D_one_over_nu_11e(num_species, spec_arr, D11)
 
-        use libneo_collisions, only: calc_perp_coll_freq
+        use libneo_collisions, only: calc_perp_coll_freq, calc_coulomb_log
+        use libneo_species, only: species_t
 
         implicit none
 
         real(kind = real_kind) :: coll_freq, coll_freq_tot
+        integer, intent(in) :: num_species
+        type(species_t), intent(in) :: spec_arr(num_species)
         real(kind = real_kind), intent(out) :: D11
+
+        real(kind = real_kind), dimension(num_species) :: coll_freq_arr
+        real(kind = real_kind) :: coulomb_log, vel
         
-        integer :: i
+        integer :: i, ispecies
         
         D11 = 0.0d0
 
         do i = 1, gauss_laguerre_order
-            vel = sqrt(2 * x(i) * temp_a / mass_a)
-            
-            D11 = D11 + w(i) * x(i)**2.0d0
+            vel = sqrt(2 * x(i) * spec_arr(1)%temp / spec_arr(1)%mass)
+            do ispecies = 1, num_species
+                if (ispecies .eq. 1) then
+                    call calc_coulomb_log("ee", spec_arr(1), spec_arr(ispecies), coulomb_log)
+                else
+                    call calc_coulomb_log("ei", spec_arr(1), spec_arr(ispecies), coulomb_log)
+                end if
+
+                call calc_perp_coll_freq(vel, spec_arr(1), spec_arr(ispecies), coulomb_log, coll_freq)
+
+                coll_freq_arr(ispecies) = coll_freq
+            end do
+            coll_freq_tot = sum(coll_freq_arr)
+            D11 = D11 + w(i) * coll_freq_tot
         end do
 
 

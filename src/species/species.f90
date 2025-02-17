@@ -4,13 +4,13 @@ module libneo_species
 
     implicit none
 
-    type species
+    type species_t
         character(len=16) :: name
         real(kind=real_kind) :: temp
         real(kind=real_kind) :: dens
         real(kind=real_kind) :: mass
         integer :: charge_num
-    end type species
+    end type species_t
 
     contains
 
@@ -19,7 +19,7 @@ module libneo_species
         use math_constants, only: m_e
         implicit none
         real(kind=real_kind), intent(in) :: temp, dens
-        type(species), intent(out) :: electron
+        type(species_t), intent(out) :: electron
 
         electron%name = "electron"
         electron%temp = temp
@@ -34,7 +34,7 @@ module libneo_species
         use math_constants, only: m_D
         implicit none
         real(kind=real_kind), intent(in) :: temp, dens
-        type(species), intent(out) :: deuterium
+        type(species_t), intent(out) :: deuterium
 
         deuterium%name = "deuterium"
         deuterium%temp = temp
@@ -48,7 +48,7 @@ module libneo_species
 
         implicit none
         real(kind=real_kind), intent(in) :: temp_e, temp_D, dens
-        type(species), intent(out) :: deuterium_plasma(2)
+        type(species_t), intent(out) :: deuterium_plasma(2)
 
         call init_electron_species(temp_e, dens, deuterium_plasma(1))
         call init_deuterium_species(temp_D, dens, deuterium_plasma(2))

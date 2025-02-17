@@ -17,29 +17,29 @@ program test_collision_freqs
     subroutine test_calc_coulomb_log
 
         use math_constants, only: m_e, m_p, m_D
+        use libneo_species, only: species_t
+
         implicit none
 
+        type(species_t) :: species_a, species_b
+
         character(len=2) :: interaction_type
-        real(kind=real_kind) :: temp_a, dens_a, temp_b, dens_b
-        real(kind=real_kind) :: mass_a, mass_b
-        integer :: charge_num_a, charge_num_b
         real(kind=real_kind) :: coulomb_log
 
         call print_test("test_calc_coulomb_log")
 
         ! electron-electron interaction
-        temp_a = 1.0d3
-        dens_a = 1.0d13
-        mass_a = m_e
-        charge_num_a = 0
-        temp_b = 0d0
-        dens_b = 0d0
-        mass_b = 0d0
-        charge_num_b = 0
+        species_a%temp = 1.0d3
+        species_a%dens = 1.0d13
+        species_a%mass = m_e
+        species_a%charge_num = 0
+        species_b%temp = 0d0
+        species_b%dens = 0d0
+        species_b%mass = 0d0
+        species_b%charge_num = 0
 
         interaction_type = "ee"
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-        temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
         print *, "interaction_type ", interaction_type, ": ", "coulomb_log = ", coulomb_log
         if (abs(coulomb_log - 15.940948099344785) > 1e-6) then ! number is for the parameters above
             call print_fail
@@ -49,17 +49,16 @@ program test_collision_freqs
         end if
 
         ! electron-ion interaction (here, the formula is conditional, c.f. NRL formulary)
-        temp_b = 1.0d3
-        dens_b = dens_a
-        mass_b = m_D
-        charge_num_b = 1
+        species_b%temp = 1.0d3
+        species_b%dens = species_a%dens
+        species_b%mass = m_D
+        species_b%charge_num = 1
 
         interaction_type = "ei"
 
         ! case 1:
-        temp_a = 9.0d0
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-        temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
+        species_a%temp = 9.0d0
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
         print *, "interaction_type ", interaction_type, ", case 1: ", "coulomb_log = ", coulomb_log
         if (abs(coulomb_log - 11.329033761543) > 1e-6) then ! number is for the parameters above
             call print_fail
@@ -69,9 +68,8 @@ program test_collision_freqs
         end if
 
         ! case 2:
-        temp_a = 1.0d3
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-        temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
+        species_a%temp = 1.0d3
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
         print *, "interaction_type ", interaction_type, ", case 2: ", "coulomb_log = ", coulomb_log
         if (abs(coulomb_log - 15.9409521745208) > 1e-6) then ! number is for the parameters above
             call print_fail
@@ -81,10 +79,9 @@ program test_collision_freqs
         end if
 
         ! case 3
-        temp_a = 0.1d0
+        species_a%temp = 0.1d0
         
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-        temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
         print *, "interaction_type ", interaction_type, ", case 3: ", "coulomb_log = ", coulomb_log
         if (abs(coulomb_log - 10.7021790072942) > 1e-6) then ! number is for the parameters above
             call print_fail
@@ -94,15 +91,14 @@ program test_collision_freqs
         end if
 
         ! ion-ion interaction
-        temp_a = 1.0d3
-        mass_a = m_p
-        charge_num_a = 1
-        mass_a = m_D
-        mass_b = m_p
+        species_a%temp = 1.0d3
+        species_a%mass = m_p
+        species_a%charge_num = 1
+        species_a%mass = m_D
+        species_b%mass = m_p
 
         interaction_type = "ii"
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-        temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
         print *, "interaction_type ", interaction_type, ": ", "coulomb_log = ", coulomb_log
         if (abs(coulomb_log - 18.0482562237319) > 1e-6) then ! number is for the parameters above
             call print_fail
@@ -116,37 +112,32 @@ program test_collision_freqs
     subroutine test_calc_perp_coll_freq
 
         use math_constants, only: m_e, m_D
+        use libneo_species, only: species_t
+
         implicit none
 
+        type(species_t) :: species_a, species_b
         character(len=2) :: interaction_type
-        real(kind=real_kind) :: temp_a, dens_a, temp_b, dens_b
-        real(kind=real_kind) :: mass_a, mass_b
-        integer :: charge_num_a, charge_num_b
-        real(kind=real_kind) :: coulomb_log
-        real(kind=real_kind) :: coll_freq
-        real(kind=real_kind) :: vel
-
+        real(kind=real_kind) :: coulomb_log, coll_freq, vel
+        
         call print_test("test_calc_perp_coll_freq")
 
         ! electron-electron interaction
-        temp_a = 1.0d3
-        dens_a = 1.0d13
-        mass_a = m_e
-        charge_num_a = -1
-        temp_b = 1.0d3
-        dens_b = dens_a
-        mass_b = m_e
-        charge_num_b = -1
+        species_a%temp = 1.0d3
+        species_a%dens = 1.0d13
+        species_a%mass = m_e
+        species_a%charge_num = -1
+        species_b%temp = 1.0d3
+        species_b%dens = species_a%dens
+        species_b%mass = m_e
+        species_b%charge_num = -1
 
         vel = 1.0d9
 
         ! electron electron interaction
         interaction_type = "ee"
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-            temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
-        
-        call calc_perp_coll_freq(vel, mass_a, mass_b, charge_num_a, charge_num_b, &
-            dens_b, temp_b, coulomb_log, coll_freq)
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
+        call calc_perp_coll_freq(vel, species_a, species_b, coulomb_log, coll_freq)
 
         print *, "interaction_type ", interaction_type, ": ", "coll_freq = ", coll_freq
         if (abs(coll_freq - 97549.2133117624) > 1d0) then ! number is for the parameters above
@@ -158,14 +149,11 @@ program test_collision_freqs
 
         ! electron ion interaction (case 2 of coulomb log)
         interaction_type = "ei"
-        mass_b = m_D
-        charge_num_b = 1
+        species_b%mass = m_D
+        species_b%charge_num = 1
 
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-            temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
-
-        call calc_perp_coll_freq(vel, mass_a, mass_b, charge_num_a, charge_num_b, &
-            dens_b, temp_b, coulomb_log, coll_freq)
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
+        call calc_perp_coll_freq(vel, species_a, species_b, coulomb_log, coll_freq)
 
         print *, "interaction_type ", interaction_type, ": ", "coll_freq = ", coll_freq
         if (abs(coll_freq - 256856.553227032) > 1d0) then ! number is for the parameters above
@@ -177,13 +165,12 @@ program test_collision_freqs
 
         ! ion electron interaction (case 2 of coulomb log, same value as for ei)
         interaction_type = "ie"
-        mass_a = m_D
-        mass_b = m_e
-        charge_num_a = 1
-        charge_num_b = -1
+        species_a%mass = m_D
+        species_b%mass = m_e
+        species_a%charge_num = 1
+        species_b%charge_num = -1
 
-        call calc_perp_coll_freq(vel, mass_a, mass_b, charge_num_a, charge_num_b, &
-            dens_b, temp_b, coulomb_log, coll_freq)
+        call calc_perp_coll_freq(vel, species_a, species_b, coulomb_log, coll_freq)
 
         print *, "interaction_type ", interaction_type, ": ", "coll_freq = ", coll_freq
         if (abs(coll_freq - 0.00724064837092233) > 1d0) then ! number is for the parameters above
@@ -195,16 +182,13 @@ program test_collision_freqs
 
         ! ion-ion interaction
         interaction_type = "ii"
-        mass_a = m_D
-        mass_b = m_D
-        charge_num_a = 1
-        charge_num_b = 1
+        species_a%mass = m_D
+        species_b%mass = m_D
+        species_a%charge_num = 1
+        species_b%charge_num = 1
 
-        call calc_coulomb_log(interaction_type, temp_a, dens_a, mass_a, charge_num_a, &
-            temp_b, dens_b,  mass_b, charge_num_b, coulomb_log)
-
-        call calc_perp_coll_freq(vel, mass_a, mass_b, charge_num_a, charge_num_b, &
-            dens_b, temp_b, coulomb_log, coll_freq)
+        call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
+        call calc_perp_coll_freq(vel, species_a, species_b, coulomb_log, coll_freq)
 
         print *, "interaction_type ", interaction_type, ": ", "coll_freq = ", coll_freq
         if (abs(coll_freq - 0.0215856541453319) > 1d-6) then ! number is for the parameters above
