@@ -10,6 +10,7 @@ module libneo_species
         real(kind=real_kind) :: dens
         real(kind=real_kind) :: mass
         integer :: charge_num
+        real(kind=real_kind) :: rho_L
     end type species_t
 
     contains

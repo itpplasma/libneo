@@ -198,7 +198,6 @@ program test_collision_freqs
             call print_ok
         end if
 
-
     end subroutine
 
     subroutine test_calc_perp_coll_freq_fast_limit
