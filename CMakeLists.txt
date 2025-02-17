@@ -82,6 +82,7 @@ add_subdirectory(src/interpolate)
 add_subdirectory(src/field)
 add_subdirectory(src/collisions)
 add_subdirectory(src/transport)
+add_subdirectory(src/species)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
