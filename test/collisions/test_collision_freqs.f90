@@ -11,6 +11,7 @@ program test_collision_freqs
     call test_calc_perp_coll_freq
     !call test_calc_perp_coll_freq_slow_limit
     call test_calc_perp_coll_freq_fast_limit
+    call test_fill_species_arr_coulomb_log
 
     contains
 
@@ -106,6 +107,41 @@ program test_collision_freqs
         else
             call print_ok
         end if
+
+    end subroutine
+
+    subroutine test_fill_species_arr_coulomb_log
+
+        use libneo_species, only: species_t, init_deuterium_plasma
+        use libneo_collisions, only: fill_species_arr_coulomb_log
+
+        implicit none
+
+        integer, parameter :: num_species = 2
+        type(species_t) :: species_arr(num_species)
+        integer :: i, j
+        real(kind=real_kind), dimension(2,2) :: coulomb_log_comparison
+
+        coulomb_log_comparison = reshape([15.940948099344892, 15.940952174520840, 15.940952174520840, 18.048256223731936], [2, 2])
+
+        call print_test("test_fill_species_arr_coulomb_log")
+
+        call init_deuterium_plasma(1d3, 1d3, 1d13, species_arr)
+
+        call fill_species_arr_coulomb_log(num_species, species_arr)
+
+        do i=1, num_species
+            do j=1, num_species
+                print *, "coulomb_log(", i, ",", j, ") = ", species_arr(i)%coulomb_log(j), &
+                    " compared to ", coulomb_log_comparison(i, j)
+                if (abs(species_arr(i)%coulomb_log(j) - coulomb_log_comparison(i,j)) > 1e-6) then ! number is for the parameters above
+                    call print_fail
+                    stop "coulomb_log not correct"
+                else
+                    call print_ok
+                end if
+            end do
+        end do
 
     end subroutine
 

@@ -28,7 +28,7 @@ module libneo_transport
         a = 0.0d0
         b = 1.0d0
 
-        allocate(w(gauss_laguerre_order), x(gauss_laguerre_order))
+        if (.not. allocated(w)) allocate(w(gauss_laguerre_order), x(gauss_laguerre_order))
 
         call calculate_gauss_laguerre_rule(gauss_laguerre_order, alpha, beta, &
             a, b, x, w, write_to_file)
@@ -57,10 +57,10 @@ module libneo_transport
         D11 = 0.0d0
 
         do i = 1, gauss_laguerre_order
-
-            vel = sqrt(2.0d0 * x(i) * spec_arr(1)%temp * ev_to_cgs / spec_arr(1)%mass)
-
             do ispecies = 1, num_species
+
+                vel = sqrt(2.0d0 * x(i) * spec_arr(ispecies)%temp * ev_to_cgs / spec_arr(ispecies)%mass)
+
                 if (ispecies .eq. 1) then
                     call calc_coulomb_log("ee", spec_arr(1), spec_arr(ispecies), coulomb_log)
                 else
@@ -68,24 +68,64 @@ module libneo_transport
                 end if
 
                 call calc_perp_coll_freq(vel, spec_arr(1), spec_arr(ispecies), coulomb_log, coll_freq)
-
                 coll_freq_arr(ispecies) = coll_freq
-            end do
 
-            
+            end do
             coll_freq_tot = sum(coll_freq_arr)
-            print *, "i = ", i, " x(i)= ", x(i), " vel =", vel, " coll_freq(1) = ", coll_freq_arr(1), & 
-                " coll_freq(2) = ", coll_freq_arr(2), " coll_freq_tot = ", coll_freq_tot
             D11 = D11 + w(i) / coll_freq_tot
         end do
 
-        print *, "D11 integral = ", D11
         D11 = D11 * 8.0d0 * sqrt(8.0d0) / (9.0d0 * pi**1.5d0) &
             * (spec_arr(1)%temp * ev_to_cgs / spec_arr(1)%mass) &
-            * spec_arr(1)%rho_L * eps_eff**1.5d0 / R0**2.0d0
+            * spec_arr(1)%rho_L**2.0d0 * eps_eff**1.5d0 / R0**2.0d0
 
     end subroutine
 
+    subroutine calc_D_one_over_nu(num_species, ind_species, spec_arr, R0, D_one_over_nu)
+
+        use libneo_collisions, only: calc_perp_coll_freq, calc_coulomb_log
+        use libneo_species, only: species_t
+        use math_constants, only: ev_to_cgs, pi
+
+        implicit none
+
+        integer, intent(in) :: num_species, ind_species
+        type(species_t), intent(in) :: spec_arr(num_species)
+        real(kind = real_kind), intent(in) :: R0
+        real(kind = real_kind), intent(out) :: D_one_over_nu
+
+        real(kind = real_kind) :: coll_freq, coll_freq_tot
+        real(kind = real_kind), dimension(num_species) :: coll_freq_arr
+        real(kind = real_kind) :: coulomb_log, vel
+        
+        integer :: i, ispecies
+        
+        D_one_over_nu = 0.0d0
+
+        do i = 1, gauss_laguerre_order
+            do ispecies = 1, num_species
+
+                vel = sqrt(2.0d0 * x(i) * spec_arr(ispecies)%temp * ev_to_cgs / spec_arr(ispecies)%mass)
+
+                if (ispecies .eq. 1) then
+                    call calc_coulomb_log("ee", spec_arr(ind_species), spec_arr(ispecies), coulomb_log)
+                else
+                    call calc_coulomb_log("ei", spec_arr(ind_species), spec_arr(ispecies), coulomb_log)
+                end if
+
+                call calc_perp_coll_freq(vel, spec_arr(ind_species), spec_arr(ispecies), coulomb_log, coll_freq)
+                coll_freq_arr(ispecies) = coll_freq
+
+            end do
+            coll_freq_tot = sum(coll_freq_arr)
+            D_one_over_nu = D_one_over_nu + w(i) / coll_freq_tot
+        end do
+
+        D_one_over_nu = D_one_over_nu * 8.0d0 * sqrt(8.0d0) / (9.0d0 * pi**1.5d0) &
+            * (spec_arr(ind_species)%temp * ev_to_cgs / spec_arr(ind_species)%mass) &
+            * spec_arr(ind_species)%rho_L**2.0d0 * eps_eff**1.5d0 / R0**2.0d0
+
+    end subroutine
 
     subroutine calculate_gauss_laguerre_rule(order, alpha, beta, a, b, x, w, write_to_file)
 

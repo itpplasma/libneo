@@ -1,9 +1,36 @@
 module libneo_collisions
 
     use libneo_kinds, only : real_kind
+    use libneo_species, only : species_t
+
     implicit none
 
     contains
+
+    subroutine fill_species_arr_coulomb_log(num_species, species_arr)
+
+        implicit none
+        integer, intent(in) :: num_species
+        type(species_t), intent(inout) :: species_arr(num_species)
+
+        integer :: i, j
+        character(len=2) :: interaction_type
+
+        if (.not. allocated(species_arr(1)%coulomb_log)) then
+            do i=1,num_species
+                allocate(species_arr(i)%coulomb_log(num_species))
+            end do
+        end if
+
+        do i=1,num_species
+            do j=i, num_species
+                interaction_type = trim(species_arr(i)%typ) // trim(species_arr(j)%typ)
+                call calc_coulomb_log(interaction_type, species_arr(i), species_arr(j), species_arr(i)%coulomb_log(j))
+                if (i /= j) species_arr(j)%coulomb_log(i) = species_arr(i)%coulomb_log(j)
+            end do
+        end do
+
+    end subroutine
 
     subroutine calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
         ! determines the Coulomb logarithm for a given interaction type

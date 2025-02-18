@@ -48,3 +48,5 @@ add_library(LIBNEO::collision_freqs ALIAS collision_freqs)
 target_link_libraries(collision_freqs PUBLIC fortran_stdlib::fortran_stdlib)
 target_include_directories(collision_freqs PUBLIC ${FORTRAN_STDLIB_INCLUDE_DIR})
 target_link_libraries(collision_freqs PUBLIC neo)
+
+add_dependencies(collision_freqs species)

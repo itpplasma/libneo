@@ -32,6 +32,7 @@ add_executable(test_collision_freqs.x collisions/test_collision_freqs.f90)
 target_link_libraries(test_collision_freqs.x
   neo
   collision_freqs
+  species
   util_for_test
 )
 

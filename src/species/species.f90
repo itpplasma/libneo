@@ -5,12 +5,14 @@ module libneo_species
     implicit none
 
     type species_t
-        character(len=16) :: name
+        character(len=16) :: name ! whatever, e.g. deuterium
+        character(len=1) :: typ ! either e or i
         real(kind=real_kind) :: temp
         real(kind=real_kind) :: dens
         real(kind=real_kind) :: mass
         integer :: charge_num
         real(kind=real_kind) :: rho_L
+        real(kind=real_kind), allocatable, dimension(:) :: coulomb_log
     end type species_t
 
     contains
@@ -23,6 +25,7 @@ module libneo_species
         type(species_t), intent(out) :: electron
 
         electron%name = "electron"
+        electron%typ = "e"
         electron%temp = temp
         electron%dens = dens
         electron%mass = m_e
@@ -38,6 +41,7 @@ module libneo_species
         type(species_t), intent(out) :: deuterium
 
         deuterium%name = "deuterium"
+        deuterium%typ = "i"
         deuterium%temp = temp
         deuterium%dens = dens
         deuterium%mass = m_D
