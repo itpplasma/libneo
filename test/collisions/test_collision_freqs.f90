@@ -127,6 +127,7 @@ program test_collision_freqs
         call print_test("test_fill_species_arr_coulomb_log")
 
         call init_deuterium_plasma(1d3, 1d3, 1d13, species_arr)
+        print *, "Te = ", species_arr(1)%temp, ", Ti = ", species_arr(2)%temp, ", ne = ", species_arr(1)%dens, ", ni = ", species_arr(2)%dens
 
         call fill_species_arr_coulomb_log(num_species, species_arr)
 

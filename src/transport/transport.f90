@@ -35,11 +35,10 @@ module libneo_transport
 
     end subroutine
 
-    subroutine calc_D_one_over_nu_11e(num_species, spec_arr, R0, D11)
+    subroutine calc_D_one_over_nu_e(num_species, spec_arr, R0, D11)
 
         use libneo_collisions, only: calc_perp_coll_freq, calc_coulomb_log
         use libneo_species, only: species_t
-        use math_constants, only: ev_to_cgs, pi
 
         implicit none
 
@@ -47,41 +46,28 @@ module libneo_transport
         type(species_t), intent(in) :: spec_arr(num_species)
         real(kind = real_kind), intent(in) :: R0
         real(kind = real_kind), intent(out) :: D11
-
-        real(kind = real_kind) :: coll_freq, coll_freq_tot
-        real(kind = real_kind), dimension(num_species) :: coll_freq_arr
-        real(kind = real_kind) :: coulomb_log, vel
         
-        integer :: i, ispecies
-        
-        D11 = 0.0d0
-
-        do i = 1, gauss_laguerre_order
-            do ispecies = 1, num_species
-
-                vel = sqrt(2.0d0 * x(i) * spec_arr(ispecies)%temp * ev_to_cgs / spec_arr(ispecies)%mass)
-
-                if (ispecies .eq. 1) then
-                    call calc_coulomb_log("ee", spec_arr(1), spec_arr(ispecies), coulomb_log)
-                else
-                    call calc_coulomb_log("ei", spec_arr(1), spec_arr(ispecies), coulomb_log)
-                end if
-
-                call calc_perp_coll_freq(vel, spec_arr(1), spec_arr(ispecies), coulomb_log, coll_freq)
-                coll_freq_arr(ispecies) = coll_freq
-
-            end do
-            coll_freq_tot = sum(coll_freq_arr)
-            D11 = D11 + w(i) / coll_freq_tot
-        end do
-
-        D11 = D11 * 8.0d0 * sqrt(8.0d0) / (9.0d0 * pi**1.5d0) &
-            * (spec_arr(1)%temp * ev_to_cgs / spec_arr(1)%mass) &
-            * spec_arr(1)%rho_L**2.0d0 * eps_eff**1.5d0 / R0**2.0d0
+        call calc_D_one_over_nu(1, num_species, spec_arr, R0, D11)
 
     end subroutine
 
-    subroutine calc_D_one_over_nu(num_species, ind_species, spec_arr, R0, D_one_over_nu)
+    subroutine calc_D_one_over_nu_i(num_species, spec_arr, R0, D11)
+
+        use libneo_collisions, only: calc_perp_coll_freq, calc_coulomb_log
+        use libneo_species, only: species_t
+
+        implicit none
+
+        integer, intent(in) :: num_species
+        type(species_t), intent(in) :: spec_arr(num_species)
+        real(kind = real_kind), intent(in) :: R0
+        real(kind = real_kind), intent(out) :: D11
+        
+        call calc_D_one_over_nu(2, num_species, spec_arr, R0, D11)
+
+    end subroutine
+
+    subroutine calc_D_one_over_nu(ind_species, num_species, spec_arr, R0, D_one_over_nu)
 
         use libneo_collisions, only: calc_perp_coll_freq, calc_coulomb_log
         use libneo_species, only: species_t
@@ -96,7 +82,7 @@ module libneo_transport
 
         real(kind = real_kind) :: coll_freq, coll_freq_tot
         real(kind = real_kind), dimension(num_species) :: coll_freq_arr
-        real(kind = real_kind) :: coulomb_log, vel
+        real(kind = real_kind) :: vel
         
         integer :: i, ispecies
         
@@ -104,18 +90,10 @@ module libneo_transport
 
         do i = 1, gauss_laguerre_order
             do ispecies = 1, num_species
-
                 vel = sqrt(2.0d0 * x(i) * spec_arr(ispecies)%temp * ev_to_cgs / spec_arr(ispecies)%mass)
-
-                if (ispecies .eq. 1) then
-                    call calc_coulomb_log("ee", spec_arr(ind_species), spec_arr(ispecies), coulomb_log)
-                else
-                    call calc_coulomb_log("ei", spec_arr(ind_species), spec_arr(ispecies), coulomb_log)
-                end if
-
-                call calc_perp_coll_freq(vel, spec_arr(ind_species), spec_arr(ispecies), coulomb_log, coll_freq)
+                call calc_perp_coll_freq(vel, spec_arr(ind_species), spec_arr(ispecies), &
+                    spec_arr(ind_species)%coulomb_log(ispecies), coll_freq)
                 coll_freq_arr(ispecies) = coll_freq
-
             end do
             coll_freq_tot = sum(coll_freq_arr)
             D_one_over_nu = D_one_over_nu + w(i) / coll_freq_tot
