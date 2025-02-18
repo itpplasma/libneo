@@ -9,7 +9,7 @@ module libneo_transport
     real (kind = real_kind), allocatable, dimension ( : ) :: x
     logical :: write_to_file = .false.
     integer :: gauss_laguerre_order = 64
-    real(kind = real_kind) :: eps_eff = 0.025d0
+    real(kind = real_kind) :: eps_eff = 0.025d0 ! value for W-7X high mirror configuration
 
     contains
 

@@ -122,12 +122,14 @@ program test_collision_freqs
         integer :: i, j
         real(kind=real_kind), dimension(2,2) :: coulomb_log_comparison
 
-        coulomb_log_comparison = reshape([15.940948099344892, 15.940952174520840, 15.940952174520840, 18.048256223731936], [2, 2])
+        coulomb_log_comparison = reshape([15.940948099344892, 15.940952174520840, 15.940952174520840, &
+            18.048256223731936], [2, 2])
 
         call print_test("test_fill_species_arr_coulomb_log")
 
         call init_deuterium_plasma(1d3, 1d3, 1d13, species_arr)
-        print *, "Te = ", species_arr(1)%temp, ", Ti = ", species_arr(2)%temp, ", ne = ", species_arr(1)%dens, ", ni = ", species_arr(2)%dens
+        print *, "Te = ", species_arr(1)%temp, ", Ti = ", species_arr(2)%temp, ", ne = ", &
+            species_arr(1)%dens, ", ni = ", species_arr(2)%dens
 
         call fill_species_arr_coulomb_log(num_species, species_arr)
 
@@ -135,7 +137,7 @@ program test_collision_freqs
             do j=1, num_species
                 print *, "coulomb_log(", i, ",", j, ") = ", species_arr(i)%coulomb_log(j), &
                     " compared to ", coulomb_log_comparison(i, j)
-                if (abs(species_arr(i)%coulomb_log(j) - coulomb_log_comparison(i,j)) > 1e-6) then ! number is for the parameters above
+                if (abs(species_arr(i)%coulomb_log(j) - coulomb_log_comparison(i,j)) > 1e-6) then 
                     call print_fail
                     stop "coulomb_log not correct"
                 else
