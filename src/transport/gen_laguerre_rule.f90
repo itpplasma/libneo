@@ -1664,7 +1664,15 @@ subroutine s_to_r8 ( s, dval, ierror, length )
 !
 !  Scientific notation exponent marker.
 !
-    else if ( ch_eqi ( c, 'E' ) .or. ch_eqi ( c, 'D' ) ) then
+    else if ( ch_eqi ( c, 'E' ) ) then
+
+      if ( ihave < 6 ) then
+        ihave = 6
+      else
+        iterm = 1
+      end if
+
+    else if (ch_eqi ( c, 'D' ) ) then
 
       if ( ihave < 6 ) then
         ihave = 6
