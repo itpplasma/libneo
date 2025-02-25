@@ -1,5 +1,5 @@
 program test_spline_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use util_for_test, only: print_test, print_ok, print_fail
 use neo_spline_field, only: spline_field_t
 implicit none
@@ -35,7 +35,7 @@ subroutine test_spline_field_from_file_init
         call print_fail
         error stop
     end if
-    
+
     call print_ok
 end subroutine test_spline_field_from_file_init
 
@@ -70,7 +70,7 @@ subroutine create_file(filename)
     open(newunit = unit, file = filename)
     write(unit,*) n_points
     write(unit,*) limits
-    write(unit,*) is_periodic 
+    write(unit,*) is_periodic
 
     do i = 1, size(x1)
         do j = 1, size(x2)
@@ -86,7 +86,7 @@ subroutine create_file(filename)
 
 end subroutine create_file
 
-function compare_spline_with_file(spline_field, filename) result(deviation)           
+function compare_spline_with_file(spline_field, filename) result(deviation)
     use neo_field_base, only: field_t
     use neo_spline_field, only: spline_field_t
 

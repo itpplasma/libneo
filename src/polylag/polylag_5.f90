@@ -1,13 +1,14 @@
 module neo_polylag_5
-use, intrinsic :: iso_fortran_env, only: dp => real64
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 integer, parameter :: mp=6
 
 contains
 
 subroutine find_node_index(u,u_min,du,nu,u_index)
-! defines interval for 1D interpolation on uniform mesh, normally 
+! defines interval for 1D interpolation on uniform mesh, normally
 ! looks for the central interval of stencil, but
 ! stops moving of stencil at the boundary (works for mp=4 only!)
 ! Input:
@@ -20,11 +21,11 @@ subroutine find_node_index(u,u_min,du,nu,u_index)
 !
 ! the power 5 of polinomial is fixed strictly:
 real(dp), intent(in) :: u, u_min, du
-integer, intent(in) :: nu 
+integer, intent(in) :: nu
 integer, dimension(mp), intent(out) :: u_index
 
 integer :: i
-                        
+
 u_index(1) = int((u-u_min)/du)+1
 if( u_index(1) .le. 0 ) u_index(1) = 1
 u_index(mp) = u_index(1) + mp - 1

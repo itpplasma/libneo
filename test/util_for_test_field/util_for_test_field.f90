@@ -1,6 +1,5 @@
 module util_for_test_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
-
+use libneo_kinds, only : dp
 implicit none
 
 

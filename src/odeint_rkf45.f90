@@ -5,17 +5,17 @@ implicit none
 contains
 
 subroutine odeint_allroutines(y, nvar, x1, x2, eps, derivs)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   external :: derivs
   integer, intent(in) :: nvar
-  real(kind=real_kind), intent(in) :: x1, x2, eps
-  real(kind=real_kind), dimension(nvar) :: y
-  real(kind=real_kind), dimension(nvar) :: yp
+  real(dp), intent(in) :: x1, x2, eps
+  real(dp), dimension(nvar) :: y
+  real(dp), dimension(nvar) :: yp
 
-  real(kind=real_kind) :: epsrel, epsabs
+  real(dp) :: epsrel, epsabs
   integer :: flag
 
   flag = 1

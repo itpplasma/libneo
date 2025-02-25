@@ -1,5 +1,5 @@
 program test_interpolate
-    use iso_fortran_env, only: dp => real64
+    use libneo_kinds, only : dp
     use math_constants
     use libneo_util
 
@@ -7,7 +7,7 @@ program test_interpolate
 
     real(dp), parameter :: TOL_CRUDE = 1.0d-3, TOL = 1.0d-6, TOL_EXACT = 1.0d-11
 
-    real(dp), parameter :: X_MIN = 1.23d0, X_MAX = TWOPI+1.23d0
+    real(dp), parameter :: X_MIN = 1.23d0, X_MAX = TWOPI + 1.23d0
 
     call test_spline_1d(spline_order=3, periodic=.False.)
     call test_spline_1d(spline_order=3, periodic=.True.)

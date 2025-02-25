@@ -8,7 +8,7 @@
 program test_binsrc
 
   use binsrc_sub, only : binsrc
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
@@ -19,8 +19,8 @@ program test_binsrc
   integer :: found_index
   integer :: k
 
-  real(kind=real_kind) :: value_to_find
-  real(kind=real_kind), dimension(min_index:max_index) :: values
+  real(dp) :: value_to_find
+  real(dp), dimension(min_index:max_index) :: values
 
   sucess = .true.
 

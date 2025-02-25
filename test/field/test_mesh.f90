@@ -1,5 +1,5 @@
 program test_mesh
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use util_for_test, only: print_test, print_ok, print_fail
 implicit none
 
@@ -19,7 +19,7 @@ subroutine test_mesh_init
                                                              0.0_dp, 2.0_dp, &
                                                             -1.0_dp, 0.0_dp], [2, 3]))
     logical, parameter :: periodic(3) = [.true., .false., .true.]
-        
+
     type(mesh_t) :: mesh
     real(dp), dimension(:), allocatable :: x1, x2, x3
     real(dp), dimension(:,:,:), allocatable :: values

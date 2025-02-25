@@ -1,5 +1,5 @@
 program test_jorek_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use neo_jorek_field, only: jorek_field_t
 use util_for_test, only: print_test, print_ok, print_fail
 use util_for_test_jorek_field, only: get_filename, filename_len

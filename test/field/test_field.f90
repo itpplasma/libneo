@@ -1,5 +1,5 @@
 program test_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use util_for_test, only: print_test, print_ok, print_fail
 use neo_field, only: field_t, create_field
 
@@ -129,7 +129,6 @@ subroutine test_create_jorek_field
 
     call print_ok
 end subroutine test_create_jorek_field
-    
+
 
 end program test_field
-

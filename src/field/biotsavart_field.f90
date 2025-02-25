@@ -1,5 +1,5 @@
 module neo_biotsavart_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use neo_field_base, only: field_t
 use neo_biotsavart, only: coils_t
 

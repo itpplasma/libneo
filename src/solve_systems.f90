@@ -12,7 +12,7 @@
 !> \todo Useful as own module? (shift into other module?)
 module solve_systems
 
-  use libneo_kinds, only : integer_kind, real_kind
+  use libneo_kinds, only : integer_kind, dp
 
   implicit none
 
@@ -27,8 +27,8 @@ contains
 
     implicit none
 
-    real(real_kind), dimension(:,:), intent(inout) :: a
-    real(real_kind), dimension(:),   intent(inout) :: b
+    real(dp), dimension(:,:), intent(inout) :: a
+    real(dp), dimension(:),   intent(inout) :: b
     integer(integer_kind),             intent(out)   :: info
     integer(integer_kind) :: i_alloc
     integer(integer_kind) :: n, nrhs, lda, ldb

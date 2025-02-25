@@ -1,6 +1,6 @@
 subroutine spline_vmec_data
 
-  use libneo_kinds, only : real_kind, complex_kind
+  use libneo_kinds, only : dp, complex_kind
   use math_constants, only : TWOPI
 
   use new_vmec_stuff_mod, only : rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,&
@@ -12,11 +12,11 @@ subroutine spline_vmec_data
 
   integer :: i,k,m,n,is,i_theta,i_phi,m_max,n_max,nsize_exp_imt,nsize_exp_inp,iexpt,iexpp
   integer :: ist,isp,nrho,nheal,iunit_hs
-  real(kind=real_kind) :: cosphase,sinphase
+  real(dp) :: cosphase,sinphase
   complex(kind=complex_kind) :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
-  real(kind=real_kind), dimension(:,:), allocatable :: splcoe
-  real(kind=real_kind), dimension(:,:), allocatable :: almnc_rho,rmnc_rho,zmnc_rho
-  real(kind=real_kind), dimension(:,:), allocatable :: almns_rho,rmns_rho,zmns_rho
+  real(dp), dimension(:,:), allocatable :: splcoe
+  real(dp), dimension(:,:), allocatable :: almnc_rho,rmnc_rho,zmnc_rho
+  real(dp), dimension(:,:), allocatable :: almns_rho,rmns_rho,zmns_rho
   complex(kind=complex_kind), dimension(:), allocatable :: exp_imt,exp_inp
 
   print *,'Splining VMEC data: ns_A = ',ns_A,'  ns_s = ',ns_s,'  ns_tp = ',ns_tp
@@ -322,7 +322,7 @@ end subroutine deallocate_vmec_spline
 subroutine splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                               R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp)
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use math_constants, only : TWOPI
 
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,sR,sZ,slam,&
@@ -332,20 +332,20 @@ subroutine splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,a
   implicit none
 
   integer :: is,i_theta,i_phi,k
-  real(kind=real_kind) :: ds,dtheta,dphi,rho_tor
-  real(kind=real_kind), intent(in) :: s,theta,varphi
-  real(kind=real_kind), intent(out) :: A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
+  real(dp) :: ds,dtheta,dphi,rho_tor
+  real(dp), intent(in) :: s,theta,varphi
+  real(dp), intent(out) :: A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,       &
                       R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp
 
   integer, parameter :: ns_max=6
 
   integer :: nstp
 
-  real(kind=real_kind), dimension(ns_max)        :: sp_R,sp_Z,sp_lam
-  real(kind=real_kind), dimension(ns_max)        :: dsp_R_ds,dsp_Z_ds,dsp_lam_ds
-  real(kind=real_kind), dimension(ns_max)        :: dsp_R_dt,dsp_Z_dt,dsp_lam_dt
-  real(kind=real_kind), dimension(ns_max,ns_max) :: stp_R,stp_Z,stp_lam
-  real(kind=real_kind), dimension(ns_max,ns_max) :: dstp_R_ds,dstp_Z_ds,dstp_lam_ds
+  real(dp), dimension(ns_max)        :: sp_R,sp_Z,sp_lam
+  real(dp), dimension(ns_max)        :: dsp_R_ds,dsp_Z_ds,dsp_lam_ds
+  real(dp), dimension(ns_max)        :: dsp_R_dt,dsp_Z_dt,dsp_lam_dt
+  real(dp), dimension(ns_max,ns_max) :: stp_R,stp_Z,stp_lam
+  real(dp), dimension(ns_max,ns_max) :: dstp_R_ds,dstp_Z_ds,dstp_lam_ds
 
   nstp=ns_tp+1
 
@@ -480,18 +480,18 @@ end subroutine splint_vmec_data
 subroutine vmec_field(s,theta,varphi,A_theta,A_phi,dA_theta_ds,dA_phi_ds,aiota,     &
                         sqg,alam,dl_ds,dl_dt,dl_dp,Bctrvr_vartheta,Bctrvr_varphi,     &
                         Bcovar_r,Bcovar_vartheta,Bcovar_varphi)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
-  real(kind=real_kind), intent(in) :: s, theta, varphi
-  real(kind=real_kind), intent(out) :: A_theta, A_phi, dA_theta_ds, dA_phi_ds, &
+  real(dp), intent(in) :: s, theta, varphi
+  real(dp), intent(out) :: A_theta, A_phi, dA_theta_ds, dA_phi_ds, &
       & aiota, sqg, alam, dl_ds, dl_dt, dl_dp, &
       & Bctrvr_vartheta, Bctrvr_varphi, Bcovar_r, Bcovar_vartheta, Bcovar_varphi
 
-  real(kind=real_kind) :: R, Z, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
-  real(kind=real_kind) :: cjac, sqgV
-  real(kind=real_kind), dimension(3,3) :: cmat, gV, g
+  real(dp) :: R, Z, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
+  real(dp) :: cjac, sqgV
+  real(dp), dimension(3,3) :: cmat, gV, g
 
 
   call splint_vmec_data(s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,      &
@@ -532,15 +532,15 @@ end subroutine vmec_field
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine splint_iota(s,aiota,daiota_ds)
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
   use new_vmec_stuff_mod,   only : ns_A
 
   implicit none
 
   integer :: is,k
-  real(kind=real_kind) :: ds
-  real(kind=real_kind) :: s,dA_phi_ds,dA_theta_ds,d2A_phi_ds2,aiota,daiota_ds
+  real(dp) :: ds
+  real(dp) :: s,dA_phi_ds,dA_theta_ds,d2A_phi_ds2,aiota,daiota_ds
 
   dA_theta_ds=torflux
 
@@ -569,7 +569,7 @@ subroutine splint_iota(s,aiota,daiota_ds)
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine splint_lambda(s,theta,varphi,alam,dl_dt)
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use math_constants, only : TWOPI
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,slam,nper,ns_s,ns_tp
   use vector_potentail_mod, only : ns,hs
@@ -577,16 +577,16 @@ subroutine splint_lambda(s,theta,varphi,alam,dl_dt)
   implicit none
 
   integer :: is,i_theta,i_phi,k
-  real(kind=real_kind) :: ds,dtheta,dphi
-  real(kind=real_kind) :: s,theta,varphi,alam,dl_dt
+  real(dp) :: ds,dtheta,dphi
+  real(dp) :: s,theta,varphi,alam,dl_dt
 
   integer, parameter :: ns_max=6
 
   integer :: nstp
 
-  real(kind=real_kind), dimension(ns_max)        :: sp_lam
-  real(kind=real_kind), dimension(ns_max)        :: dsp_lam_dt
-  real(kind=real_kind), dimension(ns_max,ns_max) :: stp_lam
+  real(dp), dimension(ns_max)        :: sp_lam
+  real(dp), dimension(ns_max)        :: dsp_lam_dt
+  real(dp), dimension(ns_max,ns_max) :: stp_lam
 
   nstp=ns_tp+1
 
@@ -673,18 +673,18 @@ end subroutine splint_lambda
 ! none
 subroutine s_to_rho_healaxis(m,ns,nrho,nheal,arr_in,arr_out)
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use new_vmec_stuff_mod, only : ns_s, old_axis_healing
 
   implicit none
 
   integer, intent(in) :: m, ns, nrho, nheal
-  real(kind=real_kind), dimension(ns), intent(in) :: arr_in
-  real(kind=real_kind), dimension(nrho), intent(out) :: arr_out
+  real(dp), dimension(ns), intent(in) :: arr_in
+  real(dp), dimension(nrho), intent(out) :: arr_out
 
   integer :: irho,is,k,nhe
-  real(kind=real_kind) :: hs,hrho,s,ds,rho,a,b,c
-  real(kind=real_kind), dimension(:,:), allocatable :: splcoe
+  real(dp) :: hs,hrho,s,ds,rho,a,b,c
+  real(dp), dimension(:,:), allocatable :: splcoe
 
   hs = 1.d0/dble(ns-1)
   hrho = 1.d0/dble(nrho-1)
@@ -781,27 +781,27 @@ subroutine determine_nheal_for_axis(m,ns,arr_in,nheal)
   !> -------
   !> nheal: integer, number of points to extrapolate at the axis.
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   ! Lagrange polynomial stencil size for checking the data by extraplation:
   integer, parameter :: nplag = 4
   ! tolerance for Lagrange polynomial extrapolation by one point (to check if data is noisy):
-  real(kind=real_kind), parameter :: tol = 3.d-1
-  real(kind=real_kind), parameter :: tiny = 1.d-200
+  real(dp), parameter :: tol = 3.d-1
+  real(dp), parameter :: tiny = 1.d-200
   ! 3-rd order Lagrange polynomial extrapolation coefficients from points (1,2,3,4) to point 0:
-  real(kind=real_kind), parameter, dimension(nplag) :: weight = (/4.d0,-6.d0,4.d0,-1.d0/)
+  real(dp), parameter, dimension(nplag) :: weight = (/4.d0,-6.d0,4.d0,-1.d0/)
 
   integer, intent(in) :: m,ns
   integer, intent(out) :: nheal
-  real(kind=real_kind), dimension(ns), intent(in) :: arr_in
+  real(dp), dimension(ns), intent(in) :: arr_in
 
   integer :: is,ncheck
 
-  real(kind=real_kind) :: hs,rho,rho_nonzero,errmax
+  real(dp) :: hs,rho,rho_nonzero,errmax
 
-  real(kind=real_kind), dimension(:), allocatable :: arr
+  real(dp), dimension(:), allocatable :: arr
 
   ! We check points which are away by more than 3 stencils from the edge:
   ncheck = ns - 3*nplag
@@ -835,15 +835,15 @@ end subroutine determine_nheal_for_axis
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine volume_and_B00(volume,B00)
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use new_vmec_stuff_mod,   only : n_theta,n_phi,h_theta,h_phi,nper
 
   implicit none
 
   integer :: i_theta,i_phi
-  real(kind=real_kind) :: volume,B00
-  real(kind=real_kind) :: B3,B2,bmod2
-  real(kind=real_kind) :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,   &
+  real(dp) :: volume,B00
+  real(dp) :: B3,B2,bmod2
+  real(dp) :: s,theta,varphi,A_phi,A_theta,dA_phi_ds,dA_theta_ds,aiota,   &
                       R,Z,alam,dR_ds,dR_dt,dR_dp,dZ_ds,dZ_dt,dZ_dp,dl_ds,dl_dt,dl_dp, &
                       sqg,Bctrvr_vartheta,Bctrvr_varphi,                              &
                       Bcovar_r,Bcovar_vartheta,Bcovar_varphi

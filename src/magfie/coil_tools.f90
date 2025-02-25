@@ -1,6 +1,7 @@
 module coil_tools
 
-  use iso_fortran_env, only: dp => real64, error_unit
+  use iso_fortran_env, only : error_unit
+  use libneo_kinds, only : dp
 
   implicit none
 
