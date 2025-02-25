@@ -1,5 +1,5 @@
 module neo_field_mesh
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use neo_mesh, only: mesh_t, mesh_init
 implicit none
 

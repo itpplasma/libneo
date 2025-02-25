@@ -1,5 +1,5 @@
 module neo_polylag_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use neo_field_base, only: field_t
 use neo_field_mesh, only: field_mesh_t
 implicit none
@@ -37,7 +37,7 @@ subroutine compute_afield(self, x, A)
     class(polylag_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: A(3)
-    
+
     A(1) = eval_polylag_on_mesh(x, self%field_mesh%A1)
     A(2) = eval_polylag_on_mesh(x, self%field_mesh%A2)
     A(3) = eval_polylag_on_mesh(x, self%field_mesh%A3)
@@ -47,7 +47,7 @@ subroutine compute_bfield(self, x, B)
     class(polylag_field_t), intent(in) :: self
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: B(3)
-    
+
     B(1) = eval_polylag_on_mesh(x, self%field_mesh%B1)
     B(2) = eval_polylag_on_mesh(x, self%field_mesh%B2)
     B(3) = eval_polylag_on_mesh(x, self%field_mesh%B3)
@@ -66,7 +66,7 @@ function eval_polylag_on_mesh(x, mesh) result(f)
     real(dp), dimension(n_node) :: x1_coefs, x2_coefs, x3_coefs
     integer :: i, j, k
     real(dp) :: fp
-    
+
     call find_node_index(x(1), mesh%x1(1), mesh%dx1, &
                          mesh%n1, node_idx1)
     call find_node_index(x(2), mesh%x2(1), mesh%dx2, &

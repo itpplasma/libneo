@@ -1,5 +1,5 @@
 module neo_biotsavart
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 implicit none
 
 real(dp), parameter :: clight = 2.99792458d10

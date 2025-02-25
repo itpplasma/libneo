@@ -1,5 +1,5 @@
 module neo_poincare
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use neo_field_base, only: field_t
 implicit none
 
@@ -84,7 +84,7 @@ subroutine get_poincare_RZ(field, config, R, Z)
     phi = config%fieldline_start_phi
     do period = 2, config%n_periods
         phi_end = phi + config%period_length
-        call integrate_RZ_along_fieldline(field, RZ, phi, phi_end, config%integrate_err) 
+        call integrate_RZ_along_fieldline(field, RZ, phi, phi_end, config%integrate_err)
         phi = phi_end
         if(is_in_plot_region(RZ, config)) then
             R(period) = RZ(1)
@@ -108,18 +108,18 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
     call odeint_allroutines(RZ, poincare_dim, phi_start, phi_end, &
                             relerr, fieldline_derivative, initial_stepsize=0.1_dp)
 
-    contains 
+    contains
 
         subroutine fieldline_derivative(phi, RZ, dRZ_dphi, ierr)
             real(dp), intent(in) :: phi
             real(dp), intent(in), dimension(:) :: RZ
             real(dp), intent(out), dimension(:) :: dRZ_dphi
             integer, intent(out) :: ierr
-        
+
             real(dp), parameter :: tol = 1.0e-10_dp
             real(dp) :: RphiZ(3)
             real(dp) :: B(3)
-        
+
             RphiZ(1) = RZ(1)
             RphiZ(2) = phi
             RphiZ(3) = RZ(2)

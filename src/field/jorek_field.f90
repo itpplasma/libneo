@@ -1,5 +1,5 @@
 module neo_jorek_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use neo_field_mesh, only: field_mesh_t
 use neo_field_base, only: field_t
 use neo_spline_field, only: spline_field_t, make_spline_from_mesh
@@ -199,7 +199,7 @@ subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
 
     call get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, n_R, n_phi, n_Z)
     allocate(fluxfunction(n_R, n_Z))
-             
+
     fluxfunction = values(11,:,1,:)
     fluxfunction = -fluxfunction
 
@@ -209,7 +209,7 @@ subroutine load_fluxfunction_mesh_from_jorek(jorek_filename, fluxfunction_mesh)
 end subroutine load_fluxfunction_mesh_from_jorek
 
 
-subroutine get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, & 
+subroutine get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, &
                                                           n_R, n_phi, n_Z)
     use neo_field_mesh, only: linspace
 
@@ -219,7 +219,7 @@ subroutine get_grid_and_values_from_jorek(jorek_filename, R, phi, Z, values, &
     integer, intent(out) :: n_R, n_Z, n_phi
 
     real(dp) :: Rmin, Rmax, Zmin, Zmax, phimin, phimax
-    
+
     call read_dims_and_values_from_jorek(jorek_filename, n_R, n_phi, n_Z, values)
     allocate(R(n_R), phi(n_phi), Z(n_Z))
     call get_ranges_from_filename(Rmin, Rmax, Zmin, Zmax, phimin, phimax, &
@@ -334,7 +334,7 @@ subroutine make_spline_from_mesh_2d(mesh, spline, order_in)
 
     real(dp) :: x_min(2), x_max(2)
     integer :: order(2)
-        
+
     if (present(order_in)) then
         order = order_in
     else

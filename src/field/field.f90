@@ -1,5 +1,5 @@
 module neo_field
-    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use libneo_kinds, only : dp
     use neo_field_base, only: field_t
     use neo_example_field, only: example_field_t
     use neo_biotsavart_field, only: biotsavart_field_t
@@ -32,7 +32,7 @@ module neo_field
             case("biotsavart")
                 allocate(field, source=create_biotsavart_field(coils_file))
             case("polylag")
-                allocate(field, source= & 
+                allocate(field, source= &
                             create_polylag_field(limits, field_to_interpolate, n_points))
             case("spline")
                 if (present(filename)) then
@@ -105,7 +105,7 @@ module neo_field
 
     end function create_spline_field_from_file
 
-    
+
     function create_spline_field_from_mesh(field_mesh) result(spline_field)
         type(field_mesh_t), intent(in) :: field_mesh
         class(spline_field_t), allocatable :: spline_field

@@ -7,7 +7,7 @@
 !> formats, like efit and boozer. Note that the input is just read, not
 !> processed.
 module io
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
@@ -38,19 +38,19 @@ module io
     integer :: nwEQD, nhEQD
     integer :: n_bndyxy, nlimEQD
 
-    real(kind=real_kind) :: psiSep, bt0, rzero
+    real(dp) :: psiSep, bt0, rzero
 
-    real(kind=real_kind), dimension(:), allocatable :: fpol, pres
-    real(kind=real_kind), dimension(:), allocatable :: ffprim
-    real(kind=real_kind), dimension(:), allocatable :: pprime
-    real(kind=real_kind), dimension(:), allocatable :: qpsi
-    real(kind=real_kind), dimension(:,:), allocatable :: psiRZ
-    real(kind=real_kind), dimension(:), allocatable :: LCFS, limEQD
+    real(dp), dimension(:), allocatable :: fpol, pres
+    real(dp), dimension(:), allocatable :: ffprim
+    real(dp), dimension(:), allocatable :: pprime
+    real(dp), dimension(:), allocatable :: qpsi
+    real(dp), dimension(:,:), allocatable :: psiRZ
+    real(dp), dimension(:), allocatable :: LCFS, limEQD
     ! These two are for storing the grid coordinates. Regular -> only one dimension.
-    real(kind=real_kind), dimension(:), allocatable :: rad, zet
+    real(dp), dimension(:), allocatable :: rad, zet
 
-    real(kind=real_kind) :: xdim,zdim,r1,zmid,rmaxis,zmaxis
-    real(kind=real_kind) :: plas_cur, psiAxis
+    real(dp) :: xdim,zdim,r1,zmid,rmaxis,zmaxis
+    real(dp) :: plas_cur, psiAxis
 
     !> This array of strings collects the part at the beginning of the
     !> first line. It is not clear if this contains some relevant
@@ -83,20 +83,20 @@ module io
     private
 
     integer :: m0b, n0b, nsurf, nper
-    real(kind=real_kind) :: flux ![Tm^2]
-    real(kind=real_kind) :: a ![m]
-    real(kind=real_kind) :: R ![m]
+    real(dp) :: flux ![Tm^2]
+    real(dp) :: a ![m]
+    real(dp) :: R ![m]
 
-    real(kind=real_kind), dimension(:), allocatable :: s, iota
-    real(kind=real_kind), dimension(:), allocatable :: Jpol_nper ! [A]
-    real(kind=real_kind), dimension(:), allocatable :: Itor ![A]
-    real(kind=real_kind), dimension(:), allocatable :: pprime ![Pa]
-    real(kind=real_kind), dimension(:), allocatable :: sqrt_g00 !(dV/ds)/nper
+    real(dp), dimension(:), allocatable :: s, iota
+    real(dp), dimension(:), allocatable :: Jpol_nper ! [A]
+    real(dp), dimension(:), allocatable :: Itor ![A]
+    real(dp), dimension(:), allocatable :: pprime ![Pa]
+    real(dp), dimension(:), allocatable :: sqrt_g00 !(dV/ds)/nper
 
-    integer(kind=real_kind), dimension(:,:), allocatable :: m, n
-    real(kind=real_kind), dimension(:,:), allocatable :: rmnc, rmns, zmnc, zmns ! [m]
-    real(kind=real_kind), dimension(:,:), allocatable :: vmnc,vmns  ! [ ]
-    real(kind=real_kind), dimension(:,:), allocatable :: bmnc, bmns ! [T]
+    integer(dp), dimension(:,:), allocatable :: m, n
+    real(dp), dimension(:,:), allocatable :: rmnc, rmns, zmnc, zmns ! [m]
+    real(dp), dimension(:,:), allocatable :: vmnc,vmns  ! [ ]
+    real(dp), dimension(:,:), allocatable :: bmnc, bmns ! [T]
   contains
     procedure :: read_data => read_data_of_boozer_file
     procedure :: write_data => write_data_of_boozer_file
@@ -174,7 +174,7 @@ contains
   !>   data.
   subroutine read_data_of_efit_file(this, filename)
 
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
@@ -188,7 +188,7 @@ contains
     ! File unit.
     integer :: gunit
 
-    real (kind=real_kind) :: xdum
+    real (dp) :: xdum
     integer :: idum
 
     gunit = get_free_unit()
@@ -264,7 +264,7 @@ contains
   !>
   !> \param filename: input, data is written to file with this name.
   subroutine write_data_of_efit_file(this, filename)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
@@ -278,7 +278,7 @@ contains
     ! File unit.
     integer :: gunit
 
-    real (kind=real_kind), parameter :: xdum = 0.0
+    real (dp), parameter :: xdum = 0.0
     integer, parameter :: idum = 0
 
     gunit = get_free_unit()
@@ -338,73 +338,73 @@ contains
   end function get_nhEQD_
 
   function get_psiSep_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(efit_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_psiSep_
+    real(dp) :: get_psiSep_
 
     get_psiSep_ = this%psiSep
   end function get_psiSep_
 
   function get_bt0_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(efit_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_bt0_
+    real(dp) :: get_bt0_
 
     get_bt0_ = this%bt0
   end function get_bt0_
 
   function get_rzero_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(efit_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_rzero_
+    real(dp) :: get_rzero_
 
     get_rzero_ = this%rzero
   end function get_rzero_
 
   function get_rad_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(efit_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_rad_(this%nwEQD)
+    real(dp) :: get_rad_(this%nwEQD)
 
     get_rad_ = this%rad
   end function get_rad_
 
   function get_zet_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(efit_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_zet_(this%nhEQD)
+    real(dp) :: get_zet_(this%nhEQD)
 
     get_zet_ = this%zet
   end function get_zet_
 
   function get_psiRZ_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(efit_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_psiRZ_(this%nwEQD,this%nhEQD)
+    real(dp) :: get_psiRZ_(this%nwEQD,this%nhEQD)
 
     get_psiRZ_ = this%psiRZ
   end function get_psiRZ_
@@ -413,13 +413,13 @@ contains
   !> points included).
   !> \note It is called origin as offset is a keyword.
   subroutine set_array_equidistant(number_of_points, width, origin, array)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     integer, intent(in) :: number_of_points
-    real(kind=real_kind), intent(in) :: width, origin
-    real(kind=real_kind), intent(out) :: array(number_of_points)
+    real(dp), intent(in) :: width, origin
+    real(dp), intent(out) :: array(number_of_points)
 
     integer :: j
 
@@ -672,37 +672,37 @@ contains
   end function get_nper_
 
   function get_flux_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(boozer_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_flux_
+    real(dp) :: get_flux_
 
     get_flux_ = this%flux
   end function get_flux_
 
   function get_a_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(boozer_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_a_
+    real(dp) :: get_a_
 
     get_a_ = this%a
   end function get_a_
 
   function get_R_(this)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     class(boozer_data_type), intent(in) :: this
 
-    real(kind=real_kind) :: get_R_
+    real(dp) :: get_R_
 
     get_R_ = this%R
   end function get_R_

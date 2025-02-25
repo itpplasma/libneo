@@ -1,11 +1,11 @@
 module magfield_mod
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: ierrfield
   integer :: input_format,npmid,nr,np,nz,npoint
   integer,          dimension(:,:,:), allocatable :: ipoint
-  real(kind=real_kind), dimension(:),     allocatable :: rad,phi,zet,Brs,Bzs,Bps
-  real(kind=real_kind), dimension(:,:,:), allocatable :: Bx,By,Bz,Br,Bp
+  real(dp), dimension(:),     allocatable :: rad,phi,zet,Brs,Bzs,Bps
+  real(dp), dimension(:,:,:), allocatable :: Bx,By,Bz,Br,Bp
 end module

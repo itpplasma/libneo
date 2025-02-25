@@ -1,5 +1,5 @@
 module neo_example_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use neo_field_base, only: field_t
 implicit none
 
@@ -23,7 +23,7 @@ subroutine example_field_init(self, ampl, ampl2)
     else
         self%ampl = 1.0d-7
     end if
-    if (present(ampl2)) then 
+    if (present(ampl2)) then
         self%ampl2 = ampl2
     else
         self%ampl2 = 2.0d-6

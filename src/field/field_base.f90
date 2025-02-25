@@ -1,5 +1,5 @@
 module neo_field_base
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 implicit none
 
 type, abstract :: field_t

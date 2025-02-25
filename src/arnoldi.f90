@@ -7,11 +7,11 @@
 !> the module.
 !> Main work is done by the subroutine arnoldi.
 module arnoldi
-  use libneo_kinds, only : real_kind, complex_kind
+  use libneo_kinds, only : dp, complex_kind
 
   logical, save :: leigen=.false. !< Determines if eigenvectors should be calculated.
   integer, save :: ngrow,ierr
-  real(kind=real_kind), save :: tol !< Tolerance below which eigenvectors are no longer calculated.
+  real(dp), save :: tol !< Tolerance below which eigenvectors are no longer calculated.
   complex(kind=complex_kind), dimension(:,:), allocatable :: eigvecs
 
   abstract interface
@@ -183,13 +183,13 @@ contains
   !>                  eigh     - eigenvectors
   !>                  ierr     - error code (0 - normal work)
   subroutine try_eigvecvals(m,tol,hmat,ngrow,ritznum,eigh,ierr)
-    use libneo_kinds, only : real_kind, complex_kind
+    use libneo_kinds, only : dp, complex_kind
 
     implicit none
 
     integer, intent(in) :: m
     integer, intent(out) :: ierr, ngrow
-    real(kind=real_kind), intent(in) :: tol
+    real(dp), intent(in) :: tol
     complex(kind=complex_kind), dimension(m), intent(out) :: ritznum
     complex(kind=complex_kind), dimension(m,m), intent(in) :: hmat
     complex(kind=complex_kind), dimension(m,m), intent(out) :: eigh
@@ -198,7 +198,7 @@ contains
     complex(kind=complex_kind)   :: tmp
     logical,          dimension(:),   allocatable :: selec
     integer,          dimension(:),   allocatable :: ifailr
-    real(kind=real_kind), dimension(:),   allocatable :: rwork
+    real(dp), dimension(:),   allocatable :: rwork
     complex(kind=complex_kind),   dimension(:),   allocatable :: work,rnum
     complex(kind=complex_kind),   dimension(:,:), allocatable :: hmat_work
 

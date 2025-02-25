@@ -1,5 +1,5 @@
 module libneo_util
-    use iso_fortran_env, only: dp => real64
+    use libneo_kinds, only : dp
 
     implicit none
 

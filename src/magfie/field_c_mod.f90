@@ -1,5 +1,5 @@
 module field_c_mod
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
@@ -7,5 +7,5 @@ module field_c_mod
   integer :: ntor=16
   integer :: nr,np,nz
   integer :: icftype
-  real(kind=real_kind) :: rmin,pmin,zmin,rmax,pmax,zmax
+  real(dp) :: rmin,pmin,zmin,rmax,pmax,zmax
 end module field_c_mod
