@@ -1,5 +1,4 @@
 module neo_jorek_field
-use libneo_kinds, only : dp
 use neo_field_mesh, only: field_mesh_t
 use neo_field_base, only: field_t
 use neo_spline_field, only: spline_field_t, make_spline_from_mesh
@@ -9,6 +8,7 @@ use neo_mesh, only: mesh_t
 use neo_mesh_2d, only: mesh_2d_t
 
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 
 type, extends(field_t) :: jorek_field_t

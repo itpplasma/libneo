@@ -1,7 +1,7 @@
 module neo_example_field
-use libneo_kinds, only : dp
 use neo_field_base, only: field_t
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 type, extends(field_t) :: example_field_t
     real(dp) :: ampl, ampl2

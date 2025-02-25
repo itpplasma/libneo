@@ -1,8 +1,8 @@
 module neo_polylag_field
-use libneo_kinds, only : dp
 use neo_field_base, only: field_t
 use neo_field_mesh, only: field_mesh_t
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 type, extends(field_t) :: polylag_field_t
     type(field_mesh_t) :: field_mesh

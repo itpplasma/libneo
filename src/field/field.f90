@@ -1,5 +1,4 @@
 module neo_field
-    use libneo_kinds, only : dp
     use neo_field_base, only: field_t
     use neo_example_field, only: example_field_t
     use neo_biotsavart_field, only: biotsavart_field_t
@@ -8,6 +7,7 @@ module neo_field
     use neo_field_mesh, only: field_mesh_t
     use neo_jorek_field, only: jorek_field_t
     implicit none
+    integer, parameter :: dp = kind(1.0d0)
 
     contains
 

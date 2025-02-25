@@ -1,6 +1,6 @@
 module neo_field_base
-use libneo_kinds, only : dp
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 type, abstract :: field_t
     contains
