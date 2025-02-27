@@ -21,18 +21,15 @@ module libneo_transport
         implicit none
         ! calculate Gauss-Laguerre weights and abscissas
         real(dp), intent(in) :: alpha
-        real(dp), allocatable, dimension(:), intent(out) :: weights, x_abscissas
+        real(dp), dimension(gauss_laguerre_order), intent(out) :: weights, x_abscissas
         real(dp) :: a, b, beta
         
         beta = 0.0D+00 !dummy
         a = 0.0d0
         b = 1.0d0
 
-        allocate(weights(gauss_laguerre_order), x_abscissas(gauss_laguerre_order))
-
         call calculate_gauss_laguerre_rule(gauss_laguerre_order, alpha, beta, &
             a, b, x_abscissas, weights, write_to_file)
-
 
     end subroutine
 
