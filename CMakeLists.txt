@@ -80,6 +80,9 @@ add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)
 add_subdirectory(src/field)
+add_subdirectory(src/collisions)
+add_subdirectory(src/transport)
+add_subdirectory(src/species)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
@@ -125,6 +128,17 @@ if (NOT Python_FOUND)
     message("Python with NumPy not found, skipping interface build.")
     return()
 endif()
+
+# detect virtualenv and set Pip args accordingly
+if(DEFINED ENV{VIRTUAL_ENV} OR DEFINED ENV{CONDA_PREFIX})
+    set(_pip_args)
+else()
+    set(_pip_args "--user")
+endif()
+
+# install fypp which is required for fortran stdlib
+execute_process(COMMAND ${Python_EXECUTABLE} -m pip install ${_pip_args} fypp)
+message(STATUS "${Python_EXECUTABLE} -m pip install ${_pip_args} fypp")
 
 # F2PY headers
 execute_process(
