@@ -11,8 +11,6 @@ program test_interpolate
 
     call test_spline_1d(spline_order=3, periodic=.False.)
     call test_spline_1d(spline_order=3, periodic=.True.)
-    call test_spline_1d(spline_order=4, periodic=.False.)
-    call test_spline_1d(spline_order=4, periodic=.True.)
     call test_spline_1d(spline_order=5, periodic=.False.)
     call test_spline_1d(spline_order=5, periodic=.True.)
 
@@ -29,7 +27,51 @@ program test_interpolate
     call test_spline_3d(spline_order=[3,5,3], periodic=[.False., .True.,.True.])
     call test_spline_3d(spline_order=[3,3,3], periodic=[.True., .True., .True.])
 
+    call bench_spline_1d
+
 contains
+
+    subroutine bench_spline_1d
+        use interpolate
+        integer, parameter :: n_iter = 1000
+        integer, parameter :: N_POINTS = 100
+        integer, parameter :: spline_order = 5
+        logical, parameter :: periodic = .False.
+
+        real(dp), dimension(N_POINTS) :: x, y
+
+        real(dp) :: x_eval, expected, actual, t_start, t_end, t_elapsed
+
+        integer :: iter
+
+        type(SplineData1D) :: spl
+
+        print *, "Benchmarking 1D spline with order ", spline_order, &
+                 " and periodic = ", periodic
+
+        call linspace(X_MIN, X_MAX, N_POINTS, x)
+
+        y = cos(x)
+
+        call construct_splines_1d(X_MIN, X_MAX, y, spline_order, periodic, spl)
+
+        x_eval = 0.5d0*(x(10) + x(11))
+
+        expected = cos(x_eval)
+
+        call cpu_time(t_start)
+        do iter = 1, n_iter
+            call evaluate_splines_1d(spl, x_eval, actual)
+        end do
+        call cpu_time(t_end)
+        t_elapsed = t_end - t_start
+        print *, "expected, actual: ", expected, actual
+        if (abs(expected - actual) > TOL) error stop
+
+        print *, "Benchmark: ", n_iter, " evaluations took ", t_elapsed, " seconds"
+        print *, "Average evaluation time: ", (t_elapsed / n_iter)*1.0d9, " nanoseconds per evaluation"
+
+    end subroutine bench_spline_1d
 
     subroutine test_spline_1d(spline_order, periodic)
         use interpolate
