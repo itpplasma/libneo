@@ -1,9 +1,10 @@
 program test_biotsavart
-    use libneo_kinds, only : dp
-    use math_constants, only: pi
     use util_for_test, only: print_test, print_ok, print_fail
 
     implicit none
+
+    integer, parameter :: dp = kind(1.0d0)
+    real(dp), parameter :: pi = 3.141592653589793238462643383279502884197d0
 
     character(*), parameter :: test_coils_file = "coils.test"
 
