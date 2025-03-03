@@ -1,7 +1,7 @@
 module neo_biotsavart
-use libneo_kinds, only : dp
 implicit none
 
+integer, parameter :: dp = kind(1.0d0)
 real(dp), parameter :: clight = 2.99792458d10
 
 
