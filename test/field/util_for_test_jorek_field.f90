@@ -1,7 +1,7 @@
 module util_for_test_jorek_field
-use libneo_kinds, only : dp
 implicit none
 
+integer, parameter :: dp = kind(1.0d0)
 
 real(dp), parameter :: Rmin = 1.0_dp, Rmax = 2.0_dp
 real(dp), parameter :: Zmin = -1.0_dp, Zmax = 1.0_dp
