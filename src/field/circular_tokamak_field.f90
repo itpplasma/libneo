@@ -1,7 +1,8 @@
 module neo_circular_tokamak_field
-    use libneo_kinds, only : dp
     use neo_field_base, only: field_t
     implicit none
+
+    integer, parameter :: dp = kind(1.0d0)
 
     type, extends(field_t) :: circular_tokamak_field_t
         real(dp) :: R_axis, Z_axis

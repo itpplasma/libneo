@@ -1,8 +1,9 @@
 program test_spline_field
-use libneo_kinds, only : dp
 use util_for_test, only: print_test, print_ok, print_fail
 use neo_spline_field, only: spline_field_t
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 call test_spline_field_from_file_init
 call test_spline_field_init

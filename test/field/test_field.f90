@@ -1,9 +1,10 @@
 program test_field
-use libneo_kinds, only : dp
 use util_for_test, only: print_test, print_ok, print_fail
 use neo_field, only: field_t, create_field
 
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 
 call test_create_example_field
