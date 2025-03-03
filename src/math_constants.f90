@@ -29,16 +29,16 @@ module math_constants
 
   ! Masses of some particles/atoms. Atoms get designated with m\_ and
   ! symbol (e.g. D for deuterium).
-  real(dp), parameter, public :: m_e = 9.1093837139e-28 !< Electron mass [g]
-  real(dp), parameter, public :: m_p = 1.672621637e-24 !< Proton mass [g]
-  real(dp), parameter, public :: m_a = 6.644656200e-24 !< alpha particle mass [g]
-  real(dp), parameter, public :: m_D = 3.343583719e-24 !< Deuterium mass [g]
-  real(dp), parameter, public :: m_C = 19.94406876e-24 !< Carbon mass [g]
-  real(dp), parameter, public :: m_W = 305.2734971e-24 !< Tungsten mass [g]
+  real(dp), parameter, public :: m_e = 9.1093837139d-28 !< Electron mass [g]
+  real(dp), parameter, public :: m_p = 1.672621637d-24 !< Proton mass [g]
+  real(dp), parameter, public :: m_a = 6.644656200d-24 !< alpha particle mass [g]
+  real(dp), parameter, public :: m_D = 3.343583719d-24 !< Deuterium mass [g]
+  real(dp), parameter, public :: m_C = 19.94406876d-24 !< Carbon mass [g]
+  real(dp), parameter, public :: m_W = 305.2734971d-24 !< Tungsten mass [g]
 
   ! Mass ratios.
-  real(dp), parameter, public :: mc_o_e  = 5.6856793e-8 !< cgs
-  real(dp), parameter, public :: mc_o_2e = 2.8428397e-8 !< cgs
+  real(dp), parameter, public :: mc_o_e  = 5.6856793d-8 !< cgs
+  real(dp), parameter, public :: mc_o_2e = 2.8428397d-8 !< cgs
   real(dp), parameter, public :: e_o_mc  = 1.7588048e7  !< cgs
 
   ! Conversion of units.

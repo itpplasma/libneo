@@ -1,11 +1,11 @@
 program test_biotsavart
     use libneo_kinds, only : dp
+    use math_constants, only: pi
     use util_for_test, only: print_test, print_ok, print_fail
 
     implicit none
 
     character(*), parameter :: test_coils_file = "coils.test"
-    real(8), parameter :: pi = 3.14159265358979323846d0
 
     real(dp), parameter :: large_distance = 1.0d3
 

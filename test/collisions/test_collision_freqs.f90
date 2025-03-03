@@ -1,6 +1,6 @@
 program test_collision_freqs
 
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
     use libneo_collisions, only: calc_perp_coll_freq_slow_limit_ee, calc_perp_coll_freq_fast_limit_ee, &
         calc_coulomb_log, calc_perp_coll_freq
     use util_for_test, only: print_test, print_ok, print_fail
@@ -25,7 +25,7 @@ program test_collision_freqs
         type(species_t) :: species_a, species_b
 
         integer :: interaction_type
-        real(kind=real_kind) :: coulomb_log
+        real(dp) :: coulomb_log
 
         call print_test("test_calc_coulomb_log")
 
@@ -81,7 +81,7 @@ program test_collision_freqs
 
         ! case 3
         species_a%temp = 0.1d0
-        
+
         call calc_coulomb_log(interaction_type, species_a, species_b, coulomb_log)
         print *, "interaction_type ", interaction_type, ", case 3: ", "coulomb_log = ", coulomb_log
         if (abs(coulomb_log - 10.7021790072942) > 1e-6) then ! number is for the parameters above
@@ -120,7 +120,7 @@ program test_collision_freqs
         integer, parameter :: num_species = 2
         type(species_t) :: species_arr(num_species)
         integer :: i, j
-        real(kind=real_kind), dimension(2,2) :: coulomb_log_comparison
+        real(dp), dimension(2,2) :: coulomb_log_comparison
 
         coulomb_log_comparison = reshape([15.940948099344892, 15.940952174520840, 15.940952174520840, &
             18.048256223731936], [2, 2])
@@ -137,7 +137,7 @@ program test_collision_freqs
             do j=1, num_species
                 print *, "coulomb_log(", i, ",", j, ") = ", species_arr(i)%coulomb_log(j), &
                     " compared to ", coulomb_log_comparison(i, j)
-                if (abs(species_arr(i)%coulomb_log(j) - coulomb_log_comparison(i,j)) > 1e-6) then 
+                if (abs(species_arr(i)%coulomb_log(j) - coulomb_log_comparison(i,j)) > 1e-6) then
                     call print_fail
                     stop "coulomb_log not correct"
                 else
@@ -157,8 +157,8 @@ program test_collision_freqs
 
         type(species_t) :: species_a, species_b
         integer :: interaction_type
-        real(kind=real_kind) :: coulomb_log, coll_freq, vel
-        
+        real(dp) :: coulomb_log, coll_freq, vel
+
         call print_test("test_calc_perp_coll_freq")
 
         ! electron-electron interaction
@@ -242,8 +242,8 @@ program test_collision_freqs
     subroutine test_calc_perp_coll_freq_fast_limit
 
         implicit none
-        real(kind=real_kind) :: vel, dens_e, coulomb_log
-        real(kind=real_kind) :: coll_freq
+        real(dp) :: vel, dens_e, coulomb_log
+        real(dp) :: coll_freq
 
         vel = 1.0d8
         dens_e = 1.0d13
