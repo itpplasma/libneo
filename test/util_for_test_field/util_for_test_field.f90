@@ -1,6 +1,6 @@
 module util_for_test_field
-use libneo_kinds, only : dp
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 
 contains
