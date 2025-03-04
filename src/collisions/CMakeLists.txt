@@ -9,7 +9,7 @@ if (NOT fortran_stdlib_FOUND)
 
     set(prefix "${CMAKE_BINARY_DIR}/fortran_stdlib")
     set(FORTRAN_STDLIB_LIBRARY ${prefix}/install/lib/libfortran_stdlib.a)
-    set(FORTRAN_STDLIB_INCLUDE_DIR ${prefix}/install/include/fortran_stdlib/GNU-12.2.0/)
+    set(FORTRAN_STDLIB_INCLUDE_DIR ${prefix}/install/include/fortran_stdlib/${CMAKE_Fortran_COMPILER_ID}-${CMAKE_Fortran_COMPILER_VERSION}/)
 
     execute_process(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${FORTRAN_STDLIB_INCLUDE_DIR}
