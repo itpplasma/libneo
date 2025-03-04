@@ -1,6 +1,6 @@
 module neo_mesh
-use, intrinsic :: iso_fortran_env, only: dp => real64
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 type :: mesh_t
     real(dp), dimension(:), allocatable :: x1, x2, x3
@@ -68,5 +68,5 @@ subroutine mesh_deinit(self)
     self%dx3 = 0.0_dp
     self%is_periodic = .false.
 end subroutine mesh_deinit
-    
+
 end module neo_mesh

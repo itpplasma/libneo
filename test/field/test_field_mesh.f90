@@ -1,7 +1,8 @@
 program test_field_mesh
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use util_for_test, only: print_test, print_ok, print_fail
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 call test_field_mesh_init_with_field
 call test_field_mesh_init_with_field_default

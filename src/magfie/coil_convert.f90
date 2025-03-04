@@ -1,6 +1,5 @@
 program coil_convert
-
-  use iso_fortran_env, only: dp => real64, error_unit
+  use iso_fortran_env, only: error_unit
   use coil_tools, only: coil_t, coil_init, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
     coils_write_AUG, coils_read_AUG, coils_write_Nemov, coils_read_Nemov, &

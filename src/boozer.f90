@@ -69,15 +69,15 @@ contains
   !> writes data to the file
   subroutine write_boozer_head(iunit, mpol, ntor, nsurf, nper, &
                              & flux, rminor, rmajor, gfile)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     integer, intent(in) :: iunit
     integer, intent(in) :: mpol, ntor, nsurf, nper
 
-    real(kind=real_kind), intent(in) :: flux
-    real(kind=real_kind), intent(in) :: rminor, rmajor
+    real(dp), intent(in) :: flux
+    real(dp), intent(in) :: rminor, rmajor
 
     character(len=100), intent(in) :: gfile
 
@@ -122,13 +122,13 @@ contains
   !> -------------
   !> writes data to the file
   subroutine write_boozer_block_head_current(iunit, s, iota, Jpol_over_nper, Itor, pprime, sqrt_g)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     integer, intent(in) :: iunit
 
-    real(kind=real_kind), intent(in) :: s, iota, &
+    real(dp), intent(in) :: s, iota, &
         & Jpol_over_nper, Itor, pprime, sqrt_g
 
     write(iunit,*) '        s               iota           Jpol/nper          Itor            pprime         sqrt g(0,0)'
@@ -169,14 +169,14 @@ contains
   !> -------------
   !> writes data to the file
   subroutine write_boozer_block_head(iunit, s, iota, bsubvB, bsubuB, pprime, vp, enfp)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
     use math_constants, only : MU_0, PI
 
     implicit none
 
     integer, intent(in) :: iunit
     integer, intent(in) :: enfp
-    real(kind=real_kind), intent(in) :: s, iota, bsubvB, bsubuB, &
+    real(dp), intent(in) :: s, iota, bsubvB, bsubuB, &
         & pprime, vp
 
     call write_boozer_block_head_current(iunit, s, iota, &
@@ -222,14 +222,14 @@ contains
   !> writes data to the file
   subroutine write_boozer_block_data(iunit, total_number_modes, &
       & m, n, Rmn_c, Rmn_s, Zmn_c, Zmn_s, almn_c, almn_s, Bmn_c, Bmn_s)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     integer, intent(in) :: iunit
     integer, intent(in) :: total_number_modes
     integer, dimension(1:total_number_modes), intent(in) :: m, n
-    real(kind=real_kind), dimension(1:total_number_modes), intent(in) :: &
+    real(dp), dimension(1:total_number_modes), intent(in) :: &
         & Rmn_c, Rmn_s, Zmn_c, Zmn_s, almn_c, almn_s, Bmn_c, Bmn_s
 
     integer k
@@ -265,20 +265,20 @@ contains
 
   !> \brief Get data required for boozer header from vmec file.
   subroutine getHeadDataVmecNc(infilename, nfp, psi_tor_a, a, R0, m0b, n0b)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
     use nctools_module, only : nc_get, nc_inq_dim, nc_open
 
     implicit none
 
     character(len=100), intent(in) :: infilename
-    real(kind=real_kind), intent(out) :: psi_tor_a, a, R0
+    real(dp), intent(out) :: psi_tor_a, a, R0
     integer, intent(out) :: nfp, m0b, n0b
 
     integer :: fileunit
     integer :: empol, entor
     integer :: size_m, size_n
     integer, dimension(:), allocatable :: m,n
-    real(kind=real_kind), dimension(:), allocatable :: phipf
+    real(dp), dimension(:), allocatable :: phipf
 
 
     call nc_open(infilename, fileunit)

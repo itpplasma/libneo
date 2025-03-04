@@ -1,15 +1,15 @@
 subroutine spl_five_reg(n,h,a,b,c,d,e,f)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: n,i,ip1
-  real(kind=real_kind) :: h,rhop,rhom,fac
-  real(kind=real_kind) :: a11,a12,a13,a21,a22,a23,a31,a32,a33,b1,b2,b3,det
-  real(kind=real_kind) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
-  real(kind=real_kind) :: aend,bend,cend,dend,eend,fend
-  real(kind=real_kind), dimension(n) :: a,b,c,d,e,f
-  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
+  real(dp) :: h,rhop,rhom,fac
+  real(dp) :: a11,a12,a13,a21,a22,a23,a31,a32,a33,b1,b2,b3,det
+  real(dp) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
+  real(dp) :: aend,bend,cend,dend,eend,fend
+  real(dp), dimension(n) :: a,b,c,d,e,f
+  real(dp), dimension(:), allocatable :: alp,bet,gam
 
   rhop=13.d0+sqrt(105.d0)
   rhom=13.d0-sqrt(105.d0)
@@ -139,15 +139,15 @@ end subroutine spl_five_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine spl_five_per(n,h,a,b,c,d,e,f)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: n,i,ip1
-  real(kind=real_kind) :: h,rhop,rhom,fac,xplu,xmin,gammao_p,gammao_m_redef
-  real(kind=real_kind) :: dummy
-  real(kind=real_kind), dimension(n) :: a,b,c,d,e,f
-  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
+  real(dp) :: h,rhop,rhom,fac,xplu,xmin,gammao_p,gammao_m_redef
+  real(dp) :: dummy
+  real(dp), dimension(n) :: a,b,c,d,e,f
+  real(dp), dimension(:), allocatable :: alp,bet,gam
 
   rhop=13.d0+sqrt(105.d0)
   rhom=13.d0-sqrt(105.d0)
@@ -255,14 +255,14 @@ end subroutine spl_five_per
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine spl_four_reg(n,h,a,b,c,d,e)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: n,i,ip1
-  real(kind=real_kind) :: h,fac,fpl31,fpl40,fmn31,fmn40
-  real(kind=real_kind), dimension(n) :: a,b,c,d,e
-  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
+  real(dp) :: h,fac,fpl31,fpl40,fmn31,fmn40
+  real(dp), dimension(n) :: a,b,c,d,e
+  real(dp), dimension(:), allocatable :: alp,bet,gam
 
   allocate(alp(n),bet(n),gam(n))
 
@@ -325,14 +325,14 @@ end subroutine spl_four_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine spl_four_per(n,h,a,b,c,d,e)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: n,i,ip1
-  real(kind=real_kind) :: h,fac,base1,base2,phi1,phi2,phi
-  real(kind=real_kind), dimension(n) :: a,b,c,d,e
-  real(kind=real_kind), dimension(:), allocatable :: alp,bet,gam
+  real(dp) :: h,fac,base1,base2,phi1,phi2,phi
+  real(dp), dimension(n) :: a,b,c,d,e
+  real(dp), dimension(:), allocatable :: alp,bet,gam
 
   allocate(alp(n),bet(n),gam(n))
 
@@ -417,17 +417,17 @@ SUBROUTINE splreg(n,h,y,bi,ci,di)
   !         y(n)                y-values
   ! Output: bi(n),ci(n),di(n)   Spline parameters
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   IMPLICIT NONE
 
   INTEGER,                     INTENT(in)  :: n
-  real(kind=real_kind),               INTENT(in)  :: h
-  real(kind=real_kind), DIMENSION(n), INTENT(in)  :: y
-  real(kind=real_kind), DIMENSION(n), INTENT(out) :: bi, ci, di
+  real(dp),               INTENT(in)  :: h
+  real(dp), DIMENSION(n), INTENT(in)  :: y
+  real(dp), DIMENSION(n), INTENT(out) :: bi, ci, di
 
-  real(kind=real_kind) :: ak1, ak2, am1, am2, c, e, c1
-  real(kind=real_kind), DIMENSION(:), ALLOCATABLE :: al, bt
+  real(dp) :: ak1, ak2, am1, am2, c, e, c1
+  real(dp), DIMENSION(:), ALLOCATABLE :: al, bt
   INTEGER                                  :: k, n2, i, i5
 
   ALLOCATE ( al(n), bt(n) )
@@ -471,18 +471,18 @@ SUBROUTINE splper(n,h,y,bi,ci,di)
   !         h                   step size in x (equidistant)
   !         y(n)                y-values
   ! Output: bi(n),ci(n),di(n)   Spline parameters
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   IMPLICIT NONE
 
   INTEGER,                     INTENT(in)  :: n
-  real(kind=real_kind), INTENT(in)  :: h
-  real(kind=real_kind), DIMENSION(n), INTENT(in)  :: y
-  real(kind=real_kind), DIMENSION(n), INTENT(out) :: bi, ci, di
+  real(dp), INTENT(in)  :: h
+  real(dp), DIMENSION(n), INTENT(in)  :: y
+  real(dp), DIMENSION(n), INTENT(out) :: bi, ci, di
 
-  real(kind=real_kind) :: psi, ss
-  real(kind=real_kind), DIMENSION(:), ALLOCATABLE :: bmx, yl
-  real(kind=real_kind), DIMENSION(:), ALLOCATABLE :: amx1, amx2, amx3
+  real(dp) :: psi, ss
+  real(dp), DIMENSION(:), ALLOCATABLE :: bmx, yl
+  real(dp), DIMENSION(:), ALLOCATABLE :: amx1, amx2, amx3
   INTEGER                                  :: nmx, n1, n2, i, i1
 
   ALLOCATE ( bmx(n), yl(n), amx1(n), amx2(n), amx3(n) )
@@ -539,13 +539,13 @@ END SUBROUTINE splper
 !=====================================================
 SUBROUTINE spfper(np1,amx1,amx2,amx3)
   ! Helper routine for splfi
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   IMPLICIT NONE
 
   INTEGER,                       INTENT(in)  :: np1
-  real(kind=real_kind), DIMENSION(np1), INTENT(out) :: amx1, amx2, amx3
-  real(kind=real_kind) :: beta, ss
+  real(dp), DIMENSION(np1), INTENT(out) :: amx1, amx2, amx3
+  real(dp) :: beta, ss
   INTEGER                                    :: n, n1, i, i1
 
   n = np1-1
@@ -584,14 +584,14 @@ subroutine spl_reg(ns,n,h,splcoe)
   ! n               - number of data points
   ! h               - abscissa step size
   ! splcoe(0:ns,n)  - spline coefficients; coefficient splcoe(0,:) are the input (function to spline)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: ns,n
-  real(kind=real_kind) :: h
-  real(kind=real_kind), dimension(0:ns,n) :: splcoe
-  real(kind=real_kind), dimension(:), allocatable :: a,b,c,d,e,f
+  real(dp) :: h
+  real(dp), dimension(0:ns,n) :: splcoe
+  real(dp), dimension(:), allocatable :: a,b,c,d,e,f
 integer :: i
 
   if(ns.eq.3) then
@@ -647,14 +647,14 @@ subroutine spl_per(ns,n,h,splcoe)
   ! n               - number of data points
   ! h               - abscissa step size
   ! splcoe(0:ns,n)  - spline coefficients; coefficient splcoe(0,:) are the input (function to spline)
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: ns,n
-  real(kind=real_kind) :: h
-  real(kind=real_kind), dimension(0:ns,n) :: splcoe
-  real(kind=real_kind), dimension(:), allocatable :: a,b,c,d,e,f
+  real(dp) :: h
+  real(dp), dimension(0:ns,n) :: splcoe
+  real(dp), dimension(:), allocatable :: a,b,c,d,e,f
 
   if(ns.eq.3) then
     allocate(a(n),b(n),c(n),d(n))

@@ -33,22 +33,22 @@ subroutine vmecin(rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,axm,axn,s, &
   !  almns(nstrm,0:kpar)     - (double precision) profiles of Fourier
   !  amplitudes of lambda for various sin(m*theta - n*phi) harmonics
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use math_constants, only : PI
   use new_vmec_stuff_mod, only : netcdffile, vmec_B_scale, vmec_RZ_scale
   use nctools_module, only : nc_open, nc_close, nc_get
 
   implicit none
 
-  real(kind=real_kind), parameter :: fac_b0 = 1d4, fac_r0 = 1d2
-  real(kind=real_kind) :: fac_b, fac_r
+  real(dp), parameter :: fac_b0 = 1d4, fac_r0 = 1d2
+  real(dp) :: fac_b, fac_r
 
   integer :: nsurfb,nstrb,kparb,ncid,i
-  real(kind=real_kind) :: flux
-  real(kind=real_kind), dimension(nstrb)         :: axm,axn
-  real(kind=real_kind), dimension(0:kparb)       :: sps,aiota,phi,s
-  real(kind=real_kind), dimension(nstrb,0:kparb) :: rmnc,zmnc,almnc,lmnc
-  real(kind=real_kind), dimension(nstrb,0:kparb) :: rmns,zmns,almns,lmns
+  real(dp) :: flux
+  real(dp), dimension(nstrb)         :: axm,axn
+  real(dp), dimension(0:kparb)       :: sps,aiota,phi,s
+  real(dp), dimension(nstrb,0:kparb) :: rmnc,zmnc,almnc,lmnc
+  real(dp), dimension(nstrb,0:kparb) :: rmns,zmns,almns,lmns
   integer :: lasym_int
   logical :: lasym
 
@@ -116,13 +116,13 @@ end subroutine vmecin
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine stevvo(RT0,R0i,L1i,cbfi,bz0i,bf0)
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use new_vmec_stuff_mod, only : nper,rmajor
 
   implicit none
 
   integer :: L1i
-  real(kind=real_kind) :: RT0,R0i,cbfi,bz0i,bf0
+  real(dp) :: RT0,R0i,cbfi,bz0i,bf0
 
   associate(dummy => R0i)
   end associate

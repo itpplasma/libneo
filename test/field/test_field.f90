@@ -1,9 +1,10 @@
 program test_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use util_for_test, only: print_test, print_ok, print_fail
 use neo_field, only: field_t, create_field
 
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 
 call test_create_example_field
@@ -129,7 +130,6 @@ subroutine test_create_jorek_field
 
     call print_ok
 end subroutine test_create_jorek_field
-    
+
 
 end program test_field
-

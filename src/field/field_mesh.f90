@@ -1,7 +1,7 @@
 module neo_field_mesh
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_mesh, only: mesh_t, mesh_init
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 type :: field_mesh_t
     type(mesh_t) :: A1, A2, A3, B1, B2, B3

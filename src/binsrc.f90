@@ -11,14 +11,14 @@ module binsrc_sub
   !   If xi <= p(nmin) then nmin+1 is returned.
   !   If xi >= p(nmax) then nmax is returned.
   subroutine binsrc(p, nmin, nmax, xi, i)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     integer, intent(in) :: nmin, nmax
     integer, intent(out) :: i
-    real(kind=real_kind), intent(in) :: xi
-    real(kind=real_kind), dimension(nmin:nmax), intent(in) :: p
+    real(dp), intent(in) :: xi
+    real(dp), dimension(nmin:nmax), intent(in) :: p
 
     integer :: n, imin, imax, k
 

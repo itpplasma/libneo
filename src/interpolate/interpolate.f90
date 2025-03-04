@@ -1,7 +1,7 @@
 module interpolate
-    use iso_fortran_env, only: dp => real64
 
     implicit none
+    integer, parameter :: dp = kind(1.0d0)
 
     type :: SplineData1D
         integer :: order

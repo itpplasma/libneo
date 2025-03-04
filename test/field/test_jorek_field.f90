@@ -1,10 +1,11 @@
 program test_jorek_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_jorek_field, only: jorek_field_t
 use util_for_test, only: print_test, print_ok, print_fail
 use util_for_test_jorek_field, only: get_filename, filename_len
 
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 call test_get_ranges_from_filename
 call test_jorek_field_init

@@ -1,8 +1,9 @@
 program test_biotsavart_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use util_for_test, only: print_test, print_ok, print_fail
 
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 
 call test_biotsavart_field_init
@@ -71,7 +72,7 @@ subroutine test_curla_equal_b
     call print_ok
 end subroutine test_curla_equal_b
 
-    
+
 subroutine create_straight_wire_coils_file(filename)
     use neo_biotsavart, only: coils_t, save_coils_to_file
 
