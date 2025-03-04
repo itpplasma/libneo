@@ -2,7 +2,7 @@
 !> constants, as it is sometimes hard to distinguish, e.g. for
 !> conversion factors.
 module math_constants
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
 
   real(dp), parameter :: PI = 3.141592653589793238462643383279502884197_dp
   !> \f[ \pi/2 \f]
@@ -17,7 +17,7 @@ module math_constants
   real(dp), parameter :: EULER = 0.5772156649015328606065120900824024310422_dp
 
   !> Imaginary unit:
-  complex(kind=complex_kind), parameter :: IMUN = (0.d0,1.d0)
+  complex(cdp), parameter :: IMUN = (0.d0,1.d0)
 
   ! Define physical constants (SI-units)
   real(dp), parameter, public :: MU_0 = 1.25663706212e-6_dp !< vacuum permeability [N A^-2]

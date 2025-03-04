@@ -248,14 +248,14 @@ contains
 
 
   subroutine write_boozer_block_data_complex(iunit, total_number_modes, m, n, rmn, zmn, vmn, bmn, enfp)
-    use libneo_kinds, only : complex_kind
+    use libneo_kinds, only : cdp
 
     implicit none
 
     integer, intent(in) :: iunit
     integer, intent(in) :: total_number_modes, enfp
     integer, dimension(1:total_number_modes), intent(in) :: m, n
-    complex(kind=complex_kind), dimension(1:total_number_modes), intent(in) :: &
+    complex(cdp), dimension(1:total_number_modes), intent(in) :: &
         & rmn, zmn, vmn, bmn
 
     call write_boozer_block_data(iunit, total_number_modes, m, n/enfp, &

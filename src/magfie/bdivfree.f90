@@ -5,7 +5,7 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
 
   use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,rmin,zmin,hr,hz,pmin,pfac,&
     rpoi,zpoi,apav,rbpav_coef,aznre,aznim,arnre,arnim
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
   use math_constants, only : PI
   use field_sub, only : stretch_coords
 
@@ -28,8 +28,8 @@ subroutine vector_potentials(nr_in,np_in,nz_in,ntor_in,      &
   real(dp), dimension(:,:), allocatable :: a_re, a_im, rbpav_dummy
   real(dp), dimension(:,:), allocatable :: brm,bpm,bzm
 
-  complex(kind=complex_kind) :: four_ampl
-  complex(kind=complex_kind), dimension(:,:), allocatable :: expon
+  complex(cdp) :: four_ampl
+  complex(cdp), dimension(:,:), allocatable :: expon
 
   integer, parameter :: mp=4 ! power of Lagrange polynomial =3
   integer,          dimension(mp)    :: indx,indy
@@ -239,14 +239,14 @@ subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
 
   use bdivfree_mod, only : nr,nz,icp,ipoint,hr,hz,&
       & rpoi,zpoi,aznre,aznim,arnre,arnim
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
 
   implicit none
 
   integer, intent(in) :: n
   real(dp), intent(in) :: r, z
-  complex(kind=complex_kind), intent(out) :: anr,anz,anr_r,anr_z,anz_r,anz_z
-  complex(kind=complex_kind), intent(out) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
+  complex(cdp), intent(out) :: anr,anz,anr_r,anr_z,anz_r,anz_z
+  complex(cdp), intent(out) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
 
   real(dp) :: f,fr,fz,frr,frz,fzz
   real(dp) :: g,gr,gz,grr,grz,gzz
@@ -256,37 +256,37 @@ subroutine spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
                 f,fr,fz,frr,frz,fzz,ierr)
   call spline(nr,nz,rpoi,zpoi,hr,hz,icp,arnim(:,:,:,n),ipoint,r,z,   &
               g,gr,gz,grr,grz,gzz,ierr)
-  anr=cmplx(f,g, kind=complex_kind)
-  anr_r=cmplx(fr,gr, kind=complex_kind)
-  anr_z=cmplx(fz,gz, kind=complex_kind)
-  anr_rr=cmplx(frr,grr, kind=complex_kind)
-  anr_rz=cmplx(frz,grz, kind=complex_kind)
-  anr_zz=cmplx(fzz,gzz, kind=complex_kind)
+  anr=cmplx(f,g, cdp)
+  anr_r=cmplx(fr,gr, cdp)
+  anr_z=cmplx(fz,gz, cdp)
+  anr_rr=cmplx(frr,grr, cdp)
+  anr_rz=cmplx(frz,grz, cdp)
+  anr_zz=cmplx(fzz,gzz, cdp)
   call spline(nr,nz,rpoi,zpoi,hr,hz,icp,aznre(:,:,:,n),ipoint,r,z,   &
               f,fr,fz,frr,frz,fzz,ierr)
   call spline(nr,nz,rpoi,zpoi,hr,hz,icp,aznim(:,:,:,n),ipoint,r,z,   &
               g,gr,gz,grr,grz,gzz,ierr)
-  anz=cmplx(f,g, kind=complex_kind)
-  anz_r=cmplx(fr,gr, kind=complex_kind)
-  anz_z=cmplx(fz,gz, kind=complex_kind)
-  anz_rr=cmplx(frr,grr, kind=complex_kind)
-  anz_rz=cmplx(frz,grz, kind=complex_kind)
-  anz_zz=cmplx(fzz,gzz, kind=complex_kind)
+  anz=cmplx(f,g, cdp)
+  anz_r=cmplx(fr,gr, cdp)
+  anz_z=cmplx(fz,gz, cdp)
+  anz_rr=cmplx(frr,grr, cdp)
+  anz_rz=cmplx(frz,grz, cdp)
+  anz_zz=cmplx(fzz,gzz, cdp)
 
 end subroutine spline_vector_potential_n
 
 
 subroutine spline_bpol_n(n, r, z, B_Rn, B_Zn)
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
 
   implicit none
 
   integer, intent(in) :: n
   real(dp), intent(in) :: r, z
-  complex(kind=complex_kind), intent(out) :: B_Rn, B_Zn
+  complex(cdp), intent(out) :: B_Rn, B_Zn
 
-  complex(kind=complex_kind) :: anr,anz,anr_r,anr_z,anz_r,anz_z
-  complex(kind=complex_kind) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
+  complex(cdp) :: anr,anz,anr_r,anr_z,anz_r,anz_z
+  complex(cdp) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
 
   call spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
     anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
@@ -296,22 +296,22 @@ end subroutine spline_bpol_n
 
 
 subroutine spline_bn(n, r, z, Bn_R, Bn_phi, Bn_Z)
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
 
   implicit none
 
   integer, intent(in) :: n
   real(dp), intent(in) :: r, z
-  complex(kind=complex_kind), intent(out) :: Bn_R, Bn_phi, Bn_Z
+  complex(cdp), intent(out) :: Bn_R, Bn_phi, Bn_Z
 
-  complex(kind=complex_kind) :: anr,anz,anr_r,anr_z,anz_r,anz_z
-  complex(kind=complex_kind) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
+  complex(cdp) :: anr,anz,anr_r,anr_z,anz_r,anz_z
+  complex(cdp) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
 
   call spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
     anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
-  Bn_R = cmplx(0.0,1.0, kind=complex_kind) * real(n, dp) * anz / r
+  Bn_R = cmplx(0.0,1.0, cdp) * real(n, dp) * anz / r
   Bn_phi = anr_z - anz_r
-  Bn_Z = -cmplx(0.0,1.0, kind=complex_kind) * real(n, dp) * anr / r
+  Bn_Z = -cmplx(0.0,1.0, cdp) * real(n, dp) * anr / r
 end subroutine spline_bn
 
 
@@ -321,7 +321,7 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
 
   use bdivfree_mod, only : nr,nz,ntor,icp,ipoint,hr,hz,pfac,&
       & rpoi,zpoi,apav,rbpav_coef
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
 
   implicit none
 
@@ -335,9 +335,9 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
   real(dp) :: deldBrdR,deldBrdp,deldBrdZ
   real(dp) :: deldBpdR,deldBpdp,deldBpdZ
   real(dp) :: deldBzdR,deldBzdp,deldBzdZ
-  complex(kind=complex_kind) :: expon,anr,anz,anr_r,anr_z,anz_r,anz_z
-  complex(kind=complex_kind) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
-  complex(kind=complex_kind) :: pfac_imaginary
+  complex(cdp) :: expon,anr,anz,anr_r,anr_z,anz_r,anz_z
+  complex(cdp) :: anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz
+  complex(cdp) :: pfac_imaginary
 
 
   call spline(nr,nz,rpoi,zpoi,hr,hz,icp,rbpav_coef,ipoint,r,z,         &
@@ -363,9 +363,9 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
     call spline_vector_potential_n(n, r, z, anr,anz,anr_r,anr_z,anz_r,anz_z, &
       anr_rr,anr_rz,anr_zz,anz_rr,anz_rz,anz_zz)
 
-    pfac_imaginary = cmplx(0.0, pfac, kind=complex_kind)
+    pfac_imaginary = cmplx(0.0, pfac, cdp)
 
-    expon=exp(cmplx(0.d0,n*pfac*phi, kind=complex_kind))
+    expon=exp(cmplx(0.d0,n*pfac*phi, cdp))
     delbr=2.d0*real(pfac_imaginary*n*anz*expon/r, dp)
     delbz=-2.d0*real(pfac_imaginary*n*anr*expon/r, dp)
     delbp=2.d0*real((anr_z-anz_r)*expon, dp)
@@ -1060,22 +1060,22 @@ end subroutine psithet_rz
 
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
 
   implicit none
 
   integer, intent(in) :: n
   real(dp), intent(in) :: h
-  complex(kind=complex_kind), dimension(n), intent(in) :: a
-  complex(kind=complex_kind), dimension(n), intent(out) :: b, c, d, e, f
+  complex(cdp), dimension(n), intent(in) :: a
+  complex(cdp), dimension(n), intent(out) :: b, c, d, e, f
 
   integer :: i,ip1
   real(dp) :: rhop,rhom,fac
   real(dp) :: a11,a12,a13,a21,a22,a23,a31,a32,a33,det
-  complex(kind=complex_kind) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
-  complex(kind=complex_kind) :: aend,bend,cend,dend,eend,fend
-  complex(kind=complex_kind) :: b1,b2,b3
-  complex(kind=complex_kind), dimension(:), allocatable :: alp,bet,gam
+  complex(cdp) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
+  complex(cdp) :: aend,bend,cend,dend,eend,fend
+  complex(cdp) :: b1,b2,b3
+  complex(cdp), dimension(:), allocatable :: alp,bet,gam
 
   rhop=13.d0+sqrt(105.d0)
   rhom=13.d0-sqrt(105.d0)
@@ -1221,7 +1221,7 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   use field_eq_mod,  only : dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use theta_rz_mod,  only : psiaxis
   use bdivfree_mod,  only : pfac
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
 
   implicit none
 
@@ -1240,9 +1240,9 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
 
   integer, dimension(:,:), allocatable :: idummy2
 
-  complex(kind=complex_kind) :: expon
-  complex(kind=complex_kind), dimension(:), allocatable :: a,b,c,d,e,f
-  complex(kind=complex_kind), dimension(:,:,:), allocatable :: apsimn,athetmn
+  complex(cdp) :: expon
+  complex(cdp), dimension(:), allocatable :: a,b,c,d,e,f
+  complex(cdp), dimension(:,:,:), allocatable :: apsimn,athetmn
 
   integer, save :: nper
 
@@ -1728,7 +1728,7 @@ subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
                                formfactors)
 
   use inthecore_mod, only : psi_sep,psi_cut
-  use libneo_kinds, only : complex_kind, dp
+  use libneo_kinds, only : cdp, dp
   use theta_rz_mod,  only : psiaxis
   use field_sub,   only : inthecore,localizer
 
@@ -1736,7 +1736,7 @@ subroutine smear_formfactors(nmodes_ff,nsqpsi_ff,sqpsimin_ff,sqpsimax_ff, &
 
   integer, intent(in) :: nmodes_ff,nsqpsi_ff
   real(dp), intent(in) :: sqpsimin_ff,sqpsimax_ff
-  complex(kind=complex_kind), dimension(nmodes_ff,nsqpsi_ff), intent(inout) :: formfactors
+  complex(cdp), dimension(nmodes_ff,nsqpsi_ff), intent(inout) :: formfactors
 
   real(dp) :: hsqpsi_ff,apsif
   real(dp) :: apsi_sep,apsi_cut,weight,dweight,ddweight

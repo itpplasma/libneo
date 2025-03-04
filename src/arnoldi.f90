@@ -7,19 +7,19 @@
 !> the module.
 !> Main work is done by the subroutine arnoldi.
 module arnoldi
-  use libneo_kinds, only : dp, complex_kind
+  use libneo_kinds, only : dp, cdp
 
   logical, save :: leigen=.false. !< Determines if eigenvectors should be calculated.
   integer, save :: ngrow,ierr
   real(dp), save :: tol !< Tolerance below which eigenvectors are no longer calculated.
-  complex(kind=complex_kind), dimension(:,:), allocatable :: eigvecs
+  complex(cdp), dimension(:,:), allocatable :: eigvecs
 
   abstract interface
     subroutine interface_next_iteration(n, old, new)
-      use libneo_kinds, only : complex_kind
+      use libneo_kinds, only : cdp
       integer, intent(in) :: n
-      complex(kind=complex_kind), dimension(n), intent(in) :: old
-      complex(kind=complex_kind), dimension(n), intent(out) :: new
+      complex(cdp), dimension(n), intent(in) :: old
+      complex(cdp), dimension(n), intent(out) :: new
     end subroutine interface_next_iteration
   end interface
 contains
@@ -111,18 +111,18 @@ contains
   !>                     ierr           - error code (0 - normal work, 1 - error)
   subroutine calc_ritz_eigenvalues(n,m,ritznum,next_iteration)
 
-    use libneo_kinds, only : complex_kind
+    use libneo_kinds, only : cdp
 
     implicit none
 
     procedure(interface_next_iteration) :: next_iteration
     integer, intent(in) :: n,m
-    complex(kind=complex_kind), dimension(m), intent(out) :: ritznum
+    complex(cdp), dimension(m), intent(out) :: ritznum
 
     integer :: k,j
 
-    complex(kind=complex_kind), dimension(:),   allocatable :: fold,fnew,fzero
-    complex(kind=complex_kind), dimension(:,:), allocatable :: qvecs,hmat,eigh
+    complex(cdp), dimension(:),   allocatable :: fold,fnew,fzero
+    complex(cdp), dimension(:,:), allocatable :: qvecs,hmat,eigh
 
     allocate(fold(n),fnew(n),fzero(n))
     fold=(0.d0,0.d0)
@@ -183,24 +183,24 @@ contains
   !>                  eigh     - eigenvectors
   !>                  ierr     - error code (0 - normal work)
   subroutine try_eigvecvals(m,tol,hmat,ngrow,ritznum,eigh,ierr)
-    use libneo_kinds, only : dp, complex_kind
+    use libneo_kinds, only : dp, cdp
 
     implicit none
 
     integer, intent(in) :: m
     integer, intent(out) :: ierr, ngrow
     real(dp), intent(in) :: tol
-    complex(kind=complex_kind), dimension(m), intent(out) :: ritznum
-    complex(kind=complex_kind), dimension(m,m), intent(in) :: hmat
-    complex(kind=complex_kind), dimension(m,m), intent(out) :: eigh
+    complex(cdp), dimension(m), intent(out) :: ritznum
+    complex(cdp), dimension(m,m), intent(in) :: hmat
+    complex(cdp), dimension(m,m), intent(out) :: eigh
 
     integer :: k,j,lwork,info
-    complex(kind=complex_kind)   :: tmp
+    complex(cdp)   :: tmp
     logical,          dimension(:),   allocatable :: selec
     integer,          dimension(:),   allocatable :: ifailr
     real(dp), dimension(:),   allocatable :: rwork
-    complex(kind=complex_kind),   dimension(:),   allocatable :: work,rnum
-    complex(kind=complex_kind),   dimension(:,:), allocatable :: hmat_work
+    complex(cdp),   dimension(:),   allocatable :: work,rnum
+    complex(cdp),   dimension(:,:), allocatable :: hmat_work
 
     print *,size(hmat)
     print *,size(ritznum)

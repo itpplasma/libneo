@@ -1,6 +1,6 @@
 subroutine spline_vmec_data
 
-  use libneo_kinds, only : dp, complex_kind
+  use libneo_kinds, only : dp, cdp
   use math_constants, only : TWOPI
 
   use new_vmec_stuff_mod, only : rmnc,zmns,almns,rmns,zmnc,almnc,aiota,phi,sps,&
@@ -13,11 +13,11 @@ subroutine spline_vmec_data
   integer :: i,k,m,n,is,i_theta,i_phi,m_max,n_max,nsize_exp_imt,nsize_exp_inp,iexpt,iexpp
   integer :: ist,isp,nrho,nheal,iunit_hs
   real(dp) :: cosphase,sinphase
-  complex(kind=complex_kind) :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
+  complex(cdp) :: base_exp_imt,base_exp_inp,base_exp_inp_inv,expphase
   real(dp), dimension(:,:), allocatable :: splcoe
   real(dp), dimension(:,:), allocatable :: almnc_rho,rmnc_rho,zmnc_rho
   real(dp), dimension(:,:), allocatable :: almns_rho,rmns_rho,zmns_rho
-  complex(kind=complex_kind), dimension(:), allocatable :: exp_imt,exp_inp
+  complex(cdp), dimension(:), allocatable :: exp_imt,exp_inp
 
   print *,'Splining VMEC data: ns_A = ',ns_A,'  ns_s = ',ns_s,'  ns_tp = ',ns_tp
 
