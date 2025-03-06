@@ -100,6 +100,60 @@ def read_eqdsk(filename):
 
         return eqdata
 
+import numpy as np
+
+def write_eqdsk(filename, eqdata):
+    def write_field(fobj, value):
+        fobj.write(f"{float(value):16.8E}")
+
+    def write_array(fobj, arr):
+        arr = np.atleast_1d(arr)
+        for i, val in enumerate(arr):
+            write_field(fobj, val)
+            if (i + 1) % 5 == 0:
+                fobj.write("\n")
+        if len(arr) % 5 != 0:
+            fobj.write("\n")
+
+    with open(filename, 'w') as f:
+        f.write(eqdata['header'][:48])
+
+        f.write(f" 0 {eqdata['nrgr']} {eqdata['nzgr']}\n")
+
+        write_field(f, eqdata['rboxlength'])
+        write_field(f, eqdata['zboxlength'])
+        write_field(f, eqdata['R0'])
+        write_field(f, eqdata['rboxleft'])
+        write_field(f, eqdata['zboxmid'])
+        f.write("\n")
+
+        write_field(f, eqdata['Rpsi0'])
+        write_field(f, eqdata['Zpsi0'])
+        write_field(f, eqdata['PsiaxisVs'])
+        write_field(f, eqdata['PsiedgeVs'])
+        write_field(f, eqdata['Btor_at_R0'])
+        f.write("\n")
+
+        write_field(f, eqdata['Ip'])
+        f.write("\n")
+
+        f.write("\n")
+
+        write_array(f, eqdata['fprof'])
+        write_array(f, eqdata['ptotprof'])
+        write_array(f, eqdata['fdfdpsiprof'])
+        write_array(f, eqdata['dpressdpsiprof'])
+
+        write_array(f, eqdata['PsiVs'].flatten())
+
+        write_array(f, eqdata['qprof'])
+
+        f.write(f"{eqdata['npbound']} {eqdata['nplimiter']}\n")
+
+        write_array(f, eqdata['Lcfs'].flatten())
+
+        write_array(f, eqdata['Limiter'].flatten())
+
 
 def plot_poloidal_flux(eqdsks: list, labels: list, n_levels: int=10):
     eqdsks = make_to_list_if_not(eqdsks)
