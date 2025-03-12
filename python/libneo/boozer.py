@@ -40,7 +40,7 @@ def get_boozer_transform(stor, num_theta):
         B0.append(CubicSpline(th_boozers, B0_temp, bc_type='periodic'))
         theta_boozers[ks, :] = th_boozers
         theta_geoms[ks,:] = th_geoms
-        
+
     return dth_of_thb, G_of_thb, theta_boozers, theta_geoms, theta_symflux, B0
 
 
@@ -56,10 +56,10 @@ def get_angles_G_and_B0(s, num_theta):
 
     for th_symflux in theta_symflux:
         inp_label = 1
-        (q, _, _, _, _, 
+        (q, _, _, _, _,
         B0mod_temp, _,
-        R, _, _, 
-        Z, _, _, 
+        R, _, _,
+        Z, _, _,
         G, _, _,
         ) = efit_to_boozer.efit_to_boozer.magdata(inp_label, s, psi, th_symflux)
         Gs.append(G)
@@ -68,7 +68,7 @@ def get_angles_G_and_B0(s, num_theta):
           Z*length_cgs_to_si - Z_axis,
           R*length_cgs_to_si - R_axis))
         B0mod.append(B0mod_temp)
-    
+
     Gs = np.array(Gs)
     Gs = np.append(Gs, Gs[0])
 
@@ -77,7 +77,7 @@ def get_angles_G_and_B0(s, num_theta):
 
     return th_boozers, th_geoms, theta_symflux, Gs, B0mod
 
-  
+
 def get_sign_dependent_thetas(th_geoms, th_boozers):
 
   th_boozers = np.unwrap(th_boozers)
@@ -92,12 +92,12 @@ def get_sign_dependent_thetas(th_geoms, th_boozers):
   if monotone_sign_boozers == monotone_sign_geoms:
     sign = -1
   else:
-    sign = 1 
+    sign = 1
 
   dth= th_geoms + sign * th_boozers
 
   return dth, th_boozers, th_geoms
-  
+
 
 
 def get_B0_of_s_theta_boozer(stor, num_theta):
@@ -178,7 +178,7 @@ def get_boozer_harmonics(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_t
   return fmn / ((num_theta) * (num_phi))
 
 def get_thgeoms_phs(ns, num_theta, num_phi, dth_of_thb, G_of_thb):
-  
+
   th_geoms = np.zeros((ns - 1, num_theta))
   phs = np.zeros((ns - 1, num_theta, num_phi))
 
@@ -228,8 +228,8 @@ def get_boozer_harmonics_divide_f_by_B0(f, stor, num_theta, num_phi, m0b, n, dth
 
 def get_boozer_harmonics_divide_f_by_B0_1D(f, stor, num_theta, num_phi, m0b, n, dth_of_thb, G_of_thb):
   """
-  f_n(stor, th_geom) of normalized toroidal flux and geometric poloidal angle for given 
-  toroidal mode number n (also in geometric angle). Takes also the transformation from 
+  f_n(stor, th_geom) of normalized toroidal flux and geometric poloidal angle for given
+  toroidal mode number n (also in geometric angle). Takes also the transformation from
   geometric to Boozer angle in toroidal direction into account (additional phase factor
   depending on G(\vatheta_B)).
 
@@ -261,9 +261,9 @@ def get_boozer_harmonics_divide_f_by_B0_1D(f, stor, num_theta, num_phi, m0b, n, 
 
 def get_boozer_harmonics_divide_f_by_B0_1D_fft(f, stor, num_theta, n, dth_of_thb=None, G_of_thb=None):
   """
-  f_n(ind_stor, th_geom) of normalized toroidal flux (index is used as argument!) and 
-  geometric poloidal angle for given 
-  toroidal mode number n (also in geometric angle). Takes also the transformation from 
+  f_n(ind_stor, th_geom) of normalized toroidal flux (index is used as argument!) and
+  geometric poloidal angle for given
+  toroidal mode number n (also in geometric angle). Takes also the transformation from
   geometric to Boozer angle in toroidal direction into account (additional phase factor
   depending on G(\vatheta_B)).
 
@@ -274,7 +274,7 @@ def get_boozer_harmonics_divide_f_by_B0_1D_fft(f, stor, num_theta, n, dth_of_thb
   ns = stor.shape[0]
   fmn = np.zeros((ns - 1, 2*num_theta+1), dtype=complex)
 
-  if dth_of_thb==None or G_of_thb==None:  
+  if dth_of_thb==None or G_of_thb==None:
     dth_of_thb, G_of_thb, theta_boozers, th_geoms, theta_symflux, B0 = get_boozer_transform(stor, num_theta)
 
   for js, _ in enumerate(stor[:-1]):
@@ -375,12 +375,12 @@ def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, b
 
 def append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc, enfp):
   from numpy import array, int32
-  _append_boozer_block_stellerator_symmetry(filename, 
-                                            mb, 
+  _append_boozer_block_stellerator_symmetry(filename,
+                                            mb,
                                             array(nb/enfp, dtype=int32),
-                                            rmnc, 
-                                            zmns, 
-                                            vmns, 
+                                            rmnc,
+                                            zmns,
+                                            vmns,
                                             bmnc)
 
 def _append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc):
@@ -388,6 +388,13 @@ def _append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns
     f.write('    m    n      rmnc [m]         zmns [m]  '+
             '       vmns [ ]         bmnc [T]\n')
     for k in range(len(mb)):
+      if mb[k] == 0 and nb[k] != 0:
+        f.write(' {:4d} {:4d}'.format(mb[k], -nb[k]))
+        f.write(' {:16.8e}'.format(0.0))
+        f.write(' {:16.8e}'.format(0.0))
+        f.write(' {:16.8e}'.format(0.0))
+        f.write(' {:16.8e}'.format(0.0))
+        f.write('\n')
       f.write(' {:4d} {:4d}'.format(mb[k], nb[k]))
       f.write(' {:16.8e}'.format(rmnc[k]))
       f.write(' {:16.8e}'.format(zmns[k]))
