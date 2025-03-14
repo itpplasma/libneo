@@ -156,12 +156,9 @@ def write_eqdsk(filename, eqdata):
         write_array(f, eqdata['PsiVs'].flatten())
 
         write_array(f, eqdata['qprof'])
-        print("writing q profile to file")
-        print(eqdata['qprof'])
+        
         f.write(f"{eqdata['npbound']} {eqdata['nplimiter']}\n")
 
-        print("writing Lcfs to file")
-        print(eqdata['Lcfs'])
         write_array(f, eqdata['Lcfs'].flatten())
         
         write_array(f, eqdata['Limiter'].flatten())
