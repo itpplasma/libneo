@@ -75,6 +75,7 @@ include_directories(${NETCDFINCLUDE_DIR})
 link_directories(${NETCDFLIB_DIR})
 add_link_options(${NETCDF_FLIBS})
 
+# Libraries that libneo depends on
 add_subdirectory(src/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
@@ -88,7 +89,11 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(OpenMP REQUIRED)
 
+# Sources for libneo core
 include(CMakeSources.in)
+
+# Libraries that depend on libneo
+add_subdirectory(src/magfie)
 
 add_subdirectory(test)
 
