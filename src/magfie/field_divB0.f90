@@ -15,9 +15,9 @@ subroutine read_field_input(input_file)
   character(*), intent(in), optional :: input_file
 
   if (present(input_file)) then
-    open(iunit, file=input_file)
+    open(iunit, file=input_file, status='old', action='read')
   else
-    open(iunit, file='field_divB0.inp')
+    open(iunit, file='field_divB0.inp', status='old', action='read')
   end if
 
   read(iunit,*) ipert        ! 0=eq only, 1=vac, 2=vac+plas no derivatives,
@@ -821,7 +821,7 @@ subroutine stretch_coords(r,z,rm,zm)
     nrz = 0
     rad_w = 0.
     zet_w = 0.
-    open(iunit,file=trim(convexfile))
+    open(iunit, file=trim(convexfile), status='old', action='read')
     do i=1,nrzmx
       read(iunit,*,END=10)rad_w(i),zet_w(i)
       nrz = nrz + 1
