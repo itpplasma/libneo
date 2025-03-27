@@ -1,7 +1,7 @@
 module field_eq_mod
-  use libneo_kinds, only : dp
-
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   logical :: use_fpol = .true.                                      !<=18.12.18
   logical :: skip_read = .false.

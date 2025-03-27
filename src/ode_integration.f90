@@ -1,7 +1,7 @@
 module ode_integration
-  use libneo_kinds, only : dp
-
   implicit none
+
+  integer, parameter :: dp = kind(1.d0)
 
   private
 
