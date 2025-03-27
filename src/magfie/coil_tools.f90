@@ -1,6 +1,7 @@
 module coil_tools
 
-  use iso_fortran_env, only: dp => real64, error_unit
+  use iso_fortran_env, only : error_unit
+  use libneo_kinds, only : dp
 
   implicit none
 
@@ -39,7 +40,11 @@ contains
     omit_hi = 0
     if (present(excl_hi)) omit_hi = excl_hi
     step = (hi - lo) / dble(cnt - 1 + omit_lo + omit_hi)
-    linspace = lo + [(k * step, k = omit_lo, cnt - 1 + omit_lo)]
+    ! gfortran 14.2.1 thinks that the equivalent
+    ! implied do loop may be uninitialized here
+    do k = omit_lo, cnt - 1 + omit_lo
+      linspace(k) = lo + k * step
+    end do
     if (omit_hi == 0) linspace(cnt) = hi
   end function linspace
 

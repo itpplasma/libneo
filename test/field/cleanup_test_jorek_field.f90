@@ -1,5 +1,4 @@
 program cleanup_test_jorek_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use util_for_test, only: print_test, print_ok, print_fail
 use util_for_test_jorek_field, only: get_filename, remove_saved_filename
 
@@ -18,7 +17,7 @@ subroutine remove_mockup_jorek_output()
     logical :: exists
 
     call print_test("remove_mockup_jorek_output")
-    
+
     call get_filename(filename)
     open(newunit=unit_id, iostat=stat, file=filename, status='old')
     if (stat == 0) close(unit_id, status='delete')

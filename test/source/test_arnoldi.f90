@@ -4,21 +4,21 @@ program test_arnoldi
 #endif
 
   use arnoldi, only: calc_ritz_eigenvalues, leigen,ngrow,tol,eigvecs
-  use libneo_kinds, only : complex_kind
+  use libneo_kinds, only : cdp
 
   integer :: info
   integer :: ios
   integer, parameter :: nsize = 10
   integer ipiv(nsize)
-  complex(kind=complex_kind) :: amat(nsize,nsize), mmat(nsize,nsize)
-  complex(kind=complex_kind) :: bvec(nsize), yvec(nsize), xsol(nsize), xold(nsize), xnew(nsize)
+  complex(cdp) :: amat(nsize,nsize), mmat(nsize,nsize)
+  complex(cdp) :: bvec(nsize), yvec(nsize), xsol(nsize), xold(nsize), xnew(nsize)
   integer :: kit, maxit = 20
 
   ! for Arnoldi
   integer, parameter :: nritz = 8  ! for Arnoldi iterations
-  complex(kind=complex_kind), dimension(nritz) :: ritznum
-  complex(kind=complex_kind), allocatable, dimension(:) :: coefren
-  complex(kind=complex_kind), allocatable, dimension(:,:) :: amat2, bvec2
+  complex(cdp), dimension(nritz) :: ritznum
+  complex(cdp), allocatable, dimension(:) :: coefren
+  complex(cdp), allocatable, dimension(:,:) :: amat2, bvec2
 
 #ifdef PARALLEL
   call mpro%init()
@@ -116,20 +116,20 @@ program test_arnoldi
 contains
 
   subroutine next_iteration(n, hold, hnew)
-    use libneo_kinds, only : complex_kind
+    use libneo_kinds, only : cdp
 
     implicit none
 
     integer, intent(in) :: n
-    complex(kind=complex_kind), intent(in) :: hold(n)
-    complex(kind=complex_kind), intent(out) :: hnew(n)
+    complex(cdp), intent(in) :: hold(n)
+    complex(cdp), intent(out) :: hnew(n)
 
-    complex(kind=complex_kind) :: alpha, beta, x(n), y(n)
+    complex(cdp) :: alpha, beta, x(n), y(n)
 
     x = hold+yvec
-    y = cmplx(0d0,0d0,kind=complex_kind)
-    alpha = cmplx(1d0,0d0,kind=complex_kind)
-    beta = cmplx(0d0,0d0,kind=complex_kind)
+    y = cmplx(0d0,0d0,cdp)
+    alpha = cmplx(1d0,0d0,cdp)
+    beta = cmplx(0d0,0d0,cdp)
     call zgemv('N',n,n,alpha,mmat,n,x,1,beta,y,1)
     hnew = y
   end subroutine next_iteration

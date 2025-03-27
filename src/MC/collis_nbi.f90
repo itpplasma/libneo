@@ -17,12 +17,12 @@ subroutine coleff(s,p,dpp,dhh,fpeff)
   !                         deviation in Fokker-Planck eq.)
 
   use collis_alp
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: i
-  real(kind=real_kind) :: s,p,dpp,dhh,fpeff,plim,xbeta,dp,dh,dpd
+  real(dp) :: s,p,dpp,dhh,fpeff,plim,xbeta,dp0,dh,dpd
 
   i=min(ns,nint((ns-1)*s)+1)
   efcolf=efcolf_arr(:,i)
@@ -38,7 +38,7 @@ subroutine coleff(s,p,dpp,dhh,fpeff)
   do i=1,nsorts
     xbeta=p*velrat(i)
 
-    call onseff(xbeta,dp,dh,dpd)
+    call onseff(xbeta,dp0,dh,dpd)
 
     dpp=dpp+dp*efcolf(i)
     dhh=dhh+dh*efcolf(i)
@@ -50,37 +50,37 @@ subroutine coleff(s,p,dpp,dhh,fpeff)
 end subroutine coleff
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine onseff(v,dp,dh,dpd)
-  !  dp - dimensionless dpp
+subroutine onseff(v,dp0,dh,dpd)
+  !  dp0 - dimensionless dpp
   !  dh - dhh*p^2     (p - dmls)
-  !  dpd - (1/p)(d/dp)p^2*dp   (p - dmls)
+  !  dpd - (1/p)(d/dp)p^2*dp0   (p - dmls)
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   ! square root of pi
-  real(kind=real_kind), parameter :: sqp=1.7724538d0
+  real(dp), parameter :: sqp=1.7724538d0
   ! cons=4./(3.*sqrt(pi))
-  real(kind=real_kind), parameter :: cons=.75225278d0
-  real(kind=real_kind) :: v,dp,dh,dpd,v2,v3,ex,er
+  real(dp), parameter :: cons=.75225278d0
+  real(dp) :: v,dp0,dh,dpd,v2,v3,ex,er
 
   v2=v**2
   v3=v2*v
   if(v.lt.0.01d0) then
-    dp=cons*(1.d0-0.6d0*v2)
+    dp0=cons*(1.d0-0.6d0*v2)
     dh=cons*(1.d0-0.2d0*v2)
     dpd=2.d0*cons*(1.d0-1.2d0*v2)
   elseif(v.gt.6.d0) then
-    dp=1.d0/v3
+    dp0=1.d0/v3
     dh=(1.d0-0.5d0/v2)/v
     dpd=-1.d0/v3
   else
     ex=exp(-v2)/sqp
     er=erf(v)
-    dp=er/v3-2.d0*ex/v2
+    dp0=er/v3-2.d0*ex/v2
     dh=er*(1.d0-0.5d0/v2)/v+ex/v2
-    dpd=4.d0*ex-dp
+    dpd=4.d0*ex-dp0
   end if
 
 end subroutine onseff
@@ -118,14 +118,14 @@ subroutine loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,ebe
   !                         energy
 
   use collis_alp
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use math_constants, only : E, m_e, m_p, TWOPI
 
   implicit none
 
-  real(kind=real_kind) :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,ebeam,dense
-  real(kind=real_kind) :: v0,vti1,vti2,vte
-  real(kind=real_kind) :: ev,alame,frecol_base,alami1,alami2
+  real(dp) :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,ebeam,dense
+  real(dp) :: v0,vti1,vti2,vte
+  real(dp) :: ev,alame,frecol_base,alami1,alami2
 
   ev=1.6022d-12
 
@@ -179,15 +179,15 @@ subroutine stost(z,dtauc,iswmode,ierr)
   !               10 or >10 - new momentum module is less then
   !                   prescribed minimum, reflection was performed.
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   integer :: iswmode,ierr
-  real(kind=real_kind), parameter :: pmin=1.e-8
-  real(kind=real_kind) :: dtauc,s,p,dpp,dhh,fpeff,alam,dalam,coala
-  real(kind=real_kind), dimension(5) :: z
-  real(kind=real_kind) :: ur
+  real(dp), parameter :: pmin=1.e-8
+  real(dp) :: dtauc,s,p,dpp,dhh,fpeff,alam,dalam,coala
+  real(dp), dimension(5) :: z
+  real(dp) :: ur
 
   s=z(1)
   p=z(4)

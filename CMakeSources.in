@@ -60,47 +60,6 @@ set_target_properties(neo PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
-add_library(magfie STATIC
-
-    # BDIVFREE
-    src/magfie/amn_mod.f90
-    src/magfie/bdivfree.f90
-    src/magfie/bdivfree_mod.f90
-    src/magfie/inthecore_mod.f90
-    src/magfie/theta_rz_mod.f90
-    src/magfie/input_files.f90
-    src/magfie/field_eq_mod.f90
-    src/magfie/extract_fluxcoord_mod.f90
-    src/magfie/field_divB0.f90
-    src/magfie/period_mod.f90
-    src/magfie/field_c_mod.f90
-    src/magfie/field_mod.f90
-    src/magfie/spline5_RZ.f90
-    src/magfie/field_mesh3d.f90
-    src/magfie/magfield_mod.f90
-    src/magfie/polylag_3.f
-    src/magfie/magfie_cyl.f90
-    src/magfie/geqdsk_tools.f90
-    src/magfie/coil_tools.f90
-    src/fftw3.f90
-)
-target_link_libraries(magfie PRIVATE
-    neo
-    rkf45
-    netcdf
-    netcdff
-    hdf5_tools
-    FFTW::DoubleThreads
-    FFTW::Double
-    OpenMP::OpenMP_C
-    OpenMP::OpenMP_Fortran
-)
-set_target_properties(magfie PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-add_library(LIBNEO::magfie ALIAS magfie)
-
 add_library(mc_efit STATIC
     src/MC/alpha_lifetime_mod.f90
     src/MC/chamb_divB0.f90

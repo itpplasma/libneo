@@ -17,10 +17,8 @@ module libneo_kinds
   ! real kinds
   integer, parameter :: rp = kind(1.0)
   integer, parameter :: dp = kind(1.0d0)
-  integer, parameter :: real_kind=dp
 
   ! complex kinds
   integer, parameter :: crp = kind( (1.0, 1.0) )
   integer, parameter :: cdp = kind( (1.0d0, 1.0d0) )
-  integer, parameter :: complex_kind=cdp
 end module libneo_kinds

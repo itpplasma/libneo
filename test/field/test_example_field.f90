@@ -1,8 +1,9 @@
 program test_example_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use util_for_test, only: print_test, print_ok, print_fail
 
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 
 call test_example_field_init
@@ -123,5 +124,5 @@ subroutine test_compute_abfield
 
     call print_ok
 end subroutine test_compute_abfield
-    
+
 end program test_example_field

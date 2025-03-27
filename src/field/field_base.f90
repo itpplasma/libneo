@@ -1,6 +1,6 @@
 module neo_field_base
-use, intrinsic :: iso_fortran_env, only: dp => real64
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 type, abstract :: field_t
     contains

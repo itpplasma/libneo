@@ -1,6 +1,6 @@
 subroutine boozer_converter
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use binsrc_sub, only : binsrc
   use plag_coeff_sub, only : plag_coeff
   use vector_potentail_mod,   only : ns,hs
@@ -15,24 +15,24 @@ subroutine boozer_converter
 
   implicit none
 
-  real(kind=real_kind), parameter :: s_min=1.d-6, rho_min=sqrt(s_min)
+  real(dp), parameter :: s_min=1.d-6, rho_min=sqrt(s_min)
 
   integer :: i,k,i_rho,i_theta,i_phi,npoilag,nder,nshift,ibeg,iend,i_qua,nqua,ist,isp
-  real(kind=real_kind) :: s,theta,varphi,A_theta,A_phi,dA_theta_ds,dA_phi_ds,aiota,     &
+  real(dp) :: s,theta,varphi,A_theta,A_phi,dA_theta_ds,dA_phi_ds,aiota,     &
                       sqg,alam,dl_ds,dl_dt,dl_dp,Bctrvr_vartheta,Bctrvr_varphi,     &
                       Bcovar_r,Bcovar_vartheta,Bcovar_varphi
-  real(kind=real_kind) :: Bcovar_vartheta_B,Bcovar_varphi_B
-  real(kind=real_kind) :: denomjac,G00,Gbeg,aper,per_theta,per_phi,gridcellnum
-  real(kind=real_kind), dimension(:),   allocatable :: wint_t,wint_p,theta_V,theta_B,   &
+  real(dp) :: Bcovar_vartheta_B,Bcovar_varphi_B
+  real(dp) :: denomjac,G00,Gbeg,aper,per_theta,per_phi,gridcellnum
+  real(dp), dimension(:),   allocatable :: wint_t,wint_p,theta_V,theta_B,   &
                                                        phi_V,phi_B,aiota_arr,rho_tor
-  real(kind=real_kind), dimension(:,:), allocatable :: Bcovar_theta_V,Bcovar_varphi_V,  &
+  real(dp), dimension(:,:), allocatable :: Bcovar_theta_V,Bcovar_varphi_V,  &
                                                        bmod_Vg,alam_2D,         &
                                                        deltheta_BV_Vg,delphi_BV_Vg,     &
                                                        deltheta_BV_Bg,delphi_BV_Bg,     &
                                                        splcoe_r,splcoe_t,splcoe_p,coef, &
                                                        perqua_t,perqua_p
-  real(kind=real_kind), dimension(:,:,:),   allocatable :: perqua_2D,Gfunc
-  real(kind=real_kind), dimension(:,:,:,:), allocatable :: Bcovar_symfl
+  real(dp), dimension(:,:,:),   allocatable :: perqua_2D,Gfunc
+  real(dp), dimension(:,:,:,:), allocatable :: Bcovar_symfl
 
   nqua=6
 
@@ -491,7 +491,7 @@ subroutine splint_boozer_coord(r,vartheta_B,varphi_B,                           
                                      s_Bmod_B,s_Bcovar_r_B,                 &
                                      ns_max,derf1,derf2,derf3,              &
                                      use_B_r
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use math_constants, only : TWOPI
   use vector_potentail_mod, only : ns,hs,torflux,sA_phi
   use new_vmec_stuff_mod,   only : nper,ns_A
@@ -500,27 +500,27 @@ subroutine splint_boozer_coord(r,vartheta_B,varphi_B,                           
 
   implicit none
 
-  real(kind=real_kind), intent(inout) :: r
-  real(kind=real_kind), intent(in) :: vartheta_B, varphi_B
-  real(kind=real_kind), intent(out) :: A_phi, A_theta, &
+  real(dp), intent(inout) :: r
+  real(dp), intent(in) :: vartheta_B, varphi_B
+  real(dp), intent(out) :: A_phi, A_theta, &
       & dA_phi_dr, dA_theta_dr, d2A_phi_dr2, d3A_phi_dr3, &
       & B_vartheta_B, dB_vartheta_B, d2B_vartheta_B, &
       & B_varphi_B, dB_varphi_B, d2B_varphi_B, Bmod_B, B_r
 
-  real(kind=real_kind), dimension(3), intent(out) :: dBmod_B, dB_r
-  real(kind=real_kind), dimension(6), intent(out) :: d2Bmod_B, d2B_r
+  real(dp), dimension(3), intent(out) :: dBmod_B, dB_r
+  real(dp), dimension(6), intent(out) :: d2Bmod_B, d2B_r
 
   integer, parameter          :: mode_secders=1
 
   integer :: nstp,ns_A_p1,ns_s_p1
   integer :: k,is,i_theta,i_phi
 
-  real(kind=real_kind) :: ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
-  real(kind=real_kind) :: qua,dqua_dr,dqua_dt,dqua_dp
-  real(kind=real_kind) :: d2qua_dr2,d2qua_drdt,d2qua_drdp,d2qua_dt2,d2qua_dtdp,d2qua_dp2
-  real(kind=real_kind), dimension(ns_max)        :: sp_all,dsp_all_ds,dsp_all_dt
-  real(kind=real_kind), dimension(ns_max)        :: d2sp_all_ds2,d2sp_all_dsdt,d2sp_all_dt2
-  real(kind=real_kind), dimension(ns_max,ns_max) :: stp_all,dstp_all_ds,d2stp_all_ds2
+  real(dp) :: ds,dtheta,dphi,rho_tor,drhods,drhods2,d2rhods2m
+  real(dp) :: qua,dqua_dr,dqua_dt,dqua_dp
+  real(dp) :: d2qua_dr2,d2qua_drdt,d2qua_drdp,d2qua_dt2,d2qua_dtdp,d2qua_dp2
+  real(dp), dimension(ns_max)        :: sp_all,dsp_all_ds,dsp_all_dt
+  real(dp), dimension(ns_max)        :: d2sp_all_ds2,d2sp_all_dsdt,d2sp_all_dt2
+  real(dp), dimension(ns_max,ns_max) :: stp_all,dstp_all_ds,d2stp_all_ds2
 
 !$omp atomic
   icounter=icounter+1
@@ -878,7 +878,7 @@ subroutine delthe_delphi_BV(isw,r,vartheta,varphi,deltheta_BV,delphi_BV, &
                                      s_delt_delp_V,s_delt_delp_B,           &
                                      ns_max,derf1,                          &
                                      use_del_tp_B
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use math_constants, only : TWOPI
   use new_vmec_stuff_mod,   only : nper
   use chamb_mod,            only : rnegflag
@@ -886,22 +886,22 @@ subroutine delthe_delphi_BV(isw,r,vartheta,varphi,deltheta_BV,delphi_BV, &
   implicit none
 
   integer, intent(in) :: isw
-  real(kind=real_kind), intent(inout) :: r
-  real(kind=real_kind), intent(in) :: vartheta,varphi
-  real(kind=real_kind), intent(out) :: deltheta_BV,delphi_BV
-  real(kind=real_kind), dimension(2), intent(out) :: ddeltheta_BV, ddelphi_BV
+  real(dp), intent(inout) :: r
+  real(dp), intent(in) :: vartheta,varphi
+  real(dp), intent(out) :: deltheta_BV,delphi_BV
+  real(dp), dimension(2), intent(out) :: ddeltheta_BV, ddelphi_BV
 
   integer, parameter :: n_qua=2
 
   integer :: nstp,ns_s_p1
   integer :: k,is,i_theta,i_phi
 
-  real(kind=real_kind) :: ds,dtheta,dphi,rho_tor
+  real(dp) :: ds,dtheta,dphi,rho_tor
 
 
-  real(kind=real_kind), dimension(n_qua)               :: qua,dqua_dt,dqua_dp
-  real(kind=real_kind), dimension(n_qua,ns_max)        :: sp_all,dsp_all_dt
-  real(kind=real_kind), dimension(n_qua,ns_max,ns_max) :: stp_all
+  real(dp), dimension(n_qua)               :: qua,dqua_dt,dqua_dp
+  real(dp), dimension(n_qua,ns_max)        :: sp_all,dsp_all_dt
+  real(dp), dimension(n_qua,ns_max,ns_max) :: stp_all
 
   if(r.le.0.d0) then
     rnegflag=.true.
@@ -1004,18 +1004,18 @@ subroutine vmec_to_boozer(r,theta,varphi,vartheta_B,varphi_B)
   ! Input : r,theta,varphi      - VMEC coordinates
   ! Output: vartheta_B,varphi_B - Boozer coordinates
 
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use math_constants, only : TWOPI
   use new_vmec_stuff_mod,   only : nper
 
   implicit none
 
-  real(kind=real_kind), intent(inout) :: r
-  real(kind=real_kind), intent(in) :: theta,varphi
-  real(kind=real_kind), intent(out) :: vartheta_B,varphi_B
+  real(dp), intent(inout) :: r
+  real(dp), intent(in) :: theta,varphi
+  real(dp), intent(out) :: vartheta_B,varphi_B
 
-  real(kind=real_kind) :: deltheta_BV,delphi_BV
-  real(kind=real_kind), dimension(2) :: ddeltheta_BV,ddelphi_BV
+  real(dp) :: deltheta_BV,delphi_BV
+  real(dp), dimension(2) :: ddeltheta_BV,ddelphi_BV
 
   call delthe_delphi_BV(0,r,theta,varphi,deltheta_BV,delphi_BV, &
                         ddeltheta_BV,ddelphi_BV)
@@ -1032,21 +1032,21 @@ subroutine boozer_to_vmec(r,vartheta_B,varphi_B,theta,varphi)
   ! Output: theta,varphi          - VMEC coordinates
 
   use boozer_coordinates_mod, only : use_del_tp_B
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
-  real(kind=real_kind), intent(inout) :: r
-  real(kind=real_kind), intent(in) :: vartheta_B,varphi_B
-  real(kind=real_kind), intent(out) :: theta,varphi
+  real(dp), intent(inout) :: r
+  real(dp), intent(in) :: vartheta_B,varphi_B
+  real(dp), intent(out) :: theta,varphi
 
-  real(kind=real_kind), parameter :: epserr=1.d-14
+  real(dp), parameter :: epserr=1.d-14
   integer,          parameter :: niter=100
 
   integer          :: iter
-  real(kind=real_kind) :: deltheta_BV,delphi_BV
-  real(kind=real_kind) :: f1,f2,f11,f12,f21,f22,delthe,delphi,det
-  real(kind=real_kind), dimension(2) :: ddeltheta_BV,ddelphi_BV
+  real(dp) :: deltheta_BV,delphi_BV
+  real(dp) :: f1,f2,f11,f12,f21,f22,delthe,delphi,det
+  real(dp), dimension(2) :: ddeltheta_BV,ddelphi_BV
 
   if(use_del_tp_B) then
 

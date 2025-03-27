@@ -1,7 +1,6 @@
 module util_for_test_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
-
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 
 contains

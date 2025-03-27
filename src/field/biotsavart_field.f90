@@ -1,9 +1,10 @@
 module neo_biotsavart_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_base, only: field_t
 use neo_biotsavart, only: coils_t
 
 implicit none
+
+integer, parameter :: dp = kind(1.0d0)
 
 
 type, extends(field_t) :: biotsavart_field_t

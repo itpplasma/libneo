@@ -24,15 +24,15 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
   !  Called routines:  field
 
   use field_eq_mod, only : psi_axis,psi_sep,psif,ierrfield
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
   use field_sub,    only : field
 
   implicit none
 
-  real(kind=real_kind) :: x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
-  real(kind=real_kind) :: hr,hf,hz
+  real(dp) :: x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
+  real(dp) :: hr,hf,hz
 
-  real(kind=real_kind) :: br,bf,bz, &
+  real(dp) :: br,bf,bz, &
   BRR,BRF,BRZ,BFR,BFF,BFZ,BZR,BZF,BZZ
 
   dimension x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)

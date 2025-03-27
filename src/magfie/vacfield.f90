@@ -1,6 +1,6 @@
 program vacfield
-
-  use iso_fortran_env, only: dp => real64, error_unit
+  use iso_fortran_env, only: error_unit
+  use libneo_kinds, only : dp
   use ieee_arithmetic, only: ieee_value, ieee_quiet_nan
   use hdf5_tools, only: h5_init, h5_deinit, h5overwrite
   use math_constants, only: current_si_to_cgs, C

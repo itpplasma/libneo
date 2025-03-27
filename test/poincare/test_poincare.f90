@@ -1,5 +1,5 @@
 program test_poincare
-use, intrinsic :: iso_fortran_env, only: dp => real64
+use libneo_kinds, only : dp
 use util_for_test, only: print_test, print_ok, print_fail
 use neo_poincare, only: poincare_config_t
 implicit none

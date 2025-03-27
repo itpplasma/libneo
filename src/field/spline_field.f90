@@ -1,10 +1,10 @@
 module neo_spline_field
-use, intrinsic :: iso_fortran_env, only: dp => real64
 use neo_field_base, only: field_t
 use neo_field_mesh, only: field_mesh_t
 use interpolate, only: SplineData3D, construct_splines_3d
 use interpolate, only: evaluate_splines_3d, evaluate_splines_3d_der
 implicit none
+integer, parameter :: dp = kind(1.0d0)
 
 type, extends(field_t) :: spline_field_t
     type(SplineData3D) :: A1_spline, A2_spline, A3_spline, &
@@ -40,7 +40,7 @@ subroutine make_spline_from_mesh(mesh, spline, order_in)
 
     real(dp) :: x_min(3), x_max(3)
     integer :: order(3)
-        
+
     if (present(order_in)) then
         order = order_in
     else

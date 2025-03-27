@@ -1,29 +1,29 @@
 module ode_integration
-  use libneo_kinds, only : real_kind
+  use libneo_kinds, only : dp
 
   implicit none
 
   private
 
   integer, parameter :: MAXSTP=1000000, kmax=0, kmaxx=200
-  real(kind=real_kind), parameter :: TINY_LOCAL=1.e-30
-  real(kind=real_kind), parameter :: SAFETY=0.9d0, PGROW=-.2d0, &
+  real(dp), parameter :: TINY_LOCAL=1.e-30
+  real(dp), parameter :: SAFETY=0.9d0, PGROW=-.2d0, &
       & PSHRNK=-.25d0, ERRCON=1.89d-4, dxsav=0.d0
-  real(kind=real_kind), dimension(:),   allocatable :: dydx,xp,y,yscal
-  real(kind=real_kind), dimension(:,:), allocatable :: yp
-  real(kind=real_kind), dimension(:),   allocatable :: ak2,ak3,ak4,ak5
-  real(kind=real_kind), dimension(:),   allocatable :: ak6,ytemp
-  real(kind=real_kind), dimension(:),   allocatable :: yerr,ytemp1
+  real(dp), dimension(:),   allocatable :: dydx,xp,y,yscal
+  real(dp), dimension(:,:), allocatable :: yp
+  real(dp), dimension(:),   allocatable :: ak2,ak3,ak4,ak5
+  real(dp), dimension(:),   allocatable :: ak6,ytemp
+  real(dp), dimension(:),   allocatable :: yerr,ytemp1
 
   integer, save :: kount=0, ialloc
 
   abstract interface
     subroutine compute_derivative(x, y, dydx, ierr)
-      use libneo_kinds, only : real_kind
+      use libneo_kinds, only : dp
       integer, intent(out) :: ierr
-      real(kind=real_kind), intent(in) :: x
-      real(kind=real_kind), intent(in) :: y(:)
-      real(kind=real_kind), intent(out) :: dydx(:)
+      real(dp), intent(in) :: x
+      real(dp), intent(in) :: y(:)
+      real(dp), intent(out) :: dydx(:)
     end subroutine compute_derivative
   end interface
 
@@ -36,18 +36,18 @@ module ode_integration
 contains
 
   subroutine odeint_allroutines(y, nvar, x1, x2, eps, derivs, initial_stepsize)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     procedure(compute_derivative) :: derivs
     integer, intent(in) :: nvar
-    real(kind=real_kind), intent(in) :: x1, x2, eps
-    real(kind=real_kind), intent(in), optional :: initial_stepsize
-    real(kind=real_kind), intent(inout) :: y(nvar)
+    real(dp), intent(in) :: x1, x2, eps
+    real(dp), intent(in), optional :: initial_stepsize
+    real(dp), intent(inout) :: y(nvar)
 
     integer :: nok,nbad
-    real(kind=real_kind) :: h1,hmin
+    real(dp) :: h1,hmin
 
     if (present(initial_stepsize)) then
       h1 = sign(initial_stepsize,x2-x1)
@@ -82,7 +82,7 @@ contains
   subroutine odeint(ystart, nvar, x1, x2, eps, h1, hmin, nok, nbad, &
     & derivs)
 
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
@@ -90,13 +90,13 @@ contains
 
     integer, intent(in) :: nvar
     integer, intent(out) :: nok, nbad
-    real(kind=real_kind), intent(in) :: x1, x2, eps, h1, hmin
-    real(kind=real_kind), intent(inout) :: ystart(nvar)
+    real(dp), intent(in) :: x1, x2, eps, h1, hmin
+    real(dp), intent(inout) :: ystart(nvar)
 
     integer :: i,nstp
     integer :: ierr
 
-    real(kind=real_kind) :: h,hdid,hnext,x,xsav
+    real(dp) :: h,hdid,hnext,x,xsav
 
     xsav = 1.234e5
 
@@ -174,18 +174,18 @@ contains
 
   subroutine rkck(y, dydx, n, x, h, yout, yerr, derivs)
 
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     procedure(compute_derivative) :: derivs
 
     integer, intent(in) :: n
-    real(kind=real_kind), intent(in) :: y(n), dydx(n), x, h
-    real(kind=real_kind), intent(out) :: yout(n), yerr(n)
+    real(dp), intent(in) :: y(n), dydx(n), x, h
+    real(dp), intent(out) :: yout(n), yerr(n)
 
     integer :: i, ierr
-    real(kind=real_kind), parameter :: A2 = 0.2d0, A3 = 0.3d0, A4 = 0.6d0, &
+    real(dp), parameter :: A2 = 0.2d0, A3 = 0.3d0, A4 = 0.6d0, &
       & A5 = 1.0d0, A6 = 0.875d0, &
       & B21 = 0.2d0, B31 = 3.0d0/40.0d0, B32 = 9.0d0/40.0d0, B41 = 0.3d0, B42 = -0.9d0, &
       & B43 = 1.2d0, B51 = -11.0d0/54.0d0, B52 = 2.5d0, B53 = -70.0d0/27.0d0, &
@@ -240,20 +240,20 @@ contains
   end subroutine rkck
 
   subroutine rkqs(y, dydx, n, x, htry, eps, yscal, hdid, hnext, derivs)
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     procedure(compute_derivative) :: derivs
 
     integer, intent(in) :: n
-    real(kind=real_kind), intent(in) :: dydx(n), htry, eps, yscal(n)
-    real(kind=real_kind), intent(inout) :: y(n), x
-    real(kind=real_kind), intent(out) :: hdid, hnext
+    real(dp), intent(in) :: dydx(n), htry, eps, yscal(n)
+    real(dp), intent(inout) :: y(n), x
+    real(dp), intent(out) :: hdid, hnext
 
     integer :: i
 
-    real(kind=real_kind) :: errmax, h, htemp, xnew
+    real(dp) :: errmax, h, htemp, xnew
 
     h = htry
 
@@ -295,20 +295,20 @@ contains
 
   subroutine rk4b(y, n, x, h, derivs)
 
-    use libneo_kinds, only : real_kind
+    use libneo_kinds, only : dp
 
     implicit none
 
     procedure(compute_derivative) :: derivs
 
     integer, intent(in) :: n
-    real(kind=real_kind), intent(in) :: x, h
-    real(kind=real_kind), intent(inout) :: y(n)
+    real(dp), intent(in) :: x, h
+    real(dp), intent(inout) :: y(n)
 
     integer, parameter :: NMAX=12
     integer :: i, ierr
-    real(kind=real_kind) :: dydx(NMAX), yt(NMAX), dyt(NMAX), dym(NMAX)
-    real(kind=real_kind) :: xh, hh, h6
+    real(dp) :: dydx(NMAX), yt(NMAX), dyt(NMAX), dym(NMAX)
+    real(dp) :: xh, hh, h6
 
     hh = h*0.5d0
 
