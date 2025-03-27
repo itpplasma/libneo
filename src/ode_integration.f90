@@ -40,7 +40,7 @@ contains
 
     implicit none
 
-    procedure(compute_derivative) :: derivs
+    external :: derivs
     integer, intent(in) :: nvar
     real(dp), intent(in) :: x1, x2, eps
     real(dp), intent(in), optional :: initial_stepsize
@@ -86,7 +86,7 @@ contains
 
     implicit none
 
-    procedure(compute_derivative) :: derivs
+    EXTERNAL derivs
 
     integer, intent(in) :: nvar
     integer, intent(out) :: nok, nbad
@@ -116,7 +116,7 @@ contains
     if (kmax .gt. 0) xsav = x-2.*dxsav
 
     do nstp=1,MAXSTP
-      call derivs(x, y, dydx, ierr)
+      call derivs(x, y, dydx)
       if (ierr.ne.0) then
         write(*,*) ierr,'=ierrfield, derivs, odeint'
         ialloc = 0
@@ -178,7 +178,7 @@ contains
 
     implicit none
 
-    procedure(compute_derivative) :: derivs
+    EXTERNAL derivs
 
     integer, intent(in) :: n
     real(dp), intent(in) :: y(n), dydx(n), x, h
@@ -200,33 +200,33 @@ contains
       ytemp(i) = y(i) + B21*h*dydx(i)
     end do
 
-    call derivs(x+A2*h, ytemp, ak2, ierr)
+    call derivs(x+A2*h, ytemp, ak2)
     if (ierr .ne. 0) return
 
     do i=1,n
       ytemp(i) = y(i) + h*(B31*dydx(i) + B32*ak2(i))
     end do
 
-    call derivs(x+A3*h, ytemp, ak3, ierr)
+    call derivs(x+A3*h, ytemp, ak3)
     if (ierr .ne. 0) return
 
     do i=1,n
       ytemp(i) = y(i) + h*(B41*dydx(i) + B42*ak2(i) + B43*ak3(i))
     end do
-    call derivs(x+A4*h, ytemp, ak4, ierr)
+    call derivs(x+A4*h, ytemp, ak4)
     if (ierr .ne. 0) return
 
     do i=1,n
       ytemp(i) = y(i) + h*(B51*dydx(i) + B52*ak2(i) + B53*ak3(i) + B54*ak4(i))
     end do
-    call derivs(x+A5*h, ytemp, ak5, ierr)
+    call derivs(x+A5*h, ytemp, ak5)
     if (ierr .ne. 0) return
 
     do i=1,n
       ytemp(i) = y(i) + h*(B61*dydx(i) + B62*ak2(i) + B63*ak3(i) &
         & + B64*ak4(i) + B65*ak5(i))
     end do
-    call derivs(x+A6*h, ytemp, ak6, ierr)
+    call derivs(x+A6*h, ytemp, ak6)
     if (ierr .ne. 0) return
 
     do i=1,n
@@ -244,8 +244,7 @@ contains
 
     implicit none
 
-    procedure(compute_derivative) :: derivs
-
+    EXTERNAL derivs
     integer, intent(in) :: n
     real(dp), intent(in) :: dydx(n), htry, eps, yscal(n)
     real(dp), intent(inout) :: y(n), x
@@ -299,7 +298,7 @@ contains
 
     implicit none
 
-    procedure(compute_derivative) :: derivs
+    EXTERNAL derivs
 
     integer, intent(in) :: n
     real(dp), intent(in) :: x, h
@@ -315,21 +314,21 @@ contains
     h6 = h/6.0d0
     xh = x + hh
 
-    call derivs(x, y, dydx, ierr)
+    call derivs(x, y, dydx)
     if (ierr .ne. 0) return
 
     do i=1,n
       yt(i) = y(i) + hh*dydx(i)
     end do
 
-    call derivs(xh, yt, dyt, ierr)
+    call derivs(xh, yt, dyt)
     if (ierr .ne. 0) return
 
     do i=1,n
       yt(i) = y(i) + hh*dyt(i)
     end do
 
-    call derivs(xh, yt, dym, ierr)
+    call derivs(xh, yt, dym)
     if (ierr .ne. 0) return
 
     do i=1,n
@@ -337,7 +336,7 @@ contains
       dym(i)= dyt(i) + dym(i)
     end do
 
-    call derivs(x+h, yt, dyt, ierr)
+    call derivs(x+h, yt, dyt)
     if (ierr .ne. 0) return
 
     do i=1,n
