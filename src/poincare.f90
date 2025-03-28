@@ -98,7 +98,7 @@ subroutine get_poincare_RZ(field, config, R, Z)
 end subroutine get_poincare_RZ
 
 subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
-    use ode_integration, only: odeint_allroutines
+    use odeint_allroutines_sub, only: odeint_allroutines
 
     class(field_t), intent(in) :: field
     real(dp), intent(inout) :: RZ(poincare_dim)
