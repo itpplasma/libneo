@@ -19,16 +19,21 @@ module odeint_allroutines_sub
 
     contains
 !
-      SUBROUTINE odeint_allroutines(y,nvar,x1,x2,eps,derivs)
+      SUBROUTINE odeint_allroutines(y,nvar,x1,x2,eps,derivs,initial_stepsize)
 !
       implicit none
 !
       external :: derivs
       integer :: nvar,nok,nbad
       double precision :: x1,x2,eps,h1,hmin
+      double precision, optional :: initial_stepsize
       double precision, dimension(nvar) :: y
 !
-      h1=x2-x1
+      if (present(initial_stepsize)) then
+        h1 = sign(initial_stepsize,x2-x1)
+      else
+        h1 = x2 - x1
+      end if
       hmin=0.d0
 !
       call odeint(y,nvar,x1,x2,eps,h1,hmin,nok,nbad,derivs)
