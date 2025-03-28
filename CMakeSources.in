@@ -14,7 +14,7 @@ add_library(neo STATIC
     src/io.f90
     src/libneo_kinds.f90
     src/math_constants.f90
-    src/ode_integration.f90
+    src/odeint_allroutines.f90
     src/poincare.f90
     src/rusage_type.f90
     src/solve_systems.f90
