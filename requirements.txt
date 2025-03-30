@@ -7,4 +7,3 @@ omfit_classes
 scikit_learn
 scipy
 efit_to_boozer
-fypp
