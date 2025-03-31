@@ -19,23 +19,6 @@ jobs:
       - name: Fix permissions
         run: |
           git config --global --add safe.directory `pwd`
-          
-      - name: Install dependencies
-        run: |
-          # Install dependencies
-          sudo apt update
-          sudo apt install -y python3-venv python3-pip
-
-          # Create and activate virtual environment
-          python3 -m venv venv
-          . venv/bin/activate
-
-          # Install the virtual environment
-          pip install --upgrade pip
-          pip install numpy scipy
-
-          # Add virtual environment to PATH
-          echo "$(pwd)/venv/bin" >> $GITHUB_PATH
 
       - name: Build
         run: |

@@ -134,13 +134,6 @@ if (NOT Python_FOUND)
     return()
 endif()
 
-# detect virtualenv and set Pip args accordingly
-if(DEFINED ENV{VIRTUAL_ENV} OR DEFINED ENV{CONDA_PREFIX})
-    set(_pip_args)
-else()
-    set(_pip_args "--user")
-endif()
-
 # F2PY headers
 execute_process(
     COMMAND "${Python_EXECUTABLE}"
