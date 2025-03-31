@@ -2,6 +2,13 @@ module field_sub
 
 implicit none
 
+integer, parameter :: dp = kind(1.0d0)
+
+real(dp) :: psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+
+! Make temporary variables threadprivate
+!$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2)
+
 contains
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -123,8 +130,7 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
   use input_files, only : ieqfile
   use field_eq_mod, only : use_fpol,skip_read,icall_eq,nrad,nzet,icp,nwindow_r,&
     nwindow_z,psib,btf,rtf,hrad,hzet,psi_axis,psi_sep,&
-    psi,psi0,splfpol,splpsi,rad,zet,imi,ima,jmi,jma,ipoint,&
-    psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+    psi,psi0,splfpol,splpsi,rad,zet,imi,ima,jmi,jma,ipoint
   use libneo_kinds, only : dp
 
   implicit none
@@ -919,7 +925,6 @@ subroutine inthecore(R,Z)
     psi_sep,psi_cut,sigpsi,cutoff,rho2i,theti,incore,vacf,dvacdr,dvacdz,&
     d2vacdr2,d2vacdrdz,d2vacdz2,plaf,dpladr,dpladz,d2pladr2,d2pladrdz,d2pladz2
   use input_files,  only : iunit,fluxdatapath
-  use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use libneo_kinds, only : dp
 
   implicit none
