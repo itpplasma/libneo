@@ -7,12 +7,7 @@ Created on Wed Mar 23 10:17:41 2016
 """
 import numpy as np
 import libneo
-
-
-__all__ = ['write_boozer_head',
-           'append_boozer_block_head', 'append_boozer_block',
-           'append_boozer_block_stellerator_symmetry',
-           'convert_to_boozer', 'BoozerFile']
+from efit_to_boozer.boozer import *
 
 length_cgs_to_si = 1e-2
 debug = False
@@ -80,12 +75,12 @@ def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, b
 
 def append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc, enfp):
   from numpy import array, int32
-  _append_boozer_block_stellerator_symmetry(filename, 
-                                            mb, 
+  _append_boozer_block_stellerator_symmetry(filename,
+                                            mb,
                                             array(nb/enfp, dtype=int32),
-                                            rmnc, 
-                                            zmns, 
-                                            vmns, 
+                                            rmnc,
+                                            zmns,
+                                            vmns,
                                             bmnc)
 
 def _append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc):
