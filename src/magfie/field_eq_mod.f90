@@ -1,7 +1,7 @@
 module field_eq_mod
-  use libneo_kinds, only : dp
-
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   logical :: use_fpol = .true.                                      !<=18.12.18
   logical :: skip_read = .false.
@@ -17,8 +17,4 @@ module field_eq_mod
   real(dp), dimension(:), allocatable      :: rad, zet, xi,f
   integer, dimension(:), allocatable           :: imi,ima,jmi,jma
   integer, dimension(:,:), allocatable         :: ipoint
-  real(dp) :: psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
-
-  ! Make temporary variables threadprivate
-  !$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2)
 end module field_eq_mod

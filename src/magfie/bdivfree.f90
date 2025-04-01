@@ -975,8 +975,8 @@ subroutine psithet_rz(rrr,zzz,                                          &
 
   use theta_rz_mod, only : icall, nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,&
     htheqt,psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,flab,theqt
-  use field_eq_mod, only : nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint  &
-                         , psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+  use field_eq_mod, only : nrad,nzet,rad,zet,hrad,hzet,icp,splpsi,ipoint
+  use field_sub, only :  psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use extract_fluxcoord_mod, only : psif_extract,theta_extract
   use libneo_kinds, only : dp
   use math_constants, only : TWOPI
@@ -1218,7 +1218,7 @@ subroutine field_fourier(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ              &
   use input_files,           only : iunit,fluxdatapath
   use inthecore_mod, only : incore,psi_sep                                 &
                           , plaf,dpladr,dpladz
-  use field_eq_mod,  only : dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+  use field_sub,  only : dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use theta_rz_mod,  only : psiaxis
   use bdivfree_mod,  only : pfac
   use libneo_kinds, only : cdp, dp

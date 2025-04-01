@@ -98,7 +98,7 @@ subroutine get_poincare_RZ(field, config, R, Z)
 end subroutine get_poincare_RZ
 
 subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
-    use ode_integration, only: odeint_allroutines
+    use odeint_allroutines_sub, only: odeint_allroutines
 
     class(field_t), intent(in) :: field
     real(dp), intent(inout) :: RZ(poincare_dim)
@@ -110,11 +110,11 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
 
     contains
 
-        subroutine fieldline_derivative(phi, RZ, dRZ_dphi, ierr)
+        subroutine fieldline_derivative(phi, RZ, dRZ_dphi)
             real(dp), intent(in) :: phi
-            real(dp), intent(in), dimension(:) :: RZ
-            real(dp), intent(out), dimension(:) :: dRZ_dphi
-            integer, intent(out) :: ierr
+            real(dp), intent(in), dimension(poincare_dim) :: RZ
+            real(dp), intent(out), dimension(poincare_dim) :: dRZ_dphi
+
 
             real(dp), parameter :: tol = 1.0e-10_dp
             real(dp) :: RphiZ(3)
@@ -125,13 +125,11 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
             RphiZ(3) = RZ(2)
             call field%compute_bfield(RphiZ, B)
             if (B(2) .lt. tol) then
-                print *, 'Error: B(2) vanishes'
-                ierr = 1
-                return
+                error stop 'Error: B(2) vanishes'
             endif
             dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
             dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
-            ierr = 0
+
         end subroutine fieldline_derivative
 end subroutine integrate_RZ_along_fieldline
 
