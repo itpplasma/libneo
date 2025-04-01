@@ -27,7 +27,6 @@ add_library(neo STATIC
     src/new_vmec_allocation_stuff.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
-    src/spl_three_to_five.f90
     src/plag_coeff.f90
     src/odeint_rkf45.f90
     src/binsrc.f90
