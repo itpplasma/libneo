@@ -5,11 +5,8 @@ author = "Christopher Albert"
 maintainer = "albert@tugraz.at"
 copyright = "Copyright 2025, Plasma Physics at TU Graz"
 
-[dependencies]
-netcdf-interfaces.git = "https://github.com/LKedward/netcdf-interfaces.git"
-
 [build]
-external-modules = ["mpi", "hdf5", "h5lt", "fftw3.f03"]
+external-modules = ["netcdf", "mpi", "hdf5", "h5lt", "fftw3.f03"]
 link = ["netcdf", "netcdff", "hdf5", "hdf5_hl", "hdf5_fortran", "hdf5hl_fortran"]
 auto-executables = true
 auto-tests = true
