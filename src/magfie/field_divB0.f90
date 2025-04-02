@@ -1201,6 +1201,7 @@ subroutine spline_fpol
 
   use field_eq_mod, only : nrad,hfpol,splfpol
   use libneo_kinds, only : dp
+  use spl_three_to_five_sub, only: spl_five_reg
 
   implicit none
 
