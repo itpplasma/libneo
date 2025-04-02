@@ -112,8 +112,8 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
 
         subroutine fieldline_derivative(phi, RZ, dRZ_dphi)
             real(dp), intent(in) :: phi
-            real(dp), intent(in), dimension(poincare_dim) :: RZ
-            real(dp), intent(out), dimension(poincare_dim) :: dRZ_dphi
+            real(dp), intent(in), dimension(:) :: RZ
+            real(dp), intent(out), dimension(:) :: dRZ_dphi
 
 
             real(dp), parameter :: tol = 1.0e-10_dp
