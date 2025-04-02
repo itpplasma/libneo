@@ -1,13 +1,13 @@
 !
 !------------------------------------------------------------------------------
 module odeint_mod
-            integer :: kmax=0, kount=0, kmaxx=200, ialloc
-            double precision :: dxsav=0.d0
-            double precision, dimension(:),   allocatable :: dydx,xp,y,yscal
-            double precision, dimension(:,:), allocatable :: yp
-            double precision, dimension(:),   allocatable :: ak2,ak3,ak4,ak5
-            double precision, dimension(:),   allocatable :: ak6,ytemp
-            double precision, dimension(:),   allocatable :: yerr,ytemp1
+    integer :: kmax=0, kount=0, kmaxx=200, ialloc
+    double precision :: dxsav=0.d0
+    double precision, dimension(:),   allocatable :: dydx,xp,y,yscal
+    double precision, dimension(:,:), allocatable :: yp
+    double precision, dimension(:),   allocatable :: ak2,ak3,ak4,ak5
+    double precision, dimension(:),   allocatable :: ak6,ytemp
+    double precision, dimension(:),   allocatable :: yerr,ytemp1
 
     !$omp threadprivate(kount, ialloc, dydx, xp, y)
     !$omp threadprivate(yscal, yp, ak2, ak3, ak4, ak5, ak6, ytemp, yerr)
@@ -17,13 +17,24 @@ end module odeint_mod
 module odeint_allroutines_sub
     implicit none
 
+    integer, parameter :: dp = kind(1.0d0)
+
+    abstract interface
+    subroutine compute_derivative(x, y, dydx)
+        import :: dp
+        real(dp), intent(in) :: x
+        real(dp), intent(in) :: y(:)
+        real(dp), intent(out) :: dydx(:)
+    end subroutine compute_derivative
+  end interface
+
     contains
 !
       SUBROUTINE odeint_allroutines(y,nvar,x1,x2,eps,derivs,initial_stepsize)
 !
       implicit none
 !
-      external :: derivs
+      procedure(compute_derivative) :: derivs
       integer :: nvar,nok,nbad
       double precision :: x1,x2,eps,h1,hmin
       double precision, optional :: initial_stepsize
@@ -71,7 +82,7 @@ module odeint_allroutines_sub
 !
       INTEGER nbad,nok,nvar,MAXSTP
       double precision eps,h1,hmin,x1,x2,ystart(nvar),TINY
-      EXTERNAL derivs
+      procedure(compute_derivative) :: derivs
       PARAMETER (MAXSTP=1000000,TINY=1.e-30)
       INTEGER i,nstp
       double precision h,hdid,hnext,x,xsav
@@ -148,7 +159,7 @@ module odeint_allroutines_sub
 !
       INTEGER n
       double precision h,x,dydx(n),y(n),yerr(n),yout(n)
-      EXTERNAL derivs
+      procedure(compute_derivative) :: derivs
 !U    USES derivs
       INTEGER i
       double precision &
@@ -206,7 +217,7 @@ module odeint_allroutines_sub
 !
       INTEGER n
       double precision eps,hdid,hnext,htry,x,dydx(n),y(n),yscal(n)
-      EXTERNAL derivs
+      procedure(compute_derivative) :: derivs
 !U    USES derivs,rkck
       INTEGER i
       double precision errmax,h,htemp,xnew,SAFETY,PGROW, PSHRNK,ERRCON
