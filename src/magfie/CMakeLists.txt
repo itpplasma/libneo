@@ -19,7 +19,7 @@ add_library(magfie STATIC
     magfie_cyl.f90
     geqdsk_tools.f90
     coil_tools.f90
-    ../fftw3.f90
+    ../fftw3.F90
 )
 target_link_libraries(magfie PRIVATE
     neo
