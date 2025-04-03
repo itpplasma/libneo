@@ -24,7 +24,7 @@ install: ninja
 	cd $(BUILD_DIR) && ninja install
 
 fpm:
-	fpm build --flag "-I$(HDF5_INCLUDE) -I$(NETCDF_FORTRAN_INCLUDE) -I$(OPENBLAS_INCLUDE) -L$(OPENBLAS_LIB)"
+	fpm build --flag "-I`pkg-config --variable=includedir fftw3` -I`pkg-config --variable=includedir netcdf-fortran` -I`pkg-config --variable=includedir hdf5`"
 
 clean:
 	rm -rf $(BUILD_DIR)
