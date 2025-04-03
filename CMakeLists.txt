@@ -87,7 +87,6 @@ add_subdirectory(src/species)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-find_package(OpenMP REQUIRED)
 
 # Sources for libneo core
 include(CMakeSources.in)

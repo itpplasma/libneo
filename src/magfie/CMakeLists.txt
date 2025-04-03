@@ -29,8 +29,6 @@ target_link_libraries(magfie PRIVATE
     hdf5_tools
     FFTW::DoubleThreads
     FFTW::Double
-    OpenMP::OpenMP_C
-    OpenMP::OpenMP_Fortran
 )
 set_property(TARGET neo_field PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
