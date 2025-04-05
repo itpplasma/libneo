@@ -18,6 +18,14 @@ module solve_systems
 
   public :: solve_eqsys
 
+  interface
+  subroutine dgesv(n, nrhs, a, lda, ipiv, b, ldb, info)
+    integer, intent(in) :: n, nrhs, lda, ldb
+    double precision, intent(in out) :: a(lda,*), b(ldb,*)
+    integer, intent(out) :: ipiv(*), info
+  end subroutine dgesv
+  end interface
+
 ! --------------------------------------------------------------------
 contains
 

@@ -22,6 +22,30 @@ module arnoldi
       complex(cdp), dimension(n), intent(out) :: new
     end subroutine interface_next_iteration
   end interface
+
+  interface
+    subroutine zhseqr( JOB, COMPZ, N, ILO, IHI, H, LDH, W, Z, LDZ, WORK, LWORK, INFO )
+      integer            IHI, ILO, INFO, LDH, LDZ, LWORK, N
+      character          COMPZ, JOB
+      complex*16         H( LDH, * ), W( * ), WORK( * ), Z( LDZ, * )
+    end subroutine zhseqr
+  end interface
+
+  interface
+    subroutine zhsein( SIDE, EIGSRC, INITV, SELECT, N, H, LDH, W, &
+                         VL, &
+                         LDVL, VR, LDVR, MM, M, WORK, RWORK, IFAILL, &
+                         IFAILR, INFO )
+       character          EIGSRC, INITV, SIDE
+       integer            INFO, LDH, LDVL, LDVR, M, MM, N
+       logical            SELECT( * )
+       integer            IFAILL( * ), IFAILR( * )
+       double precision   RWORK( * )
+       complex*16         H( LDH, * ), VL( LDVL, * ), VR( LDVR, * ), &
+                          w( * ), work( * )
+    end subroutine zhsein
+  end interface
+
 contains
 
   !> \brief Init module, read/write namelist.

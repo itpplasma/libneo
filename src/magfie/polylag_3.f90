@@ -3,7 +3,7 @@
       contains
 !
       subroutine indef(u,umin,dum1,nup,indu)
-! defines interval for 1D interpolation on uniform mesh, normally 
+! defines interval for 1D interpolation on uniform mesh, normally
 ! looks for the central interval of stencil, but
 ! stops moving of stencil at the boundary (works for mp=4 only!)
 ! Input:
@@ -18,8 +18,8 @@
 !
       implicit double precision (a-h,o-z)
 !
-      integer indu(mp)  
-                             
+      integer indu(mp)
+
       indu(1) = int((u-umin)*dum1)
       if( indu(1) .le. 0 ) indu(1) = 1
       indu(mp) = indu(1) + mp - 1
@@ -31,7 +31,7 @@
          indu(i) = indu(i-1) + 1
       enddo
 
-      return 
+      return
       end subroutine indef
 !---------------------------------------------------------------------
       subroutine indsmp(index,nup,indu)
@@ -46,8 +46,8 @@
 !    indu(mp) - relative index of stencil points
 
 ! the power 3 of polinomial is fixed strictly:
-      integer indu(mp)  
-                             
+      integer indu(mp)
+
       indu(1) = index - 1
       if( indu(1) .le. 0 ) indu(1) = 1
       indu(mp) = indu(1) + mp - 1
@@ -59,7 +59,7 @@
          indu(i) = indu(i-1) + 1
       enddo
 
-      return 
+      return
       end subroutine indsmp
 !---------------------------------------------------------------------
       subroutine plag1d(x,fp,dxm1,xp,polyl1d,p1x1d)
@@ -95,8 +95,8 @@
       return
       end subroutine plag1d
 !---------------------------------------------------------------------
-      subroutine plag3d(x,y,z,fp,dxm1,dym1,dzm1,xp,yp,zp
-     $     ,polyl3d,poly1x,poly1y,poly1z)
+      subroutine plag3d(x,y,z,fp,dxm1,dym1,dzm1,xp,yp,zp,&
+          polyl3d,poly1x,poly1y,poly1z)
 !
       implicit double precision (a-h,o-z)
 !
@@ -185,22 +185,22 @@
       dimension up(mp), cu1(mp)
       data one6/0.16666666666667d0/
       du3 = dum1**3
-      cu1(1) = (  (u - up(3))*(u - up(4)) 
-     $          + (u - up(2))*(u - up(4))
-     $          + (u - up(2))*(u - up(3))
-     $         )* (-one6*du3)
-      cu1(2) = (  (u - up(3))*(u - up(4))
-     $          + (u - up(1))*(u - up(4))
-     $          + (u - up(1))*(u - up(3)) 
-     $         ) * (0.5d0*du3)
-      cu1(3) = (  (u - up(2))*(u - up(4))
-     $          + (u - up(1))*(u - up(4))
-     $          + (u - up(1))*(u - up(2))
-     $         )* (-0.5d0*du3)
-      cu1(4) = (  (u - up(2))*(u - up(3))
-     $          + (u - up(1))*(u - up(3))
-     $          + (u - up(1))*(u - up(2))
-     $         )* (one6*du3)
+      cu1(1) = (  (u - up(3))*(u - up(4)) &
+               + (u - up(2))*(u - up(4)) &
+               + (u - up(2))*(u - up(3)) &
+              )* (-one6*du3)
+      cu1(2) = (  (u - up(3))*(u - up(4)) &
+               + (u - up(1))*(u - up(4)) &
+               + (u - up(1))*(u - up(3)) &
+              ) * (0.5d0*du3)
+      cu1(3) = (  (u - up(2))*(u - up(4)) &
+               + (u - up(1))*(u - up(4)) &
+               + (u - up(1))*(u - up(2)) &
+              )* (-0.5d0*du3)
+      cu1(4) = (  (u - up(2))*(u - up(3)) &
+               + (u - up(1))*(u - up(3)) &
+               + (u - up(1))*(u - up(2)) &
+              )* (one6*du3)
       return
       end subroutine coefs1
 !

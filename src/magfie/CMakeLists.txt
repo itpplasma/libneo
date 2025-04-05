@@ -15,11 +15,11 @@ add_library(magfie STATIC
     spline5_RZ.f90
     field_mesh3d.f90
     magfield_mod.f90
-    polylag_3.f
+    polylag_3.f90
     magfie_cyl.f90
     geqdsk_tools.f90
     coil_tools.f90
-    ../fftw3.f90
+    ../fftw3.F90
 )
 target_link_libraries(magfie PRIVATE
     neo

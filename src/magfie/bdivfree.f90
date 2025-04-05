@@ -832,6 +832,8 @@ subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
   !                                   and y (~ dx**(l-1)*dy**(m-1) ))
   !                                   ipoint(i,j) contains the pointer to k
 
+  use spl_three_to_five_sub, only: spl_five_reg
+
   implicit double precision (a-h,o-z)
 
   dimension f(nx,ny),spl(6,6,icount),ipoint(nx,ny)
@@ -908,7 +910,7 @@ end subroutine s2dring
 
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine load_theta
-
+  use spl_three_to_five_sub, only: spl_five_reg
   use theta_rz_mod, only : nsqp,nlab,nthe,icp_pt,ipoint_pt,hsqpsi,hlabel,htheqt,&
     psiaxis,sigma_qt,raxis,zaxis,spllabel,splthet,sqpsi,flab,theqt
   use input_files, only : iunit,fluxdatapath

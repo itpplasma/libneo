@@ -23,6 +23,10 @@ test: ninja
 install: ninja
 	cd $(BUILD_DIR) && ninja install
 
+fpm:
+	fpm build
+
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf src/MyMPILib/Internal/version.f90
 	rm -rf tools/h5merge/build

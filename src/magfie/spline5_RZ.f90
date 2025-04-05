@@ -36,6 +36,7 @@ subroutine s2dcut(nx,ny,hx,hy,f,imi,ima,jmi,jma,icount,spl,ipoint)
   !                                   the numbers of expansion power over x
   !                                   and y (~ dx**(l-1)*dy**(m-1) ))
   !                                   ipoint(i,j) contains the pointer to k
+  use spl_three_to_five_sub, only: spl_five_reg
   implicit double precision (a-h,o-z)
 
   dimension f(nx,ny),spl(6,6,icount),ipoint(nx,ny)

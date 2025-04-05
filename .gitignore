@@ -45,9 +45,6 @@ __pycache__
 # IDE files
 .vscode/
 
-# Ignore version files created by build system.
-src/*/*/version.f90
-
 # Ignore macOS system files
 .DS_Store
 
@@ -64,3 +61,4 @@ lib/
 .venv
 dist/
 test/**/*.png
+version.f90

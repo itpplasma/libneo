@@ -1885,7 +1885,7 @@ contains
     character(len=*), optional                  :: unit
 
     integer(HSIZE_T), dimension(:), allocatable :: dims
-    integer(HID_T)                              :: dataset_id, dataspace_id, type_id 
+    integer(HID_T)                              :: dataset_id, dataspace_id, type_id
     integer(SIZE_T)                             :: size, character_size
     integer                                     :: rank = 1
 

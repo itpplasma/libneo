@@ -1,0 +1,27 @@
+name = "libneo"
+version = "0.3.0"
+license = "MIT"
+author = "Christopher Albert"
+maintainer = "albert@tugraz.at"
+copyright = "Copyright 2025, Plasma Physics at TU Graz"
+
+[dependencies]
+openmp = "*"
+mpi = "*"
+hdf5 = "*"
+netcdf = "*"
+
+[build]
+external-modules = ["fftw3.f03"]
+auto-executables = true
+auto-tests = true
+auto-examples = true
+module-naming = false
+
+[install]
+library = true
+
+[fortran]
+implicit-typing = true
+implicit-external = true
+source-form = "free"

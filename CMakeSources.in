@@ -30,7 +30,6 @@ add_library(neo STATIC
     src/plag_coeff.f90
     src/odeint_rkf45.f90
     src/binsrc.f90
-    src/get_canonical_coordinates.f90
     src/boozer_converter.f90
     src/magfie/magfie_vmec.f90
 
@@ -60,11 +59,8 @@ set_target_properties(neo PROPERTIES
 )
 
 add_library(mc_efit STATIC
-    src/MC/alpha_lifetime_mod.f90
     src/MC/chamb_divB0.f90
     src/MC/rng.f90
-    src/MC/collis_nbi.f90
-    src/MC/sub_alpha_lifetime.f90
 )
 target_link_libraries(mc_efit neo magfie)
 
