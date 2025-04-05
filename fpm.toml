@@ -5,9 +5,14 @@ author = "Christopher Albert"
 maintainer = "albert@tugraz.at"
 copyright = "Copyright 2025, Plasma Physics at TU Graz"
 
+[dependencies]
+openmp = "*"
+mpi = "*"
+hdf5 = "*"
+netcdf = "*"
+
 [build]
-external-modules = ["netcdf", "mpi", "hdf5", "h5lt", "fftw3.f03"]
-link = ["netcdf", "netcdff", "hdf5", "hdf5_hl", "hdf5_fortran", "hdf5hl_fortran"]
+external-modules = ["fftw3.f03"]
 auto-executables = true
 auto-tests = true
 auto-examples = true
