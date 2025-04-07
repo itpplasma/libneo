@@ -28,5 +28,4 @@ fpm:
 
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -rf src/MyMPILib/Internal/version.f90
 	rm -rf tools/h5merge/build
