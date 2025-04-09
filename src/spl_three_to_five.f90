@@ -1,3 +1,9 @@
+module spl_three_to_five_sub
+
+implicit none
+
+contains
+
 subroutine spl_five_reg(n,h,a,b,c,d,e,f)
   implicit none
 
@@ -698,3 +704,5 @@ subroutine spl_per(ns,n,h,splcoe)
   endif
 
 end subroutine spl_per
+
+end module spl_three_to_five_sub
