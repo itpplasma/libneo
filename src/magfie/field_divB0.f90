@@ -2,6 +2,13 @@ module field_sub
 
 implicit none
 
+integer, parameter :: dp = kind(1.0d0)
+
+real(dp) :: psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+
+! Make temporary variables threadprivate
+!$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2)
+
 contains
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -15,9 +22,9 @@ subroutine read_field_input(input_file)
   character(*), intent(in), optional :: input_file
 
   if (present(input_file)) then
-    open(iunit, file=input_file)
+    open(iunit, file=input_file, status='old', action='read')
   else
-    open(iunit, file='field_divB0.inp')
+    open(iunit, file='field_divB0.inp', status='old', action='read')
   end if
 
   read(iunit,*) ipert        ! 0=eq only, 1=vac, 2=vac+plas no derivatives,
@@ -123,8 +130,7 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
   use input_files, only : ieqfile
   use field_eq_mod, only : use_fpol,skip_read,icall_eq,nrad,nzet,icp,nwindow_r,&
     nwindow_z,psib,btf,rtf,hrad,hzet,psi_axis,psi_sep,&
-    psi,psi0,splfpol,splpsi,rad,zet,imi,ima,jmi,jma,ipoint,&
-    psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+    psi,psi0,splfpol,splpsi,rad,zet,imi,ima,jmi,jma,ipoint
   use libneo_kinds, only : dp
 
   implicit none
@@ -821,7 +827,7 @@ subroutine stretch_coords(r,z,rm,zm)
     nrz = 0
     rad_w = 0.
     zet_w = 0.
-    open(iunit,file=trim(convexfile))
+    open(iunit, file=trim(convexfile), status='old', action='read')
     do i=1,nrzmx
       read(iunit,*,END=10)rad_w(i),zet_w(i)
       nrz = nrz + 1
@@ -919,7 +925,6 @@ subroutine inthecore(R,Z)
     psi_sep,psi_cut,sigpsi,cutoff,rho2i,theti,incore,vacf,dvacdr,dvacdz,&
     d2vacdr2,d2vacdrdz,d2vacdz2,plaf,dpladr,dpladz,d2pladr2,d2pladrdz,d2pladz2
   use input_files,  only : iunit,fluxdatapath
-  use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use libneo_kinds, only : dp
 
   implicit none
@@ -1196,6 +1201,7 @@ subroutine spline_fpol
 
   use field_eq_mod, only : nrad,hfpol,splfpol
   use libneo_kinds, only : dp
+  use spl_three_to_five_sub, only: spl_five_reg
 
   implicit none
 

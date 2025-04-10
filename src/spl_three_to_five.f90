@@ -1,7 +1,13 @@
-subroutine spl_five_reg(n,h,a,b,c,d,e,f)
-  use libneo_kinds, only : dp
+module spl_three_to_five_sub
 
+implicit none
+
+contains
+
+subroutine spl_five_reg(n,h,a,b,c,d,e,f)
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   integer :: n,i,ip1
   real(dp) :: h,rhop,rhom,fac
@@ -139,9 +145,9 @@ end subroutine spl_five_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine spl_five_per(n,h,a,b,c,d,e,f)
-  use libneo_kinds, only : dp
-
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   integer :: n,i,ip1
   real(dp) :: h,rhop,rhom,fac,xplu,xmin,gammao_p,gammao_m_redef
@@ -255,9 +261,9 @@ end subroutine spl_five_per
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine spl_four_reg(n,h,a,b,c,d,e)
-  use libneo_kinds, only : dp
-
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   integer :: n,i,ip1
   real(dp) :: h,fac,fpl31,fpl40,fmn31,fmn40
@@ -325,9 +331,9 @@ end subroutine spl_four_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine spl_four_per(n,h,a,b,c,d,e)
-  use libneo_kinds, only : dp
-
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   integer :: n,i,ip1
   real(dp) :: h,fac,base1,base2,phi1,phi2,phi
@@ -417,9 +423,9 @@ SUBROUTINE splreg(n,h,y,bi,ci,di)
   !         y(n)                y-values
   ! Output: bi(n),ci(n),di(n)   Spline parameters
 
-  use libneo_kinds, only : dp
-
   IMPLICIT NONE
+
+  integer, parameter :: dp = kind(1.0d0)
 
   INTEGER,                     INTENT(in)  :: n
   real(dp),               INTENT(in)  :: h
@@ -471,9 +477,10 @@ SUBROUTINE splper(n,h,y,bi,ci,di)
   !         h                   step size in x (equidistant)
   !         y(n)                y-values
   ! Output: bi(n),ci(n),di(n)   Spline parameters
-  use libneo_kinds, only : dp
 
   IMPLICIT NONE
+
+  integer, parameter :: dp = kind(1.0d0)
 
   INTEGER,                     INTENT(in)  :: n
   real(dp), INTENT(in)  :: h
@@ -539,9 +546,10 @@ END SUBROUTINE splper
 !=====================================================
 SUBROUTINE spfper(np1,amx1,amx2,amx3)
   ! Helper routine for splfi
-  use libneo_kinds, only : dp
 
   IMPLICIT NONE
+
+  integer, parameter :: dp = kind(1.0d0)
 
   INTEGER,                       INTENT(in)  :: np1
   real(dp), DIMENSION(np1), INTENT(out) :: amx1, amx2, amx3
@@ -584,9 +592,10 @@ subroutine spl_reg(ns,n,h,splcoe)
   ! n               - number of data points
   ! h               - abscissa step size
   ! splcoe(0:ns,n)  - spline coefficients; coefficient splcoe(0,:) are the input (function to spline)
-  use libneo_kinds, only : dp
 
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   integer :: ns,n
   real(dp) :: h
@@ -647,9 +656,10 @@ subroutine spl_per(ns,n,h,splcoe)
   ! n               - number of data points
   ! h               - abscissa step size
   ! splcoe(0:ns,n)  - spline coefficients; coefficient splcoe(0,:) are the input (function to spline)
-  use libneo_kinds, only : dp
 
   implicit none
+
+  integer, parameter :: dp = kind(1.0d0)
 
   integer :: ns,n
   real(dp) :: h
@@ -694,3 +704,5 @@ subroutine spl_per(ns,n,h,splcoe)
   endif
 
 end subroutine spl_per
+
+end module spl_three_to_five_sub

@@ -23,7 +23,8 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
   !
   !  Called routines:  field
 
-  use field_eq_mod, only : psi_axis,psi_sep,psif,ierrfield
+  use field_eq_mod, only : psi_axis,psi_sep,ierrfield
+  use field_sub, only : psif
   use libneo_kinds, only : dp
   use field_sub,    only : field
 

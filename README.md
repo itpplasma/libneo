@@ -56,9 +56,6 @@ Shared classes and functions of the Matlab library.
 ### Utility
 Classes and functions that have a general use for many application.
 
-### mnDAT
-Class to write mnDAT files.
-
 ## python
 Python interface package and scripts/functions.
 

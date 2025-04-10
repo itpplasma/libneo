@@ -67,28 +67,30 @@ string(STRIP ${NETCDF_FLIBS} NETCDF_FLIBS)
 message(STATUS "NetCDF include path: " ${NETCDFINCLUDE_DIR})
 message(STATUS "NetCDF lib path: " ${NETCDFLIB_DIR})
 message(STATUS "NetCDF Fortran libs: " ${NETCDF_FLIBS})
-
-# Replace space by semicolon in the Fortran libs
-string(REPLACE " " ";" NETCDF_FLIBS ${NETCDF_FLIBS})
+string(REPLACE " " ";" NETCDF_FLIBS "${NETCDF_FLIBS}")
 
 include_directories(${NETCDFINCLUDE_DIR})
 link_directories(${NETCDFLIB_DIR})
 add_link_options(${NETCDF_FLIBS})
 
-add_subdirectory(src/MyMPILib)
+# Libraries that libneo depends on
+add_subdirectory(extra/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)
 add_subdirectory(src/field)
 add_subdirectory(src/collisions)
 add_subdirectory(src/transport)
-add_subdirectory(src/species)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-find_package(OpenMP REQUIRED)
 
+# Sources for libneo core
 include(CMakeSources.in)
+
+# Libraries that depend on libneo
+add_subdirectory(src/species)
+add_subdirectory(src/magfie)
 
 add_subdirectory(test)
 
@@ -128,17 +130,6 @@ if (NOT Python_FOUND)
     message("Python with NumPy not found, skipping interface build.")
     return()
 endif()
-
-# detect virtualenv and set Pip args accordingly
-if(DEFINED ENV{VIRTUAL_ENV} OR DEFINED ENV{CONDA_PREFIX})
-    set(_pip_args)
-else()
-    set(_pip_args "--user")
-endif()
-
-# install fypp which is required for fortran stdlib
-execute_process(COMMAND ${Python_EXECUTABLE} -m pip install ${_pip_args} fypp)
-message(STATUS "${Python_EXECUTABLE} -m pip install ${_pip_args} fypp")
 
 # F2PY headers
 execute_process(

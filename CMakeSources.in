@@ -14,7 +14,7 @@ add_library(neo STATIC
     src/io.f90
     src/libneo_kinds.f90
     src/math_constants.f90
-    src/ode_integration.f90
+    src/odeint_allroutines.f90
     src/poincare.f90
     src/rusage_type.f90
     src/solve_systems.f90
@@ -27,11 +27,9 @@ add_library(neo STATIC
     src/new_vmec_allocation_stuff.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
-    src/spl_three_to_five.f90
     src/plag_coeff.f90
     src/odeint_rkf45.f90
     src/binsrc.f90
-    src/get_canonical_coordinates.f90
     src/boozer_converter.f90
     src/magfie/magfie_vmec.f90
 
@@ -60,53 +58,9 @@ set_target_properties(neo PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
-add_library(magfie STATIC
-
-    # BDIVFREE
-    src/magfie/amn_mod.f90
-    src/magfie/bdivfree.f90
-    src/magfie/bdivfree_mod.f90
-    src/magfie/inthecore_mod.f90
-    src/magfie/theta_rz_mod.f90
-    src/magfie/input_files.f90
-    src/magfie/field_eq_mod.f90
-    src/magfie/extract_fluxcoord_mod.f90
-    src/magfie/field_divB0.f90
-    src/magfie/period_mod.f90
-    src/magfie/field_c_mod.f90
-    src/magfie/field_mod.f90
-    src/magfie/spline5_RZ.f90
-    src/magfie/field_mesh3d.f90
-    src/magfie/magfield_mod.f90
-    src/magfie/polylag_3.f
-    src/magfie/magfie_cyl.f90
-    src/magfie/geqdsk_tools.f90
-    src/magfie/coil_tools.f90
-    src/fftw3.f90
-)
-target_link_libraries(magfie PRIVATE
-    neo
-    rkf45
-    netcdf
-    netcdff
-    hdf5_tools
-    FFTW::DoubleThreads
-    FFTW::Double
-    OpenMP::OpenMP_C
-    OpenMP::OpenMP_Fortran
-)
-set_target_properties(magfie PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-add_library(LIBNEO::magfie ALIAS magfie)
-
 add_library(mc_efit STATIC
-    src/MC/alpha_lifetime_mod.f90
     src/MC/chamb_divB0.f90
     src/MC/rng.f90
-    src/MC/collis_nbi.f90
-    src/MC/sub_alpha_lifetime.f90
 )
 target_link_libraries(mc_efit neo magfie)
 

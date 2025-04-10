@@ -1,4 +1,5 @@
 module interpolate
+    use spl_three_to_five_sub
 
     implicit none
     integer, parameter :: dp = kind(1.0d0)

@@ -1,8 +1,8 @@
 module libneo_species
 
-    use libneo_kinds, only: dp
-
     implicit none
+
+    integer, parameter :: dp = kind(1.0d0)
 
     type species_t
         character(len=16) :: name ! whatever, e.g. deuterium

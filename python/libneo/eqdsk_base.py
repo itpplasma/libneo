@@ -45,7 +45,7 @@ def read_eqdsk(filename):
         f.readline()
 
         # Fifth line
-        f.readline()
+        f.readline()  
 
         # From sixth line:
 
@@ -135,8 +135,17 @@ def write_eqdsk(filename, eqdata):
         f.write("\n")
 
         write_field(f, eqdata['Ip'])
+        write_field(f, eqdata['PsiaxisVs'])
+        write_field(f, 0.0)
+        write_field(f, eqdata['Rpsi0'])
+        write_field(f, 0.0)
         f.write("\n")
 
+        write_field(f, eqdata['Zpsi0'])
+        write_field(f, 0.0)
+        write_field(f, eqdata['PsiedgeVs'])
+        write_field(f, 0.0)
+        write_field(f, 0.0)
         f.write("\n")
 
         write_array(f, eqdata['fprof'])
@@ -147,11 +156,11 @@ def write_eqdsk(filename, eqdata):
         write_array(f, eqdata['PsiVs'].flatten())
 
         write_array(f, eqdata['qprof'])
-
+        
         f.write(f"{eqdata['npbound']} {eqdata['nplimiter']}\n")
 
         write_array(f, eqdata['Lcfs'].flatten())
-
+        
         write_array(f, eqdata['Limiter'].flatten())
 
 
