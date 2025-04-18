@@ -92,6 +92,12 @@ include(CMakeSources.in)
 add_subdirectory(src/species)
 add_subdirectory(src/magfie)
 
+add_subdirectory(src/efit_to_boozer)
+add_executable(efit_to_boozer.x
+  app/efit_to_boozer.f90
+)
+target_link_libraries(efit_to_boozer.x efit_to_boozer)
+
 add_subdirectory(test)
 
 
