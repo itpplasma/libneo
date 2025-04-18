@@ -100,7 +100,7 @@ target_link_libraries(efit_to_boozer.x efit_to_boozer)
 add_executable(hamada_to_boozer.x
   src/efit_to_boozer/field_line_integration_for_converter.f90
   src/efit_to_boozer/rhs_converter.f90
-  src/efit_to_boozer/hamada_to_boozer.f90
+  app/hamada_to_boozer.f90
 )
 target_link_libraries(hamada_to_boozer.x efit_to_boozer)
 
