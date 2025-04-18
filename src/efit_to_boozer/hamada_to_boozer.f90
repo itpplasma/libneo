@@ -65,7 +65,7 @@
 !--------------------------------------------
 ! Read efit_to_boozer data
 !
-  open(iunit1,file='efit_to_boozer.inp')
+  open(iunit1,file='efit_to_boozer.inp',status='old',action='read')
   read(iunit1,*) nstep     !number of steps for field line integration
   read(iunit1,*) nlabel    !number of flux surfaces (equidistant in starting R) computed by original field line integration
   read(iunit1,*) ntheta    !grid size over poloidal angle for the discrete Fourier transform
@@ -103,7 +103,7 @@
 !
   do is=1,nsurf
     s(is)=hs*(dfloat(is)-0.5d0)
-! 
+!
     call binsrc(psi_tor(0:nlabel),0,nlabel,s(is),ibeg)
 !
     ibeg=max(1,ibeg-nplag/2)
@@ -112,7 +112,7 @@
       iend=nlabel
       ibeg=iend+1-nplag
     endif
-! 
+!
     call plag_coeff(nplag,nder,s(is),psi_tor(ibeg:iend),coef)
 !
 ! poloidal radius and starting R value for s-grid of Bozzer file:
@@ -128,12 +128,12 @@
       iend=nrhopol
       ibeg=iend+1-nplag
     endif
-! 
+!
     call plag_coeff(nplag,nder,rho_pol_s,rho_pol(ibeg:iend),coef)
 !
 ! Hamada Fourier coefficients for s-grid of Bozzer file:
     b_mn_hs(is,-mpolmax:mpolmax)=matmul(coef(0,:),b_mn(ibeg:iend,-mpolmax:mpolmax))
-! 
+!
 !    write (2001,*) s(is),dble(b_mn_hs(is,:))
 !    write (2002,*) s(is),dimag(b_mn_hs(is,:))
   enddo
