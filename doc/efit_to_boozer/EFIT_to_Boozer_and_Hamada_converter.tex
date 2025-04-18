@@ -1,0 +1,775 @@
+\documentclass[12pt]{article}
+%\sloppy 
+\textheight24.7cm                                                              
+\textwidth18.0cm                                                               
+\topmargin-1.5cm                                                               
+\oddsidemargin-1.0cm                                                            
+\evensidemargin0.0cm
+\usepackage{times}
+\usepackage{amsmath}
+%\renewcommand{\baselinestretch}{2}
+\newcommand{\be}[1]{\begin{equation} \label{#1}}
+\newcommand{\ee}{\end{equation}}
+\newcommand{\bea}[1]{\begin{eqnarray} \label{#1}}
+\newcommand{\eea}{\end{eqnarray}}
+\newcommand{\bean}{\begin{eqnarray*}}
+\newcommand{\eean}{\end{eqnarray*}}
+
+\newcommand{\non}{\nonumber\\}
+\newcommand{\eq}[1]{(\ref{#1})}
+\newcommand{\difp}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\br}{{\bf r}}
+\newcommand{\bR}{{\bf R}}
+\newcommand{\bA}{{\bf A}}
+\newcommand{\bB}{{\bf B}}
+\newcommand{\bE}{{\bf E}}
+\newcommand{\bm}{{\bf m}}
+\newcommand{\bn}{{\bf n}}
+\newcommand{\bN}{{\bf N}}
+\newcommand{\bp}{{\bf p}}
+\newcommand{\bF}{{\bf F}}
+\newcommand{\bz}{{\bf z}}
+\newcommand{\bZ}{{\bf Z}}
+\newcommand{\bV}{{\bf V}}
+\newcommand{\bv}{{\bf v}}
+\newcommand{\bu}{{\bf u}}
+\newcommand{\bx}{{\bf x}}
+\newcommand{\bX}{{\bf X}}
+\newcommand{\bJ}{{\bf J}}
+\newcommand{\bj}{{\bf j}}
+\newcommand{\bk}{{\bf k}}
+\newcommand{\bTheta}{{\bf \Theta}}
+\newcommand{\btheta}{{\boldsymbol\theta}}
+\newcommand{\bOmega}{{\bf \Omega}}
+\newcommand{\bomega}{{\boldsymbol\omega}}
+\newcommand{\brho}{{\boldsymbol\rho}}
+\newcommand{\re}{{\rm e}}
+\newcommand{\rd}{{\rm d}}
+\newcommand{\rJ}{{\rm J}}
+\newcommand{\ph}{{\varphi}}
+\newcommand{\te}{\theta}
+\newcommand{\tht}{\vartheta}
+\newcommand{\vpar}{v_\parallel}
+\newcommand{\vparkb}{v_{\parallel k b}}
+\newcommand{\vparkm}{v_{\parallel k m}}
+\newcommand{\Jpar}{J_\parallel}
+\newcommand{\ppar}{p_\parallel}
+\newcommand{\Bpstar}{B_\parallel^*}
+\newcommand{\intpi}{\int\limits_{0}^{2\pi}}
+\newcommand{\summ}{\sum \limits_{m=-\infty}^\infty}
+\newcommand{\tb}{\tau_b(\uv)}
+\newcommand{\bh}{{\bf h}}
+\newcommand{\cE}{{\cal E}}
+\newcommand{\cB}{{\cal B}}
+\newcommand{\cg}{{\cal G}}
+\newcommand{\odtwo}[2]{\frac{\rd #1}{\rd #2}}
+\newcommand{\pdone}[1]{\frac{\partial}{\partial #1}}
+\newcommand{\pdtwo}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\ds}{\displaystyle}
+%\newcommand{\bc}{\begin{center} 
+%\newcommand{\ec}{\end{center}}
+%\input{prespan}
+
+\begin{document}
+
+\section{Generation of Boozer file from EFIT output}
+
+\subsection{Magnetic field from EFIT data}
+\label{ssec:efitdata}
+
+Code EFIT provides axisymmetric equilibrium field which can be written as a sum of poloidal and toroidal field as follows,
+\be{axifield}
+\bB=\nabla\times\left(A_\varphi\nabla\varphi\right)+B_\varphi\nabla\varphi,
+\ee
+where the toroidal covariant vector-potential component $A_\varphi=\psi$ is the poloidal flux specified in the nodes of rectangular grid
+in cylindrical coordinates, $\psi=\psi(R,Z)$, and the toroidal covariant magnetic field component $B_\varphi=B_\varphi(\psi)$ is a flux function
+equal up to a factor to a poloidal current, $B_\varphi= 2 I_{\rm pol} c^{-1}$.
+Interface to EFIT data, ``field\_divB0'', uses 2D splines of 5-th order to interpolate $\psi$ and provides physical cylindrical components of 
+the magnetic field as functions of cylindrical variables $(R,\varphi,Z)$ according to~\eq{axifield},
+\be{cylcomps}
+\hat B_R = -\frac{1}{R}\difp{\psi}{Z},
+\qquad
+\hat B_Z = \frac{1}{R}\difp{\psi}{R},
+\qquad
+\hat B_\varphi = \frac{B_\varphi}{R}.
+\ee
+These components as well as their derivatives over all coordinates are available via formal arguments of subroutine ``field''. 
+In addition, function $\psi$ and its first and second derivatives are available via module ``field\_eq\_mod''.
+
+\subsection{Symmetry flux coordinates by field line integration}
+Equations of field line in cylindrical coordinates are
+\bea{flint_cyl}
+\frac{\rd R}{\rd \varphi}=\frac{B^R}{B^\varphi}=\frac{R\hat B_R}{\hat B_\varphi},
+\nonumber \\
+\frac{\rd Z}{\rd \varphi}=\frac{B^Z}{B^\varphi}=\frac{R\hat B_Z}{\hat B_\varphi},
+\eea
+while the same equations in symmetry (and any other straight field line) flux coordinates are
+\bea{flint_sym}
+\frac{\rd r}{\rd \varphi}=\frac{B^r}{B^\varphi}=0,
+\nonumber \\
+\frac{\rd \vartheta}{\rd \varphi}=\frac{B^\vartheta}{B^\varphi}=\iota,
+\eea
+where $\iota=\iota(r)$. Integrating Eqs.~\eq{flint_cyl} over one poloidal turn what requires finding the periodic boundary 
+upon integrating over $\varphi$ from 0 to this boundary, $\varphi_{\rm max}$, we obtain safety factor $q=\iota^{-1}$ as
+$q=\varphi_{\rm max}(2\pi)^{-1}$.
+Repeating the integration with a fixed step $\Delta\varphi=2\pi q K^{-1}$ where $K$ is the number of steps we obtain
+the data on equi-distant grid of symmetry flux angle $\vartheta$ ranging in $[0, 2\pi]$, i.e. a set of array elements
+$(\vartheta_k, R_k, Z_k, B_k, \sqrt{g}_k)$ belonging to the same point $\vartheta_k = 2\pi k K^{-1}$.
+Metric determinant here is obtained from
+\be{divB}
+\nabla\cdot\bB=0 \qquad \Rightarrow\qquad \difp{}{\vartheta}\sqrt{g}B^\vartheta + \difp{}{\varphi}\sqrt{g}B^\varphi
+=\difp{}{\vartheta}\sqrt{g}B^\vartheta = \iota \difp{}{\vartheta}\sqrt{g}B^\varphi=0
+\ee
+as
+\be{sqrtg_sym}
+\sqrt{g} = \frac{C_s}{B^\varphi}=\frac{C_s R}{\hat B_\varphi},
+\ee
+where constant $C_s=C_s(r)$ is a flux function. The value of this constant is not important since it cancels in neoclassical averages.
+Note that Eq.~\eq{sqrtg_sym} is valid for general 3D field geometries.
+
+\noindent
+Repeating the integration for a set of flux surfaces $r=r_j$ we obtain the data on the rectangular grid equidistant in $\vartheta$.
+This data is interpolated over $\vartheta$ with help of periodic splines and over $r$ with help of Lagrange polynomials.
+Thus, continuous functions $R=R(r,\vartheta)$, $Z=Z(r,\vartheta)$, $B=B(r,\vartheta)$ and $\sqrt{g}=\sqrt{g(r,\vartheta)}$
+are available everywhere in plasma volume together with their derivatives computed from splines and Lagrange polynomials.
+
+
+
+\subsection{Boozer transformation function from field line integration}
+\label{ssec:boozerdata}
+
+For Boozer coordinates radial variable $r$ is unchanged.
+Then, the Jacobian $\sqrt{g}$ of symmetry flux coordinates $(r,\vartheta,\varphi)$
+is expressed through the Jacobian $\sqrt{g_B}$ of Boozer coordinates $(r,\vartheta_B,\varphi_B)$
+as follows
+\be{jacs}
+\sqrt{g} = \difp{(\vartheta_B,\varphi_B)}{(\vartheta,\varphi)}\sqrt{g_B} \equiv J_B \sqrt{g_B}.
+\ee
+Substituting in~\eq{jacs} Boozer angles from direct transformation via transformation function $G=G(r,\vartheta,\varphi)$,
+\be{invtrans}
+\vartheta_B = \vartheta+\iota G,
+\qquad
+\varphi_B = \varphi+G,
+\ee
+magnetic differential equation for $G$ is obtained as
+\be{magdifG}
+\frac{\rd G}{\rd \varphi} \equiv \frac{1}{B^\varphi}\bB\cdot\nabla G \equiv \iota \difp{G}{\vartheta}+\difp{G}{\varphi}=\frac{\sqrt{g}}{\sqrt{g_B}}-1
+=J_B-1.
+\ee
+The Jacobian of Boozer coordinates for the particular choice of radial variable $r=\psi_{\rm tor}$ is
+\be{jacbooz}
+\sqrt{g_B}=\frac{\iota B_\vartheta + B_\varphi}{B^2},
+\ee
+where $B_\vartheta=B_\vartheta(r)$ and $B_\varphi=B_\varphi(r)$ are flux functions. Therefore, for arbitrary choice of $r$ this Jacobian is
+\be{jacboozarb}
+\sqrt{g_B}=\frac{C_B}{B^2},
+\ee
+with $C_B=C_B(r)$ being a flux function too. Substituting~\eq{jacboozarb} and~\eq{sqrtg_sym} in~\eq{magdifG} this equation is transformed to
+\be{magdifG_expl}
+\frac{\rd G}{\rd \varphi} =\frac{R B^2}{C \hat B_\varphi}-1,
+\ee
+where $C=C_B C_s^{-1}$ is also a flux function. Particular expression for this function is not needed because it can be evaluated from the condition
+that transformation function $G$ is a single-valued function on the flux surface,
+\be{singval}
+\lim_{L_\varphi \rightarrow \infty}\frac{1}{L_\varphi}\int\limits_0^{L_\varphi} \rd\varphi\left(\frac{R B^2}{C \hat B_\varphi}-1\right)
+= \left\langle B^\varphi\left(\frac{R B^2}{C\hat B_\varphi}-1\right)\right\rangle \left\langle B^\varphi \right\rangle^{-1} = 0.
+\ee
+In axisymmetric field where $G=G(r,\vartheta)$ it is sufficient to set the upper integration limit over $\varphi$ not to infinity
+but to $L_\varphi=\varphi_{\rm max}=2\pi q$ what results in
+\be{Cdef}
+C = \frac{1}{2\pi q} \int\limits_0^{2\pi q} \rd\varphi \frac{R B^2}{\hat B_\varphi}.
+\ee
+Thus, constant $C$ can be determined during the first field line integration together with safety factor $q$.
+Second integration of field line equations~\eq{flint_cyl} extended by Eq.~\eq{magdifG_expl} will result in additional quantity $G_k$ 
+in the set of array elements $(\vartheta_k, R_k, Z_k, B_k, \sqrt{g}_k, G_k)$ such that subsequent 2D interpolation provides $G$ continuously 
+everywhere together with necessary derivatives.
+
+\noindent
+This primary information from field line integration is already sufficient for computation of mod-B spectrum, $B_{mn}$, which for axisymmetric field
+contains finite amplitudes only for $n=0$,
+\be{Bm0}
+B_{m0}=\frac{1}{2\pi}\int\limits_0^{2\pi} \rd\vartheta_B B \re^{-i m \vartheta_B}
+=\frac{1}{2\pi}\int\limits_0^{2\pi} \rd\vartheta \left(1+\iota \difp{G}{\vartheta}\right) B \re^{-i m \left(\vartheta+\iota G\right)}.
+\ee
+Here, one can express derivative of $G$ via~\eq{magdifG_expl} which taking into account~\eq{magdifG} and axisymmetry of $G$ results in
+the explicit form of the transformation Jacobian from symmetry flux to Boozer coordinates,
+\be{transfactor}
+J_B=1+\iota \difp{G}{\vartheta}=\frac{R B^2}{C \hat B_\varphi}.
+\ee
+Integrals~\eq{Bm0} of periodic sub-integrand are efficiently evaluated on an equidistant grid of $\vartheta$,
+\be{thetak}
+\vartheta_k = \frac{2\pi k}{K}, \qquad k=1,2,\dots,K.
+\ee
+Denoting values of different function at the nodes of the grid as follows,
+\be{fnodes}
+J_B^{(k)} = \frac{R(r,\vartheta_k) B^2(r,\vartheta_k)}{C(r)\hat B_\varphi(r,\vartheta_k)},
+\qquad
+B_{(k)} = B(r,\vartheta_k),
+\qquad
+\cE_{(k)} = \exp\left(- i \left(\vartheta_k + \iota(r)G(r,\vartheta_k)\right)\right),
+\ee
+Fourier amplitudes~\eq{Bm0} are obtained as
+\be{Bm0num}
+B_{m0}=\lim_{K\rightarrow\infty}\frac{1}{K}\sum\limits_{k=1}^K J_B^{(k)} B_{(k)} \cE_{(k)}^m.
+\ee
+The same is done also for cylindrical coordinates,
+\be{RZ0num}
+R_{m0}=\lim_{K\rightarrow\infty}\frac{1}{K}\sum\limits_{k=1}^K J_B^{(k)} R_{(k)} \cE_{(k)}^m,
+\qquad
+Z_{m0}=\lim_{K\rightarrow\infty}\frac{1}{K}\sum\limits_{k=1}^K J_B^{(k)} Z_{(k)} \cE_{(k)}^m,
+\ee
+including transformation function $\lambda$ defined via $2\pi\lambda=\varphi-\varphi_B=-G$,
+\be{lam0m}
+\lambda_{m0}= - \frac{1}{2\pi}\lim_{K\rightarrow\infty}\frac{1}{K}\sum\limits_{k=1}^K J_B^{(k)} G_{(k)} \cE_{(k)}^m.
+\ee
+Note that NEO-2 needs these coordinates for two purposes. First, it computes effective plasma radius defined
+as $\rd V= S \rd r$ where $V$ is volume limited by flux surface and $S$ is flux surface area. Second, it
+uses $R$ and $Z$ for computation of radial covariant component of the magnetic field $B_r$ via metric tensor
+so that this component computed by VMEC directly, which is discussed also in the next subsection, is not used.
+
+\subsection{Covariant field components}
+\label{ssec:covar}
+
+For computation of covariant field components in Boozer coordinates 
+%(actually we need only $B_r^B$ but $B_\vartheta^B$ and $B_\varphi^B$ are computed here for
+%a formula check) 
+we use the fact that we know cylindrical coordinates $R$ and $Z$ as functions of symmetry flux coordinates $\bx=(r,\vartheta,\varphi)$
+everywhere together with their derivatives over $x^i$. Thus, we can assume that we know the covariant unit vectors 
+$\partial \br / \partial x^i$ of symmetry flux coordinates since transformation from cylindrical to Cartesian coordinates is straightforward.
+
+\noindent
+Radial covariant component is obtained as
+\be{B_r}
+B_r^B = \bB\cdot\left(\difp{\br}{r}\right)_B = \bB\cdot\difp{(\br,\vartheta_B,\varphi_B)}{(r,\vartheta_B,\varphi_B)}
+= \bB\cdot\difp{(\br,\vartheta_B,\varphi_B)}{(r,\vartheta,\varphi)}\difp{(\vartheta,\varphi)}{(\vartheta_B,\varphi_B)}
+= \bB\cdot\difp{(\br,\vartheta_B,\varphi_B)}{(r,\vartheta,\varphi)}\frac{1}{J_B}.
+\ee
+For more explicit expressions we use axial symmetry in order to obtain
+\bea{B_r_expl}
+B_r^B 
+&=&
+\bB\cdot\difp{\br}{r}-\bB\cdot\difp{\br}{\vartheta}\frac{1}{J_B}\difp{}{r}\iota G
+-\bB\cdot\difp{\br}{\varphi}\frac{1}{J_B}\left(\difp{G}{r}-G\difp{\iota}{r}\difp{G}{\vartheta}\right)
+\\
+&=&
+\hat B_R \difp{R}{r}+\hat B_Z \difp{Z}{r}
+-\left(\hat B_R \difp{R}{\vartheta}+\hat B_Z \difp{Z}{\vartheta}\right)\frac{1}{J_B}\difp{}{r}\iota G
+- \hat B_\varphi \frac{R}{J_B}\left(\difp{G}{r}-G\difp{\iota}{r}\difp{G}{\vartheta}\right),
+\nonumber
+\eea
+where $J_B$ is given by~\eq{transfactor}. Cylindrical coordinates $R$ and $Z$ and function $G$ and their derivatives 
+in the last expression~\eq{B_r_expl} are known from the interpolation of field line integration result. 
+Physical cylindrical components of the magnetic field in this expression should be computed by ``field'' routine
+for known $R$ and $Z$. Therefore, covariant radial component~\eq{B_r_expl} is known at equidistant grid
+nodes $\vartheta_k$,
+\be{B_r_nodes}
+B_{r(k)}^B = B_r^B(r,\vartheta_k),
+\ee
+and its Fourier amplitudes can be computed in analogy to~\eq{Bm0num} as
+\be{Brm0num}
+B_{r,m0}=\lim_{K\rightarrow\infty}\frac{1}{K}\sum\limits_{k=1}^K J_B^{(k)} B_{r(k)}^B \cE_{(k)}^m.
+\ee
+
+\noindent
+Component over poloidal angle is computed in a similar way to~\eq{B_r},
+\be{B_theta}
+B_\vartheta^B = \bB\cdot\left(\difp{\br}{\vartheta_B}\right)_B = \bB\cdot\difp{(r,\br,\varphi_B)}{(r,\vartheta_B,\varphi_B)}
+= \bB\cdot\difp{(\br,\varphi_B)}{(\vartheta,\varphi)}\frac{1}{J_B}
+= \bB\cdot\left(\difp{\br}{\vartheta}-\difp{G}{\vartheta}\difp{\br}{\varphi}\right)\frac{1}{J_B}.
+\ee
+Eliminating poloidal derivative of $G$ with help of~\eq{transfactor} and using then explicit expression for $J_B$ we get
+\be{B_theta_expl}
+B_\vartheta^B = \frac{1}{J_B}\left(B_\vartheta+\frac{B_\varphi}{\iota}\left(1-J_B\right)\right)
+=\frac{\iota B_\vartheta+B_\varphi}{\iota J_B} - \frac{B_\varphi}{\iota}
+=\frac{B^2}{\iota J_B B^\varphi} - \frac{B_\varphi}{\iota}
+=q \left(C-B_\varphi\right).
+\ee
+Obviously $B_\vartheta^B$ is a flux function because both, $B_\varphi$ and constant $C$ are flux functions known already after the 
+first field line integration. In order to see that this is a toroidal current we rewrite~\eq{Cdef} from the form of field line integral
+to the form of integral over the poloidal angle using the axial symmetry,
+\be{Cdef_pol}
+C = \frac{1}{2\pi} \int\limits_0^{2\pi} \rd\vartheta \frac{R B^2}{\hat B_\varphi}
+= \frac{1}{2\pi} \int\limits_0^{2\pi} \rd\vartheta \frac{B^2}{B^\varphi}.
+\ee
+Substituting this in the last expression~\eq{B_theta_expl} we get
+\bea{torcurr}
+B_\vartheta^B 
+=\frac{q}{2\pi} \int\limits_0^{2\pi} \rd\vartheta \left(\frac{B^2}{B^\varphi}-B_\varphi\right)
+=\frac{q}{2\pi} \int\limits_0^{2\pi} \rd\vartheta \frac{B_\vartheta B^\vartheta}{B^\varphi}
+=\frac{1}{2\pi} \int\limits_0^{2\pi} \rd\vartheta B_\vartheta =\frac{2}{c} I_{\rm tor},
+\eea
+where the last expression follows from Ampere's law and Stokes theorem.
+
+\noindent
+We do not need to repeat the ansatz for the toroidal component because in axisymmetric field both flux coordinate systems
+have the same toroidal covariant vector (since $G$ is independent of $\varphi$),
+\be{bothsame}
+\difp{\br}{\varphi_B}=\difp{\br}{\varphi}.
+\ee
+Respectively, toroidal covariant field component is also unchanged,
+\be{B_phi}
+B_\varphi^B = B_\varphi = R \hat B_\varphi=\frac{2}{c} I_{\rm pol}.
+\ee
+
+\subsection{Computation of the cross-section area and of the toroidal flux}
+\label{ssec:oneDstuff}
+
+\noindent
+Cross-section area is given by the following contour integral
+\be{area1}
+S_{pol}=\oint \rd Z\; R(Z) = \int\limits_0^{2\pi}\rd\vartheta \difp{Z(r,\vartheta)}{\vartheta} R(r,\vartheta)
+=\int\limits_0^{2\pi q}\rd\varphi \frac{\rd Z}{\rd \varphi} R = \int\limits_0^{2\pi q}\rd\varphi \frac{R^2\hat B_Z}{\hat B_\varphi},
+\ee
+where last two expressions correspond to the integration along the field line (see~\eq{flint_cyl}). 
+Equivalently, one can switch $R$ and $Z$ in the contour integral in order to obtain
+\be{area2}
+S_{pol}= - \oint \rd R\; Z(R) = - \int\limits_0^{2\pi q}\rd\varphi \frac{R Z\hat B_R}{\hat B_\varphi}.
+\ee
+Both formulas result in positive area in AUG cases where toroidal field is in mathematically positive direction and poloidal
+field points up at the outer midplane or if both fields are reversed. In a general case, results of Eqs.~\eq{area1} and~\eq{area2}
+should be multiplied with ${\rm sign}(\hat B_\varphi \hat B_Z)$ in the outer midplane.
+
+\noindent
+In absence of finite-$\beta$ effect, covariant toroidal magnetic field component $B_\varphi$ is constant in plasma volume. Respectively,
+physical component $\hat B_\varphi$ is a function of $R$ only, and, therefore, toroidal flux can be computed as follows,
+\be{torflux_vac}
+\Psi_{\rm tor}
+= - \oint \rd R \; Z(R) \hat B_\varphi\left(R\right) 
+= - \int\limits_0^{2\pi q}\rd\varphi R Z \hat B_R,
+\ee
+which is a straightforward consequence of~\eq{area2}.
+
+\noindent
+In presence of finite-$\beta$ effect, single field line integration is not sufficient, and the flux should be integrated over flux surface label
+in symmetry flux coordinates,
+\be{finbeta}
+\Psi_{\rm tor}(r) 
+= \int\limits_{r_{\rm axis}}^r \rd r^\prime \int\limits_0^{2\pi}\rd\vartheta \difp{\br}{r}\times\difp{\br}{\vartheta}\cdot \bB
+=\int\limits_{r_{\rm axis}}^r \rd r^\prime \int\limits_0^{2\pi}\rd\vartheta \sqrt{g}\; B^\varphi
+= 2\pi \int\limits_{r_{\rm axis}}^r \rd r^\prime \sqrt{g}\; B^\varphi,
+\ee
+where we used the fact that $\sqrt{g} B^\varphi$ is a flux function. Starting field line integration from the outer midplane $Z=Z_b$ 
+and using the starting major radius value $R_b$ as a flux surface label, $r=R_b$, we can express cylindrical coordinates in the vicinity 
+of the starting point via flux coordinates as follows,
+\be{vicinity}
+R = R_b + \frac{R_b \hat B_R \vartheta}{\iota \hat B_\varphi}+O(\vartheta^2),
+\qquad
+Z = Z_b + \frac{R_b \hat B_Z \vartheta}{\iota \hat B_\varphi}+O(\vartheta^2),
+\ee
+what results for metric determinant in
+\be{sqrtg}
+\sqrt{g}=R\difp{(R,\varphi,Z)}{(r,\vartheta,\varphi)}=-R\difp{(R,Z)}{(r,\vartheta)}=-\frac{R_b^2 \hat B_Z}{\iota \hat B_\varphi}+O(\vartheta).
+\ee
+Substituting this expression evaluated exactly at the midplane, $\vartheta=0$, in~\eq{finbeta} we get
+\be{finbeta_fin}
+\Psi_{\rm tor}(R_b) 
+= - 2\pi \int\limits_{R_{\rm axis}}^{R_b} \rd R_b^\prime\; q\left(R_b^\prime\right) R_b^\prime\;\hat B_Z(R_b^\prime,Z_b).
+\ee
+Since safety factor is always positive in field line integration, sign of the flux in Eq.~\eq{finbeta_fin} is correct for AUG cases 
+and should be multiplied with ${\rm sign}(\hat B_\varphi \hat B_Z)$ in a general case.
+
+\subsection{Sign conventions}
+\label{ssec:signs}
+
+\noindent
+Field line integration procedure determines $q$ as a positive quantity. Therefore, direction of the poloidal angle 
+corresponds to Erika's definition for positive $\sigma={\rm sign}(\hat B_\varphi \hat B_Z)$ where $\hat B_z$ is 
+computed at the outer midplane.
+
+\noindent
+Poloidal current $J$ according to Erika's Fig.2 points downwards if this current is defined as a current through a 
+circle centered at the main axis of the torus. This means that $J=-I_{\rm pol}$ with $I_{\rm pol}$ defined 
+by~\eq{B_phi} as a current in positive direction with respect to $Z$-axis.
+
+\noindent
+Toroidal current $I$ according to Erika's Fig.2 points in mathematically positive toroidal direction.
+In case $\sigma=1$ flux coordinate system $(s,\vartheta,\varphi)$ is left-handed, and, therefore, current
+$I_{\rm tor}$ in Eq.~\eq{torcurr} points in negative direction with respect to the toroidal angle, and, respectively,
+$I=-I_{\rm tor}$.
+
+\noindent
+If Both currents are switch the sign flux coordinate system remains left-handed, $\sigma=1$. In this case both, $B_\varphi$
+and $B_\vartheta$ switch signs. If only one current switches sign, system becomes right-handed, $\sigma=-1$. Since 
+toroidal angle is always counted in mathematically positive toroidal direction of cylindrical coordinates, poloidal 
+angle changes direction in both such cases in order to keep $q$ positive. 
+In the first such case where the poloidal current $I_{\rm pol}$ switches sign, direction of toroidal field $B_\varphi$
+is switched. Since poloidal current is defined independently of coordinate system as current through the circle centered
+at $Z$-axis it does not change sign but the poloidal field $B_\vartheta$ does together with the direction
+of poloidal angle. In the second such case where the toroidal current $I_{\rm tor}$ switches sign, sign of the
+toroidal field $B_\varphi$ is unchanged and sign of the poloidal field $B_\vartheta$ is also unchanged because
+change in the direction of the poloidal field is compensated by the change of the poloidal angle direction.
+Thus, in the general case of positively defined $q$ relation between currents and covariant field components can
+be written as
+\be{relcurfield}
+I=-\sigma I_{\rm tor}, \qquad J=-I_{\rm pol},
+\ee
+where $I_{\rm tor}$ and $I_{\rm pol}$ are defined by Eqs.~\eq{torcurr} and~\eq{B_phi}, respectively.
+Besides that, we note that toroidal flux~\eq{finbeta_fin} is in mathematically positive direction
+only for the right-handed flux coordinate system, $\sigma=-1$. For the left-handed system it is counted
+in mathematically negative direction. In order count it in mathematically positive direction of
+cylindrical coordinates in all cases we re-define the sign of the normalized toroidal flux
+$\psi_{\rm tor}=\Psi_{\rm tor}(2\pi)^{-1}$ as follows,
+\be{finbeta_fin_sigma}
+\psi_{\rm tor}(R_b)
+= \sigma \int\limits_{R_{\rm axis}}^{R_b} \rd R_b^\prime\; q\left(R_b^\prime\right) R_b^\prime\;\hat B_Z(R_b^\prime,Z_b).
+\ee
+
+\subsection{Pressure gradient}
+\label{ssec:pressure}
+
+\noindent
+For completeness of Boozer file let us compute pressure gradient. Although it is not used by NEO-2, it might be useful
+for linearized ideal MHD model of RMP's. Using force balance and Ampere's law,
+\be{forceamp}
+c\nabla p = \bj\times\bB, \qquad 4\pi\bj=c \nabla\times\bB,
+\ee
+one obtains flux coordinates
+\be{influx}
+\frac{4\pi}{B^\varphi}\difp{p}{r}=\left(\difp{}{\varphi}+\iota\difp{}{\vartheta}\right)B_r-\difp{B_\varphi}{r}-\iota\difp{B_\vartheta}{r}.
+\ee
+Averaging this expression over the angles eliminates $B_r$. In Boozer coordinates and axisymmetric field result is particularly simple,
+\bea{dpdr}
+\difp{p}{r}
+&=&
+-\frac{1}{2}\left(\difp{B^B_\varphi}{r}+\iota\difp{B^B_\vartheta}{r}\right)\left(\int\limits_0^{2\pi}\frac{\rd\vartheta_B}{B^\varphi_B}\right)^{-1}
+=-\frac{1}{2\left(B^B_\varphi+\iota B^B_\vartheta\right)}
+\left(\difp{B^B_\varphi}{r}+\iota\difp{B^B_\vartheta}{r}\right)\left(\int\limits_0^{2\pi}\frac{\rd\vartheta_B}{B^2}\right)^{-1}
+\nonumber \\
+&=& - \frac{1}{4\pi\left(B^B_\varphi+\iota B^B_\vartheta\right)}
+\left(\difp{B^B_\varphi}{r}+\iota\difp{B^B_\vartheta}{r}\right)\left(\frac{1}{B^2}\right)_{00}^{-1},
+\eea
+where $(\dots)_{00}$ means Fourier amplitude for $(m,n)=(0,0)$. Last expression is valid in a general 3D case.
+
+\section{Hamada - Boozer converter}
+
+Perturbation field produced by MARS code in Hamada coordinates $\left(\rho_{\rm pol},\vartheta_H,\varphi_H\right)$ 
+has the following form,
+\be{hamada_input}
+\delta B_H\left(\rho_{\rm pol},\vartheta_H,\varphi_H\right) = \sum \limits_{m=-\infty}^\infty\sum \limits_{n=-\infty}^\infty 
+B_{mn}^{(H)}\left(\rho_{\rm pol}\right)\exp\left(i\left(m\vartheta_H+n \varphi_H\right)\right),
+\ee
+where
+\be{complex_aham}
+B_{mn}^{(H)}\left(\rho_{\rm pol}\right)=B_{mn}^{(H,c)}(\rho_{\rm pol})+i B_{mn}^{(H,s)}(\rho_{\rm pol}),
+\ee
+$B_{mn}^{(H,c)}$ and $B_{mn}^{(H,s)}$ are real and imaginary parts of the complex Fourier amplitude
+given on the equidistant grid of the normalized polidal radius $\rho_{\rm pol}=\left(\psi_{\rm pol}/\psi_{\rm pol}^a\right)^{1/2}$.
+In the following we omit in the arguments the flux surface label $\rho_{\rm pol}$ which plays the role of the parameter only.
+
+We are interested in Fourier expansion amplitudes $B_{mn}^{(B)}$ over Boozer angles $\left(\vartheta_B,\varphi_B\right)$, 
+such that perturbation field has a form similar to~\eq{hamada_input},
+\be{boozer_output}
+\delta B_B\left(\vartheta_B,\varphi_B\right) = \sum \limits_{m=-\infty}^\infty\sum \limits_{n=-\infty}^\infty
+B_{mn}^{(B)}\exp\left(i\left(m\vartheta_B+n \varphi_B\right)\right).
+\ee
+These amplitudes are given by direct Fourier transforms as
+\be{dirtrans_H-B}
+B_{mn}^{(B)} = \frac{1}{(2\pi)^2}\int\limits_{0}^{2\pi}\rd \vartheta_B \int\limits_{0}^{2\pi}\rd \varphi_B
+\exp\left(-i\left(m\vartheta_B+n \varphi_B\right)\right) \delta B_B\left(\vartheta_B,\varphi_B\right).
+\ee
+Since perturbation is the same at the samy physical point, we have 
+$\delta B_B\left(\vartheta_B,\varphi_B\right)=\delta B_H\left(\vartheta_H,\varphi_H\right)$
+where $\vartheta_H=\vartheta_H\left(\vartheta_B,\varphi_B\right)$ and $\varphi_H=\varphi_H\left(\vartheta_B,\varphi_B\right)$
+or vice versa. Similar to the transformation~\eq{invtrans} form the symmetry flux coordinates 
+(PEST coordinates in case of axisymmetric equilibrium field) to Boozer coordinates, we can express transformation from
+Hamada coordinates to Boozer coordinates as
+\be{angtrans_H-B}
+\vartheta_H = \vartheta_B + \iota G_{HB}\left(\vartheta_B,\varphi_B\right),
+\qquad
+\varphi_H = \varphi_B + G_{HB}\left(\vartheta_B,\varphi_B\right).
+\ee
+In the axisymmetric equilibrium field, transformation function does not depend on the toroidal angle, 
+$G_{HB}\left(\vartheta_B,\varphi_B\right)=G_{HB}\left(\vartheta_B\right)$. Therefore, 
+$\vartheta_H=\vartheta_H\left(\vartheta_B\right)$ does not depend on toroidal angle, 
+and $\varphi_H = \varphi_B + G_{HB}\left(\vartheta_B\right)$ is a linear function of $\varphi_B$.
+Thus, substituting $\delta B_H$ in the form of Fourier series~\eq{hamada_input} in~\eq{dirtrans_H-B} 
+evaluation of integral over $\varphi_B$ is trivial and results on Kronecker $\delta$ (no toroidal mode coupling).
+As a result, linear transformation of Fourier amplitudes couple only the poloidal modes as follows,
+\bea{lintrans_H-B}
+B_{mn}^{(B)} = \sum \limits_{m^\prime=-\infty}^\infty c_{mm^\prime}^{(HB)}(n) B_{m^\prime n}^{(H)},
+\eea
+where transformation matrix $c_{mm^\prime}^{(HB)}(n)$ is explicitly given by
+\bea{chbn}
+c_{mm^\prime}^{(HB)}(n)
+=
+\frac{1}{2\pi}\int\limits_{0}^{2\pi}\rd \vartheta_B 
+\exp\left(im^\prime\vartheta_H-im\vartheta_B+in \left(\varphi_H-\varphi_B\right)\right), 
+\eea
+where $\varphi_H-\varphi_B=G_{HB}(\vartheta_B)$. Within the procedure of filed line integration in cylindrical
+variables, it is more convenient to replace the integration over Boozer poloidal angle using direct transformation
+from Hamada angles with integration in symmetry flux coordinates. For this, we express both, Boozer and Hamada angles
+via symmetry flux angles $(\vartheta,\varphi)$,
+\bea{booz_viasym}
+\vartheta_B &=&\vartheta+\iota G_B(\vartheta), \qquad \varphi_B=\varphi+G_B(\vartheta),
+\nonumber
+\\
+\vartheta_H &=&\vartheta+\iota G_H(\vartheta), \qquad \varphi_H=\varphi+G_H(\vartheta),
+\eea
+where both transformation functions correspond to the axisymmetric equilibrium. Then Eq.~\eq{chbn} takes the form
+\bea{chbn_sym}
+c_{mm^\prime}^{(HB)}(n)
+=
+\frac{1}{2\pi}\int\limits_{0}^{2\pi}\rd \vartheta\left(1+\iota \difp{G_B}{\vartheta}\right)
+\exp\left(i(m^\prime-m)\vartheta+im^\prime\iota G_H-im\iota G_B+in \left(G_H-G_B\right)\right).
+\eea
+The inverse transformation matrix is given by a similar expression with exchange of indices $B$ and $H$.
+Consistency check od so-obtained inverse transformation is presented in Appendix~\ref{sec:conscheck}.
+
+\subsection{Coversion coefficients via field line integration}
+\label{ssec:conv_via_flint}
+Direc transformation function from symmetry flux coordinates to Boozer coordinates
+has been obtained in Section~\ref{ssec:boozerdata} via the Jacobian~\eq{jacboozarb} of Boozer coordinates
+with arbitrary flux surface label $r$. We use the same label for all flux coordinates such that the Jacobian of
+Hamada coordinates takes a similar form
+\be{jachamarb}
+\sqrt{g_H}=C_H=C_H(r).
+\ee
+Then, in adition to the magnetic diferential equation~\eq{magdifG_expl} for transformation function $G_B$ to Boozer coordinates
+which we re-write here in new notation as
+\be{magdifG_expl_booz}
+\frac{\rd G_B}{\rd \varphi} =\frac{R B^2}{C_{SB} \hat B_\varphi}-1,
+\ee
+transformation function to Hamada coordinates satisfies the magnetic differential equation
+\be{magdifG_expl_ham}
+\frac{\rd G_H}{\rd \varphi} =\frac{R}{C_{SH} \hat B_\varphi}-1.
+\ee
+It should be reminded that integration here is along the magnetic field line, such that all functions in~\eq{magdifG_expl_booz}
+and~\eq{magdifG_expl_ham} which are independent of toroidal angle due to axial symmetry, $F=F(\vartheta)$, are the functions of
+teh toroidal angle in field aligned coordinates $(\vartheta_0,\varphi)$ where 
+$\vartheta_0=\vartheta-\iota\varphi$ is the field line label, $F=F(\vartheta_0 + \iota \varphi)$. To be definite, we start
+field line integration at $\varphi=0$ so that $\vartheta_0$ corresponds to a starting value of usual symmetry flux angle 
+$\vartheta$. Transformation functions via field line integration are then
+\bea{transf_mfl}
+G_B &=& G_B(\vartheta_0+\iota\varphi)=\frac{1}{C_{SB}}\int\limits_0^\varphi\rd\varphi^\prime \frac{R B^2}{\hat B_\varphi}-\varphi
++G_B^0,
+\nonumber \\
+G_H &=& G_H(\vartheta_0+\iota\varphi)=\frac{1}{C_{SB}}\int\limits_0^\varphi\rd\varphi^\prime \frac{R}{\hat B_\varphi}-\varphi
++G_H^0,
+\eea
+where $G_B^0=q(\vartheta_{B0}-\vartheta_0)$ and 
+$G_H^0=q(\vartheta_{H0}-\vartheta_0)$ are integration constants setting the origin of poloidal angle in each coordinate system
+so that at the same physical point $\vartheta=\vartheta_0$ respective values of poloidal angles in each coordinate system are
+$\vartheta_B=\vartheta_{B0}$ and $\vartheta_H=\vartheta_{H0}$.
+Constants $C_{SB}(r)$ and $C_{SH}(r)$ follow from the periodocity of transformation functions,
+$G(\vartheta_0 + \iota \varphi)|_{\varphi=2\pi q}=G(\vartheta_0 + 2\pi)=G(\vartheta_0)$, as
+\be{C_SBH}
+C_{SB}=\frac{1}{2\pi q}\int\limits_0^{2\pi q}\rd\varphi \frac{R B^2}{\hat B_\varphi},
+\qquad
+C_{SH}=\frac{1}{2\pi q}\int\limits_0^{2\pi q}\rd\varphi \frac{R}{\hat B_\varphi}.
+\ee
+
+In the following, it is convenient to re-define transfomation functions via
+\be{redef_via_F}
+F_B(\varphi)=\int\limits_0^\varphi\rd\varphi^\prime \frac{R B^2}{\hat B_\varphi},
+\qquad
+F_H(\varphi)=\int\limits_0^\varphi\rd\varphi^\prime \frac{R}{\hat B_\varphi},
+\ee
+so that
+\bea{G_vs_F}
+G_B(\vartheta_0+\iota\varphi)=\frac{\varphi_{\rm max}}{F_B(\varphi_{\rm max})}F_B(\varphi)-\varphi+q(\vartheta_{B0}-\vartheta_0),
+\nonumber \\
+G_H(\vartheta_0+\iota\varphi)=\frac{\varphi_{\rm max}}{F_H(\varphi_{\rm max})}F_H(\varphi)-\varphi+q(\vartheta_{H0}-\vartheta_0),
+\eea
+and $\varphi_{\rm max} = 2\pi q$ is the toroidal field line displacement over one full poloidal turn.
+With this, we can re-write
+\be{F_deriv}
+1+\iota \difp{G_B}{\vartheta}=1+\frac{\rd G_B}{\rd\varphi}
+=\frac{\varphi_{\rm max}}{F_B(\varphi_{\rm max})} \frac{\rd F_B}{\rd\varphi},
+\qquad
+\frac{\rd F_B}{\rd\varphi}=\frac{R B^2}{\hat B_\varphi}.
+\ee
+Thus, replacing in Eq.~\eq{chbn_sym} integration over poloidal angle $\vartheta$ with integration along the field line as follows,
+$$
+\int\limits_{0}^{2\pi}\rd \vartheta f(\vartheta) 
+= 
+\iota\int\limits_{0}^{\varphi_{\rm max}}\rd \varphi f(\vartheta_0 + \iota \varphi),
+$$
+we substitute functions $G$ and derivative of $G_B$ via Eqs.~\eq{G_vs_F} and~\eq{F_deriv} and obtain
+\bea{chbn_sym_mfl}
+c_{mm^\prime}^{(HB)}(n)
+&=&
+\frac{1}{F_B(\varphi_{\rm max})} 
+\int\limits_{0}^{\varphi_{\rm max}}\rd \varphi
+\frac{\rd F_B}{\rd\varphi}
+\nonumber \\
+&\times&
+\exp
+\left(
+i(m^\prime+nq)\left(\frac{2\pi F_H(\varphi)}{F_H(\varphi_{\rm max})}+\vartheta_{H0}\right)
+-
+i(m+nq)\left(\frac{2\pi F_B(\varphi)}{F_B(\varphi_{\rm max})}+\vartheta_{B0}\right)
+\right)
+\nonumber \\
+&=&
+\int\limits_{0}^{\varphi_{\rm max}}\rd \varphi
+\frac{\rd \hat F_B}{\rd\varphi}
+\exp
+\left(
+i(2\pi m^\prime+n\varphi_{\rm max})\hat F_H(\varphi)
+-
+i(2\pi m+n\varphi_{\rm max})\hat F_B(\varphi)
+\right).
+\eea
+Easy to check that this expression results in Kronecker symbol $\delta_{mm^\prime}$ 
+if we set $F_H=F_B$ and $\vartheta_{H0}=\vartheta_{B0}$.
+Last expression, where
+\be{hat_Fs}
+\hat F_H(\varphi) = \frac{F_H(\varphi)}{F_H(\varphi_{\rm max})}+\frac{\vartheta_{H0}}{2\pi},
+\qquad
+\hat F_B(\varphi) = \frac{F_B(\varphi)}{F_B(\varphi_{\rm max})}+\frac{\vartheta_{B0}}{2\pi},
+\ee
+is evaluated by field line integration in cylindrical coordinates over the full poloidal
+turn, i.e. $\varphi_{\rm max}=2\pi q$. We use discrete Fourier transform for evaluation of 
+coefficients~\eq{chbn_sym_mfl} so that all we need from the field line integration are function
+$\hat F_B(\varphi)$, its derivative $\rd \hat F_B(\varphi) /\rd \varphi$ and function $\hat F_H(\varphi)$
+given on the equidistant grid of $\varphi$ in the interval $0 \le \varphi \le \varphi_{\rm max}$.
+
+\subsection{Fourier series in NEO-2}
+\label{ssec:neo2-spectrum}
+
+Fourier series representation of perturbation~\eq{boozer_output} differs from representation of this field in NEO-2 where
+\be{boozer_neo2}
+\delta B_B\left(\vartheta_B,\varphi_B\right) = {\rm Re}\sum \limits_{m=-\infty}^\infty\sum \limits_{n=1}^\infty
+B_{mn}\exp\left(i\left(m\vartheta_B+n \varphi_B\right)\right).
+\ee
+Let us present this series (noting that $B_{m0}^{(B)}=B_{m0}=0$) as
+\bea{transeries}
+\delta B_B\left(\vartheta_B,\varphi_B\right) 
+&=& 
+\frac{1}{2}\sum \limits_{m=-\infty}^\infty
+\left(
+\sum \limits_{n=1}^\infty B_{mn}\exp\left(i\left(m\vartheta_B+n \varphi_B\right)\right)
++
+\sum \limits_{n=1}^\infty B_{mn}^\ast\exp\left(-i\left(m\vartheta_B+n \varphi_B\right)\right)
+\right)
+ \\
+&=& 
+\frac{1}{2}\sum \limits_{m=-\infty}^\infty
+\left(
+\sum \limits_{n=1}^\infty B_{mn}\exp\left(i\left(m\vartheta_B+n \varphi_B\right)\right)
++
+\sum \limits_{n=-\infty}^{-1} B_{-m,-n}^\ast\exp\left(i\left(m\vartheta_B+n \varphi_B\right)\right)
+\right).
+\nonumber
+\eea
+Comparison with Eq.~\eq{boozer_output} results in relations
+\bea{rel_B_neo2}
+B_{mn}^{(B)} &=& \frac{1}{2}B_{mn}, \qquad n > 0,
+\nonumber \\
+B_{mn}^{(B)} &=& \frac{1}{2}B_{-m,-n}^\ast, \quad n < 0,
+\eea
+which can also be written via Heaviside fnction $\Theta(x)$ as
+$$
+B_{mn}^{(B)} = \frac{1}{2}\left(B_{mn}\Theta(n)+B_{-m,-n}^\ast\Theta(-n)\right).
+$$
+Last representation makes it easy to check that
+$$
+\left(B^{(B)}_{-m,-n}\right)^\ast = B_{mn}^{(B)},
+$$
+which should hold for Fourier coefficients of the real quantity. Thus, we need only $B_{mn}=2B_{mn}^{(B)}$ for $n>0$
+for NEO-2 representation. Presenting now
+\be{cossin}
+B_{mn}=B_{mn}^{c}- i B_{mn}^{s},
+\ee
+where $B_{mn}^{c}$ and $B_{mn}^{s}$ are real coefficients,
+series~\eq{boozer_neo2} takes the form
+\be{boozer_neo2_cossin}
+\delta B_B\left(\vartheta_B,\varphi_B\right) = \sum \limits_{m=-\infty}^\infty\sum \limits_{n=1}^\infty
+\left(
+B_{mn}^c\cos\left(m\vartheta_B+n \varphi_B\right)
++
+B_{mn}^s\sin\left(m\vartheta_B+n \varphi_B\right)
+\right),
+\ee
+which is used in the respective Boozer file for NEO-2.
+Thus we obtained the required coefficients via $B_{mn}^{(B)}$ for $n>0$ as
+\be{reqcoef}
+B_{mn}^c = 2\; {\rm Re}\; B_{mn}^{(B)},
+\qquad
+B_{mn}^s = - 2\; {\rm Im}\; B_{mn}^{(B)}.
+\ee
+
+
+
+\appendix
+\section{Consistency check of direct and inverse Boozer-Hamada conversion}
+\label{sec:conscheck}
+
+Let us compute the inverse transformation matrix $c_{m^\prime m^{\prime\prime}}^{(BH)}(n)$
+using the definition~\eq{booz_viasym} with the exchange of indices $B$ and $H$
+and check that the product
+\be{tildel}
+\tilde \delta_{mm^{\prime\prime}}
+=
+\sum\limits_{m^\prime=-\infty}^\infty c_{mm^\prime}^{(HB)}(n) c_{m^\prime m^{\prime\prime}}^{(BH)}(n)
+\ee
+is the same with Kronecker symbol. Using in the explicit expression for this product,
+\bea{expl_prod}
+\tilde \delta_{mm^{\prime\prime}}
+&=&
+\frac{1}{4\pi^2}\sum\limits_{m^\prime=-\infty}^\infty
+\int\limits_{0}^{2\pi}\rd \vartheta
+\int\limits_{0}^{2\pi}\rd \vartheta^\prime
+\left(1+\iota \difp{G_B(\vartheta)}{\vartheta}\right)
+\left(1+\iota \difp{G_H(\vartheta^\prime)}{\vartheta^\prime}\right)
+\\
+&\times&
+\exp\left[i(m^\prime-m)\vartheta+im^\prime \iota G_H(\vartheta)
+-im \iota G_B(\vartheta)+in \left(G_H(\vartheta)-G_B(\vartheta)\right)\right]
+\nonumber \\
+&\times&
+\exp\left[i(m^{\prime\prime}-m^\prime)\vartheta^\prime
++im^{\prime\prime}\iota G_B(\vartheta^\prime)-im^\prime\iota G_H(\vartheta^\prime)+in \left(G_B(\vartheta^\prime)
+-G_H(\vartheta^\prime)\right)\right]
+\nonumber 
+\eea
+the summation formula
+\be{sumformula}
+\sum\limits_{m=-\infty}^\infty {\rm e}^{i m \alpha}
+=2\pi\sum\limits_{k=-\infty}^\infty 
+\delta\left(\alpha + 2\pi k\right)
+\ee
+and periodicity of the sub-integrand we extend the integration over $\vartheta^\prime$ to infinite limits as follows
+$$
+\sum\limits_{k=-\infty}^\infty\int\limits_{0}^{2\pi}\rd \vartheta^\prime f(\vartheta^\prime +2\pi k + g(\vartheta^\prime,\vartheta))
+h(\vartheta^\prime,\vartheta)
+=\int\limits_{-\infty}^{\infty}\rd \vartheta^\prime f(\vartheta^\prime+ g(\vartheta^\prime,\vartheta))
+h(\vartheta^\prime,\vartheta),
+$$
+where $g(\vartheta^\prime,\vartheta)$ and $h(\vartheta^\prime,\vartheta)$ are periodic 
+functions of $\vartheta^\prime$.
+Thus, we obtain
+\bea{explcheck_inv}
+\tilde \delta_{mm^{\prime\prime}} &=&
+\frac{1}{2\pi}
+\int\limits_{0}^{2\pi}\rd \vartheta
+\int\limits_{-\infty}^{\infty}\rd \vartheta^\prime
+\left(1+\iota \difp{G_B(\vartheta)}{\vartheta}\right)
+\left(1+\iota \difp{G_H(\vartheta^\prime)}{\vartheta^\prime}\right)
+\nonumber \\
+&\times&
+\delta\left(\vartheta-\vartheta^\prime + \iota G_H(\vartheta)-\iota G_H(\vartheta^\prime)\right)
+\nonumber \\
+&\times&
+\exp\left[-i m\vartheta-im\iota G_B(\vartheta)+in \left(G_H(\vartheta)-G_B(\vartheta)\right)\right]
+\nonumber \\
+&\times&
+\exp\left[i m^{\prime\prime}\vartheta^\prime
++im^{\prime\prime} \iota G_B(\vartheta^\prime)+in \left(G_B(\vartheta^\prime)
+-G_H(\vartheta^\prime)\right)\right]
+\nonumber \\
+&=&
+\frac{1}{2\pi}
+\int\limits_{0}^{2\pi}\rd \vartheta
+\left(1+\iota \difp{G_B(\vartheta)}{\vartheta}\right)
+\exp\left(i(m^{\prime\prime}-m)\left(\vartheta+\iota G_B(\vartheta)\right)\right)
+\nonumber \\
+&=&
+\frac{1}{2\pi}
+\int\limits_{0}^{2\pi}\rd \vartheta_B
+\exp\left(i(m^{\prime\prime}-m)\vartheta_B\right)=\delta_{m m^{\prime\prime}}.
+\eea
+
+
+
+\end{document}

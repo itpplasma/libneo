@@ -1,0 +1,22 @@
+## 2023-07-26: Sign and coordinate convention flexibiliy
+
+Sergei: 
+The way to deal with right-screw field lines is to use the right-handed 
+coordinate system where iota is positive for the right screw.
+
+Change in EFIT_to_Boozer is the following. It produces now 3 files 
+instead of one. Namely, it keeps the old output, "fromefit.bc", and 
+writes two more outputs, "fromefit_neo_lhs.bc" and 
+"fromefit_neo_rhs.bc". First of these two is for the left-handed 
+coordinate system and second one is for the right-handed. Therefore, one 
+of these two has positive iota - this file should be used then for NEO-2.
+
+Old output "fromefit.bc" is the same with "fromefit_neo_lhs.bc" only for 
+the left-screw fields (AUG standard). In case of a right-screw field (if 
+one flips in the standard AUG field toroidal field or toroidal current 
+but not both at the same time), old output gives a weird combination 
+which should not be used with NEO-2.
+
+In case we get Boozer file with negative iota from someone else, it can 
+be re-mapped to a different coordinate system as described in 
+"boozer_sign_convensions".
