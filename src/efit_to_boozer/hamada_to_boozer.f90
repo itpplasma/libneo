@@ -1,3 +1,6 @@
+program hamada_to_boozer
+  use binsrc_sub, only: binsrc
+  use plag_coeff_sub, only: plag_coeff
 !
   implicit none
 !
@@ -56,7 +59,7 @@
   do irhopol=1,nrhopol
     read(iunit1,*) rho_pol(irhopol)
     read(iunit2,*) dummy1d
-    b_mn(irhopol,:)=cmplx(dummy1d(1:mdum_half),dummy1d(mdum_half+1:mdum_full))*boexp
+    b_mn(irhopol,:)=cmplx(dummy1d(1:mdum_half),dummy1d(mdum_half+1:mdum_full),8)*boexp
   enddo
   close(iunit1)
   close(iunit2)
@@ -233,4 +236,4 @@
   close(iunit)
 ! End convert the spectrum and write a proper Boozer file
 !--------------------------------------------
-  end
+end program hamada_to_boozer

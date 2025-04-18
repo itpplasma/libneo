@@ -21,6 +21,8 @@
   use field_line_integration_for_coverter_mod, only : prop,rmn,rmx,zmn,zmx
   use rhs_converter_mod, only : dz_dphi
   use field_eq_mod, only : nrad,nzet,rad,zet,icall_eq
+  use field_sub
+  use odeint_allroutines_sub
 !
   implicit none
 !
@@ -49,19 +51,19 @@
     prop = .false.
     icall_eq=-1
     rrr=1.d0
-    ppp=0.d0 
-    zzz=0.d0 
-! 
+    ppp=0.d0
+    zzz=0.d0
+!
     call field(rrr,ppp,zzz,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
               ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
-! 
+!
 ! Computation box:
     rmn=rad(1)
     rmx=rad(nrad)
     zmn=zet(1)
     zmx=zet(nzet)
   endif
-! 
+!
 ! End of initialization
 !
 ! First field line integration to find ploidal period:

@@ -9,6 +9,7 @@
 !
   subroutine rhs_converter(phi,y,dy)
 !
+  use field_sub
   use rhs_converter_mod, only : dz_dphi
 !
   implicit none
