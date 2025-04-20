@@ -1,5 +1,5 @@
 import numpy as np
-from os.path import basename
+from os.path import splitext
 from scipy.interpolate import PchipInterpolator, LinearNDInterpolator, interp1d
 from scipy.integrate import quad
 from datetime import datetime
@@ -10,7 +10,7 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
     data = eqdsk2vmec_gfile(eqdsk_file)
 
     if vmec_in_file is None:
-        vmec_in_file = f'input.{basename(eqdsk_file)}'
+        vmec_in_file = f'input.{splitext(eqdsk_file)[0]}'
 
     # Initialize VMEC input
     vmec_input = {
