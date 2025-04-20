@@ -5,9 +5,12 @@ from datetime import datetime
 from netCDF4 import Dataset
 from libneo import eqdsk_base
 
-def eqdsk2vmec(filename):
-    data = eqdsk2vmec_gfile(filename)
-    
+def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
+    data = eqdsk2vmec_gfile(eqdsk_file)
+
+    if vmec_in_file is None:
+        vmec_in_file = f'input.{eqdsk_file}'
+
     # Initialize VMEC input
     vmec_input = {
         "delt": 1.0,
@@ -55,10 +58,9 @@ def eqdsk2vmec(filename):
         "rbs": data['refou2'].T,
         "zbc": data['zefou2'].T
     }
-    
-    filename = filename.split('.')[0]
-    new_file = f'input.{filename}_python'
-    write_vmec_input(new_file, vmec_input)
+
+    eqdsk_file = eqdsk_file.split('.')[0]
+    write_vmec_input(vmec_in_file, vmec_input)
 
 def eqdsk2vmec_gfile(filename):
     data = eqdsk_base.read_eqdsk(filename)
@@ -73,25 +75,25 @@ def eqdsk2vmec_gfile(filename):
     theta[theta < 0] += 2 * np.pi
     sorted_indices = np.argsort(theta)
     R, Z, Rminor = R[sorted_indices], Z[sorted_indices], Rminor[sorted_indices]
-    
-    
+
+
     nu = len(R)
     nv = 1
 
     # Interpolate flux functions
     pflux = np.linspace(data['PsiaxisVs'], data['PsiedgeVs'], len(data['fprof']))
     pflux_norm = (pflux - pflux[0]) / (pflux[-1] - pflux[0])
-    
+
     press = data['ptotprof']
     qprof = data['qprof']
 
     qprof_interp = interp1d(pflux, qprof, kind='linear', fill_value="extrapolate")
-    
+
     torflux = np.zeros(len(pflux))
 
     for i in range(len(pflux)):
         torflux[i], _ = quad(qprof_interp, pflux[0], pflux[i])   # EQDSK uses flux in Weber/rad
-    
+
     torflux_vmec = torflux * 2 * np.pi  # VMEC uses flux in Weber
     torflux_norm = torflux/torflux[-1]
 
@@ -101,7 +103,7 @@ def eqdsk2vmec_gfile(filename):
     p[-1] = am_aux_f[0]
     p = np.concatenate(([-np.sum(p[:10]) + am_aux_f[-1]], p))
     am = np.flip(p)
-    
+
     jdotb= data['dpressdpsiprof']+data['fdfdpsiprof']
     ac_aux_s = np.linspace(0, 1, 100)
     ac_aux_f = PchipInterpolator(torflux_norm, jdotb)(ac_aux_s)
@@ -181,7 +183,7 @@ def write_vmec_input_vec(f, vec):
         f.write(f"{vec[i]:16.14E} ")
         if i%3==2:
             f.write('\n ')
-            
+
     f.write('\n')
 
 def write_vmec_input(filename, data):
@@ -200,15 +202,15 @@ def write_vmec_input(filename, data):
             f.write(f'  NITER = {data["niter"]}\n')
             f.write(f'  NSTEP = {data["nstep"]}\n')
             f.write(f'  TCON0 = {data["tcon0"]:16.14E}\n')
-            
+
             ns = len(data['ns_array'])
             f.write('  NS_ARRAY = ' + ' '.join(f'{val:8d}' for val in data['ns_array']) + '\n')
-            
+
             if 'niter_array' in data:
                 f.write('  NITER_ARRAY = ' + ' '.join(f'{val:8d}' for val in data['niter_array']) + '\n')
-            
+
             f.write('  FTOL_ARRAY = ' + ' '.join(f'{val:.2E}' for val in data['ftol_array']) + '\n')
-            
+
             f.write('!----- Grid Parameters -----\n')
             f.write(f'  LASYM = {bool(data["lasym"])}\n')
             f.write(f'  NFP = {data["nfp"]}\n')
@@ -219,20 +221,20 @@ def write_vmec_input(filename, data):
             if 'nzeta' in data:
                 f.write(f'  NZETA = {data["nzeta"]}\n')
             f.write(f'  PHIEDGE = {data["phiedge"]}\n')
-            
+
             f.write('!----- Free Boundary Parameters -----\n')
             f.write(f'  LFREEB = {bool(data["lfreeb"])}\n')
             if data['lfreeb']:
                 f.write(f'  MGRID_FILE = "{data["mgrid_file"]}"\n')
                 f.write('  EXTCUR = ' + ' '.join(map(str, data['extcur'])) + '\n')
                 f.write(f'  NVACSKIP = {data["nvacskip"]}\n')
-            
+
             f.write('!----- Pressure Parameters -----\n')
             f.write(f'  GAMMA = {data["gamma"]:16.14E}\n')
             f.write(f'  BLOAT = {data["bloat"]:16.14E}\n')
             f.write(f'  SPRES_PED = {data["spres_ped"]:16.14E}\n')
             f.write(f'  PMASS_TYPE = "{data["pmass_type"]}"\n')
-            
+
             if 'pres_scale' in data:
                 f.write(f'  PRES_SCALE = {data["pres_scale"]:16.14E}\n')
             if 'am' in data:
@@ -244,12 +246,12 @@ def write_vmec_input(filename, data):
             if 'am_aux_f' in data:
                 f.write('  AM_AUX_F = ' + ' ')
                 write_vmec_input_vec(f, data['am_aux_f'])
-            
+
             f.write('!----- Current/Iota Parameters -----\n')
             f.write(f'  CURTOR = {data["curtor"]:16.14E}\n')
             f.write(f'  NCURR = {data["ncurr"]}\n')
             f.write(f'  PIOTA_TYPE = "{data["piota_type"]}"\n')
-            
+
             if 'ai' in data:
                 f.write('  AI = ' + ' ')
                 write_vmec_input_vec(f, data['ai'])
@@ -276,14 +278,14 @@ def write_vmec_input(filename, data):
                 f.write(f'  RAXIS_CC = {data["raxis_cc"]:16.14E}\n')
                 if data['lasym']:
                     f.write(f'  RAXIS_CS = {data["raxis_cs"]:16.14E}\n')
-            
+
             if 'zaxis' in data:
                 f.write(f'  ZAXIS = {data["zaxis"]:16.14E}\n')
             elif 'zaxis_cc' in data:
                 f.write(f'  ZAXIS_CC = {data["zaxis_cc"]:16.14E}\n')
                 if data['lasym']:
                     f.write(f'  ZAXIS_CS = {data["zaxis_cs"]:16.14E}\n')
-            
+
             f.write('!----- Boundary Parameters -----\n')
             for i in range(data['mpol']):
                 for j in range(2 * data['ntor'] + 1):
@@ -291,7 +293,7 @@ def write_vmec_input(filename, data):
                         f.write(f'  RBC({j-data["ntor"]},{i}) = {data["rbc"][j,i]:.10e}  ZBS({j-data["ntor"]},{i}) = {data["zbs"][j,i]:.10e}\n')
                         if data['lasym']:
                             f.write(f'     RBS({j-data["ntor"]},{i}) = {data["rbs"][j,i]:.10e}  ZBC({j-data["ntor"]},{i}) = {data["zbc"][j,i]:.10e}\n')
-            
+
             f.write('!----- Created by write_vmec ' + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -----\n')
             f.write('/\n')
         return 1
@@ -322,7 +324,7 @@ def read_vmec_out_data(filename):
     return data
 
 def vmec_to_eqdsk(vmec_data):
-    
+
     ns = int(vmec_data['variables']['ns']['data'])
     nx = ns
     nz = ns
@@ -348,7 +350,7 @@ def vmec_to_eqdsk(vmec_data):
     phi = vmec_data['variables']['phi']['data']
     phi=phi/(2*np.pi) #divide by 2pi to get flux in Weber/rad as in eqdsk
     phin = phi / phi[-1]
-    
+
     # new integration for toroidal flux to poloidal flux
     iota_interp=interp1d(phi, vmec_data['variables']['iotas']['data'], kind='linear', fill_value="extrapolate")
     chif= np.zeros(len(phi))
@@ -379,7 +381,7 @@ def vmec_to_eqdsk(vmec_data):
                                np.linspace(z1, z2, nz))
     psixz = Fchi(xgrid, zgrid)
     psixz = np.where(np.isnan(psixz), 0.0, psixz)
- 
+
     eqdata = {}
     eqdata['header'] = f"{'VMEC ':<10}{datetime.now().strftime('%m/%d/%Y'):>10}{'         # xxxxx':>10}{'  0000ms':>10}           0  "
 
