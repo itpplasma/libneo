@@ -6,14 +6,21 @@ from datetime import datetime
 from netCDF4 import Dataset
 from libneo import eqdsk_base
 
+
+
 def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
     data = eqdsk2vmec_gfile(eqdsk_file)
 
     if vmec_in_file is None:
         vmec_in_file = f'input.{splitext(eqdsk_file)[0]}'
 
-    # Initialize VMEC input
-    vmec_input = {
+    vmec_input = construct_vmec_input(data)
+
+    eqdsk_file = eqdsk_file.split('.')[0]
+    write_vmec_input(vmec_in_file, vmec_input)
+
+def construct_vmec_input(data):
+    return {
         "delt": 1.0,
         "niter": 20000,
         "tcon0": 1.0,
@@ -59,9 +66,6 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
         "rbs": data['refou2'].T,
         "zbc": data['zefou2'].T
     }
-
-    eqdsk_file = eqdsk_file.split('.')[0]
-    write_vmec_input(vmec_in_file, vmec_input)
 
 def eqdsk2vmec_gfile(filename):
     data = eqdsk_base.read_eqdsk(filename)
