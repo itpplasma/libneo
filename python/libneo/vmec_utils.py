@@ -8,12 +8,13 @@ from libneo import eqdsk_base
 
 
 def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
-    data = eqdsk2vmec_gfile(eqdsk_file)
+    eqdsk_data = eqdsk_base.read_eqdsk(eqdsk_file)
+    vmec_data = eqdsk_to_vmec_data(eqdsk_data)
 
     if vmec_in_file is None:
         vmec_in_file = f"input.{splitext(eqdsk_file)[0]}"
 
-    vmec_input = construct_vmec_input(data)
+    vmec_input = construct_vmec_input(vmec_data)
 
     eqdsk_file = eqdsk_file.split(".")[0]
     write_vmec_input(vmec_in_file, vmec_input)
@@ -68,19 +69,23 @@ def construct_vmec_input(data):
     }
 
 
-def eqdsk2vmec_gfile(filename):
-    data = eqdsk_base.read_eqdsk(filename)
+def eqdsk_to_vmec_data(data, theta_of_RZ=None):
     mpol = 12
     ntor = 0
     # Extract boundary and profiles
     R = data["Lcfs"][:, 0]
     Z = data["Lcfs"][:, 1]
-    rmaj = np.mean(R)
-    Rminor = R - rmaj
-    theta = np.arctan2(Z, Rminor)
-    theta[theta < 0] += 2 * np.pi
+
+    if theta_of_RZ is None:
+        rmaj = np.mean(R)
+        Rminor = R - rmaj
+        theta = np.arctan2(Z, Rminor)
+        theta[theta < 0] += 2 * np.pi
+    else:
+        theta = theta_of_RZ(R, Z)
+
     sorted_indices = np.argsort(theta)
-    R, Z, Rminor = R[sorted_indices], Z[sorted_indices], Rminor[sorted_indices]
+    R, Z = R[sorted_indices], Z[sorted_indices]
 
     nu = len(R)
     nv = 1
