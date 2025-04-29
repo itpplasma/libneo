@@ -27,7 +27,7 @@ def get_boozer_transform(stor, num_theta):
     theta_geoms = np.zeros((ns - 1, 2*num_theta+1))
     for ks in np.arange(ns - 1):
         r, th_boozers, th_geoms, theta_symflux, G_s, B0_temp = get_angles_G_and_B0(stor[ks], num_theta)
-        sign, dth, th_boozers, th_geoms = get_sign_dependent_thetas(th_geoms, th_boozers)
+        dth = th_geoms - th_boozers
 
         G_of_thb.append(CubicSpline(th_boozers, G_s, bc_type="periodic"))
         dth_of_thb.append(CubicSpline(th_boozers, dth, bc_type="periodic"))
@@ -36,7 +36,7 @@ def get_boozer_transform(stor, num_theta):
         theta_boozers[ks, :] = th_boozers
         theta_geoms[ks,:] = th_geoms
 
-    return sign, r_of_thb, dth_of_thb, G_of_thb, theta_boozers, theta_geoms, theta_symflux, B0
+    return r_of_thb, dth_of_thb, G_of_thb, theta_boozers, theta_geoms, theta_symflux, B0
 
 
 def get_angles_G_and_B0(s, num_theta):
@@ -75,29 +75,26 @@ def get_angles_G_and_B0(s, num_theta):
     r = np.array(r)
     r = np.append(r, r[0])
 
+    th_boozers = np.unwrap(th_boozers)
+    monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_boozers))))
+
+    th_geoms = np.unwrap(th_geoms)
+    monotone_sign_geoms = np.sign(np.mean(np.sign(np.diff(th_geoms))))
+
+    if monotone_sign_boozers != monotone_sign_geoms:
+        th_boozers = np.unwrap(-th_boozers)
+
+    if monotone_sign_geoms < 0:
+        r = r[::-1]
+        th_boozers = np.unwrap(th_boozers[::-1])
+        th_geoms = np.unwrap(th_geoms[::-1])
+        Gs = Gs[::-1]
+        B0mod = B0mod[::-1]
+
+    th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
+    th_geoms = np.append(th_geoms, th_geoms[0] + 2 * np.pi)
+
     return r, th_boozers, th_geoms, theta_symflux, Gs, B0mod
-
-
-def get_sign_dependent_thetas(th_geoms, th_boozers):
-
-  th_boozers = np.unwrap(th_boozers)
-  monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_boozers))))
-
-  th_geoms = np.unwrap(th_geoms)
-  monotone_sign_geoms = np.sign(np.mean(np.sign(np.diff(th_geoms))))
-
-  th_boozers = np.append(th_boozers, th_boozers[0] + monotone_sign_boozers * 2 * np.pi)
-  th_geoms = np.append(th_geoms, th_geoms[0] + monotone_sign_geoms * 2 * np.pi)
-
-  if monotone_sign_boozers == monotone_sign_geoms:
-    sign = -1
-  else:
-    sign = 1
-
-  dth = th_geoms + sign * th_boozers
-
-  return sign, dth, th_boozers, th_geoms
-
 
 
 def get_B0_of_s_theta_boozer(stor, num_theta):
@@ -139,8 +136,9 @@ def get_B0_of_s_theta_boozer(stor, num_theta):
       B0mod.append(B0mod_temp)
 
     th_boozers = np.unwrap(th_boozers)
-    monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_boozers))))
-    th_boozers = np.append(th_boozers, th_boozers[0] + monotone_sign_boozers * 2 * np.pi)
+    if not all(np.diff(th_boozers)>0):
+      raise ValueError("Boozer angles are not monotonically increasing")
+    th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
 
     B0mod = np.array(B0mod)
     B0mod = np.append(B0mod, B0mod[0])
