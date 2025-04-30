@@ -1,0 +1,5 @@
+35      ! mpolmax
+300     ! nrhopol
+0.d0    ! theta_H0
+0.d0    ! theta_B0
+-1       ! ntor - toroidal mode number
