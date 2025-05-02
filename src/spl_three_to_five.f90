@@ -601,7 +601,6 @@ subroutine spl_reg(ns,n,h,splcoe)
   real(dp) :: h
   real(dp), dimension(0:ns,n) :: splcoe
   real(dp), dimension(:), allocatable :: a,b,c,d,e,f
-integer :: i
 
   if(ns.eq.3) then
     allocate(a(n),b(n),c(n),d(n))
