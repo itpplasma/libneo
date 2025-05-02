@@ -616,7 +616,6 @@ integer :: i
   elseif(ns.eq.4) then
     allocate(a(n),b(n),c(n),d(n),e(n))
     a=splcoe(0,:)
-print *,'4-th order spline!'
 
     call spl_four_reg(n,h,a,b,c,d,e)
 
@@ -625,10 +624,6 @@ print *,'4-th order spline!'
     splcoe(3,:)=d
     splcoe(4,:)=e
     deallocate(a,b,c,d,e)
-do i=1,n
-write (3001,*) splcoe(:,i)
-enddo
-stop
   elseif(ns.eq.5) then
     allocate(a(n),b(n),c(n),d(n),e(n),f(n))
     a=splcoe(0,:)
