@@ -275,8 +275,6 @@ Python_add_library(${F2PY_MODULE_NAME} WITH_SOABI
    ${F90WRAP_OUTPUT}
 )
 
-add_dependencies(${F2PY_MODULE_NAME} neo)
-
 target_link_libraries(${F2PY_MODULE_NAME} PRIVATE neo)
 
 set_target_properties(

@@ -6,9 +6,5 @@ set_property(TARGET transport PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 
 add_library(LIBNEO::transport ALIAS transport)
-
-add_dependencies(transport collision_freqs)
-add_dependencies(transport species)
-
 target_link_libraries(transport PUBLIC collision_freqs species)
 
