@@ -52,36 +52,37 @@ if (MPE_SUPPORT)
 endif ()
 
 add_library(MyMPILib
-${PROJECT_SOURCE_DIR}/Specific/packBuffer_module.f90
-${PROJECT_SOURCE_DIR}/Specific/mpiprovider_module.f90
-${PROJECT_SOURCE_DIR}/Tools/list_module.f90
-${PROJECT_SOURCE_DIR}/Internal/packable_module.f90
-${PROJECT_SOURCE_DIR}/Internal/matrix_module.f90
-${PROJECT_SOURCE_DIR}/Internal/clientStatus_module.f90
-${PROJECT_SOURCE_DIR}/Generic/workunit_module.f90
-${PROJECT_SOURCE_DIR}/Internal/wuDataRequester_module.f90
-${PROJECT_SOURCE_DIR}/Tools/intList_module.f90
-${PROJECT_SOURCE_DIR}/Tools/wuList_module.f90
-${PROJECT_SOURCE_DIR}/Tools/packableList_module.f90
-${PROJECT_SOURCE_DIR}/Tools/commandline_parser_module.f90
-${PROJECT_SOURCE_DIR}/Generic/scheduler_module.f90
-${PROJECT_SOURCE_DIR}/Tools/mpelog_module.f90
-${PROJECT_SOURCE_DIR}/Tools/myLog_module.f90
-${PROJECT_SOURCE_DIR}/Tools/configFile_parser_module.f90
-${PROJECT_SOURCE_DIR}/Internal/wuMergeWorkunit_module.f90
-${PROJECT_SOURCE_DIR}/Internal/wuMergeChunk_module.f90
-${PROJECT_SOURCE_DIR}/Generic/initWorkunit_module.f90
-${PROJECT_SOURCE_DIR}/Generic/genericWorkunit_module.f90
+    Specific/packBuffer_module.f90
+    Specific/mpiprovider_module.f90
+    Tools/list_module.f90
+    Internal/packable_module.f90
+    Internal/matrix_module.f90
+    Internal/clientStatus_module.f90
+    Generic/workunit_module.f90
+    Internal/wuDataRequester_module.f90
+    Tools/intList_module.f90
+    Tools/wuList_module.f90
+    Tools/packableList_module.f90
+    Tools/commandline_parser_module.f90
+    Generic/scheduler_module.f90
+    Tools/mpelog_module.f90
+    Tools/myLog_module.f90
+    Tools/configFile_parser_module.f90
+    Internal/wuMergeWorkunit_module.f90
+    Internal/wuMergeChunk_module.f90
+    Generic/initWorkunit_module.f90
+    Generic/genericWorkunit_module.f90
 )
 target_link_libraries(MyMPILib PRIVATE MPI::MPI_Fortran)
 install(TARGETS MyMPILib ARCHIVE DESTINATION lib)
 
-add_custom_target(
-    Versioning
-    COMMAND ${PROJECT_SOURCE_DIR}/Scripts/do_versioning.sh
+add_custom_command(
+    TARGET MyMPILib
+    PRE_BUILD
+    COMMAND Scripts/do_versioning.sh
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMENT "Executing versioning script..."
+    VERBATIM
 )
-
-add_dependencies(MyMPILib Versioning)
 
 add_library(LIBNEO::MyMPILib ALIAS MyMPILib)
