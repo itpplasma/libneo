@@ -15,6 +15,7 @@ add_library(neo_field STATIC
 target_link_libraries(neo_field PRIVATE
     hdf5_tools
     interpolate
+    neo_polylag
 )
 set_property(TARGET neo_field PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
