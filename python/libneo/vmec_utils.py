@@ -13,7 +13,13 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
         vmec_in_file = f'input.{splitext(eqdsk_file)[0]}'
 
     # Initialize VMEC input
-    vmec_input = {
+    vmec_input = default_vmec_input(data)
+
+    eqdsk_file = eqdsk_file.split('.')[0]
+    write_vmec_input(vmec_in_file, vmec_input)
+
+def default_vmec_input(data):
+    return{
         "delt": 1.0,
         "niter": 20000,
         "tcon0": 1.0,
@@ -42,7 +48,7 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
         "am_aux_f": data['am_aux_f'],
         "pcurr_type": 'akima_spline_ip',
         "curtor": data['curtor'],
-        "ncurr": 1,
+        "ncurr": 0,
         "ac": data['ac'],
         "ac_aux_s": data['ac_aux_s'],
         "ac_aux_f": data['ac_aux_f'],
@@ -59,9 +65,6 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
         "rbs": data['refou2'].T,
         "zbc": data['zefou2'].T
     }
-
-    eqdsk_file = eqdsk_file.split('.')[0]
-    write_vmec_input(vmec_in_file, vmec_input)
 
 def eqdsk2vmec_gfile(filename):
     data = eqdsk_base.read_eqdsk(filename)
@@ -444,4 +447,3 @@ def sfunct(theta, zeta, coeff, xm, xn):
     for m in range(nmode):
         result += coeff[m, :].reshape(ns, 1) * np.sin(xm[m] * theta + xn[m] * zeta)
     return result
-
