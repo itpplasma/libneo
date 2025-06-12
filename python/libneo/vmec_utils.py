@@ -8,12 +8,16 @@ from libneo import eqdsk_base
 
 def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
     data = eqdsk2vmec_gfile(eqdsk_file)
+    vmec_input = default_vmec_input(data)
 
     if vmec_in_file is None:
         vmec_in_file = f'input.{splitext(eqdsk_file)[0]}'
 
-    # Initialize VMEC input
-    vmec_input = {
+    write_vmec_input(vmec_in_file, vmec_input)
+
+
+def default_vmec_input(data):
+    return{
         "delt": 1.0,
         "niter": 20000,
         "tcon0": 1.0,
@@ -22,11 +26,11 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
         "niter_array": [1000, 2000, 4000, 20000],
         "lasym": 1,
         "nfp": 1,
-        "mpol": len(data['refou']),
+        "mpol": len(data['rbc']),
         "ntor": 0,
         "nzeta": 1,
         "nstep": 200,
-        "ntheta": 2 * len(data['refou']) + 6,
+        "ntheta": 2 * len(data['rbc']) + 6,
         "phiedge": data['phiedge'],
         "lfreeb": 0,
         "mgrid_file": '',
@@ -42,7 +46,7 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
         "am_aux_f": data['am_aux_f'],
         "pcurr_type": 'akima_spline_ip',
         "curtor": data['curtor'],
-        "ncurr": 1,
+        "ncurr": 0,
         "ac": data['ac'],
         "ac_aux_s": data['ac_aux_s'],
         "ac_aux_f": data['ac_aux_f'],
@@ -54,36 +58,25 @@ def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
         "raxis_cs": 0.0,
         "zaxis_cc": data['zaxis'],
         "zaxis_cs": 0.0,
-        "rbc": data['refou'].T,
-        "zbs": data['zefou'].T,
-        "rbs": data['refou2'].T,
-        "zbc": data['zefou2'].T
+        "rbc": data['rbc'].T,
+        "zbs": data['zbs'].T,
+        "rbs": data['rbs'].T,
+        "zbc": data['zbc'].T
     }
-
-    eqdsk_file = eqdsk_file.split('.')[0]
-    write_vmec_input(vmec_in_file, vmec_input)
 
 def eqdsk2vmec_gfile(filename):
     data = eqdsk_base.read_eqdsk(filename)
-    mpol = 12
-    ntor = 0
+
     # Extract boundary and profiles
     R = data['Lcfs'][:, 0]
     Z = data['Lcfs'][:, 1]
-    rmaj = np.mean(R)
-    Rminor = R - rmaj
-    theta = np.arctan2(Z, Rminor)
+    theta = np.arctan2(Z, R - np.mean(R))
     theta[theta < 0] += 2 * np.pi
     sorted_indices = np.argsort(theta)
-    R, Z, Rminor = R[sorted_indices], Z[sorted_indices], Rminor[sorted_indices]
-
-
-    nu = len(R)
-    nv = 1
+    R, Z = R[sorted_indices], Z[sorted_indices]
 
     # Interpolate flux functions
     pflux = np.linspace(data['PsiaxisVs'], data['PsiedgeVs'], len(data['fprof']))
-    pflux_norm = (pflux - pflux[0]) / (pflux[-1] - pflux[0])
 
     press = data['ptotprof']
     qprof = data['qprof']
@@ -133,15 +126,22 @@ def eqdsk2vmec_gfile(filename):
         'ac_aux_f': ac_aux_f,
         'ai': ai,
         'ai_aux_s': ai_aux_s,
-        'ai_aux_f': ai_aux_f,
-        'refou': np.zeros((mpol+1, ntor+1)),  # Placeholder for Fourier coefficients
-        'zefou': np.zeros((mpol+1, ntor+1)),
-        'refou2': np.zeros((mpol+1, ntor+1)),
-        'zefou2': np.zeros((mpol+1, ntor+1))
+        'ai_aux_f': ai_aux_f
     }
 
+    compute_boundary_fourier(R, Z, data2)
 
-    # Initialize arrays
+    return data2
+
+def compute_boundary_fourier(R, Z, data, mpol=12, ntor=0):
+    data['rbc'] = np.zeros((mpol+1, ntor+1))
+    data['zbs'] = np.zeros((mpol+1, ntor+1))
+    data['rbs'] = np.zeros((mpol+1, ntor+1))
+    data['zbc'] = np.zeros((mpol+1, ntor+1))
+
+    nu = len(R)
+    nv = 1
+
     cosu = np.zeros((nu, mpol + 1))
     cosv = np.zeros((nv, 2 * ntor + 1))
     sinu = np.zeros((nu, mpol + 1))
@@ -166,18 +166,16 @@ def eqdsk2vmec_gfile(filename):
     fnuv[0] = 1.0 / (nu * nv)
     for i in range(1, mpol + 1):
         fnuv[i] = 2 * fnuv[0]
-    # Compute refou, zefou, refou2, and zefou2
+
     for m1 in range(mpol + 1):
         for n1 in range(2 * ntor + 1):
             for i in range(nu):
                 for j in range(nv):
-                    data2['refou'][m1, n1] += R[i] * (cosv[j, n1] * cosu[i, m1] - sinv[j, n1] * sinu[i, m1]) * fnuv[m1]
-                    data2['zefou'][m1, n1] += Z[i] * (sinv[j, n1] * cosu[i, m1] + cosv[j, n1] * sinu[i, m1]) * fnuv[m1]
-                    data2['refou2'][m1, n1] += R[i] * (sinv[j, n1] * cosu[i, m1] + cosv[j, n1] * sinu[i, m1]) * fnuv[m1]
-                    data2['zefou2'][m1, n1] += Z[i] * (cosv[j, n1] * cosu[i, m1] - sinv[j, n1] * sinu[i, m1]) * fnuv[m1]
+                    data['rbc'][m1, n1] += R[i] * (cosv[j, n1] * cosu[i, m1] - sinv[j, n1] * sinu[i, m1]) * fnuv[m1]
+                    data['zbs'][m1, n1] += Z[i] * (sinv[j, n1] * cosu[i, m1] + cosv[j, n1] * sinu[i, m1]) * fnuv[m1]
+                    data['rbs'][m1, n1] += R[i] * (sinv[j, n1] * cosu[i, m1] + cosv[j, n1] * sinu[i, m1]) * fnuv[m1]
+                    data['zbc'][m1, n1] += Z[i] * (cosv[j, n1] * cosu[i, m1] - sinv[j, n1] * sinu[i, m1]) * fnuv[m1]
 
-
-    return data2
 
 def write_vmec_input_vec(f, vec):
     for i in range(len(vec)):
@@ -444,4 +442,3 @@ def sfunct(theta, zeta, coeff, xm, xn):
     for m in range(nmode):
         result += coeff[m, :].reshape(ns, 1) * np.sin(xm[m] * theta + xn[m] * zeta)
     return result
-
