@@ -86,7 +86,6 @@ def eqdsk2vmec_gfile(filename):
 
     # Interpolate flux functions
     pflux = np.linspace(data['PsiaxisVs'], data['PsiedgeVs'], len(data['fprof']))
-    pflux_norm = (pflux - pflux[0]) / (pflux[-1] - pflux[0])
 
     press = data['ptotprof']
     qprof = data['qprof']
