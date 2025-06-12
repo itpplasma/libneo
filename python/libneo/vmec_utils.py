@@ -8,15 +8,13 @@ from libneo import eqdsk_base
 
 def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
     data = eqdsk2vmec_gfile(eqdsk_file)
+    vmec_input = default_vmec_input(data)
 
     if vmec_in_file is None:
         vmec_in_file = f'input.{splitext(eqdsk_file)[0]}'
 
-    # Initialize VMEC input
-    vmec_input = default_vmec_input(data)
-
-    eqdsk_file = eqdsk_file.split('.')[0]
     write_vmec_input(vmec_in_file, vmec_input)
+
 
 def default_vmec_input(data):
     return{
