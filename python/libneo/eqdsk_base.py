@@ -118,7 +118,7 @@ def write_eqdsk(filename, eqdata):
     with open(filename, 'w') as f:
         f.write(eqdata['header'][:48])
 
-        f.write(f" 0 {eqdata['nrgr']} {eqdata['nzgr']}\n")
+        f.write(f"   0  {eqdata['nrgr']} {eqdata['nzgr']}\n")
 
         write_field(f, eqdata['rboxlength'])
         write_field(f, eqdata['zboxlength'])
