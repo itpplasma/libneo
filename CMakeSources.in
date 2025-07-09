@@ -1,12 +1,6 @@
 # This file provides the list of source files for libneo.
 # The file CMakeLists.txt contains the main configuration code.
 
-# RKF45 from https://people.sc.fsu.edu/~jburkardt/
-# licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
-add_library (rkf45 STATIC
-    src/contrib/rkf45.f90
-)
-
 # Main goal (of the created build file): creating the library file.
 add_library(neo STATIC
     src/arnoldi.f90

@@ -75,6 +75,7 @@ link_directories(${NETCDFLIB_DIR})
 add_link_options(${NETCDF_FLIBS})
 
 # Libraries that libneo depends on
+add_subdirectory(src/contrib)
 add_subdirectory(extra/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
