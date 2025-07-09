@@ -37,11 +37,12 @@ contains
         !  amplitudes of lambda for various sin(m*theta - n*phi) harmonics
 
         use libneo_kinds, only: dp
-        use math_constants, only: PI
+        !use math_constants, only: PI
         use new_vmec_stuff_mod, only: netcdffile, vmec_B_scale, vmec_RZ_scale, rmajor
         use nctools_module, only: nc_open, nc_close, nc_get
 
-        real(dp), parameter :: fac_b0 = 1d4, fac_r0 = 1d2, EPS = 1d-10
+        real(dp), parameter :: fac_b0 = 1d4, fac_r0 = 1d2, EPS = 1d-10, pi=3.14159265358979d0
+        ! TODO: Replace pi by math_constants more accurate version. This requires new golden record in SIMPLE
         real(dp) :: fac_b, fac_r
 
         integer :: nsurfb, nstrb, kparb, ncid, i
