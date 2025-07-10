@@ -188,7 +188,7 @@ subroutine dogleg ( n, r, lr, diag, qtb, delta, x )
 !    QR factorization of A.  That is, if A = Q*R, where Q has
 !    orthogonal columns and R is an upper triangular matrix,
 !    then DOGLEG expects the full upper triangle of R and
-!    the first N components of Q'*B.
+!    the first N components of Q^T*B.
 !
 !  Licensing:
 !
@@ -222,7 +222,7 @@ subroutine dogleg ( n, r, lr, diag, qtb, delta, x )
 !
 !    Input, real ( kind = 8 ) DIAG(N), the diagonal elements of the matrix D.
 !
-!    Input, real ( kind = 8 ) QTB(N), the first N elements of the vector Q'* B.
+!    Input, real ( kind = 8 ) QTB(N), the first N elements of the vector Q^T* B.
 !
 !    Input, real ( kind = 8 ) DELTA, is a positive upper bound on the
 !    euclidean norm of D*X(1:N).
@@ -821,7 +821,6 @@ subroutine fdjac2 ( fcn, m, n, x, fvec, fjac, ldfjac, iflag, epsfcn )
   real ( kind = 8 ) fjac(ldfjac,n)
   real ( kind = 8 ) fvec(m)
   real ( kind = 8 ) h
-  integer ( kind = 4 ) i
   integer ( kind = 4 ) iflag
   integer ( kind = 4 ) j
   real ( kind = 8 ) temp
@@ -981,7 +980,7 @@ subroutine hybrd ( fcn, n, x, fvec, xtol, maxfev, ml, mu, epsfcn, diag, mode, &
 !    Input, integer ( kind = 4 ) LR, the size of the R array, which must be no
 !    less than (N*(N+1))/2.
 !
-!    Output, real ( kind = 8 ) QTF(N), contains the vector Q'*FVEC.
+!    Output, real ( kind = 8 ) QTF(N), contains the vector Q^T*FVEC.
 !
   implicit none
 
@@ -1148,7 +1147,7 @@ subroutine hybrd ( fcn, n, x, fvec, xtol, maxfev, ml, mu, epsfcn, diag, mode, &
 
     end if
 !
-!  Form Q' * FVEC and store in QTF.
+!  Form Q^T * FVEC and store in QTF.
 !
      qtf(1:n) = fvec(1:n)
 
@@ -1479,7 +1478,6 @@ subroutine hybrd1 ( fcn, n, x, fvec, tol, info )
 !
   implicit none
 
-  integer ( kind = 4 ) lwa
   integer ( kind = 4 ) n
 
   real ( kind = 8 ) diag(n)
@@ -1489,7 +1487,6 @@ subroutine hybrd1 ( fcn, n, x, fvec, tol, info )
   real ( kind = 8 ) fjac(n,n)
   real ( kind = 8 ) fvec(n)
   integer ( kind = 4 ) info
-  integer ( kind = 4 ) j
   integer ( kind = 4 ) ldfjac
   integer ( kind = 4 ) lr
   integer ( kind = 4 ) maxfev
@@ -1661,7 +1658,7 @@ subroutine hybrj ( fcn, n, x, fvec, fjac, ldfjac, xtol, maxfev, diag, mode, &
 !    Input, integer ( kind = 4 ) LR, the size of the R array, which must 
 !    be no less than (N*(N+1))/2.
 !
-!    Output, real ( kind = 8 ) QTF(N), contains the vector Q'*FVEC.
+!    Output, real ( kind = 8 ) QTF(N), contains the vector Q^T*FVEC.
 !
   implicit none
 
@@ -1843,7 +1840,7 @@ subroutine hybrj ( fcn, n, x, fvec, fjac, ldfjac, xtol, maxfev, diag, mode, &
 
     end if
 !
-!  Form Q'*FVEC and store in QTF.
+!  Form Q^T*FVEC and store in QTF.
 !
     qtf(1:n) = fvec(1:n)
 
@@ -2113,7 +2110,7 @@ subroutine hybrj1 ( fcn, n, x, fvec, fjac, ldfjac, tol, info )
 
 !*****************************************************************************80
 !
-!! HYBRJ1 seeks a zero of N equations in N variables by Powell's method.
+!! HYBRJ1 seeks a zero of N equations in N variables by Powell method.
 !
 !  Discussion:
 !
@@ -2204,7 +2201,6 @@ subroutine hybrj1 ( fcn, n, x, fvec, fjac, ldfjac, tol, info )
   real ( kind = 8 ) fjac(ldfjac,n)
   real ( kind = 8 ) fvec(n)
   integer ( kind = 4 ) info
-  integer ( kind = 4 ) j
   integer ( kind = 4 ) lr
   integer ( kind = 4 ) maxfev
   integer ( kind = 4 ) mode
@@ -2312,7 +2308,7 @@ subroutine lmder ( fcn, m, n, x, fvec, fjac, ldfjac, ftol, xtol, gtol, maxfev, &
 !    Output, real ( kind = 8 ) FJAC(LDFJAC,N), an M by N array.  The upper
 !    N by N submatrix of FJAC contains an upper triangular matrix R with
 !    diagonal elements of nonincreasing magnitude such that
-!      P' * ( JAC' * JAC ) * P = R' * R,
+!      P^T * ( JAC^T * JAC ) * P = R^T * R,
 !    where P is a permutation matrix and JAC is the final calculated jacobian.
 !    Column J of P is column IPVT(J) of the identity matrix.  The lower
 !    trapezoidal part of FJAC contains information generated during
@@ -2389,7 +2385,7 @@ subroutine lmder ( fcn, m, n, x, fvec, fjac, ldfjac, ftol, xtol, gtol, maxfev, &
 !    elements of nonincreasing magnitude.  Column J of P is column
 !    IPVT(J) of the identity matrix.
 !
-!    Output, real ( kind = 8 ) QTF(N), contains the first N elements of Q'*FVEC.
+!    Output, real ( kind = 8 ) QTF(N), contains the first N elements of Q^T*FVEC.
 !
   implicit none
 
@@ -2412,7 +2408,6 @@ subroutine lmder ( fcn, m, n, x, fvec, fjac, ldfjac, ftol, xtol, gtol, maxfev, &
   real ( kind = 8 ) fvec(m)
   real ( kind = 8 ) gnorm
   real ( kind = 8 ) gtol
-  integer ( kind = 4 ) i
   integer ( kind = 4 ) iflag
   integer ( kind = 4 ) info
   integer ( kind = 4 ) ipvt(n)
@@ -2548,7 +2543,7 @@ subroutine lmder ( fcn, m, n, x, fvec, fjac, ldfjac, ftol, xtol, gtol, maxfev, &
 
     end if
 !
-!  Form Q'*FVEC and store the first N components in QTF.
+!  Form Q^T*FVEC and store the first N components in QTF.
 !
     wa4(1:m) = fvec(1:m)
 
@@ -2840,7 +2835,7 @@ subroutine lmder1 ( fcn, m, n, x, fvec, fjac, ldfjac, tol, info )
 !    Output, real ( kind = 8 ) FJAC(LDFJAC,N), an M by N array.  The upper
 !    N by N submatrix contains an upper triangular matrix R with
 !    diagonal elements of nonincreasing magnitude such that
-!      P' * ( JAC' * JAC ) * P = R' * R,
+!      P^T * ( JAC^T * JAC ) * P = R^T * R,
 !    where P is a permutation matrix and JAC is the final calculated
 !    jacobian.  Column J of P is column IPVT(J) of the identity matrix.
 !    The lower trapezoidal part of FJAC contains information generated during
@@ -3055,7 +3050,7 @@ subroutine lmdif ( fcn, m, n, x, fvec, ftol, xtol, gtol, maxfev, epsfcn, &
 !    N by N submatrix of FJAC contains an upper triangular matrix R with
 !    diagonal elements of nonincreasing magnitude such that
 !
-!      P' * ( JAC' * JAC ) * P = R' * R,
+!      P^T * ( JAC^T * JAC ) * P = R^T * R,
 !
 !    where P is a permutation matrix and JAC is the final calculated jacobian.
 !    Column J of P is column IPVT(J) of the identity matrix.  The lower
@@ -3071,7 +3066,7 @@ subroutine lmdif ( fcn, m, n, x, fvec, ftol, xtol, gtol, maxfev, epsfcn, &
 !    elements of nonincreasing magnitude.  Column J of P is column IPVT(J)
 !    of the identity matrix.
 !
-!    Output, real ( kind = 8 ) QTF(N), the first N elements of Q'*FVEC.
+!    Output, real ( kind = 8 ) QTF(N), the first N elements of Q^T*FVEC.
 !
   implicit none
 
@@ -3229,7 +3224,7 @@ subroutine lmdif ( fcn, m, n, x, fvec, ftol, xtol, gtol, maxfev, epsfcn, &
        end if
      end if
 !
-!  Form Q' * FVEC and store the first N components in QTF.
+!  Form Q^T * FVEC and store the first N components in QTF.
 !
      wa4(1:m) = fvec(1:m)
 
@@ -3623,10 +3618,10 @@ subroutine lmpar ( n, r, ldr, ipvt, diag, qtb, delta, par, x, sdiag )
 !    columns, and R is an upper triangular matrix with diagonal
 !    elements of nonincreasing magnitude, then LMPAR expects
 !    the full upper triangle of R, the permutation matrix P,
-!    and the first N components of Q'*B.  On output
+!    and the first N components of Q^T*B.  On output
 !    LMPAR also provides an upper triangular matrix S such that
 !
-!      P' * ( A' * A + PAR * D * D ) * P = S'* S.
+!      P^T * ( A' * A + PAR * D * D ) * P = S'* S.
 !
 !    S is employed within LMPAR and may be of separate interest.
 !
@@ -3675,7 +3670,7 @@ subroutine lmpar ( n, r, ldr, ipvt, diag, qtb, delta, par, x, sdiag )
 !
 !    Input, real ( kind = 8 ) DIAG(N), the diagonal elements of the matrix D.
 !
-!    Input, real ( kind = 8 ) QTB(N), the first N elements of the vector Q'*B.
+!    Input, real ( kind = 8 ) QTB(N), the first N elements of the vector Q^T*B.
 !
 !    Input, real ( kind = 8 ) DELTA, an upper bound on the euclidean norm
 !    of D*X.  DELTA should be positive.
@@ -3702,7 +3697,6 @@ subroutine lmpar ( n, r, ldr, ipvt, diag, qtb, delta, par, x, sdiag )
   real ( kind = 8 ) enorm
   real ( kind = 8 ) gnorm
   real ( kind = 8 ) fp
-  integer ( kind = 4 ) i
   integer ( kind = 4 ) ipvt(n)
   integer ( kind = 4 ) iter
   integer ( kind = 4 ) j
@@ -3713,7 +3707,6 @@ subroutine lmpar ( n, r, ldr, ipvt, diag, qtb, delta, par, x, sdiag )
   real ( kind = 8 ) parc
   real ( kind = 8 ) parl
   real ( kind = 8 ) paru
-  real ( kind = 8 ) qnorm
   real ( kind = 8 ) qtb(n)
   real ( kind = 8 ) r(ldr,n)
   real ( kind = 8 ) sdiag(n)
@@ -3966,7 +3959,7 @@ subroutine lmstr ( fcn, m, n, x, fvec, fjac, ldfjac, ftol, xtol, gtol, maxfev, &
 !    Output, real ( kind = 8 ) FJAC(LDFJAC,N), an N by N array.  The upper
 !    triangle of FJAC contains an upper triangular matrix R such that
 !
-!      P' * ( JAC' * JAC ) * P = R' * R,
+!      P^T * ( JAC^T * JAC ) * P = R^T * R,
 !
 !    where P is a permutation matrix and JAC is the final calculated jacobian.
 !    Column J of P is column IPVT(J) of the identity matrix.  The lower
@@ -4044,7 +4037,7 @@ subroutine lmstr ( fcn, m, n, x, fvec, fjac, ldfjac, ftol, xtol, gtol, maxfev, &
 !    orthogonal (not stored), and R is upper triangular.
 !    Column J of P is column IPVT(J) of the identity matrix.
 !
-!    Output, real ( kind = 8 ) QTF(N), contains the first N elements of Q'*FVEC.
+!    Output, real ( kind = 8 ) QTF(N), contains the first N elements of Q^T*FVEC.
 !
   implicit none
 
@@ -4167,7 +4160,7 @@ subroutine lmstr ( fcn, m, n, x, fvec, fjac, ldfjac, ftol, xtol, gtol, maxfev, &
      end if
 !
 !  Compute the QR factorization of the jacobian matrix calculated one row
-!  at a time, while simultaneously forming Q'* FVEC and storing
+!  at a time, while simultaneously forming Q^T* FVEC and storing
 !  the first N components in QTF.
 !
      qtf(1:n) = 0.0D+00
@@ -4515,7 +4508,7 @@ subroutine lmstr1 ( fcn, m, n, x, fvec, fjac, ldfjac, tol, info )
 !    Output, real ( kind = 8 ) FJAC(LDFJAC,N), an N by N array.  The upper
 !    triangle contains an upper triangular matrix R such that
 !
-!      P' * ( JAC' * JAC ) * P = R' * R,
+!      P^T * ( JAC^T * JAC ) * P = R^T * R,
 !
 !    where P is a permutation matrix and JAC is the final calculated
 !    jacobian.  Column J of P is column IPVT(J) of the identity matrix.
@@ -4735,7 +4728,7 @@ subroutine qrfac ( m, n, a, lda, pivot, ipvt, lipvt, rdiag, acnorm )
 !    The Householder transformation for column K, K = 1,2,...,min(M,N), 
 !    is of the form
 !
-!      I - ( 1 / U(K) ) * U * U'
+!      I - ( 1 / U(K) ) * U * U^T
 !
 !    where U has zeros in the first K-1 positions.  
 !
@@ -4805,7 +4798,6 @@ subroutine qrfac ( m, n, a, lda, pivot, ipvt, lipvt, rdiag, acnorm )
   real ( kind = 8 ) ajnorm
   real ( kind = 8 ) enorm
   real ( kind = 8 ) epsmch
-  integer ( kind = 4 ) i
   integer ( kind = 4 ) i4_temp
   integer ( kind = 4 ) ipvt(lipvt)
   integer ( kind = 4 ) j
@@ -4938,18 +4930,18 @@ subroutine qrsolv ( n, r, ldr, ipvt, diag, qtb, x, sdiag )
 !    columns, and R is an upper triangular matrix with diagonal
 !    elements of nonincreasing magnitude, then QRSOLV expects
 !    the full upper triangle of R, the permutation matrix p,
-!    and the first N components of Q'*B.
+!    and the first N components of Q^T*B.
 !
 !    The system is then equivalent to
 !
-!      R*Z = Q'*B
-!      P'*D*P*Z = 0
+!      R*Z = Q^T*B
+!      P^T*D*P*Z = 0
 !
 !    where X = P*Z.  If this system does not have full rank,
 !    then a least squares solution is obtained.  On output QRSOLV
 !    also provides an upper triangular matrix S such that
 !
-!      P'*(A'*A + D*D)*P = S'*S.
+!      P^T*(A'*A + D*D)*P = S'*S.
 !
 !    S is computed within QRSOLV and may be of separate interest.
 !
@@ -4991,7 +4983,7 @@ subroutine qrsolv ( n, r, ldr, ipvt, diag, qtb, x, sdiag )
 !
 !    Input, real ( kind = 8 ) DIAG(N), the diagonal elements of the matrix D.
 !
-!    Input, real ( kind = 8 ) QTB(N), the first N elements of the vector Q'*B.
+!    Input, real ( kind = 8 ) QTB(N), the first N elements of the vector Q^T*B.
 !
 !    Output, real ( kind = 8 ) X(N), the least squares solution.
 !
@@ -5023,7 +5015,7 @@ subroutine qrsolv ( n, r, ldr, ipvt, diag, qtb, x, sdiag )
   real ( kind = 8 ) wa(n)
   real ( kind = 8 ) x(n)
 !
-!  Copy R and Q'*B to preserve input and initialize S.
+!  Copy R and Q^T*B to preserve input and initialize S.
 !
 !  In particular, save the diagonal elements of R in X.
 !
@@ -5049,7 +5041,7 @@ subroutine qrsolv ( n, r, ldr, ipvt, diag, qtb, x, sdiag )
       sdiag(j) = diag(l)
 !
 !  The transformations to eliminate the row of D
-!  modify only a single element of Q'*B
+!  modify only a single element of Q^T*B
 !  beyond the first N, which is initially zero.
 !
       qtbpj = 0.0D+00
@@ -5072,7 +5064,7 @@ subroutine qrsolv ( n, r, ldr, ipvt, diag, qtb, x, sdiag )
           end if
 !
 !  Compute the modified diagonal element of R and
-!  the modified element of (Q'*B,0).
+!  the modified element of (Q^T*B,0).
 !
           r(k,k) = c * r(k,k) + s * sdiag(k)
           temp = c * wa(k) + s * qtbpj
@@ -5254,7 +5246,7 @@ subroutine r1updt ( m, n, s, ls, u, v, w, sing )
 !    Given an M by N lower trapezoidal matrix S, an M-vector U, and an
 !    N-vector V, the problem is to determine an orthogonal matrix Q such that
 !
-!      (S + U * V' ) * Q
+!      (S + U * V^T ) * Q
 !
 !    is again lower trapezoidal.
 !
@@ -5524,7 +5516,7 @@ function r8_uniform_01 ( seed )
 !    A Guide to Simulation,
 !    Springer Verlag, pages 201-202, 1983.
 !
-!    Pierre L'Ecuyer,
+!    Pierre L Ecuyer,
 !    Random Number Generation,
 !    in Handbook of Simulation,
 !    edited by Jerry Banks,
@@ -5584,7 +5576,7 @@ subroutine r8mat_print ( m, n, a, title )
 !
 !  Discussion:
 !
-!    An R8MAT is an MxN array of R8's, stored by (I,J) -> [I+J*M].
+!    An R8MAT is an MxN array of R8s, stored by (I,J) -> [I+J*M].
 !
 !  Licensing:
 !
@@ -5628,7 +5620,7 @@ subroutine r8mat_print_some ( m, n, a, ilo, jlo, ihi, jhi, title )
 !
 !  Discussion:
 !
-!    An R8MAT is an MxN array of R8's, stored by (I,J) -> [I+J*M].
+!    An R8MAT is an MxN array of R8s, stored by (I,J) -> [I+J*M].
 !
 !  Licensing:
 !
@@ -5737,7 +5729,7 @@ subroutine r8vec_print ( n, a, title )
 !
 !  Discussion:
 !
-!    An R8VEC is a vector of R8's.
+!    An R8VEC is a vector of R8s.
 !
 !  Licensing:
 !
@@ -5789,14 +5781,14 @@ subroutine rwupdt ( n, r, ldr, w, b, alpha, c, s )
 !    is added to R.  If the row is specified by the vector W, then
 !    RWUPDT determines an orthogonal matrix Q such that when the
 !    N+1 by N matrix composed of R augmented by W is premultiplied
-!    by Q', the resulting matrix is upper trapezoidal.
-!    The matrix Q' is the product of N transformations
+!    by Q^T, the resulting matrix is upper trapezoidal.
+!    The matrix Q^T is the product of N transformations
 !
 !      G(N)*G(N-1)* ... *G(1)
 !
 !    where G(I) is a Givens rotation in the (I,N+1) plane which eliminates
 !    elements in the (N+1)-st plane.  RWUPDT also computes the product
-!    Q'*C where C is the (N+1)-vector (B,ALPHA).  
+!    Q^T*C where C is the (N+1)-vector (B,ALPHA).  
 !
 !    Q itself is not accumulated, rather the information to recover the G 
 !    rotations is supplied.
@@ -5835,10 +5827,10 @@ subroutine rwupdt ( n, r, ldr, w, b, alpha, c, s )
 !    Input, real ( kind = 8 ) W(N), the row vector to be added to R.
 !
 !    Input/output, real ( kind = 8 ) B(N).  On input, the first N elements
-!    of the vector C.  On output the first N elements of the vector Q'*C.
+!    of the vector C.  On output the first N elements of the vector Q^T*C.
 !
 !    Input/output, real ( kind = 8 ) ALPHA.  On input, the (N+1)-st element
-!    of the vector C.  On output the (N+1)-st element of the vector Q'*C.
+!    of the vector C.  On output the (N+1)-st element of the vector Q^T*C.
 !
 !    Output, real ( kind = 8 ) C(N), S(N), the cosines and sines of the
 !    transforming Givens rotations.
