@@ -1,8 +1,11 @@
 module spline_vmec_sub
     use iso_fortran_env, only: dp => real64
     use spl_three_to_five_sub
+
     implicit none
+
 contains
+
     subroutine spline_vmec_data
         use vmec_alloc_sub, only: new_allocate_vmec_stuff, new_deallocate_vmec_stuff
         call new_allocate_vmec_stuff
@@ -22,7 +25,6 @@ contains
         use new_vmec_stuff_mod, only: ns_A, ns_s, ns_tp, rmnc, zmns, almns, rmns, zmnc, almnc, &
                                       aiota, phi, sps, axm, axn, s, nsurfm, nstrm, kpar
         use vmecin_sub, only: vmecin
-        use vmec_alloc_sub, only: new_allocate_vmec_stuff
         use vector_potentail_mod, only: ns, hs, torflux
 
         print *, 'Splining VMEC data: ns_A = ', ns_A, '  ns_s = ', ns_s, '  ns_tp = ', ns_tp
