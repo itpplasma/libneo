@@ -34,9 +34,8 @@ clean:
 coverage: coverage-build coverage-report
 
 coverage-build:
-	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DENABLE_COVERAGE=ON
-	cd $(BUILD_DIR) && ninja
+	cmake --preset default -DENABLE_COVERAGE=ON
+	cmake --build --preset default
 	cd $(BUILD_DIR) && ctest --output-on-failure
 
 coverage-report:
