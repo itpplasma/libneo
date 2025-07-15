@@ -23,16 +23,9 @@ jobs:
           apt-get update
           apt-get install -y gcovr
 
-      - name: Build with coverage flags
+      - name: Build and test with coverage
         run: |
-          # Modify CMakeLists.txt to add coverage flags
-          sed -i 's/-fmax-errors=1"/-fmax-errors=1 -fprofile-arcs -ftest-coverage"/' CMakeLists.txt
-          make
-
-      - name: Run tests with coverage
-        run: |
-          cd build
-          ctest --output-on-failure
+          make coverage-build
 
       - name: Generate coverage report
         if: always()

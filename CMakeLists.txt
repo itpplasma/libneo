@@ -24,6 +24,9 @@ set (libneo_VERSION_PATCH 3)
 enable_language(C Fortran)
 enable_testing()
 
+# Coverage configuration
+option(ENABLE_COVERAGE "Enable coverage flags" OFF)
+
 find_program (BASH_PROGRAM bash)
 
 find_package (MPI REQUIRED COMPONENTS Fortran)
@@ -35,8 +38,14 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
                             -Wno-unused-function -Wno-external-argument-mismatch \
                             -fmax-errors=1")
 
+  # Add coverage flags if enabled
+  if(ENABLE_COVERAGE)
+    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+  endif()
+
   # https://github.com/numpy/numpy/issues/25777
-  set (CMAKE_C_FLAGS "-Wno-error=incompatible-pointer-types")
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")
 
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
