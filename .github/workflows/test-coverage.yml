@@ -25,10 +25,9 @@ jobs:
 
       - name: Build with coverage flags
         run: |
-          mkdir -p build
-          cd build
-          cmake .. -DCMAKE_Fortran_FLAGS="-cpp -g -Og -fPIC -fcheck=all -fbacktrace -fno-realloc-lhs -fopenmp -Wall -Wextra -Werror -Wno-unused-function -Wno-external-argument-mismatch -fmax-errors=1 -fprofile-arcs -ftest-coverage" -DCMAKE_BUILD_TYPE=Debug
-          make -j$(nproc)
+          # Modify CMakeLists.txt to add coverage flags
+          sed -i 's/-fmax-errors=1"/-fmax-errors=1 -fprofile-arcs -ftest-coverage"/' CMakeLists.txt
+          make
 
       - name: Run tests with coverage
         run: |
