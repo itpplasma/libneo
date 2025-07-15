@@ -1,0 +1,43 @@
+name: Test Coverage
+
+on: [push, pull_request]
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/itpplasma/devel:latest
+      options: --user root
+
+    name: Test Coverage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fix permissions
+        run: |
+          git config --global --add safe.directory `pwd`
+
+      - name: Install gcovr
+        run: |
+          apt-get update
+          apt-get install -y gcovr
+
+      - name: Build and test with coverage
+        run: |
+          make coverage-build
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          gcovr --root . --exclude 'build/*' --exclude 'doc/*' --exclude 'example/*' --exclude 'test/*' --exclude 'tools/*' --exclude 'src/contrib/*' --exclude 'matlab/*' --exclude 'python/*' --exclude 'extra/*' --xml -o coverage.xml --print-summary
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
