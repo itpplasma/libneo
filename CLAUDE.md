@@ -6,6 +6,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 libneo is a Fortran library containing common code for plasma physics codes at ITPcp, particularly for NEO-2 versions. It provides magnetic field representations, transport calculations, collision operators, and coordinate transformations for fusion plasma physics.
 
+## Development Approach
+
+### Test-Driven Development (STRICT REQUIREMENT)
+**ALWAYS follow the RED-GREEN-REFACTOR cycle:**
+
+1. **RED**: Write a failing test first - never write code without a failing test
+2. **GREEN**: Write minimal code to make the test pass - only enough to pass
+3. **REFACTOR**: Clean up code while keeping tests green
+
+**Rules:**
+- Write tests before any implementation code
+- Run tests after each step
+- Keep the cycle short and focused
+
+### Coding Standards
+See `CODING_STANDARD.md` for complete details. Key points:
+- Code is simple and self-explaining without comments
+- Break large constructs into small, single-responsibility units
+- Use `pure` procedures without side effects when possible
+- Prefer structs (`type`) over classes for data bundling
+- Use abstract types with factory pattern for polymorphism
+- Arrays indexed starting from 1
+- 88-character line limit, 4-space indentation
+- `implicit none` in all modules and programs
+
 ## Build Commands
 
 ### Standard Build
@@ -69,9 +94,4 @@ Tests are organized by component in `test/`:
 - Python tests for bindings
 - Test utilities in `test/util_for_test/`
 
-### Fortran Conventions
-- Modern Fortran (2003/2008) with OOP features
-- Precision defined in `libneo_kinds` module (`dp` for double)
-- Type naming: `typename_t` for derived types
-- Strict 88-character line limit
-- 4-space indentation
+**Remember**: Always write tests BEFORE implementation code (TDD)
