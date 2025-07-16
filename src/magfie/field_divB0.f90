@@ -811,11 +811,10 @@ subroutine stretch_coords(r,z,rm,zm)
   real(dp), intent(out) :: rm, zm
 
   integer icall, i, j, nrz ! number of points "convex wall" in input file
-  integer, parameter :: nrzmx=100 ! possible max. of nrz
   integer, parameter :: nrhotht=360
   integer :: iflag, unit_convex, ios
   real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
-  real(dp), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
+  real(dp), dimension(:), allocatable :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable :: rho_w, tht_w
   real(dp), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
   data icall /0/, delta/1./
@@ -825,9 +824,8 @@ subroutine stretch_coords(r,z,rm,zm)
   if(icall .eq. 0) then
     icall = 1
     nrz = 0
-    rad_w = 0.
-    zet_w = 0.
-    ios = 0
+
+    ! First pass: count the number of data points
     open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
          iostat=ios)
     if (ios /= 0) then
@@ -835,22 +833,39 @@ subroutine stretch_coords(r,z,rm,zm)
         trim(convexfile)
       error stop 'stretch_coords: missing convex wall file'
     end if
-    do i=1,nrzmx
-      read(unit_convex,*,iostat=ios)rad_w(i),zet_w(i)
-      if (ios /= 0) exit
+    do
+      read(unit_convex,*,iostat=ios) dummy, dummy
+      if(ios /= 0) exit
       nrz = nrz + 1
     end do
     close(unit_convex)
-    if (ios > 0) then
-      write(*,*) 'ERROR: stretch_coords failed reading convex wall file ', &
-        trim(convexfile)
-      error stop 'stretch_coords: invalid convex wall file'
-    end if
+
     if (nrz == 0) then
       write(*,*) 'ERROR: stretch_coords found zero points in convex wall file ', &
         trim(convexfile)
       error stop 'stretch_coords: empty convex wall file'
     end if
+
+    ! Allocate arrays based on actual number of points
+    allocate(rad_w(0:nrz+1), zet_w(0:nrz+1))
+
+    ! Second pass: read the actual data
+    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
+         iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: stretch_coords unable to reopen convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: failed to reopen convex wall file'
+    end if
+    do i=1,nrz
+      read(unit_convex,*,iostat=ios) rad_w(i), zet_w(i)
+      if(ios /= 0) then
+        write(*,*) 'ERROR: Failed to read data point', i, ' from convex wall file: ', &
+          trim(convexfile)
+        error stop 'stretch_coords: invalid convex wall file'
+      end if
+    end do
+    close(unit_convex)
 
     allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
     R0 = (maxval(rad_w(1:nrz)) +  minval(rad_w(1:nrz)))*0.5
