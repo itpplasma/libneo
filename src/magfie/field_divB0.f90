@@ -811,11 +811,10 @@ subroutine stretch_coords(r,z,rm,zm)
   real(dp), intent(out) :: rm, zm
 
   integer icall, i, j, nrz ! number of points "convex wall" in input file
-  integer, parameter :: nrzmx=100 ! possible max. of nrz
   integer, parameter :: nrhotht=360
-  integer :: iflag
+  integer :: iflag, iostat_val
   real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
-  real(dp), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
+  real(dp), dimension(:), allocatable :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable :: rho_w, tht_w
   real(dp), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
   data icall /0/, delta/1./
@@ -825,14 +824,33 @@ subroutine stretch_coords(r,z,rm,zm)
   if(icall .eq. 0) then
     icall = 1
     nrz = 0
-    rad_w = 0.
-    zet_w = 0.
+    
+    ! First pass: count the number of data points
     open(iunit, file=trim(convexfile), status='old', action='read')
-    do i=1,nrzmx
-      read(iunit,*,END=10)rad_w(i),zet_w(i)
+    do
+      read(iunit,*,iostat=iostat_val) dummy, dummy
+      if(iostat_val /= 0) exit
       nrz = nrz + 1
     end do
-10  continue
+    close(iunit)
+    
+    if(nrz .le. 0) then
+      print *, 'ERROR: No valid data points found in convex wall file: ', trim(convexfile)
+      stop
+    end if
+    
+    ! Allocate arrays based on actual number of points
+    allocate(rad_w(0:nrz+1), zet_w(0:nrz+1))
+    
+    ! Second pass: read the actual data
+    open(iunit, file=trim(convexfile), status='old', action='read')
+    do i=1,nrz
+      read(iunit,*,iostat=iostat_val) rad_w(i), zet_w(i)
+      if(iostat_val /= 0) then
+        print *, 'ERROR: Failed to read data point', i, ' from convex wall file: ', trim(convexfile)
+        stop
+      end if
+    end do
     close(iunit)
 
     allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
