@@ -823,11 +823,11 @@ subroutine stretch_coords(r,z,rm,zm)
   !$omp critical
   if(icall .eq. 0) then
     icall = 1
-    nrz = count_data_points_in_convex_wall_file()
-    call validate_convex_wall_data_count(nrz)
-    call allocate_convex_wall_arrays(nrz)
-    call read_convex_wall_data_from_file(nrz)
-    call compute_polar_coordinates_from_cartesian(nrz, R0)
+    nrz = count_data_points()
+    call validate_data_count(nrz)
+    call allocate_arrays(nrz)
+    call read_data_points(nrz)
+    call compute_polar_coords(nrz, R0)
 
     ! make sure points are ordered according to tht_w.
     do
@@ -903,7 +903,7 @@ subroutine stretch_coords(r,z,rm,zm)
 
 contains
 
-  function count_data_points_in_convex_wall_file() result(point_count)
+  function count_data_points() result(point_count)
     integer :: point_count
     real(dp) :: dummy1, dummy2
 
@@ -921,9 +921,9 @@ contains
       point_count = point_count + 1
     end do
     close(unit_convex)
-  end function count_data_points_in_convex_wall_file
+  end function count_data_points
 
-  subroutine validate_convex_wall_data_count(point_count)
+  subroutine validate_data_count(point_count)
     integer, intent(in) :: point_count
 
     if(point_count == 0) then
@@ -931,16 +931,16 @@ contains
         trim(convexfile)
       error stop 'stretch_coords: empty convex wall file'
     end if
-  end subroutine validate_convex_wall_data_count
+  end subroutine validate_data_count
 
-  subroutine allocate_convex_wall_arrays(point_count)
+  subroutine allocate_arrays(point_count)
     integer, intent(in) :: point_count
 
     allocate(rad_w(0:point_count+1), zet_w(0:point_count+1))
     allocate(rho_w(0:point_count+1), tht_w(0:point_count+1))
-  end subroutine allocate_convex_wall_arrays
+  end subroutine allocate_arrays
 
-  subroutine read_convex_wall_data_from_file(point_count)
+  subroutine read_data_points(point_count)
     integer, intent(in) :: point_count
     integer :: i
 
@@ -960,9 +960,9 @@ contains
       end if
     end do
     close(unit_convex)
-  end subroutine read_convex_wall_data_from_file
+  end subroutine read_data_points
 
-  subroutine compute_polar_coordinates_from_cartesian(point_count, center_r)
+  subroutine compute_polar_coords(point_count, center_r)
     integer, intent(in) :: point_count
     real(dp), intent(out) :: center_r
     integer :: i
@@ -973,7 +973,7 @@ contains
       tht_w(i) = atan2(zet_w(i),(rad_w(i)-center_r))
       if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
     end do
-  end subroutine compute_polar_coordinates_from_cartesian
+  end subroutine compute_polar_coords
 
 end subroutine stretch_coords
 
