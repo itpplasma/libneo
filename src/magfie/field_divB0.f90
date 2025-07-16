@@ -912,10 +912,15 @@ contains
     open(iunit, file=trim(convexfile), status='old', action='read')
     do
       read(iunit,*,iostat=iostat_val) dummy1, dummy2
-      if(iostat_val /= 0) exit
+      if(iostat_val < 0) exit  ! End of file
+      if(iostat_val > 0) then  ! Read error
+        print *, 'ERROR: Failed to read convex wall file: ', trim(convexfile)
+        close(iunit)
+        error stop 1
+      end if
       point_count = point_count + 1
     end do
-    close(iunit)
+    rewind(iunit)  ! Rewind instead of close/reopen as suggested in ticket
   end function count_data_points
 
   subroutine validate_data_count(point_count)
@@ -923,7 +928,8 @@ contains
     
     if(point_count .le. 0) then
       print *, 'ERROR: No valid data points found in convex wall file: ', trim(convexfile)
-      stop
+      close(iunit)
+      error stop 1
     end if
   end subroutine validate_data_count
 
@@ -938,12 +944,14 @@ contains
     integer, intent(in) :: point_count
     integer :: i, iostat_val
     
-    open(iunit, file=trim(convexfile), status='old', action='read')
+    ! File already open and rewound from count_data_points
     do i=1,point_count
       read(iunit,*,iostat=iostat_val) rad_w(i), zet_w(i)
       if(iostat_val /= 0) then
         print *, 'ERROR: Failed to read data point', i, ' from convex wall file: ', trim(convexfile)
-        stop
+        close(iunit)
+        deallocate(rad_w, zet_w, rho_w, tht_w)
+        error stop 1
       end if
     end do
     close(iunit)
