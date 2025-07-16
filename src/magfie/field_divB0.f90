@@ -823,57 +823,11 @@ subroutine stretch_coords(r,z,rm,zm)
   !$omp critical
   if(icall .eq. 0) then
     icall = 1
-    nrz = 0
-
-    ! First pass: count the number of data points
-    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
-         iostat=ios)
-    if (ios /= 0) then
-      write(*,*) 'ERROR: stretch_coords unable to open convex wall file ', &
-        trim(convexfile)
-      error stop 'stretch_coords: missing convex wall file'
-    end if
-    do
-      read(unit_convex,*,iostat=ios) dummy, dummy
-      if(ios /= 0) exit
-      nrz = nrz + 1
-    end do
-    close(unit_convex)
-
-    if (nrz == 0) then
-      write(*,*) 'ERROR: stretch_coords found zero points in convex wall file ', &
-        trim(convexfile)
-      error stop 'stretch_coords: empty convex wall file'
-    end if
-
-    ! Allocate arrays based on actual number of points
-    allocate(rad_w(0:nrz+1), zet_w(0:nrz+1))
-
-    ! Second pass: read the actual data
-    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
-         iostat=ios)
-    if (ios /= 0) then
-      write(*,*) 'ERROR: stretch_coords unable to reopen convex wall file ', &
-        trim(convexfile)
-      error stop 'stretch_coords: failed to reopen convex wall file'
-    end if
-    do i=1,nrz
-      read(unit_convex,*,iostat=ios) rad_w(i), zet_w(i)
-      if(ios /= 0) then
-        write(*,*) 'ERROR: Failed to read data point', i, ' from convex wall file: ', &
-          trim(convexfile)
-        error stop 'stretch_coords: invalid convex wall file'
-      end if
-    end do
-    close(unit_convex)
-
-    allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
-    R0 = (maxval(rad_w(1:nrz)) +  minval(rad_w(1:nrz)))*0.5
-    do i=1,nrz
-      rho_w(i) = sqrt( (rad_w(i)-R0)**2 + zet_w(i)**2 )
-      tht_w(i) = atan2(zet_w(i),(rad_w(i)-R0))
-      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
-    end do
+    nrz = count_data_points_in_convex_wall_file()
+    call validate_convex_wall_data_count(nrz)
+    call allocate_convex_wall_arrays(nrz)
+    call read_convex_wall_data_from_file(nrz)
+    call compute_polar_coordinates_from_cartesian(nrz, R0)
 
     ! make sure points are ordered according to tht_w.
     do
@@ -946,6 +900,80 @@ subroutine stretch_coords(r,z,rm,zm)
      rm = rho*cos(tht) + R0
      zm = rho*sin(tht)
   end if
+
+contains
+
+  function count_data_points_in_convex_wall_file() result(point_count)
+    integer :: point_count
+    real(dp) :: dummy1, dummy2
+
+    point_count = 0
+    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
+         iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: stretch_coords unable to open convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: missing convex wall file'
+    end if
+    do
+      read(unit_convex,*,iostat=ios) dummy1, dummy2
+      if(ios /= 0) exit
+      point_count = point_count + 1
+    end do
+    close(unit_convex)
+  end function count_data_points_in_convex_wall_file
+
+  subroutine validate_convex_wall_data_count(point_count)
+    integer, intent(in) :: point_count
+
+    if(point_count == 0) then
+      write(*,*) 'ERROR: stretch_coords found zero points in convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: empty convex wall file'
+    end if
+  end subroutine validate_convex_wall_data_count
+
+  subroutine allocate_convex_wall_arrays(point_count)
+    integer, intent(in) :: point_count
+
+    allocate(rad_w(0:point_count+1), zet_w(0:point_count+1))
+    allocate(rho_w(0:point_count+1), tht_w(0:point_count+1))
+  end subroutine allocate_convex_wall_arrays
+
+  subroutine read_convex_wall_data_from_file(point_count)
+    integer, intent(in) :: point_count
+    integer :: i
+
+    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
+         iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: stretch_coords unable to reopen convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: failed to reopen convex wall file'
+    end if
+    do i=1,point_count
+      read(unit_convex,*,iostat=ios) rad_w(i), zet_w(i)
+      if(ios /= 0) then
+        write(*,*) 'ERROR: Failed to read data point', i, ' from convex wall file: ', &
+          trim(convexfile)
+        error stop 'stretch_coords: invalid convex wall file'
+      end if
+    end do
+    close(unit_convex)
+  end subroutine read_convex_wall_data_from_file
+
+  subroutine compute_polar_coordinates_from_cartesian(point_count, center_r)
+    integer, intent(in) :: point_count
+    real(dp), intent(out) :: center_r
+    integer :: i
+
+    center_r = (maxval(rad_w(1:point_count)) + minval(rad_w(1:point_count)))*0.5
+    do i=1,point_count
+      rho_w(i) = sqrt( (rad_w(i)-center_r)**2 + zet_w(i)**2 )
+      tht_w(i) = atan2(zet_w(i),(rad_w(i)-center_r))
+      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
+    end do
+  end subroutine compute_polar_coordinates_from_cartesian
 
 end subroutine stretch_coords
 
