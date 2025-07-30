@@ -379,6 +379,101 @@ contains
     !$omp end parallel do
   end subroutine Biot_Savart_sum_coils
 
+  subroutine Biot_Savart_Fourier(coils, nmax, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
+    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
+    !$ use omp_lib, only: omp_get_max_threads
+    use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
+      fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
+      FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
+    use math_constants, only: pi
+    type(coil_t), intent(in), dimension(:) :: coils
+    integer, intent(in) :: nmax
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(in) :: nR, nphi, nZ
+    complex(dp), intent(out), dimension(:, :, :, :, :), allocatable :: Bn
+    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
+    real(dp), dimension(nphi) :: phi, cosphi, sinphi
+    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ(3)
+    type(c_ptr) :: plan_nphi, p_BR, p_Bphi, p_BZ, p_BnR, p_Bnphi, p_BnZ
+    real(c_double), dimension(:), pointer :: BR, Bphi, BZ
+    complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
+
+    if (nmax > nphi / 4) then
+      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
+        'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
+      error stop
+    end if
+    nfft = nphi / 2 + 1
+    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
+    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    cosphi(:) = cos(phi)
+    sinphi(:) = sin(phi)
+    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
+    ncoil = size(coils)
+    allocate(Bn(0:nmax, 3, nR, nZ, ncoil))
+    ! prepare FFTW
+    !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
+    !$ call fftw_plan_with_nthreads(omp_get_max_threads())
+    p_BR = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_BR, BR, [nphi])
+    p_Bphi = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_Bphi, Bphi, [nphi])
+    p_BZ = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_BZ, BZ, [nphi])
+    p_BnR = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_BnR, BnR, [nfft])
+    p_Bnphi = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_Bnphi, Bnphi, [nfft])
+    p_BnZ = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_BnZ, BnZ, [nfft])
+    plan_nphi = fftw_plan_dft_r2c_1d(nphi, BR, BnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
+    do kc = 1, ncoil
+      do kZ = 1, nZ
+        do kR = 1, nR
+          !$omp parallel do schedule(static) default(none) &
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) &
+          !$omp shared(nphi, kc, coils, R, kR, Z, kZ, cosphi, sinphi, BR, Bphi, BZ)
+          do kphi = 1, nphi
+            XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)]
+            ! Biot-Savart integral over coil segments
+            BXYZ(:) = 0d0
+            XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
+            dist_f = sqrt(sum(XYZ_f * XYZ_f))
+            do ks = 1, coils(kc)%nseg
+              XYZ_i(:) = XYZ_f
+              dist_i = dist_f
+              XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
+              dist_f = sqrt(sum(XYZ_f * XYZ_f))
+              BXYZ(:) = BXYZ + &
+                (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
+                (dist_i + dist_f) / (dist_i * dist_f * (dist_i * dist_f + sum(XYZ_i * XYZ_f)))
+            end do
+            BR(kphi) = BXYZ(1) * cosphi(kphi) + BXYZ(2) * sinphi(kphi)
+            Bphi(kphi) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
+            BZ(kphi) = BXYZ(3)
+          end do
+          !$omp end parallel do
+          call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
+          call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
+          call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
+          Bn(0:nmax, 1, kR, kZ, kc) = BnR(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 2, kR, kZ, kc) = Bnphi(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 3, kR, kZ, kc) = BnZ(1:nmax+1) / dble(nphi)
+        end do
+      end do
+    end do
+    call fftw_destroy_plan(plan_nphi)
+    call fftw_free(p_BR)
+    call fftw_free(p_Bphi)
+    call fftw_free(p_BZ)
+    call fftw_free(p_BnR)
+    call fftw_free(p_Bnphi)
+    call fftw_free(p_BnZ)
+    !$ call fftw_cleanup_threads()
+    ! nullify pointers past this point
+  end subroutine Biot_Savart_Fourier
+
   subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
@@ -637,101 +732,6 @@ contains
     write (*, '("Error encountered during ", a, ": ", a)') operation, nf90_strerror(status)
     error stop
   end subroutine nc_check
-
-  subroutine Biot_Savart_Fourier(coils, nmax, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
-    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
-    !$ use omp_lib, only: omp_get_max_threads
-    use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
-      fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
-      FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
-    use math_constants, only: pi
-    type(coil_t), intent(in), dimension(:) :: coils
-    integer, intent(in) :: nmax
-    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
-    integer, intent(in) :: nR, nphi, nZ
-    complex(dp), intent(out), dimension(:, :, :, :, :), allocatable :: Bn
-    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
-    real(dp), dimension(nphi) :: phi, cosphi, sinphi
-    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ(3)
-    type(c_ptr) :: plan_nphi, p_BR, p_Bphi, p_BZ, p_BnR, p_Bnphi, p_BnZ
-    real(c_double), dimension(:), pointer :: BR, Bphi, BZ
-    complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
-
-    if (nmax > nphi / 4) then
-      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
-        'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
-      error stop
-    end if
-    nfft = nphi / 2 + 1
-    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
-    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
-    cosphi(:) = cos(phi)
-    sinphi(:) = sin(phi)
-    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
-    ncoil = size(coils)
-    allocate(Bn(0:nmax, 3, nR, nZ, ncoil))
-    ! prepare FFTW
-    !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
-    !$ call fftw_plan_with_nthreads(omp_get_max_threads())
-    p_BR = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_BR, BR, [nphi])
-    p_Bphi = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_Bphi, Bphi, [nphi])
-    p_BZ = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_BZ, BZ, [nphi])
-    p_BnR = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_BnR, BnR, [nfft])
-    p_Bnphi = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_Bnphi, Bnphi, [nfft])
-    p_BnZ = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_BnZ, BnZ, [nfft])
-    plan_nphi = fftw_plan_dft_r2c_1d(nphi, BR, BnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
-    do kc = 1, ncoil
-      do kZ = 1, nZ
-        do kR = 1, nR
-          !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) &
-          !$omp shared(nphi, kc, coils, R, kR, Z, kZ, cosphi, sinphi, BR, Bphi, BZ)
-          do kphi = 1, nphi
-            XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)]
-            ! Biot-Savart integral over coil segments
-            BXYZ(:) = 0d0
-            XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
-            dist_f = sqrt(sum(XYZ_f * XYZ_f))
-            do ks = 1, coils(kc)%nseg
-              XYZ_i(:) = XYZ_f
-              dist_i = dist_f
-              XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
-              dist_f = sqrt(sum(XYZ_f * XYZ_f))
-              BXYZ(:) = BXYZ + &
-                (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
-                (dist_i + dist_f) / (dist_i * dist_f * (dist_i * dist_f + sum(XYZ_i * XYZ_f)))
-            end do
-            BR(kphi) = BXYZ(1) * cosphi(kphi) + BXYZ(2) * sinphi(kphi)
-            Bphi(kphi) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
-            BZ(kphi) = BXYZ(3)
-          end do
-          !$omp end parallel do
-          call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
-          call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
-          call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
-          Bn(0:nmax, 1, kR, kZ, kc) = BnR(1:nmax+1) / dble(nphi)
-          Bn(0:nmax, 2, kR, kZ, kc) = Bnphi(1:nmax+1) / dble(nphi)
-          Bn(0:nmax, 3, kR, kZ, kc) = BnZ(1:nmax+1) / dble(nphi)
-        end do
-      end do
-    end do
-    call fftw_destroy_plan(plan_nphi)
-    call fftw_free(p_BR)
-    call fftw_free(p_Bphi)
-    call fftw_free(p_BZ)
-    call fftw_free(p_BnR)
-    call fftw_free(p_Bnphi)
-    call fftw_free(p_BnZ)
-    !$ call fftw_cleanup_threads()
-    ! nullify pointers past this point
-  end subroutine Biot_Savart_Fourier
 
   subroutine write_Bvac_Nemov(filename, Rmin, Rmax, Zmin, Zmax, Bvac)
     use math_constants, only: pi
