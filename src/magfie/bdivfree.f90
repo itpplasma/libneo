@@ -182,10 +182,10 @@ end subroutine vector_potentials
 
 
 ! Spline a single toroidal Fourier mode of the RMP coil field, as needed for MEPHIT.
+! The vector potential is assumed to be gauged so that An_phi = 0.
 ! Note the explicit-shape input arrays are not checked for shape.
-! Also, the truncation of data outside the limiting convex is not performed.
 subroutine vector_potential_single_mode(ntor_in, nR_in, nZ_in, Rmin_in, Rmax_in, &
-  Zmin_in, Zmax_in, Bn_R, Bn_Z)
+  Zmin_in, Zmax_in, An_R, An_Z)
   use libneo_kinds, only : dp
   use bdivfree_mod, only: nR, nZ, Rmin, Zmin, ntor, num_points => icp, ipoint, hR, hZ, &
     Rpoi, Zpoi, AZnRe, AZnIm, ARnRe, ARnIm
@@ -194,9 +194,8 @@ subroutine vector_potential_single_mode(ntor_in, nR_in, nZ_in, Rmin_in, Rmax_in,
 
   integer, intent(in) :: ntor_in, nR_in, nZ_in
   real(dp), intent(in) :: Rmin_in, Rmax_in, Zmin_in, Zmax_in
-  complex(dp), intent(in), dimension(nR_in, nZ_in) :: Bn_R, Bn_Z
+  complex(dp), intent(in), dimension(nR_in, nZ_in) :: An_R, An_Z
   integer :: k, min_row(nZ_in), max_row(nZ_in), min_col(nR_in), max_col(nR_in)
-  complex(dp), dimension(nR_in, nZ_in) :: An_R, An_Z
 
   ntor = ntor_in
   nR = nR_in
@@ -209,10 +208,6 @@ subroutine vector_potential_single_mode(ntor_in, nR_in, nZ_in, Rmin_in, Rmax_in,
   allocate(Rpoi(nR), Zpoi(nZ), ipoint(nR, nZ))
   Rpoi(:) = Rmin + [(k * hr, k = 0, nR - 1)]
   Zpoi(:) = Zmin + [(k * hz, k = 0, nZ - 1)]
-  do k = 1, nZ
-    An_R(:, k) = (0d0, 1d0) * Bn_Z(:, k) * Rpoi / dble(ntor)
-    An_Z(:, k) = (0d0, -1d0) * Bn_R(:, k) * Rpoi / dble(ntor)
-  end do
   allocate(ARnRe(6, 6, num_points, ntor), ARnIm(6, 6, num_points, ntor))
   allocate(AZnRe(6, 6, num_points, ntor), AZnIm(6, 6, num_points, ntor))
   ARnRe(:, :, :, :ntor-1) = (0d0, 0d0)
