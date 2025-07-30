@@ -321,9 +321,27 @@ contains
     close(fid)
   end subroutine read_currents
 
+  subroutine grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
+    use math_constants, only: pi
+    real(dp), intent(in) :: Rmin, Rmax
+    integer, intent(in) :: nR
+    real(dp), dimension(:), intent(inout) :: R
+    real(dp), intent(in) :: Zmin, Zmax
+    integer, intent(in) :: nZ
+    real(dp), dimension(:), intent(inout) :: Z
+    integer, intent(in), optional :: nphi
+    real(dp), dimension(:), intent(inout), optional :: phi
+
+    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
+    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
+    if (present(nphi) .and. present(phi)) then
+      ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+      phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)
+    end if
+  end subroutine grid_from_bounding_box
+
   subroutine Biot_Savart_sum_coils(coils, Ic, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
-    use math_constants, only: pi
     type(coil_t), intent(in), dimension(:) :: coils
     real(dp), intent(in), dimension(:) :: Ic
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
@@ -339,11 +357,9 @@ contains
       error stop
     end if
     ncoil = size(coils)
-    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
-    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
     cosphi(:) = cos(phi)
     sinphi(:) = sin(phi)
-    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
     allocate(Bvac(3, nZ, nphi, nR))
     Bvac(:, :, :, :) = 0d0
     !$omp parallel do schedule(static) collapse(3) default(none) &
@@ -386,7 +402,6 @@ contains
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
-    use math_constants, only: pi
     type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
@@ -405,11 +420,9 @@ contains
       error stop
     end if
     nfft = nphi / 2 + 1
-    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
-    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
     cosphi(:) = cos(phi)
     sinphi(:) = sin(phi)
-    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
     ncoil = size(coils)
     allocate(Bn(0:nmax, 3, nR, nZ, ncoil))
     ! prepare FFTW
@@ -481,7 +494,6 @@ contains
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
-    use math_constants, only: pi
     use field_sub, only: read_field_input, stretch_coords
 
     type(coil_t), intent(in), dimension(:) :: coils
@@ -507,11 +519,9 @@ contains
     end if
     nfft = nphi / 2 + 1
     ncoil = size(coils)
-    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
-    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
     cosphi(:) = cos(phi)
     sinphi(:) = sin(phi)
-    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
     allocate(AnR(0:nmax, nR, nZ, ncoil))
     allocate(Anphi(0:nmax, nR, nZ, ncoil))
     allocate(AnZ(0:nmax, nR, nZ, ncoil))
@@ -622,9 +632,7 @@ contains
     integer :: k
 
     allocate(R(nR), Z(nZ), coil_number(ncoil), ntor(nmax))
-
-    R = linspace(Rmin, Rmax, nR, 0, 0)
-    Z = linspace(Zmin, Zmax, nZ, 0, 0)
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
     coil_number = [(k, k = 1, ncoil)]
     ntor = [(k, k = 0, nmax)]
 
