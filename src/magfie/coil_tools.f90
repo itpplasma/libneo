@@ -625,13 +625,13 @@ contains
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
     complex(dp), intent(in), dimension(:, :, :, :) :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
-    real(dp), dimension(:), allocatable :: R, Z, coil_number, ntor
+    real(dp) :: R(nR), Z(nZ)
+    integer :: coil_number(ncoil), ntor(nmax + 1)
     integer :: ncid
     integer :: dimid_R, dimid_Z, dimid_tor, dimid_coil
     integer :: varid_R, varid_Z, varid_ntor, varid_coils, varid_nR, varid_nphi, varid_nZ
     integer :: k
 
-    allocate(R(nR), Z(nZ), coil_number(ncoil), ntor(nmax))
     call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
     coil_number = [(k, k = 1, ncoil)]
     ntor = [(k, k = 0, nmax)]
@@ -647,11 +647,11 @@ contains
     ! define variables metadata
     call nc_check('def_var', nf90_def_var(ncid, 'R', NF90_DOUBLE, [dimid_R], varid_R))
     call nc_check('def_var', nf90_def_var(ncid, 'Z', NF90_DOUBLE, [dimid_Z], varid_Z))
-    call nc_check('def_var', nf90_def_var(ncid, 'ntor', NF90_DOUBLE, [dimid_tor], varid_ntor))
-    call nc_check('def_var', nf90_def_var(ncid, 'coil_number', NF90_DOUBLE, [dimid_coil], varid_coils))
-    call nc_check('def_var', nf90_def_var(ncid, 'nR', NF90_DOUBLE, varid_nR))
-    call nc_check('def_var', nf90_def_var(ncid, 'nphi', NF90_DOUBLE, varid_nphi))
-    call nc_check('def_var', nf90_def_var(ncid, 'nZ', NF90_DOUBLE, varid_nZ))
+    call nc_check('def_var', nf90_def_var(ncid, 'ntor', NF90_INT, [dimid_tor], varid_ntor))
+    call nc_check('def_var', nf90_def_var(ncid, 'coil_number', NF90_INT, [dimid_coil], varid_coils))
+    call nc_check('def_var', nf90_def_var(ncid, 'nR', NF90_INT, varid_nR))
+    call nc_check('def_var', nf90_def_var(ncid, 'nphi', NF90_INT, varid_nphi))
+    call nc_check('def_var', nf90_def_var(ncid, 'nZ', NF90_INT, varid_nZ))
 
     ! write variables and comments metadata
     call nc_check('put_var', nf90_put_var(ncid, varid_R, R))
@@ -677,7 +677,6 @@ contains
     call write_actual_data(dAnphi_dZ, 'dAnphi_dZ', 'derivative w.r.t. Z of phi')
 
     call nc_check('close', nf90_close(ncid))
-    deallocate(R, Z, coil_number, ntor)
 
   contains
     subroutine write_actual_data(var, name, component)
