@@ -12,9 +12,11 @@ module coil_tools
     coils_write_AUG, coils_read_AUG, &
     coils_write_Nemov, coils_read_Nemov, &
     coils_write_GPEC, coils_read_GPEC, &
-    read_currents, Biot_Savart_sum_coils, Biot_Savart_Fourier, &
+    read_currents, grid_from_bounding_box, &
+    Biot_Savart_sum_coils, Biot_Savart_Fourier, &
     write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier, &
-    Vector_Potential_Biot_Savart_Fourier, write_Anvac_Fourier
+    Vector_Potential_Biot_Savart_Fourier, write_Anvac_Fourier, read_Anvac_Fourier, &
+    sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac
 
   type :: coil_t
     integer :: nseg = 0
@@ -616,6 +618,60 @@ contains
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
   end subroutine Vector_Potential_Biot_Savart_Fourier
+
+  subroutine sum_coils_gauge_single_mode_Anvac(AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
+    Ic, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, gauged_AnR, gauged_AnZ)
+    use math_constants, only: imun => IMUN
+    complex(dp), dimension(:, :, :, :), intent(in) :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    real(dp), dimension(:), intent(in) :: Ic
+    integer, intent(in) :: ntor
+    real(dp), intent(in) :: Rmin, Rmax
+    integer, intent(in) :: nR
+    real(dp), intent(in) :: Zmin, Zmax
+    integer, intent(in) :: nZ
+    complex(dp), dimension(:, :), intent(inout) :: gauged_AnR, gauged_AnZ
+    integer :: ncoil, kcoil, kZ
+    real(dp) :: R(nR), Z(nZ)
+
+    ! TODO: check array sizes
+    ncoil = size(Ic)
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
+    gauged_AnR(:, :) = (0d0, 0d0)
+    gauged_AnZ(:, :) = (0d0, 0d0)
+    ! TODO: OpenMP?
+    do kcoil = 1, ncoil
+      do kZ = 1, nZ
+        gauged_AnR(:, kZ) = gauged_AnR(:, kZ) + Ic(kcoil) * &
+          (AnR(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dR(ntor, :, kZ, kcoil) + &
+          imun / ntor * Anphi(ntor, :, kZ, kcoil))
+        gauged_AnZ(:, kZ) = gauged_AnZ(:, kZ) * Ic(kcoil) * &
+          (AnZ(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dZ(ntor, :, kZ, kcoil))
+      end do
+    end do
+  end subroutine sum_coils_gauge_single_mode_Anvac
+
+  subroutine gauged_Anvac_from_Bnvac(BnR, BnZ, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, &
+    gauged_AnR, gauged_AnZ)
+    use math_constants, only: imun => IMUN
+    complex(dp), dimension(:, :), intent(in) :: BnR, BnZ
+    integer, intent(in) :: ntor
+    real(dp), intent(in) :: Rmin, Rmax
+    integer, intent(in) :: nR
+    real(dp), intent(in) :: Zmin, Zmax
+    integer, intent(in) :: nZ
+    complex(dp), dimension(:, :), intent(inout) :: gauged_AnR, gauged_AnZ
+    integer :: kZ
+    real(dp) :: R(nR), Z(nZ)
+
+    ! TODO: check array sizes
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
+    gauged_AnR(:, :) = (0d0, 0d0)
+    gauged_AnZ(:, :) = (0d0, 0d0)
+    do kZ = 1, nZ
+      gauged_AnR(:, kZ) = imun / ntor * R * BnZ(:, kZ)
+      gauged_AnZ(:, kZ) = imun / ntor * R * BnR(:, kZ)
+    end do
+  end subroutine gauged_Anvac_from_Bnvac
 
   subroutine write_Anvac_Fourier(filename, ncoil, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
