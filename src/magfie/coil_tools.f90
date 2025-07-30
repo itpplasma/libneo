@@ -43,7 +43,7 @@ contains
     ! gfortran 14.2.1 thinks that the equivalent
     ! implied do loop may be uninitialized here
     do k = omit_lo, cnt - 1 + omit_lo
-      linspace(k) = lo + k * step
+      linspace(k + 1) = lo + k * step
     end do
     if (omit_hi == 0) linspace(cnt) = hi
   end function linspace
