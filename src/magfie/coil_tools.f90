@@ -616,10 +616,9 @@ contains
     integer, intent(in) :: nR, nphi, nZ
     complex(dp), intent(in), dimension(:, :, :, :) :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
     real(dp), dimension(:), allocatable :: R, Z, coil_number, ntor
-    integer :: status, ncid
+    integer :: ncid
     integer :: dimid_R, dimid_Z, dimid_tor, dimid_coil
     integer :: varid_R, varid_Z, varid_ntor, varid_coils, varid_nR, varid_nphi, varid_nZ
-    integer :: varid_actual_data
     integer :: k
 
     allocate(R(nR), Z(nZ), coil_number(ncoil), ntor(nmax))
@@ -629,107 +628,78 @@ contains
     coil_number = [(k, k = 1, ncoil)]
     ntor = [(k, k = 0, nmax)]
 
-    status = nf90_create(filename, NF90_NETCDF4, ncid)
-    call nc_check(status, 'open')
+    call nc_check('create', nf90_create(filename, NF90_NETCDF4, ncid))
 
     ! define dimensions metadata
-    status = nf90_def_dim(ncid, 'R', nR, dimid_R)
-    status = nf90_def_dim(ncid, 'Z', nZ, dimid_Z)
-    status = nf90_def_dim(ncid, 'ntor', nmax+1, dimid_tor)
-    status = nf90_def_dim(ncid, 'coil_number', ncoil, dimid_coil)
+    call nc_check('def_dim', nf90_def_dim(ncid, 'R', nR, dimid_R))
+    call nc_check('def_dim', nf90_def_dim(ncid, 'Z', nZ, dimid_Z))
+    call nc_check('def_dim', nf90_def_dim(ncid, 'ntor', nmax+1, dimid_tor))
+    call nc_check('def_dim', nf90_def_dim(ncid, 'coil_number', ncoil, dimid_coil))
 
     ! define variables metadata
-    status = nf90_def_var(ncid, 'R', NF90_DOUBLE, [dimid_R], varid_R)
-    status = nf90_def_var(ncid, 'Z', NF90_DOUBLE, [dimid_Z], varid_Z)
-    status = nf90_def_var(ncid, 'ntor', NF90_DOUBLE, [dimid_tor], varid_ntor)
-    status = nf90_def_var(ncid, 'coil_number', NF90_DOUBLE, [dimid_coil], varid_coils)
-    status = nf90_def_var(ncid, 'nR', NF90_DOUBLE, varid_nR)
-    status = nf90_def_var(ncid, 'nphi', NF90_DOUBLE, varid_nphi)
-    status = nf90_def_var(ncid, 'nZ', NF90_DOUBLE, varid_nZ)
+    call nc_check('def_var', nf90_def_var(ncid, 'R', NF90_DOUBLE, [dimid_R], varid_R))
+    call nc_check('def_var', nf90_def_var(ncid, 'Z', NF90_DOUBLE, [dimid_Z], varid_Z))
+    call nc_check('def_var', nf90_def_var(ncid, 'ntor', NF90_DOUBLE, [dimid_tor], varid_ntor))
+    call nc_check('def_var', nf90_def_var(ncid, 'coil_number', NF90_DOUBLE, [dimid_coil], varid_coils))
+    call nc_check('def_var', nf90_def_var(ncid, 'nR', NF90_DOUBLE, varid_nR))
+    call nc_check('def_var', nf90_def_var(ncid, 'nphi', NF90_DOUBLE, varid_nphi))
+    call nc_check('def_var', nf90_def_var(ncid, 'nZ', NF90_DOUBLE, varid_nZ))
 
     ! write variables and comments metadata
-    status = nf90_put_var(ncid, varid_R, R)
-    status = nf90_put_att(ncid, varid_R, 'comment', 'R components of grid in cm')
-    status = nf90_put_var(ncid, varid_Z, Z)
-    status = nf90_put_att(ncid, varid_Z, 'comment', 'Z components of grid in cm')
-    status = nf90_put_var(ncid, varid_ntor, ntor)
-    status = nf90_put_att(ncid, varid_ntor, 'comment', 'toroidal mode numbers')
-    status = nf90_put_var(ncid, varid_coils, coil_number)
-    status = nf90_put_att(ncid, varid_coils, 'comment', 'coil numbers')
-    status = nf90_put_var(ncid, varid_nR, nR)
-    status = nf90_put_att(ncid, varid_nR, 'comment', 'number of grid points in R direction')
-    status = nf90_put_var(ncid, varid_nphi, nphi)
-    status = nf90_put_att(ncid, varid_nphi, 'comment', 'number of grid points in phi direction')
-    status = nf90_put_var(ncid, varid_nZ, nZ)
-    status = nf90_put_att(ncid, varid_nZ, 'comment', 'number of grid points in Z direction')
+    call nc_check('put_var', nf90_put_var(ncid, varid_R, R))
+    call nc_check('put_att', nf90_put_att(ncid, varid_R, 'comment', 'R components of grid in cm'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_Z, Z))
+    call nc_check('put_att', nf90_put_att(ncid, varid_Z, 'comment', 'Z components of grid in cm'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_ntor, ntor))
+    call nc_check('put_att', nf90_put_att(ncid, varid_ntor, 'comment', 'toroidal mode numbers'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_coils, coil_number))
+    call nc_check('put_att', nf90_put_att(ncid, varid_coils, 'comment', 'coil numbers'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_nR, nR))
+    call nc_check('put_att', nf90_put_att(ncid, varid_nR, 'comment', 'number of grid points in R direction'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_nphi, nphi))
+    call nc_check('put_att', nf90_put_att(ncid, varid_nphi, 'comment', 'number of grid points in phi direction'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_nZ, nZ))
+    call nc_check('put_att', nf90_put_att(ncid, varid_nZ, 'comment', 'number of grid points in Z direction'))
 
     ! process actual data
-    status = nf90_def_var(ncid, 'AnR_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(AnR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of R component of vector potential')
-    status = nf90_def_var(ncid, 'AnR_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(AnR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of R component of vector potential')
+    call write_actual_data(AnR, 'AnR', 'R')
+    call write_actual_data(Anphi, 'Anphi', 'phi')
+    call write_actual_data(AnZ, 'AnZ', 'Z')
+    call write_actual_data(dAnphi_dR, 'dAnphi_dR', 'derivative w.r.t. R of phi')
+    call write_actual_data(dAnphi_dZ, 'dAnphi_dZ', 'derivative w.r.t. Z of phi')
 
-    status = nf90_def_var(ncid, 'Anphi_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(Anphi))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of phi component of vector potential')
-    status = nf90_def_var(ncid, 'Anphi_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(Anphi))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of phi component of vector potential')
+    call nc_check('close', nf90_close(ncid))
+    deallocate(R, Z, coil_number, ntor)
 
-    status = nf90_def_var(ncid, 'AnZ_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(AnZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of Z component of vector potential')
-    status = nf90_def_var(ncid, 'AnZ_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(AnZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of Z component of vector potential')
+  contains
+    subroutine write_actual_data(var, name, component)
+      complex(dp), intent(in), dimension(:, :, :, :) :: var
+      character(len = *), intent(in) :: name
+      character(len = *), intent(in) :: component
+      integer :: varid_actual_data
 
-    status = nf90_def_var(ncid, 'dAnphi_dR_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
-    status = nf90_def_var(ncid, 'dAnphi_dR_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
-
-    status = nf90_def_var(ncid, 'dAnphi_dZ_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
-    status = nf90_def_var(ncid, 'dAnphi_dZ_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
-
-    status = nf90_close(ncid)
-    call nc_check(status, 'close')
+      call nc_check('def_var', nf90_def_var(ncid, name // '_real', NF90_DOUBLE, &
+        [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
+      call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Re))
+      call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
+        'real part of toroidal Fourier mode of ' // component // &
+        ' component of vector potential'))
+      call nc_check('def_var', nf90_def_var(ncid, name // '_imag', NF90_DOUBLE, &
+        [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
+      call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Im))
+      call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
+        'imaginary part of toroidal Fourier mode of ' // component // &
+        ' component of vector potential'))
+    end subroutine write_actual_data
   end subroutine write_Anvac_Fourier
 
-  subroutine nc_check(status, operation)
+  subroutine nc_check(operation, status)
     use netcdf, only: NF90_NOERR, nf90_strerror
-    integer, intent(in) :: status
     character(len=*), intent(in) :: operation
+    integer, intent(in) :: status
 
     if (status == NF90_NOERR) return
-    write (*, '("Error encountered during ", a, ": ", a)') operation, nf90_strerror(status)
+    write (*, '("Error encountered during nf90_", a, ": ", a)') operation, nf90_strerror(status)
     error stop
   end subroutine nc_check
 
