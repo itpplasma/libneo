@@ -693,6 +693,74 @@ contains
     end subroutine write_actual_data
   end subroutine write_Anvac_Fourier
 
+  subroutine read_Anvac_Fourier(filename, ncoil, nmax, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+    use netcdf
+    character(len = *), intent(in) :: filename
+    integer, intent(out) :: ncoil, nmax
+    real(dp), intent(out) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(out) :: nR, nphi, nZ
+    complex(dp), dimension(:, :, :, :), allocatable, intent(inout) :: &
+      AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    integer :: ncid
+    integer :: dimid_R, dimid_Z, dimid_tor, dimid_coil
+    integer :: varid_R, varid_Z, varid_nphi
+    real(dp), dimension(:), allocatable :: R, Z
+
+    call nc_check('open', nf90_open(filename, NF90_NOWRITE, ncid))
+
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'R', dimid_R))
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'Z', dimid_Z))
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'ntor', dimid_tor))
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'coil_number', dimid_coil))
+
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_R, len = nR))
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_Z, len = nZ))
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_tor, len = nmax))
+    nmax = nmax - 1
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_coil, len = ncoil))
+
+    call nc_check('inq_varid', nf90_inq_varid(ncid, 'nphi', varid_nphi))
+    call nc_check('get_var', nf90_get_var(ncid, varid_nphi, nphi))
+
+    call nc_check('inq_varid', nf90_inq_varid(ncid, 'R', varid_R))
+    call nc_check('inq_varid', nf90_inq_varid(ncid, 'Z', varid_Z))
+    allocate(R(nR), Z(nZ))
+    call nc_check('get_var', nf90_get_var(ncid, varid_R, R))
+    call nc_check('get_var', nf90_get_var(ncid, varid_Z, Z))
+    Rmin = R(1)
+    Rmax = R(nR)
+    Zmin = Z(1)
+    Zmax = Z(nZ)
+
+    ! process actual data
+    call read_actual_data(AnR, 'AnR')
+    call read_actual_data(Anphi, 'Anphi')
+    call read_actual_data(AnZ, 'AnZ')
+    call read_actual_data(dAnphi_dR, 'dAnphi_dR')
+    call read_actual_data(dAnphi_dZ, 'dAnphi_dZ')
+
+    call nc_check('close', nf90_close(ncid))
+    deallocate(R, Z)
+
+  contains
+    subroutine read_actual_data(var, name)
+      complex(dp), dimension(:, :, :, :), allocatable, intent(inout) :: var
+      character(len = *), intent(in) :: name
+      integer :: varid_actual_data
+
+      allocate(var(0:nmax, nR, nZ, ncoil))
+      call nc_check('inq_varid', nf90_inq_varid(ncid, name // '_real', varid_actual_data))
+      call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Re))
+      call nc_check('inq_varid', nf90_inq_varid(ncid, name // '_imag', varid_actual_data))
+      call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Im))
+    end subroutine read_actual_data
+  end subroutine read_Anvac_Fourier
+
   subroutine nc_check(operation, status)
     use netcdf, only: NF90_NOERR, nf90_strerror
     character(len=*), intent(in) :: operation
