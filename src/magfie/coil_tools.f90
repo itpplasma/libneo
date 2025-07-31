@@ -644,7 +644,7 @@ contains
         gauged_AnR(:, kZ) = gauged_AnR(:, kZ) + Ic(kcoil) * &
           (AnR(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dR(ntor, :, kZ, kcoil) + &
           imun / ntor * Anphi(ntor, :, kZ, kcoil))
-        gauged_AnZ(:, kZ) = gauged_AnZ(:, kZ) * Ic(kcoil) * &
+        gauged_AnZ(:, kZ) = gauged_AnZ(:, kZ) + Ic(kcoil) * &
           (AnZ(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dZ(ntor, :, kZ, kcoil))
       end do
     end do
