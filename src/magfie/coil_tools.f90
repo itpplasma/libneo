@@ -629,13 +629,16 @@ contains
     integer, intent(in) :: nR
     real(dp), intent(in) :: Zmin, Zmax
     integer, intent(in) :: nZ
-    complex(dp), dimension(:, :), intent(inout) :: gauged_AnR, gauged_AnZ
+    complex(dp), dimension(:, :), allocatable, intent(inout) :: gauged_AnR, gauged_AnZ
     integer :: ncoil, kcoil, kZ
     real(dp) :: R(nR), Z(nZ)
 
     ! TODO: check array sizes
     ncoil = size(Ic)
     call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
+    if (allocated(gauged_AnR)) deallocate(gauged_AnR)
+    if (allocated(gauged_AnZ)) deallocate(gauged_AnZ)
+    allocate(gauged_AnR(nR, nZ), gauged_AnZ(nR, nZ))
     gauged_AnR(:, :) = (0d0, 0d0)
     gauged_AnZ(:, :) = (0d0, 0d0)
     ! TODO: OpenMP?
@@ -659,12 +662,15 @@ contains
     integer, intent(in) :: nR
     real(dp), intent(in) :: Zmin, Zmax
     integer, intent(in) :: nZ
-    complex(dp), dimension(:, :), intent(inout) :: gauged_AnR, gauged_AnZ
+    complex(dp), dimension(:, :), allocatable, intent(inout) :: gauged_AnR, gauged_AnZ
     integer :: kZ
     real(dp) :: R(nR), Z(nZ)
 
     ! TODO: check array sizes
     call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
+    if (allocated(gauged_AnR)) deallocate(gauged_AnR)
+    if (allocated(gauged_AnZ)) deallocate(gauged_AnZ)
+    allocate(gauged_AnR(nR, nZ), gauged_AnZ(nR, nZ))
     gauged_AnR(:, :) = (0d0, 0d0)
     gauged_AnZ(:, :) = (0d0, 0d0)
     do kZ = 1, nZ
