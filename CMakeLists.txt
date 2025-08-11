@@ -25,6 +25,7 @@ enable_language(C Fortran)
 enable_testing()
 
 # Coverage configuration
+option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 option(ENABLE_COVERAGE "Enable coverage flags" OFF)
 
 find_program (BASH_PROGRAM bash)
@@ -34,9 +35,12 @@ find_package (MPI REQUIRED COMPONENTS Fortran)
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
   set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fPIC -fcheck=all -fbacktrace \
-                            -fno-realloc-lhs -fopenmp -Wall -Wextra -Werror \
+                            -fno-realloc-lhs -Wall -Wextra -Werror \
                             -Wno-unused-function -Wno-external-argument-mismatch \
                             -fmax-errors=1")
+  if (ENABLE_OPENMP)
+    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
+  endif()
 
   # Add coverage flags if enabled
   if(ENABLE_COVERAGE)
@@ -50,7 +54,10 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
   set (CMAKE_Fortran_FLAGS "-cpp -check all -traceback \
-                            -assume norealloc_lhs -qopenmp -warn all")
+                            -assume norealloc_lhs -warn all")
+  if (ENABLE_OPENMP)
+    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -qopenmp")
+  endif()
 
 endif ()
 
