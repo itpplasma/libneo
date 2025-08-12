@@ -2,6 +2,7 @@ program test_spline_vmec_array_temps
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use util_for_test, only: print_test, print_ok, print_fail
     use spline_vmec_sub, only: s_to_rho_healaxis_2d
+    use new_vmec_stuff_mod, only: ns_s
     implicit none
 
     logical :: test_passed
@@ -30,6 +31,7 @@ contains
         integer, parameter :: nmodes = 5, ns = 20, nrho = 20
         real(dp), dimension(nmodes, ns) :: input_arrays
         real(dp), dimension(nmodes, 0:nrho-1) :: output_arrays
+        real(dp), dimension(0:ns_s, ns) :: splcoe_workspace
         integer :: i, m, nheal
         real(dp) :: t1, t2
 
@@ -45,7 +47,7 @@ contains
         do i = 1, nmodes
             m = mod(i, 3) + 1
             nheal = min(m, 2)
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nmodes, input_arrays, output_arrays)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nmodes, input_arrays, output_arrays, splcoe_workspace)
         end do
         call cpu_time(t2)
         
@@ -87,6 +89,7 @@ contains
         integer, parameter :: ns = 20, nrho = 20, nmodes = 3
         real(dp), dimension(nmodes, ns) :: arr_2d_in
         real(dp), dimension(nmodes, 0:nrho-1) :: arr_2d_out
+        real(dp), dimension(0:ns_s, ns) :: splcoe_workspace
         integer :: m, nheal, j, mode
         real(dp) :: max_diff, diff
         
@@ -103,7 +106,7 @@ contains
         
         ! WHEN: Processing each mode with the same parameters
         do mode = 1, nmodes
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, mode, nmodes, arr_2d_in, arr_2d_out)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, mode, nmodes, arr_2d_in, arr_2d_out, splcoe_workspace)
         end do
         
         ! THEN: All modes should produce identical results
@@ -130,6 +133,8 @@ contains
         real(dp), dimension(nmodes, 0:9) :: small_output
         real(dp), dimension(nmodes, 100) :: large_input
         real(dp), dimension(nmodes, 0:99) :: large_output
+        real(dp), dimension(0:ns_s, 10) :: small_splcoe
+        real(dp), dimension(0:ns_s, 100) :: large_splcoe
         
         call print_test("GIVEN edge case parameters WHEN processing THEN robust handling without crashes")
         
@@ -140,19 +145,19 @@ contains
         ! WHEN: Testing various edge cases that previously caused issues
         
         ! Test minimum viable array size (respects spline order ns_s = 5)
-        call s_to_rho_healaxis_2d(1, 10, 10, 2, 1, nmodes, small_input, small_output)
+        call s_to_rho_healaxis_2d(1, 10, 10, 2, 1, nmodes, small_input, small_output, small_splcoe)
         
         ! Test m = 0 case (different computational path)
-        call s_to_rho_healaxis_2d(0, 10, 10, 1, 1, nmodes, small_input, small_output)
+        call s_to_rho_healaxis_2d(0, 10, 10, 1, 1, nmodes, small_input, small_output, small_splcoe)
         
         ! Test large arrays (performance/memory stress test)
-        call s_to_rho_healaxis_2d(3, 100, 100, 4, 1, nmodes, large_input, large_output)
+        call s_to_rho_healaxis_2d(3, 100, 100, 4, 1, nmodes, large_input, large_output, large_splcoe)
         
         ! Test moderate nheal (boundary condition testing)
-        call s_to_rho_healaxis_2d(1, 10, 10, 3, 1, nmodes, small_input, small_output)
+        call s_to_rho_healaxis_2d(1, 10, 10, 3, 1, nmodes, small_input, small_output, small_splcoe)
         
         ! Test bounds checking improvement (nheal close to ns)
-        call s_to_rho_healaxis_2d(2, 10, 10, 7, 1, nmodes, small_input, small_output)
+        call s_to_rho_healaxis_2d(2, 10, 10, 7, 1, nmodes, small_input, small_output, small_splcoe)
         
         ! THEN: All edge cases complete without crashes or bounds violations
         call print_ok()
