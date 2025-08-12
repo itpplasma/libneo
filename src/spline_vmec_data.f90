@@ -823,86 +823,6 @@ contains
     ! -------
     ! arr_out: real(dp) 1d array, with nrho elements.
 
-    ! sideeffects:
-    ! ------------
-    ! none
-    subroutine s_to_rho_healaxis(m, ns, nrho, nheal, arr_in, arr_out)
-
-        use new_vmec_stuff_mod, only: ns_s, old_axis_healing
-
-        integer, intent(in) :: m, ns, nrho, nheal
-        real(dp), dimension(ns), intent(in) :: arr_in
-        real(dp), dimension(nrho), intent(out) :: arr_out
-
-        integer :: irho, is, k, nhe
-        real(dp) :: hs, hrho, s, ds, rho, a, b, c
-        real(dp), dimension(:, :), allocatable :: splcoe
-
-        hs = 1.d0/dble(ns - 1)
-        hrho = 1.d0/dble(nrho - 1)
-
-        nhe = max(1, nheal) + 1
-
-        ! Rescale
-        do is = nhe, ns
-            if (m .gt. 0) then
-                rho = sqrt(hs*dble(is - 1))
-                arr_out(is) = arr_in(is)/rho**m
-            else
-                arr_out(is) = arr_in(is)
-            end if
-        end do
-
-        if (old_axis_healing) then
-            ! parabolic extrapolation:
-            a = arr_out(nhe)
-            b = 0.5d0*(4.d0*arr_out(nhe + 1) - 3.d0*arr_out(nhe) - arr_out(nhe + 2))
-            c = 0.5d0*(arr_out(nhe) + arr_out(nhe + 2) - 2.d0*arr_out(nhe + 1))
-
-            do is = 1, nhe - 1
-                arr_out(is) = a + b*dble(is - nhe) + c*dble(is - nhe)**2
-            end do
-
-        else
-            ! linear extrapolation ("less accurate" but more robust):
-            a = arr_out(nhe)
-            b = arr_out(nhe + 1) - arr_out(nhe)
-
-            do is = 1, nhe - 1
-                arr_out(is) = a + b*dble(is - nhe)
-            end do
-
-        end if
-
-        allocate (splcoe(0:ns_s, ns))
-
-        splcoe(0, :) = arr_out
-
-        call spl_reg(ns_s, ns, hs, splcoe)
-
-        do irho = 1, nrho
-            rho = hrho*dble(irho - 1)
-            s = rho**2
-
-            ds = s/hs
-            is = max(0, min(ns - 1, int(ds)))
-            ds = (ds - dble(is))*hs
-            is = is + 1
-
-            arr_out(irho) = splcoe(ns_s, is)
-
-            do k = ns_s - 1, 0, -1
-                arr_out(irho) = splcoe(k, is) + ds*arr_out(irho)
-            end do
-
-            ! Undo rescaling
-            if (m .gt. 0) arr_out(irho) = arr_out(irho)*rho**m
-        end do
-
-        deallocate (splcoe)
-
-    end subroutine s_to_rho_healaxis
-
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     subroutine s_to_rho_healaxis_2d(m, ns, nrho, nheal, imode, nstrm, arr_in, arr_out)
@@ -935,7 +855,7 @@ contains
             end if
         end do
 
-        if (old_axis_healing) then
+        if (old_axis_healing .and. nhe + 2 <= ns) then
             ! parabolic extrapolation:
             a = temp_arr(nhe)
             b = 0.5d0*(4.d0*temp_arr(nhe + 1) - 3.d0*temp_arr(nhe) - temp_arr(nhe + 2))
@@ -946,9 +866,15 @@ contains
             end do
 
         else
-            ! linear extrapolation ("less accurate" but more robust):
-            a = temp_arr(nhe)
-            b = temp_arr(nhe + 1) - temp_arr(nhe)
+            ! linear extrapolation (for small arrays or when not using old_axis_healing):
+            if (nhe + 1 <= ns) then
+                a = temp_arr(nhe)
+                b = temp_arr(nhe + 1) - temp_arr(nhe)
+            else
+                ! Fallback if array is too small
+                a = temp_arr(min(nhe, ns))
+                b = 0.0_dp
+            end if
 
             do is = 1, nhe - 1
                 temp_arr(is) = a + b*dble(is - nhe)

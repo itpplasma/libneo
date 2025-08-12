@@ -1,6 +1,7 @@
 program test_spline_vmec_array_temps
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use util_for_test, only: print_test, print_ok, print_fail
+    use spline_vmec_sub, only: s_to_rho_healaxis_2d
     implicit none
 
     logical :: test_passed
@@ -9,8 +10,9 @@ program test_spline_vmec_array_temps
     test_passed = .true.
     test_status = 0
 
-    call test_s_to_rho_interface()
-    call test_axis_healing_performance()
+    call test_array_temporary_elimination()
+    call test_consistency()
+    call test_edge_cases()
 
     if (.not. test_passed) then
         print *, "Tests FAILED"
@@ -23,104 +25,98 @@ program test_spline_vmec_array_temps
 
 contains
 
-    subroutine test_s_to_rho_interface()
-        integer, parameter :: m = 2, ns = 10, nrho = 15, nheal = 2
-        integer, parameter :: nmodes = 5
+    subroutine test_array_temporary_elimination()
+        integer, parameter :: nmodes = 5, ns = 20, nrho = 20
+        real(dp), dimension(nmodes, ns) :: input_arrays
+        real(dp), dimension(nmodes, 0:nrho-1) :: output_arrays
+        integer :: i, m, nheal
+        real(dp) :: t1, t2
+
+        call print_test("Testing array temporary elimination")
+
+        ! Initialize with test data
+        call random_number(input_arrays)
+        
+        ! This test primarily validates that the new interface works without
+        ! creating array temporaries when compiled with -fcheck=array-temps
+        call cpu_time(t1)
+        do i = 1, nmodes
+            m = mod(i, 3) + 1
+            nheal = min(m, 2)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nmodes, input_arrays, output_arrays)
+        end do
+        call cpu_time(t2)
+        
+        print *, "  2D version completed in", t2 - t1, "seconds"
+        call print_ok()
+    end subroutine test_array_temporary_elimination
+
+    subroutine test_consistency()
+        integer, parameter :: ns = 20, nrho = 20, nmodes = 3
         real(dp), dimension(nmodes, ns) :: arr_2d_in
-        real(dp), dimension(nmodes, nrho) :: arr_2d_out
-        real(dp), dimension(ns) :: arr_1d_in
-        real(dp), dimension(nrho) :: arr_1d_out
-        real(dp) :: diff
-
-        call print_test("Testing s_to_rho_healaxis interface")
-
+        real(dp), dimension(nmodes, 0:nrho-1) :: arr_2d_out1
+        integer :: m, nheal, j, mode
+        real(dp) :: max_diff, diff
+        
+        call print_test("Testing consistency across modes")
+        
+        ! Initialize test data with identical values across modes
         call random_number(arr_2d_in)
-        arr_1d_in = arr_2d_in(1, :)
-
-        call s_to_rho_healaxis_original(m, ns, nrho, nheal, arr_1d_in, arr_1d_out)
-
-        call s_to_rho_healaxis_fixed(m, ns, nrho, nheal, 1, nmodes, arr_2d_in, arr_2d_out)
-
-        diff = abs(arr_1d_out(1) - arr_2d_out(1, 1))
-        if (diff < 1.0e-14_dp) then
+        do mode = 2, nmodes
+            arr_2d_in(mode, :) = arr_2d_in(1, :)
+        end do
+        
+        m = 2
+        nheal = 1
+        
+        ! Process each mode
+        do mode = 1, nmodes
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, mode, nmodes, arr_2d_in, arr_2d_out1)
+        end do
+        
+        ! Verify all modes produce identical results (since input was identical)
+        max_diff = 0.0_dp
+        do mode = 2, nmodes
+            do j = 0, nrho-1
+                diff = abs(arr_2d_out1(1, j) - arr_2d_out1(mode, j))
+                max_diff = max(max_diff, diff)
+            end do
+        end do
+        
+        if (max_diff < 1.0e-14_dp) then
             call print_ok()
         else
             call print_fail()
             test_passed = .false.
-            print *, "  Difference:", diff
+            print *, "  Maximum difference between modes:", max_diff
         end if
-    end subroutine test_s_to_rho_interface
+    end subroutine test_consistency
 
-    subroutine test_axis_healing_performance()
-        integer, parameter :: nmodes = 100, ns = 50, nrho = 75
-        real(dp), dimension(nmodes, ns) :: input_arrays
-        real(dp), dimension(nmodes, nrho) :: output_arrays
-        real(dp) :: t1, t2
-        integer :: i
-
-        call print_test("Testing axis healing performance improvements")
-
-        call random_number(input_arrays)
-
-        call cpu_time(t1)
-        do i = 1, nmodes
-            call process_mode_fixed(i, nmodes, ns, nrho, input_arrays, output_arrays)
-        end do
-        call cpu_time(t2)
-
-        print *, "  Performance test completed in", t2 - t1, "seconds"
+    subroutine test_edge_cases()
+        integer, parameter :: nmodes = 2
+        real(dp), dimension(nmodes, 10) :: small_input
+        real(dp), dimension(nmodes, 0:9) :: small_output
+        real(dp), dimension(nmodes, 100) :: large_input
+        real(dp), dimension(nmodes, 0:99) :: large_output
+        
+        call print_test("Testing edge cases")
+        
+        ! Test with small arrays (minimum size for spline order 5)
+        call random_number(small_input)
+        call s_to_rho_healaxis_2d(1, 10, 10, 2, 1, nmodes, small_input, small_output)
+        
+        ! Test with m = 0 (different code path)
+        call s_to_rho_healaxis_2d(0, 10, 10, 1, 1, nmodes, small_input, small_output)
+        
+        ! Test with large arrays
+        call random_number(large_input)
+        call s_to_rho_healaxis_2d(3, 100, 100, 4, 1, nmodes, large_input, large_output)
+        
+        ! Test with moderate nheal value
+        call s_to_rho_healaxis_2d(1, 10, 10, 3, 1, nmodes, small_input, small_output)
+        
+        ! If we get here without crashes, edge cases pass
         call print_ok()
-    end subroutine test_axis_healing_performance
-
-    subroutine s_to_rho_healaxis_original(m, ns, nrho, nheal, arr_in, arr_out)
-        integer, intent(in) :: m, ns, nrho, nheal
-        real(dp), dimension(ns), intent(in) :: arr_in
-        real(dp), dimension(nrho), intent(out) :: arr_out
-        
-        integer :: i
-        real(dp) :: scale
-        
-        scale = real(m + nheal, dp) / real(ns * nrho, dp)
-        
-        do i = 1, min(nrho, size(arr_out))
-            if (i <= size(arr_in)) then
-                arr_out(i) = arr_in(i) * scale
-            else
-                arr_out(i) = 0.0_dp
-            end if
-        end do
-    end subroutine s_to_rho_healaxis_original
-
-    subroutine s_to_rho_healaxis_fixed(m, ns, nrho, nheal, imode, nmodes, arr_in, arr_out)
-        integer, intent(in) :: m, ns, nrho, nheal, imode, nmodes
-        real(dp), dimension(nmodes, ns), intent(in) :: arr_in
-        real(dp), dimension(nmodes, nrho), intent(out) :: arr_out
-        
-        integer :: i
-        real(dp) :: scale
-        
-        scale = real(m + nheal, dp) / real(ns * nrho, dp)
-        
-        do i = 1, min(nrho, size(arr_out, 2))
-            if (i <= size(arr_in, 2)) then
-                arr_out(imode, i) = arr_in(imode, i) * scale
-            else
-                arr_out(imode, i) = 0.0_dp
-            end if
-        end do
-    end subroutine s_to_rho_healaxis_fixed
-
-    subroutine process_mode_fixed(imode, nmodes, ns, nrho, input_arrays, output_arrays)
-        integer, intent(in) :: imode, nmodes, ns, nrho
-        real(dp), dimension(nmodes, ns), intent(in) :: input_arrays
-        real(dp), dimension(nmodes, nrho), intent(out) :: output_arrays
-        
-        integer :: m, nheal
-        
-        m = mod(imode, 5) + 1
-        nheal = min(m, 4)
-        
-        call s_to_rho_healaxis_fixed(m, ns, nrho, nheal, imode, nmodes, input_arrays, output_arrays)
-    end subroutine process_mode_fixed
+    end subroutine test_edge_cases
 
 end program test_spline_vmec_array_temps
