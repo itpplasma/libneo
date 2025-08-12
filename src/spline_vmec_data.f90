@@ -45,13 +45,19 @@ contains
         use spl_three_to_five_sub, only: spl_reg
 
         integer :: i, is, k
-        real(dp), dimension(:, :), allocatable :: splcoe
+        real(dp), dimension(:, :), allocatable :: splcoe, temp_splcoe
 
         allocate (splcoe(0:ns_A, ns))
+        allocate (temp_splcoe(0:ns_A - 1, ns))
 
         splcoe(0, :) = aiota
+        temp_splcoe(0, :) = aiota
 
-        call spl_reg(ns_A - 1, ns, hs, splcoe(0:ns_A - 1, :))
+        call spl_reg(ns_A - 1, ns, hs, temp_splcoe)
+        
+        ! Copy back the results
+        splcoe(0:ns_A - 1, :) = temp_splcoe(0:ns_A - 1, :)
+        deallocate (temp_splcoe)
 
         do i = ns_A, 1, -1
             splcoe(i, :) = splcoe(i - 1, :)/dble(i)
