@@ -182,16 +182,20 @@ contains
 
     subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
         use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                      axm, axn, nstrm, old_axis_healing_boundary
+                                      axm, axn, nstrm, old_axis_healing_boundary, ns_s
         use vector_potentail_mod, only: ns
 
         real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
         real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
+        real(dp), dimension(:, :), allocatable :: splcoe_workspace
         integer :: i, m, nrho, nheal, iunit_hs
 
         nrho = ns
         allocate (almnc_rho(nstrm, 0:nrho - 1), rmnc_rho(nstrm, 0:nrho - 1), zmnc_rho(nstrm, 0:nrho - 1))
         allocate (almns_rho(nstrm, 0:nrho - 1), rmns_rho(nstrm, 0:nrho - 1), zmns_rho(nstrm, 0:nrho - 1))
+        
+        ! Pre-allocate workspace to avoid repeated allocations in loop
+        allocate (splcoe_workspace(0:ns_s, ns))
 
         iunit_hs = 1357
         open (iunit_hs, file='healaxis.dat')
@@ -206,14 +210,15 @@ contains
                 write (iunit_hs, *) 'm = ', m, ' n = ', nint(abs(axn(i))), ' skipped ', nheal, ' / ', ns
             end if
 
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, rmnc, rmnc_rho)
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, zmnc, zmnc_rho)
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, almnc, almnc_rho)
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, rmns, rmns_rho)
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, zmns, zmns_rho)
-            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, almns, almns_rho)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, rmnc, rmnc_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, zmnc, zmnc_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, almnc, almnc_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, rmns, rmns_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, zmns, zmns_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, almns, almns_rho, splcoe_workspace)
         end do
-
+        
+        deallocate (splcoe_workspace)
         close (iunit_hs)
     end subroutine perform_axis_healing
 
@@ -831,17 +836,19 @@ contains
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-    subroutine s_to_rho_healaxis_2d(m, ns, nrho, nheal, imode, nstrm, arr_in, arr_out)
+    subroutine s_to_rho_healaxis_2d(m, ns, nrho, nheal, imode, nstrm, arr_in, arr_out, splcoe)
+        !> Processes 2D array data without creating array temporaries
+        !> Accepts pre-allocated workspace to avoid repeated allocations in loops
 
         use new_vmec_stuff_mod, only: ns_s, old_axis_healing
 
         integer, intent(in) :: m, ns, nrho, nheal, imode, nstrm
         real(dp), dimension(nstrm, ns), intent(in) :: arr_in
         real(dp), dimension(nstrm, 0:nrho-1), intent(out) :: arr_out
+        real(dp), dimension(0:ns_s, ns), intent(inout) :: splcoe  ! Pre-allocated workspace
 
         integer :: irho, is, k, nhe
         real(dp) :: hs, hrho, s, ds, rho, a, b, c
-        real(dp), dimension(:, :), allocatable :: splcoe
         real(dp), dimension(ns) :: temp_arr
 
         hs = 1.d0/dble(ns - 1)
@@ -888,8 +895,7 @@ contains
 
         end if
 
-        allocate (splcoe(0:ns_s, ns))
-
+        ! Use the pre-allocated workspace
         splcoe(0, :) = temp_arr
 
         call spl_reg(ns_s, ns, hs, splcoe)
@@ -912,8 +918,6 @@ contains
             ! Undo rescaling
             if (m .gt. 0) arr_out(imode, irho-1) = arr_out(imode, irho-1)*rho**m
         end do
-
-        deallocate (splcoe)
 
     end subroutine s_to_rho_healaxis_2d
 
