@@ -45,13 +45,19 @@ contains
         use spl_three_to_five_sub, only: spl_reg
 
         integer :: i, is, k
-        real(dp), dimension(:, :), allocatable :: splcoe
+        real(dp), dimension(:, :), allocatable :: splcoe, temp_splcoe
 
         allocate (splcoe(0:ns_A, ns))
+        allocate (temp_splcoe(0:ns_A - 1, ns))
 
         splcoe(0, :) = aiota
+        temp_splcoe(0, :) = aiota
 
-        call spl_reg(ns_A - 1, ns, hs, splcoe(0:ns_A - 1, :))
+        call spl_reg(ns_A - 1, ns, hs, temp_splcoe)
+        
+        ! Copy back the results
+        splcoe(0:ns_A - 1, :) = temp_splcoe(0:ns_A - 1, :)
+        deallocate (temp_splcoe)
 
         do i = ns_A, 1, -1
             splcoe(i, :) = splcoe(i - 1, :)/dble(i)
@@ -176,16 +182,20 @@ contains
 
     subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
         use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                      axm, axn, nstrm, old_axis_healing_boundary
+                                      axm, axn, nstrm, old_axis_healing_boundary, ns_s
         use vector_potentail_mod, only: ns
 
         real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
         real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
+        real(dp), dimension(:, :), allocatable :: splcoe_workspace
         integer :: i, m, nrho, nheal, iunit_hs
 
         nrho = ns
         allocate (almnc_rho(nstrm, 0:nrho - 1), rmnc_rho(nstrm, 0:nrho - 1), zmnc_rho(nstrm, 0:nrho - 1))
         allocate (almns_rho(nstrm, 0:nrho - 1), rmns_rho(nstrm, 0:nrho - 1), zmns_rho(nstrm, 0:nrho - 1))
+        
+        ! Pre-allocate workspace to avoid repeated allocations in loop
+        allocate (splcoe_workspace(0:ns_s, ns))
 
         iunit_hs = 1357
         open (iunit_hs, file='healaxis.dat')
@@ -200,14 +210,15 @@ contains
                 write (iunit_hs, *) 'm = ', m, ' n = ', nint(abs(axn(i))), ' skipped ', nheal, ' / ', ns
             end if
 
-            call s_to_rho_healaxis(m, ns, nrho, nheal, rmnc(i, :), rmnc_rho(i, :))
-            call s_to_rho_healaxis(m, ns, nrho, nheal, zmnc(i, :), zmnc_rho(i, :))
-            call s_to_rho_healaxis(m, ns, nrho, nheal, almnc(i, :), almnc_rho(i, :))
-            call s_to_rho_healaxis(m, ns, nrho, nheal, rmns(i, :), rmns_rho(i, :))
-            call s_to_rho_healaxis(m, ns, nrho, nheal, zmns(i, :), zmns_rho(i, :))
-            call s_to_rho_healaxis(m, ns, nrho, nheal, almns(i, :), almns_rho(i, :))
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, rmnc, rmnc_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, zmnc, zmnc_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, almnc, almnc_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, rmns, rmns_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, zmns, zmns_rho, splcoe_workspace)
+            call s_to_rho_healaxis_2d(m, ns, nrho, nheal, i, nstrm, almns, almns_rho, splcoe_workspace)
         end do
-
+        
+        deallocate (splcoe_workspace)
         close (iunit_hs)
     end subroutine perform_axis_healing
 
@@ -823,60 +834,69 @@ contains
     ! -------
     ! arr_out: real(dp) 1d array, with nrho elements.
 
-    ! sideeffects:
-    ! ------------
-    ! none
-    subroutine s_to_rho_healaxis(m, ns, nrho, nheal, arr_in, arr_out)
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+    subroutine s_to_rho_healaxis_2d(m, ns, nrho, nheal, imode, nstrm, arr_in, arr_out, splcoe)
+        !> Processes 2D array data without creating array temporaries
+        !> Accepts pre-allocated workspace to avoid repeated allocations in loops
 
         use new_vmec_stuff_mod, only: ns_s, old_axis_healing
 
-        integer, intent(in) :: m, ns, nrho, nheal
-        real(dp), dimension(ns), intent(in) :: arr_in
-        real(dp), dimension(nrho), intent(out) :: arr_out
+        integer, intent(in) :: m, ns, nrho, nheal, imode, nstrm
+        real(dp), dimension(nstrm, ns), intent(in) :: arr_in
+        real(dp), dimension(nstrm, 0:nrho-1), intent(out) :: arr_out
+        real(dp), dimension(0:ns_s, ns), intent(inout) :: splcoe  ! Pre-allocated workspace
 
         integer :: irho, is, k, nhe
         real(dp) :: hs, hrho, s, ds, rho, a, b, c
-        real(dp), dimension(:, :), allocatable :: splcoe
+        real(dp), dimension(ns) :: temp_arr
 
         hs = 1.d0/dble(ns - 1)
         hrho = 1.d0/dble(nrho - 1)
 
         nhe = max(1, nheal) + 1
 
-        ! Rescale
+        ! Copy the row to temp array and rescale
+        do is = 1, ns
+            temp_arr(is) = arr_in(imode, is)
+        end do
+
         do is = nhe, ns
             if (m .gt. 0) then
                 rho = sqrt(hs*dble(is - 1))
-                arr_out(is) = arr_in(is)/rho**m
-            else
-                arr_out(is) = arr_in(is)
+                temp_arr(is) = temp_arr(is)/rho**m
             end if
         end do
 
-        if (old_axis_healing) then
+        if (old_axis_healing .and. nhe + 2 <= ns) then
             ! parabolic extrapolation:
-            a = arr_out(nhe)
-            b = 0.5d0*(4.d0*arr_out(nhe + 1) - 3.d0*arr_out(nhe) - arr_out(nhe + 2))
-            c = 0.5d0*(arr_out(nhe) + arr_out(nhe + 2) - 2.d0*arr_out(nhe + 1))
+            a = temp_arr(nhe)
+            b = 0.5d0*(4.d0*temp_arr(nhe + 1) - 3.d0*temp_arr(nhe) - temp_arr(nhe + 2))
+            c = 0.5d0*(temp_arr(nhe) + temp_arr(nhe + 2) - 2.d0*temp_arr(nhe + 1))
 
             do is = 1, nhe - 1
-                arr_out(is) = a + b*dble(is - nhe) + c*dble(is - nhe)**2
+                temp_arr(is) = a + b*dble(is - nhe) + c*dble(is - nhe)**2
             end do
 
         else
-            ! linear extrapolation ("less accurate" but more robust):
-            a = arr_out(nhe)
-            b = arr_out(nhe + 1) - arr_out(nhe)
+            ! linear extrapolation (for small arrays or when not using old_axis_healing):
+            if (nhe + 1 <= ns) then
+                a = temp_arr(nhe)
+                b = temp_arr(nhe + 1) - temp_arr(nhe)
+            else
+                ! Fallback if array is too small
+                a = temp_arr(min(nhe, ns))
+                b = 0.0_dp
+            end if
 
             do is = 1, nhe - 1
-                arr_out(is) = a + b*dble(is - nhe)
+                temp_arr(is) = a + b*dble(is - nhe)
             end do
 
         end if
 
-        allocate (splcoe(0:ns_s, ns))
-
-        splcoe(0, :) = arr_out
+        ! Use the pre-allocated workspace
+        splcoe(0, :) = temp_arr
 
         call spl_reg(ns_s, ns, hs, splcoe)
 
@@ -889,19 +909,17 @@ contains
             ds = (ds - dble(is))*hs
             is = is + 1
 
-            arr_out(irho) = splcoe(ns_s, is)
+            arr_out(imode, irho-1) = splcoe(ns_s, is)
 
             do k = ns_s - 1, 0, -1
-                arr_out(irho) = splcoe(k, is) + ds*arr_out(irho)
+                arr_out(imode, irho-1) = splcoe(k, is) + ds*arr_out(imode, irho-1)
             end do
 
             ! Undo rescaling
-            if (m .gt. 0) arr_out(irho) = arr_out(irho)*rho**m
+            if (m .gt. 0) arr_out(imode, irho-1) = arr_out(imode, irho-1)*rho**m
         end do
 
-        deallocate (splcoe)
-
-    end subroutine s_to_rho_healaxis
+    end subroutine s_to_rho_healaxis_2d
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
