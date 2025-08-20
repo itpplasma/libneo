@@ -10,6 +10,20 @@ project(libneo)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
+# Set default build type to Release if not specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to 'Release' as none was specified.")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+        "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel" FORCE)
+endif()
+
+message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
+
+# Enable interprocedural optimization (LTO) for Release builds
+# DISABLED: LTO causes numerical instability in geqdsk_GS_prefactor calculation
+# This is a confirmed gfortran LTO bug affecting finite difference calculations
+# set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+
 include(Util)
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
@@ -17,9 +31,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # The version number.
-set (libneo_VERSION_MAJOR 0)
-set (libneo_VERSION_MINOR 0)
-set (libneo_VERSION_PATCH 3)
+set(libneo_VERSION_MAJOR 0)
+set(libneo_VERSION_MINOR 0)
+set(libneo_VERSION_PATCH 3)
 
 enable_language(C Fortran)
 enable_testing()
@@ -28,53 +42,92 @@ enable_testing()
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 option(ENABLE_COVERAGE "Enable coverage flags" OFF)
 
-find_program (BASH_PROGRAM bash)
-
-find_package (MPI REQUIRED COMPONENTS Fortran)
+find_program(BASH_PROGRAM bash)
+find_package(MPI REQUIRED COMPONENTS Fortran)
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -g -Og -fPIC -fcheck=all -fbacktrace \
-                            -fno-realloc-lhs -Wall -Wextra -Werror \
-                            -Wno-unused-function -Wno-external-argument-mismatch \
-                            -fmax-errors=1")
-  if (ENABLE_OPENMP)
-    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
-  endif()
+    # Base flags for all builds
+    set(CMAKE_Fortran_FLAGS "-cpp -fPIC -fno-realloc-lhs -fmax-errors=1")
 
-  # Add coverage flags if enabled
-  if(ENABLE_COVERAGE)
-    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
-  endif()
+    # Architecture flags: x86-64-v2 for better compatibility with modern features
+    if(APPLE)
+        add_compile_options(-march=native)
+    elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+        add_compile_options(-march=native)
+    else()
+        # x86-64 processors - use v2 baseline with generic tuning for portability
+        add_compile_options(-march=x86-64-v2 -mtune=generic)
+    endif()
 
-  # https://github.com/numpy/numpy/issues/25777
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")
+    # Debug flags - keep comprehensive checking
+    set(CMAKE_Fortran_FLAGS_DEBUG "-g -Og -fcheck=all -fbacktrace \
+                                  -Wall -Wextra -Werror \
+                                  -Wno-unused-function -Wno-external-argument-mismatch \
+                                  -ffpe-trap=invalid,zero,overflow")
 
-elseif (${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+    # Release flags - maximum performance with debug symbols and traceback  
+    set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -DNDEBUG \
+                                    -ffast-math \
+                                    -funroll-loops \
+                                    -fno-semantic-interposition \
+                                    -g -fbacktrace \
+                                    -ftree-vectorize")
 
-  set (CMAKE_Fortran_FLAGS "-cpp -check all -traceback \
-                            -assume norealloc_lhs -warn all")
-  if (ENABLE_OPENMP)
-    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -qopenmp")
-  endif()
+    # RelWithDebInfo - optimized but with debug symbols
+    set(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG \
+                                           -funroll-loops")
+    if(ENABLE_OPENMP)
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
+    endif()
 
-endif ()
+    # Add coverage flags if enabled
+    if(ENABLE_COVERAGE)
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+    endif()
+
+    # https://github.com/numpy/numpy/issues/25777
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")
+
+    # Make trampolines a hard error - they would create executable stack
+    add_compile_options(-Wtrampolines -Werror=trampolines)
+    # Apple's linker doesn't support -z,noexecstack (uses different security model)
+    if(NOT APPLE)
+        add_link_options(-Wl,-z,noexecstack)
+    endif()
+
+elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
+
+    # Base flags for all builds
+    set(CMAKE_Fortran_FLAGS "-cpp")
+
+    # Architecture optimization for Intel
+    if(NOT APPLE)
+        add_compile_options(-xCORE-AVX2) # Intel equivalent of x86-64-v2
+    endif()
+
+    # Debug flags
+    set(CMAKE_Fortran_FLAGS_DEBUG "-g -O0 -check all -traceback -warn all")
+
+    # Release flags - maximum performance with debug symbols and traceback
+    set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -fp-model fast=2 -no-prec-div -g -traceback")
+endif()
 
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
 
 find_program(NF_CONFIG "nf-config")
 
-if (NF_CONFIG)
-execute_process(COMMAND nf-config --includedir
-                OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
-execute_process(COMMAND nc-config --libdir
-				OUTPUT_VARIABLE NETCDFLIB_DIR)
-execute_process(COMMAND nf-config --flibs
-                OUTPUT_VARIABLE NETCDF_FLIBS)
+if(NF_CONFIG)
+    execute_process(COMMAND nf-config --includedir
+        OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
+    execute_process(COMMAND nc-config --libdir
+        OUTPUT_VARIABLE NETCDFLIB_DIR)
+    execute_process(COMMAND nf-config --flibs
+        OUTPUT_VARIABLE NETCDF_FLIBS)
 else()
-message(SEND_ERROR "nf-config not found. Please install libnetcdff-dev")
+    message(SEND_ERROR "nf-config not found. Please install libnetcdff-dev")
 endif()
 
 string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
@@ -112,13 +165,13 @@ add_subdirectory(src/magfie)
 
 add_subdirectory(src/efit_to_boozer)
 add_executable(efit_to_boozer.x
-  app/efit_to_boozer.f90
+    app/efit_to_boozer.f90
 )
 target_link_libraries(efit_to_boozer.x efit_to_boozer)
 add_executable(hamada_to_boozer.x
-  src/efit_to_boozer/field_line_integration_for_converter.f90
-  src/efit_to_boozer/rhs_converter.f90
-  app/hamada_to_boozer.f90
+    src/efit_to_boozer/field_line_integration_for_converter.f90
+    src/efit_to_boozer/rhs_converter.f90
+    app/hamada_to_boozer.f90
 )
 target_link_libraries(hamada_to_boozer.x efit_to_boozer)
 
@@ -157,7 +210,7 @@ message(STATUS "Python version: ${Python_VERSION}")
 message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
 message(STATUS "Python libraries: ${Python_LIBRARIES}")
 
-if (NOT Python_FOUND)
+if(NOT Python_FOUND)
     message("Python with NumPy not found, skipping interface build.")
     return()
 endif()
@@ -187,22 +240,22 @@ target_link_libraries(fortranobject PUBLIC Python::NumPy)
 target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
 
 add_custom_command(
-  OUTPUT _magfiemodule.c _magfie-f2pywrappers.f
-  DEPENDS src/f2py_interfaces/f2py_magfie.f90
-  VERBATIM
-  COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
-  --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/magfie/magfie_vmec.f90"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/spline_vmec_data.f90"
-  -m _magfie --lower
+    OUTPUT _magfiemodule.c _magfie-f2pywrappers.f
+    DEPENDS src/f2py_interfaces/f2py_magfie.f90
+    VERBATIM
+    COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
+    --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/magfie/magfie_vmec.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/spline_vmec_data.f90"
+    -m _magfie --lower
 )
 
 Python_add_library(_magfie WITH_SOABI
-  "${CMAKE_CURRENT_BINARY_DIR}/_magfiemodule.c"
-  "${CMAKE_CURRENT_BINARY_DIR}/_magfie-f2pywrappers.f"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
-  )
+    "${CMAKE_CURRENT_BINARY_DIR}/_magfiemodule.c"
+    "${CMAKE_CURRENT_BINARY_DIR}/_magfie-f2pywrappers.f"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
+)
 
 target_link_libraries(_magfie PUBLIC fortranobject magfie)
 install(TARGETS _magfie DESTINATION .)
@@ -215,7 +268,7 @@ execute_process(
     ERROR_QUIET
 )
 
-if (F90WRAP_RESULT EQUAL 0)
+if(F90WRAP_RESULT EQUAL 0)
     message(STATUS "Python f90wrap found.")
 else()
     message(STATUS "Python f90wrap not found, skipping further interface builds.")
@@ -223,7 +276,7 @@ else()
 endif()
 
 set(FILES_TO_WRAP
-  interpolate/interpolate.f90
+    interpolate/interpolate.f90
 )
 list(TRANSFORM FILES_TO_WRAP PREPEND ${PROJECT_SOURCE_DIR}/src/)
 
@@ -238,7 +291,7 @@ foreach(file ${FILES_TO_WRAP})
 endforeach()
 
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
-  list(APPEND F90WRAP_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
+    list(APPEND F90WRAP_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
 endif()
 
 list(REMOVE_ITEM FILES_TO_WRAP ${PROJECT_SOURCE_DIR}/src/interpolate.f90)
@@ -256,41 +309,41 @@ foreach(file_to_wrap ${FILES_TO_WRAP})
     get_filename_component(basename ${file_to_wrap} NAME_WE)
     add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
         COMMAND gfortran -E -cpp
-            -o ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
-            ${file_to_wrap}
-    DEPENDS ${file_to_wrap}
-)
+        -o ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
+        ${file_to_wrap}
+        DEPENDS ${file_to_wrap}
+    )
 endforeach()
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py ${F90WRAP_OUTPUT}
-	COMMAND ${Python_EXECUTABLE}
-        -m f90wrap
-        --f90wrap
-        -m interpolate
-        -k ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
-        ${CMAKE_CURRENT_BINARY_DIR}/*.f90.i
-        > ${CMAKE_CURRENT_BINARY_DIR}/f90wrap.log 2>&1
-	DEPENDS ${PREPROCESSED_SOURCES}
+    COMMAND ${Python_EXECUTABLE}
+    -m f90wrap
+    --f90wrap
+    -m interpolate
+    -k ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
+    ${CMAKE_CURRENT_BINARY_DIR}/*.f90.i
+    > ${CMAKE_CURRENT_BINARY_DIR}/f90wrap.log 2>&1
+    DEPENDS ${PREPROCESSED_SOURCES}
     COMMENT "Processing preprocessed sources with f90wrap"
 )
 
 add_custom_command(OUTPUT ${F2PY_WRAPPERS}
     COMMAND ${Python_EXECUTABLE}
-        -m f90wrap
-        --f2py-f90wrap
-        ${F90WRAP_OUTPUT}
-        -m ${F2PY_MODULE_NAME}
-        --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
-        --lower
-        > ${CMAKE_CURRENT_BINARY_DIR}/f2py.log 2>&1
+    -m f90wrap
+    --f2py-f90wrap
+    ${F90WRAP_OUTPUT}
+    -m ${F2PY_MODULE_NAME}
+    --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
+    --lower
+    > ${CMAKE_CURRENT_BINARY_DIR}/f2py.log 2>&1
     DEPENDS ${F90WRAP_OUTPUT}
     COMMENT "Processing wrapped sources with f2py"
 )
 
 Python_add_library(${F2PY_MODULE_NAME} WITH_SOABI
-   ${F2PY_WRAPPERS}
-   ${F2PY_INCLUDE_DIR}/fortranobject.c
-   ${F90WRAP_OUTPUT}
+    ${F2PY_WRAPPERS}
+    ${F2PY_INCLUDE_DIR}/fortranobject.c
+    ${F90WRAP_OUTPUT}
 )
 
 target_link_libraries(${F2PY_MODULE_NAME} PRIVATE neo)

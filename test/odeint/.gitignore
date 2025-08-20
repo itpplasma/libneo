@@ -1,0 +1,13 @@
+# Ignore dynamically fetched golden record files
+golden_odeint_dynamic.f90
+golden_odeint_*.f90
+
+# Ignore compiled test executables
+*.x
+
+# Ignore object files and modules
+*.o
+*.mod
+
+# Ignore library files
+*.a

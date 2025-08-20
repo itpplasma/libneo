@@ -95,3 +95,4 @@ Tests are organized by component in `test/`:
 - Test utilities in `test/util_for_test/`
 
 **Remember**: Always write tests BEFORE implementation code (TDD)
+- You run tests with `make test`

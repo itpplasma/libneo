@@ -62,3 +62,4 @@ lib/
 dist/
 test/**/*.png
 version.f90
+Testing/Temporary/CTestCostData.txt

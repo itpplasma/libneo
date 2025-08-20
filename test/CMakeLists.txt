@@ -92,6 +92,7 @@ add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
 
+
 ## Standard tests according to standard libneo Fortran test convention.
 
 function (add_fortran_test name)
@@ -132,3 +133,4 @@ add_subdirectory(util_for_test_field)
 add_subdirectory(field)
 add_subdirectory(polylag)
 add_subdirectory(poincare)
+add_subdirectory(odeint)
