@@ -10,11 +10,16 @@ project(libneo)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
+# Define available build types
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    Debug Release Fast
+)
+
 # Set default build type to Release if not specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to 'Release' as none was specified.")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
-        "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel" FORCE)
+        "Choose the type of build." FORCE)
 endif()
 
 message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
@@ -31,9 +36,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # The version number.
-set(libneo_VERSION_MAJOR 0)
-set(libneo_VERSION_MINOR 0)
-set(libneo_VERSION_PATCH 3)
+set(libneo_VERSION_MAJOR 2025)
+set(libneo_VERSION_MINOR 08)
+set(libneo_VERSION_PATCH 20)
 
 enable_language(C Fortran)
 enable_testing()
@@ -45,51 +50,56 @@ option(ENABLE_COVERAGE "Enable coverage flags" OFF)
 find_program(BASH_PROGRAM bash)
 find_package(MPI REQUIRED COMPONENTS Fortran)
 
+# Compiler-specific base flags and build profiles
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
-
     # Base flags for all builds
-    set(CMAKE_Fortran_FLAGS "-cpp -fPIC -fno-realloc-lhs -fmax-errors=1")
-
-    # Architecture flags: x86-64-v2 for better compatibility with modern features
-    if(APPLE)
-        add_compile_options(-march=native)
-    elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
-        add_compile_options(-march=native)
-    else()
-        # x86-64 processors - use v2 baseline with generic tuning for portability
-        add_compile_options(-march=x86-64-v2 -mtune=generic)
-    endif()
-
-    # Debug flags - keep comprehensive checking
-    set(CMAKE_Fortran_FLAGS_DEBUG "-g -Og -fcheck=all -fbacktrace \
-                                  -Wall -Wextra -Werror \
-                                  -Wno-unused-function -Wno-external-argument-mismatch \
-                                  -ffpe-trap=invalid,zero,overflow")
-
-    # Release flags - maximum performance with debug symbols and traceback  
-    set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -DNDEBUG \
-                                    -ffast-math \
-                                    -funroll-loops \
-                                    -fno-semantic-interposition \
-                                    -g -fbacktrace \
-                                    -ftree-vectorize")
-
-    # RelWithDebInfo - optimized but with debug symbols
-    set(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG \
-                                           -funroll-loops")
+    add_compile_options(-fPIC -g)
+    add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-cpp>)
+    add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fno-realloc-lhs>)
+    add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fmax-errors=1>)
+    add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fbacktrace>)
+    add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffree-line-length-132>)
+    
     if(ENABLE_OPENMP)
-        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
+        add_compile_options(-fopenmp)
+        add_link_options(-fopenmp)
     endif()
-
-    # Add coverage flags if enabled
+    
+    # Build type specific flags
+    if(CMAKE_BUILD_TYPE MATCHES Debug)
+        add_compile_options(-Og
+                          -Wall -Wextra
+                          -Wno-unused-function)
+        add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-error=cast-function-type>)
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fcheck=all>)
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-Wno-external-argument-mismatch>)
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffpe-trap=invalid,zero,overflow>)
+    elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
+        # Common optimization flags for Release and Fast builds
+        add_compile_options(-O3 -DNDEBUG
+                          -ffast-math -ffp-contract=fast
+                          -funroll-loops
+                          -ftree-vectorize)
+        
+        # Architecture-specific flags
+        if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+            # Fast mode or ARM: use native architecture (no portable baseline for ARM)
+            add_compile_options(-march=native -mtune=native)
+        else()
+            # Release on x86-64: use v2 baseline for broad compatibility
+            add_compile_options(-march=x86-64-v2 -mtune=generic)
+        endif()
+    endif()
+    
+    # Coverage flags if enabled
     if(ENABLE_COVERAGE)
-        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+        add_compile_options(-fprofile-arcs -ftest-coverage)
+        add_link_options(-lgcov)
     endif()
-
+    
     # https://github.com/numpy/numpy/issues/25777
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")
-
+    
     # Make trampolines a hard error - they would create executable stack
     add_compile_options(-Wtrampolines -Werror=trampolines)
     # Apple's linker doesn't support -z,noexecstack (uses different security model)
@@ -98,20 +108,23 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     endif()
 
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
-
     # Base flags for all builds
-    set(CMAKE_Fortran_FLAGS "-cpp")
-
-    # Architecture optimization for Intel
-    if(NOT APPLE)
-        add_compile_options(-xCORE-AVX2) # Intel equivalent of x86-64-v2
+    add_compile_options(-cpp)
+    
+    # Build type specific flags
+    if(CMAKE_BUILD_TYPE MATCHES Debug)
+        add_compile_options(-g -O0 -check all -traceback -warn all)
+    elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
+        # Common optimization flags for Release and Fast builds
+        add_compile_options(-O3 -fp-model fast=2 -no-prec-div -g -traceback)
+        
+        # Architecture-specific flags
+        if(CMAKE_BUILD_TYPE MATCHES Fast)
+            add_compile_options(-xHost)  # Intel's equivalent of -march=native
+        else()
+            add_compile_options(-xCORE-AVX2)  # Intel's equivalent of x86-64-v2
+        endif()
     endif()
-
-    # Debug flags
-    set(CMAKE_Fortran_FLAGS_DEBUG "-g -O0 -check all -traceback -warn all")
-
-    # Release flags - maximum performance with debug symbols and traceback
-    set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -fp-model fast=2 -no-prec-div -g -traceback")
 endif()
 
 include_directories(${MPI_Fortran_INCLUDE_PATH})
