@@ -5,6 +5,10 @@ target_link_libraries(test_poincare.x PRIVATE neo
                                               util_for_test)
 add_test(NAME test_poincare COMMAND test_poincare.x)
 
+add_executable(benchmark_poincare.x benchmark_poincare.f90)
+target_link_libraries(benchmark_poincare.x PRIVATE neo
+                                                  util_for_test)
+
 set_tests_properties(
     test_poincare
     PROPERTIES LABELS "poincare")
