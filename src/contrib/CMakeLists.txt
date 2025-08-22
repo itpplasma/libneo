@@ -1,9 +1,3 @@
-# RKF45 from https://people.sc.fsu.edu/~jburkardt/
-# licenced under LGPL (see SRC/contrib/LICENSE.rkf45)
-add_library (rkf45 STATIC
-    rkf45.f90
-)
-
 set (SOURCES
     minpack_interfaces.f90
     minpack.f90

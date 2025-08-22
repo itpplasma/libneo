@@ -23,7 +23,6 @@ add_library(magfie STATIC
 )
 target_link_libraries(magfie PRIVATE
     neo
-    rkf45
     netcdf
     netcdff
     hdf5_tools

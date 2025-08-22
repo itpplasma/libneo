@@ -105,30 +105,33 @@ subroutine integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
     real(dp), intent(in) :: phi_start, phi_end
     real(dp), intent(in) :: relerr
 
-    call odeint_allroutines(RZ, poincare_dim, phi_start, phi_end, &
+    call odeint_allroutines(RZ, poincare_dim, field, phi_start, phi_end, &
                             relerr, fieldline_derivative, initial_stepsize=0.1_dp)
 
     contains
 
-        subroutine fieldline_derivative(phi, RZ, dRZ_dphi)
+        subroutine fieldline_derivative(phi, RZ, dRZ_dphi, context)
             real(dp), intent(in) :: phi
             real(dp), intent(in), dimension(:) :: RZ
             real(dp), intent(out), dimension(:) :: dRZ_dphi
-
+            class(*), intent(in) :: context
 
             real(dp), parameter :: tol = 1.0e-10_dp
             real(dp) :: RphiZ(3)
             real(dp) :: B(3)
 
-            RphiZ(1) = RZ(1)
-            RphiZ(2) = phi
-            RphiZ(3) = RZ(2)
-            call field%compute_bfield(RphiZ, B)
-            if (B(2) .lt. tol) then
-                error stop 'Error: B(2) vanishes'
-            endif
-            dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
-            dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
+            select type (context)
+            class is (field_t)
+                RphiZ(1) = RZ(1)
+                RphiZ(2) = phi
+                RphiZ(3) = RZ(2)
+                call context%compute_bfield(RphiZ, B)
+                if (B(2) .lt. tol) then
+                    error stop 'Error: B(2) vanishes'
+                endif
+                dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
+                dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
+            end select
 
         end subroutine fieldline_derivative
 end subroutine integrate_RZ_along_fieldline

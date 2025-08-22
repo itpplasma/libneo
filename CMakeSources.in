@@ -22,7 +22,6 @@ add_library(neo STATIC
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
     src/plag_coeff.f90
-    src/odeint_rkf45.f90
     src/binsrc.f90
     src/boozer_converter.f90
     src/magfie/magfie_vmec.f90
@@ -37,7 +36,6 @@ target_link_libraries(neo PUBLIC
     $<TARGET_OBJECTS:interpolate>
     hdf5_tools
     neo_field
-    rkf45
 )
 
 target_link_libraries(neo PRIVATE
