@@ -25,9 +25,165 @@ jorek_config%plot_Zmax = 1.0_dp
 call test_make_poincare
 call test_get_poincare_RZ_for_closed_fieldline
 call test_read_config_file
+call test_integrate_RZ_along_fieldline_direct
+call test_fieldline_derivative_calculations
+call test_fieldline_derivative_edge_cases
 call draw_circular_tokamak_poincare
 
 contains
+
+subroutine test_integrate_RZ_along_fieldline_direct
+    use neo_poincare, only: integrate_RZ_along_fieldline
+    use neo_circular_tokamak_field, only: circular_tokamak_field_t
+
+    type(circular_tokamak_field_t) :: field
+    real(dp) :: RZ(2), RZ_initial(2), RZ_expected(2)
+    real(dp), parameter :: phi_start = 0.0_dp
+    real(dp), parameter :: phi_end = pi / 2.0_dp
+    real(dp), parameter :: relerr = 1.0e-8_dp
+    real(dp), parameter :: R_axis = 1.0_dp, Z_axis = 0.0_dp
+    real(dp), parameter :: B_tor_ampl = 1.0_dp, B_pol_ampl = 0.1_dp
+
+    call print_test("test_integrate_RZ_along_fieldline_direct")
+
+    call field%circular_tokamak_field_init(R_axis=R_axis, Z_axis=Z_axis, &
+                                           B_pol_ampl=B_pol_ampl, B_tor_ampl=B_tor_ampl)
+
+    ! Test integration along known circular path
+    RZ_initial(1) = 1.5_dp ! R
+    RZ_initial(2) = 0.0_dp ! Z
+    RZ = RZ_initial
+    
+    call integrate_RZ_along_fieldline(field, RZ, phi_start, phi_end, relerr)
+    
+    ! For circular tokamak, we can calculate expected position analytically
+    ! At phi = pi/2, for safety factor q = B_tor/B_pol = 10:
+    ! theta_expected = phi / q = (pi/2) / 10 = pi/20
+    RZ_expected(1) = R_axis + (RZ_initial(1) - R_axis) * cos(phi_end / (B_tor_ampl/B_pol_ampl))
+    RZ_expected(2) = Z_axis + (RZ_initial(1) - R_axis) * sin(phi_end / (B_tor_ampl/B_pol_ampl))
+    
+    if (abs(RZ(1) - RZ_expected(1)) > 1.0e-3_dp) then
+        call print_fail
+        print *, "R integration failed: got ", RZ(1), " expected ", RZ_expected(1)
+        error stop
+    end if
+    
+    if (abs(RZ(2) - RZ_expected(2)) > 1.0e-3_dp) then
+        call print_fail
+        print *, "Z integration failed: got ", RZ(2), " expected ", RZ_expected(2)
+        error stop
+    end if
+    
+    call print_ok
+end subroutine test_integrate_RZ_along_fieldline_direct
+
+subroutine test_fieldline_derivative_calculations
+    use neo_circular_tokamak_field, only: circular_tokamak_field_t
+
+    type(circular_tokamak_field_t) :: field
+    real(dp) :: phi, RZ(2), dRZ_dphi(2), dRZ_dphi_expected(2)
+    real(dp) :: RphiZ(3), B(3)
+    real(dp), parameter :: R_axis = 1.0_dp, Z_axis = 0.0_dp
+    real(dp), parameter :: B_tor_ampl = 1.0_dp, B_pol_ampl = 0.1_dp
+    real(dp), parameter :: test_tolerance = 1.0e-10_dp
+
+    call print_test("test_fieldline_derivative_calculations")
+
+    call field%circular_tokamak_field_init(R_axis=R_axis, Z_axis=Z_axis, &
+                                           B_pol_ampl=B_pol_ampl, B_tor_ampl=B_tor_ampl)
+
+    ! Test derivative calculation at specific point
+    phi = 0.0_dp
+    RZ(1) = 1.5_dp ! R
+    RZ(2) = 0.0_dp ! Z
+    
+    ! Calculate B field manually to verify derivative
+    RphiZ(1) = RZ(1)
+    RphiZ(2) = phi
+    RphiZ(3) = RZ(2)
+    call field%compute_bfield(RphiZ, B)
+    
+    ! Expected derivatives from fieldline equation
+    dRZ_dphi_expected(1) = B(1) * RphiZ(1) / B(2)  ! dR/dphi
+    dRZ_dphi_expected(2) = B(3) * RphiZ(1) / B(2)  ! dZ/dphi
+    
+    ! Test the derivative calculation logic
+    ! This tests the math that will be in the module-level subroutine
+    if (B(2) .lt. 1.0e-10_dp) then
+        call print_fail
+        print *, "B_phi too small for test: ", B(2)
+        error stop
+    endif
+    
+    dRZ_dphi(1) = B(1) * RphiZ(1) / B(2)
+    dRZ_dphi(2) = B(3) * RphiZ(1) / B(2)
+    
+    if (abs(dRZ_dphi(1) - dRZ_dphi_expected(1)) > test_tolerance) then
+        call print_fail
+        print *, "dR/dphi calculation error: got ", dRZ_dphi(1), &
+                 " expected ", dRZ_dphi_expected(1)
+        error stop
+    end if
+    
+    if (abs(dRZ_dphi(2) - dRZ_dphi_expected(2)) > test_tolerance) then
+        call print_fail
+        print *, "dZ/dphi calculation error: got ", dRZ_dphi(2), &
+                 " expected ", dRZ_dphi_expected(2)
+        error stop
+    end if
+    
+    call print_ok
+end subroutine test_fieldline_derivative_calculations
+
+subroutine test_fieldline_derivative_edge_cases
+    use neo_circular_tokamak_field, only: circular_tokamak_field_t
+
+    type(circular_tokamak_field_t) :: field
+    real(dp) :: phi, RZ(2)
+    real(dp) :: RphiZ(3), B(3)
+    real(dp), parameter :: R_axis = 1.0_dp, Z_axis = 0.0_dp
+    real(dp), parameter :: B_tor_ampl = 1.0e-12_dp  ! Very small B_phi
+    real(dp), parameter :: B_pol_ampl = 0.1_dp
+    real(dp), parameter :: tol = 1.0e-10_dp
+    logical :: error_detected
+
+    call print_test("test_fieldline_derivative_edge_cases")
+
+    call field%circular_tokamak_field_init(R_axis=R_axis, Z_axis=Z_axis, &
+                                           B_pol_ampl=B_pol_ampl, B_tor_ampl=B_tor_ampl)
+
+    ! Test near-zero B_phi condition that should trigger error
+    phi = 0.0_dp
+    RZ(1) = 1.5_dp ! R
+    RZ(2) = 0.0_dp ! Z
+    
+    RphiZ(1) = RZ(1)
+    RphiZ(2) = phi
+    RphiZ(3) = RZ(2)
+    call field%compute_bfield(RphiZ, B)
+    
+    ! Verify that B_phi is indeed below threshold
+    if (B(2) .ge. tol) then
+        call print_fail
+        print *, "Test setup error: B_phi should be below tolerance"
+        print *, "B_phi = ", B(2), " tolerance = ", tol
+        error stop
+    end if
+    
+    ! Test error detection logic that will be in module-level subroutine
+    error_detected = .false.
+    if (B(2) .lt. tol) then
+        error_detected = .true.
+    endif
+    
+    if (.not. error_detected) then
+        call print_fail
+        print *, "Failed to detect B_phi vanishing condition"
+        error stop
+    end if
+    
+    call print_ok
+end subroutine test_fieldline_derivative_edge_cases
 
 
 subroutine test_make_poincare

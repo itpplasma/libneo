@@ -77,5 +77,10 @@ Interface to hdf5, to simplify calls.
 Interface to MPI, so no actual mpi routines need to be called in
 programs.
 
+### poincare
+Poincare plot generation for magnetic field lines. Computes field line trajectories 
+and their intersections with toroidal cross-sections to visualize magnetic islands, 
+chaos regions, and flux surface structure.
+
 ## tests
 Contains resources for tests of the library.
