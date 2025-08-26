@@ -93,8 +93,8 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     
     # Coverage flags if enabled
     if(ENABLE_COVERAGE)
-        add_compile_options(-fprofile-arcs -ftest-coverage)
-        add_link_options(-lgcov)
+        add_compile_options(--coverage)
+        add_link_options(--coverage)
     endif()
     
     # https://github.com/numpy/numpy/issues/25777
