@@ -15,7 +15,7 @@ module coil_tools
     read_currents, grid_from_bounding_box, &
     biot_savart_sum_coils, biot_savart_fourier, &
     write_Bvac_nemov, write_Bnvac_fourier, read_Bnvac_fourier, &
-    Vector_Potential_biot_savart_fourier, write_Anvac_fourier, read_Anvac_fourier, &
+    vector_potential_biot_savart_fourier, write_Anvac_fourier, read_Anvac_fourier, &
     sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac
 
   type :: coil_t
@@ -489,7 +489,7 @@ contains
     ! nullify pointers past this point
   end subroutine biot_savart_fourier
 
-  subroutine Vector_Potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+  subroutine vector_potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
@@ -617,7 +617,7 @@ contains
     call fftw_free(p_fft_output)
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
-  end subroutine Vector_Potential_biot_savart_fourier
+  end subroutine vector_potential_biot_savart_fourier
 
   subroutine sum_coils_gauge_single_mode_Anvac(AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
     Ic, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, gauged_AnR, gauged_AnZ)
