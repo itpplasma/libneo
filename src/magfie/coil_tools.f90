@@ -10,12 +10,12 @@ module coil_tools
   public :: coil_t, coil_init, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
     coils_write_AUG, coils_read_AUG, &
-    coils_write_Nemov, coils_read_Nemov, &
+    coils_writenemov, coils_readnemov, &
     coils_write_GPEC, coils_read_GPEC, &
     read_currents, grid_from_bounding_box, &
-    Biot_Savart_sum_coils, Biot_Savart_Fourier, &
-    write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier, &
-    Vector_Potential_Biot_Savart_Fourier, write_Anvac_Fourier, read_Anvac_Fourier, &
+    biot_savart_sum_coils, biot_savartfourier, &
+    write_Bvacnemov, write_Bnvacfourier, read_Bnvacfourier, &
+    Vector_Potential_biot_savartfourier, write_Anvacfourier, read_Anvacfourier, &
     sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac
 
   type :: coil_t
@@ -182,7 +182,7 @@ contains
     deallocate(R_Z_phi)
   end subroutine coils_read_AUG
 
-  subroutine coils_write_Nemov(filename, coils)
+  subroutine coils_writenemov(filename, coils)
     character(len = *), intent(in) :: filename
     type(coil_t), intent(in), dimension(:) :: coils
     integer :: fid, kc, ks
@@ -200,9 +200,9 @@ contains
         coils(kc)%XYZ(:, 1), 0.0, kc
     end do
     close(fid)
-  end subroutine coils_write_Nemov
+  end subroutine coils_writenemov
 
-  subroutine coils_read_Nemov(filename, coils)
+  subroutine coils_readnemov(filename, coils)
     character(len = *), intent(in) :: filename
     type(coil_t), intent(out), allocatable, dimension(:) :: coils
     integer :: fid, total, k, ncoil, kc, nseg, ks, idum
@@ -237,7 +237,7 @@ contains
         read (fid, *) coils(kc)%XYZ(:, ks), cur, idum
         k = k + 1
         if (idum /= kc) then
-          write (error_unit, '("coils_read_Nemov: expected coil index ", ' // &
+          write (error_unit, '("coils_readnemov: expected coil index ", ' // &
             'i0, " in ", a, " at line ", i0, ", but got ", i0)') kc, filename, k, idum
           error stop
         end if
@@ -245,7 +245,7 @@ contains
       read (fid, *) X, Y, Z, cur, idum
     end do
     close(fid)
-  end subroutine coils_read_Nemov
+  end subroutine coils_readnemov
 
   subroutine coils_write_GPEC(filename, coils)
     use math_constants, only: length_si_to_cgs
@@ -342,7 +342,7 @@ contains
     end if
   end subroutine grid_from_bounding_box
 
-  subroutine Biot_Savart_sum_coils(coils, Ic, &
+  subroutine biot_savart_sum_coils(coils, Ic, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
     type(coil_t), intent(in), dimension(:) :: coils
     real(dp), intent(in), dimension(:) :: Ic
@@ -354,7 +354,7 @@ contains
     real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ_c(3), BXYZ(3)
 
     if (size(coils) /= size(Ic)) then
-      write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', &
+      write (error_unit, arg_size_fmt) 'biot_savart_sum_coils', &
         'size(coils)', size(coils), 'size(Ic)', size(Ic)
       error stop
     end if
@@ -395,9 +395,9 @@ contains
       end do
     end do
     !$omp end parallel do
-  end subroutine Biot_Savart_sum_coils
+  end subroutine biot_savart_sum_coils
 
-  subroutine Biot_Savart_Fourier(coils, nmax, &
+  subroutine biot_savartfourier(coils, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
@@ -417,7 +417,7 @@ contains
     complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
 
     if (nmax > nphi / 4) then
-      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
+      write (error_unit, '("biot_savartfourier: requested nmax = ", ' // &
         'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
       error stop
     end if
@@ -487,9 +487,9 @@ contains
     call fftw_free(p_BnZ)
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
-  end subroutine Biot_Savart_Fourier
+  end subroutine biot_savartfourier
 
-  subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+  subroutine Vector_Potential_biot_savartfourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
@@ -515,7 +515,7 @@ contains
     complex(c_double_complex), dimension(:), pointer :: fft_output
 
     if (nmax > nphi / 4) then
-      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
+      write (error_unit, '("biot_savartfourier: requested nmax = ", ' // &
         'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
       error stop
     end if
@@ -617,7 +617,7 @@ contains
     call fftw_free(p_fft_output)
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
-  end subroutine Vector_Potential_Biot_Savart_Fourier
+  end subroutine Vector_Potential_biot_savartfourier
 
   subroutine sum_coils_gauge_single_mode_Anvac(AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
     Ic, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, gauged_AnR, gauged_AnZ)
@@ -679,7 +679,7 @@ contains
     end do
   end subroutine gauged_Anvac_from_Bnvac
 
-  subroutine write_Anvac_Fourier(filename, ncoil, nmax, &
+  subroutine write_Anvacfourier(filename, ncoil, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use netcdf
     character(len = *), intent(in) :: filename
@@ -760,9 +760,9 @@ contains
         'imaginary part of toroidal Fourier mode of ' // component // &
         ' component of vector potential'))
     end subroutine write_actual_data
-  end subroutine write_Anvac_Fourier
+  end subroutine write_Anvacfourier
 
-  subroutine read_Anvac_Fourier(filename, ncoil, nmax, &
+  subroutine read_Anvacfourier(filename, ncoil, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use netcdf
     character(len = *), intent(in) :: filename
@@ -828,7 +828,7 @@ contains
       call nc_check('inq_varid', nf90_inq_varid(ncid, name // '_imag', varid_actual_data))
       call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Im))
     end subroutine read_actual_data
-  end subroutine read_Anvac_Fourier
+  end subroutine read_Anvacfourier
 
   subroutine nc_check(operation, status)
     use netcdf, only: NF90_NOERR, nf90_strerror
@@ -840,7 +840,7 @@ contains
     error stop
   end subroutine nc_check
 
-  subroutine write_Bvac_Nemov(filename, Rmin, Rmax, Zmin, Zmax, Bvac)
+  subroutine write_Bvacnemov(filename, Rmin, Rmax, Zmin, Zmax, Bvac)
     use math_constants, only: pi
     character(len = *), intent(in) :: filename
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
@@ -848,7 +848,7 @@ contains
     integer :: fid, nR, nphi, nZ, kR, kphi, kZ
 
     if (size(Bvac, 1) /= 3) then
-      write (error_unit, arg_size_fmt) 'write_Bnvac_Nemov', 'size(Bvac, 1)', size(Bvac, 1), '3', 3
+      write (error_unit, arg_size_fmt) 'write_Bnvacnemov', 'size(Bvac, 1)', size(Bvac, 1), '3', 3
       error stop
     end if
     nZ = size(Bvac, 2)
@@ -873,9 +873,9 @@ contains
       end do
     end do
     close(fid)
-  end subroutine write_Bvac_Nemov
+  end subroutine write_Bvacnemov
 
-  subroutine write_Bnvac_Fourier(filename, Bn, Rmin, Rmax, Zmin, Zmax)
+  subroutine write_Bnvacfourier(filename, Bn, Rmin, Rmax, Zmin, Zmax)
     use hdf5_tools, only: HID_T, h5_open_rw, h5_create_parent_groups, h5_add, h5_close
     character(len = *), intent(in) :: filename
     complex(dp), dimension(0:, :, :, :, :), intent(in) :: Bn
@@ -885,7 +885,7 @@ contains
     character(len = 7) :: modename, coilname
 
     if (size(Bn, 2) /= 3) then
-      write (error_unit, arg_size_fmt) 'write_Bnvac_Fourier', &
+      write (error_unit, arg_size_fmt) 'write_Bnvacfourier', &
         'size(Bn, 2)', size(Bn, 2), '3', 3
       error stop
     end if
@@ -923,9 +923,9 @@ contains
       end do
     end do
     call h5_close(h5id_root)
-  end subroutine write_Bnvac_Fourier
+  end subroutine write_Bnvacfourier
 
-  subroutine read_Bnvac_Fourier(filename, ntor, Ic, nR, nZ, Rmin, Rmax, Zmin, Zmax, &
+  subroutine read_Bnvacfourier(filename, ntor, Ic, nR, nZ, Rmin, Rmax, Zmin, Zmax, &
     Bnvac_R, Bnvac_Z)
     use hdf5_tools, only: HID_T, h5_open, h5_get, h5_close
     character(len = *), intent(in) :: filename
@@ -955,7 +955,7 @@ contains
     call h5_get(h5id_root, modename // '/nZ', nZ)
     call h5_get(h5id_root, modename // '/ncoil', ncoil)
     if (ncoil /= size(Ic)) then
-      write (error_unit, arg_size_fmt) 'read_Bnvac_Fourier', &
+      write (error_unit, arg_size_fmt) 'read_Bnvacfourier', &
         'ncoil', ncoil, 'size(Ic)', size(Ic)
       error stop
     end if
@@ -971,6 +971,6 @@ contains
     end do
     call h5_close(h5id_root)
     deallocate(Bn)
-  end subroutine read_Bnvac_Fourier
+  end subroutine read_Bnvacfourier
 
 end module coil_tools
