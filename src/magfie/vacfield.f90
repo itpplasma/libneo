@@ -9,7 +9,7 @@ program vacfield
     coils_read_AUG, coils_read_nemov, coils_read_GPEC, &
     read_currents, biot_savart_sum_coils, write_Bvac_nemov, &
     biot_savart_fourier, write_Bnvac_fourier, &
-    Vector_Potential_biot_savart_fourier, write_Anvac_fourier
+    vector_potential_biot_savart_fourier, write_Anvac_fourier
 
   implicit none
 
@@ -130,7 +130,7 @@ program vacfield
   else if (field_type == 'vector_potential') then
     call check_number_of_args(5 + num_coilfiles)
     call get_command_argument(5 + num_coilfiles, field_file)
-    call Vector_Potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+    call vector_potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     call write_Anvac_fourier(trim(field_file), size(coils), nmax, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
