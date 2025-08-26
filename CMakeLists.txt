@@ -107,9 +107,9 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
             add_compile_options(-march=x86-64-v2 -mtune=generic)
         endif()
     endif()
-    
+
     # Coverage disabled/removed from build system
-    
+
     # https://github.com/numpy/numpy/issues/25777
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")
     
