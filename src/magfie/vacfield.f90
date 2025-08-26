@@ -6,10 +6,10 @@ program vacfield
   use math_constants, only: current_si_to_cgs, C
   use coil_tools, only: coil_t, coil_init, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
-    coils_read_AUG, coils_readnemov, coils_read_GPEC, &
-    read_currents, biot_savart_sum_coils, write_Bvacnemov, &
-    biot_savartfourier, write_Bnvacfourier, &
-    Vector_Potential_biot_savartfourier, write_Anvacfourier
+    coils_read_AUG, coils_read_Nemov, coils_read_GPEC, &
+    read_currents, Biot_Savart_sum_coils, write_Bvac_Nemov, &
+    Biot_Savart_Fourier, write_Bnvac_Fourier, &
+    Vector_Potential_Biot_Savart_Fourier, write_Anvac_Fourier
 
   implicit none
 
@@ -90,9 +90,9 @@ program vacfield
       call coils_append(coils, more_coils)
     end do
   else if (coil_type == 'Nemov') then
-    call coils_readnemov(trim(coil_files(1)), coils)
+    call coils_read_Nemov(trim(coil_files(1)), coils)
     do kc = 2, num_coilfiles
-      call coils_readnemov(trim(coil_files(kc)), more_coils)
+      call coils_read_Nemov(trim(coil_files(kc)), more_coils)
       call coils_append(coils, more_coils)
     end do
   else
@@ -111,9 +111,9 @@ program vacfield
     call get_command_argument(5 + num_coilfiles, field_file)
     call h5_init
     h5overwrite = .true.
-    call biot_savartfourier(coils, nmax, &
+    call Biot_Savart_Fourier(coils, nmax, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bnvac)
-    call write_Bnvacfourier(trim(field_file), Bnvac, Rmin, Rmax, Zmin, Zmax)
+    call write_Bnvac_Fourier(trim(field_file), Bnvac, Rmin, Rmax, Zmin, Zmax)
     deallocate(Bnvac)
     call h5_deinit
   else if (field_type == 'sum') then
@@ -122,17 +122,17 @@ program vacfield
     call check_number_of_args(6 + num_coilfiles)
     call get_command_argument(6 + num_coilfiles, currents_file)
     call read_currents(trim(currents_file), Ic)
-    call biot_savart_sum_coils(coils, prefactor * Ic, &
+    call Biot_Savart_sum_coils(coils, prefactor * Ic, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
-    call write_Bvacnemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
+    call write_Bvac_Nemov(trim(field_file), Rmin, Rmax, Zmin, Zmax, Bvac)
     deallocate(Ic)
     deallocate(Bvac)
   else if (field_type == 'vector_potential') then
     call check_number_of_args(5 + num_coilfiles)
     call get_command_argument(5 + num_coilfiles, field_file)
-    call Vector_Potential_biot_savartfourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+    call Vector_Potential_Biot_Savart_Fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
-    call write_Anvacfourier(trim(field_file), size(coils), nmax, &
+    call write_Anvac_Fourier(trim(field_file), size(coils), nmax, &
       Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
