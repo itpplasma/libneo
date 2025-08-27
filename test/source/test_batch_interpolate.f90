@@ -27,8 +27,7 @@ program test_batch_interpolate
     call test_batch_spline_3d_construction()
     call test_batch_spline_3d_evaluation()
     call test_batch_spline_3d_derivatives()
-    ! TODO: Second derivatives need further investigation
-    ! call test_batch_spline_3d_second_derivatives()
+    call test_batch_spline_3d_second_derivatives()
     call test_batch_spline_3d_field_components()
     
     print *, "All batch spline tests passed!"
@@ -938,6 +937,11 @@ contains
                 call evaluate_splines_3d(single_spls(iq), x_eval, y_single_result)
                 
                 if (abs(y_batch_result(iq) - y_single_result) > TOL) then
+                    print *, "Mismatch at iq=", iq, " test=", n_test
+                    print *, "  x_eval: ", x_eval
+                    print *, "  Batch:  ", y_batch_result(iq)
+                    print *, "  Single: ", y_single_result
+                    print *, "  Diff:   ", abs(y_batch_result(iq) - y_single_result)
                     error stop "3D evaluation mismatch"
                 end if
             end do
