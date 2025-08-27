@@ -40,7 +40,8 @@ module interpolate
         real(dp) :: x_min
         real(dp) :: h_step
         
-        ! Batched coefficients: (order+1, num_points, num_quantities)
+        ! Batched coefficients: (num_quantities, order+1, num_points)
+        ! Optimized layout for cache-efficient evaluation at single points
         integer :: num_quantities
         real(dp), dimension(:,:,:), allocatable :: coeff
     end type BatchSplineData1D
@@ -53,7 +54,8 @@ module interpolate
         real(dp) :: h_step(2)
         real(dp) :: x_min(2)
         
-        ! Batched coefficients: (order1+1, order2+1, n1, n2, num_quantities)
+        ! Batched coefficients: (num_quantities, order1+1, order2+1, n1, n2)
+        ! Optimized layout for cache-efficient evaluation at single points
         integer :: num_quantities
         real(dp), dimension(:,:,:,:,:), allocatable :: coeff
     end type BatchSplineData2D
@@ -66,7 +68,8 @@ module interpolate
         real(dp) :: h_step(3)
         real(dp) :: x_min(3)
         
-        ! Batched coefficients: (order1+1, order2+1, order3+1, n1, n2, n3, num_quantities)
+        ! Batched coefficients: (num_quantities, order1+1, order2+1, order3+1, n1, n2, n3)
+        ! Optimized layout for cache-efficient evaluation at single points
         integer :: num_quantities
         real(dp), dimension(:,:,:,:,:,:,:), allocatable :: coeff
     end type BatchSplineData3D
@@ -746,9 +749,9 @@ contains
         spl%num_quantities = n_quantities
         spl%h_step = (x_max - x_min) / (n_points - 1)
         
-        ! Allocate coefficient array
+        ! Allocate coefficient array with optimized layout
         if(allocated(spl%coeff)) deallocate(spl%coeff)
-        allocate(spl%coeff(0:order, n_points, n_quantities))
+        allocate(spl%coeff(n_quantities, 0:order, n_points))
         
         ! Temporary array for spline coefficient computation
         allocate(splcoe_temp(0:order, n_points))
@@ -765,8 +768,8 @@ contains
                 call spl_reg(order, n_points, spl%h_step, splcoe_temp)
             endif
             
-            ! Store in batch array
-            spl%coeff(:,:,iq) = splcoe_temp
+            ! Store in batch array with new layout
+            spl%coeff(iq,:,:) = splcoe_temp
         end do
         
         deallocate(splcoe_temp)
@@ -788,7 +791,6 @@ contains
         
         real(dp) :: x_norm, x_local, xj
         integer :: interval_index, k_power, iq
-        real(dp) :: coeff_local(0:spl%order)
         
         ! Handle periodic boundary
         if (spl%periodic) then
@@ -802,15 +804,20 @@ contains
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Evaluate for each quantity
+        ! Initialize with highest order coefficients
+        ! Memory access: spl%coeff(:, spl%order, interval_index+1) is contiguous!
+        !$omp simd
         do iq = 1, spl%num_quantities
-            coeff_local(:) = spl%coeff(:, interval_index+1, iq)
-            
-            ! Horner's method for polynomial evaluation
-            y_batch(iq) = coeff_local(spl%order)
-            do k_power = spl%order-1, 0, -1
-                y_batch(iq) = coeff_local(k_power) + x_local*y_batch(iq)
-            enddo
+            y_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)
+        end do
+        
+        ! Horner's method with SIMD for all quantities at once
+        do k_power = spl%order-1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
+                              x_local*y_batch(iq)
+            end do
         end do
         
     end subroutine evaluate_batch_splines_1d
@@ -824,7 +831,6 @@ contains
         
         real(dp) :: x_norm, x_local, xj
         integer :: interval_index, k_power
-        real(dp) :: coeff_local(0:spl%order)
         
         ! Handle periodic boundary
         if (spl%periodic) then
@@ -838,13 +844,10 @@ contains
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Get coefficients for specified quantity
-        coeff_local(:) = spl%coeff(:, interval_index+1, iq)
-        
-        ! Horner's method for polynomial evaluation
-        y = coeff_local(spl%order)
+        ! Horner's method for single quantity evaluation
+        y = spl%coeff(iq, spl%order, interval_index+1)
         do k_power = spl%order-1, 0, -1
-            y = coeff_local(k_power) + x_local*y
+            y = spl%coeff(iq, k_power, interval_index+1) + x_local*y
         enddo
         
     end subroutine evaluate_batch_splines_1d_single
@@ -858,7 +861,6 @@ contains
         
         real(dp) :: x_norm, x_local, xj
         integer :: interval_index, k_power, iq
-        real(dp) :: coeff_local(0:spl%order)
         
         ! Handle periodic boundary
         if (spl%periodic) then
@@ -872,21 +874,28 @@ contains
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Evaluate for each quantity
+        ! Initialize with highest order coefficients
+        !$omp simd
         do iq = 1, spl%num_quantities
-            coeff_local(:) = spl%coeff(:, interval_index+1, iq)
-            
-            ! Value using Horner's method
-            y_batch(iq) = coeff_local(spl%order)
-            do k_power = spl%order-1, 0, -1
-                y_batch(iq) = coeff_local(k_power) + x_local*y_batch(iq)
-            enddo
-            
-            ! First derivative
-            dy_batch(iq) = coeff_local(spl%order)*spl%order
-            do k_power = spl%order-1, 1, -1
-                dy_batch(iq) = coeff_local(k_power)*k_power + x_local*dy_batch(iq)
-            enddo
+            y_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)
+            dy_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)*spl%order
+        end do
+        
+        ! Compute value and derivative with SIMD
+        do k_power = spl%order-1, 1, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
+                              x_local*y_batch(iq)
+                dy_batch(iq) = spl%coeff(iq, k_power, interval_index+1)*k_power + &
+                               x_local*dy_batch(iq)
+            end do
+        end do
+        
+        ! Final step for y_batch only
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            y_batch(iq) = spl%coeff(iq, 0, interval_index+1) + x_local*y_batch(iq)
         end do
         
     end subroutine evaluate_batch_splines_1d_der
@@ -901,7 +910,6 @@ contains
         
         real(dp) :: x_norm, x_local, xj
         integer :: interval_index, k_power, iq
-        real(dp) :: coeff_local(0:spl%order)
         
         ! Handle periodic boundary
         if (spl%periodic) then
@@ -915,27 +923,41 @@ contains
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Evaluate for each quantity
+        ! Initialize with highest order coefficients
+        !$omp simd
         do iq = 1, spl%num_quantities
-            coeff_local(:) = spl%coeff(:, interval_index+1, iq)
-            
-            ! Value using Horner's method
-            y_batch(iq) = coeff_local(spl%order)
-            do k_power = spl%order-1, 0, -1
-                y_batch(iq) = coeff_local(k_power) + x_local*y_batch(iq)
-            enddo
-            
-            ! First derivative
-            dy_batch(iq) = coeff_local(spl%order)*spl%order
-            do k_power = spl%order-1, 1, -1
-                dy_batch(iq) = coeff_local(k_power)*k_power + x_local*dy_batch(iq)
-            enddo
-            
-            ! Second derivative
-            d2y_batch(iq) = coeff_local(spl%order)*spl%order*(spl%order-1)
-            do k_power = spl%order-1, 2, -1
-                d2y_batch(iq) = coeff_local(k_power)*k_power*(k_power-1) + x_local*d2y_batch(iq)
-            enddo
+            y_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)
+            dy_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)*spl%order
+            d2y_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)*spl%order* &
+                            (spl%order-1)
+        end do
+        
+        ! Compute value and derivatives with SIMD
+        do k_power = spl%order-1, 2, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
+                              x_local*y_batch(iq)
+                dy_batch(iq) = spl%coeff(iq, k_power, interval_index+1)*k_power + &
+                               x_local*dy_batch(iq)
+                d2y_batch(iq) = spl%coeff(iq, k_power, interval_index+1)*k_power* &
+                                (k_power-1) + x_local*d2y_batch(iq)
+            end do
+        end do
+        
+        ! Handle k_power = 1
+        if (spl%order >= 1) then
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                y_batch(iq) = spl%coeff(iq, 1, interval_index+1) + x_local*y_batch(iq)
+                dy_batch(iq) = spl%coeff(iq, 1, interval_index+1) + x_local*dy_batch(iq)
+            end do
+        endif
+        
+        ! Final step for y_batch only
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            y_batch(iq) = spl%coeff(iq, 0, interval_index+1) + x_local*y_batch(iq)
         end do
         
     end subroutine evaluate_batch_splines_1d_der2
@@ -953,6 +975,7 @@ contains
         type(BatchSplineData2D), intent(out) :: spl
         
         real(dp), dimension(:,:), allocatable  :: splcoe
+        real(dp), dimension(:,:,:,:), allocatable :: temp_coeff
         integer :: i1, i2, iq  ! Loop indices
         integer :: k2          ! Loop index for polynomial order
         
@@ -965,8 +988,12 @@ contains
         spl%h_step = (x_max - x_min) / (spl%num_points - 1)
         
         if(allocated(spl%coeff)) deallocate(spl%coeff)
-        allocate(spl%coeff(0:order(1), 0:order(2), &
-                 spl%num_points(1), spl%num_points(2), spl%num_quantities))
+        allocate(spl%coeff(spl%num_quantities, 0:order(1), 0:order(2), &
+                 spl%num_points(1), spl%num_points(2)))
+        
+        ! Allocate temporary array for intermediate results
+        allocate(temp_coeff(0:order(1), 0:order(2), &
+                 spl%num_points(1), spl%num_points(2)))
         
         ! Process each quantity
         do iq = 1, spl%num_quantities
@@ -979,7 +1006,7 @@ contains
                 else
                     call spl_reg(spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
                 endif
-                spl%coeff(0, :, i1, :, iq) = splcoe
+                temp_coeff(0, :, i1, :) = splcoe
             enddo
             deallocate(splcoe)
             
@@ -987,17 +1014,22 @@ contains
             allocate(splcoe(0:spl%order(1), spl%num_points(1)))
             do i2=1,spl%num_points(2)
                 do k2=0,spl%order(2)
-                    splcoe(0,:) = spl%coeff(0, k2, :, i2, iq)
+                    splcoe(0,:) = temp_coeff(0, k2, :, i2)
                     if(spl%periodic(1)) then
                         call spl_per(spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                     else
                         call spl_reg(spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
                     endif
-                    spl%coeff(:, k2, :, i2, iq) = splcoe
+                    temp_coeff(:, k2, :, i2) = splcoe
                 enddo
             enddo
             deallocate(splcoe)
+            
+            ! Store with new memory layout
+            spl%coeff(iq, :, :, :, :) = temp_coeff
         end do
+        
+        deallocate(temp_coeff)
         
     end subroutine construct_batch_splines_2d
     
@@ -1015,8 +1047,7 @@ contains
         real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
         
         real(dp) :: x_norm(2), x_local(2), xj
-        real(dp) :: coeff_2(0:spl%order(2))
-        real(dp) :: coeff_local(0:spl%order(1),0:spl%order(2))
+        real(dp) :: coeff_2(spl%num_quantities, 0:spl%order(2))
         integer :: interval_index(2), k1, k2, j, iq
         
         do j=1,2
@@ -1030,20 +1061,40 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! Evaluate for each quantity
+        ! First reduction: evaluate along x1 dimension
+        ! Initialize with highest order in x1
+        !$omp simd
         do iq = 1, spl%num_quantities
-            coeff_local(:,:) = &
-                spl%coeff(:, :, interval_index(1) + 1, interval_index(2) + 1, iq)
-            
-            coeff_2(:) = coeff_local(spl%order(1), 0:spl%order(2))
-            do k1 = spl%order(1)-1, 0, -1
-                coeff_2(:) = coeff_local(k1, :) + x_local(1)*coeff_2
-            enddo
-            
-            y_batch(iq) = coeff_2(spl%order(2))
-            do k2 = spl%order(2)-1, 0, -1
-                y_batch(iq) = coeff_2(k2) + x_local(2)*y_batch(iq)
-            enddo
+            do k2 = 0, spl%order(2)
+                coeff_2(iq, k2) = spl%coeff(iq, spl%order(1), k2, &
+                                   interval_index(1)+1, interval_index(2)+1)
+            end do
+        end do
+        
+        ! Apply Horner's method along x1
+        do k1 = spl%order(1)-1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                do k2 = 0, spl%order(2)
+                    coeff_2(iq, k2) = spl%coeff(iq, k1, k2, interval_index(1)+1, &
+                                       interval_index(2)+1) + x_local(1)*coeff_2(iq, k2)
+                end do
+            end do
+        end do
+        
+        ! Second reduction: evaluate along x2 dimension
+        ! Initialize with highest order in x2
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            y_batch(iq) = coeff_2(iq, spl%order(2))
+        end do
+        
+        ! Apply Horner's method along x2
+        do k2 = spl%order(2)-1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                y_batch(iq) = coeff_2(iq, k2) + x_local(2)*y_batch(iq)
+            end do
         end do
         
     end subroutine evaluate_batch_splines_2d

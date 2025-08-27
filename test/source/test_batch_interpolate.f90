@@ -82,9 +82,9 @@ contains
         do iq = 1, N_QUANTITIES
             do i = 1, N_POINTS
                 do k = 0, ORDER
-                    if (abs(batch_spl%coeff(k, i, iq) - single_spls(iq)%coeff(k, i)) > TOL) then
+                    if (abs(batch_spl%coeff(iq, k, i) - single_spls(iq)%coeff(k, i)) > TOL) then
                         print *, "Coefficient mismatch at k=", k, " i=", i, " iq=", iq
-                        print *, "Batch: ", batch_spl%coeff(k, i, iq)
+                        print *, "Batch: ", batch_spl%coeff(iq, k, i)
                         print *, "Single: ", single_spls(iq)%coeff(k, i)
                         error stop "Coefficient mismatch"
                     end if
@@ -445,9 +445,9 @@ contains
         ! Verify allocation shape
         if (.not. allocated(batch_spl%coeff)) error stop "Coefficients not allocated"
         
-        if (size(batch_spl%coeff, 1) /= ORDER + 1) error stop "Wrong coefficient order dimension"
-        if (size(batch_spl%coeff, 2) /= N_POINTS) error stop "Wrong coefficient points dimension"
-        if (size(batch_spl%coeff, 3) /= N_QUANTITIES) error stop "Wrong coefficient quantities dimension"
+        if (size(batch_spl%coeff, 1) /= N_QUANTITIES) error stop "Wrong coefficient quantities dimension"
+        if (size(batch_spl%coeff, 2) /= ORDER + 1) error stop "Wrong coefficient order dimension"
+        if (size(batch_spl%coeff, 3) /= N_POINTS) error stop "Wrong coefficient points dimension"
         
         ! The memory layout with quantities as the last dimension is automatically
         ! cache-friendly in Fortran due to column-major ordering.
@@ -593,7 +593,7 @@ contains
                 do i1 = 1, N_POINTS(1)
                     do k2 = 0, ORDER(2)
                         do k1 = 0, ORDER(1)
-                            if (abs(batch_spl%coeff(k1, k2, i1, i2, iq) - &
+                            if (abs(batch_spl%coeff(iq, k1, k2, i1, i2) - &
                                    single_spls(iq)%coeff(k1, k2, i1, i2)) > TOL) then
                                 error stop "2D coefficient mismatch"
                             end if
