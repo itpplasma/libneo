@@ -150,6 +150,7 @@ set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WA
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)
 add_subdirectory(field)
+add_subdirectory(magfie)
 add_subdirectory(polylag)
 add_subdirectory(poincare)
 add_subdirectory(odeint)
