@@ -61,7 +61,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffree-line-length-132>)
     
     if(ENABLE_OPENMP)
-        add_compile_options(-fopenmp)
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fopenmp>)
         add_link_options(-fopenmp)
     endif()
     
@@ -84,7 +84,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
             # Fast mode or ARM: use native architecture (no portable baseline for ARM)
-            add_compile_options(-march=native -mtune=native)
+            add_compile_options(-march=native)
         else()
             # Release on x86-64: use v2 baseline for broad compatibility
             add_compile_options(-march=x86-64-v2 -mtune=generic)
@@ -101,7 +101,8 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")
     
     # Make trampolines a hard error - they would create executable stack
-    add_compile_options(-Wtrampolines -Werror=trampolines)
+    add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-Wtrampolines>)
+    add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-Werror=trampolines>)
     # Apple's linker doesn't support -z,noexecstack (uses different security model)
     if(NOT APPLE)
         add_link_options(-Wl,-z,noexecstack)
