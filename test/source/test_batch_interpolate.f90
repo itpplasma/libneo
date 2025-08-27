@@ -27,6 +27,7 @@ program test_batch_interpolate
     call test_batch_spline_3d_construction()
     call test_batch_spline_3d_evaluation()
     call test_batch_spline_3d_derivatives()
+    call test_batch_spline_3d_second_derivatives()
     call test_batch_spline_3d_field_components()
     
     print *, "All batch spline tests passed!"
@@ -1038,6 +1039,107 @@ contains
         print *, "  PASSED: 3D batch derivatives match individual splines"
         
     end subroutine test_batch_spline_3d_derivatives
+    
+    
+    subroutine test_batch_spline_3d_second_derivatives()
+        use interpolate
+        
+        integer, parameter :: N_POINTS(3) = [20, 22, 24]
+        integer, parameter :: N_QUANTITIES = 2
+        integer, parameter :: ORDER(3) = [5, 3, 5]
+        
+        type(BatchSplineData3D) :: batch_spl
+        type(SplineData3D) :: single_spls(N_QUANTITIES)
+        
+        real(dp) :: y_batch(N_POINTS(1), N_POINTS(2), N_POINTS(3), N_QUANTITIES)
+        real(dp) :: y_single(N_POINTS(1), N_POINTS(2), N_POINTS(3))
+        
+        real(dp) :: x1(N_POINTS(1)), x2(N_POINTS(2)), x3(N_POINTS(3))
+        real(dp) :: x_eval(3)
+        real(dp) :: y_batch_result(N_QUANTITIES)
+        real(dp) :: dy_batch_result(3, N_QUANTITIES)
+        real(dp) :: d2y_batch_result(6, N_QUANTITIES)
+        real(dp) :: y_single_result
+        real(dp) :: dy_single_result(3)
+        real(dp) :: d2y_single_result(6)
+        
+        integer :: iq, i1, i2, i3, n_test
+        
+        print *, "Testing 3D batch spline second derivatives..."
+        
+        ! Generate test data
+        call linspace(X_MIN, X_MAX, N_POINTS(1), x1)
+        call linspace(X_MIN, X_MAX, N_POINTS(2), x2)
+        call linspace(X_MIN, X_MAX, N_POINTS(3), x3)
+        
+        do iq = 1, N_QUANTITIES
+            do i3 = 1, N_POINTS(3)
+                do i2 = 1, N_POINTS(2)
+                    do i1 = 1, N_POINTS(1)
+                        y_batch(i1, i2, i3, iq) = cos(x1(i1)*real(iq, dp)) * &
+                                                  sin(x2(i2)) * cos(x3(i3))
+                    end do
+                end do
+            end do
+        end do
+        
+        ! Construct splines
+        call construct_batch_splines_3d([X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX], &
+                                       y_batch, ORDER, [.false., .false., .false.], batch_spl)
+        
+        do iq = 1, N_QUANTITIES
+            y_single(:,:,:) = y_batch(:,:,:,iq)
+            call construct_splines_3d([X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX], &
+                                    y_single, ORDER, [.false., .false., .false.], single_spls(iq))
+        end do
+        
+        ! Test second derivatives
+        do n_test = 1, 5
+            x_eval(1) = X_MIN + (X_MAX - X_MIN) * real(n_test+1, dp) / 8.0d0
+            x_eval(2) = X_MIN + (X_MAX - X_MIN) * real(n_test+2, dp) / 8.0d0
+            x_eval(3) = X_MIN + (X_MAX - X_MIN) * real(n_test, dp) / 8.0d0
+            
+            ! Batch evaluation with second derivatives
+            call evaluate_batch_splines_3d_der2(batch_spl, x_eval, y_batch_result, &
+                                               dy_batch_result, d2y_batch_result)
+            
+            ! Compare with individual evaluations
+            do iq = 1, N_QUANTITIES
+                call evaluate_splines_3d_der2(single_spls(iq), x_eval, y_single_result, &
+                                             dy_single_result, d2y_single_result)
+                
+                if (abs(y_batch_result(iq) - y_single_result) > TOL) then
+                    print *, "Value mismatch in second derivative test at x=", x_eval, " iq=", iq
+                    print *, "Batch: ", y_batch_result(iq)
+                    print *, "Single: ", y_single_result
+                    error stop "3D value mismatch in second derivative test"
+                end if
+                
+                if (any(abs(dy_batch_result(:, iq) - dy_single_result(:)) > TOL)) then
+                    print *, "First derivative mismatch at x=", x_eval, " iq=", iq
+                    print *, "Batch: ", dy_batch_result(:, iq)
+                    print *, "Single: ", dy_single_result(:)
+                    error stop "3D first derivative mismatch in second derivative test"
+                end if
+                
+                if (any(abs(d2y_batch_result(:, iq) - d2y_single_result(:)) > TOL)) then
+                    print *, "Second derivative mismatch at x=", x_eval, " iq=", iq
+                    print *, "Batch: ", d2y_batch_result(:, iq)
+                    print *, "Single: ", d2y_single_result(:)
+                    error stop "3D second derivative mismatch"
+                end if
+            end do
+        end do
+        
+        ! Clean up
+        call destroy_batch_splines_3d(batch_spl)
+        do iq = 1, N_QUANTITIES
+            call destroy_splines_3d(single_spls(iq))
+        end do
+        
+        print *, "  PASSED: 3D batch second derivatives match individual splines"
+        
+    end subroutine test_batch_spline_3d_second_derivatives
     
     
     subroutine test_batch_spline_3d_field_components()
