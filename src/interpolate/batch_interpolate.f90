@@ -640,7 +640,7 @@ contains
                             else
                                 call spl_reg(N1_order, n1, spl%h_step(1), splcoe)
                             end if
-                            ! Store reversed for backward Horner (consistent with batch 1D & 2D)
+                            ! Store reversed for consistency with original 3D (reversed indexing)
                             temp_coeff(N1_order:0:-1, k2, k3, :, i2, i3) = splcoe
                         end do
                     end do
@@ -696,20 +696,20 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! First reduction: interpolation over x1 (backward Horner like batch 1D & 2D)
-        ! Initialize with highest order coefficient
+        ! First reduction: interpolation over x1 (matching original exactly)
+        ! Initialize with index 0 (which is highest order due to reversed storage)
         !$omp simd
         do iq = 1, spl%num_quantities
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23(iq, k2, k3) = spl%coeff(iq, N1, k2, k3, &
+                    coeff_23(iq, k2, k3) = spl%coeff(iq, 0, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
                 end do
             end do
         end do
         
-        ! Apply backward Horner method
-        do k1 = N1-1, 0, -1
+        ! Apply forward iteration (descending powers due to reversed storage)
+        do k1 = 1, N1
             !$omp simd
             do iq = 1, spl%num_quantities
                 do k3 = 0, N3
@@ -790,20 +790,20 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! First reduction: interpolation over x1 for value
-        ! Initialize with highest order coefficient
+        ! First reduction: interpolation over x1 for value (matching original exactly)
+        ! Initialize with index 0 (highest order due to reversed storage)
         !$omp simd
         do iq = 1, spl%num_quantities
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23(iq, k2, k3) = spl%coeff(iq, N1, k2, k3, &
+                    coeff_23(iq, k2, k3) = spl%coeff(iq, 0, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
                 end do
             end do
         end do
         
-        ! Apply Horner method for value
-        do k1 = N1-1, 0, -1
+        ! Apply forward iteration for value (descending powers due to reversed storage)
+        do k1 = 1, N1
             !$omp simd
             do iq = 1, spl%num_quantities
                 do k3 = 0, N3
@@ -816,23 +816,23 @@ contains
             end do
         end do
         
-        ! First derivative over x1
+        ! First derivative over x1 (matching original exactly)
         !$omp simd
         do iq = 1, spl%num_quantities
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23_dx1(iq, k2, k3) = N1 * spl%coeff(iq, N1, k2, k3, &
+                    coeff_23_dx1(iq, k2, k3) = N1 * spl%coeff(iq, 0, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
                 end do
             end do
         end do
         
-        do k1 = N1-1, 1, -1
+        do k1 = 1, N1-1
             !$omp simd
             do iq = 1, spl%num_quantities
                 do k3 = 0, N3
                     do k2 = 0, N2
-                        coeff_23_dx1(iq, k2, k3) = k1 * spl%coeff(iq, k1, k2, k3, &
+                        coeff_23_dx1(iq, k2, k3) = (N1-k1) * spl%coeff(iq, k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, interval_index(3)+1) &
                             + x_local(1)*coeff_23_dx1(iq, k2, k3)
                     end do
@@ -943,20 +943,20 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! First reduction: interpolation over x1 using backward Horner
-        ! Initialize with highest degree coefficient
+        ! First reduction: interpolation over x1 (matching original exactly)
+        ! Initialize with index 0 (highest order due to reversed storage)
         !$omp simd
         do iq = 1, spl%num_quantities
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23(iq, k2, k3) = spl%coeff(iq, N1, k2, k3, &
+                    coeff_23(iq, k2, k3) = spl%coeff(iq, 0, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
                 end do
             end do
         end do
         
-        ! Apply backward Horner evaluation
-        do k1 = N1-1, 0, -1
+        ! Apply forward iteration for value (descending powers due to reversed storage)
+        do k1 = 1, N1
             !$omp simd
             do iq = 1, spl%num_quantities
                 do k3 = 0, N3
@@ -969,23 +969,23 @@ contains
             end do
         end do
         
-        ! First derivative over x1 using backward Horner
+        ! First derivative over x1 (matching original exactly)
         !$omp simd
         do iq = 1, spl%num_quantities
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23_dx1(iq, k2, k3) = N1 * spl%coeff(iq, N1, k2, k3, &
+                    coeff_23_dx1(iq, k2, k3) = N1 * spl%coeff(iq, 0, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
                 end do
             end do
         end do
         
-        do k1 = N1-1, 1, -1
+        do k1 = 1, N1-1
             !$omp simd
             do iq = 1, spl%num_quantities
                 do k3 = 0, N3
                     do k2 = 0, N2
-                        coeff_23_dx1(iq, k2, k3) = k1 * spl%coeff(iq, k1, k2, k3, &
+                        coeff_23_dx1(iq, k2, k3) = (N1-k1) * spl%coeff(iq, k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, interval_index(3)+1) &
                             + x_local(1)*coeff_23_dx1(iq, k2, k3)
                     end do
@@ -993,23 +993,23 @@ contains
             end do
         end do
         
-        ! Second derivative over x1 using backward Horner
+        ! Second derivative over x1 (matching original pattern)
         !$omp simd
         do iq = 1, spl%num_quantities
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23_dx1x1(iq, k2, k3) = N1*(N1-1) * spl%coeff(iq, N1, k2, k3, &
+                    coeff_23_dx1x1(iq, k2, k3) = N1*(N1-1) * spl%coeff(iq, 0, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
                 end do
             end do
         end do
         
-        do k1 = N1-1, 2, -1
+        do k1 = 1, N1-2
             !$omp simd
             do iq = 1, spl%num_quantities
                 do k3 = 0, N3
                     do k2 = 0, N2
-                        coeff_23_dx1x1(iq, k2, k3) = k1*(k1-1) * spl%coeff(iq, k1, k2, k3, &
+                        coeff_23_dx1x1(iq, k2, k3) = (N1-k1)*(N1-k1-1) * spl%coeff(iq, k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, interval_index(3)+1) &
                             + x_local(1)*coeff_23_dx1x1(iq, k2, k3)
                     end do

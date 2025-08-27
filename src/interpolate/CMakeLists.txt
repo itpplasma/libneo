@@ -1,5 +1,6 @@
 add_library(interpolate OBJECT
     ../spl_three_to_five.f90
+    batch_interpolate.f90
     interpolate.f90)
 
 set_property(TARGET interpolate PROPERTY
