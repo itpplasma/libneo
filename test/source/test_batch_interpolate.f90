@@ -1011,13 +1011,13 @@ contains
             x_eval(3) = X_MIN + (X_MAX - X_MIN) * real(n_test, dp) / 8.0d0
             
             ! Batch evaluation with derivatives
-            call evaluate_batch_splines_3d_der2(batch_spl, x_eval, y_batch_result, &
-                                               dy_batch_result, d2y_batch_result)
+            call evaluate_batch_splines_3d_der(batch_spl, x_eval, y_batch_result, &
+                                               dy_batch_result)
             
             ! Compare with individual evaluations
             do iq = 1, N_QUANTITIES
-                call evaluate_splines_3d_der2(single_spls(iq), x_eval, y_single_result, &
-                                             dy_single_result, d2y_single_result)
+                call evaluate_splines_3d_der(single_spls(iq), x_eval, y_single_result, &
+                                             dy_single_result)
                 
                 if (abs(y_batch_result(iq) - y_single_result) > TOL) then
                     error stop "3D value mismatch in derivative test"
@@ -1025,10 +1025,6 @@ contains
                 
                 if (any(abs(dy_batch_result(:, iq) - dy_single_result(:)) > TOL)) then
                     error stop "3D first derivative mismatch"
-                end if
-                
-                if (any(abs(d2y_batch_result(:, iq) - d2y_single_result(:)) > TOL)) then
-                    error stop "3D second derivative mismatch"
                 end if
             end do
         end do

@@ -811,7 +811,7 @@ contains
             y_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)
         end do
         
-        ! Horner's method with SIMD for all quantities at once
+        ! Horner method with SIMD for all quantities at once
         do k_power = spl%order-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
@@ -844,7 +844,7 @@ contains
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Horner's method for single quantity evaluation
+        ! Horner method for single quantity evaluation
         y = spl%coeff(iq, spl%order, interval_index+1)
         do k_power = spl%order-1, 0, -1
             y = spl%coeff(iq, k_power, interval_index+1) + x_local*y
@@ -1071,7 +1071,7 @@ contains
             end do
         end do
         
-        ! Apply Horner's method along x1
+        ! Apply Horner method along x1
         do k1 = spl%order(1)-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
@@ -1089,7 +1089,7 @@ contains
             y_batch(iq) = coeff_2(iq, spl%order(2))
         end do
         
-        ! Apply Horner's method along x2
+        ! Apply Horner method along x2
         do k2 = spl%order(2)-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
@@ -1126,7 +1126,7 @@ contains
         ! Evaluate for each quantity
         do iq = 1, spl%num_quantities
             coeff_local(:,:) = &
-                spl%coeff(:, :, interval_index(1) + 1, interval_index(2) + 1, iq)
+                spl%coeff(iq, :, :, interval_index(1) + 1, interval_index(2) + 1)
             
             ! Interpolation over x1
             coeff_2(:) = coeff_local(spl%order(1), 0:spl%order(2))
@@ -1301,7 +1301,7 @@ contains
             end do
         end do
         
-        ! Apply Horner's method along x1
+        ! Apply Horner method along x1
         do k1 = spl%order(1)-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
@@ -1324,7 +1324,7 @@ contains
             end do
         end do
         
-        ! Apply Horner's method along x2
+        ! Apply Horner method along x2
         do k2 = spl%order(2)-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
@@ -1341,7 +1341,7 @@ contains
             y_batch(iq) = coeff_3(iq, spl%order(3))
         end do
         
-        ! Apply Horner's method along x3
+        ! Apply Horner method along x3
         do k3 = spl%order(3)-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
@@ -1359,13 +1359,19 @@ contains
         real(dp), intent(out) :: dy_batch(:,:)  ! (3, n_quantities)
         
         real(dp) :: x_norm(3), x_local(3), xj
-        real(dp) :: coeff_23(0:spl%order(2),0:spl%order(3))
-        real(dp) :: coeff_23_dx1(0:spl%order(2),0:spl%order(3))
-        real(dp) :: coeff_3(0:spl%order(3))
-        real(dp) :: coeff_3_dx1(0:spl%order(3))
-        real(dp) :: coeff_3_dx2(0:spl%order(3))
+        ! Arrays with quantities first for SIMD
+        real(dp) :: coeff_23(spl%num_quantities, 0:spl%order(2), 0:spl%order(3))
+        real(dp) :: coeff_23_dx1(spl%num_quantities, 0:spl%order(2), 0:spl%order(3))
+        real(dp) :: coeff_3(spl%num_quantities, 0:spl%order(3))
+        real(dp) :: coeff_3_dx1(spl%num_quantities, 0:spl%order(3))
+        real(dp) :: coeff_3_dx2(spl%num_quantities, 0:spl%order(3))
         
         integer :: interval_index(3), k1, k2, k3, j, iq
+        integer :: N1, N2, N3
+        
+        N1 = spl%order(1)
+        N2 = spl%order(2)
+        N3 = spl%order(3)
         
         do j=1,3
             if (spl%periodic(j)) then
@@ -1378,67 +1384,116 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! Evaluate for each quantity
+        ! First reduction: interpolation over x1 for value
+        ! Initialize with highest order coefficient
+        !$omp simd
         do iq = 1, spl%num_quantities
-            associate(N1 => spl%order(1), N2 => spl%order(2), N3 => spl%order(3))
-                
-                ! Interpolation over x1
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23(iq, k2, k3) = spl%coeff(iq, N1, k2, k3, &
+                        interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
+                end do
+            end do
+        end do
+        
+        ! Apply Horner's method for value
+        do k1 = N1-1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 do k3 = 0, N3
                     do k2 = 0, N2
-                        coeff_23(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
-                            interval_index(2) + 1, interval_index(3) + 1, iq)
-                        do k1 = 1, N1
-                            coeff_23(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
-                                interval_index(2) + 1, interval_index(3) + 1, iq) &
-                                + x_local(1)*coeff_23(k2, k3)
-                        enddo
-                    enddo
-                enddo
-                
-                ! First derivative over x1
+                        coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
+                            interval_index(1)+1, interval_index(2)+1, interval_index(3)+1) &
+                            + x_local(1)*coeff_23(iq, k2, k3)
+                    end do
+                end do
+            end do
+        end do
+        
+        ! First derivative over x1
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23_dx1(iq, k2, k3) = N1 * spl%coeff(iq, N1, k2, k3, &
+                        interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
+                end do
+            end do
+        end do
+        
+        do k1 = N1-1, 1, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 do k3 = 0, N3
                     do k2 = 0, N2
-                        coeff_23_dx1(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
-                            interval_index(2) + 1, interval_index(3) + 1, iq)*N1
-                        do k1 = 1, N1-1
-                            coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
-                                interval_index(2) + 1, interval_index(3) + 1, iq)*(N1-k1) &
-                                + x_local(1)*coeff_23_dx1(k2, k3)
-                        enddo
-                    enddo
-                enddo
-                
-                ! Interpolation over x2 and pure derivatives over x1
-                coeff_3(:) = coeff_23(N2, :)
-                coeff_3_dx1(:) = coeff_23_dx1(N2, :)
-                do k2 = N2-1, 0, -1
-                    coeff_3(:) = coeff_23(k2, :) + x_local(2)*coeff_3
-                    coeff_3_dx1(:) = coeff_23_dx1(k2, :) + x_local(2)*coeff_3_dx1
-                enddo
-                
-                ! First derivative over x2
-                coeff_3_dx2(:) = coeff_23(N2, :)*N2
-                do k2 = N2-1, 1, -1
-                    coeff_3_dx2(:) = coeff_23(k2, :)*k2 + x_local(2)*coeff_3_dx2(:)
-                enddo
-                
-                ! Interpolation over x3
-                y_batch(iq) = coeff_3(N3)
-                dy_batch(1, iq) = coeff_3_dx1(N3)
-                dy_batch(2, iq) = coeff_3_dx2(N3)
-                do k3 = N3-1, 0, -1
-                    y_batch(iq) = coeff_3(k3) + x_local(3)*y_batch(iq)
-                    dy_batch(1, iq) = coeff_3_dx1(k3) + x_local(3)*dy_batch(1, iq)
-                    dy_batch(2, iq) = coeff_3_dx2(k3) + x_local(3)*dy_batch(2, iq)
-                enddo
-                
-                ! First derivative over x3
-                dy_batch(3, iq) = coeff_3(N3)*N3
-                do k3 = N3-1, 1, -1
-                    dy_batch(3, iq) = coeff_3(k3)*k3 + x_local(3)*dy_batch(3, iq)
-                enddo
-                
-            end associate
+                        coeff_23_dx1(iq, k2, k3) = k1 * spl%coeff(iq, k1, k2, k3, &
+                            interval_index(1)+1, interval_index(2)+1, interval_index(3)+1) &
+                            + x_local(1)*coeff_23_dx1(iq, k2, k3)
+                    end do
+                end do
+            end do
+        end do
+        
+        ! Second reduction: interpolation over x2
+        ! Initialize with highest order
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            do k3 = 0, N3
+                coeff_3(iq, k3) = coeff_23(iq, N2, k3)
+                coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, N2, k3)
+                coeff_3_dx2(iq, k3) = N2 * coeff_23(iq, N2, k3)
+            end do
+        end do
+        
+        ! Apply Horner for value and dx1
+        do k2 = N2-1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                do k3 = 0, N3
+                    coeff_3(iq, k3) = coeff_23(iq, k2, k3) + x_local(2)*coeff_3(iq, k3)
+                    coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
+                                           x_local(2)*coeff_3_dx1(iq, k3)
+                end do
+            end do
+        end do
+        
+        ! Derivative over x2
+        do k2 = N2-1, 1, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                do k3 = 0, N3
+                    coeff_3_dx2(iq, k3) = k2 * coeff_23(iq, k2, k3) + &
+                                           x_local(2)*coeff_3_dx2(iq, k3)
+                end do
+            end do
+        end do
+        
+        ! Third reduction: interpolation over x3
+        ! Initialize with highest order
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            y_batch(iq) = coeff_3(iq, N3)
+            dy_batch(1, iq) = coeff_3_dx1(iq, N3)
+            dy_batch(2, iq) = coeff_3_dx2(iq, N3)
+            dy_batch(3, iq) = N3 * coeff_3(iq, N3)
+        end do
+        
+        ! Apply Horner for all
+        do k3 = N3-1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
+                dy_batch(1, iq) = coeff_3_dx1(iq, k3) + x_local(3)*dy_batch(1, iq)
+                dy_batch(2, iq) = coeff_3_dx2(iq, k3) + x_local(3)*dy_batch(2, iq)
+            end do
+        end do
+        
+        ! Derivative over x3
+        do k3 = N3-1, 1, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                dy_batch(3, iq) = k3 * coeff_3(iq, k3) + x_local(3)*dy_batch(3, iq)
+            end do
         end do
         
     end subroutine evaluate_batch_splines_3d_der
