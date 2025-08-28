@@ -190,8 +190,9 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! First reduction: interpolation over x1 using backward Horner
-        ! Initialize with highest order coefficient
+        ! First reduction: interpolation over x1 using backward Horner with FORWARD array access
+        ! Initialize with highest order coefficient (mathematically correct)
+        ! Loop order: k3, k2, iq for column-major optimization
         do k3 = 0, N3
             do k2 = 0, N2
                 !$omp simd
@@ -202,13 +203,14 @@ contains
             end do
         end do
         
-        ! Apply backward Horner method (standard polynomial evaluation)
-        do k1 = N1-1, 0, -1
-            do k3 = 0, N3
-                do k2 = 0, N2
+        ! Apply backward Horner with FORWARD array access for cache optimization  
+        ! Loop order: k3, k2, k1, iq for optimal column-major cache utilization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 0, N2      ! k2 second
+                do k1 = 0, N1-1    ! k1 third (FORWARD through array)
                     !$omp simd
-                    do iq = 1, spl%num_quantities
-                        coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
+                    do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                        coeff_23(iq, k2, k3) = spl%coeff(iq, N1-1-k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, &
                             interval_index(3)+1) + x_local(1)*coeff_23(iq, k2, k3)
                     end do
@@ -216,7 +218,7 @@ contains
             end do
         end do
         
-        ! Second reduction: interpolation over x2 using backward Horner
+        ! Second reduction: interpolation over x2 using backward Horner with FORWARD array access
         ! Initialize with highest order
         do k3 = 0, N3
             !$omp simd
@@ -225,28 +227,30 @@ contains
             end do
         end do
         
-        ! Apply Horner method
-        do k2 = N2-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
-                    coeff_3(iq, k3) = coeff_23(iq, k2, k3) + x_local(2)*coeff_3(iq, k3)
+        ! Apply backward Horner with FORWARD array access
+        ! Loop order: k3, k2, iq for optimal column-major cache utilization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 0, N2-1    ! k2 second (FORWARD through array)
+                !$omp simd
+                do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                    coeff_3(iq, k3) = coeff_23(iq, N2-1-k2, k3) + x_local(2)*coeff_3(iq, k3)
                 end do
             end do
         end do
         
-        ! Third reduction: interpolation over x3 using backward Horner
+        ! Third reduction: interpolation over x3 using backward Horner with FORWARD array access
         ! Initialize with highest order
         !$omp simd
         do iq = 1, spl%num_quantities
             y_batch(iq) = coeff_3(iq, N3)
         end do
         
-        ! Apply Horner method
-        do k3 = N3-1, 0, -1
+        ! Apply backward Horner with FORWARD array access
+        ! Loop order: k3, iq for optimal cache utilization
+        do k3 = 0, N3-1      ! k3 FORWARD through array
             !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
+            do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                y_batch(iq) = coeff_3(iq, N3-1-k3) + x_local(3)*y_batch(iq)
             end do
         end do
     end subroutine evaluate_batch_splines_3d
