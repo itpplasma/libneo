@@ -192,10 +192,10 @@ contains
         
         ! First reduction: interpolation over x1 using backward Horner
         ! Initialize with highest order coefficient
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
-                do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_23(iq, k2, k3) = spl%coeff(iq, N1, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
                 end do
@@ -203,11 +203,11 @@ contains
         end do
         
         ! Apply backward Horner method (standard polynomial evaluation)
-        do k1 = N1-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
-                    do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                do k1 = N1-1, 0, -1
+                    !$omp simd
+                    do iq = 1, spl%num_quantities
                         coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, &
                             interval_index(3)+1) + x_local(1)*coeff_23(iq, k2, k3)
@@ -218,9 +218,9 @@ contains
         
         ! Second reduction: interpolation over x2 using backward Horner
         ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
+        do k3 = 0, N3
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 coeff_3(iq, k3) = coeff_23(iq, N2, k3)
             end do
         end do
@@ -296,10 +296,10 @@ contains
         
         ! First reduction: interpolation over x1 for value using backward Horner
         ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
-                do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_23(iq, k2, k3) = spl%coeff(iq, N1, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, &
                         interval_index(3)+1)
@@ -308,11 +308,11 @@ contains
         end do
         
         ! Apply backward Horner for value
-        do k1 = N1-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
-                    do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                do k1 = N1-1, 0, -1
+                    !$omp simd
+                    do iq = 1, spl%num_quantities
                         coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, &
                             interval_index(3)+1) + x_local(1)*coeff_23(iq, k2, k3)
@@ -322,10 +322,10 @@ contains
         end do
         
         ! First derivative over x1 using backward Horner for derivative
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
-                do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_23_dx1(iq, k2, k3) = N1 * spl%coeff(iq, N1, k2, k3, &
                         interval_index(1)+1, interval_index(2)+1, &
                         interval_index(3)+1)
@@ -333,11 +333,11 @@ contains
             end do
         end do
         
-        do k1 = N1-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
-                    do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                do k1 = N1-1, 1, -1
+                    !$omp simd
+                    do iq = 1, spl%num_quantities
                         coeff_23_dx1(iq, k2, k3) = k1 * spl%coeff(iq, k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, &
                             interval_index(3)+1) + x_local(1)*coeff_23_dx1(iq, k2, k3)
@@ -348,9 +348,9 @@ contains
         
         ! Second reduction: interpolation over x2
         ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
+        do k3 = 0, N3
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 coeff_3(iq, k3) = coeff_23(iq, N2, k3)
                 coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, N2, k3)
                 coeff_3_dx2(iq, k3) = N2 * coeff_23(iq, N2, k3)
@@ -358,10 +358,10 @@ contains
         end do
         
         ! Apply Horner for value and dx1
-        do k2 = N2-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
+        do k3 = 0, N3
+            do k2 = N2-1, 0, -1
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
                         x_local(2)*coeff_3(iq, k3)
                     coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
@@ -371,10 +371,10 @@ contains
         end do
         
         ! Derivative over x2
-        do k2 = N2-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
+        do k3 = 0, N3
+            do k2 = N2-1, 1, -1
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_3_dx2(iq, k3) = k2 * coeff_23(iq, k2, k3) + &
                         x_local(2)*coeff_3_dx2(iq, k3)
                 end do
@@ -467,10 +467,10 @@ contains
         
         ! First reduction: x1 interpolation with fused derivative computation
         ! Initialize all polynomials with highest order coefficient (k1 = N1)
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
-                do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     c = spl%coeff(iq, N1, k2, k3, interval_index(1)+1, &
                         interval_index(2)+1, interval_index(3)+1)
                     coeff_23(iq, k2, k3) = c
@@ -482,11 +482,11 @@ contains
         
         ! Fused backward Horner: compute all derivatives simultaneously
         ! Range k1 = N1-1 down to 2: update all three polynomials
-        do k1 = N1-1, 2, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
-                    do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                do k1 = N1-1, 2, -1
+                    !$omp simd
+                    do iq = 1, spl%num_quantities
                         c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
                             interval_index(2)+1, interval_index(3)+1)
                         coeff_23(iq, k2, k3) = c + x_local(1)*coeff_23(iq, k2, k3)
@@ -502,10 +502,10 @@ contains
         ! k1 = 1: update value and first derivative only
         if (N1 > 1) then
             k1 = 1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
-                    do k2 = 0, N2
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    !$omp simd
+                    do iq = 1, spl%num_quantities
                         c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
                             interval_index(2)+1, interval_index(3)+1)
                         coeff_23(iq, k2, k3) = c + x_local(1)*coeff_23(iq, k2, k3)
@@ -518,10 +518,10 @@ contains
         
         ! k1 = 0: update value only
         k1 = 0
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
-                do k2 = 0, N2
+        do k3 = 0, N3
+            do k2 = 0, N2
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
                         interval_index(2)+1, interval_index(3)+1)
                     coeff_23(iq, k2, k3) = c + x_local(1)*coeff_23(iq, k2, k3)
@@ -531,9 +531,9 @@ contains
         
         ! Second reduction: x2 interpolation with fused derivative computation
         ! Initialize all polynomials with highest order coefficient (k2 = N2)
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
+        do k3 = 0, N3
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 coeff_3(iq, k3) = coeff_23(iq, N2, k3)
                 coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, N2, k3)
                 coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, N2, k3)
@@ -545,10 +545,10 @@ contains
         
         ! Fused backward Horner: update all polynomials simultaneously
         ! Range k2 = N2-1 down to 2: update all six polynomials
-        do k2 = N2-1, 2, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
+        do k3 = 0, N3
+            do k2 = N2-1, 2, -1
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
                         x_local(2)*coeff_3(iq, k3)
                     coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
@@ -568,9 +568,9 @@ contains
         ! k2 = 1: update value, dx1, dx1x1, dx2, dx1x2 only
         if (N2 > 1) then
             k2 = 1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
+            do k3 = 0, N3
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
                         x_local(2)*coeff_3(iq, k3)
                     coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
@@ -587,9 +587,9 @@ contains
         
         ! k2 = 0: update value, dx1, dx1x1 only
         k2 = 0
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k3 = 0, N3
+        do k3 = 0, N3
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
                     x_local(2)*coeff_3(iq, k3)
                 coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
