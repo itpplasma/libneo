@@ -311,13 +311,14 @@ contains
             end do
         end do
         
-        ! Apply backward Horner for value
-        do k1 = N1-1, 0, -1
-            do k3 = 0, N3
-                do k2 = 0, N2
+        ! Apply backward Horner for value with FORWARD array access
+        ! Loop order: k3, k2, k1, iq for column-major optimization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 0, N2      ! k2 second  
+                do k1 = 0, N1-1    ! k1 third (FORWARD through array)
                     !$omp simd
-                    do iq = 1, spl%num_quantities
-                        coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
+                    do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                        coeff_23(iq, k2, k3) = spl%coeff(iq, N1-1-k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, &
                             interval_index(3)+1) + x_local(1)*coeff_23(iq, k2, k3)
                     end do
@@ -337,12 +338,13 @@ contains
             end do
         end do
         
-        do k1 = N1-1, 1, -1
-            do k3 = 0, N3
-                do k2 = 0, N2
+        ! FORWARD array access with column-major optimization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 0, N2      ! k2 second
+                do k1 = 1, N1-1    ! k1 third (FORWARD through array, range 1 to N1-1)
                     !$omp simd
-                    do iq = 1, spl%num_quantities
-                        coeff_23_dx1(iq, k2, k3) = k1 * spl%coeff(iq, k1, k2, k3, &
+                    do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                        coeff_23_dx1(iq, k2, k3) = (N1-k1) * spl%coeff(iq, N1-k1, k2, k3, &
                             interval_index(1)+1, interval_index(2)+1, &
                             interval_index(3)+1) + x_local(1)*coeff_23_dx1(iq, k2, k3)
                     end do
@@ -361,25 +363,27 @@ contains
             end do
         end do
         
-        ! Apply Horner for value and dx1
-        do k2 = N2-1, 0, -1
-            do k3 = 0, N3
+        ! Apply Horner for value and dx1 with FORWARD array access
+        ! Loop order: k3, k2, iq for column-major optimization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 0, N2-1    ! k2 second (FORWARD through array)
                 !$omp simd
-                do iq = 1, spl%num_quantities
-                    coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
+                do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                    coeff_3(iq, k3) = coeff_23(iq, N2-1-k2, k3) + &
                         x_local(2)*coeff_3(iq, k3)
-                    coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
+                    coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, N2-1-k2, k3) + &
                         x_local(2)*coeff_3_dx1(iq, k3)
                 end do
             end do
         end do
         
-        ! Derivative over x2
-        do k2 = N2-1, 1, -1
-            do k3 = 0, N3
+        ! Derivative over x2 with FORWARD array access
+        ! Loop order: k3, k2, iq for column-major optimization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 1, N2-1    ! k2 FORWARD through array (range 1 to N2-1)
                 !$omp simd
-                do iq = 1, spl%num_quantities
-                    coeff_3_dx2(iq, k3) = k2 * coeff_23(iq, k2, k3) + &
+                do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                    coeff_3_dx2(iq, k3) = (N2-k2) * coeff_23(iq, N2-k2, k3) + &
                         x_local(2)*coeff_3_dx2(iq, k3)
                 end do
             end do
@@ -395,21 +399,22 @@ contains
             dy_batch(3, iq) = N3 * coeff_3(iq, N3)
         end do
         
-        ! Apply Horner for all
-        do k3 = N3-1, 0, -1
+        ! Apply Horner for all with FORWARD array access
+        ! Loop order: k3, iq for optimal cache utilization
+        do k3 = 0, N3-1      ! k3 FORWARD through array
             !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
-                dy_batch(1, iq) = coeff_3_dx1(iq, k3) + x_local(3)*dy_batch(1, iq)
-                dy_batch(2, iq) = coeff_3_dx2(iq, k3) + x_local(3)*dy_batch(2, iq)
+            do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                y_batch(iq) = coeff_3(iq, N3-1-k3) + x_local(3)*y_batch(iq)
+                dy_batch(1, iq) = coeff_3_dx1(iq, N3-1-k3) + x_local(3)*dy_batch(1, iq)
+                dy_batch(2, iq) = coeff_3_dx2(iq, N3-1-k3) + x_local(3)*dy_batch(2, iq)
             end do
         end do
         
-        ! Derivative over x3
-        do k3 = N3-1, 1, -1
+        ! Derivative over x3 with FORWARD array access
+        do k3 = 1, N3-1    ! k3 FORWARD through array (range 1 to N3-1)
             !$omp simd
-            do iq = 1, spl%num_quantities
-                dy_batch(3, iq) = k3 * coeff_3(iq, k3) + x_local(3)*dy_batch(3, iq)
+            do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                dy_batch(3, iq) = (N3-k3) * coeff_3(iq, N3-k3) + x_local(3)*dy_batch(3, iq)
             end do
         end do
         
@@ -484,19 +489,19 @@ contains
             end do
         end do
         
-        ! Fused backward Horner: compute all derivatives simultaneously
-        ! Range k1 = N1-1 down to 2: update all three polynomials
-        do k1 = N1-1, 2, -1
-            do k3 = 0, N3
-                do k2 = 0, N2
+        ! Fused backward Horner with FORWARD array access: compute all derivatives simultaneously
+        ! Loop order: k3, k2, k1, iq for column-major optimization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 0, N2      ! k2 second
+                do k1 = 2, N1-1    ! k1 third (FORWARD through array, range 2 to N1-1)
                     !$omp simd
-                    do iq = 1, spl%num_quantities
-                        c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
+                    do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                        c = spl%coeff(iq, N1+1-k1, k2, k3, interval_index(1)+1, &
                             interval_index(2)+1, interval_index(3)+1)
                         coeff_23(iq, k2, k3) = c + x_local(1)*coeff_23(iq, k2, k3)
-                        coeff_23_dx1(iq, k2, k3) = k1*c + &
+                        coeff_23_dx1(iq, k2, k3) = (N1+1-k1)*c + &
                             x_local(1)*coeff_23_dx1(iq, k2, k3)
-                        coeff_23_dx1x1(iq, k2, k3) = k1*(k1-1)*c + &
+                        coeff_23_dx1x1(iq, k2, k3) = (N1+1-k1)*(N1-k1)*c + &
                             x_local(1)*coeff_23_dx1x1(iq, k2, k3)
                     end do
                 end do
@@ -549,21 +554,22 @@ contains
         
         ! Fused backward Horner: update all polynomials simultaneously
         ! Range k2 = N2-1 down to 2: update all six polynomials
-        do k2 = N2-1, 2, -1
-            do k3 = 0, N3
+        ! FORWARD array access with column-major optimization
+        do k3 = 0, N3          ! k3 outermost for column-major
+            do k2 = 2, N2-1    ! k2 FORWARD through array (range 2 to N2-1)
                 !$omp simd
-                do iq = 1, spl%num_quantities
-                    coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
+                do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                    coeff_3(iq, k3) = coeff_23(iq, N2+1-k2, k3) + &
                         x_local(2)*coeff_3(iq, k3)
-                    coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
+                    coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, N2+1-k2, k3) + &
                         x_local(2)*coeff_3_dx1(iq, k3)
-                    coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, k2, k3) + &
+                    coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, N2+1-k2, k3) + &
                         x_local(2)*coeff_3_dx1x1(iq, k3)
-                    coeff_3_dx2(iq, k3) = k2 * coeff_23(iq, k2, k3) + &
+                    coeff_3_dx2(iq, k3) = (N2+1-k2) * coeff_23(iq, N2+1-k2, k3) + &
                         x_local(2)*coeff_3_dx2(iq, k3)
-                    coeff_3_dx1x2(iq, k3) = k2 * coeff_23_dx1(iq, k2, k3) + &
+                    coeff_3_dx1x2(iq, k3) = (N2+1-k2) * coeff_23_dx1(iq, N2+1-k2, k3) + &
                         x_local(2)*coeff_3_dx1x2(iq, k3)
-                    coeff_3_dx2x2(iq, k3) = k2*(k2-1) * coeff_23(iq, k2, k3) + &
+                    coeff_3_dx2x2(iq, k3) = (N2+1-k2)*(N2-k2) * coeff_23(iq, N2+1-k2, k3) + &
                         x_local(2)*coeff_3_dx2x2(iq, k3)
                 end do
             end do
@@ -619,26 +625,26 @@ contains
             d2y_batch(6, iq) = N3*(N3-1) * coeff_3(iq, N3)
         end do
         
-        ! Fused backward Horner: update all outputs simultaneously
-        ! Range k3 = N3-1 down to 2: update all outputs
-        do k3 = N3-1, 2, -1
+        ! Fused backward Horner with FORWARD array access: update all outputs simultaneously
+        ! Range k3 = 2 to N3-1: update all outputs
+        do k3 = 2, N3-1    ! k3 FORWARD through array (range 2 to N3-1)
             !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
-                dy_batch(1, iq) = coeff_3_dx1(iq, k3) + x_local(3)*dy_batch(1, iq)
-                dy_batch(2, iq) = coeff_3_dx2(iq, k3) + x_local(3)*dy_batch(2, iq)
-                dy_batch(3, iq) = k3 * coeff_3(iq, k3) + x_local(3)*dy_batch(3, iq)
-                d2y_batch(1, iq) = coeff_3_dx1x1(iq, k3) + &
+            do iq = 1, spl%num_quantities  ! iq innermost (SIMD)
+                y_batch(iq) = coeff_3(iq, N3+1-k3) + x_local(3)*y_batch(iq)
+                dy_batch(1, iq) = coeff_3_dx1(iq, N3+1-k3) + x_local(3)*dy_batch(1, iq)
+                dy_batch(2, iq) = coeff_3_dx2(iq, N3+1-k3) + x_local(3)*dy_batch(2, iq)
+                dy_batch(3, iq) = (N3+1-k3) * coeff_3(iq, N3+1-k3) + x_local(3)*dy_batch(3, iq)
+                d2y_batch(1, iq) = coeff_3_dx1x1(iq, N3+1-k3) + &
                     x_local(3)*d2y_batch(1, iq)
-                d2y_batch(2, iq) = coeff_3_dx1x2(iq, k3) + &
+                d2y_batch(2, iq) = coeff_3_dx1x2(iq, N3+1-k3) + &
                     x_local(3)*d2y_batch(2, iq)
-                d2y_batch(3, iq) = k3 * coeff_3_dx1(iq, k3) + &
+                d2y_batch(3, iq) = (N3+1-k3) * coeff_3_dx1(iq, N3+1-k3) + &
                     x_local(3)*d2y_batch(3, iq)
-                d2y_batch(4, iq) = coeff_3_dx2x2(iq, k3) + &
+                d2y_batch(4, iq) = coeff_3_dx2x2(iq, N3+1-k3) + &
                     x_local(3)*d2y_batch(4, iq)
-                d2y_batch(5, iq) = k3 * coeff_3_dx2(iq, k3) + &
+                d2y_batch(5, iq) = (N3+1-k3) * coeff_3_dx2(iq, N3+1-k3) + &
                     x_local(3)*d2y_batch(5, iq)
-                d2y_batch(6, iq) = k3*(k3-1) * coeff_3(iq, k3) + &
+                d2y_batch(6, iq) = (N3+1-k3)*(N3-k3) * coeff_3(iq, N3+1-k3) + &
                     x_local(3)*d2y_batch(6, iq)
             end do
         end do
