@@ -80,15 +80,14 @@ contains
         if (abs(batch_spl%x_min - X_MIN) > TOL) error stop "Wrong x_min"
         if (abs(batch_spl%h_step - single_spls(1)%h_step) > TOL) error stop "Wrong h_step"
         
-        ! Verify coefficients match individual splines (accounting for reversed storage)
+        ! Verify coefficients match individual splines
         do iq = 1, N_QUANTITIES
             do i = 1, N_POINTS
                 do k = 0, ORDER
-                    ! Batch coefficients are stored in reverse order
-                    if (abs(batch_spl%coeff(iq, k, i) - single_spls(iq)%coeff(ORDER-k, i)) > TOL) then
+                    if (abs(batch_spl%coeff(iq, k, i) - single_spls(iq)%coeff(k, i)) > TOL) then
                         print *, "Coefficient mismatch at k=", k, " i=", i, " iq=", iq
                         print *, "Batch: ", batch_spl%coeff(iq, k, i)
-                        print *, "Single: ", single_spls(iq)%coeff(ORDER-k, i)
+                        print *, "Single: ", single_spls(iq)%coeff(k, i)
                         error stop "Coefficient mismatch"
                     end if
                 end do
@@ -596,9 +595,8 @@ contains
                 do i1 = 1, N_POINTS(1)
                     do k2 = 0, ORDER(2)
                         do k1 = 0, ORDER(1)
-                            ! Batch coefficients are stored in reverse order
                             if (abs(batch_spl%coeff(iq, k1, k2, i1, i2) - &
-                                   single_spls(iq)%coeff(ORDER(1)-k1, ORDER(2)-k2, i1, i2)) > TOL) then
+                                   single_spls(iq)%coeff(k1, k2, i1, i2)) > TOL) then
                                 error stop "2D coefficient mismatch"
                             end if
                         end do

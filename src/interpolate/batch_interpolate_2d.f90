@@ -27,7 +27,7 @@ contains
         real(dp), dimension(:,:), allocatable  :: splcoe
         real(dp), dimension(:,:,:,:), allocatable :: temp_coeff
         integer :: i1, i2, iq  ! Loop indices
-        integer :: k1, k2      ! Loop indices for polynomial order
+        integer :: k2          ! Loop index for polynomial order
         integer :: n1, n2, n_quantities, istat
         integer :: N1_order, N2_order
         
@@ -105,13 +105,8 @@ contains
                 end do
             end do
             
-            ! Store in batch array with REVERSED coefficient order for forward array access
-            ! Reverse both k1 and k2 dimensions
-            do k2 = 0, N2_order
-                do k1 = 0, N1_order
-                    spl%coeff(iq, k1, k2, :, :) = temp_coeff(N1_order - k1, N2_order - k2, :, :)
-                end do
-            end do
+            ! Store in batch array with quantities first
+            spl%coeff(iq, :, :, :, :) = temp_coeff
             
             deallocate(splcoe)
         end do
@@ -157,21 +152,21 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! First reduction: interpolation over x1 with FORWARD array access
-        ! Initialize with highest order coefficient (now at index 0)
-        do k2 = 0, N2
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                coeff_2(iq, k2) = spl%coeff(iq, 0, k2, &
+        ! First reduction: interpolation over x1
+        ! Initialize with highest order
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            do k2 = 0, N2
+                coeff_2(iq, k2) = spl%coeff(iq, N1, k2, &
                     interval_index(1)+1, interval_index(2)+1)
             end do
         end do
         
-        ! Apply Horner method with FORWARD array access
-        do k2 = 0, N2
-            do k1 = 1, N1
-                !$omp simd
-                do iq = 1, spl%num_quantities
+        ! Apply Horner method
+        do k1 = N1-1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                do k2 = 0, N2
                     coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
                         interval_index(1)+1, interval_index(2)+1) + &
                         x_local(1) * coeff_2(iq, k2)
@@ -179,15 +174,15 @@ contains
             end do
         end do
         
-        ! Second reduction: interpolation over x2 with FORWARD array access
-        ! Initialize with highest order coefficient (now at index 0)
+        ! Second reduction: interpolation over x2
+        ! Initialize with highest order
         !$omp simd
         do iq = 1, spl%num_quantities
-            y_batch(iq) = coeff_2(iq, 0)
+            y_batch(iq) = coeff_2(iq, N2)
         end do
         
-        ! Apply Horner method with FORWARD array access
-        do k2 = 1, N2
+        ! Apply Horner method
+        do k2 = N2-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
                 y_batch(iq) = coeff_2(iq, k2) + x_local(2) * y_batch(iq)
@@ -231,19 +226,19 @@ contains
             x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
         end do
         
-        ! First reduction: interpolation over x1 for value (highest order now at index 0)
-        do k2 = 0, N2
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                coeff_2(iq, k2) = spl%coeff(iq, 0, k2, &
+        ! First reduction: interpolation over x1 for value
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            do k2 = 0, N2
+                coeff_2(iq, k2) = spl%coeff(iq, N1, k2, &
                     interval_index(1)+1, interval_index(2)+1)
             end do
         end do
         
-        do k2 = 0, N2
-            do k1 = 1, N1
+        do k1 = N1-1, 0, -1
             !$omp simd
-                do iq = 1, spl%num_quantities
+            do iq = 1, spl%num_quantities
+                do k2 = 0, N2
                     coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
                         interval_index(1)+1, interval_index(2)+1) + &
                         x_local(1) * coeff_2(iq, k2)
@@ -251,35 +246,35 @@ contains
             end do
         end do
         
-        ! First derivative over x1 (highest order now at index 0)
-        do k2 = 0, N2
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                coeff_2_dx1(iq, k2) = N1 * spl%coeff(iq, 0, k2, &
+        ! First derivative over x1
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            do k2 = 0, N2
+                coeff_2_dx1(iq, k2) = N1 * spl%coeff(iq, N1, k2, &
                     interval_index(1)+1, interval_index(2)+1)
             end do
         end do
         
-        do k2 = 0, N2
-            do k1 = 1, N1-1
-               !$omp simd
-                do iq = 1, spl%num_quantities
-                    coeff_2_dx1(iq, k2) = (N1 - k1) * spl%coeff(iq, k1, k2, &
+        do k1 = N1-1, 1, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                do k2 = 0, N2
+                    coeff_2_dx1(iq, k2) = k1 * spl%coeff(iq, k1, k2, &
                         interval_index(1)+1, interval_index(2)+1) + &
                         x_local(1) * coeff_2_dx1(iq, k2)
                 end do
             end do
         end do
         
-        ! Second reduction: interpolation over x2 (highest order now at index 0)
+        ! Second reduction: interpolation over x2
         !$omp simd
         do iq = 1, spl%num_quantities
-            y_batch(iq) = coeff_2(iq, 0)
-            dy_batch(1, iq) = coeff_2_dx1(iq, 0)
-            dy_batch(2, iq) = N2 * coeff_2(iq, 0)
+            y_batch(iq) = coeff_2(iq, N2)
+            dy_batch(1, iq) = coeff_2_dx1(iq, N2)
+            dy_batch(2, iq) = N2 * coeff_2(iq, N2)
         end do
         
-        do k2 = 1, N2
+        do k2 = N2-1, 0, -1
             !$omp simd
             do iq = 1, spl%num_quantities
                 y_batch(iq) = coeff_2(iq, k2) + x_local(2) * y_batch(iq)
@@ -287,10 +282,10 @@ contains
             end do
         end do
         
-        do k2 = 1, N2-1
+        do k2 = N2-1, 1, -1
             !$omp simd
             do iq = 1, spl%num_quantities
-                dy_batch(2, iq) = (N2 - k2) * coeff_2(iq, k2) + x_local(2) * dy_batch(2, iq)
+                dy_batch(2, iq) = k2 * coeff_2(iq, k2) + x_local(2) * dy_batch(2, iq)
             end do
         end do
     end subroutine evaluate_batch_splines_2d_der
