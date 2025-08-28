@@ -159,19 +159,19 @@ contains
         
         ! First reduction: interpolation over x1 with FORWARD array access
         ! Initialize with highest order coefficient (now at index 0)
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
+        do k2 = 0, N2
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 coeff_2(iq, k2) = spl%coeff(iq, 0, k2, &
                     interval_index(1)+1, interval_index(2)+1)
             end do
         end do
         
         ! Apply Horner method with FORWARD array access
-        do k1 = 1, N1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
+        do k2 = 0, N2
+            do k1 = 1, N1
+                !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
                         interval_index(1)+1, interval_index(2)+1) + &
                         x_local(1) * coeff_2(iq, k2)
@@ -232,18 +232,18 @@ contains
         end do
         
         ! First reduction: interpolation over x1 for value (highest order now at index 0)
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
+        do k2 = 0, N2
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 coeff_2(iq, k2) = spl%coeff(iq, 0, k2, &
                     interval_index(1)+1, interval_index(2)+1)
             end do
         end do
         
-        do k1 = 1, N1
+        do k2 = 0, N2
+            do k1 = 1, N1
             !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
+                do iq = 1, spl%num_quantities
                     coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
                         interval_index(1)+1, interval_index(2)+1) + &
                         x_local(1) * coeff_2(iq, k2)
@@ -252,18 +252,18 @@ contains
         end do
         
         ! First derivative over x1 (highest order now at index 0)
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
+        do k2 = 0, N2
+            !$omp simd
+            do iq = 1, spl%num_quantities
                 coeff_2_dx1(iq, k2) = N1 * spl%coeff(iq, 0, k2, &
                     interval_index(1)+1, interval_index(2)+1)
             end do
         end do
         
-        do k1 = 1, N1-1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
+        do k2 = 0, N2
+            do k1 = 1, N1-1
+               !$omp simd
+                do iq = 1, spl%num_quantities
                     coeff_2_dx1(iq, k2) = (N1 - k1) * spl%coeff(iq, k1, k2, &
                         interval_index(1)+1, interval_index(2)+1) + &
                         x_local(1) * coeff_2_dx1(iq, k2)
