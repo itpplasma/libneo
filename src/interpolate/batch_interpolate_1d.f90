@@ -26,7 +26,7 @@ contains
         logical, intent(in) :: periodic
         type(BatchSplineData1D), intent(out) :: spl
         
-        integer :: iq, n_points, n_quantities, istat
+        integer :: iq, k_power, n_points, n_quantities, istat
         real(dp), dimension(:,:), allocatable :: splcoe_temp
         
         n_points = size(y_batch, 1)
@@ -75,8 +75,11 @@ contains
                 call spl_reg(order, n_points, spl%h_step, splcoe_temp)
             end if
             
-            ! Store coefficients in batch array with quantities first
-            spl%coeff(iq, :, :) = splcoe_temp(:, :)
+            ! Store coefficients in REVERSE order for forward array access
+            ! Original: coeff[0, 1, 2, ..., order] -> Reversed: coeff[order, order-1, ..., 1, 0]
+            do k_power = 0, order
+                spl%coeff(iq, k_power, :) = splcoe_temp(order - k_power, :)
+            end do
         end do
         
         deallocate(splcoe_temp)
@@ -115,14 +118,14 @@ contains
         interval_index = max(0, min(spl%num_points-2, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Initialize with highest order coefficient
+        ! Initialize with highest order coefficient (now stored at index 0 due to reversal)
         !$omp simd
         do iq = 1, spl%num_quantities
-            y_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)
+            y_batch(iq) = spl%coeff(iq, 0, interval_index+1)
         end do
         
-        ! Apply Horner method (backward)
-        do k_power = spl%order-1, 0, -1
+        ! Apply Horner method with FORWARD array access
+        do k_power = 1, spl%order
             !$omp simd
             do iq = 1, spl%num_quantities
                 y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
@@ -158,9 +161,9 @@ contains
         interval_index = max(0, min(spl%num_points-2, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Horner method for single quantity
-        y = spl%coeff(iq, spl%order, interval_index+1)
-        do k_power = spl%order-1, 0, -1
+        ! Horner method for single quantity with FORWARD array access
+        y = spl%coeff(iq, 0, interval_index+1)  ! Highest order now at index 0
+        do k_power = 1, spl%order
             y = spl%coeff(iq, k_power, interval_index+1) + x_local * y
         end do
     end subroutine evaluate_batch_splines_1d_single
@@ -195,14 +198,14 @@ contains
         interval_index = max(0, min(spl%num_points-2, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Initialize value with highest order coefficient
+        ! Initialize value with highest order coefficient (now at index 0)
         !$omp simd
         do iq = 1, spl%num_quantities
-            y_batch(iq) = spl%coeff(iq, N, interval_index+1)
+            y_batch(iq) = spl%coeff(iq, 0, interval_index+1)
         end do
         
-        ! Apply Horner method for value
-        do k_power = N-1, 0, -1
+        ! Apply Horner method for value with FORWARD array access
+        do k_power = 1, N
             !$omp simd
             do iq = 1, spl%num_quantities
                 y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
@@ -210,17 +213,18 @@ contains
             end do
         end do
         
-        ! Initialize derivative with highest order coefficient
+        ! Initialize derivative with highest order coefficient (now at index 0)
         !$omp simd
         do iq = 1, spl%num_quantities
-            dy_batch(iq) = N * spl%coeff(iq, N, interval_index+1)
+            dy_batch(iq) = N * spl%coeff(iq, 0, interval_index+1)
         end do
         
-        ! Apply Horner method for derivative
-        do k_power = N-1, 1, -1
+        ! Apply Horner method for derivative with FORWARD array access
+        ! Note: coefficients are reversed, so k_power maps to N-k_power
+        do k_power = 1, N-1
             !$omp simd
             do iq = 1, spl%num_quantities
-                dy_batch(iq) = k_power * spl%coeff(iq, k_power, interval_index+1) + &
+                dy_batch(iq) = (N - k_power) * spl%coeff(iq, k_power, interval_index+1) + &
                                x_local * dy_batch(iq)
             end do
         end do
@@ -259,14 +263,14 @@ contains
         interval_index = max(0, min(spl%num_points-2, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
         
-        ! Initialize value with highest order coefficient
+        ! Initialize value with highest order coefficient (now at index 0)
         !$omp simd
         do iq = 1, spl%num_quantities
-            y_batch(iq) = spl%coeff(iq, N, interval_index+1)
+            y_batch(iq) = spl%coeff(iq, 0, interval_index+1)
         end do
         
-        ! Apply Horner method for value
-        do k_power = N-1, 0, -1
+        ! Apply Horner method for value with FORWARD array access
+        do k_power = 1, N
             !$omp simd
             do iq = 1, spl%num_quantities
                 y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
@@ -274,32 +278,32 @@ contains
             end do
         end do
         
-        ! Initialize first derivative
+        ! Initialize first derivative (highest order now at index 0)
         !$omp simd
         do iq = 1, spl%num_quantities
-            dy_batch(iq) = N * spl%coeff(iq, N, interval_index+1)
+            dy_batch(iq) = N * spl%coeff(iq, 0, interval_index+1)
         end do
         
-        ! Apply Horner method for first derivative
-        do k_power = N-1, 1, -1
+        ! Apply Horner method for first derivative with FORWARD array access
+        do k_power = 1, N-1
             !$omp simd
             do iq = 1, spl%num_quantities
-                dy_batch(iq) = k_power * spl%coeff(iq, k_power, interval_index+1) + &
+                dy_batch(iq) = (N - k_power) * spl%coeff(iq, k_power, interval_index+1) + &
                                x_local * dy_batch(iq)
             end do
         end do
         
-        ! Initialize second derivative
+        ! Initialize second derivative (highest order now at index 0)
         !$omp simd
         do iq = 1, spl%num_quantities
-            d2y_batch(iq) = N*(N-1) * spl%coeff(iq, N, interval_index+1)
+            d2y_batch(iq) = N*(N-1) * spl%coeff(iq, 0, interval_index+1)
         end do
         
-        ! Apply Horner method for second derivative
-        do k_power = N-1, 2, -1
+        ! Apply Horner method for second derivative with FORWARD array access
+        do k_power = 1, N-2
             !$omp simd
             do iq = 1, spl%num_quantities
-                d2y_batch(iq) = k_power*(k_power-1) * &
+                d2y_batch(iq) = (N - k_power)*(N - k_power - 1) * &
                     spl%coeff(iq, k_power, interval_index+1) + &
                     x_local * d2y_batch(iq)
             end do
