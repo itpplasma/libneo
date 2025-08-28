@@ -29,6 +29,7 @@ program test_batch_interpolate
     call test_batch_spline_3d_derivatives()
     call test_batch_spline_3d_second_derivatives()
     call test_batch_spline_3d_field_components()
+    call bench_batch_vs_individual_3d_der2()
     
     print *, "All batch spline tests passed!"
     
@@ -1233,5 +1234,117 @@ contains
         print *, "  PASSED: 3D batch field components work correctly"
         
     end subroutine test_batch_spline_3d_field_components
+
+    subroutine bench_batch_vs_individual_3d_der2()
+        use interpolate
+        use batch_interpolate_3d
+        
+        integer, parameter :: N1 = 30, N2 = 35, N3 = 40
+        integer, parameter :: N_QUANTITIES = 6
+        integer, parameter :: ORDER = 5
+        integer, parameter :: N_EVALS = 5000
+        
+        type(BatchSplineData3D) :: batch_spl
+        type(SplineData3D) :: single_spls(N_QUANTITIES)
+        
+        real(dp) :: x_min(3), x_max(3)
+        real(dp) :: x1(N1), x2(N2), x3(N3)
+        real(dp) :: y_batch(N1, N2, N3, N_QUANTITIES)
+        real(dp) :: y_single(N1, N2, N3)
+        
+        real(dp) :: x_eval(3)
+        real(dp) :: y_batch_result(N_QUANTITIES)
+        real(dp) :: dy_batch_result(3, N_QUANTITIES)
+        real(dp) :: d2y_batch_result(6, N_QUANTITIES)
+        
+        real(dp) :: y_single_result
+        real(dp) :: dy_single_result(3)
+        real(dp) :: d2y_single_result(6)
+        
+        real(dp) :: t_start, t_end, t_batch, t_individual
+        integer :: iq, i1, i2, i3, n_eval
+        real(dp) :: speedup
+        
+        print *, "Benchmarking batch vs individual 3D splines with second derivatives..."
+        print *, "  3D second derivatives benchmark:"
+        print *, "    Grid size: ", N1, N2, N3
+        print *, "    Quantities: ", N_QUANTITIES
+        print *, "    Evaluations: ", N_EVALS
+        
+        ! Set up coordinate bounds
+        x_min = [1.0d0, 2.0d0, 3.0d0]
+        x_max = [4.0d0, 5.0d0, 6.0d0]
+        
+        ! Generate test data
+        call linspace(x_min(1), x_max(1), N1, x1)
+        call linspace(x_min(2), x_max(2), N2, x2)
+        call linspace(x_min(3), x_max(3), N3, x3)
+        
+        do iq = 1, N_QUANTITIES
+            do i3 = 1, N3
+                do i2 = 1, N2
+                    do i1 = 1, N1
+                        y_batch(i1, i2, i3, iq) = sin(x1(i1)*real(iq, dp)) * &
+                            cos(x2(i2)*real(iq, dp)) * exp(-x3(i3)/real(iq+2, dp))
+                    end do
+                end do
+            end do
+        end do
+        
+        ! Construct batch splines
+        call construct_batch_splines_3d(x_min, x_max, y_batch, &
+            [ORDER, ORDER, ORDER], [.false., .false., .false.], batch_spl)
+        
+        ! Construct individual splines
+        do iq = 1, N_QUANTITIES
+            y_single(:, :, :) = y_batch(:, :, :, iq)
+            call construct_splines_3d(x_min, x_max, y_single, &
+                [ORDER, ORDER, ORDER], [.false., .false., .false.], single_spls(iq))
+        end do
+        
+        ! Benchmark batch evaluation
+        call cpu_time(t_start)
+        do n_eval = 1, N_EVALS
+            x_eval(1) = x_min(1) + mod(real(n_eval, dp)*0.01d0, x_max(1) - x_min(1))
+            x_eval(2) = x_min(2) + mod(real(n_eval, dp)*0.007d0, x_max(2) - x_min(2))
+            x_eval(3) = x_min(3) + mod(real(n_eval, dp)*0.013d0, x_max(3) - x_min(3))
+            call evaluate_batch_splines_3d_der2(batch_spl, x_eval, y_batch_result, &
+                dy_batch_result, d2y_batch_result)
+        end do
+        call cpu_time(t_end)
+        t_batch = t_end - t_start
+        
+        ! Benchmark individual evaluations
+        call cpu_time(t_start)
+        do n_eval = 1, N_EVALS
+            x_eval(1) = x_min(1) + mod(real(n_eval, dp)*0.01d0, x_max(1) - x_min(1))
+            x_eval(2) = x_min(2) + mod(real(n_eval, dp)*0.007d0, x_max(2) - x_min(2))
+            x_eval(3) = x_min(3) + mod(real(n_eval, dp)*0.013d0, x_max(3) - x_min(3))
+            do iq = 1, N_QUANTITIES
+                call evaluate_splines_3d_der2(single_spls(iq), x_eval, y_single_result, &
+                    dy_single_result, d2y_single_result)
+            end do
+        end do
+        call cpu_time(t_end)
+        t_individual = t_end - t_start
+        
+        speedup = t_individual / t_batch
+        
+        print *, "    Batch time: ", t_batch, " seconds"
+        print *, "    Individual time: ", t_individual, " seconds"
+        print *, "    Speedup: ", speedup, "x"
+        
+        if (speedup < 2.0d0) then
+            print *, "    WARNING: Expected at least 2x speedup for ", N_QUANTITIES, &
+                " quantities"
+        end if
+        
+        ! Clean up
+        call destroy_batch_splines_3d(batch_spl)
+        do iq = 1, N_QUANTITIES
+            call destroy_splines_3d(single_spls(iq))
+        end do
+        
+    end subroutine bench_batch_vs_individual_3d_der2
 
 end program test_batch_interpolate
