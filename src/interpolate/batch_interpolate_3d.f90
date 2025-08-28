@@ -203,9 +203,9 @@ contains
         end do
         
         ! Apply backward Horner method (standard polynomial evaluation)
-        do k3 = 0, N3
-            do k2 = 0, N2
-                do k1 = N1-1, 0, -1
+        do k1 = N1-1, 0, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
                     !$omp simd
                     do iq = 1, spl%num_quantities
                         coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
@@ -308,9 +308,9 @@ contains
         end do
         
         ! Apply backward Horner for value
-        do k3 = 0, N3
-            do k2 = 0, N2
-                do k1 = N1-1, 0, -1
+        do k1 = N1-1, 0, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
                     !$omp simd
                     do iq = 1, spl%num_quantities
                         coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
@@ -333,9 +333,9 @@ contains
             end do
         end do
         
-        do k3 = 0, N3
-            do k2 = 0, N2
-                do k1 = N1-1, 1, -1
+        do k1 = N1-1, 1, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
                     !$omp simd
                     do iq = 1, spl%num_quantities
                         coeff_23_dx1(iq, k2, k3) = k1 * spl%coeff(iq, k1, k2, k3, &
@@ -358,8 +358,8 @@ contains
         end do
         
         ! Apply Horner for value and dx1
-        do k3 = 0, N3
-            do k2 = N2-1, 0, -1
+        do k2 = N2-1, 0, -1
+            do k3 = 0, N3
                 !$omp simd
                 do iq = 1, spl%num_quantities
                     coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
@@ -371,8 +371,8 @@ contains
         end do
         
         ! Derivative over x2
-        do k3 = 0, N3
-            do k2 = N2-1, 1, -1
+        do k2 = N2-1, 1, -1
+            do k3 = 0, N3
                 !$omp simd
                 do iq = 1, spl%num_quantities
                     coeff_3_dx2(iq, k3) = k2 * coeff_23(iq, k2, k3) + &
@@ -482,9 +482,9 @@ contains
         
         ! Fused backward Horner: compute all derivatives simultaneously
         ! Range k1 = N1-1 down to 2: update all three polynomials
-        do k3 = 0, N3
-            do k2 = 0, N2
-                do k1 = N1-1, 2, -1
+        do k1 = N1-1, 2, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
                     !$omp simd
                     do iq = 1, spl%num_quantities
                         c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
@@ -545,8 +545,8 @@ contains
         
         ! Fused backward Horner: update all polynomials simultaneously
         ! Range k2 = N2-1 down to 2: update all six polynomials
-        do k3 = 0, N3
-            do k2 = N2-1, 2, -1
+        do k2 = N2-1, 2, -1
+            do k3 = 0, N3
                 !$omp simd
                 do iq = 1, spl%num_quantities
                     coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
