@@ -1,8 +1,18 @@
 module interpolate
     use spl_three_to_five_sub
-
+    use batch_interpolate
+    
     implicit none
     integer, parameter :: dp = kind(1.0d0)
+    
+    ! Re-export batch interpolate types and procedures
+    public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
+    public :: construct_batch_splines_1d, construct_batch_splines_2d, construct_batch_splines_3d
+    public :: destroy_batch_splines_1d, destroy_batch_splines_2d, destroy_batch_splines_3d
+    public :: evaluate_batch_splines_1d, evaluate_batch_splines_1d_single
+    public :: evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2
+    public :: evaluate_batch_splines_2d, evaluate_batch_splines_2d_der
+    public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, evaluate_batch_splines_3d_der2
 
     type :: SplineData1D
         integer :: order
@@ -240,6 +250,65 @@ contains
     end subroutine evaluate_splines_2d
 
 
+    subroutine evaluate_splines_2d_der(spl, x, y, dy)
+        type(SplineData2D), intent(in) :: spl
+        real(dp), intent(in) :: x(2)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(2)
+        
+        real(dp) :: x_norm(2), x_local(2), xj
+        real(dp) :: coeff_2(0:spl%order(2))
+        real(dp) :: coeff_2_dx1(0:spl%order(2))
+        real(dp) :: coeff_local(0:spl%order(1),0:spl%order(2))
+        integer :: interval_index(2), k1, k2, j
+        
+        do j=1,2
+            if (spl%periodic(j)) then
+                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j)-1))
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
+        end do
+        
+        coeff_local(:,:) = &
+            spl%coeff(:, :, interval_index(1) + 1, interval_index(2) + 1)
+        
+        ! Interpolation over x1
+        coeff_2(:) = coeff_local(spl%order(1), 0:spl%order(2))
+        do k1 = spl%order(1)-1, 0, -1
+            coeff_2(:) = coeff_local(k1, :) + x_local(1)*coeff_2
+        enddo
+        
+        ! Derivative over x1
+        coeff_2_dx1(:) = coeff_local(spl%order(1), 0:spl%order(2))*spl%order(1)
+        do k1 = spl%order(1)-1, 1, -1
+            coeff_2_dx1(:) = coeff_local(k1, :)*k1 + x_local(1)*coeff_2_dx1
+        enddo
+        
+        ! Interpolation over x2
+        y = coeff_2(spl%order(2))
+        do k2 = spl%order(2)-1, 0, -1
+            y = coeff_2(k2) + x_local(2)*y
+        enddo
+        
+        ! Derivative w.r.t. x1
+        dy(1) = coeff_2_dx1(spl%order(2))
+        do k2 = spl%order(2)-1, 0, -1
+            dy(1) = coeff_2_dx1(k2) + x_local(2)*dy(1)
+        enddo
+        
+        ! Derivative w.r.t. x2
+        dy(2) = coeff_2(spl%order(2))*spl%order(2)
+        do k2 = spl%order(2)-1, 1, -1
+            dy(2) = coeff_2(k2)*k2 + x_local(2)*dy(2)
+        enddo
+        
+    end subroutine evaluate_splines_2d_der
+    
+    
     subroutine destroy_splines_2d(spl)
         type(SplineData2D), intent(inout) :: spl
 
@@ -620,4 +689,5 @@ contains
         print *, "  x_max = ", spl%x_min + (spl%num_points-1)*spl%h_step
         print *, "  h_step = ", spl%h_step
     end subroutine disp_3d
+
 end module interpolate

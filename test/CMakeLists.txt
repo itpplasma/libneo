@@ -91,6 +91,9 @@ target_link_libraries(test_util.x ${COMMON_LIBS})
 add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate.x source/test_batch_interpolate.f90)
+target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
+
 
 
 ## Standard tests according to standard libneo Fortran test convention.
@@ -107,6 +110,7 @@ add_fortran_test(test_geqdsk_tools)
 add_fortran_test(test_hdf5_tools)
 add_fortran_test(test_util)
 add_fortran_test(test_interpolate)
+add_fortran_test(test_batch_interpolate)
 add_fortran_test(test_collision_freqs)
 add_fortran_test(test_transport)
 
