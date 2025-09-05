@@ -811,11 +811,10 @@ subroutine stretch_coords(r,z,rm,zm)
   real(dp), intent(out) :: rm, zm
 
   integer icall, i, j, nrz ! number of points "convex wall" in input file
-  integer, parameter :: nrzmx=100 ! possible max. of nrz
   integer, parameter :: nrhotht=360
   integer :: iflag
   real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
-  real(dp), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
+  real(dp), dimension(:), allocatable :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable :: rho_w, tht_w
   real(dp), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
   data icall /0/, delta/1./
@@ -824,24 +823,11 @@ subroutine stretch_coords(r,z,rm,zm)
   !$omp critical
   if(icall .eq. 0) then
     icall = 1
-    nrz = 0
-    rad_w = 0.
-    zet_w = 0.
-    open(iunit, file=trim(convexfile), status='old', action='read')
-    do i=1,nrzmx
-      read(iunit,*,END=10)rad_w(i),zet_w(i)
-      nrz = nrz + 1
-    end do
-10  continue
-    close(iunit)
-
-    allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
-    R0 = (maxval(rad_w(1:nrz)) +  minval(rad_w(1:nrz)))*0.5
-    do i=1,nrz
-      rho_w(i) = sqrt( (rad_w(i)-R0)**2 + zet_w(i)**2 )
-      tht_w(i) = atan2(zet_w(i),(rad_w(i)-R0))
-      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
-    end do
+    nrz = count_data_points()
+    call validate_data_count(nrz)
+    call allocate_arrays(nrz)
+    call read_data_points(nrz)
+    call compute_polar_coords(nrz, R0)
 
     ! make sure points are ordered according to tht_w.
     do
@@ -914,6 +900,75 @@ subroutine stretch_coords(r,z,rm,zm)
      rm = rho*cos(tht) + R0
      zm = rho*sin(tht)
   end if
+
+contains
+
+  function count_data_points() result(point_count)
+    integer :: point_count
+    integer :: iostat_val
+    real(dp) :: dummy1, dummy2
+    
+    point_count = 0
+    open(iunit, file=trim(convexfile), status='old', action='read')
+    do
+      read(iunit,*,iostat=iostat_val) dummy1, dummy2
+      if(iostat_val < 0) exit  ! End of file
+      if(iostat_val > 0) then  ! Read error
+        print *, 'ERROR: Failed to read convex wall file: ', trim(convexfile)
+        close(iunit)
+        error stop 1
+      end if
+      point_count = point_count + 1
+    end do
+    rewind(iunit)  ! Rewind instead of close/reopen as suggested in ticket
+  end function count_data_points
+
+  subroutine validate_data_count(point_count)
+    integer, intent(in) :: point_count
+    
+    if(point_count .le. 0) then
+      print *, 'ERROR: No valid data points found in convex wall file: ', trim(convexfile)
+      close(iunit)
+      error stop 1
+    end if
+  end subroutine validate_data_count
+
+  subroutine allocate_arrays(point_count)
+    integer, intent(in) :: point_count
+    
+    allocate(rad_w(0:point_count+1), zet_w(0:point_count+1))
+    allocate(rho_w(0:point_count+1), tht_w(0:point_count+1))
+  end subroutine allocate_arrays
+
+  subroutine read_data_points(point_count)
+    integer, intent(in) :: point_count
+    integer :: i, iostat_val
+    
+    ! File already open and rewound from count_data_points
+    do i=1,point_count
+      read(iunit,*,iostat=iostat_val) rad_w(i), zet_w(i)
+      if(iostat_val /= 0) then
+        print *, 'ERROR: Failed to read data point', i, ' from convex wall file: ', trim(convexfile)
+        close(iunit)
+        deallocate(rad_w, zet_w, rho_w, tht_w)
+        error stop 1
+      end if
+    end do
+    close(iunit)
+  end subroutine read_data_points
+
+  subroutine compute_polar_coords(point_count, center_r)
+    integer, intent(in) :: point_count
+    real(dp), intent(out) :: center_r
+    integer :: i
+    
+    center_r = (maxval(rad_w(1:point_count)) + minval(rad_w(1:point_count)))*0.5
+    do i=1,point_count
+      rho_w(i) = sqrt( (rad_w(i)-center_r)**2 + zet_w(i)**2 )
+      tht_w(i) = atan2(zet_w(i),(rad_w(i)-center_r))
+      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
+    end do
+  end subroutine compute_polar_coords
 
 end subroutine stretch_coords
 
