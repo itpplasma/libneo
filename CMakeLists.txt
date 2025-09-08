@@ -3,6 +3,22 @@
 
 # Basic cmake settings/requirements
 cmake_minimum_required(VERSION 3.18)
+if(APPLE AND NOT DEFINED HDF5_DIR)
+  # locate brew
+  find_program(BREW_EXECUTABLE brew HINTS /opt/homebrew/bin /usr/local/bin)
+  if(BREW_EXECUTABLE)
+    execute_process(
+      COMMAND "${BREW_EXECUTABLE}" --prefix hdf5
+      OUTPUT_VARIABLE _hdf5_prefix
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      RESULT_VARIABLE _hdf5_res
+    )
+    if(_hdf5_res EQUAL 0 AND EXISTS "${_hdf5_prefix}/lib/cmake/hdf5")
+      set(HDF5_DIR "${_hdf5_prefix}/lib/cmake/hdf5" CACHE PATH "Path to HDF5Config.cmake")
+      message(STATUS "HDF5_DIR set to ${HDF5_DIR}")
+    endif()
+  endif()
+endif()
 
 # Basic project settings.
 project(libneo)
@@ -48,8 +64,8 @@ option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 option(ENABLE_COVERAGE "Enable coverage flags" OFF)
 
 find_program(BASH_PROGRAM bash)
-find_package(MPI REQUIRED COMPONENTS Fortran)
 
+find_package(MPI REQUIRED COMPONENTS C Fortran)
 # Compiler-specific base flags and build profiles
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     # Base flags for all builds
@@ -62,7 +78,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     
     if(ENABLE_OPENMP)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fopenmp>)
-        add_link_options(-fopenmp)
+	add_link_options(-fopenmp)
     endif()
     
     # Build type specific flags
@@ -270,103 +286,3 @@ Python_add_library(_magfie WITH_SOABI
 
 target_link_libraries(_magfie PUBLIC fortranobject magfie)
 install(TARGETS _magfie DESTINATION .)
-
-# Check if f90wrap package ist installed
-execute_process(
-    COMMAND "${Python_EXECUTABLE}" -m "f90wrap"
-    RESULT_VARIABLE F90WRAP_RESULT
-    OUTPUT_QUIET
-    ERROR_QUIET
-)
-
-if(F90WRAP_RESULT EQUAL 0)
-    message(STATUS "Python f90wrap found.")
-else()
-    message(STATUS "Python f90wrap not found, skipping further interface builds.")
-    return()
-endif()
-
-set(FILES_TO_WRAP
-    interpolate/interpolate.f90
-)
-list(TRANSFORM FILES_TO_WRAP PREPEND ${PROJECT_SOURCE_DIR}/src/)
-
-foreach(file ${FILES_TO_WRAP})
-    get_filename_component(basename ${file} NAME_WE)
-    list(APPEND PREPROCESSED_SOURCES
-        ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
-    )
-    list(APPEND F90WRAP_OUTPUT
-        ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_${basename}.f90.f90
-    )
-endforeach()
-
-if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
-    list(APPEND F90WRAP_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/f90wrap_toplevel.f90)
-endif()
-
-list(REMOVE_ITEM FILES_TO_WRAP ${PROJECT_SOURCE_DIR}/src/interpolate.f90)
-list(APPEND FILES_TO_WRAP ${PROJECT_SOURCE_DIR}/src/interpolate/interpolate.f90)
-
-set(F2PY_MODULE_NAME "_interpolate")
-
-set(F2PY_MODULE_C "${F2PY_MODULE_NAME}module.c")
-set(GENERATED_MODULE_FILE "${F2PY_MODULE_NAME}.${Python_SOABI}")
-set(F2PY_WRAPPERS "${CMAKE_CURRENT_BINARY_DIR}/${F2PY_MODULE_C}")
-
-add_custom_target(F90WrapOutput)
-
-foreach(file_to_wrap ${FILES_TO_WRAP})
-    get_filename_component(basename ${file_to_wrap} NAME_WE)
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
-        COMMAND gfortran -E -cpp
-        -o ${CMAKE_CURRENT_BINARY_DIR}/${basename}.f90.i
-        ${file_to_wrap}
-        DEPENDS ${file_to_wrap}
-    )
-endforeach()
-
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py ${F90WRAP_OUTPUT}
-    COMMAND ${Python_EXECUTABLE}
-    -m f90wrap
-    --f90wrap
-    -m interpolate
-    -k ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
-    ${CMAKE_CURRENT_BINARY_DIR}/*.f90.i
-    > ${CMAKE_CURRENT_BINARY_DIR}/f90wrap.log 2>&1
-    DEPENDS ${PREPROCESSED_SOURCES}
-    COMMENT "Processing preprocessed sources with f90wrap"
-)
-
-add_custom_command(OUTPUT ${F2PY_WRAPPERS}
-    COMMAND ${Python_EXECUTABLE}
-    -m f90wrap
-    --f2py-f90wrap
-    ${F90WRAP_OUTPUT}
-    -m ${F2PY_MODULE_NAME}
-    --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
-    --lower
-    > ${CMAKE_CURRENT_BINARY_DIR}/f2py.log 2>&1
-    DEPENDS ${F90WRAP_OUTPUT}
-    COMMENT "Processing wrapped sources with f2py"
-)
-
-Python_add_library(${F2PY_MODULE_NAME} WITH_SOABI
-    ${F2PY_WRAPPERS}
-    ${F2PY_INCLUDE_DIR}/fortranobject.c
-    ${F90WRAP_OUTPUT}
-)
-
-target_link_libraries(${F2PY_MODULE_NAME} PRIVATE neo)
-
-set_target_properties(
-    ${F2PY_MODULE_NAME}
-    PROPERTIES
-    PREFIX ""
-    OUTPUT_NAME "${GENERATED_MODULE_FILE}"
-    SUFFIX ".so"
-    LINKER_LANGUAGE C
-)
-
-install(TARGETS ${F2PY_MODULE_NAME} DESTINATION .)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/interpolate.py DESTINATION libneo)

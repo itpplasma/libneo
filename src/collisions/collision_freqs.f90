@@ -1,9 +1,10 @@
 module libneo_collisions
    use, intrinsic :: iso_c_binding
-   use libneo_kinds, only: dp
    use libneo_species, only: species_t
 
    implicit none
+
+   integer, parameter :: dp = kind(1.0d0)
 
    interface
       function gsl_sf_gamma(x) bind(c, name='gsl_sf_gamma')

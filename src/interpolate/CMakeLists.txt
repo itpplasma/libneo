@@ -1,4 +1,4 @@
-add_library(interpolate OBJECT
+add_library(interpolate STATIC
     ../spl_three_to_five.f90
     batch_interpolate_types.f90
     batch_interpolate_1d.f90

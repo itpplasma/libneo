@@ -1,8 +1,8 @@
 module libneo_transport
 
-    use libneo_kinds, only: dp
-
     implicit none
+
+    integer, parameter :: dp = kind(1.0d0)
 
     logical :: debugging = .false.
     logical :: write_to_file = .false.
@@ -35,7 +35,7 @@ module libneo_transport
 
     subroutine calc_D_one_over_nu(ind_species, num_species, spec_arr, R0, w, x, D_one_over_nu)
 
-        use libneo_collisions, only: calc_perp_coll_freq, calc_coulomb_log
+        use libneo_collisions, only: calc_perp_coll_freq
         use libneo_species, only: species_t
         use math_constants, only: ev_to_cgs, pi
 
