@@ -109,9 +109,6 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     endif()
 
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
-    # Base flags for all builds
-    add_compile_options(-cpp)
-    
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
         add_compile_options(-g -O0 -check all -traceback -warn all)
