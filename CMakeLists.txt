@@ -65,7 +65,7 @@ endif()
 
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
-    "Enable fetching and running the ODEINT golden record regression test" OFF)
+    "Enable fetching and running the ODEINT golden record regression test" ON)
 
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
