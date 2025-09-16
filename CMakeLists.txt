@@ -46,6 +46,8 @@ enable_testing()
 # Coverage configuration
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 option(ENABLE_COVERAGE "Enable coverage flags" OFF)
+option(LIBNEO_ENABLE_GOLDEN_TESTS
+    "Enable fetching and running the ODEINT golden record regression test" OFF)
 
 find_program(BASH_PROGRAM bash)
 find_package(MPI REQUIRED COMPONENTS Fortran)
@@ -59,12 +61,12 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fmax-errors=1>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fbacktrace>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffree-line-length-132>)
-    
+
     if(ENABLE_OPENMP)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fopenmp>)
         add_link_options(-fopenmp)
     endif()
-    
+
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
         add_compile_options(-Og
@@ -80,7 +82,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
                           -ffast-math -ffp-contract=fast
                           -funroll-loops
                           -ftree-vectorize)
-        
+
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
             # Fast mode or ARM: use native architecture (no portable baseline for ARM)
@@ -90,16 +92,16 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
             add_compile_options(-march=x86-64-v2 -mtune=generic)
         endif()
     endif()
-    
+
     # Coverage flags if enabled
     if(ENABLE_COVERAGE)
         add_compile_options(--coverage)
         add_link_options(--coverage)
     endif()
-    
+
     # https://github.com/numpy/numpy/issues/25777
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")
-    
+
     # Make trampolines a hard error - they would create executable stack
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-Wtrampolines>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-Werror=trampolines>)
@@ -111,14 +113,14 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
     # Base flags for all builds
     add_compile_options(-cpp)
-    
+
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
         add_compile_options(-g -O0 -check all -traceback -warn all)
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
         # Common optimization flags for Release and Fast builds
         add_compile_options(-O3 -fp-model fast=2 -no-prec-div -g -traceback)
-        
+
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast)
             add_compile_options(-xHost)  # Intel's equivalent of -march=native
