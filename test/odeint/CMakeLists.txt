@@ -16,7 +16,7 @@ target_link_libraries(test_odeint_thread_safety.x ${OpenMP_Fortran_LIBRARIES})
 
 if(LIBNEO_ENABLE_GOLDEN_TESTS)
     # Golden record test - dynamically fetches and builds reference version
-    add_executable(test_golden_record_odeint.x
+    add_executable(test_golden_record_odeint.x EXCLUDE_FROM_ALL
         test_golden_record_odeint.f90
         golden_odeint_dynamic.f90
     )
@@ -50,5 +50,17 @@ add_fortran_test(test_odeint_allroutines_context)
 add_fortran_test(test_odeint_thread_safety)
 
 if(LIBNEO_ENABLE_GOLDEN_TESTS)
+    add_test(NAME build_test_golden_record_odeint
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
+        --target test_golden_record_odeint.x
+    )
+    set_tests_properties(build_test_golden_record_odeint PROPERTIES
+        FIXTURES_SETUP odeint_golden_fixture
+        LABELS build-helper
+    )
+
     add_fortran_test(test_golden_record_odeint)
+    set_tests_properties(test_golden_record_odeint PROPERTIES
+        FIXTURES_REQUIRED odeint_golden_fixture
+    )
 endif()

@@ -47,7 +47,7 @@ enable_testing()
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 option(ENABLE_COVERAGE "Enable coverage flags" OFF)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
-    "Enable fetching and running the ODEINT golden record regression test" OFF)
+    "Enable fetching and running the ODEINT golden record regression test" ON)
 
 find_program(BASH_PROGRAM bash)
 find_package(MPI REQUIRED COMPONENTS Fortran)
