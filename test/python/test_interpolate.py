@@ -1,9 +1,10 @@
-import numpy as np
 import pytest
-from libneo.interpolate import Interpolate
 
-# XFAIL until a proper Fortran-backed Python binding for Interpolate is shipped
-pytestmark = pytest.mark.xfail(reason="Python binding for Fortran 'interpolate' not built in CI; see issue #127", strict=False)
+# Mark entire module as XFAIL at collection time until binding exists
+pytest.xfail("Python binding for Fortran 'interpolate' not built in CI; see issue #127")
+
+import numpy as np
+from libneo.interpolate import Interpolate
 
 def test_construct_splines_1d():
     import libneo
