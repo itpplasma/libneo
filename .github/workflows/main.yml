@@ -27,3 +27,12 @@ jobs:
       - name: Test
         run: |
           cd build && ctest --output-on-failure
+
+      - name: Ensure pytest is available
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
+      - name: Run Python tests (pytest)
+        run: |
+          pytest -q
