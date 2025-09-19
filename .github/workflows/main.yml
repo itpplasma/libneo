@@ -28,20 +28,9 @@ jobs:
         run: |
           cd build && ctest --output-on-failure
 
-      - name: Install Python dependencies (system + pip)
+      - name: Editable install of libneo (system-wide)
         run: |
-          apt-get update
-          # System packages first (prefer distro builds for heavy deps)
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            python3-pip python3-numpy python3-scipy python3-matplotlib \
-            python3-netcdf4 python3-ipython python3-sklearn
-          # PyPI-only deps; install system-wide (Debian requires this flag)
-          python3 -m pip install --break-system-packages \
-            omfit_classes efit_to_boozer || true
-
-      - name: Expose libneo to Python (editable-like)
-        run: |
-          echo "PYTHONPATH=$PWD/python" >> $GITHUB_ENV
+          python3 -m pip install --break-system-packages -e .
 
       - name: Run Python tests (pytest)
         run: |
