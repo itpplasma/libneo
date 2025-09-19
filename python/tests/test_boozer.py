@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 import pytest
 
 import numpy as np
@@ -12,6 +14,20 @@ def test_get_boozer_transform():
     dth_of_thb, G_of_thb = get_boozer_transform(stor, nth)
     print(dth_of_thb)
     print(G_of_thb)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _chdir_to_test_dir():
+    """
+    Ensure CWD is this test directory so Fortran code finds 'efit_to_boozer.inp'.
+    The f2py wrapper opens the file in the current working directory.
+    """
+    prev = os.getcwd()
+    os.chdir(Path(__file__).parent)
+    try:
+        yield
+    finally:
+        os.chdir(prev)
 
 
 def test_get_boozer_harmonics_1D():
