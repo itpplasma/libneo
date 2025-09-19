@@ -44,3 +44,42 @@ def test_vmec_to_cylindrical_matches_reference():
             assert np.allclose(Z, Z_ref, rtol=0.0, atol=1e-10)
             assert phi == pytest.approx(zeta)
 
+
+@pytest.mark.network
+def test_vmec_plot_surfaces_visual_check(tmp_path):
+    """
+    Visual check: plot several nested flux surface cross-sections at
+    multiple zeta values in the RZ plane and save to file.
+    """
+    import matplotlib.pyplot as plt
+
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "wout.nc")
+        _download_file(STELLOPT_WOUT_URL, path)
+
+        geom = VMECGeometry.from_file(path)
+        ns = geom.rmnc.shape[1]
+        # Pick ~5 surfaces spanning core to edge
+        s_indices = np.linspace(0, ns - 1, 5, dtype=int)
+        thetas = np.linspace(0.0, 2.0 * np.pi, 256, endpoint=False)
+        zetas = [0.0, np.pi / 4.0, np.pi / 2.0]
+
+        fig, axes = plt.subplots(1, len(zetas), figsize=(12, 4), constrained_layout=True)
+        if len(zetas) == 1:
+            axes = [axes]
+        for ax, zeta in zip(axes, zetas):
+            for s_idx in s_indices:
+                R, Z, _ = vmec_to_cylindrical(path, s_idx, thetas, zeta, use_asym=True)
+                ax.plot(R, Z, lw=1)
+            ax.set_title(f"zeta={zeta:.2f} rad")
+            ax.set_xlabel("R [m]")
+            ax.set_ylabel("Z [m]")
+            ax.axis("equal")
+        outfile = tmp_path / "vmec_surfaces.png"
+        fig.savefig(outfile)
+        # Show interactively; in headless backends this is a no-op
+        import matplotlib.pyplot as _plt
+        _plt.show()
+        plt.close(fig)
+        assert outfile.exists()
+        assert outfile.stat().st_size > 0
