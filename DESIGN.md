@@ -19,7 +19,7 @@ This document captures the architectural decisions, design patterns, and impleme
 
 **Implementation Strategy**:
 1. **Phase 1 - Discovery**: Identify all inner subroutines accessing outer variables
-2. **Phase 2 - Test Coverage**: Ensure adequate test coverage before refactoring
+2. **Phase 2 - Tests**: Ensure adequate tests exist before refactoring
 3. **Phase 3 - Refactoring**: Move inner subroutines to module level
 4. **Phase 4 - Validation**: Verify performance improvements and correctness
 
@@ -29,7 +29,7 @@ This document captures the architectural decisions, design patterns, and impleme
 - **Location**: `integrate_RZ_along_fieldline` contains inner subroutine `fieldline_derivative`
 - **Issue**: `fieldline_derivative` accesses `field` parameter from outer scope
 - **Solution**: Move to module level, pass `field` as argument or use context parameter
-- **Test Coverage**: Exists in `test/poincare/test_poincare.f90`
+- **Tests**: Exists in `test/poincare/test_poincare.f90`
 - **Priority**: HIGH - Used in field line integration (performance critical)
 
 ### Implementation Tasks
@@ -87,9 +87,9 @@ For ODE integration and similar callbacks, we use a context parameter pattern th
 
 ## Testing Strategy
 
-### Test Coverage Requirements
+### Testing Requirements
 - All refactored code must have tests before modification
-- Tests must verify both correctness and performance characteristics
+- Tests must verify correctness and key performance characteristics where applicable
 - Use the existing test framework in `test/`
 
 ## Build System
