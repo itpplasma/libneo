@@ -1,0 +1,95 @@
+"""
+VMEC geometry helpers: evaluate cylindrical coordinates (R, Z, phi)
+from VMEC NetCDF outputs for given (s, theta, zeta).
+
+Minimal API to support tests and downstream use. Focuses on read-only
+coordinate evaluation using Fourier coefficients.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Tuple
+import numpy as np
+from netCDF4 import Dataset
+
+
+def _to_mode_ns(arr: np.ndarray) -> np.ndarray:
+    """Ensure array layout is (nmode, ns)."""
+    if arr.ndim != 2:
+        raise ValueError("Expected 2D coefficient array")
+    n0, n1 = arr.shape
+    # Heuristic: VMEC stores (ns, nmode); vmec_to_efit uses (nmode, ns)
+    return arr.T if n0 > n1 else arr
+
+
+def _cfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, xn: np.ndarray) -> np.ndarray:
+    """Cosine series evaluation: sum_k coeff_k(s) * cos(xm_k*theta + xn_k*zeta)."""
+    nmode, ns = coeff.shape
+    theta = np.asarray(theta)
+    out = np.zeros((ns, theta.size), dtype=float)
+    for k in range(nmode):
+        out += coeff[k, :].reshape(ns, 1) * np.cos(xm[k] * theta + xn[k] * zeta)
+    return out
+
+
+def _sfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, xn: np.ndarray) -> np.ndarray:
+    """Sine series evaluation: sum_k coeff_k(s) * sin(xm_k*theta + xn_k*zeta)."""
+    nmode, ns = coeff.shape
+    theta = np.asarray(theta)
+    out = np.zeros((ns, theta.size), dtype=float)
+    for k in range(nmode):
+        out += coeff[k, :].reshape(ns, 1) * np.sin(xm[k] * theta + xn[k] * zeta)
+    return out
+
+
+@dataclass
+class VMECGeometry:
+    xm: np.ndarray
+    xn: np.ndarray
+    rmnc: np.ndarray  # (nmode, ns)
+    zmns: np.ndarray  # (nmode, ns)
+    rmns: np.ndarray | None = None  # optional asymmetry
+    zmnc: np.ndarray | None = None
+
+    @classmethod
+    def from_file(cls, nc_path: str) -> "VMECGeometry":
+        with Dataset(nc_path, mode="r") as ds:
+            xm = np.array(ds.variables["xm"][:])
+            xn = np.array(ds.variables["xn"][:])
+            rmnc = _to_mode_ns(np.array(ds.variables["rmnc"][:]))
+            zmns = _to_mode_ns(np.array(ds.variables["zmns"][:]))
+
+            rmns = zmnc = None
+            lasym = False
+            if "lasym__logical__" in ds.variables:
+                lasym = bool(np.array(ds.variables["lasym__logical__"][...]))
+            elif "lasym" in ds.variables:
+                lasym = bool(np.array(ds.variables["lasym"][...]))
+            if lasym:
+                if "rmns" in ds.variables and "zmnc" in ds.variables:
+                    rmns = _to_mode_ns(np.array(ds.variables["rmns"][:]))
+                    zmnc = _to_mode_ns(np.array(ds.variables["zmnc"][:]))
+        return cls(xm=xm, xn=xn, rmnc=rmnc, zmns=zmns, rmns=rmns, zmnc=zmnc)
+
+    def coords(self, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
+        """
+        Evaluate cylindrical coordinates (R, Z, phi) on a given s surface index.
+
+        - s_index: integer surface index in [0, ns-1]
+        - theta: array of poloidal angles (radians)
+        - zeta: toroidal/geometric angle (radians)
+        - use_asym: include asymmetric terms if available
+        """
+        R = _cfunct(theta, zeta, self.rmnc, self.xm, self.xn)[s_index, :]
+        Z = _sfunct(theta, zeta, self.zmns, self.xm, self.xn)[s_index, :]
+        if use_asym and self.rmns is not None and self.zmnc is not None:
+            R = R + _sfunct(theta, zeta, self.rmns, self.xm, self.xn)[s_index, :]
+            Z = Z + _cfunct(theta, zeta, self.zmnc, self.xm, self.xn)[s_index, :]
+        return R, Z, float(zeta)
+
+
+def vmec_to_cylindrical(nc_path: str, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
+    geom = VMECGeometry.from_file(nc_path)
+    return geom.coords(s_index, theta, zeta, use_asym=use_asym)
+
