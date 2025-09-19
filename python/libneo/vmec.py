@@ -24,33 +24,29 @@ def _to_mode_ns_from_var(var) -> np.ndarray:
     arr = np.array(var[:])
     if arr.ndim != 2:
         raise ValueError("Expected 2D coefficient array")
-            """Cosine series evaluation: sum_k coeff_k(s) * cos(xm_k*theta + xn_k*zeta)."""
-            theta = np.asarray(theta)
-            angle = np.outer(xm, theta) + np.outer(xn, np.atleast_1d(zeta))
-            cos_terms = np.cos(angle)
-            return coeff.T @ cos_terms
+    dims = getattr(var, "dimensions", ())
+    if len(dims) == 2 and dims[0] == "mn_mode" and dims[1] == "radius":
+        return arr
+    if len(dims) == 2 and dims[0] == "radius" and dims[1] == "mn_mode":
+        return arr.T
     n0, n1 = arr.shape
     return arr.T if n0 < n1 else arr
 
 
 def _cfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, xn: np.ndarray) -> np.ndarray:
     """Cosine series evaluation: sum_k coeff_k(s) * cos(xm_k*theta + xn_k*zeta)."""
-    nmode, ns = coeff.shape
-    theta = np.asarray(theta)
-    out = np.zeros((ns, theta.size), dtype=float)
-    for k in range(nmode):
-        out += coeff[k, :].reshape(ns, 1) * np.cos(xm[k] * theta + xn[k] * zeta)
-    return out
+    theta = np.asarray(theta, dtype=float)
+    angle = np.outer(xm, theta) + np.outer(xn, np.atleast_1d(float(zeta)))
+    cos_terms = np.cos(angle)
+    return coeff.T @ cos_terms
 
 
 def _sfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, xn: np.ndarray) -> np.ndarray:
     """Sine series evaluation: sum_k coeff_k(s) * sin(xm_k*theta + xn_k*zeta)."""
-    nmode, ns = coeff.shape
-    theta = np.asarray(theta)
-    out = np.zeros((ns, theta.size), dtype=float)
-    for k in range(nmode):
-        out += coeff[k, :].reshape(ns, 1) * np.sin(xm[k] * theta + xn[k] * zeta)
-    return out
+    theta = np.asarray(theta, dtype=float)
+    angle = np.outer(xm, theta) + np.outer(xn, np.atleast_1d(float(zeta)))
+    sin_terms = np.sin(angle)
+    return coeff.T @ sin_terms
 
 
 @dataclass

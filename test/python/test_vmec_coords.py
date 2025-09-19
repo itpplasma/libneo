@@ -84,8 +84,7 @@ def test_vmec_plot_surfaces_visual_check(tmp_path):
         outfile = tmp_path / "vmec_surfaces.png"
         fig.savefig(outfile)
         # Show interactively; in headless backends this is a no-op
-        import matplotlib.pyplot as _plt
-        _plt.show()
+        plt.show()
         plt.close(fig)
         assert outfile.exists()
         assert outfile.stat().st_size > 0
