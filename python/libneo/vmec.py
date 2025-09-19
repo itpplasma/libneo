@@ -24,13 +24,11 @@ def _to_mode_ns_from_var(var) -> np.ndarray:
     arr = np.array(var[:])
     if arr.ndim != 2:
         raise ValueError("Expected 2D coefficient array")
-    dims = getattr(var, 'dimensions', ())
-    if len(dims) == 2 and dims[0] == 'mn_mode' and dims[1] == 'radius':
-        return arr
-    # Common case: ('radius','mn_mode') -> transpose
-    if len(dims) == 2 and dims[0] == 'radius' and dims[1] == 'mn_mode':
-        return arr.T
-    # Fallback: if first axis is likely ns (smaller), transpose
+            """Cosine series evaluation: sum_k coeff_k(s) * cos(xm_k*theta + xn_k*zeta)."""
+            theta = np.asarray(theta)
+            angle = np.outer(xm, theta) + np.outer(xn, np.atleast_1d(zeta))
+            cos_terms = np.cos(angle)
+            return coeff.T @ cos_terms
     n0, n1 = arr.shape
     return arr.T if n0 < n1 else arr
 
