@@ -59,9 +59,7 @@ set(libneo_VERSION_PATCH 20)
 enable_language(C Fortran)
 enable_testing()
 
-# Coverage configuration
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
-option(ENABLE_COVERAGE "Enable coverage flags" OFF)
 
 find_program(BASH_PROGRAM bash)
 
@@ -107,11 +105,7 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
         endif()
     endif()
     
-    # Coverage flags if enabled
-    if(ENABLE_COVERAGE)
-        add_compile_options(-fprofile-arcs -ftest-coverage)
-        add_link_options(-lgcov)
-    endif()
+    # Coverage disabled/removed from build system
     
     # https://github.com/numpy/numpy/issues/25777
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types")

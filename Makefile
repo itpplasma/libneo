@@ -1,7 +1,7 @@
 BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
-.PHONY: all ninja test install clean coverage coverage-build coverage-report
+.PHONY: all ninja test install clean
 all: ninja tools/h5merge/build/h5merge.x
 
 tools/h5merge/build/h5merge.x:
@@ -29,17 +29,3 @@ fpm:
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf tools/h5merge/build
-
-# Coverage targets
-coverage: coverage-build coverage-report
-
-coverage-build:
-	cmake --preset default -DENABLE_COVERAGE=ON
-	cmake --build --preset default
-	cd $(BUILD_DIR) && ctest --output-on-failure
-
-coverage-report:
-	gcovr --root . --exclude 'build/*' --exclude 'doc/*' --exclude 'example/*' \
-	      --exclude 'test/*' --exclude 'tools/*' --exclude 'src/contrib/*' \
-	      --exclude 'matlab/*' --exclude 'python/*' --exclude 'extra/*' \
-	      --html --html-details -o coverage.html --print-summary
