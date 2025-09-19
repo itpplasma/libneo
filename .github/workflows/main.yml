@@ -28,6 +28,14 @@ jobs:
         run: |
           cd build && ctest --output-on-failure
 
+      - name: Install Python runtime dependencies (apt)
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            python3-pip python3-numpy python3-scipy python3-matplotlib \
+            python3-netCDF4 python3-sklearn python3-gi \
+            python3-ipython
+
       - name: Editable install of libneo (system-wide)
         run: |
           python3 -m pip install --break-system-packages -e .
