@@ -28,10 +28,9 @@ jobs:
         run: |
           cd build && ctest --output-on-failure
 
-      - name: Ensure pytest is available
+      - name: Expose libneo to Python (editable-like)
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install pytest
+          echo "PYTHONPATH=$PWD/python" >> $GITHUB_ENV
 
       - name: Run Python tests (pytest)
         run: |
