@@ -21,3 +21,6 @@ from .fourier_utils import get_half_fft
 
 from .coordinate_converter import StorGeom2MarsCoords
 from .coordinate_converter import order_monotonically
+
+# VMEC utilities
+from .vmec import VMECGeometry, vmec_to_cylindrical
