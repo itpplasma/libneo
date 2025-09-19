@@ -24,15 +24,15 @@ jobs:
         run: |
           make
 
-      - name: Test
+      - name: Test (CTest, verbose on failure)
         run: |
-          cd build && ctest --output-on-failure
+          cd build && ctest --output-on-failure -V
 
       - name: Editable install of libneo (system-wide)
         run: |
           python3 -m pip install --break-system-packages -r requirements.txt
           python3 -m pip install --break-system-packages -e .
 
-      - name: Run Python tests (pytest)
+      - name: Run Python tests (pytest, verbose on errors)
         run: |
-          pytest -q
+          pytest -vv -ra --maxfail=1
