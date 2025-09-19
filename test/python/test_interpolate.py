@@ -1,7 +1,10 @@
 import pytest
 
-# Mark entire module as XFAIL at collection time until binding exists
-pytest.xfail("Python binding for Fortran 'interpolate' not built in CI; see issue #127")
+# Skip entire module at collection time until binding exists
+pytest.skip(
+    "Python binding for Fortran 'interpolate' not built in CI; see issue #127",
+    allow_module_level=True,
+)
 
 import numpy as np
 from libneo.interpolate import Interpolate
