@@ -21,13 +21,11 @@ def test_get_boozer_transform():
 
 
 @pytest.fixture(autouse=True, scope="module")
-def _xfail_boozer_module_and_chdir():
+def _xfail_boozer_module():
     """
     XFAIL the entire module due to Fortran allocation bug (issue #126),
     and ensure CWD is the test dir for when the bug is fixed.
     """
-    prev = os.getcwd()
-    os.chdir(Path(__file__).parent)
     pytest.xfail("Fortran allocate() re-entry bug in field_divB0.f90; see issue #126")
     # No yield, we exit early with xfail
 

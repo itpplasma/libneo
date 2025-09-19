@@ -1,3 +1,4 @@
+import numpy as np
 from libneo.interpolate import Interpolate
 
 def test_construct_splines_1d():
