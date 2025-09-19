@@ -14,13 +14,25 @@ import numpy as np
 from netCDF4 import Dataset
 
 
-def _to_mode_ns(arr: np.ndarray) -> np.ndarray:
-    """Ensure array layout is (nmode, ns)."""
+def _to_mode_ns_from_var(var) -> np.ndarray:
+    """Ensure coefficient array layout is (nmode, ns) using NetCDF var dims.
+
+    VMEC typically stores coefficients with dims ('radius','mn_mode') which is
+    (ns, nmode). We transpose to (nmode, ns). If dims are already
+    ('mn_mode','radius'), we leave as-is.
+    """
+    arr = np.array(var[:])
     if arr.ndim != 2:
         raise ValueError("Expected 2D coefficient array")
+    dims = getattr(var, 'dimensions', ())
+    if len(dims) == 2 and dims[0] == 'mn_mode' and dims[1] == 'radius':
+        return arr
+    # Common case: ('radius','mn_mode') -> transpose
+    if len(dims) == 2 and dims[0] == 'radius' and dims[1] == 'mn_mode':
+        return arr.T
+    # Fallback: if first axis is likely ns (smaller), transpose
     n0, n1 = arr.shape
-    # Heuristic: VMEC stores (ns, nmode); vmec_to_efit uses (nmode, ns)
-    return arr.T if n0 > n1 else arr
+    return arr.T if n0 < n1 else arr
 
 
 def _cfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, xn: np.ndarray) -> np.ndarray:
@@ -57,8 +69,8 @@ class VMECGeometry:
         with Dataset(nc_path, mode="r") as ds:
             xm = np.array(ds.variables["xm"][:])
             xn = np.array(ds.variables["xn"][:])
-            rmnc = _to_mode_ns(np.array(ds.variables["rmnc"][:]))
-            zmns = _to_mode_ns(np.array(ds.variables["zmns"][:]))
+            rmnc = _to_mode_ns_from_var(ds.variables["rmnc"])
+            zmns = _to_mode_ns_from_var(ds.variables["zmns"])
 
             rmns = zmnc = None
             lasym = False
@@ -68,8 +80,8 @@ class VMECGeometry:
                 lasym = bool(np.array(ds.variables["lasym"][...]))
             if lasym:
                 if "rmns" in ds.variables and "zmnc" in ds.variables:
-                    rmns = _to_mode_ns(np.array(ds.variables["rmns"][:]))
-                    zmnc = _to_mode_ns(np.array(ds.variables["zmnc"][:]))
+                    rmns = _to_mode_ns_from_var(ds.variables["rmns"])
+                    zmnc = _to_mode_ns_from_var(ds.variables["zmnc"])
         return cls(xm=xm, xn=xn, rmnc=rmnc, zmns=zmns, rmns=rmns, zmnc=zmnc)
 
     def coords(self, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
@@ -92,4 +104,3 @@ class VMECGeometry:
 def vmec_to_cylindrical(nc_path: str, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
     geom = VMECGeometry.from_file(nc_path)
     return geom.coords(s_index, theta, zeta, use_asym=use_asym)
-

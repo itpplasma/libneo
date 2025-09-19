@@ -67,10 +67,16 @@ def test_vmec_plot_surfaces_visual_check(tmp_path):
         fig, axes = plt.subplots(1, len(zetas), figsize=(12, 4), constrained_layout=True)
         if len(zetas) == 1:
             axes = [axes]
+        spans_RZ = []
         for ax, zeta in zip(axes, zetas):
             for s_idx in s_indices:
                 R, Z, _ = vmec_to_cylindrical(path, s_idx, thetas, zeta, use_asym=True)
                 ax.plot(R, Z, lw=1)
+                # Basic sanity: shapes and finiteness
+                assert R.shape == Z.shape == thetas.shape
+                assert np.isfinite(R).all() and np.isfinite(Z).all()
+                # Track spans for monotonic growth check
+                spans_RZ.append((zeta, s_idx, R.max() - R.min(), Z.max() - Z.min()))
             ax.set_title(f"zeta={zeta:.2f} rad")
             ax.set_xlabel("R [m]")
             ax.set_ylabel("Z [m]")
@@ -83,3 +89,20 @@ def test_vmec_plot_surfaces_visual_check(tmp_path):
         plt.close(fig)
         assert outfile.exists()
         assert outfile.stat().st_size > 0
+
+        # Sanity: for a fixed zeta, outer surfaces should have larger span
+        # Sort by s_idx for first zeta only
+        z0 = zetas[0]
+        spans_z0 = [(s, dR, dZ) for z, s, dR, dZ in spans_RZ if np.isclose(z, z0)]
+        spans_z0.sort(key=lambda t: t[0])
+        # Require strictly increasing R-span for at least consecutive pairs
+        if len(spans_z0) >= 2:
+            dRs = [dR for _, dR, _ in [(s, dR, dZ) for s, dR, dZ in spans_z0]]
+            assert all(dRs[i] < dRs[i+1] for i in range(len(dRs)-1))
+
+        # Sanity: periodicity at theta=0 and 2π (evaluate explicit closure)
+        thetas_closed = np.concatenate([thetas, [2.0 * np.pi]])
+        for s_idx in s_indices[:2]:  # a couple surfaces suffice
+            Rc, Zc, _ = vmec_to_cylindrical(path, s_idx, thetas_closed, z0, use_asym=True)
+            assert abs(Rc[0] - Rc[-1]) < 1e-8
+            assert abs(Zc[0] - Zc[-1]) < 1e-8
