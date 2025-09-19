@@ -1,4 +1,5 @@
 # %% Standard imports
+import os
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +9,8 @@ from libneo import StorGeom2MarsCoords
 from libneo import order_monotonically
 
 mars_dir = "/proj/plasma/DATA/DEMO/MARS/MARSQ_KNTV10_NEO2profs_KEYTORQ_1/"
+# Skip this module if the MARS data directory is not available in the environment
+pytestmark = pytest.mark.skipif(not os.path.exists(mars_dir), reason="MARS data not available on this system")
 sqrtspol = np.linspace(0,1,5)
 chi = np.linspace(-np.pi,np.pi,10)
 chi[-1] = chi[-1] - 0.1

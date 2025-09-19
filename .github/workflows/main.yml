@@ -27,3 +27,12 @@ jobs:
       - name: Test
         run: |
           cd build && ctest --output-on-failure
+
+      - name: Editable install of libneo (system-wide)
+        run: |
+          python3 -m pip install --break-system-packages -r requirements.txt
+          python3 -m pip install --break-system-packages -e .
+
+      - name: Run Python tests (pytest)
+        run: |
+          pytest -q
