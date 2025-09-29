@@ -2,9 +2,9 @@
 
 ## ASCOT5 support
 - [ ] Diagnose `_magfie` import failure (`_f2pyinitspline_vmec_sub_` unresolved):
-    - [ ] Inspect `_magfie.cpython-*.so` link deps (`otool -L`) to confirm `libspline_vmec_sub` objects missing.
-    - [ ] Review `CMakeLists.txt`/f2py build recipe to ensure `spline_vmec_sub.f90` is included in extension sources.
-    - [ ] Rebuild `_magfie` after adjusting link order; validate import via `python - <<'PY' import _magfie; PY`.
+    - [x] Inspect `_magfie.cpython-*.so` link deps (`otool -L`) to confirm `libspline_vmec_sub` objects missing.
+    - [x] Review `CMakeLists.txt`/f2py build recipe to ensure `spline_vmec_sub.f90` is included in extension sources.
+    - [x] Rebuild `_magfie` after adjusting link order; validate import via `python - <<'PY' import _magfie; PY`.
     - [ ] Add regression check (maybe tiny pytest) asserting `_magfie.__file__` imports successfully in dev env.
 - [ ] Audit f2py-exposed API once module loads:
     - [ ] Confirm `init_vmec`, `splint_vmec_data`, `vmec_field`, `metric_tensor_*` wrappers are callable from Python.
