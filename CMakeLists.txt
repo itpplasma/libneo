@@ -261,22 +261,26 @@ target_link_libraries(fortranobject PUBLIC Python::NumPy)
 target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
 
 add_custom_command(
-    OUTPUT _magfiemodule.c _magfie-f2pywrappers.f
-    DEPENDS src/f2py_interfaces/f2py_magfie.f90
+    OUTPUT _magfiemodule.c _magfie-f2pywrappers.f _magfie-f2pywrappers2.f90
+    DEPENDS
+        src/f2py_interfaces/f2py_magfie.f90
+        src/f2py_interfaces/f2py_vmec_wrappers.f90
     VERBATIM
     COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
-    --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/magfie/magfie_vmec.f90"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/spline_vmec_data.f90"
-    -m _magfie --lower
+        --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_vmec_wrappers.f90"
+        -m _magfie --lower
 )
 
 Python_add_library(_magfie WITH_SOABI
     "${CMAKE_CURRENT_BINARY_DIR}/_magfiemodule.c"
     "${CMAKE_CURRENT_BINARY_DIR}/_magfie-f2pywrappers.f"
+    "${CMAKE_CURRENT_BINARY_DIR}/_magfie-f2pywrappers2.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_magfie.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_vmec_wrappers.f90"
 )
 
-target_link_libraries(_magfie PUBLIC fortranobject magfie)
+target_link_libraries(_magfie PUBLIC fortranobject magfie neo)
+add_dependencies(_magfie neo)
 install(TARGETS _magfie DESTINATION .)
