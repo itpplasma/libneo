@@ -1,0 +1,34 @@
+# TODO
+
+## ASCOT5 support
+- [ ] Diagnose `_magfie` import failure (`_f2pyinitspline_vmec_sub_` unresolved):
+    - [ ] Inspect `_magfie.cpython-*.so` link deps (`otool -L`) to confirm `libspline_vmec_sub` objects missing.
+    - [ ] Review `CMakeLists.txt`/f2py build recipe to ensure `spline_vmec_sub.f90` is included in extension sources.
+    - [ ] Rebuild `_magfie` after adjusting link order; validate import via `python - <<'PY' import _magfie; PY`.
+    - [ ] Add regression check (maybe tiny pytest) asserting `_magfie.__file__` imports successfully in dev env.
+- [ ] Audit f2py-exposed API once module loads:
+    - [ ] Confirm `init_vmec`, `splint_vmec_data`, `vmec_field`, `metric_tensor_*` wrappers are callable from Python.
+    - [ ] Document expected argument order/units for later usage.
+- [ ] Implement `libneo.ascot5.field_from_vmec`:
+    - [ ] Sample LCFS from `splint_vmec_data` to derive bounding box (R/Z min-max with pad).
+    - [ ] Mirror SIMPLE’s Jacobian (`SIMPLE/src/coordinates/coordinates.f90:18`) to convert VMEC (s,θ,φ) → cylindrical (R,φ,Z) and derivatives.
+    - [ ] Evaluate VMEC field via `_magfie.vmec_field` on structured grids, convert to ASCOT5 B components.
+    - [ ] Build ψ grid using contour labelling + iota integration (see `$DATA/COMMON/ASCOT5/mgrid_to_ascot.py:200-320`).
+    - [ ] Package outputs into ASCOT5 dict (`b_rmin`, `br`, `psi`, …).
+    - [ ] Reuse existing VMEC test flow for sample data (`test/python/test_vmec_coords.py` downloads wout).
+- [ ] Implement `libneo.ascot5.field_from_mgrid`:
+    - [ ] Read NetCDF (and optional libneo.mgrid path) replicating `$DATA/COMMON/ASCOT5/mgrid_to_ascot.py` without importing `a5py`.
+    - [ ] Normalize array orientations to `(nr, nphi, nz)`; compute axis fallback; optional VMEC-based ψ support.
+    - [ ] Return ASCOT5 dict identical to VMEC variant for downstream reuse.
+- [ ] Provide writer/helper utilities:
+    - [ ] Create `write_b3ds_hdf5(path, data_dict, *, desc="", activate=True)` thin wrapper around `h5py` with input validation mirroring `a5py.ascot5io.bfield.B_3DS.write_hdf5`.
+    - [ ] Expose convenience functions for saving plots/metadata alongside field data.
+- [ ] Testing & artifacts:
+    - [ ] Curate lightweight VMEC and mgrid fixtures (ensure licensing; stash under `test/data/ascot5/`).
+    - [ ] Add pytest modules that generate ASCOT5 dicts, assert shape/range consistency, and call the HDF5 writer.
+    - [ ] Produce diagnostic PNGs (R–Z contour plots, |B| slices) via `matplotlib`; store under `test/artifacts/` with per-test cleanup.
+    - [ ] Optionally verify ASCOT5 file using `a5py` only within tests (gated by optional import).
+- [ ] Documentation & developer notes:
+    - [ ] Add `doc/ascot5.md` summarizing workflow, assumptions, grid conventions, linkage debugging tips.
+    - [ ] Update README / changelog entries; include instructions on regenerating `_magfie` and running new tests.
+    - [ ] Mention PNG artifact locations and how to interpret them.
