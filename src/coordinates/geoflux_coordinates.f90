@@ -1,6 +1,7 @@
 module geoflux_coordinates
 
     use, intrinsic :: iso_fortran_env, only : dp => real64
+    use cylindrical_cartesian, only : cyl_to_cart, cart_to_cyl
     use math_constants, only : pi
     use geqdsk_tools, only : geqdsk_t, geqdsk_read, geqdsk_standardise, geqdsk_deinit
     use binsrc_sub, only : binsrc
@@ -200,77 +201,6 @@ contains
             call report_unknown(from, to)
         end select
     end function get_transform
-
-    subroutine cart_to_cyl(xfrom, xto, dxto_dxfrom)
-        real(dp), intent(in) :: xfrom(3)
-        real(dp), intent(out) :: xto(3)
-        real(dp), intent(out), optional :: dxto_dxfrom(3,3)
-
-        real(dp) :: x, y, z, r, phi
-
-        x = xfrom(1)
-        y = xfrom(2)
-        z = xfrom(3)
-
-        r = sqrt(x*x + y*y)
-        phi = atan2(y, x)
-
-        xto(1) = r
-        xto(2) = phi
-        xto(3) = z
-
-        if (present(dxto_dxfrom)) then
-            if (r > 0.0_dp) then
-                dxto_dxfrom(1,1) = x / r
-                dxto_dxfrom(1,2) = y / r
-            else
-                dxto_dxfrom(1,1) = 1.0_dp
-                dxto_dxfrom(1,2) = 0.0_dp
-            end if
-            dxto_dxfrom(1,3) = 0.0_dp
-
-            if (r > 0.0_dp) then
-                dxto_dxfrom(2,1) = -y / (r*r)
-                dxto_dxfrom(2,2) = x / (r*r)
-            else
-                dxto_dxfrom(2,1) = 0.0_dp
-                dxto_dxfrom(2,2) = 0.0_dp
-            end if
-            dxto_dxfrom(2,3) = 0.0_dp
-
-            dxto_dxfrom(3,1) = 0.0_dp
-            dxto_dxfrom(3,2) = 0.0_dp
-            dxto_dxfrom(3,3) = 1.0_dp
-        end if
-    end subroutine cart_to_cyl
-
-    subroutine cyl_to_cart(xfrom, xto, dxto_dxfrom)
-        real(dp), intent(in) :: xfrom(3)
-        real(dp), intent(out) :: xto(3)
-        real(dp), intent(out), optional :: dxto_dxfrom(3,3)
-
-        real(dp) :: R, phi, Z
-
-        R = xfrom(1)
-        phi = xfrom(2)
-        Z = xfrom(3)
-
-        xto(1) = R * cos(phi)
-        xto(2) = R * sin(phi)
-        xto(3) = Z
-
-        if (present(dxto_dxfrom)) then
-            dxto_dxfrom(1,1) = cos(phi)
-            dxto_dxfrom(1,2) = -R * sin(phi)
-            dxto_dxfrom(1,3) = 0.0_dp
-            dxto_dxfrom(2,1) = sin(phi)
-            dxto_dxfrom(2,2) = R * cos(phi)
-            dxto_dxfrom(2,3) = 0.0_dp
-            dxto_dxfrom(3,1) = 0.0_dp
-            dxto_dxfrom(3,2) = 0.0_dp
-            dxto_dxfrom(3,3) = 1.0_dp
-        end if
-    end subroutine cyl_to_cart
 
     subroutine report_unknown(from, to)
         character(*), intent(in) :: from
