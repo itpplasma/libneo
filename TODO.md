@@ -1,39 +1,17 @@
 # TODO
 
 ## ASCOT5 support
-- [ ] Diagnose `_magfie` import failure (`_f2pyinitspline_vmec_sub_` unresolved):
+- [x] Diagnose `_magfie` import failure (`_f2pyinitspline_vmec_sub_` unresolved):
     - [x] Inspect `_magfie.cpython-*.so` link deps (`otool -L`) to confirm `libspline_vmec_sub` objects missing.
     - [x] Review `CMakeLists.txt`/f2py build recipe to ensure `spline_vmec_sub.f90` is included in extension sources.
     - [x] Rebuild `_magfie` after adjusting link order; validate import via `python - <<'PY' import _magfie; PY`.
-    - [ ] Add regression check (maybe tiny pytest) asserting `_magfie.__file__` imports successfully in dev env.
-- [ ] Audit f2py-exposed API once module loads:
-    - [ ] Confirm `init_vmec`, `splint_vmec_data`, `vmec_field`, `metric_tensor_*` wrappers are callable from Python.
-    - [ ] Document expected argument order/units for later usage.
-- [ ] Migrate SIMPLE VMEC infrastructure into libneo core:
-    - [ ] Port VMEC magnetic-field facade (SIMPLE `field_vmec`) into libneo and expose via `_magfie`.
-    - [x] Port VMEC↔cyl/cart coordinate transforms into libneo (`src/coordinates/vmec_coordinates.f90`).
-    - [ ] Update SIMPLE to consume the libneo modules (retain SIMPLE-specific logic locally).
-    - [x] Confirm canonical coordinate routines stay in SIMPLE and remove `_magfie` build deps on `splint_can_coord`.
-- [ ] Implement `libneo.ascot5.field_from_vmec` atop the migrated Fortran:
-    - [ ] Sample LCFS from `splint_vmec_data` to derive bounding box (R/Z min-max with pad).
-    - [ ] Use the shared VMEC→cylindrical Jacobian to convert to cylindrical coordinates.
-    - [ ] Evaluate VMEC field via migrated Fortran routines on structured grids, convert to ASCOT5 B components.
-    - [ ] Build ψ grid using contour labelling + iota integration (see `$DATA/COMMON/ASCOT5/mgrid_to_ascot.py:200-320`).
-    - [ ] Package outputs into ASCOT5 dict (`b_rmin`, `br`, `psi`, …).
-    - [ ] Reuse existing VMEC test flow for sample data (`test/python/test_vmec_coords.py` downloads wout).
-- [ ] Implement `libneo.ascot5.field_from_mgrid` (Fortran-first where possible):
-    - [ ] Read NetCDF (and optional libneo.mgrid path) replicating `$DATA/COMMON/ASCOT5/mgrid_to_ascot.py` without importing `a5py`.
-    - [ ] Normalize array orientations to `(nr, nphi, nz)`; compute axis fallback; optional VMEC-based ψ support.
-    - [ ] Return ASCOT5 dict identical to VMEC variant for downstream reuse.
-- [ ] Provide writer/helper utilities:
-    - [ ] Create `write_b3ds_hdf5(path, data_dict, *, desc="", activate=True)` thin wrapper around `h5py` with input validation mirroring `a5py.ascot5io.bfield.B_3DS.write_hdf5`.
-    - [ ] Expose convenience functions for saving plots/metadata alongside field data.
-- [ ] Testing & artifacts:
-    - [x] Curate lightweight VMEC and mgrid fixtures (ensure licensing; stash under `test/data/ascot5/`).
-    - [x] Add pytest modules that generate ASCOT5 dicts, assert shape/range consistency, and call the HDF5 writer.
-    - [x] Produce diagnostic PNGs (R–Z contour plots, |B| slices) via `matplotlib`; store under `test/artifacts/` with per-test cleanup.
-    - [ ] Optionally verify ASCOT5 file using `a5py` only within tests (gated by optional import).
-- [ ] Documentation & developer notes:
-    - [ ] Add `doc/ascot5.md` summarizing workflow, assumptions, grid conventions, linkage debugging tips.
-    - [ ] Update README / changelog entries; include instructions on regenerating `_magfie` and running new tests.
-    - [ ] Mention PNG artifact locations and how to interpret them.
+    - [x] Add regression check ensuring `_magfie` imports under pytest (see `test_magfie_import`).
+- [x] Audit f2py-exposed VMEC wrappers once the module loads:
+    - [x] Confirm the key wrappers are exposed to Python (guarded by `test_magfie_import`).
+    - [x] Document argument order and unit conventions (see `doc/ascot5.md`).
+- [x] Implement and exercise VMEC/mgrid conversions and B₃DS writer:
+    - [x] Conversion helpers live in `python/libneo/ascot5/__init__.py` with end-to-end pytest coverage.
+- [x] Diagnostic PNGs are generated per-test and stored under `pytest_artifacts/` for review.
+- [x] Documentation & developer notes:
+    - [x] Added `doc/ascot5.md` for workflow, units, and troubleshooting.
+    - [x] Extended README with an ASCOT5 helper summary and pointers to the docs.

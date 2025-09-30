@@ -144,6 +144,98 @@ def _solve_flux_coordinates(
     s = float(min(max(s0, 0.0), 1.0))
     theta = theta0 % (2.0 * math.pi)
 
+    # Early exit: if the target is essentially on the magnetic axis, return axis coords
+    if math.hypot(r_target, z_target) < 1.0e-6:
+        return 0.0, 0.0
+
+    for _ in range(max_iter):
+        res = _VMEC_WRAPPERS.splint_vmec_data_wrapper(s, theta, phi)
+        (
+            _A_phi,
+            _A_theta,
+            _dA_phi_ds,
+            _dA_theta_ds,
+            _aiota,
+            R_cm,
+            Z_cm,
+            _alam,
+            dR_ds_cm,
+            dR_dt_cm,
+            _dR_dp_cm,
+            dZ_ds_cm,
+            dZ_dt_cm,
+            _dZ_dp_cm,
+            _dl_ds,
+            _dl_dt,
+            _dl_dp,
+        ) = res
+
+        if s <= 1.0e-6 and math.hypot(R_cm, Z_cm) <= 1.0e-8:
+            return 0.0, theta
+
+        R = float(R_cm) * CM_TO_M
+        Z = float(Z_cm) * CM_TO_M
+        F = np.array([R - r_target, Z - z_target])
+        norm_f = np.linalg.norm(F)
+        if norm_f < tol:
+            return s, theta
+
+        J = np.array(
+            [
+                [float(dR_ds_cm) * CM_TO_M, float(dR_dt_cm) * CM_TO_M],
+                [float(dZ_ds_cm) * CM_TO_M, float(dZ_dt_cm) * CM_TO_M],
+            ]
+        )
+
+        try:
+            delta = np.linalg.solve(J, F)
+        except np.linalg.LinAlgError:
+            delta = None
+
+        if delta is None or not np.all(np.isfinite(delta)) or abs(np.linalg.det(J)) < 1.0e-16:
+            fallback = _picard_flux_coordinates(
+                r_target,
+                z_target,
+                phi,
+                s,
+                theta,
+                max_iter=max_iter,
+                tol=tol,
+            )
+            if fallback is None:
+                fallback = _coarse_search_flux_coordinates(
+                    r_target,
+                    z_target,
+                    phi,
+                    s,
+                    theta,
+                )
+            if fallback is None:
+                return (None, None)
+            s, theta = fallback
+            continue
+
+        s -= delta[0]
+        theta -= delta[1]
+        s = min(max(s, -0.1), 1.1)
+        theta %= 2.0 * math.pi
+
+    return (None, None)
+
+
+def _picard_flux_coordinates(
+    r_target: float,
+    z_target: float,
+    phi: float,
+    s_start: float,
+    theta_start: float,
+    *,
+    max_iter: int,
+    tol: float,
+) -> Tuple[float, float] | None:
+    s = float(min(max(s_start, 0.0), 1.0))
+    theta = theta_start % (2.0 * math.pi)
+
     for _ in range(max_iter):
         res = _VMEC_WRAPPERS.splint_vmec_data_wrapper(s, theta, phi)
         (
@@ -168,29 +260,70 @@ def _solve_flux_coordinates(
 
         R = float(R_cm) * CM_TO_M
         Z = float(Z_cm) * CM_TO_M
-        F = np.array([R - r_target, Z - z_target])
-        norm_f = np.linalg.norm(F)
+        err_r = R - r_target
+        err_z = Z - z_target
+        norm_f = math.hypot(err_r, err_z)
         if norm_f < tol:
             return s, theta
 
-        J = np.array(
-            [
-                [float(dR_ds_cm) * CM_TO_M, float(dR_dt_cm) * CM_TO_M],
-                [float(dZ_ds_cm) * CM_TO_M, float(dZ_dt_cm) * CM_TO_M],
-            ]
-        )
+        dR_ds = float(dR_ds_cm) * CM_TO_M
+        dZ_ds = float(dZ_ds_cm) * CM_TO_M
+        dR_dt = float(dR_dt_cm) * CM_TO_M
+        dZ_dt = float(dZ_dt_cm) * CM_TO_M
 
-        try:
-            delta = np.linalg.solve(J, F)
-        except np.linalg.LinAlgError:
-            return (None, None)
+        if not all(np.isfinite(val) for val in (err_r, err_z, dR_ds, dZ_ds, dR_dt, dZ_dt)):
+            return None
 
-        s -= delta[0]
-        theta -= delta[1]
-        s = min(max(s, -0.1), 1.1)
-        theta %= 2.0 * math.pi
+        denom_s = dR_ds * dR_ds + dZ_ds * dZ_ds
+        if denom_s > 1.0e-18:
+            step_s = (err_r * dR_ds + err_z * dZ_ds) / denom_s
+            s = min(max(s - 0.5 * step_s, 0.0), 1.0)
 
-    return (None, None)
+        denom_theta = dR_dt * dR_dt + dZ_dt * dZ_dt
+        if denom_theta > 1.0e-18:
+            step_theta = (err_r * dR_dt + err_z * dZ_dt) / denom_theta
+            theta = (theta - 0.5 * step_theta) % (2.0 * math.pi)
+
+    return None
+
+
+def _coarse_search_flux_coordinates(
+    r_target: float,
+    z_target: float,
+    phi: float,
+    s_seed: float,
+    theta_seed: float,
+    n_s: int = 12,
+    n_theta: int = 24,
+) -> Tuple[float, float] | None:
+    best_s = None
+    best_theta = None
+    best_err = float("inf")
+
+    s_candidates = np.clip(
+        np.linspace(max(s_seed - 0.2, 0.0), min(s_seed + 0.2, 1.0), n_s),
+        0.0,
+        1.0,
+    )
+    theta_candidates = (theta_seed + np.linspace(-math.pi, math.pi, n_theta)) % (2.0 * math.pi)
+
+    for s in s_candidates:
+        for theta in theta_candidates:
+            res = _VMEC_WRAPPERS.splint_vmec_data_wrapper(s, theta, phi)
+            R_cm = res[5]
+            Z_cm = res[6]
+            R = float(R_cm) * CM_TO_M
+            Z = float(Z_cm) * CM_TO_M
+            err = math.hypot(R - r_target, Z - z_target)
+            if err < best_err:
+                best_err = err
+                best_s = s
+                best_theta = theta
+
+    if best_err < 5.0e-3 and best_s is not None:
+        return best_s, best_theta % (2.0 * math.pi)
+
+    return None
 
 
 def _evaluate_bfield(
@@ -216,10 +349,10 @@ def field_from_vmec(
     geom = VMECGeometry.from_file(str(wout))
 
     phi_samples, r_edge, z_edge = _prepare_outer_surface(geom, nphi)
-    rmin = float(np.min(r_edge) * CM_TO_M) - r_margin
-    rmax = float(np.max(r_edge) * CM_TO_M) + r_margin
-    zmin = float(np.min(z_edge) * CM_TO_M) - z_margin
-    zmax = float(np.max(z_edge) * CM_TO_M) + z_margin
+    rmin = float(np.min(r_edge)) - r_margin
+    rmax = float(np.max(r_edge)) + r_margin
+    zmin = float(np.min(z_edge)) - z_margin
+    zmax = float(np.max(z_edge)) + z_margin
 
     r_grid = np.linspace(rmin, rmax, nr)
     z_grid = np.linspace(zmin, zmax, nz)
@@ -228,9 +361,9 @@ def field_from_vmec(
 
     _magfie.init_vmec(str(wout), 5)
 
-    br = np.zeros((nr, nphi, nz), dtype=float)
-    bphi = np.zeros_like(br)
-    bz = np.zeros_like(br)
+    br = np.full((nr, nphi, nz), math.nan, dtype=float)
+    bphi = np.full_like(br, math.nan)
+    bz = np.full_like(br, math.nan)
     s_map = np.full((nr, nz), np.nan, dtype=float)
 
     prev_s = 0.5
@@ -266,13 +399,25 @@ def field_from_vmec(
                     tol=tol,
                 )
 
+                axis_dr = r_val - axis_r
+                axis_dz = z_val - axis_z
+                axis_dist = math.hypot(axis_dr, axis_dz)
+
                 if sol_s is None:
-                    br[ir, iphi, iz] = 0.0
-                    bphi[ir, iphi, iz] = 0.0
-                    bz[ir, iphi, iz] = 0.0
-                    prev_s_col = math.nan
-                    prev_theta_col = math.nan
-                    continue
+                    if axis_dist <= 0.03:
+                        sol_s = 0.0
+                        sol_theta = 0.0
+                    else:
+                        br[ir, iphi, iz] = math.nan
+                        bphi[ir, iphi, iz] = math.nan
+                        bz[ir, iphi, iz] = math.nan
+                        prev_s_col = math.nan
+                        prev_theta_col = math.nan
+                        continue
+
+                if sol_s <= 1.0e-6:
+                    sol_s = 0.0
+                    sol_theta = 0.0
 
                 BR, BPHI, BZ = _evaluate_bfield(sol_s, sol_theta, phi)
 
@@ -302,6 +447,8 @@ def field_from_vmec(
     mask = np.isfinite(s_map)
     psi_grid[mask] = np.interp(s_map[mask], stor_grid, spol_grid)
     psi_grid[~mask] = 1.0
+
+    _fill_axis_field(br, bphi, bz)
 
     return B3DSField(
         r_grid=r_grid,
@@ -426,3 +573,43 @@ def write_b3ds_hdf5(path: str | Path, field: B3DSField, desc: str | None = None,
             grp.attrs["active"] = np.bytes_(gname.split("_")[-1])
 
     return gname
+
+
+def _fill_axis_field(
+    br: np.ndarray,
+    bphi: np.ndarray,
+    bz: np.ndarray,
+    *,
+    max_radius: int = 3,
+) -> None:
+    """Fill NaNs near the axis using a simple RZ-plane local mean."""
+
+    for component in (br, bphi, bz):
+        for iphi in range(component.shape[1]):
+            plane = component[:, iphi, :]
+            _fill_nan_by_local_mean(plane, max_radius=max_radius)
+
+
+def _fill_nan_by_local_mean(plane: np.ndarray, *, max_radius: int) -> None:
+    if not np.isnan(plane).any():
+        return
+
+    filled = plane.copy()
+    nr, nz = filled.shape
+
+    for radius in range(1, max_radius + 1):
+        missing = np.argwhere(np.isnan(filled))
+        if missing.size == 0:
+            break
+        for ir, iz in missing:
+            r_min = max(ir - radius, 0)
+            r_max = min(ir + radius + 1, nr)
+            z_min = max(iz - radius, 0)
+            z_max = min(iz + radius + 1, nz)
+            window = filled[r_min:r_max, z_min:z_max]
+            finite = np.isfinite(window)
+            if finite.any():
+                values = window[finite]
+                filled[ir, iz] = float(np.mean(values))
+
+    plane[:, :] = filled
