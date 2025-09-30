@@ -13,9 +13,6 @@ if(NOT DEFINED WORKDIR)
   message(FATAL_ERROR "WORKDIR not set for run_test_arnoldi.cmake")
 endif()
 
-if(NOT EXISTS "${SETUP_SCRIPT}")
-  message(FATAL_ERROR "setup script '${SETUP_SCRIPT}' not found")
-endif()
 
 execute_process(
   COMMAND "${PYTHON_EXECUTABLE}" "${SETUP_SCRIPT}"
