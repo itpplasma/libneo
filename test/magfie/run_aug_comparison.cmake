@@ -69,12 +69,14 @@ set(SUPERPOSITION_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/compare_superposi
 set(SUPERPOSITION_PLOT "${TEST_DATA_DIR}/superposition_comparison.png")
 
 if(EXISTS "${SUPERPOSITION_SCRIPT}")
-    message(STATUS "Generating superposition comparison and checking tolerance...")
+    message(STATUS "Generating three-way comparison and checking tolerance...")
     execute_process(
         COMMAND python3 "${SUPERPOSITION_SCRIPT}"
                 "${TEST_DATA_DIR}/aug_reference.h5"
                 "${TEST_DATA_DIR}/aug_test.nc"
                 "${TEST_DATA_DIR}/aug_currents.txt"
+                "${TEST_DATA_DIR}/aug_bu.dat"
+                "${TEST_DATA_DIR}/aug_bl.dat"
                 -o "${SUPERPOSITION_PLOT}"
         WORKING_DIRECTORY "${TEST_DATA_DIR}"
         RESULT_VARIABLE result_superpos

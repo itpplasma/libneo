@@ -54,6 +54,49 @@ subroutine load_coils_from_file(filename, coils)
 end subroutine load_coils_from_file
 
 
+subroutine load_coils_from_gpec_file(filename, coils)
+    character(*), intent(in) :: filename
+    type(coils_t), intent(out) :: coils
+
+    real(dp), parameter :: length_si_to_cgs = 1.0d2
+    integer :: unit
+    integer :: ncoil, nseg, idum, kc, ks, total_segments, seg_idx, coil_start_idx
+    real(dp) :: ddum, nwind
+
+    open(newunit=unit, file=filename, status="old", action="read")
+    read(unit, *) ncoil, idum, nseg, ddum
+    nseg = nseg - 1  ! Convert from number of points to number of segments
+    nwind = ddum
+
+    ! Total: ncoil coils * (nseg points + 1 closing point)
+    total_segments = ncoil * (nseg + 1)
+    call allocate_coils_data(coils, total_segments)
+
+    seg_idx = 0
+    do kc = 1, ncoil
+        ! Read nseg points with nonzero current
+        do ks = 1, nseg
+            seg_idx = seg_idx + 1
+            read(unit, *) coils%x(seg_idx), coils%y(seg_idx), coils%z(seg_idx)
+            coils%x(seg_idx) = coils%x(seg_idx) * length_si_to_cgs
+            coils%y(seg_idx) = coils%y(seg_idx) * length_si_to_cgs
+            coils%z(seg_idx) = coils%z(seg_idx) * length_si_to_cgs
+            coils%current(seg_idx) = nwind
+        end do
+
+        ! Read the closing point (equals first point)
+        ! This point has ZERO current so the segment from here to next coil contributes nothing
+        seg_idx = seg_idx + 1
+        read(unit, *) coils%x(seg_idx), coils%y(seg_idx), coils%z(seg_idx)
+        coils%x(seg_idx) = coils%x(seg_idx) * length_si_to_cgs
+        coils%y(seg_idx) = coils%y(seg_idx) * length_si_to_cgs
+        coils%z(seg_idx) = coils%z(seg_idx) * length_si_to_cgs
+        coils%current(seg_idx) = 0.0d0  ! Zero current: marks end of coil
+    end do
+    close(unit)
+end subroutine load_coils_from_gpec_file
+
+
 subroutine save_coils_to_file(filename, coils)
     character(*), intent(in) :: filename
     type(coils_t), intent(in) :: coils
