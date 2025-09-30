@@ -6,13 +6,14 @@
     - [x] Review `CMakeLists.txt`/f2py build recipe to ensure `spline_vmec_sub.f90` is included in extension sources.
     - [x] Rebuild `_magfie` after adjusting link order; validate import via `python - <<'PY' import _magfie; PY`.
     - [ ] Add regression check (maybe tiny pytest) asserting `_magfie.__file__` imports successfully in dev env.
--- [ ] Audit f2py-exposed API once module loads:
+- [ ] Audit f2py-exposed API once module loads:
     - [ ] Confirm `init_vmec`, `splint_vmec_data`, `vmec_field`, `metric_tensor_*` wrappers are callable from Python.
     - [ ] Document expected argument order/units for later usage.
 - [ ] Migrate SIMPLE VMEC infrastructure into libneo core:
-    - [ ] Port `field_vmec` machinery (magnetic field evaluation, scaling) from SIMPLE to `src/magfie` while keeping Fortran authoritative.
-    - [ ] Port `simple_coordinates.transform_vmec_to_cyl/cart` so coordinate Jacobians live in libneo Fortran.
-    - [ ] Expose the new Fortran entry points via `_magfie` wrappers; adjust SIMPLE to consume the libneo versions.
+    - [ ] Port VMEC magnetic-field facade (SIMPLE `field_vmec`) into libneo and expose via `_magfie`.
+    - [x] Port VMEC↔cyl/cart coordinate transforms into libneo (`src/coordinates/vmec_coordinates.f90`).
+    - [ ] Update SIMPLE to consume the libneo modules (retain SIMPLE-specific logic locally).
+    - [x] Confirm canonical coordinate routines stay in SIMPLE and remove `_magfie` build deps on `splint_can_coord`.
 - [ ] Implement `libneo.ascot5.field_from_vmec` atop the migrated Fortran:
     - [ ] Sample LCFS from `splint_vmec_data` to derive bounding box (R/Z min-max with pad).
     - [ ] Use the shared VMEC→cylindrical Jacobian to convert to cylindrical coordinates.
@@ -28,9 +29,9 @@
     - [ ] Create `write_b3ds_hdf5(path, data_dict, *, desc="", activate=True)` thin wrapper around `h5py` with input validation mirroring `a5py.ascot5io.bfield.B_3DS.write_hdf5`.
     - [ ] Expose convenience functions for saving plots/metadata alongside field data.
 - [ ] Testing & artifacts:
-    - [ ] Curate lightweight VMEC and mgrid fixtures (ensure licensing; stash under `test/data/ascot5/`).
-    - [ ] Add pytest modules that generate ASCOT5 dicts, assert shape/range consistency, and call the HDF5 writer.
-    - [ ] Produce diagnostic PNGs (R–Z contour plots, |B| slices) via `matplotlib`; store under `test/artifacts/` with per-test cleanup.
+    - [x] Curate lightweight VMEC and mgrid fixtures (ensure licensing; stash under `test/data/ascot5/`).
+    - [x] Add pytest modules that generate ASCOT5 dicts, assert shape/range consistency, and call the HDF5 writer.
+    - [x] Produce diagnostic PNGs (R–Z contour plots, |B| slices) via `matplotlib`; store under `test/artifacts/` with per-test cleanup.
     - [ ] Optionally verify ASCOT5 file using `a5py` only within tests (gated by optional import).
 - [ ] Documentation & developer notes:
     - [ ] Add `doc/ascot5.md` summarizing workflow, assumptions, grid conventions, linkage debugging tips.
