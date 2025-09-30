@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Compare total superposed magnetic field from GPEC Fourier vs coil_tools.
+Compare three Biot-Savart implementations:
+1. GPEC Fourier (direct B_n computation)
+2. coil_tools vector_potential (A_n then curl)
+3. Direct real-space Biot-Savart (on-the-fly evaluation)
 
 This script computes the full superposition of all coils weighted by their
 currents, which is the physically relevant comparison.
