@@ -796,4 +796,13 @@ contains
         xto(3) = xfrom(2)
     end subroutine cyl_to_geoflux_internal
 
+    subroutine geoflux_get_axis(R_axis, Z_axis)
+        real(dp), intent(out) :: R_axis, Z_axis
+
+        call ensure_initialised()
+
+        R_axis = ctx%R_axis
+        Z_axis = ctx%Z_axis
+    end subroutine geoflux_get_axis
+
 end module geoflux_coordinates

@@ -1,7 +1,9 @@
 program test_geoflux
     use, intrinsic :: iso_fortran_env, only : dp => real64
-    use geoflux_coordinates, only : init_geoflux_coordinates, geoflux_to_cyl, &
-        cyl_to_geoflux
+    use geoflux_coordinates, only : geoflux_to_cyl, cyl_to_geoflux
+    use geoflux_field, only : spline_geoflux_data, splint_geoflux_field
+    use field_sub, only : psif
+    use field_eq_mod, only : psi_axis
 
     implicit none
 
@@ -11,8 +13,10 @@ program test_geoflux
     real(dp) :: x_geo(3), x_geo_back(3)
     real(dp) :: x_cyl(3)
     real(dp) :: max_diff
+    real(dp) :: Acov(3), hcov(3), Bmod
+    real(dp) :: unit_length
 
-    call init_geoflux_coordinates(geqdsk_file)
+    call spline_geoflux_data(geqdsk_file, 64, 128)
 
     x_geo = [0.3_dp, 0.5_dp, 0.0_dp]
     call geoflux_to_cyl(x_geo, x_cyl)
@@ -40,6 +44,24 @@ program test_geoflux
     end if
     if (abs(x_cyl(2) - x_geo(3)) > 1.0d-12) then
         write(*,*) 'Phi was not preserved by geoflux_to_cyl.'
+        error stop
+    end if
+
+    call splint_geoflux_field(x_geo(1), x_geo(2), x_geo(3), Acov, hcov, Bmod)
+
+    if (Bmod <= 0.0_dp) then
+        write(*,*) 'Bmod should be positive but is ', Bmod
+        error stop
+    end if
+
+    unit_length = maxval(abs(hcov))
+    if (.not. (unit_length < 1.0d6 .and. unit_length > 0.0d0)) then
+        write(*,*) 'Unexpected hcov magnitude: ', unit_length
+        error stop
+    end if
+
+    if (abs(Acov(3) - (psif - psi_axis)) > 1.0d-8) then
+        write(*,*) 'Unexpected A_phi covariant component.'
         error stop
     end if
 

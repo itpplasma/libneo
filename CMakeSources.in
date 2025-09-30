@@ -20,7 +20,6 @@ add_library(neo STATIC
     src/nctools_module.f90
     src/new_vmec_allocation_stuff.f90
     src/coordinates/vmec_coordinates.f90
-    src/coordinates/geoflux_coordinates.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
     src/vmec/vmec_field_tools.f90
