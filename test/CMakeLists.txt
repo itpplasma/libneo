@@ -14,6 +14,11 @@ include_directories(${MPI_Fortran_INCLUDE_PATH})
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
 
+find_package(Python COMPONENTS Interpreter)
+if (NOT Python_FOUND)
+  message(FATAL_ERROR "Python interpreter required for geoflux test")
+endif()
+
 set(TEST_DATA_DIR ${CMAKE_BINARY_DIR}/test_data)
 file(MAKE_DIRECTORY ${TEST_DATA_DIR})
 
