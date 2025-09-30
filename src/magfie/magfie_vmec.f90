@@ -25,6 +25,7 @@ subroutine magfie_vmec(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 
   use libneo_kinds, only : dp
   use math_constants, only : TWOPI
+  use spline_vmec_sub, only : vmec_field
 
   implicit none
 
