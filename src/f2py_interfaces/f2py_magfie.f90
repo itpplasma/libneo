@@ -1,6 +1,7 @@
 
 subroutine init_vmec(filename, amultharm)
   use new_vmec_stuff_mod, only : netcdffile, multharm
+  use spline_vmec_sub,   only : spline_vmec_data
   implicit none
 
   character(*), intent(in) :: filename

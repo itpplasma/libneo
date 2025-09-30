@@ -20,6 +20,9 @@ jobs:
         run: |
           git config --global --add safe.directory `pwd`
 
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --break-system-packages -r requirements.txt
       - name: Build
         run: |
           make
