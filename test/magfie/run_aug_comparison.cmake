@@ -60,8 +60,9 @@ endif()
 
 message(STATUS "Generated field files successfully")
 
-# Generate comparison plot
+# Generate individual coil comparison plot
 set(PLOT_OUTPUT "${TEST_DATA_DIR}/comparison.png")
+set(SUPERPOSITION_PLOT "${TEST_DATA_DIR}/superposition_comparison.png")
 
 if(DEFINED PYTHON_SCRIPT AND EXISTS "${PYTHON_SCRIPT}")
     message(STATUS "Generating comparison plot...")
@@ -77,9 +78,38 @@ if(DEFINED PYTHON_SCRIPT AND EXISTS "${PYTHON_SCRIPT}")
     )
 
     if(result_plot EQUAL 0)
-        message(STATUS "Comparison plot saved to: ${PLOT_OUTPUT}")
+        message(STATUS "Individual coil comparison plot saved to: ${PLOT_OUTPUT}")
     else()
         message(WARNING "Failed to generate comparison plot: ${error_plot}")
+    endif()
+
+    # Generate superposition plot
+    # PROJECT_SOURCE_DIR is passed from CMakeLists.txt
+    if(NOT DEFINED PROJECT_SOURCE_DIR)
+        get_filename_component(PROJECT_SOURCE_DIR "${TEST_DATA_DIR}/../../.." ABSOLUTE)
+    endif()
+    set(SUPERPOSITION_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/compare_superposition.py")
+    if(EXISTS "${SUPERPOSITION_SCRIPT}")
+        message(STATUS "Generating superposition comparison plot...")
+        execute_process(
+            COMMAND python3 "${SUPERPOSITION_SCRIPT}"
+                    "${TEST_DATA_DIR}/aug_reference.h5"
+                    "${TEST_DATA_DIR}/aug_test.nc"
+                    "${TEST_DATA_DIR}/aug_currents.txt"
+                    -o "${SUPERPOSITION_PLOT}"
+            WORKING_DIRECTORY "${TEST_DATA_DIR}"
+            RESULT_VARIABLE result_superpos
+            OUTPUT_VARIABLE output_superpos
+            ERROR_VARIABLE error_superpos
+        )
+
+        if(result_superpos EQUAL 0)
+            message(STATUS "Superposition plot saved to: ${SUPERPOSITION_PLOT}")
+        else()
+            message(WARNING "Failed to generate superposition plot: ${error_superpos}")
+        endif()
+    else()
+        message(WARNING "Superposition script not found: ${SUPERPOSITION_SCRIPT}")
     endif()
 else()
     message(WARNING "Comparison script not found: ${PYTHON_SCRIPT}")
@@ -89,4 +119,5 @@ message(STATUS "AUG Biot-Savart comparison test completed successfully")
 message(STATUS "Generated files:")
 message(STATUS "  - aug_reference.h5 (GPEC Fourier)")
 message(STATUS "  - aug_test.nc (coil_tools vector_potential)")
-message(STATUS "  - comparison.png (visual comparison)")
+message(STATUS "  - comparison.png (individual coils)")
+message(STATUS "  - superposition_comparison.png (total field)")
