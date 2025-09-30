@@ -24,4 +24,3 @@ from .coordinate_converter import order_monotonically
 
 # VMEC utilities
 from .vmec import VMECGeometry, vmec_to_cylindrical
-from .ascot5 import field_from_vmec, field_from_mgrid, write_b3ds_hdf5
