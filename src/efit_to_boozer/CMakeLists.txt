@@ -75,12 +75,7 @@ target_link_libraries(efit_to_boozer
 )
 
 # Grab Python
-find_package(Python COMPONENTS Interpreter Development NumPy)
-
-if (NOT Python_FOUND OR NOT Python_Development_FOUND OR NOT Python_NumPy_FOUND)
-    message(STATUS "Python with Development and NumPy support not found; skipping efit_to_boozer Python module build.")
-    return()
-endif()
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 
 message(STATUS "Python found: ${Python_EXECUTABLE}")
 message(STATUS "Python version: ${Python_VERSION}")
