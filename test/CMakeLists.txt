@@ -64,6 +64,10 @@ target_link_libraries(test_geqdsk_tools.x
   ${MAGFIE_LIB}
 )
 
+add_executable(test_simpson.x source/test_simpson.f90)
+target_link_libraries(test_simpson.x
+  ${COMMON_LIBS}
+)
 add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
 target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
@@ -110,6 +114,7 @@ add_fortran_test(test_binsrc)
 add_fortran_test(test_boozer_class)
 add_fortran_test(test_efit_class)
 add_fortran_test(test_geqdsk_tools)
+add_fortran_test(test_simpson)
 add_fortran_test(test_hdf5_tools)
 add_fortran_test(test_util)
 add_fortran_test(test_interpolate)
