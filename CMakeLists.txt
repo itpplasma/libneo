@@ -61,10 +61,6 @@ enable_testing()
 
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 
-if(ENABLE_OPENMP)
-    find_package(OpenMP REQUIRED COMPONENTS Fortran)
-endif()
-
 find_program(BASH_PROGRAM bash)
 
 find_package(MPI REQUIRED COMPONENTS C Fortran)
@@ -77,6 +73,11 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fmax-errors=1>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fbacktrace>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffree-line-length-132>)
+    
+    if(ENABLE_OPENMP)
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fopenmp>)
+	add_link_options(-fopenmp)
+    endif()
     
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
@@ -182,11 +183,6 @@ include(CMakeSources.in)
 # Libraries that depend on libneo
 add_subdirectory(src/species)
 add_subdirectory(src/magfie)
-
-if(ENABLE_OPENMP)
-    target_link_libraries(neo PUBLIC OpenMP::OpenMP_Fortran)
-    target_link_libraries(magfie PUBLIC OpenMP::OpenMP_Fortran)
-endif()
 
 add_subdirectory(src/efit_to_boozer)
 add_executable(efit_to_boozer.x
