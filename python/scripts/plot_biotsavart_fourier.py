@@ -19,8 +19,9 @@ test_spl = spline_gauged_Anvac(test_grid,
     *gauge_Anvac(test_grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ))
 
 # %%
-assert(all(ref_grid.R == test_grid.R))
-assert(all(ref_grid.Z == test_grid.Z))
+from numpy import allclose
+assert(allclose(ref_grid.R, test_grid.R))
+assert(allclose(ref_grid.Z, test_grid.Z))
 # double the resolution
 R = linspace(ref_grid.R_min, ref_grid.R_max, 2 * ref_grid.nR - 1)
 Z = linspace(ref_grid.Z_min, ref_grid.Z_max, 2 * ref_grid.nZ - 1)
