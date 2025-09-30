@@ -80,6 +80,12 @@ target_link_libraries(test_geoflux.x
   ${MAGFIE_LIB}
 )
 
+add_executable(geoflux_coord_dump.x source/geoflux_coord_dump.f90)
+target_link_libraries(geoflux_coord_dump.x
+  ${COMMON_LIBS}
+  ${MAGFIE_LIB}
+)
+
 add_executable(test_simpson.x source/test_simpson.f90)
 target_link_libraries(test_simpson.x
   ${COMMON_LIBS}
@@ -154,6 +160,16 @@ add_test(
           --basename geqdsk
 )
 set_tests_properties(test_geqdsk_plot PROPERTIES DEPENDS test_geoflux)
+
+add_test(
+  NAME test_geoflux_plot
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geoflux_plot.py
+          --exe $<TARGET_FILE:geoflux_coord_dump.x>
+          --data-dir ${TEST_DATA_DIR}
+          --output-dir ${TEST_ARTIFACT_DIR}
+          --basename geoflux
+)
+set_tests_properties(test_geoflux_plot PROPERTIES DEPENDS test_geoflux)
 
 ## Custom tests
 
