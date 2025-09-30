@@ -16,11 +16,13 @@ include_directories(${HDF5_INCLUDE_DIRS})
 
 find_package(Python COMPONENTS Interpreter)
 if (NOT Python_FOUND)
-  message(FATAL_ERROR "Python interpreter required for geoflux test")
+  message(FATAL_ERROR "Python interpreter required for GEQDSK scripts")
 endif()
 
 set(TEST_DATA_DIR ${CMAKE_BINARY_DIR}/test_data)
 file(MAKE_DIRECTORY ${TEST_DATA_DIR})
+set(TEST_ARTIFACT_DIR ${CMAKE_BINARY_DIR}/test_artifacts)
+file(MAKE_DIRECTORY ${TEST_ARTIFACT_DIR})
 
 execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
@@ -143,6 +145,15 @@ add_test(
           --exe $<TARGET_FILE:test_geoflux.x>
           --data-dir ${TEST_DATA_DIR}
 )
+
+add_test(
+  NAME test_geqdsk_plot
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geqdsk_plot.py
+          --data-dir ${TEST_DATA_DIR}
+          --output-dir ${TEST_ARTIFACT_DIR}
+          --basename geqdsk
+)
+set_tests_properties(test_geqdsk_plot PROPERTIES DEPENDS test_geoflux)
 
 ## Custom tests
 

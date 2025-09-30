@@ -20,6 +20,9 @@ program test_geqdsk_tools
   call test_standardise(sucess)
   sucess_all = sucess_all .and. sucess
 
+  call test_consistency_idempotent(sucess)
+  sucess_all = sucess_all .and. sucess
+
   if (.not. sucess_all) then
     error stop "ERROR At least one test of geqdsk_tools failed."
   end if
@@ -61,8 +64,9 @@ contains
 
     type(geqdsk_t) :: geqdsk_in, geqdsk_out
 
-    character(len=*), parameter :: infilename = '../../test/resources/input_efit_file.dat', &
-                                 & outfilename = 'geqdsk_output'
+    character(len=*), parameter :: infilename = '../../test/resources/' // &
+                                 'input_efit_file.dat'
+    character(len=*), parameter :: outfilename = 'geqdsk_output'
     integer :: file_unit, ios
 
     sucess = .false.
@@ -157,7 +161,8 @@ contains
   !> Checks only conversion from single class.
   subroutine test_standardise(sucess)
     use geqdsk_tools, only : geqdsk_t ! variables/types
-    use geqdsk_tools, only : geqdsk_read, geqdsk_classify, geqdsk_standardise ! subroutines
+    use geqdsk_tools, only : geqdsk_read, geqdsk_classify
+    use geqdsk_tools, only : geqdsk_standardise ! subroutines
 
     implicit none
 
@@ -183,5 +188,48 @@ contains
     end if
 
   end subroutine
+
+  subroutine test_consistency_idempotent(sucess)
+    use geqdsk_tools, only : geqdsk_t
+    use geqdsk_tools, only : geqdsk_read, geqdsk_check_consistency
+    use, intrinsic :: iso_fortran_env, only : dp => real64
+
+    implicit none
+
+    logical, intent(out) :: sucess
+    type(geqdsk_t) :: geqdsk
+    character(len=*), parameter :: infilename = '../../test/resources/input_efit_file.dat'
+    real(dp), allocatable :: fpol(:), ffprim(:), pprime(:)
+    real(dp), allocatable :: psirz(:,:)
+    real(dp) :: tol
+
+    sucess = .false.
+
+    call geqdsk_read(geqdsk, infilename)
+    call geqdsk_check_consistency(geqdsk)
+
+    allocate(fpol(size(geqdsk%fpol)))
+    allocate(ffprim(size(geqdsk%ffprim)))
+    allocate(pprime(size(geqdsk%pprime)))
+    allocate(psirz(size(geqdsk%psirz,1), size(geqdsk%psirz,2)))
+
+    fpol = geqdsk%fpol
+    ffprim = geqdsk%ffprim
+    pprime = geqdsk%pprime
+    psirz = geqdsk%psirz
+
+    call geqdsk_check_consistency(geqdsk)
+
+    tol = 1.0d-12
+    if (maxval(abs(geqdsk%fpol - fpol)) <= tol .and. &
+        maxval(abs(geqdsk%ffprim - ffprim)) <= tol .and. &
+        maxval(abs(geqdsk%pprime - pprime)) <= tol .and. &
+        maxval(abs(geqdsk%psirz - psirz)) <= tol) then
+      sucess = .true.
+    else
+      write(*,*) 'ERROR geqdsk_check_consistency not idempotent.'
+    end if
+
+  end subroutine test_consistency_idempotent
 
 end program test_geqdsk_tools
