@@ -16,7 +16,22 @@ target_link_libraries(test_coil_tools_biot_savart.x PRIVATE
 add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
 
 # Set test properties
-set_tests_properties(test_coil_tools_biot_savart PROPERTIES 
+set_tests_properties(test_coil_tools_biot_savart PROPERTIES
     LABELS "magfie;biot_savart"
     TIMEOUT 300
+)
+
+# Integration test: Compare GPEC Fourier vs coil_tools vector_potential on AUG data
+add_test(NAME test_aug_biot_savart_comparison
+    COMMAND ${CMAKE_COMMAND}
+        -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
+        -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
+        -DPYTHON_SCRIPT=${CMAKE_SOURCE_DIR}/python/scripts/compare_biotsavart.py
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/run_aug_comparison.cmake
+)
+
+set_tests_properties(test_aug_biot_savart_comparison PROPERTIES
+    LABELS "magfie;biot_savart;integration"
+    TIMEOUT 600
+    DEPENDS vacfield.x
 )
