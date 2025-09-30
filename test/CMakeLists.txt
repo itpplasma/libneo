@@ -67,6 +67,7 @@ target_link_libraries(test_geqdsk_tools.x
 add_executable(test_geoflux.x source/test_geoflux.f90)
 target_link_libraries(test_geoflux.x
   ${COMMON_LIBS}
+  ${MAGFIE_LIB}
 )
 
 add_executable(test_simpson.x source/test_simpson.f90)
