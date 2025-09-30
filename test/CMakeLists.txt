@@ -276,10 +276,10 @@ endif()
 add_test(NAME test_arnoldi
   COMMAND ${CMAKE_COMMAND}
           -DPYTHON_EXECUTABLE=${Python_EXECUTABLE}
-          -DSETUP_SCRIPT=${PROJECT_SOURCE_DIR}/test/source/setup_test_arnoldi.py
+          -DSETUP_SCRIPT=${CMAKE_SOURCE_DIR}/test/source/setup_test_arnoldi.py
           -DARNOLDI_EXE=$<TARGET_FILE:test_arnoldi.x>
           -DWORKDIR=${CMAKE_CURRENT_BINARY_DIR}
-          -P ${PROJECT_SOURCE_DIR}/test/run_test_arnoldi.cmake)
+          -P ${CMAKE_SOURCE_DIR}/test/run_test_arnoldi.cmake)
 set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_mympilib
