@@ -6,17 +6,21 @@
     - [x] Review `CMakeLists.txt`/f2py build recipe to ensure `spline_vmec_sub.f90` is included in extension sources.
     - [x] Rebuild `_magfie` after adjusting link order; validate import via `python - <<'PY' import _magfie; PY`.
     - [ ] Add regression check (maybe tiny pytest) asserting `_magfie.__file__` imports successfully in dev env.
-- [ ] Audit f2py-exposed API once module loads:
+-- [ ] Audit f2py-exposed API once module loads:
     - [ ] Confirm `init_vmec`, `splint_vmec_data`, `vmec_field`, `metric_tensor_*` wrappers are callable from Python.
     - [ ] Document expected argument order/units for later usage.
-- [ ] Implement `libneo.ascot5.field_from_vmec`:
+- [ ] Migrate SIMPLE VMEC infrastructure into libneo core:
+    - [ ] Port `field_vmec` machinery (magnetic field evaluation, scaling) from SIMPLE to `src/magfie` while keeping Fortran authoritative.
+    - [ ] Port `simple_coordinates.transform_vmec_to_cyl/cart` so coordinate Jacobians live in libneo Fortran.
+    - [ ] Expose the new Fortran entry points via `_magfie` wrappers; adjust SIMPLE to consume the libneo versions.
+- [ ] Implement `libneo.ascot5.field_from_vmec` atop the migrated Fortran:
     - [ ] Sample LCFS from `splint_vmec_data` to derive bounding box (R/Z min-max with pad).
-    - [ ] Mirror SIMPLE’s Jacobian (`SIMPLE/src/coordinates/coordinates.f90:18`) to convert VMEC (s,θ,φ) → cylindrical (R,φ,Z) and derivatives.
-    - [ ] Evaluate VMEC field via `_magfie.vmec_field` on structured grids, convert to ASCOT5 B components.
+    - [ ] Use the shared VMEC→cylindrical Jacobian to convert to cylindrical coordinates.
+    - [ ] Evaluate VMEC field via migrated Fortran routines on structured grids, convert to ASCOT5 B components.
     - [ ] Build ψ grid using contour labelling + iota integration (see `$DATA/COMMON/ASCOT5/mgrid_to_ascot.py:200-320`).
     - [ ] Package outputs into ASCOT5 dict (`b_rmin`, `br`, `psi`, …).
     - [ ] Reuse existing VMEC test flow for sample data (`test/python/test_vmec_coords.py` downloads wout).
-- [ ] Implement `libneo.ascot5.field_from_mgrid`:
+- [ ] Implement `libneo.ascot5.field_from_mgrid` (Fortran-first where possible):
     - [ ] Read NetCDF (and optional libneo.mgrid path) replicating `$DATA/COMMON/ASCOT5/mgrid_to_ascot.py` without importing `a5py`.
     - [ ] Normalize array orientations to `(nr, nphi, nz)`; compute axis fallback; optional VMEC-based ψ support.
     - [ ] Return ASCOT5 dict identical to VMEC variant for downstream reuse.
