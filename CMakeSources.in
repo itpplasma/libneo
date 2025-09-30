@@ -19,8 +19,10 @@ add_library(neo STATIC
     src/canonical_coordinates_mod.f90
     src/nctools_module.f90
     src/new_vmec_allocation_stuff.f90
+    src/coordinates/vmec_coordinates.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
+    src/vmec/vmec_field_tools.f90
     src/plag_coeff.f90
     src/binsrc.f90
     src/boozer_converter.f90

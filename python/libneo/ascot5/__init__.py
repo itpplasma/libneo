@@ -197,85 +197,9 @@ def _evaluate_bfield(
     s: float,
     theta: float,
     phi: float,
-    res_splint,
-    res_field,
 ) -> Tuple[float, float, float]:
-    (
-        _A_phi,
-        _A_theta,
-        _dA_phi_ds,
-        _dA_theta_ds,
-        _aiota,
-        R_cm,
-        _Z_cm,
-        _alam,
-        dR_ds_cm,
-        dR_dt_cm,
-        dR_dp_cm,
-        dZ_ds_cm,
-        dZ_dt_cm,
-        dZ_dp_cm,
-        dl_ds,
-        dl_dt,
-        dl_dp,
-    ) = res_splint
-
-    (
-        _A_theta,
-        _A_phi,
-        _dA_theta_ds,
-        _dA_phi_ds,
-        _aiota,
-        _sqg,
-        _alam,
-        _dl_ds,
-        _dl_dt,
-        _dl_dp,
-        Bctr_vartheta,
-        Bctr_varphi,
-        _Bcov_s,
-        _Bcov_vartheta,
-        _Bcov_varphi,
-    ) = res_field
-
-    R = float(R_cm) * CM_TO_M
-    cos_phi = math.cos(phi)
-    sin_phi = math.sin(phi)
-
-    dR_ds = float(dR_ds_cm) * CM_TO_M
-    dR_dt = float(dR_dt_cm) * CM_TO_M
-    dR_dp = float(dR_dp_cm) * CM_TO_M
-
-    dZ_ds = float(dZ_ds_cm) * CM_TO_M
-    dZ_dt = float(dZ_dt_cm) * CM_TO_M
-    dZ_dp = float(dZ_dp_cm) * CM_TO_M
-
-    e_s = np.array([dR_ds * cos_phi, dR_ds * sin_phi, dZ_ds])
-    e_theta = np.array([dR_dt * cos_phi, dR_dt * sin_phi, dZ_dt])
-    e_phi = np.array([
-        dR_dp * cos_phi - R * sin_phi,
-        dR_dp * sin_phi + R * cos_phi,
-        dZ_dp,
-    ])
-
-    cjac = 1.0 / (1.0 + float(dl_dt))
-    e_vartheta = cjac * e_theta
-    e_varphi = e_phi - float(dl_dp) * cjac * e_theta
-
-    B_vartheta = float(Bctr_vartheta) * GAUSS_TO_TESLA
-    B_varphi = float(Bctr_varphi) * GAUSS_TO_TESLA
-    B_vec = B_vartheta * e_vartheta + B_varphi * e_varphi
-
-    e_R = np.array([cos_phi, sin_phi, 0.0])
-    e_phi_unit = np.array([-sin_phi, cos_phi, 0.0])
-    e_Z = np.array([0.0, 0.0, 1.0])
-
-    BR = float(B_vec.dot(e_R))
-    Bphi = float(B_vec.dot(e_phi_unit))
-    BZ = float(B_vec.dot(e_Z))
-
-    return BR, Bphi, BZ
-
+    BR, Bphi, BZ, _Bmag = _VMEC_WRAPPERS.vmec_field_cylindrical_wrapper(s, theta, phi)
+    return float(BR), float(Bphi), float(BZ)
 
 def field_from_vmec(
     wout_path: str | Path,
@@ -350,9 +274,7 @@ def field_from_vmec(
                     prev_theta_col = math.nan
                     continue
 
-                res_splint = _VMEC_WRAPPERS.splint_vmec_data_wrapper(sol_s, sol_theta, phi)
-                res_field = _VMEC_WRAPPERS.vmec_field_wrapper(sol_s, sol_theta, phi)
-                BR, BPHI, BZ = _evaluate_bfield(sol_s, sol_theta, phi, res_splint, res_field)
+                BR, BPHI, BZ = _evaluate_bfield(sol_s, sol_theta, phi)
 
                 br[ir, iphi, iz] = BR
                 bphi[ir, iphi, iz] = BPHI

@@ -1,6 +1,7 @@
 module f2py_vmec_wrappers
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use spline_vmec_sub, only : splint_vmec_data, vmec_field
+    use vmec_field_tools, only : vmec_field_cylindrical
     implicit none
 contains
 
@@ -30,5 +31,13 @@ contains
                         sqg, alam, dl_ds, dl_dt, dl_dp, Bctrvr_vartheta, Bctrvr_varphi, &
                         Bcovar_s, Bcovar_vartheta, Bcovar_varphi)
     end subroutine vmec_field_wrapper
+
+
+    subroutine vmec_field_cylindrical_wrapper(s, theta, varphi, BR, Bphi, BZ, Bmag)
+        real(dp), intent(in) :: s, theta, varphi
+        real(dp), intent(out) :: BR, Bphi, BZ, Bmag
+
+        call vmec_field_cylindrical(s, theta, varphi, BR, Bphi, BZ, Bmag)
+    end subroutine vmec_field_cylindrical_wrapper
 
 end module f2py_vmec_wrappers

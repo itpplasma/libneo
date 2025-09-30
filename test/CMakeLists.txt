@@ -94,6 +94,9 @@ target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate.x source/test_batch_interpolate.f90)
 target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
 
+add_executable(test_vmec_modules.x source/test_vmec_modules.f90)
+target_link_libraries(test_vmec_modules.x neo)
+
 
 
 ## Standard tests according to standard libneo Fortran test convention.
@@ -113,6 +116,7 @@ add_fortran_test(test_interpolate)
 add_fortran_test(test_batch_interpolate)
 add_fortran_test(test_collision_freqs)
 add_fortran_test(test_transport)
+add_fortran_test(test_vmec_modules)
 
 ## Custom tests
 
@@ -122,7 +126,12 @@ add_fortran_test(test_transport)
 # Afterwards fail condition is set: test will fail if the output
 # contains 'STOP'.
 add_test(NAME test_arnoldi
-         COMMAND ../../test/source/setup_test_arnoldi.py && test_arnoldi.x)
+  COMMAND ${CMAKE_COMMAND}
+          -DPYTHON_EXECUTABLE=${Python_EXECUTABLE}
+          -DSETUP_SCRIPT=${PROJECT_SOURCE_DIR}/test/source/setup_test_arnoldi.py
+          -DARNOLDI_EXE=$<TARGET_FILE:test_arnoldi.x>
+          -DWORKDIR=${CMAKE_CURRENT_BINARY_DIR}
+          -P ${PROJECT_SOURCE_DIR}/test/run_test_arnoldi.cmake)
 set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_mympilib
