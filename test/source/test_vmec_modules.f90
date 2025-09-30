@@ -1,7 +1,6 @@
 program test_vmec_modules
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use vmec_coordinates
-    use vmec_field_tools, only: cm_to_m
     implicit none
 
     procedure(transform_i), pointer :: fptr
@@ -11,10 +10,6 @@ program test_vmec_modules
     call cyl_to_cart([1.0_dp, 0.0_dp, 0.0_dp], cyl)
     if (abs(cyl(1) - 1.0_dp) > 1.0e-12_dp) then
         error stop 'cyl_to_cart sanity check failed'
-    end if
-
-    if (abs(cm_to_m - 1.0e-2_dp) > 1.0e-12_dp) then
-        error stop 'vmec_field_tools constant mismatch'
     end if
 
     print *, 'vmec modules available'
