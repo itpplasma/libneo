@@ -1,10 +1,24 @@
+import os
+import shutil
+from pathlib import Path
+
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")  # pragma: no cover
 import matplotlib.pyplot as plt
 import netCDF4
 
-from libneo.ascot5 import field_from_mgrid, write_b3ds_hdf5
+from libneo.ascot5 import GAUSS_TO_TESLA, field_from_mgrid, write_b3ds_hdf5
+
+
+def _store_artifacts(*paths: Path) -> None:
+    target = os.environ.get("PYTEST_ARTIFACTS")
+    if not target:
+        return
+    os.makedirs(target, exist_ok=True)
+    for path in paths:
+        shutil.copy(path, Path(target) / path.name)
 
 
 def _create_synthetic_mgrid(path):
@@ -52,7 +66,14 @@ def test_field_from_mgrid(tmp_path):
     assert output.exists()
     assert gname.startswith("B_3DS")
 
-    bmag = np.sqrt(field.br[:, 0, :] ** 2 + field.bphi[:, 0, :] ** 2 + field.bz[:, 0, :] ** 2).T
+    bmag = (
+        np.sqrt(
+            field.br[:, 0, :] ** 2
+            + field.bphi[:, 0, :] ** 2
+            + field.bz[:, 0, :] ** 2
+        ).T
+        * GAUSS_TO_TESLA
+    )
     fig, ax = plt.subplots(figsize=(4, 4))
     im = ax.pcolormesh(field.r_grid, field.z_grid, bmag, shading="auto")
     ax.set_xlabel("R [m]")
@@ -62,3 +83,4 @@ def test_field_from_mgrid(tmp_path):
     fig.savefig(png_path)
     plt.close(fig)
     assert png_path.exists()
+    _store_artifacts(output, png_path)
