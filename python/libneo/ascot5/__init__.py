@@ -71,19 +71,11 @@ class B3DSField:
 def _load_vmec_metadata(wout_path: Path) -> Tuple[int, float, float, np.ndarray]:
     with netCDF4.Dataset(wout_path) as ds:
         nfp = int(ds.variables["nfp"][()])
-<<<<<<< HEAD
         axis_r = float(ds.variables["raxis_cc"][0])
         if "zaxis_cs" in ds.variables:
             axis_z = float(ds.variables["zaxis_cs"][0])
         else:
             axis_z = float(ds.variables["zaxis_cc"][0])
-=======
-        axis_r = float(ds.variables["raxis_cc"][0])
-        if "zaxis_cs" in ds.variables:
-            axis_z = float(ds.variables["zaxis_cs"][0])
-        else:
-            axis_z = float(ds.variables["zaxis_cc"][0])
->>>>>>> 30803be (Restore ASCOT5 adapters and tests)
         iota = np.array(ds.variables["iotaf"][...], dtype=float)
     return nfp, axis_r, axis_z, iota
 
@@ -206,13 +198,8 @@ def _evaluate_bfield(
     theta: float,
     phi: float,
 ) -> Tuple[float, float, float]:
-<<<<<<< HEAD
     BR, Bphi, BZ, _Bmag = _VMEC_WRAPPERS.vmec_field_cylindrical_wrapper(s, theta, phi)
     return float(BR), float(Bphi), float(BZ)
-=======
-    BR, Bphi, BZ, _Bmag = _VMEC_WRAPPERS.vmec_field_cylindrical_wrapper(s, theta, phi)
-    return float(BR), float(Bphi), float(BZ)
->>>>>>> 30803be (Restore ASCOT5 adapters and tests)
 
 def field_from_vmec(
     wout_path: str | Path,
@@ -424,9 +411,13 @@ def write_b3ds_hdf5(path: str | Path, field: B3DSField, desc: str | None = None,
         g.create_dataset("psi0", data=(data["psi0"],), dtype="f8")
         g.create_dataset("psi1", data=(data["psi1"],), dtype="f8")
         g.create_dataset("psi", data=data["psi"], dtype="f8")
-        g.create_dataset("br", data=np.transpose(field.br, (2, 1, 0)), dtype="f8")
-        g.create_dataset("bphi", data=np.transpose(field.bphi, (2, 1, 0)), dtype="f8")
-        g.create_dataset("bz", data=np.transpose(field.bz, (2, 1, 0)), dtype="f8")
+        br_si = np.transpose(field.br, (2, 1, 0)) * GAUSS_TO_TESLA
+        bphi_si = np.transpose(field.bphi, (2, 1, 0)) * GAUSS_TO_TESLA
+        bz_si = np.transpose(field.bz, (2, 1, 0)) * GAUSS_TO_TESLA
+
+        g.create_dataset("br", data=br_si, dtype="f8")
+        g.create_dataset("bphi", data=bphi_si, dtype="f8")
+        g.create_dataset("bz", data=bz_si, dtype="f8")
 
         if desc is not None:
             g.attrs["desc"] = np.bytes_(desc)
