@@ -8,9 +8,14 @@ program test_geoflux
 
     implicit none
 
-    character(len=*), parameter :: geqdsk_file = '../../python/tests/test.geqdsk'
+    character(len=*), parameter :: fallback_geqdsk = '../../python/tests/test.geqdsk'
+    character(len=*), parameter :: env_geqdsk = 'LIBNEO_TEST_GEQDSK'
     real(dp), parameter :: tol_roundtrip = 2.0d-2
 
+    character(len=512) :: geqdsk_file
+    character(len=512) :: arg_buffer
+    integer :: arg_status
+    integer :: arg_len
     real(dp) :: x_geo(3), x_geo_back(3)
     real(dp) :: x_cyl(3)
     real(dp) :: max_diff
@@ -25,7 +30,20 @@ program test_geoflux
     real(dp) :: psi_expected
     real(dp) :: tol_field
 
-    call spline_geoflux_data(geqdsk_file, 64, 128)
+    geqdsk_file = fallback_geqdsk
+    arg_buffer = ''
+    call get_command_argument(1, value=arg_buffer, length=arg_len, status=arg_status)
+    if (arg_status == 0 .and. arg_len > 0 .and. len_trim(arg_buffer) > 0) then
+        geqdsk_file = trim(arg_buffer)
+    else
+        call get_environment_variable(env_geqdsk, value=arg_buffer, &
+                                      length=arg_len, status=arg_status)
+        if (arg_status == 0 .and. arg_len > 0 .and. len_trim(arg_buffer) > 0) then
+            geqdsk_file = trim(arg_buffer)
+        end if
+    end if
+
+    call spline_geoflux_data(trim(geqdsk_file), 64, 128)
 
     x_geo = [0.3_dp, 0.5_dp, 0.0_dp]
     call geoflux_to_cyl(x_geo, x_cyl)

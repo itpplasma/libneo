@@ -14,6 +14,9 @@ include_directories(${MPI_Fortran_INCLUDE_PATH})
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
 
+set(TEST_DATA_DIR ${CMAKE_BINARY_DIR}/test_data)
+file(MAKE_DIRECTORY ${TEST_DATA_DIR})
+
 execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -120,7 +123,6 @@ add_fortran_test(test_binsrc)
 add_fortran_test(test_boozer_class)
 add_fortran_test(test_efit_class)
 add_fortran_test(test_geqdsk_tools)
-add_fortran_test(test_geoflux)
 add_fortran_test(test_simpson)
 add_fortran_test(test_hdf5_tools)
 add_fortran_test(test_util)
@@ -129,6 +131,13 @@ add_fortran_test(test_batch_interpolate)
 add_fortran_test(test_collision_freqs)
 add_fortran_test(test_transport)
 add_fortran_test(test_vmec_modules)
+
+add_test(
+  NAME test_geoflux
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/run_geoflux_test.py
+          --exe $<TARGET_FILE:test_geoflux.x>
+          --data-dir ${TEST_DATA_DIR}
+)
 
 ## Custom tests
 
