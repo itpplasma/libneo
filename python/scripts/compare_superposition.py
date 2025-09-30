@@ -84,32 +84,33 @@ def main():
         print(f"Error: Number of coils ({BnR.shape[0]}) != number of currents ({ncoil})")
         sys.exit(1)
 
-    # Create splines for both methods
-    print("\nCreating splines for reference...")
-    ref_spl = spline_gauged_Anvac(
-        ref_grid,
-        *gauged_Anvac_from_Bnvac(ref_grid, BnR, BnZ, ntor=args.ntor),
-        ntor=args.ntor
-    )
+    # Use raw Fourier data directly (no spline interpolation)
+    print("\nUsing raw Fourier data on native grid...")
 
-    print("Creating splines for test...")
-    test_spl = spline_gauged_Anvac(
-        test_grid,
-        *gauge_Anvac(test_grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=args.ntor),
-        ntor=args.ntor
-    )
+    # Reference has B directly
+    BnR_ref = BnR
+    # Compute Bnphi from div B = 0: ∂(R B_R)/∂R + ∂(R B_Z)/∂Z + i n B_phi = 0
+    Bnphi_ref = np.zeros_like(BnR)
+    BnZ_ref = BnZ
 
-    # Create evaluation grid (higher resolution)
-    nR_interp = 2 * ref_grid.nR - 1
-    nZ_interp = 2 * ref_grid.nZ - 1
-    R = np.linspace(ref_grid.R_min, ref_grid.R_max, nR_interp)
-    Z = np.linspace(ref_grid.Z_min, ref_grid.Z_max, nZ_interp)
+    # Test: compute B from curl of A using stored derivatives
+    # B_R = (1/R) ∂A_Z/∂φ - ∂A_φ/∂Z = (i n / R) A_Z - ∂A_φ/∂Z
+    # B_φ = ∂A_R/∂Z - ∂A_Z/∂R
+    # B_Z = (1/R)[∂(R A_φ)/∂R - ∂A_R/∂φ] = (1/R)[A_φ + R ∂A_φ/∂R - i n A_R]
+    R_grid = np.linspace(test_grid.R_min, test_grid.R_max, test_grid.nR)
+    Z_grid = np.linspace(test_grid.Z_min, test_grid.Z_max, test_grid.nZ)
+    R_mesh = R_grid[np.newaxis, :, np.newaxis]  # (1, nR, 1) for shape (ncoil, nR, nZ)
 
-    print(f"\nEvaluating fields on {len(R)}x{len(Z)} grid...")
-
-    # Compute fields for both methods
-    BnR_ref, Bnphi_ref, BnZ_ref = field_divfree(ref_spl, R, Z, ntor=args.ntor)
-    BnR_test, Bnphi_test, BnZ_test = field_divfree(test_spl, R, Z, ntor=args.ntor)
+    BnR_test = (1j * args.ntor / R_mesh) * AnZ - dAnphi_dZ
+    # For B_phi, need ∂A_R/∂Z and ∂A_Z/∂R - compute with finite differences
+    dAnR_dZ = np.zeros_like(AnR)
+    dAnZ_dR = np.zeros_like(AnZ)
+    dZ = (test_grid.Z_max - test_grid.Z_min) / (test_grid.nZ - 1)
+    dR = (test_grid.R_max - test_grid.R_min) / (test_grid.nR - 1)
+    dAnR_dZ[:, :, 1:-1] = (AnR[:, :, 2:] - AnR[:, :, :-2]) / (2 * dZ)
+    dAnZ_dR[:, 1:-1, :] = (AnZ[:, 2:, :] - AnZ[:, :-2, :]) / (2 * dR)
+    Bnphi_test = dAnR_dZ - dAnZ_dR
+    BnZ_test = (Anphi + R_mesh * dAnphi_dR - 1j * args.ntor * AnR) / R_mesh
 
     # Compute superposition weighted by currents
     print("\nComputing superposition with coil currents...")
@@ -124,20 +125,21 @@ def main():
     BnZ_test_total = np.sum(currents[:, np.newaxis, np.newaxis] * BnZ_test, axis=0)
 
     # Compute field magnitudes
-    log_B2_ref = compute_field_magnitude(BnR_ref_total, Bnphi_ref_total, BnZ_ref_total)
-    log_B2_test = compute_field_magnitude(BnR_test_total, Bnphi_test_total, BnZ_test_total)
-
-    # Compute difference
-    diff = log_B2_test - log_B2_ref
-
-    # Statistics
-    print("\nSuperposition comparison statistics:")
     B_ref_mag = np.sqrt((BnR_ref_total * np.conj(BnR_ref_total) +
                          Bnphi_ref_total * np.conj(Bnphi_ref_total) +
                          BnZ_ref_total * np.conj(BnZ_ref_total)).real)
     B_test_mag = np.sqrt((BnR_test_total * np.conj(BnR_test_total) +
                           Bnphi_test_total * np.conj(Bnphi_test_total) +
                           BnZ_test_total * np.conj(BnZ_test_total)).real)
+
+    log_B_ref = np.log10(B_ref_mag + 1e-20)
+    log_B_test = np.log10(B_test_mag + 1e-20)
+
+    # Compute difference
+    diff = log_B_test - log_B_ref
+
+    # Statistics
+    print("\nSuperposition comparison statistics:")
 
     relative_error = np.abs(B_test_mag - B_ref_mag) / (B_ref_mag + 1e-15)
 
@@ -156,22 +158,22 @@ def main():
     axs = fig.subplots(1, 3)
 
     # Shared colorbar range for absolute fields
-    vmin_abs = min(np.min(log_B2_ref), np.min(log_B2_test))
-    vmax_abs = max(np.max(log_B2_ref), np.max(log_B2_test))
+    vmin_abs = min(np.min(log_B_ref), np.min(log_B_test))
+    vmax_abs = max(np.max(log_B_ref), np.max(log_B_test))
     norm_abs = Normalize(vmin=vmin_abs, vmax=vmax_abs)
 
-    extent = [R[0], R[-1], Z[0], Z[-1]]
+    extent = [R_grid[0], R_grid[-1], Z_grid[0], Z_grid[-1]]
 
     # Plot GPEC reference
     # field is (nR, nZ), need .T so R is horizontal and Z is vertical in imshow
-    im0 = axs[0].imshow(log_B2_ref.T, origin='lower', cmap='magma',
+    im0 = axs[0].imshow(log_B_ref.T, origin='lower', cmap='magma',
                         extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
     axs[0].set_title('GPEC Fourier (Reference)', fontsize=12, fontweight='bold')
     axs[0].set_xlabel('R [cm]')
     axs[0].set_ylabel('Z [cm]')
 
     # Plot coil_tools test
-    im1 = axs[1].imshow(log_B2_test.T, origin='lower', cmap='magma',
+    im1 = axs[1].imshow(log_B_test.T, origin='lower', cmap='magma',
                         extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
     axs[1].set_title('coil_tools vector_potential (Test)', fontsize=12, fontweight='bold')
     axs[1].set_xlabel('R [cm]')
@@ -187,10 +189,10 @@ def main():
 
     # Colorbars
     cbar0 = fig.colorbar(im0, ax=axs[:2], location='bottom', fraction=0.05, pad=0.08)
-    cbar0.set_label(r'$\log_{10} |\vec{B}_{n=2}|^{2}$', fontsize=11)
+    cbar0.set_label(r'$\log_{10} |\vec{B}_{n=2}|$', fontsize=11)
 
     cbar2 = fig.colorbar(im2, ax=axs[2], location='bottom', fraction=0.05, pad=0.08)
-    cbar2.set_label(r'$\Delta \log_{10} |B|^{2}$', fontsize=11)
+    cbar2.set_label(r'$\Delta \log_{10} |B|$', fontsize=11)
 
     print(f"Saving plot to {args.output}")
     fig.savefig(args.output, dpi=150, bbox_inches='tight')

@@ -548,7 +548,7 @@ contains
     plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
 
     if (use_convex_wall) then
-      convexfile = 'convexwall.asdex'  ! Set default convex wall filename
+      convexfile = 'convexwall.dat'  ! Set default convex wall filename
     end if
 
     do kc = 1, ncoil

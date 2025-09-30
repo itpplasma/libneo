@@ -3,9 +3,9 @@
   Rmax = 267.0d0
   Zmin = -154.0d0
   Zmax = 150.4d0
-  nR = 64
-  nZ = 128
-  nphi = 256
+  nR = 16
+  nZ = 32
+  nphi = 32
   nmax = 8
   prefactor = 5.0e-1
   min_distance = 0.0

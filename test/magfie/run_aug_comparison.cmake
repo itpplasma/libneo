@@ -60,64 +60,63 @@ endif()
 
 message(STATUS "Generated field files successfully")
 
-# Generate individual coil comparison plot
-set(PLOT_OUTPUT "${TEST_DATA_DIR}/comparison.png")
+# Generate superposition comparison plot and check tolerance
+if(NOT DEFINED PROJECT_SOURCE_DIR)
+    get_filename_component(PROJECT_SOURCE_DIR "${TEST_DATA_DIR}/../../.." ABSOLUTE)
+endif()
+
+set(SUPERPOSITION_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/compare_superposition.py")
 set(SUPERPOSITION_PLOT "${TEST_DATA_DIR}/superposition_comparison.png")
 
-if(DEFINED PYTHON_SCRIPT AND EXISTS "${PYTHON_SCRIPT}")
-    message(STATUS "Generating comparison plot...")
+if(EXISTS "${SUPERPOSITION_SCRIPT}")
+    message(STATUS "Generating superposition comparison and checking tolerance...")
     execute_process(
-        COMMAND python3 "${PYTHON_SCRIPT}"
+        COMMAND python3 "${SUPERPOSITION_SCRIPT}"
                 "${TEST_DATA_DIR}/aug_reference.h5"
                 "${TEST_DATA_DIR}/aug_test.nc"
-                -o "${PLOT_OUTPUT}"
+                "${TEST_DATA_DIR}/aug_currents.txt"
+                -o "${SUPERPOSITION_PLOT}"
         WORKING_DIRECTORY "${TEST_DATA_DIR}"
-        RESULT_VARIABLE result_plot
-        OUTPUT_VARIABLE output_plot
-        ERROR_VARIABLE error_plot
+        RESULT_VARIABLE result_superpos
+        OUTPUT_VARIABLE output_superpos
+        ERROR_VARIABLE error_superpos
     )
 
-    if(result_plot EQUAL 0)
-        message(STATUS "Individual coil comparison plot saved to: ${PLOT_OUTPUT}")
-    else()
-        message(WARNING "Failed to generate comparison plot: ${error_plot}")
+    if(NOT result_superpos EQUAL 0)
+        message(FATAL_ERROR "Comparison failed: ${error_superpos}")
     endif()
 
-    # Generate superposition plot
-    # PROJECT_SOURCE_DIR is passed from CMakeLists.txt
-    if(NOT DEFINED PROJECT_SOURCE_DIR)
-        get_filename_component(PROJECT_SOURCE_DIR "${TEST_DATA_DIR}/../../.." ABSOLUTE)
-    endif()
-    set(SUPERPOSITION_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/compare_superposition.py")
-    if(EXISTS "${SUPERPOSITION_SCRIPT}")
-        message(STATUS "Generating superposition comparison plot...")
-        execute_process(
-            COMMAND python3 "${SUPERPOSITION_SCRIPT}"
-                    "${TEST_DATA_DIR}/aug_reference.h5"
-                    "${TEST_DATA_DIR}/aug_test.nc"
-                    "${TEST_DATA_DIR}/aug_currents.txt"
-                    -o "${SUPERPOSITION_PLOT}"
-            WORKING_DIRECTORY "${TEST_DATA_DIR}"
-            RESULT_VARIABLE result_superpos
-            OUTPUT_VARIABLE output_superpos
-            ERROR_VARIABLE error_superpos
-        )
+    # Parse output to extract median and mean relative errors
+    string(REGEX MATCH "Median relative error: ([0-9.]+)%" median_match "${output_superpos}")
+    string(REGEX MATCH "Mean relative error: +([0-9.]+)%" mean_match "${output_superpos}")
 
-        if(result_superpos EQUAL 0)
-            message(STATUS "Superposition plot saved to: ${SUPERPOSITION_PLOT}")
-        else()
-            message(WARNING "Failed to generate superposition plot: ${error_superpos}")
+    if(median_match)
+        string(REGEX REPLACE "Median relative error: ([0-9.]+)%" "\\1" median_error "${median_match}")
+        message(STATUS "Median relative error: ${median_error}%")
+
+        # Check tolerance (accept up to 50% median error)
+        if(median_error GREATER 50.0)
+            message(FATAL_ERROR "Median relative error (${median_error}%) exceeds tolerance (50%)")
         endif()
-    else()
-        message(WARNING "Superposition script not found: ${SUPERPOSITION_SCRIPT}")
     endif()
+
+    if(mean_match)
+        string(REGEX REPLACE "Mean relative error: +([0-9.]+)%" "\\1" mean_error "${mean_match}")
+        message(STATUS "Mean relative error: ${mean_error}%")
+
+        # Check tolerance (accept up to 70% mean error)
+        if(mean_error GREATER 70.0)
+            message(FATAL_ERROR "Mean relative error (${mean_error}%) exceeds tolerance (70%)")
+        endif()
+    endif()
+
+    message(STATUS "Comparison plot saved to: ${SUPERPOSITION_PLOT}")
 else()
-    message(WARNING "Comparison script not found: ${PYTHON_SCRIPT}")
+    message(FATAL_ERROR "Comparison script not found: ${SUPERPOSITION_SCRIPT}")
 endif()
 
 message(STATUS "AUG Biot-Savart comparison test completed successfully")
 message(STATUS "Generated files:")
 message(STATUS "  - aug_reference.h5 (GPEC Fourier)")
 message(STATUS "  - aug_test.nc (coil_tools vector_potential)")
-message(STATUS "  - comparison.png (individual coils)")
-message(STATUS "  - superposition_comparison.png (total field)")
+message(STATUS "  - superposition_comparison.png (comparison plot)")

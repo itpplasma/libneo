@@ -26,7 +26,6 @@ add_test(NAME test_aug_biot_savart_comparison
     COMMAND ${CMAKE_COMMAND}
         -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
         -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
-        -DPYTHON_SCRIPT=${CMAKE_SOURCE_DIR}/python/scripts/compare_biotsavart.py
         -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/run_aug_comparison.cmake
 )
