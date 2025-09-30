@@ -496,7 +496,8 @@ contains
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
-    use field_sub, only: read_field_input, stretch_coords
+    use field_sub, only: stretch_coords
+    use input_files, only: convexfile
 
     type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
@@ -547,7 +548,7 @@ contains
     plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
 
     if (use_convex_wall) then
-      call read_field_input  ! read convex wall
+      convexfile = 'convexwall.asdex'  ! Set default convex wall filename
     end if
 
     do kc = 1, ncoil

@@ -163,15 +163,16 @@ def main():
     extent = [R[0], R[-1], Z[0], Z[-1]]
 
     # Plot GPEC reference
+    # field is (nR, nZ), need .T so R is horizontal and Z is vertical in imshow
     im0 = axs[0].imshow(log_B2_ref.T, origin='lower', cmap='magma',
-                        extent=extent, norm=norm_abs, aspect='auto')
+                        extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
     axs[0].set_title('GPEC Fourier (Reference)', fontsize=12, fontweight='bold')
     axs[0].set_xlabel('R [cm]')
     axs[0].set_ylabel('Z [cm]')
 
     # Plot coil_tools test
     im1 = axs[1].imshow(log_B2_test.T, origin='lower', cmap='magma',
-                        extent=extent, norm=norm_abs, aspect='auto')
+                        extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
     axs[1].set_title('coil_tools vector_potential (Test)', fontsize=12, fontweight='bold')
     axs[1].set_xlabel('R [cm]')
     axs[1].set_ylabel('Z [cm]')
@@ -179,7 +180,7 @@ def main():
     # Plot difference
     diff_max = max(abs(np.min(diff)), abs(np.max(diff)))
     im2 = axs[2].imshow(diff.T, origin='lower', cmap='RdBu_r',
-                        extent=extent, vmin=-diff_max, vmax=diff_max, aspect='auto')
+                        extent=extent, vmin=-diff_max, vmax=diff_max, aspect='auto', interpolation='bilinear')
     axs[2].set_title('Difference (Test - Reference)', fontsize=12, fontweight='bold')
     axs[2].set_xlabel('R [cm]')
     axs[2].set_ylabel('Z [cm]')
