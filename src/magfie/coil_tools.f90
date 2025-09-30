@@ -675,7 +675,7 @@ contains
     gauged_AnZ(:, :) = (0d0, 0d0)
     do kZ = 1, nZ
       gauged_AnR(:, kZ) = imun / ntor * R * BnZ(:, kZ)
-      gauged_AnZ(:, kZ) = imun / ntor * R * BnR(:, kZ)
+      gauged_AnZ(:, kZ) = -imun / ntor * R * BnR(:, kZ)
     end do
   end subroutine gauged_Anvac_from_Bnvac
 
