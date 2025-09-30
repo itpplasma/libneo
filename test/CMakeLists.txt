@@ -273,14 +273,15 @@ endif()
 # \note Maybe this could be solved with setup_test_arnoldi.py && test_arnoldi.x.
 # Afterwards fail condition is set: test will fail if the output
 # contains 'STOP'.
-add_test(NAME test_arnoldi
-  COMMAND ${CMAKE_COMMAND}
-          -DPYTHON_EXECUTABLE=${Python_EXECUTABLE}
-          -DSETUP_SCRIPT=${CMAKE_SOURCE_DIR}/test/source/setup_test_arnoldi.py
-          -DARNOLDI_EXE=$<TARGET_FILE:test_arnoldi.x>
-          -DWORKDIR=${CMAKE_CURRENT_BINARY_DIR}
-          -P ${CMAKE_SOURCE_DIR}/test/run_test_arnoldi.cmake)
-set_tests_properties(test_arnoldi PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
+add_test(NAME test_arnoldi_setup
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/source/setup_test_arnoldi.py)
+set_tests_properties(test_arnoldi_setup PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_test(NAME test_arnoldi COMMAND test_arnoldi.x)
+set_tests_properties(test_arnoldi PROPERTIES 
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS test_arnoldi_setup
+  FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_mympilib
   COMMAND test_mympilib.x)
