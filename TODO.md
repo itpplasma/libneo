@@ -2,6 +2,8 @@
 
 ## VMEC migration
 - [ ] Update SIMPLE to consume the refactored VMEC modules (keep canonical helpers in SIMPLE).
+- [x] Propagate OpenMP flags via target link interfaces (libneo + SIMPLE tests).
+
 - [ ] Add regression coverage for `vmec_field_cylindrical` (ctest + simple Python smoke).
 - [ ] Document the new modules in `doc/` and cross-link the build instructions.
 
