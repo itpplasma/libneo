@@ -71,11 +71,19 @@ class B3DSField:
 def _load_vmec_metadata(wout_path: Path) -> Tuple[int, float, float, np.ndarray]:
     with netCDF4.Dataset(wout_path) as ds:
         nfp = int(ds.variables["nfp"][()])
-        axis_r = float(ds.variables["raxis_cc"][0]) * CM_TO_M
+<<<<<<< HEAD
+        axis_r = float(ds.variables["raxis_cc"][0])
         if "zaxis_cs" in ds.variables:
-            axis_z = float(ds.variables["zaxis_cs"][0]) * CM_TO_M
+            axis_z = float(ds.variables["zaxis_cs"][0])
         else:
-            axis_z = float(ds.variables["zaxis_cc"][0]) * CM_TO_M
+            axis_z = float(ds.variables["zaxis_cc"][0])
+=======
+        axis_r = float(ds.variables["raxis_cc"][0])
+        if "zaxis_cs" in ds.variables:
+            axis_z = float(ds.variables["zaxis_cs"][0])
+        else:
+            axis_z = float(ds.variables["zaxis_cc"][0])
+>>>>>>> 30803be (Restore ASCOT5 adapters and tests)
         iota = np.array(ds.variables["iotaf"][...], dtype=float)
     return nfp, axis_r, axis_z, iota
 
@@ -198,12 +206,13 @@ def _evaluate_bfield(
     theta: float,
     phi: float,
 ) -> Tuple[float, float, float]:
-    BR_gauss, Bphi_gauss, BZ_gauss, _Bmag = _VMEC_WRAPPERS.vmec_field_cylindrical_wrapper(s, theta, phi)
-    return (
-        float(BR_gauss) * GAUSS_TO_TESLA,
-        float(Bphi_gauss) * GAUSS_TO_TESLA,
-        float(BZ_gauss) * GAUSS_TO_TESLA,
-    )
+<<<<<<< HEAD
+    BR, Bphi, BZ, _Bmag = _VMEC_WRAPPERS.vmec_field_cylindrical_wrapper(s, theta, phi)
+    return float(BR), float(Bphi), float(BZ)
+=======
+    BR, Bphi, BZ, _Bmag = _VMEC_WRAPPERS.vmec_field_cylindrical_wrapper(s, theta, phi)
+    return float(BR), float(Bphi), float(BZ)
+>>>>>>> 30803be (Restore ASCOT5 adapters and tests)
 
 def field_from_vmec(
     wout_path: str | Path,
