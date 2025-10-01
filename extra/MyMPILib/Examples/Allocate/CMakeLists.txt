@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.22)
 project (AllocateTest)
 
 set(CMAKE_Fortran_COMPILER mpif90)

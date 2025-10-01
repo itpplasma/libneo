@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.22)
 project (Gathertest)
 
 set(CMAKE_Fortran_COMPILER mpif90) 
@@ -25,4 +25,3 @@ target_link_libraries(gathertest
         ${MPI_lib}
 	/afs/itp.tugraz.at/opt/mpe/1.3.0/lib/libmpe.a
 )
-

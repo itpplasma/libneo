@@ -1,5 +1,5 @@
 ### Basic settings
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.22)
 
 if(APPLE AND NOT DEFINED HDF5_DIR)
   # locate brew

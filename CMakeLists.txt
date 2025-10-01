@@ -2,7 +2,7 @@
 # List of source files are in CMakeSources.in.
 
 # Basic cmake settings/requirements
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.22)
 if(APPLE AND NOT DEFINED HDF5_DIR)
   # locate brew
   find_program(BREW_EXECUTABLE brew HINTS /opt/homebrew/bin /usr/local/bin)
