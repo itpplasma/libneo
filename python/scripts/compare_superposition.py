@@ -17,6 +17,39 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize
 
+
+SCRIPT_PATH = Path(__file__).resolve()
+REPO_ROOT = SCRIPT_PATH.parents[2]
+PYTHON_DIR = REPO_ROOT / "python"
+BUILD_DIR = REPO_ROOT / "build"
+VENV_SITE_PACKAGES = None
+
+def find_site_packages(base: Path):
+    lib_dir = base / "lib"
+    if not lib_dir.exists():
+        return None
+    for sub in lib_dir.iterdir():
+        if not sub.is_dir():
+            continue
+        candidate = sub / "site-packages"
+        if candidate.exists():
+            return candidate
+    return None
+
+for possible in (REPO_ROOT / ".venv", REPO_ROOT.parent / ".venv"):
+    if possible.exists():
+        site_packages = find_site_packages(possible)
+        if site_packages is not None:
+            VENV_SITE_PACKAGES = site_packages
+            break
+
+for candidate in (PYTHON_DIR, BUILD_DIR):
+    if candidate.exists() and str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
+
+if VENV_SITE_PACKAGES is not None and str(VENV_SITE_PACKAGES) not in sys.path:
+    sys.path.insert(0, str(VENV_SITE_PACKAGES))
+
 try:
     from libneo.biotsavart_fourier import (
         read_Bnvac_fourier,
@@ -27,9 +60,9 @@ try:
         field_divfree,
     )
     from _magfie import compute_field_from_gpec_file
-except ImportError:
-    print("Error: libneo module not found. Please install the Python package.")
-    print("Run: pip install -e . from the repository root")
+except ImportError as exc:
+    print("Error: required Python modules for libneo are missing:", exc)
+    print("Ensure the libneo package and runtime dependencies (h5py, netCDF4) are installed.")
     sys.exit(1)
 
 
@@ -41,7 +74,17 @@ def read_currents(currents_file):
     return currents
 
 
-def compute_direct_biotsavart_field(coil_files, coil_currents, R_grid, Z_grid, ntor=2, n_phi=64):
+def read_gpec_header(filename: Path):
+    """Return (ncoil, nseg, nwind) from the header of a GPEC coil file."""
+    with open(filename, 'r') as f:
+        header = f.readline().split()
+    if len(header) < 4:
+        raise ValueError(f"Malformed GPEC header in {filename}")
+    return int(header[0]), int(header[2]), float(header[3])
+
+
+def compute_direct_biotsavart_field(coil_files, coil_currents, coils_per_file,
+                                    R_grid, Z_grid, ntor=2, n_phi=128):
     """Compute n=ntor Fourier mode from direct Biot-Savart by evaluating at multiple phi."""
     nR, nZ = len(R_grid), len(Z_grid)
 
@@ -53,9 +96,6 @@ def compute_direct_biotsavart_field(coil_files, coil_currents, R_grid, Z_grid, n
     Bphi_all = np.zeros((nR, nZ, n_phi))
     BZ_all = np.zeros((nR, nZ, n_phi))
 
-    # Split currents between coil files
-    n_coils_per_file = len(coil_currents) // len(coil_files)
-
     # Evaluate field at each toroidal angle
     for i_phi, phi in enumerate(phi_grid):
         R_mesh, Z_mesh = np.meshgrid(R_grid, Z_grid, indexing='ij')
@@ -64,8 +104,11 @@ def compute_direct_biotsavart_field(coil_files, coil_currents, R_grid, Z_grid, n
         z_eval = Z_mesh.flatten()
 
         # Evaluate field for each coil file (bu, bl) and sum
+        offset = 0
         for i, coil_file in enumerate(coil_files):
-            currents_for_file = coil_currents[i*n_coils_per_file:(i+1)*n_coils_per_file]
+            n_coils = coils_per_file[i]
+            currents_for_file = coil_currents[offset:offset + n_coils]
+            offset += n_coils
 
             Bx, By, Bz = compute_field_from_gpec_file(
                 str(coil_file), currents_for_file, x_eval, y_eval, z_eval
@@ -98,6 +141,155 @@ def compute_field_magnitude(BnR, Bnphi, BnZ):
                      BnZ * np.conj(BnZ)).real + 1e-20)
 
 
+def bilinear_interpolate(R_grid, Z_grid, field, R_val, Z_val):
+    """Simple bilinear interpolation on an (nR, nZ) grid."""
+    R_min, R_max = R_grid[0], R_grid[-1]
+    Z_min, Z_max = Z_grid[0], Z_grid[-1]
+
+    if (R_val < R_min) or (R_val > R_max) or (Z_val < Z_min) or (Z_val > Z_max):
+        return np.nan
+
+    i_hi = np.searchsorted(R_grid, R_val)
+    if i_hi == 0:
+        i0, i1, t = 0, 0, 0.0
+    elif i_hi >= R_grid.size:
+        i0, i1, t = R_grid.size - 1, R_grid.size - 1, 0.0
+    else:
+        i0, i1 = i_hi - 1, i_hi
+        denom = R_grid[i1] - R_grid[i0]
+        t = 0.0 if denom == 0 else (R_val - R_grid[i0]) / denom
+
+    j_hi = np.searchsorted(Z_grid, Z_val)
+    if j_hi == 0:
+        j0, j1, u = 0, 0, 0.0
+    elif j_hi >= Z_grid.size:
+        j0, j1, u = Z_grid.size - 1, Z_grid.size - 1, 0.0
+    else:
+        j0, j1 = j_hi - 1, j_hi
+        denom = Z_grid[j1] - Z_grid[j0]
+        u = 0.0 if denom == 0 else (Z_val - Z_grid[j0]) / denom
+
+    f00 = field[i0, j0]
+    f01 = field[i0, j1]
+    f10 = field[i1, j0]
+    f11 = field[i1, j1]
+
+    return ((1 - t) * (1 - u) * f00 +
+            (1 - t) * u * f01 +
+            t * (1 - u) * f10 +
+            t * u * f11)
+
+
+def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
+                           R_grid, Z_grid,
+                           BnR_ref_total, Bnphi_ref_total, BnZ_ref_total,
+                           BnR_test_total, Bnphi_test_total, BnZ_test_total):
+    if args.axis_origin is None or args.axis_normal is None or args.coil_radius is None:
+        return None
+
+    axis_origin_cm = np.array(args.axis_origin, dtype=float)
+    axis_normal = np.array(args.axis_normal, dtype=float)
+    norm = np.linalg.norm(axis_normal)
+    if norm == 0.0:
+        raise ValueError("Axis normal vector must be non-zero")
+    axis_normal /= norm
+
+    s_vals = np.linspace(-args.axis_range, args.axis_range, args.axis_samples)
+    sample_points_cm = axis_origin_cm[np.newaxis, :] + np.outer(s_vals, axis_normal)
+
+    x_eval = sample_points_cm[:, 0]
+    y_eval = sample_points_cm[:, 1]
+    z_eval = sample_points_cm[:, 2]
+
+    Bx_direct = np.zeros_like(x_eval)
+    By_direct = np.zeros_like(y_eval)
+    Bz_direct = np.zeros_like(z_eval)
+
+    offset = 0
+    for i, coil_file in enumerate(coil_files):
+        n_coils = coils_per_file[i]
+        currents_slice = coil_currents[offset:offset + n_coils]
+        offset += n_coils
+        Bx, By, Bz = compute_field_from_gpec_file(
+            str(coil_file), currents_slice, x_eval, y_eval, z_eval
+        )
+        Bx_direct += Bx
+        By_direct += By
+        Bz_direct += Bz
+
+    B_parallel_direct = Bx_direct * axis_normal[0] + By_direct * axis_normal[1] + Bz_direct * axis_normal[2]
+
+    # Fourier-based evaluations (bilinear interpolation on cylindrical grid)
+    B_parallel_gpec = np.zeros_like(x_eval)
+    B_parallel_vec = np.zeros_like(x_eval)
+
+    for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
+        R_val = np.hypot(x_val, y_val)
+        phi_val = np.arctan2(y_val, x_val)
+
+        BR_ref = bilinear_interpolate(R_grid, Z_grid, BnR_ref_total, R_val, z_val)
+        Bphi_ref = bilinear_interpolate(R_grid, Z_grid, Bnphi_ref_total, R_val, z_val)
+        BZ_ref = bilinear_interpolate(R_grid, Z_grid, BnZ_ref_total, R_val, z_val)
+
+        BR_vec = bilinear_interpolate(R_grid, Z_grid, BnR_test_total, R_val, z_val)
+        Bphi_vec = bilinear_interpolate(R_grid, Z_grid, Bnphi_test_total, R_val, z_val)
+        BZ_vec = bilinear_interpolate(R_grid, Z_grid, BnZ_test_total, R_val, z_val)
+
+        cosphi = np.cos(phi_val)
+        sinphi = np.sin(phi_val)
+
+        if not (np.isnan(BR_ref) or np.isnan(Bphi_ref) or np.isnan(BZ_ref)):
+            Bx_ref = (BR_ref * cosphi - Bphi_ref * sinphi).real
+            By_ref = (BR_ref * sinphi + Bphi_ref * cosphi).real
+            Bz_ref = BZ_ref.real
+            B_parallel_gpec[idx] = (
+                Bx_ref * axis_normal[0] + By_ref * axis_normal[1] + Bz_ref * axis_normal[2]
+            )
+        else:
+            B_parallel_gpec[idx] = np.nan
+
+        if not (np.isnan(BR_vec) or np.isnan(Bphi_vec) or np.isnan(BZ_vec)):
+            Bx_vec = (BR_vec * cosphi - Bphi_vec * sinphi).real
+            By_vec = (BR_vec * sinphi + Bphi_vec * cosphi).real
+            Bz_vec = BZ_vec.real
+            B_parallel_vec[idx] = (
+                Bx_vec * axis_normal[0] + By_vec * axis_normal[1] + Bz_vec * axis_normal[2]
+            )
+        else:
+            B_parallel_vec[idx] = np.nan
+
+    # Analytical reference (SI -> Gauss)
+    mu0 = 4e-7 * np.pi
+    radius_m = args.coil_radius / 100.0
+    s_vals_m = s_vals / 100.0
+    current_ampere = np.sum(coil_currents)
+    B_analytic = mu0 * current_ampere * radius_m**2 / (2.0 * (radius_m**2 + s_vals_m**2)**1.5)
+    B_analytic *= 1.0e4  # Tesla -> Gauss
+
+    abs_err_direct = np.abs(B_parallel_direct - B_analytic)
+    rel_err_direct = abs_err_direct / np.maximum(np.abs(B_analytic), 1e-20)
+
+    abs_err_gpec = np.abs(B_parallel_gpec - B_analytic)
+    rel_err_gpec = abs_err_gpec / np.maximum(np.abs(B_analytic), 1e-20)
+
+    abs_err_vec = np.abs(B_parallel_vec - B_analytic)
+    rel_err_vec = abs_err_vec / np.maximum(np.abs(B_analytic), 1e-20)
+
+    return {
+        's_vals_cm': s_vals,
+        'analytic': B_analytic,
+        'direct': B_parallel_direct,
+        'gpec': B_parallel_gpec,
+        'vector': B_parallel_vec,
+        'abs_err_direct': abs_err_direct,
+        'rel_err_direct': rel_err_direct,
+        'abs_err_gpec': abs_err_gpec,
+        'rel_err_gpec': rel_err_gpec,
+        'abs_err_vector': abs_err_vec,
+        'rel_err_vector': rel_err_vec,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compare three Biot-Savart implementations"
@@ -105,17 +297,29 @@ def main():
     parser.add_argument("reference", type=Path, help="HDF5 file from GPEC Fourier")
     parser.add_argument("test", type=Path, help="NetCDF file from coil_tools")
     parser.add_argument("currents", type=Path, help="Coil currents file")
-    parser.add_argument("coil_upper", type=Path, help="Upper coil file (e.g., aug_bu.dat)")
-    parser.add_argument("coil_lower", type=Path, help="Lower coil file (e.g., aug_bl.dat)")
+    parser.add_argument("coil_files", type=Path, nargs='+',
+                        help="One or more coil geometry files in GPEC format")
     parser.add_argument("-o", "--output", type=Path, default="superposition_comparison.png",
-                       help="Output plot filename (default: superposition_comparison.png)")
+                        help="Output plot filename (default: superposition_comparison.png)")
     parser.add_argument("--ntor", type=int, default=2,
-                       help="Toroidal mode number (default: 2)")
+                        help="Toroidal mode number (default: 2)")
+    parser.add_argument("--axis-origin", type=float, nargs=3,
+                        help="Axis origin (cm) for analytic validation, e.g., x y z")
+    parser.add_argument("--axis-normal", type=float, nargs=3,
+                        help="Axis unit normal vector (dimensionless)")
+    parser.add_argument("--coil-radius", type=float,
+                        help="Coil radius in cm for analytic validation")
+    parser.add_argument("--axis-range", type=float, default=100.0,
+                        help="Half-length of axis line segment for validation (cm, default 100)")
+    parser.add_argument("--axis-samples", type=int, default=101,
+                        help="Number of samples along axis (default 101)")
 
     args = parser.parse_args()
 
     # Validate input files
-    for f in [args.reference, args.test, args.currents, args.coil_upper, args.coil_lower]:
+    required = [args.reference, args.test, args.currents]
+    required.extend(args.coil_files)
+    for f in required:
         if not f.exists():
             print(f"Error: File not found: {f}")
             sys.exit(1)
@@ -136,8 +340,12 @@ def main():
     )
 
     ncoil = len(currents)
+    coils_per_file = [read_gpec_header(path)[0] for path in args.coil_files]
+    if sum(coils_per_file) != ncoil:
+        print("Error: Number of currents does not match total coils defined in geometry files.")
+        sys.exit(1)
     if BnR.shape[0] != ncoil:
-        print(f"Error: Number of coils ({BnR.shape[0]}) != number of currents ({ncoil})")
+        print(f"Error: Number of coils ({BnR.shape[0]}) in reference file != currents ({ncoil})")
         sys.exit(1)
 
     # Use raw Fourier data directly (no spline interpolation)
@@ -145,8 +353,7 @@ def main():
 
     # Reference has B directly
     BnR_ref = BnR
-    # Compute Bnphi from div B = 0: ∂(R B_R)/∂R + ∂(R B_Z)/∂Z + i n B_phi = 0
-    Bnphi_ref = np.zeros_like(BnR)
+    Bnphi_ref = Bnphi
     BnZ_ref = BnZ
 
     # Test: compute B from curl of A using stored derivatives
@@ -191,11 +398,55 @@ def main():
     # Compute direct Biot-Savart field n=2 mode via Fourier decomposition
     print("\nComputing direct Biot-Savart field (on-the-fly with Fourier decomposition)...")
     BnR_direct, Bnphi_direct, BnZ_direct = compute_direct_biotsavart_field(
-        [args.coil_upper, args.coil_lower], currents, R_grid, Z_grid, ntor=args.ntor
+        args.coil_files, currents, coils_per_file, R_grid, Z_grid, ntor=args.ntor
     )
     B_direct_mag = np.sqrt((BnR_direct * np.conj(BnR_direct) +
                             Bnphi_direct * np.conj(Bnphi_direct) +
                             BnZ_direct * np.conj(BnZ_direct)).real)
+
+    axis_result = validate_axis_response(
+        args,
+        args.coil_files,
+        currents,
+        coils_per_file,
+        R_grid,
+        Z_grid,
+        BnR_ref_total,
+        Bnphi_ref_total,
+        BnZ_ref_total,
+        BnR_test_total,
+        Bnphi_test_total,
+        BnZ_test_total,
+    )
+    if axis_result is not None:
+        print("\nAxis validation against analytical solution:")
+
+        def _nanmax(arr):
+            finite = np.isfinite(arr)
+            if not np.any(finite):
+                return float('nan')
+            return np.nanmax(arr[finite])
+
+        print(f"  Max |B_GPEC - B_analytic|: {_nanmax(axis_result['abs_err_gpec']):.3e} G")
+        print(f"  Max rel error GPEC: {_nanmax(axis_result['rel_err_gpec']) * 100.0:.4f}%")
+        print(f"  Max |B_vector - B_analytic|: {_nanmax(axis_result['abs_err_vector']):.3e} G")
+        print(f"  Max rel error vector: {_nanmax(axis_result['rel_err_vector']) * 100.0:.4f}%")
+        print(f"  Max |B_direct - B_analytic|: {_nanmax(axis_result['abs_err_direct']):.3e} G")
+        print(f"  Max rel error direct: {_nanmax(axis_result['rel_err_direct']) * 100.0:.4f}%")
+
+        axis_fig = plt.figure(figsize=(6, 4), layout='constrained')
+        ax = axis_fig.add_subplot(111)
+        ax.plot(axis_result['s_vals_cm'], axis_result['analytic'], label='Analytical', linestyle='--', linewidth=2)
+        ax.plot(axis_result['s_vals_cm'], axis_result['gpec'], label='GPEC Fourier', linewidth=1.4)
+        ax.plot(axis_result['s_vals_cm'], axis_result['vector'], label='vector_potential', linewidth=1.4)
+        ax.plot(axis_result['s_vals_cm'], axis_result['direct'], label='Direct Biot-Savart', linewidth=1.4)
+        ax.set_xlabel('Axis coordinate s [cm]')
+        ax.set_ylabel('B_parallel [Gauss]')
+        ax.set_title('Coil-axis validation')
+        ax.legend(loc='best')
+        axis_output = args.output.with_name(args.output.stem + '_axis.png')
+        axis_fig.savefig(axis_output, dpi=150, bbox_inches='tight')
+        print(f"  Axis comparison plot saved to {axis_output}")
 
     log_B_ref = np.log10(B_ref_mag + 1e-20)
     log_B_test = np.log10(B_test_mag + 1e-20)

@@ -35,3 +35,18 @@ set_tests_properties(test_aug_biot_savart_comparison PROPERTIES
     TIMEOUT 600
     DEPENDS vacfield.x
 )
+
+# Integration test: single-coil scenario with analytical verification
+add_test(NAME test_single_coil_biot_savart
+    COMMAND ${CMAKE_COMMAND}
+        -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
+        -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
+        -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/run_single_coil_case.cmake
+)
+
+set_tests_properties(test_single_coil_biot_savart PROPERTIES
+    LABELS "magfie;biot_savart;integration;single_coil"
+    TIMEOUT 600
+    DEPENDS vacfield.x
+)
