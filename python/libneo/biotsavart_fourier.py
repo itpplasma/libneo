@@ -84,6 +84,14 @@ def read_Anvac_fourier(field_file='AUG_B_coils.nc', ntor=2):
 def gauged_Anvac_from_Bnvac(grid, BnR, BnZ, ntor=2):
     from numpy import newaxis
 
+    if ntor == 0:
+        # The m = n = 0 mode does not require the gauge correction and the
+        # formulas below would divide by zero.  Simply return zeros which keep
+        # the downstream field reconstruction consistent with the An inputs.
+        from numpy import zeros_like
+
+        return zeros_like(BnR, dtype=complex), zeros_like(BnZ, dtype=complex)
+
     gauged_AnR = 1j / ntor * grid.R[newaxis, :, newaxis] * BnZ
     gauged_AnZ = -1j / ntor * grid.R[newaxis, :, newaxis] * BnR
     return gauged_AnR, gauged_AnZ
@@ -91,6 +99,12 @@ def gauged_Anvac_from_Bnvac(grid, BnR, BnZ, ntor=2):
 
 def gauge_Anvac(grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=2):
     from numpy import newaxis
+    from numpy import array
+
+    if ntor == 0:
+        # Avoid divide-by-zero for the axisymmetric mode; return copies so
+        # callers can safely mutate the result without affecting the inputs.
+        return array(AnR, copy=True), array(AnZ, copy=True)
 
     gauged_AnR = AnR + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dR + 1j / ntor * Anphi
     gauged_AnZ = AnZ + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dZ

@@ -20,9 +20,9 @@ jobs:
         run: |
           git config --global --add safe.directory `pwd`
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
-          python3 -m pip install --break-system-packages -r requirements.txt
+          make deps
       - name: Build
         run: |
           make
@@ -39,3 +39,12 @@ jobs:
       - name: Run Python tests (pytest)
         run: |
           pytest -q
+
+      - name: Upload Biot-Savart plots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biotsavart-plots
+          path: |
+            build/test/magfie/aug/*.png
+          if-no-files-found: ignore

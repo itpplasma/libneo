@@ -1,8 +1,27 @@
 BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
-.PHONY: all ninja test install clean
+.PHONY: all deps ninja test install clean
 all: ninja tools/h5merge/build/h5merge.x
+
+deps:
+	apt-get update
+	apt-get install -y --no-install-recommends \
+		gfortran \
+		cmake \
+		ninja-build \
+		pkg-config \
+		openmpi-bin \
+		libopenmpi-dev \
+		libfftw3-dev \
+		libhdf5-dev \
+		libnetcdff-dev \
+		libnetcdf-dev \
+		libgsl-dev \
+		libopenblas-dev \
+		liblapack-dev
+	rm -rf /var/lib/apt/lists/*
+	python3 -m pip install --break-system-packages -r requirements.txt h5py
 
 tools/h5merge/build/h5merge.x:
 	if [ ! -d "tools/h5merge/build" ] ; then \

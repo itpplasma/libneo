@@ -79,7 +79,14 @@ from numpy.fft import fft
 from numpy.linalg import norm
 
 import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
+
+try:
+    from scipy.interpolate import Akima2DInterpolator, PchipInterpolator
+except ImportError:  # pragma: no cover - SciPy is expected to be available via requirements
+    Akima2DInterpolator = None  # type: ignore[assignment]
+    from scipy.interpolate import PchipInterpolator  # type: ignore[misc]
 
 SCRIPT_PATH = Path(__file__).resolve()
 REPO_ROOT = SCRIPT_PATH.parents[2]
@@ -156,6 +163,14 @@ class ModeData:
     BnR: ndarray  # shape (ncoil, nR, nZ)
     Bnphi: ndarray
     BnZ: ndarray
+
+
+@dataclass
+class InterpolatedSurface:
+    R: ndarray
+    Z: ndarray
+    values: ndarray
+    method: str
 
 
 def _parse_args() -> argparse.Namespace:
@@ -240,6 +255,10 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict]:
         gauged_AnR = gauged_AnR - 0.5j * Anphi
     spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor)
     BnR, Bnphi, BnZ = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
+    if BnR.ndim == 2:
+        BnR = BnR[newaxis, :, :]
+        Bnphi = Bnphi[newaxis, :, :]
+        BnZ = BnZ[newaxis, :, :]
     return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ), spl
 
 
@@ -380,7 +399,65 @@ def _magnitude_squared(BnR: ndarray, Bnphi: ndarray, BnZ: ndarray) -> ndarray:
     return (BnR * conj(BnR) + Bnphi * conj(Bnphi) + BnZ * conj(BnZ)).real
 
 
+def _pchip_surface(
+    x: ndarray,
+    y: ndarray,
+    values: ndarray,
+    x_dense: ndarray,
+    y_dense: ndarray,
+) -> ndarray:
+    """Evaluate a tensor-product PCHIP interpolant on a dense grid."""
+
+    temp = empty((x_dense.size, y.size))
+    for idx_y in range(y.size):
+        interpolator_x = PchipInterpolator(x, values[:, idx_y], axis=0)
+        temp[:, idx_y] = interpolator_x(x_dense)
+
+    dense_values = empty((x_dense.size, y_dense.size))
+    for idx_x in range(x_dense.size):
+        interpolator_y = PchipInterpolator(y, temp[idx_x, :], axis=0)
+        dense_values[idx_x, :] = interpolator_y(y_dense)
+
+    return dense_values
+
+
+def _interpolate_direct_sum(
+    grid: Grid,
+    magnitude: ndarray,
+    *,
+    factor: int = 3,
+) -> InterpolatedSurface:
+    """Construct a dense-grid Akima/PCHIP interpolation of ``magnitude``."""
+
+    dense_points = max(factor, 1)
+    x_dense = linspace(grid.R_min, grid.R_max, (grid.nR - 1) * dense_points + 1)
+    y_dense = linspace(grid.Z_min, grid.Z_max, (grid.nZ - 1) * dense_points + 1)
+
+    method_used = "akima"
+    values_dense: ndarray | None = None
+
+    if Akima2DInterpolator is not None:
+        try:
+            interpolator = Akima2DInterpolator(grid.R, grid.Z, magnitude)
+            values_dense = interpolator(x_dense[:, newaxis], y_dense[newaxis, :])
+        except Exception:  # pragma: no cover - guard against Akima edge cases
+            method_used = "pchip"
+
+    if values_dense is None:
+        method_used = "pchip"
+        values_dense = _pchip_surface(grid.R, grid.Z, magnitude, x_dense, y_dense)
+
+    return InterpolatedSurface(x_dense, y_dense, values_dense, method_used)
+
+
 def _tensordot_currents(currents: ndarray, array: ndarray) -> ndarray:
+    if array.shape[0] != currents.size:
+        if currents.size == 1:
+            array = array.reshape((1,) + array.shape)
+        else:
+            raise ValueError(
+                "Mismatch between current weights and field array shape"
+            )
     return tensordot(currents, array, axes=(0, 0))
 
 
@@ -631,6 +708,7 @@ def _create_sum_plot(
     magnitude_spline: ndarray,
     magnitude_field_divb0: ndarray | None,
     magnitude_direct: ndarray | None,
+    direct_spline: InterpolatedSurface | None,
     output: Path,
     grid: Grid,
     coil_projections: Sequence[Tuple[ndarray, ndarray]] | None,
@@ -642,12 +720,16 @@ def _create_sum_plot(
     else:
         top_panels.append(magnitude_direct)
 
-    bottom_titles = ("field_divB0 sum", "", "", "")
+    bottom_titles = ("field_divB0 sum", "Direct spline sum", "", "")
     bottom_panel = magnitude_field_divb0
 
     accum = [log10(maximum(panel, 1e-300)) for panel in top_panels]
     if bottom_panel is not None:
         accum.append(log10(maximum(bottom_panel, 1e-300)))
+    direct_spline_log = None
+    if direct_spline is not None:
+        direct_spline_log = log10(maximum(direct_spline.values, 1e-300))
+        accum.append(direct_spline_log)
 
     norm = Normalize(vmin=min(a.min() for a in accum), vmax=max(a.max() for a in accum))
 
@@ -692,16 +774,40 @@ def _create_sum_plot(
                 ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
         ax.set_aspect("equal", adjustable="box")
         plotted_axes.append(ax)
-        im = im_bottom
     else:
         ax = axs[1, 0]
         ax.axis("off")
 
-    for idx in range(1, 4):
+    if direct_spline_log is not None:
+        ax = axs[1, 1]
+        extent_spline = [direct_spline.R[0], direct_spline.R[-1], direct_spline.Z[0], direct_spline.Z[-1]]
+        ax.imshow(
+            direct_spline_log.T,
+            origin="lower",
+            cmap="magma",
+            extent=extent_spline,
+            norm=norm,
+            interpolation="bilinear",
+        )
+        ax.set_title(f"{bottom_titles[1]} ({direct_spline.method})")
+        ax.set_xlabel("R [cm]")
+        ax.set_ylabel("Z [cm]")
+        if coil_projections:
+            for R_path, Z_path in coil_projections:
+                ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
+        ax.set_aspect("equal", adjustable="box")
+        plotted_axes.append(ax)
+    else:
+        axs[1, 1].axis("off")
+
+    for idx in range(2, 4):
         axs[1, idx].axis("off")
 
-    cbar = fig.colorbar(im, ax=plotted_axes, location="bottom", fraction=0.05, pad=0.08)
-    cbar.set_label("log10 |Σ B_n|^2")
+    if plotted_axes:
+        mappable = ScalarMappable(norm=norm, cmap="magma")
+        mappable.set_array([])
+        cbar = fig.colorbar(mappable, ax=plotted_axes, location="bottom", fraction=0.05, pad=0.08)
+        cbar.set_label("log10 |Σ B_n|^2")
     fig.savefig(output, dpi=args.dpi, bbox_inches="tight")
     if not args.show:
         plt.close(fig)
@@ -795,12 +901,18 @@ def main() -> None:
     BnR_direct = Bnphi_direct = BnZ_direct = None
     direct_magnitude = None
     magnitude_field_divb0 = None
+    direct_spline_surface: InterpolatedSurface | None = None
     if args.coil_files:
         (BnR_direct, Bnphi_direct, BnZ_direct,
          BR_samples, Bphi_samples, BZ_samples, phi_grid) = _compute_direct_fourier_mode(
             args.coil_files, currents, mode_fourier.grid, args.ntor, args.fft_samples
         )
         direct_magnitude = _magnitude_squared(BnR_direct, Bnphi_direct, BnZ_direct)
+        direct_spline_surface = _interpolate_direct_sum(mode_fourier.grid, direct_magnitude)
+        print(
+            "Direct-field spline panel generated using "
+            f"{direct_spline_surface.method.upper()} interpolation"
+        )
 
         nR = int(mode_fourier.grid.nR)
         nZ = int(mode_fourier.grid.nZ)
@@ -893,6 +1005,7 @@ def main() -> None:
             magnitude_spline,
             magnitude_field_divb0,
             direct_magnitude,
+            direct_spline_surface,
             args.sum_output,
             mode_fourier.grid,
             coil_projections,

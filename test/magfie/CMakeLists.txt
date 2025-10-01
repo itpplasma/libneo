@@ -46,6 +46,7 @@ add_test(NAME test_aug_biot_savart_comparison
         -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
         -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
         -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DOUTPUT_DIR:PATH=${CMAKE_BINARY_DIR}/test/magfie/aug
         -P ${CMAKE_CURRENT_SOURCE_DIR}/run_aug_comparison.cmake
 )
 
