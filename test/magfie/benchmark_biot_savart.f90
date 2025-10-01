@@ -3,7 +3,7 @@ program benchmark_biot_savart
   use math_constants, only: current_si_to_cgs, C
   use coil_tools, only: coil_t, coils_read_GPEC, coils_append, coil_deinit, grid_from_bounding_box, &
        biot_savart_sum_coils
-  use neo_biotsavart, only: coils_t, load_coils_from_gpec_file, coils_deinit, compute_magnetic_field, clight
+  use neo_biotsavart, only: coils_t, load_coils_from_gpec_file, coils_deinit, compute_magnetic_field
   use fortplot, only: figure, plot, savefig, xlabel, ylabel, title, legend, set_yscale
 
   implicit none
@@ -67,7 +67,7 @@ program benchmark_biot_savart
 
   idx = 0
   do ic = 1, size(coil_files)
-    seg_per_coil(idx+1:idx+nc_per_file(ic)) = nseg_per_file(ic) + 1
+    seg_per_coil(idx+1:idx+nc_per_file(ic)) = nseg_per_file(ic)
     windings(idx+1:idx+nc_per_file(ic)) = wind_per_file(ic)
     idx = idx + nc_per_file(ic)
   end do
@@ -91,13 +91,14 @@ program benchmark_biot_savart
   cosphi = cos(phi)
   sinphi = sin(phi)
 
-  prefactor = 5.0e-1_dp
+  prefactor = current_si_to_cgs / C
+  ampere_to_statampere = current_si_to_cgs
   idx = 0
   do ic = 1, total_coils
     seg_start = idx + 1
     seg_end = idx + seg_per_coil(ic)
     coils_neo%current(seg_start:seg_end) = coils_neo%current(seg_start:seg_end) * &
-      (currents(ic) * prefactor * clight)
+      (currents(ic) * ampere_to_statampere)
     idx = seg_end
   end do
 
@@ -120,16 +121,13 @@ program benchmark_biot_savart
 
   B_ct = Bvac_ct
 
-  write(*,'(A,3(1pe12.3,1x))') 'Sample B_neo:', B_neo(:,1,1,1)
-  write(*,'(A,3(1pe12.3,1x))') 'Sample B_ct :', B_ct(:,1,1,1)
-
   plot_path = trim(data_dir) // 'benchmark_biot_savart_errors.png'
   call generate_error_plot(B_neo, B_ct, plot_path)
 
   max_abs_diff = maxval(abs(B_neo - B_ct))
   max_rel_diff = maxval(abs(B_neo - B_ct) / max(abs(B_neo), 1.0e-20_dp))
 
-  if (max_abs_diff > 1.0e-8_dp .or. max_rel_diff > 1.0e-8_dp) then
+  if (max_abs_diff > 5.0e-12_dp .or. max_rel_diff > 2.0e-10_dp) then
     write(*, '(A,1pe12.3)') 'Max abs diff: ', max_abs_diff
     write(*, '(A,1pe12.3)') 'Max rel diff: ', max_rel_diff
     error stop 'Biot-Savart implementations disagree beyond tolerance'
