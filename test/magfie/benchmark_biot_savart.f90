@@ -91,17 +91,16 @@ program benchmark_biot_savart
   cosphi = cos(phi)
   sinphi = sin(phi)
 
-  ampere_to_statampere = clight / 10.0_dp
+  prefactor = 5.0e-1_dp
   idx = 0
   do ic = 1, total_coils
     seg_start = idx + 1
     seg_end = idx + seg_per_coil(ic)
     coils_neo%current(seg_start:seg_end) = coils_neo%current(seg_start:seg_end) * &
-      currents(ic) * windings(ic) * ampere_to_statampere
+      (currents(ic) * prefactor * clight)
     idx = seg_end
   end do
 
-  prefactor = current_si_to_cgs / C
   do ic = 1, total_coils
     currents_ct(ic) = prefactor * currents(ic) * windings(ic)
   end do
@@ -120,6 +119,9 @@ program benchmark_biot_savart
   time_ct = t_end - t_start
 
   B_ct = Bvac_ct
+
+  write(*,'(A,3(1pe12.3,1x))') 'Sample B_neo:', B_neo(:,1,1,1)
+  write(*,'(A,3(1pe12.3,1x))') 'Sample B_ct :', B_ct(:,1,1,1)
 
   plot_path = trim(data_dir) // 'benchmark_biot_savart_errors.png'
   call generate_error_plot(B_neo, B_ct, plot_path)

@@ -21,6 +21,25 @@ set_tests_properties(test_coil_tools_biot_savart PROPERTIES
     TIMEOUT 300
 )
 
+add_executable(test_gpec_loader_comparison.x test_gpec_loader_comparison.f90)
+target_link_libraries(test_gpec_loader_comparison.x PRIVATE
+    neo
+    magfie
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+
+add_test(NAME test_gpec_loader_comparison
+    COMMAND test_gpec_loader_comparison.x ${CMAKE_SOURCE_DIR}/test/magfie/test_data
+)
+
+set_tests_properties(test_gpec_loader_comparison PROPERTIES
+    LABELS "magfie;gpec;loader"
+    TIMEOUT 120
+)
+
 # Integration test: Compare GPEC Fourier vs coil_tools vector_potential on AUG data
 add_test(NAME test_aug_biot_savart_comparison
     COMMAND ${CMAKE_COMMAND}
