@@ -84,7 +84,7 @@ def read_gpec_header(filename: Path):
 
 
 def compute_direct_biotsavart_field(coil_files, coil_currents, coils_per_file,
-                                    R_grid, Z_grid, ntor=2, n_phi=128):
+                                    R_grid, Z_grid, ntor=2, n_phi=256):
     """Compute n=ntor Fourier mode from direct Biot-Savart by evaluating at multiple phi."""
     nR, nZ = len(R_grid), len(Z_grid)
 
@@ -139,6 +139,36 @@ def compute_field_magnitude(BnR, Bnphi, BnZ):
     return np.log10((BnR * np.conj(BnR) +
                      Bnphi * np.conj(Bnphi) +
                      BnZ * np.conj(BnZ)).real + 1e-20)
+
+
+def load_coil_projections(coil_files):
+    """Return list of (R_cm, Z_cm) arrays for each coil path."""
+    projections = []
+    for filename in coil_files:
+        with open(filename, 'r') as f:
+            header = f.readline().split()
+            if len(header) < 4:
+                raise ValueError(f"Malformed GPEC header in {filename}")
+            ncoil = int(header[0])
+            nseg_plus = int(header[2])
+            nseg = nseg_plus - 1
+            for _ in range(ncoil):
+                coords = []
+                for _ in range(nseg):
+                    line = f.readline().split()
+                    if len(line) != 3:
+                        raise ValueError(f"Unexpected end of file in {filename}")
+                    coords.append([float(val) for val in line])
+                closing = f.readline().split()
+                if len(closing) != 3:
+                    raise ValueError(f"Missing closing point in {filename}")
+                coords.append([float(val) for val in closing])
+                coords = np.asarray(coords)
+                coords_cm = coords * 100.0
+                R_path = np.hypot(coords_cm[:, 0], coords_cm[:, 1])
+                Z_path = coords_cm[:, 2]
+                projections.append((R_path, Z_path))
+    return projections
 
 
 def bilinear_interpolate(R_grid, Z_grid, field, R_val, Z_val):
@@ -311,8 +341,8 @@ def main():
                         help="Coil radius in cm for analytic validation")
     parser.add_argument("--axis-range", type=float, default=100.0,
                         help="Half-length of axis line segment for validation (cm, default 100)")
-    parser.add_argument("--axis-samples", type=int, default=101,
-                        help="Number of samples along axis (default 101)")
+    parser.add_argument("--axis-samples", type=int, default=181,
+                        help="Number of samples along axis (default 181)")
 
     args = parser.parse_args()
 
@@ -323,6 +353,8 @@ def main():
         if not f.exists():
             print(f"Error: File not found: {f}")
             sys.exit(1)
+
+    coil_projections = load_coil_projections(args.coil_files)
 
     # Read currents
     print(f"Reading currents from: {args.currents}")
@@ -490,6 +522,8 @@ def main():
     # Plot 1: GPEC Fourier
     im0 = axs[0, 0].imshow(log_B_ref.T, origin='lower', cmap='magma',
                            extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
+    for R_path, Z_path in coil_projections:
+        axs[0, 0].plot(R_path, Z_path, color='black', linewidth=0.8, alpha=0.8)
     axs[0, 0].set_title('1. GPEC Fourier', fontsize=11, fontweight='bold')
     axs[0, 0].set_xlabel('R [cm]')
     axs[0, 0].set_ylabel('Z [cm]')
@@ -497,6 +531,8 @@ def main():
     # Plot 2: vector_potential
     im1 = axs[0, 1].imshow(log_B_test.T, origin='lower', cmap='magma',
                            extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
+    for R_path, Z_path in coil_projections:
+        axs[0, 1].plot(R_path, Z_path, color='black', linewidth=0.8, alpha=0.8)
     axs[0, 1].set_title('2. vector_potential', fontsize=11, fontweight='bold')
     axs[0, 1].set_xlabel('R [cm]')
     axs[0, 1].set_ylabel('Z [cm]')
@@ -504,6 +540,8 @@ def main():
     # Plot 3: Direct Biot-Savart
     im2 = axs[1, 0].imshow(log_B_direct.T, origin='lower', cmap='magma',
                            extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
+    for R_path, Z_path in coil_projections:
+        axs[1, 0].plot(R_path, Z_path, color='black', linewidth=0.8, alpha=0.8)
     axs[1, 0].set_title('3. Direct Biot-Savart', fontsize=11, fontweight='bold')
     axs[1, 0].set_xlabel('R [cm]')
     axs[1, 0].set_ylabel('Z [cm]')
