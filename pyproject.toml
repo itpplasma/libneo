@@ -15,3 +15,9 @@ build-dir = "build"
 build.verbose = true
 cmake.define.CMAKE_CACHE_DIR = "build"
 cmake.define.CMAKE_PRESET = "default"
+
+[tool.scikit-build.wheel]
+packages = { "libneo" = "python/libneo" }
+
+[tool.scikit-build.sdist]
+exclude = ["build/**"]

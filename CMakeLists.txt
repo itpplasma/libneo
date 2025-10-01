@@ -76,6 +76,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fortplot)
 
+# The fortplot upstream .gitignore currently contains a bare "!" entry, which
+# trips up pathspec's GitWildMatch parser during editable installs. Strip any
+# such sentinel lines so scikit-build-core can safely enumerate sources.
+if(EXISTS "${fortplot_SOURCE_DIR}/.gitignore")
+    file(READ "${fortplot_SOURCE_DIR}/.gitignore" _fortplot_gitignore)
+    string(REGEX REPLACE "(^|\n)!($|\n)" "\\1" _fortplot_gitignore "${_fortplot_gitignore}")
+    if(NOT _fortplot_gitignore MATCHES "\n$")
+        string(APPEND _fortplot_gitignore "\n")
+    endif()
+    file(WRITE "${fortplot_SOURCE_DIR}/.gitignore" "${_fortplot_gitignore}")
+endif()
+
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
 endif()
