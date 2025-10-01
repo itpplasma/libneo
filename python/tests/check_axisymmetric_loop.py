@@ -167,21 +167,28 @@ def main() -> int:
     if args.plot is not None:
       fig, (ax_field, ax_err) = plt.subplots(2, 1, sharex=True, figsize=(7, 6))
 
-      ax_field.plot(z_cm, B_analytic_axis, label='Analytic', linewidth=2)
-      ax_field.plot(z_cm, B_ref_axis, label='Fourier', linestyle='--')
-      ax_field.plot(z_cm, B_vec_axis, label='Vector', linestyle='-.')
+      colors = {
+          'analytic': '#000000',
+          'fourier': '#1f77b4',
+          'vector': '#ff7f0e',
+          'direct': '#2ca02c',
+      }
+
+      ax_field.plot(z_cm, B_analytic_axis, label='Analytic', linewidth=2, color=colors['analytic'])
+      ax_field.plot(z_cm, B_ref_axis, label='Fourier', linestyle='-', color=colors['fourier'])
+      ax_field.plot(z_cm, B_vec_axis, label='Vector', linestyle='--', color=colors['vector'])
       finite_direct = np.isfinite(B_direct_axis)
-      ax_field.plot(z_cm[finite_direct], B_direct_axis[finite_direct], label='Direct', linestyle=':')
+      ax_field.plot(z_cm[finite_direct], B_direct_axis[finite_direct], label='Direct', linestyle=':', color=colors['direct'])
       ax_field.set_ylabel('B_parallel [G]')
       ax_field.set_title('Axis field comparison')
       ax_field.legend(loc='best')
       ax_field.grid(True, alpha=0.3)
 
       eps = 1e-20
-      ax_err.semilogy(z_cm, np.maximum(abs_diff_ref, eps), label='|Fourier - analytic|')
-      ax_err.semilogy(z_cm, np.maximum(abs_diff_vec, eps), label='|Vector - analytic|')
+      ax_err.semilogy(z_cm, np.maximum(abs_diff_ref, eps), label='|Fourier - analytic|', linestyle='-', color=colors['fourier'])
+      ax_err.semilogy(z_cm, np.maximum(abs_diff_vec, eps), label='|Vector - analytic|', linestyle='--', color=colors['vector'])
       if np.any(finite_direct):
-        ax_err.semilogy(z_cm[finite_direct], np.maximum(abs_diff_direct[finite_direct], eps), label='|Direct - analytic|')
+        ax_err.semilogy(z_cm[finite_direct], np.maximum(abs_diff_direct[finite_direct], eps), label='|Direct - analytic|', linestyle=':', color=colors['direct'])
       ax_err.set_ylabel('|ΔB| [G]')
       ax_err.set_xlabel('z [cm]')
       ax_err.set_title('Absolute error along axis')
