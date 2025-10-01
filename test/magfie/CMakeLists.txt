@@ -40,6 +40,7 @@ add_executable(benchmark_biot_savart.x benchmark_biot_savart.f90)
 target_link_libraries(benchmark_biot_savart.x PRIVATE
     neo
     magfie
+    fortplot::fortplot
     ${FFTW3_LIBRARIES}
     ${HDF5_LIBRARIES}
     ${NETCDF_LIBRARIES}

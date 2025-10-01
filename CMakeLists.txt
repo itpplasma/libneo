@@ -67,6 +67,15 @@ option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
     "Enable fetching and running the ODEINT golden record regression test" ON)
 
+include(FetchContent)
+
+FetchContent_Declare(
+  fortplot
+  GIT_REPOSITORY https://github.com/lazy-fortran/fortplot.git
+  GIT_TAG main
+)
+FetchContent_MakeAvailable(fortplot)
+
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
 endif()
