@@ -48,6 +48,7 @@ from numpy import (
     conj,
     cos,
     exp,
+    full,
     hypot,
     arctan2,
     linspace,
@@ -63,6 +64,7 @@ from numpy import (
     sqrt,
     searchsorted,
     stack,
+    swapaxes,
     tensordot,
     empty,
     zeros,
@@ -116,7 +118,9 @@ from libneo.biotsavart_fourier import (  # type: ignore  # noqa: E402
     field_divfree,
 )
 from _magfie import (  # type: ignore  # noqa: E402
-    compute_field_from_gpec_file
+    compute_field_from_gpec_file,
+    field_divb0_initialize_from_grid,
+    field_divb0_eval,
 )
 
 
@@ -321,7 +325,7 @@ def _compute_direct_fourier_mode(
     grid: Grid,
     ntor: int,
     n_phi: int,
-) -> Tuple[ndarray, ndarray, ndarray]:
+) -> Tuple[ndarray, ndarray, ndarray, ndarray, ndarray, ndarray, ndarray]:
     R_grid = grid.R
     Z_grid = grid.Z
     nR, nZ = grid.nR, grid.nZ
@@ -359,7 +363,7 @@ def _compute_direct_fourier_mode(
     Bnphi = fft(Bphi_all, axis=2)[:, :, ntor] * fft_norm
     BnZ = fft(BZ_all, axis=2)[:, :, ntor] * fft_norm
 
-    return BnR, Bnphi, BnZ
+    return BnR, Bnphi, BnZ, BR_all, Bphi_all, BZ_all, phi_grid
 
 
 def _magnitude_squared(BnR: ndarray, Bnphi: ndarray, BnZ: ndarray) -> ndarray:
@@ -615,29 +619,36 @@ def _create_sum_plot(
     magnitude_fourier: ndarray,
     magnitude_vector: ndarray,
     magnitude_spline: ndarray,
+    magnitude_field_divb0: ndarray | None,
     magnitude_direct: ndarray | None,
     output: Path,
     grid: Grid,
     coil_projections: Sequence[Tuple[ndarray, ndarray]] | None,
 ) -> None:
-    titles = ("reference sum", "Anvac sum", "Bnvac sum", "Direct sum")
-    panels = [magnitude_fourier, magnitude_vector, magnitude_spline]
+    top_titles = ("reference sum", "Anvac sum", "Bnvac sum", "Direct sum")
+    top_panels = [magnitude_fourier, magnitude_vector, magnitude_spline]
     if magnitude_direct is None:
-        panels.append(magnitude_fourier)
+        top_panels.append(magnitude_fourier)
     else:
-        panels.append(magnitude_direct)
+        top_panels.append(magnitude_direct)
 
-    log_panels = [log10(maximum(panel, 1e-300)) for panel in panels]
-    log_array = stack(log_panels, axis=0)
-    norm = Normalize(vmin=amin(log_array), vmax=amax(log_array))
+    bottom_titles = ("field_divB0 sum", "", "", "")
+    bottom_panel = magnitude_field_divb0
 
-    fig, axs = plt.subplots(1, 4, figsize=(14, 4), layout="constrained")
+    accum = [log10(maximum(panel, 1e-300)) for panel in top_panels]
+    if bottom_panel is not None:
+        accum.append(log10(maximum(bottom_panel, 1e-300)))
+
+    norm = Normalize(vmin=min(a.min() for a in accum), vmax=max(a.max() for a in accum))
+
+    fig, axs = plt.subplots(2, 4, figsize=(14, 7.5), layout="constrained")
     extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
+    plotted_axes = []
 
-    for idx, label in enumerate(titles):
-        ax = axs[idx]
+    for idx, label in enumerate(top_titles):
+        ax = axs[0, idx]
         im = ax.imshow(
-            log_array[idx].T,
+            log10(maximum(top_panels[idx], 1e-300)).T,
             origin="lower",
             cmap="magma",
             extent=extent,
@@ -651,8 +662,35 @@ def _create_sum_plot(
             for R_path, Z_path in coil_projections:
                 ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
         ax.set_aspect("equal", adjustable="box")
+        plotted_axes.append(ax)
 
-    cbar = fig.colorbar(im, ax=axs, location="bottom", fraction=0.05, pad=0.08)
+    if bottom_panel is not None:
+        ax = axs[1, 0]
+        im_bottom = ax.imshow(
+            log10(maximum(bottom_panel, 1e-300)).T,
+            origin="lower",
+            cmap="magma",
+            extent=extent,
+            norm=norm,
+            interpolation="bilinear",
+        )
+        ax.set_title(bottom_titles[0])
+        ax.set_xlabel("R [cm]")
+        ax.set_ylabel("Z [cm]")
+        if coil_projections:
+            for R_path, Z_path in coil_projections:
+                ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
+        ax.set_aspect("equal", adjustable="box")
+        plotted_axes.append(ax)
+        im = im_bottom
+    else:
+        ax = axs[1, 0]
+        ax.axis("off")
+
+    for idx in range(1, 4):
+        axs[1, idx].axis("off")
+
+    cbar = fig.colorbar(im, ax=plotted_axes, location="bottom", fraction=0.05, pad=0.08)
     cbar.set_label("log10 |Σ B_n|^2")
     fig.savefig(output, dpi=args.dpi, bbox_inches="tight")
     if not args.show:
@@ -665,6 +703,7 @@ def _print_stats(
     magnitude_fourier: ndarray,
     magnitude_vector: ndarray,
     magnitude_spline: ndarray,
+    magnitude_field_divb0: ndarray | None,
     magnitude_direct: ndarray | None,
 ) -> None:
     rel_err_vector = abs(magnitude_vector - magnitude_fourier) / (magnitude_fourier + 1e-15)
@@ -679,6 +718,13 @@ def _print_stats(
     print(f"Mean relative error (vector):   {mean_vector:.4f}%")
     print(f"Median relative error (spline): {median_spline:.4f}%")
     print(f"Mean relative error (spline):   {mean_spline:.4f}%")
+
+    if magnitude_field_divb0 is not None:
+        rel_err_field = abs(magnitude_field_divb0 - magnitude_fourier) / (magnitude_fourier + 1e-15)
+        median_field = float(median(rel_err_field) * 100.0)
+        mean_field = float(mean(rel_err_field) * 100.0)
+        print(f"Median relative error (field_divB0): {median_field:.4f}%")
+        print(f"Mean relative error (field_divB0):   {mean_field:.4f}%")
 
     if magnitude_direct is None:
         return
@@ -738,11 +784,67 @@ def main() -> None:
 
     BnR_direct = Bnphi_direct = BnZ_direct = None
     direct_magnitude = None
+    magnitude_field_divb0 = None
     if args.coil_files:
-        BnR_direct, Bnphi_direct, BnZ_direct = _compute_direct_fourier_mode(
+        (BnR_direct, Bnphi_direct, BnZ_direct,
+         BR_samples, Bphi_samples, BZ_samples, phi_grid) = _compute_direct_fourier_mode(
             args.coil_files, currents, mode_fourier.grid, args.ntor, args.fft_samples
         )
         direct_magnitude = _magnitude_squared(BnR_direct, Bnphi_direct, BnZ_direct)
+
+        nR, nZ = mode_fourier.grid.nR, mode_fourier.grid.nZ
+        n_phi = phi_grid.size
+
+        br_ordered = swapaxes(BR_samples, 1, 2)
+        bp_ordered = swapaxes(Bphi_samples, 1, 2)
+        bz_ordered = swapaxes(BZ_samples, 1, 2)
+
+        n_phi_ext = n_phi + 1
+        br_ext = zeros((nR, n_phi_ext, nZ))
+        bp_ext = zeros((nR, n_phi_ext, nZ))
+        bz_ext = zeros((nR, n_phi_ext, nZ))
+        br_ext[:, :n_phi, :] = br_ordered
+        bp_ext[:, :n_phi, :] = bp_ordered
+        bz_ext[:, :n_phi, :] = bz_ordered
+        br_ext[:, n_phi, :] = br_ordered[:, 0, :]
+        bp_ext[:, n_phi, :] = bp_ordered[:, 0, :]
+        bz_ext[:, n_phi, :] = bz_ordered[:, 0, :]
+
+        field_divb0_initialize_from_grid(
+            nR, n_phi_ext, nZ, args.ntor,
+            mode_fourier.grid.R_min, mode_fourier.grid.R_max,
+            0.0, 2.0 * pi,
+            mode_fourier.grid.Z_min, mode_fourier.grid.Z_max,
+            br_ext, bp_ext, bz_ext,
+        )
+
+        R_mesh, Z_mesh = meshgrid(mode_fourier.grid.R, mode_fourier.grid.Z, indexing="ij")
+        r_flat = R_mesh.reshape(-1)
+        z_flat = Z_mesh.reshape(-1)
+        n_points = r_flat.size
+
+        BR_field = zeros((nR, nZ, n_phi))
+        Bphi_field = zeros_like(BR_field)
+        BZ_field = zeros_like(BR_field)
+
+        br_buffer = zeros(n_points)
+        bp_buffer = zeros(n_points)
+        bz_buffer = zeros(n_points)
+        phi_buffer = zeros(n_points)
+
+        for idx in range(n_phi):
+            phi_buffer[:] = phi_grid[idx]
+            field_divb0_eval(n_points, r_flat, phi_buffer, z_flat, br_buffer, bp_buffer, bz_buffer)
+            BR_field[:, :, idx] = br_buffer.reshape(nR, nZ)
+            Bphi_field[:, :, idx] = bp_buffer.reshape(nR, nZ)
+            BZ_field[:, :, idx] = bz_buffer.reshape(nR, nZ)
+
+        fft_norm = 1.0 / n_phi
+        BnR_field = fft(BR_field, axis=2)[:, :, args.ntor] * fft_norm
+        Bnphi_field = fft(Bphi_field, axis=2)[:, :, args.ntor] * fft_norm
+        BnZ_field = fft(BZ_field, axis=2)[:, :, args.ntor] * fft_norm
+
+        magnitude_field_divb0 = _magnitude_squared(BnR_field, Bnphi_field, BnZ_field)
 
     magnitude_fourier = _magnitude_squared(BnR_fourier_sum, Bnphi_fourier_sum, BnZ_fourier_sum)
     magnitude_vector = _magnitude_squared(BnR_vector_sum, Bnphi_vector_sum, BnZ_vector_sum)
@@ -754,10 +856,25 @@ def main() -> None:
                               args.per_coil_output, coil_projections)
 
     if args.sum_output is not None:
-        _create_sum_plot(args, magnitude_fourier, magnitude_vector, magnitude_spline,
-                         direct_magnitude, args.sum_output, mode_fourier.grid, coil_projections)
+        _create_sum_plot(
+            args,
+            magnitude_fourier,
+            magnitude_vector,
+            magnitude_spline,
+            magnitude_field_divb0,
+            direct_magnitude,
+            args.sum_output,
+            mode_fourier.grid,
+            coil_projections,
+        )
 
-    _print_stats(magnitude_fourier, magnitude_vector, magnitude_spline, direct_magnitude)
+    _print_stats(
+        magnitude_fourier,
+        magnitude_vector,
+        magnitude_spline,
+        magnitude_field_divb0,
+        direct_magnitude,
+    )
 
     if args.axis_origin is not None and args.axis_normal is not None and args.coil_radius is not None:
         _axis_validation(

@@ -291,6 +291,7 @@ add_custom_command(
         src/f2py_interfaces/f2py_vmec_wrappers.f90
         src/f2py_interfaces/f2py_vmec_support.f90
         src/f2py_interfaces/f2py_biotsavart.f90
+        src/f2py_interfaces/f2py_field_divb0.f90
     VERBATIM
     COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
         --f2cmap ${CMAKE_CURRENT_SOURCE_DIR}/.f2py_f2cmap
@@ -298,6 +299,7 @@ add_custom_command(
         "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_vmec_wrappers.f90"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_vmec_support.f90"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_biotsavart.f90"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_field_divb0.f90"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/magfie/magfie_vmec.f90"
         -m _magfie --lower
 )
@@ -310,6 +312,7 @@ Python_add_library(_magfie WITH_SOABI
     "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_vmec_wrappers.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_vmec_support.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_biotsavart.f90"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/f2py_interfaces/f2py_field_divb0.f90"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/magfie/magfie_vmec.f90"
 )
 
