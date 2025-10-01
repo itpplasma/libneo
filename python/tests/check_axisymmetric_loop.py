@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 SCRIPT_PATH = Path(__file__).resolve()
 REPO_ROOT = SCRIPT_PATH.parents[2]
@@ -92,6 +96,7 @@ def main() -> int:
     parser.add_argument("--coil", required=True, type=Path, help="Input GPEC coil file")
     parser.add_argument("--currents", required=True, type=Path, help="Coil current file")
     parser.add_argument("--summary", required=True, type=Path, help="Summary text output")
+    parser.add_argument("--plot", type=Path, help="Optional PNG output showing axis comparison")
     parser.add_argument("--axis-range", type=float, default=60.0, help="Axis half-length in cm")
     parser.add_argument("--samples", type=int, default=181, help="Number of samples along axis")
     parser.add_argument("--abs-tol", type=float, default=5.0e-4, help="Absolute tolerance (Gauss)")
@@ -158,6 +163,34 @@ def main() -> int:
     )
 
     args.summary.write_text(summary)
+
+    if args.plot is not None:
+      fig, (ax_field, ax_err) = plt.subplots(2, 1, sharex=True, figsize=(7, 6))
+
+      ax_field.plot(z_cm, B_analytic_axis, label='Analytic', linewidth=2)
+      ax_field.plot(z_cm, B_ref_axis, label='Fourier', linestyle='--')
+      ax_field.plot(z_cm, B_vec_axis, label='Vector', linestyle='-.')
+      finite_direct = np.isfinite(B_direct_axis)
+      ax_field.plot(z_cm[finite_direct], B_direct_axis[finite_direct], label='Direct', linestyle=':')
+      ax_field.set_ylabel('B_parallel [G]')
+      ax_field.set_title('Axis field comparison')
+      ax_field.legend(loc='best')
+      ax_field.grid(True, alpha=0.3)
+
+      eps = 1e-20
+      ax_err.semilogy(z_cm, np.maximum(abs_diff_ref, eps), label='|Fourier - analytic|')
+      ax_err.semilogy(z_cm, np.maximum(abs_diff_vec, eps), label='|Vector - analytic|')
+      if np.any(finite_direct):
+        ax_err.semilogy(z_cm[finite_direct], np.maximum(abs_diff_direct[finite_direct], eps), label='|Direct - analytic|')
+      ax_err.set_ylabel('|ΔB| [G]')
+      ax_err.set_xlabel('z [cm]')
+      ax_err.set_title('Absolute error along axis')
+      ax_err.grid(True, which='both', alpha=0.3)
+      ax_err.legend(loc='best')
+
+      fig.tight_layout()
+      fig.savefig(args.plot, dpi=150)
+      plt.close(fig)
 
     if not np.isfinite(max_abs_ref) or not np.isfinite(max_rel_ref):
         print(summary, file=sys.stderr)

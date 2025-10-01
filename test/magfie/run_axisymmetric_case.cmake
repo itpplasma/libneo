@@ -13,6 +13,7 @@ set(GRID_FILE "${TEST_DATA_DIR}/vacfield_axisymmetric.in")
 set(REFERENCE_FILE "${OUTPUT_DIR}/axisymmetric_reference.h5")
 set(TEST_FILE "${OUTPUT_DIR}/axisymmetric_test.nc")
 set(SUMMARY_FILE "${OUTPUT_DIR}/axisymmetric_summary.txt")
+set(PLOT_FILE "${OUTPUT_DIR}/axisymmetric_axis.png")
 
 foreach(path IN LISTS COIL_FILE CURRENT_FILE GRID_FILE)
     if(NOT EXISTS "${path}")
@@ -62,6 +63,9 @@ execute_process(
             --coil "${COIL_FILE}"
             --currents "${CURRENT_FILE}"
             --summary "${SUMMARY_FILE}"
+            --plot "${PLOT_FILE}"
+            --axis-range 60.0
+            --samples 181
     WORKING_DIRECTORY "${OUTPUT_DIR}"
     RESULT_VARIABLE result_check
     OUTPUT_VARIABLE output_check
@@ -76,3 +80,4 @@ message(STATUS "Axisymmetric coil validation completed successfully")
 message(STATUS "  - ${REFERENCE_FILE}")
 message(STATUS "  - ${TEST_FILE}")
 message(STATUS "  - ${SUMMARY_FILE}")
+message(STATUS "  - ${PLOT_FILE}")
