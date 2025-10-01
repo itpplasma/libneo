@@ -59,7 +59,7 @@ try:
         spline_gauged_Anvac,
         field_divfree,
     )
-    from _magfie import compute_field_from_gpec_file
+    from _magfie import compute_field_from_gpec_file, compute_field_direct_biotsavart
 except ImportError as exc:
     print("Error: required Python modules for libneo are missing:", exc)
     print("Ensure the libneo package and runtime dependencies (h5py, netCDF4) are installed.")
@@ -84,6 +84,52 @@ def read_currents(currents_file):
         line = f.readline().strip()
         currents = np.array([float(x) for x in line.split()])
     return currents
+
+
+AMPERE_TO_STATAMPERE = 2.99792458e9
+
+
+def load_gpec_coils(filename):
+    coils = []
+    with open(filename, 'r') as f:
+        header = f.readline().split()
+        if len(header) < 4:
+            raise ValueError(f"Malformed GPEC header in {filename}")
+        ncoil = int(header[0])
+        nseg = int(header[2]) - 1
+        nwind = float(header[3])
+        for _ in range(ncoil):
+            pts = [list(map(float, f.readline().split())) for _ in range(nseg)]
+            closing = f.readline().split()
+            if len(pts[-1]) != 3 or len(closing) != 3:
+                raise ValueError(f"Unexpected EOF in {filename}")
+            pts.append(list(map(float, closing)))
+            coils.append((np.asarray(pts, dtype=float) * 100.0, nwind))
+    return coils
+
+
+def compute_axis_biot_savart_raw(coil_files, coil_currents, coils_per_file, x_eval, y_eval, z_eval):
+    npoints = len(x_eval)
+    B_total = np.zeros((npoints, 3), dtype=float)
+    offset = 0
+    for path, ncoils in zip(coil_files, coils_per_file):
+        coils = load_gpec_coils(path)
+        if len(coils) != ncoils:
+            raise ValueError(f"Mismatch between geometry file {path} and currents list")
+        for pts_cm, nwind in coils:
+            currents_seg = np.zeros(len(pts_cm))
+            currents_seg[:-1] = coil_currents[offset] * nwind * AMPERE_TO_STATAMPERE
+            Bx, By, Bz = compute_field_direct_biotsavart(
+                pts_cm[:, 0], pts_cm[:, 1], pts_cm[:, 2], currents_seg,
+                np.asarray(x_eval, dtype=float),
+                np.asarray(y_eval, dtype=float),
+                np.asarray(z_eval, dtype=float),
+            )
+            B_total[:, 0] += Bx
+            B_total[:, 1] += By
+            B_total[:, 2] += Bz
+            offset += 1
+    return B_total
 
 
 def read_gpec_header(filename: Path):
@@ -443,6 +489,10 @@ def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
         'rel_err_gpec': rel_err_gpec,
         'abs_err_vector': abs_err_vec,
         'rel_err_vector': rel_err_vec,
+        'x_eval': x_eval,
+        'y_eval': y_eval,
+        'z_eval': z_eval,
+        'axis_normal': axis_normal,
     }
 
 
@@ -581,6 +631,16 @@ def main():
         BnZ_vec_modes_total,
     )
     if axis_result is not None:
+        raw_vectors = compute_axis_biot_savart_raw(
+            args.coil_files,
+            currents,
+            coils_per_file,
+            axis_result['x_eval'],
+            axis_result['y_eval'],
+            axis_result['z_eval'],
+        )
+        axis_raw = (raw_vectors @ axis_result['axis_normal']).reshape(-1)
+
         print("\nAxis validation against analytical solution:")
 
         def _nanmax(arr):
@@ -595,6 +655,10 @@ def main():
         print(f"  Max rel error vector: {_nanmax(axis_result['rel_err_vector']) * 100.0:.4f}%")
         print(f"  Max |B_direct - B_analytic|: {_nanmax(axis_result['abs_err_direct']):.3e} G")
         print(f"  Max rel error direct: {_nanmax(axis_result['rel_err_direct']) * 100.0:.4f}%")
+        raw_abs_err = np.abs(axis_raw - axis_result['analytic'])
+        raw_rel_err = raw_abs_err / np.maximum(np.abs(axis_result['analytic']), 1e-20)
+        print(f"  Max |B_raw - B_analytic|: {_nanmax(raw_abs_err):.3e} G")
+        print(f"  Max rel error raw: {_nanmax(raw_rel_err) * 100.0:.4f}%")
 
         axis_fig = plt.figure(figsize=(6, 4), layout='constrained')
         ax = axis_fig.add_subplot(111)
@@ -602,6 +666,7 @@ def main():
         ax.plot(axis_result['s_vals_cm'], axis_result['gpec'], label='GPEC Fourier', linewidth=1.4)
         ax.plot(axis_result['s_vals_cm'], axis_result['vector'], label='vector_potential', linewidth=1.4)
         ax.plot(axis_result['s_vals_cm'], axis_result['direct'], label='Direct Biot-Savart', linewidth=1.4)
+        ax.plot(axis_result['s_vals_cm'], axis_raw, label='Direct Biot-Savart (segments)', linewidth=1.2)
         ax.set_xlabel('Axis coordinate s [cm]')
         ax.set_ylabel('B_parallel [Gauss]')
         ax.set_title('Coil-axis validation')
