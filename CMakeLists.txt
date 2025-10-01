@@ -23,6 +23,8 @@ endif()
 # Basic project settings.
 project(libneo)
 
+option(LIBNEO_ENABLE_TESTS "Build libneo tests" ON)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
@@ -57,7 +59,9 @@ set(libneo_VERSION_MINOR 08)
 set(libneo_VERSION_PATCH 20)
 
 enable_language(C Fortran)
-enable_testing()
+if(LIBNEO_ENABLE_TESTS)
+    enable_testing()
+endif()
 
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 
@@ -201,7 +205,9 @@ add_executable(hamada_to_boozer.x
 target_link_libraries(hamada_to_boozer.x efit_to_boozer)
 
 
-add_subdirectory(test)
+if(LIBNEO_ENABLE_TESTS)
+    add_subdirectory(test)
+endif()
 
 
 # MacOS RPATH specifics
