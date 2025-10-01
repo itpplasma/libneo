@@ -67,11 +67,16 @@ target_link_libraries(benchmark_biot_savart.x PRIVATE
 )
 
 add_test(NAME benchmark_biot_savart
-    COMMAND benchmark_biot_savart.x ${CMAKE_SOURCE_DIR}/test/magfie/test_data
+    COMMAND ${CMAKE_COMMAND}
+        -DBENCHMARK_EXE=$<TARGET_FILE:benchmark_biot_savart.x>
+        -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
+        -DOUTPUT_DIR=${CMAKE_BINARY_DIR}/test/magfie/benchmark
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/run_benchmark_case.cmake
 )
 
 set_tests_properties(benchmark_biot_savart PROPERTIES
     LABELS "magfie;biot_savart;benchmark"
+    DEPENDS benchmark_biot_savart.x
 )
 
 # Integration test: single-coil scenario with analytical verification
@@ -80,11 +85,27 @@ add_test(NAME test_single_coil_biot_savart
         -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
         -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
         -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DOUTPUT_DIR:PATH=${CMAKE_BINARY_DIR}/test/magfie/single_coil
         -P ${CMAKE_CURRENT_SOURCE_DIR}/run_single_coil_case.cmake
 )
 
 set_tests_properties(test_single_coil_biot_savart PROPERTIES
     LABELS "magfie;biot_savart;integration;single_coil"
     TIMEOUT 600
+    DEPENDS vacfield.x
+)
+
+add_test(NAME test_axisymmetric_biot_savart
+    COMMAND ${CMAKE_COMMAND}
+        -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
+        -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
+        -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DOUTPUT_DIR:PATH=${CMAKE_BINARY_DIR}/test/magfie/axisymmetric_coil
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/run_axisymmetric_case.cmake
+)
+
+set_tests_properties(test_axisymmetric_biot_savart PROPERTIES
+    LABELS "magfie;biot_savart;integration;axisymmetric"
+    TIMEOUT 300
     DEPENDS vacfield.x
 )

@@ -1,0 +1,14 @@
+&coil_field
+  Rmin = 0.0d0
+  Rmax = 70.0d0
+  Zmin = -60.0d0
+  Zmax = 60.0d0
+  nR = 64
+  nZ = 96
+  nphi = 192
+  nmax = 32
+  prefactor = 1.0d0
+  min_distance = 0.0d0
+  max_eccentricity = 1.0d0
+  use_convex_wall = .false.
+/

@@ -19,7 +19,7 @@ program benchmark_biot_savart
   integer, parameter :: default_nZ = 32
   integer, parameter :: default_nphi = 32
 
-  character(len=512) :: data_dir
+  character(len=512) :: data_dir, output_dir
   integer :: argc
 
   type(coil_t), allocatable :: coils_ct(:)
@@ -54,7 +54,13 @@ program benchmark_biot_savart
   else
     data_dir = 'test/magfie/test_data'
   end if
+  if (argc >= 2) then
+    call get_command_argument(2, output_dir)
+  else
+    output_dir = data_dir
+  end if
   call ensure_trailing_slash(data_dir)
+  call ensure_trailing_slash(output_dir)
 
   path_currents = trim(data_dir) // currents_name
 
@@ -122,7 +128,7 @@ program benchmark_biot_savart
 
   B_ct = Bvac_ct
 
-  plot_path = trim(data_dir) // 'benchmark_biot_savart_errors.png'
+  plot_path = trim(output_dir) // 'benchmark_biot_savart_errors.png'
   call generate_error_plot(B_neo, B_ct, plot_path)
 
   max_abs_diff = maxval(abs(B_neo - B_ct))

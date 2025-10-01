@@ -353,19 +353,31 @@ def load_anvac_modes(field_file):
     dAnZ_dR[:, :, -1, :] = (AnZ[:, :, -1, :] - AnZ[:, :, -2, :]) / dR
 
     ntor_array = ntor_vals[:, np.newaxis, np.newaxis, np.newaxis].astype(float)
-    R_mesh = grid.R[np.newaxis, np.newaxis, :, np.newaxis]
+    R_base = grid.R[np.newaxis, np.newaxis, :, np.newaxis]
+    R_mesh = np.broadcast_to(R_base, (len(ntor_vals), 1, grid.nR, 1))
+    inv_R = np.zeros_like(R_mesh)
+    np.divide(1.0, R_mesh, out=inv_R, where=R_mesh > 0.0)
 
     BnR = -dAnphi_dZ.copy()
     nonzero = ntor_vals != 0
     if np.any(nonzero):
-        idx = np.where(nonzero)[0][:, np.newaxis, np.newaxis, np.newaxis]
-        BnR[nonzero] = BnR[nonzero] + (1j * ntor_array[nonzero] / R_mesh) * AnZ[nonzero]
+        BnR[nonzero] = BnR[nonzero] + (1j * ntor_array[nonzero] * inv_R[nonzero]) * AnZ[nonzero]
 
     Bnphi = dAnR_dZ - dAnZ_dR
 
-    BnZ = (Anphi + R_mesh * dAnphi_dR) / R_mesh
+    BnZ = inv_R * (Anphi + R_mesh * dAnphi_dR)
     if np.any(nonzero):
-        BnZ[nonzero] = BnZ[nonzero] - (1j * ntor_array[nonzero] / R_mesh) * AnR[nonzero]
+        BnZ[nonzero] = BnZ[nonzero] - (1j * ntor_array[nonzero] * inv_R[nonzero]) * AnR[nonzero]
+
+    zero_mask = ntor_vals == 0
+    if np.any(zero_mask):
+        idx = np.where(zero_mask)[0][:, np.newaxis, np.newaxis, np.newaxis]
+        dAnphi_zero = dAnphi_dR[idx]
+        axis_values = 2.0 * dAnphi_zero[:, :, 0, :]
+        BnZ[idx].real[:, :, 0, :] = axis_values
+        BnZ[idx].imag[:, :, 0, :] = 0.0
+        BnR[idx] = BnR[idx].real
+        Bnphi[idx] = Bnphi[idx].real
 
     return grid, ntor_vals, BnR, Bnphi, BnZ
 
