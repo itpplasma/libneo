@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""
-Compare three Biot-Savart implementations:
-1. GPEC Fourier (direct B_n computation)
-2. coil_tools vector_potential (A_n then curl)
-3. Direct real-space Biot-Savart (on-the-fly evaluation)
-
-This script computes the full superposition of all coils weighted by their
-currents, which is the physically relevant comparison.
-"""
+"""Compare coil_tools Biot–Savart variants against the analytic/segment kernels."""
 
 import argparse
 import sys
@@ -90,7 +82,7 @@ AMPERE_TO_STATAMPERE = 2.99792458e9
 FOURIER_REFERENCE_CURRENT = 0.1  # Gauss kernels are tabulated for 0.1 A per coil
 
 
-def load_gpec_coils(filename):
+def load_coil_geometry(filename):
     coils = []
     with open(filename, 'r') as f:
         header = f.readline().split()
@@ -114,7 +106,7 @@ def compute_axis_biot_savart_raw(coil_files, coil_currents, coils_per_file, x_ev
     B_total = np.zeros((npoints, 3), dtype=float)
     offset = 0
     for path, ncoils in zip(coil_files, coils_per_file):
-        coils = load_gpec_coils(path)
+        coils = load_coil_geometry(path)
         if len(coils) != ncoils:
             raise ValueError(f"Mismatch between geometry file {path} and currents list")
         for pts_cm, nwind in coils:
@@ -454,7 +446,7 @@ def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
     B_parallel_direct = Bx_direct * axis_normal[0] + By_direct * axis_normal[1] + Bz_direct * axis_normal[2]
 
     # Fourier-based evaluations (bilinear interpolation on cylindrical grid)
-    B_parallel_gpec = np.zeros_like(x_eval)
+    B_parallel_fourier = np.zeros_like(x_eval)
     B_parallel_vec = np.zeros_like(x_eval)
 
     for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
@@ -465,7 +457,7 @@ def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
             BnR_ref_modes_total, Bnphi_ref_modes_total, BnZ_ref_modes_total,
             ntor_vals_ref, R_grid, Z_grid, x_val=x_eval[idx], y_val=y_eval[idx], z_val=z_eval[idx]
         )
-        B_parallel_gpec[idx] = Bx_ref * axis_normal[0] + By_ref * axis_normal[1] + Bz_ref * axis_normal[2]
+        B_parallel_fourier[idx] = Bx_ref * axis_normal[0] + By_ref * axis_normal[1] + Bz_ref * axis_normal[2]
 
         Bx_vec, By_vec, Bz_vec = evaluate_modes_at_point(
             BnR_vec_modes_total, Bnphi_vec_modes_total, BnZ_vec_modes_total,
@@ -484,8 +476,8 @@ def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
     abs_err_direct = np.abs(B_parallel_direct - B_analytic)
     rel_err_direct = abs_err_direct / np.maximum(np.abs(B_analytic), 1e-20)
 
-    abs_err_gpec = np.abs(B_parallel_gpec - B_analytic)
-    rel_err_gpec = abs_err_gpec / np.maximum(np.abs(B_analytic), 1e-20)
+    abs_err_fourier = np.abs(B_parallel_fourier - B_analytic)
+    rel_err_fourier = abs_err_fourier / np.maximum(np.abs(B_analytic), 1e-20)
 
     abs_err_vec = np.abs(B_parallel_vec - B_analytic)
     rel_err_vec = abs_err_vec / np.maximum(np.abs(B_analytic), 1e-20)
@@ -494,12 +486,12 @@ def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
         's_vals_cm': s_vals,
         'analytic': B_analytic,
         'direct': B_parallel_direct,
-        'gpec': B_parallel_gpec,
+        'fourier': B_parallel_fourier,
         'vector': B_parallel_vec,
         'abs_err_direct': abs_err_direct,
         'rel_err_direct': rel_err_direct,
-        'abs_err_gpec': abs_err_gpec,
-        'rel_err_gpec': rel_err_gpec,
+        'abs_err_fourier': abs_err_fourier,
+        'rel_err_fourier': rel_err_fourier,
         'abs_err_vector': abs_err_vec,
         'rel_err_vector': rel_err_vec,
         'x_eval': x_eval,
@@ -511,13 +503,13 @@ def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compare three Biot-Savart implementations"
+        description="Compare coil_tools Fourier, vector-potential, and direct kernels"
     )
-    parser.add_argument("reference", type=Path, help="HDF5 file from GPEC Fourier")
+    parser.add_argument("reference", type=Path, help="HDF5 file from coil_tools Fourier run")
     parser.add_argument("test", type=Path, help="NetCDF file from coil_tools")
     parser.add_argument("currents", type=Path, help="Coil currents file")
     parser.add_argument("coil_files", type=Path, nargs='+',
-                        help="One or more coil geometry files in GPEC format")
+                        help="One or more coil geometry files (GPEC coil format)")
     parser.add_argument("-o", "--output", type=Path, default="superposition_comparison.png",
                         help="Output plot filename (default: superposition_comparison.png)")
     parser.add_argument("--ntor", type=int, default=2,
@@ -552,7 +544,7 @@ def main():
     print(f"  Current range: [{np.min(currents):.1f}, {np.max(currents):.1f}] A")
 
     # Read field data for all harmonics
-    print(f"\nReading reference (GPEC Fourier): {args.reference}")
+    print(f"\nReading reference (Fourier sum): {args.reference}")
     ref_grid, ntor_vals_ref, BnR_modes_ref, Bnphi_modes_ref, BnZ_modes_ref = load_bnvac_modes(
         str(args.reference)
     )
@@ -662,8 +654,8 @@ def main():
                 return float('nan')
             return np.nanmax(arr[finite])
 
-        print(f"  Max |B_GPEC - B_analytic|: {_nanmax(axis_result['abs_err_gpec']):.3e} G")
-        print(f"  Max rel error GPEC: {_nanmax(axis_result['rel_err_gpec']) * 100.0:.4f}%")
+        print(f"  Max |B_Fourier - B_analytic|: {_nanmax(axis_result['abs_err_fourier']):.3e} G")
+        print(f"  Max rel error Fourier: {_nanmax(axis_result['rel_err_fourier']) * 100.0:.4f}%")
         print(f"  Max |B_vector - B_analytic|: {_nanmax(axis_result['abs_err_vector']):.3e} G")
         print(f"  Max rel error vector: {_nanmax(axis_result['rel_err_vector']) * 100.0:.4f}%")
         print(f"  Max |B_direct - B_analytic|: {_nanmax(axis_result['abs_err_direct']):.3e} G")
@@ -676,7 +668,7 @@ def main():
         axis_fig = plt.figure(figsize=(6, 4), layout='constrained')
         ax = axis_fig.add_subplot(111)
         ax.plot(axis_result['s_vals_cm'], axis_result['analytic'], label='Analytical', linestyle='--', linewidth=2)
-        ax.plot(axis_result['s_vals_cm'], axis_result['gpec'], label='GPEC Fourier', linewidth=1.4)
+        ax.plot(axis_result['s_vals_cm'], axis_result['fourier'], label='Fourier sum', linewidth=1.4)
         ax.plot(axis_result['s_vals_cm'], axis_result['vector'], label='vector_potential', linewidth=1.4)
         ax.plot(axis_result['s_vals_cm'], axis_result['direct'], label='Direct Biot-Savart', linewidth=1.4)
         ax.plot(axis_result['s_vals_cm'], axis_raw, label='Direct Biot-Savart (segments)', linewidth=1.2)
@@ -699,18 +691,18 @@ def main():
 
     # Statistics
     print(f"\nThree-way comparison statistics (Fourier mode n={args.ntor}):")
-    print(f"  Mean |B| (GPEC Fourier):      {np.mean(B_ref_mag):.6e}  (max: {np.max(B_ref_mag):.2f}, min: {np.min(B_ref_mag):.2f})")
+    print(f"  Mean |B| (Fourier sum):      {np.mean(B_ref_mag):.6e}  (max: {np.max(B_ref_mag):.2f}, min: {np.min(B_ref_mag):.2f})")
     print(f"  Mean |B| (vector_potential):  {np.mean(B_test_mag):.6e}  (max: {np.max(B_test_mag):.2f}, min: {np.min(B_test_mag):.2f})")
     print(f"  Mean |B| (direct Biot-Savart): {np.mean(B_direct_mag):.6e}  (max: {np.max(B_direct_mag):.2f}, min: {np.min(B_direct_mag):.2f})")
 
     rel_err_1_2 = np.abs(B_test_mag - B_ref_mag) / (B_ref_mag + 1e-15)
     rel_err_1_3 = np.abs(B_direct_mag - B_ref_mag) / (B_ref_mag + 1e-15)
 
-    print(f"\nGPEC vs vector_potential:")
+    print(f"\nFourier vs vector_potential:")
     print(f"  Median relative error: {np.median(rel_err_1_2)*100:.4f}%")
     print(f"  Mean relative error:   {np.mean(rel_err_1_2)*100:.4f}%")
 
-    print(f"\nGPEC vs direct Biot-Savart:")
+    print(f"\nFourier vs direct Biot-Savart:")
     print(f"  Median relative error: {np.median(rel_err_1_3)*100:.4f}%")
     print(f"  Mean relative error:   {np.mean(rel_err_1_3)*100:.4f}%")
 
@@ -727,12 +719,12 @@ def main():
 
     extent = [R_grid[0], R_grid[-1], Z_grid[0], Z_grid[-1]]
 
-    # Plot 1: GPEC Fourier
+    # Plot 1: Fourier sum
     im0 = axs[0, 0].imshow(log_B_ref.T, origin='lower', cmap='magma',
                            extent=extent, norm=norm_abs, aspect='auto', interpolation='bilinear')
     for R_path, Z_path in coil_projections:
         axs[0, 0].plot(R_path, Z_path, color='black', linewidth=0.8, alpha=0.8)
-    axs[0, 0].set_title('1. GPEC Fourier', fontsize=11, fontweight='bold')
+    axs[0, 0].set_title('1. Fourier sum', fontsize=11, fontweight='bold')
     axs[0, 0].set_xlabel('R [cm]')
     axs[0, 0].set_ylabel('Z [cm]')
 
@@ -759,7 +751,7 @@ def main():
                    abs(np.min(diff_1_3)), abs(np.max(diff_1_3)))
     im3 = axs[1, 1].imshow(diff_1_2.T, origin='lower', cmap='RdBu_r',
                            extent=extent, vmin=-diff_max, vmax=diff_max, aspect='auto', interpolation='bilinear')
-    axs[1, 1].set_title('Difference: 2 - 1', fontsize=11, fontweight='bold')
+    axs[1, 1].set_title('Difference: vector - Fourier', fontsize=11, fontweight='bold')
     axs[1, 1].set_xlabel('R [cm]')
     axs[1, 1].set_ylabel('Z [cm]')
 
