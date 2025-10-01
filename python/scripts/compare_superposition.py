@@ -319,11 +319,11 @@ def load_anvac_modes(field_file):
         grid.Z_min = grid.Z[0]
         grid.Z_max = grid.Z[-1]
         ntor_vals = np.array(ds['ntor'][:], dtype=int)
-        AnR = ds['AnR_real'][:] + 1j * ds['AnR_imag'][:]
-        Anphi = ds['Anphi_real'][:] + 1j * ds['Anphi_imag'][:]
-        AnZ = ds['AnZ_real'][:] + 1j * ds['AnZ_imag'][:]
-        dAnphi_dR = ds['dAnphi_dR_real'][:] + 1j * ds['dAnphi_dR_imag'][:]
-        dAnphi_dZ = ds['dAnphi_dZ_real'][:] + 1j * ds['dAnphi_dZ_imag'][:]
+        AnR = np.asarray(ds['AnR_real'][:]) + 1j * np.asarray(ds['AnR_imag'][:])
+        Anphi = np.asarray(ds['Anphi_real'][:]) + 1j * np.asarray(ds['Anphi_imag'][:])
+        AnZ = np.asarray(ds['AnZ_real'][:]) + 1j * np.asarray(ds['AnZ_imag'][:])
+        dAnphi_dR = np.asarray(ds['dAnphi_dR_real'][:]) + 1j * np.asarray(ds['dAnphi_dR_imag'][:])
+        dAnphi_dZ = np.asarray(ds['dAnphi_dZ_real'][:]) + 1j * np.asarray(ds['dAnphi_dZ_imag'][:])
 
     # Move ntor dimension to front and ensure order (ntor, coil, R, Z)
     def reorder(arr):
@@ -371,13 +371,13 @@ def load_anvac_modes(field_file):
 
     zero_mask = ntor_vals == 0
     if np.any(zero_mask):
-        idx = np.where(zero_mask)[0][:, np.newaxis, np.newaxis, np.newaxis]
-        dAnphi_zero = dAnphi_dR[idx]
-        axis_values = 2.0 * dAnphi_zero[:, :, 0, :]
-        BnZ[idx].real[:, :, 0, :] = axis_values
-        BnZ[idx].imag[:, :, 0, :] = 0.0
-        BnR[idx] = BnR[idx].real
-        Bnphi[idx] = Bnphi[idx].real
+        idx_zero = np.where(zero_mask)[0]
+        for iz in idx_zero:
+            BnR[iz] = np.real(-BnR[iz])
+            BnZ[iz] = np.real(-BnZ[iz])
+            axis_values = -2.0 * np.real(dAnphi_dR[iz, :, 0, :])
+            BnZ[iz, :, 0, :] = axis_values
+            Bnphi[iz] = np.real(Bnphi[iz])
 
     return grid, ntor_vals, BnR, Bnphi, BnZ
 
