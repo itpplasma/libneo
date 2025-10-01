@@ -33,6 +33,7 @@ python3 plot_biotsavart_fourier.py \
 from __future__ import annotations
 
 import argparse
+import ctypes
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,11 +118,20 @@ from libneo.biotsavart_fourier import (  # type: ignore  # noqa: E402
     spline_gauged_Anvac,
     field_divfree,
 )
-from _magfie import (  # type: ignore  # noqa: E402
+import _magfie  # type: ignore  # noqa: E402
+from _magfie import (
     compute_field_from_gpec_file,
     field_divb0_initialize_from_grid,
     field_divb0_eval,
 )
+
+
+def _set_convex_wall_filename(path: Path) -> None:
+    """Write ``path`` into the Fortran ``convexfile`` module variable."""
+
+    lib = ctypes.CDLL(_magfie.__file__)
+    buffer = (ctypes.c_char * 1024).in_dll(lib, "__input_files_MOD_convexfile")
+    buffer.value = str(path).encode()
 
 
 FOURIER_REFERENCE_CURRENT = 0.1  # coil_tools Fourier tables assume 0.1 A per coil
@@ -792,7 +802,8 @@ def main() -> None:
         )
         direct_magnitude = _magnitude_squared(BnR_direct, Bnphi_direct, BnZ_direct)
 
-        nR, nZ = mode_fourier.grid.nR, mode_fourier.grid.nZ
+        nR = int(mode_fourier.grid.nR)
+        nZ = int(mode_fourier.grid.nZ)
         n_phi = phi_grid.size
 
         br_ordered = swapaxes(BR_samples, 1, 2)
@@ -800,9 +811,9 @@ def main() -> None:
         bz_ordered = swapaxes(BZ_samples, 1, 2)
 
         n_phi_ext = n_phi + 1
-        br_ext = zeros((nR, n_phi_ext, nZ))
-        bp_ext = zeros((nR, n_phi_ext, nZ))
-        bz_ext = zeros((nR, n_phi_ext, nZ))
+        br_ext = zeros((nR, n_phi_ext, nZ), dtype=float, order="F")
+        bp_ext = zeros((nR, n_phi_ext, nZ), dtype=float, order="F")
+        bz_ext = zeros((nR, n_phi_ext, nZ), dtype=float, order="F")
         br_ext[:, :n_phi, :] = br_ordered
         bp_ext[:, :n_phi, :] = bp_ordered
         bz_ext[:, :n_phi, :] = bz_ordered
@@ -810,12 +821,34 @@ def main() -> None:
         bp_ext[:, n_phi, :] = bp_ordered[:, 0, :]
         bz_ext[:, n_phi, :] = bz_ordered[:, 0, :]
 
+        convex_candidate: Path | None = None
+        for coil_file in args.coil_files:
+            candidate = coil_file.parent / "convexwall.dat"
+            if candidate.exists():
+                convex_candidate = candidate
+                break
+
+        if convex_candidate is not None:
+            _set_convex_wall_filename(convex_candidate)
+        else:
+            raise FileNotFoundError(
+                "convexwall.dat not found alongside coil geometry; required for field_divB0"
+            )
+
         field_divb0_initialize_from_grid(
-            nR, n_phi_ext, nZ, args.ntor,
-            mode_fourier.grid.R_min, mode_fourier.grid.R_max,
-            0.0, 2.0 * pi,
-            mode_fourier.grid.Z_min, mode_fourier.grid.Z_max,
-            br_ext, bp_ext, bz_ext,
+            args.ntor,
+            mode_fourier.grid.R_min,
+            mode_fourier.grid.R_max,
+            0.0,
+            2.0 * pi,
+            mode_fourier.grid.Z_min,
+            mode_fourier.grid.Z_max,
+            br_ext,
+            bp_ext,
+            bz_ext,
+            nR,
+            n_phi_ext,
+            nZ,
         )
 
         R_mesh, Z_mesh = meshgrid(mode_fourier.grid.R, mode_fourier.grid.Z, indexing="ij")
@@ -827,17 +860,14 @@ def main() -> None:
         Bphi_field = zeros_like(BR_field)
         BZ_field = zeros_like(BR_field)
 
-        br_buffer = zeros(n_points)
-        bp_buffer = zeros(n_points)
-        bz_buffer = zeros(n_points)
         phi_buffer = zeros(n_points)
 
         for idx in range(n_phi):
             phi_buffer[:] = phi_grid[idx]
-            field_divb0_eval(n_points, r_flat, phi_buffer, z_flat, br_buffer, bp_buffer, bz_buffer)
-            BR_field[:, :, idx] = br_buffer.reshape(nR, nZ)
-            Bphi_field[:, :, idx] = bp_buffer.reshape(nR, nZ)
-            BZ_field[:, :, idx] = bz_buffer.reshape(nR, nZ)
+            br_slice, bp_slice, bz_slice = field_divb0_eval(r_flat, phi_buffer, z_flat, n_points)
+            BR_field[:, :, idx] = br_slice.reshape(nR, nZ)
+            Bphi_field[:, :, idx] = bp_slice.reshape(nR, nZ)
+            BZ_field[:, :, idx] = bz_slice.reshape(nR, nZ)
 
         fft_norm = 1.0 / n_phi
         BnR_field = fft(BR_field, axis=2)[:, :, args.ntor] * fft_norm
