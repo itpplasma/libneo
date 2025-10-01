@@ -13,7 +13,7 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (after Agg selection)
 
-from run_geoflux_test import ensure_geqdsk  # reuse downloader
+from run_geoflux_test import ensure_geqdsk, require_testing_enabled  # reuse downloader
 
 
 def parse_geqdsk(path: Path):
@@ -125,6 +125,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", required=True, help="directory for generated plots")
     parser.add_argument("--basename", default="geqdsk", help="base name for output plots")
     args = parser.parse_args(argv)
+
+    require_testing_enabled("geqdsk plotting test")
 
     data_dir = Path(args.data_dir).resolve()
     geqdsk_path = ensure_geqdsk(data_dir)

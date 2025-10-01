@@ -15,7 +15,7 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from run_geoflux_test import ensure_geqdsk
+from run_geoflux_test import ensure_geqdsk, require_testing_enabled
 
 
 def load_coords(path: Path) -> dict[str, list[np.ndarray]]:
@@ -66,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", required=True, help="Directory for generated plots")
     parser.add_argument("--basename", default="geoflux", help="Base name for output plot")
     args = parser.parse_args(argv)
+
+    require_testing_enabled("geoflux plotting test")
 
     exe_path = Path(args.exe).resolve()
     if not exe_path.is_file():

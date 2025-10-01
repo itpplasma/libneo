@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
 import shutil
 import ssl
@@ -13,6 +14,22 @@ import urllib.request
 
 GEQDSK_URL = "https://crppwww.epfl.ch/~sauter/benchmark/EQDSK_I"
 SSL_CONTEXT = ssl._create_unverified_context()
+LIBNEO_TESTING_ENV = "LIBNEO_TESTING"
+_DISABLED_VALUES = {"", "0", "false", "no", "off"}
+
+
+def testing_enabled() -> bool:
+    value = os.environ.get(LIBNEO_TESTING_ENV, "")
+    return value.strip().lower() not in _DISABLED_VALUES
+
+
+def require_testing_enabled(action: str) -> None:
+    if testing_enabled():
+        return
+    print(
+        f"{action} skipped: set {LIBNEO_TESTING_ENV}=1 to enable", file=sys.stderr
+    )
+    raise SystemExit(0)
 
 
 def download(url: str, destination: pathlib.Path) -> None:
@@ -50,6 +67,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Directory to store downloaded GEQDSK files",
     )
     args = parser.parse_args(argv)
+
+    require_testing_enabled("geoflux integration test")
 
     exe_path = pathlib.Path(args.exe).resolve()
     if not exe_path.is_file():
