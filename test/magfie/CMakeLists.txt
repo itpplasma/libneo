@@ -36,6 +36,24 @@ set_tests_properties(test_aug_biot_savart_comparison PROPERTIES
     DEPENDS vacfield.x
 )
 
+add_executable(benchmark_biot_savart.x benchmark_biot_savart.f90)
+target_link_libraries(benchmark_biot_savart.x PRIVATE
+    neo
+    magfie
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+
+add_test(NAME benchmark_biot_savart
+    COMMAND benchmark_biot_savart.x ${CMAKE_SOURCE_DIR}/test/magfie/test_data
+)
+
+set_tests_properties(benchmark_biot_savart PROPERTIES
+    LABELS "magfie;biot_savart;benchmark"
+)
+
 # Integration test: single-coil scenario with analytical verification
 add_test(NAME test_single_coil_biot_savart
     COMMAND ${CMAKE_COMMAND}
