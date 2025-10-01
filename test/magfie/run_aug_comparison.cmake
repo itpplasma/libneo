@@ -65,60 +65,73 @@ if(NOT DEFINED PROJECT_SOURCE_DIR)
     get_filename_component(PROJECT_SOURCE_DIR "${TEST_DATA_DIR}/../../.." ABSOLUTE)
 endif()
 
-set(SUPERPOSITION_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/compare_superposition.py")
-set(SUPERPOSITION_PLOT "${TEST_DATA_DIR}/superposition_comparison.png")
+set(COMPARISON_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/plot_biotsavart_fourier.py")
+set(PER_COIL_PLOT "${TEST_DATA_DIR}/biotsavart_fourier.png")
+set(SUM_PLOT "${TEST_DATA_DIR}/biotsavart_fourier_sum.png")
 
-if(EXISTS "${SUPERPOSITION_SCRIPT}")
-    message(STATUS "Generating three-way comparison and checking tolerance...")
+set(MEDIAN_ERROR_EXCEEDED FALSE)
+set(MEAN_ERROR_EXCEEDED FALSE)
+set(MEDIAN_ERROR_VALUE 0.0)
+set(MEAN_ERROR_VALUE 0.0)
+
+if(EXISTS "${COMPARISON_SCRIPT}")
+    message(STATUS "Running unified Biot-Savart comparison...")
     execute_process(
-        COMMAND python3 "${SUPERPOSITION_SCRIPT}"
+        COMMAND "${CMAKE_COMMAND}" -E env MPLBACKEND=Agg
+                python3 "${COMPARISON_SCRIPT}"
                 "${TEST_DATA_DIR}/aug_reference.h5"
                 "${TEST_DATA_DIR}/aug_test.nc"
-                "${TEST_DATA_DIR}/aug_currents.txt"
-                "${TEST_DATA_DIR}/aug_bu.dat"
-                "${TEST_DATA_DIR}/aug_bl.dat"
-                -o "${SUPERPOSITION_PLOT}"
+                --currents "${TEST_DATA_DIR}/aug_currents.txt"
+                --coil-files "${TEST_DATA_DIR}/aug_bu.dat" "${TEST_DATA_DIR}/aug_bl.dat"
+                --ntor 2
+                --per-coil-output "${PER_COIL_PLOT}"
+                --sum-output "${SUM_PLOT}"
         WORKING_DIRECTORY "${TEST_DATA_DIR}"
-        RESULT_VARIABLE result_superpos
-        OUTPUT_VARIABLE output_superpos
-        ERROR_VARIABLE error_superpos
+        RESULT_VARIABLE comparison_result
+        OUTPUT_VARIABLE comparison_output
+        ERROR_VARIABLE comparison_error
     )
 
-    if(NOT result_superpos EQUAL 0)
-        message(FATAL_ERROR "Comparison failed: ${error_superpos}")
+    if(NOT comparison_result EQUAL 0)
+        message(FATAL_ERROR "Comparison script failed: ${comparison_error}")
     endif()
 
-    # Parse output to extract median and mean relative errors
-    string(REGEX MATCH "Median relative error: ([0-9.]+)%" median_match "${output_superpos}")
-    string(REGEX MATCH "Mean relative error: +([0-9.]+)%" mean_match "${output_superpos}")
+    string(REGEX MATCH "Median relative error: ([0-9.]+)%" median_match "${comparison_output}")
+    string(REGEX MATCH "Mean relative error: +([0-9.]+)%" mean_match "${comparison_output}")
 
     if(median_match)
-        string(REGEX REPLACE "Median relative error: ([0-9.]+)%" "\\1" median_error "${median_match}")
-        message(STATUS "Median relative error: ${median_error}%")
-
-        # Check tolerance (accept up to 50% median error)
-        if(median_error GREATER 50.0)
-            message(FATAL_ERROR "Median relative error (${median_error}%) exceeds tolerance (50%)")
+        string(REGEX REPLACE "Median relative error: ([0-9.]+)%" "\\1" MEDIAN_ERROR_VALUE "${median_match}")
+        message(STATUS "Median relative error: ${MEDIAN_ERROR_VALUE}%")
+        if(MEDIAN_ERROR_VALUE GREATER 50.0)
+            set(MEDIAN_ERROR_EXCEEDED TRUE)
         endif()
     endif()
 
     if(mean_match)
-        string(REGEX REPLACE "Mean relative error: +([0-9.]+)%" "\\1" mean_error "${mean_match}")
-        message(STATUS "Mean relative error: ${mean_error}%")
-
-        # Check tolerance (accept up to 70% mean error)
-        if(mean_error GREATER 70.0)
-            message(FATAL_ERROR "Mean relative error (${mean_error}%) exceeds tolerance (70%)")
+        string(REGEX REPLACE "Mean relative error: +([0-9.]+)%" "\\1" MEAN_ERROR_VALUE "${mean_match}")
+        message(STATUS "Mean relative error: ${MEAN_ERROR_VALUE}%")
+        if(MEAN_ERROR_VALUE GREATER 70.0)
+            set(MEAN_ERROR_EXCEEDED TRUE)
         endif()
     endif()
 
-    message(STATUS "Comparison plot saved to: ${SUPERPOSITION_PLOT}")
+    message(STATUS "Per-coil plot saved to: ${PER_COIL_PLOT}")
+    message(STATUS "Summed plot saved to: ${SUM_PLOT}")
 else()
-    message(FATAL_ERROR "Comparison script not found: ${SUPERPOSITION_SCRIPT}")
+    message(FATAL_ERROR "Comparison script not found: ${COMPARISON_SCRIPT}")
 endif()
 
 message(STATUS "AUG Biot-Savart comparison test completed successfully")
 message(STATUS "Generated files:")
 message(STATUS "  - aug_reference.h5 (GPEC Fourier)")
 message(STATUS "  - aug_test.nc (coil_tools vector_potential)")
-message(STATUS "  - superposition_comparison.png (comparison plot)")
+message(STATUS "  - biotsavart_fourier.png (per-coil diagnostics)")
+message(STATUS "  - biotsavart_fourier_sum.png (summed-field diagnostics)")
+
+if(MEDIAN_ERROR_EXCEEDED)
+    message(FATAL_ERROR "Median relative error (${MEDIAN_ERROR_VALUE}%) exceeds tolerance (50%)")
+endif()
+
+if(MEAN_ERROR_EXCEEDED)
+    message(FATAL_ERROR "Mean relative error (${MEAN_ERROR_VALUE}%) exceeds tolerance (70%)")
+endif()

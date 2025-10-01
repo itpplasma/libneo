@@ -13,7 +13,9 @@ set(CURRENT_FILE "${TEST_DATA_DIR}/single_coil_currents.txt")
 set(GRID_FILE "${TEST_DATA_DIR}/vacfield_single_coil.in")
 set(REFERENCE_FILE "${OUTPUT_DIR}/single_reference.h5")
 set(TEST_FILE "${OUTPUT_DIR}/single_test.nc")
-set(PLOT_FILE "${OUTPUT_DIR}/single_coil_comparison.png")
+set(PLOT_FILE "${OUTPUT_DIR}/single_coil_per_coil.png")
+set(SUM_PLOT "${OUTPUT_DIR}/single_coil_sum.png")
+set(AXIS_PLOT "${OUTPUT_DIR}/single_coil_comparison_axis.png")
 set(SUMMARY_FILE "${OUTPUT_DIR}/single_coil_summary.txt")
 
 foreach(path IN LISTS COIL_FILE CURRENT_FILE GRID_FILE)
@@ -29,7 +31,8 @@ file(REMOVE
     "${REFERENCE_FILE}"
     "${TEST_FILE}"
     "${PLOT_FILE}"
-    "${OUTPUT_DIR}/single_coil_comparison_axis.png"
+    "${SUM_PLOT}"
+    "${AXIS_PLOT}"
     "${SUMMARY_FILE}"
 )
 
@@ -63,20 +66,22 @@ if(NOT DEFINED PROJECT_SOURCE_DIR)
     get_filename_component(PROJECT_SOURCE_DIR "${TEST_DATA_DIR}/../../.." ABSOLUTE)
 endif()
 
-set(SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/compare_superposition.py")
-if(NOT EXISTS "${SCRIPT}")
-    message(FATAL_ERROR "Comparison script not found: ${SCRIPT}")
+set(COMPARISON_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/plot_biotsavart_fourier.py")
+if(NOT EXISTS "${COMPARISON_SCRIPT}")
+    message(FATAL_ERROR "Comparison script not found: ${COMPARISON_SCRIPT}")
 endif()
 
 message(STATUS "Running comparison for single coil scenario...")
 execute_process(
-    COMMAND python3 "${SCRIPT}"
+    COMMAND python3 "${COMPARISON_SCRIPT}"
             "${REFERENCE_FILE}"
             "${TEST_FILE}"
-            "${CURRENT_FILE}"
-            "${COIL_FILE}"
-            -o "${PLOT_FILE}"
+            --currents "${CURRENT_FILE}"
+            --coil-files "${COIL_FILE}"
             --ntor 0
+            --per-coil-output "${PLOT_FILE}"
+            --sum-output "${SUM_PLOT}"
+            --axis-output "${AXIS_PLOT}"
             --axis-origin 197.2682697 72.00853957 78.0
             --axis-normal 0.35045589 -0.45058614 0.82106808
             --coil-radius 35.0
@@ -98,4 +103,5 @@ message(STATUS "Single coil comparison completed successfully")
 message(STATUS "  - ${REFERENCE_FILE}")
 message(STATUS "  - ${TEST_FILE}")
 message(STATUS "  - ${PLOT_FILE}")
-message(STATUS "  - ${OUTPUT_DIR}/single_coil_comparison_axis.png")
+message(STATUS "  - ${SUM_PLOT}")
+message(STATUS "  - ${AXIS_PLOT}")

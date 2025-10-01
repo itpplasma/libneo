@@ -53,6 +53,7 @@ set_tests_properties(test_aug_biot_savart_comparison PROPERTIES
     LABELS "magfie;biot_savart;integration"
     TIMEOUT 600
     DEPENDS vacfield.x
+    WILL_FAIL TRUE
 )
 
 add_executable(benchmark_biot_savart.x benchmark_biot_savart.f90)

@@ -28,18 +28,14 @@ if BUILD_DIR.exists() and str(BUILD_DIR) not in sys.path:
 if SCRIPTS_DIR.exists() and str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-try:
-    from compare_superposition import (
-        load_bnvac_modes,
-        load_anvac_modes,
-        superpose_modes,
-        evaluate_modes_at_point,
-        FOURIER_REFERENCE_CURRENT,
-        compute_field_from_gpec_file,
-    )
-except ImportError as exc:  # pragma: no cover - hard failure on missing deps
-    print(f"ERROR: unable to import compare_superposition helpers: {exc}", file=sys.stderr)
-    sys.exit(1)
+from plot_biotsavart_fourier import (
+    _load_mode_from_bnvac,
+    _load_mode_from_anvac,
+    _tensordot_currents,
+    _evaluate_modes_at_point,
+    FOURIER_REFERENCE_CURRENT,
+)
+from _magfie import compute_field_from_gpec_file
 
 MU0 = 4.0e-7 * math.pi
 
@@ -64,12 +60,10 @@ def read_coil_radius(path: Path) -> Tuple[float, float]:
     return radius_m, z_offset_m
 
 
-def compute_axis_field_fourier(ref_grid, ntor_vals, BnR, Bnphi, BnZ, z_cm: np.ndarray) -> np.ndarray:
+def compute_axis_field_fourier(grid, BnR, Bnphi, BnZ, z_cm: np.ndarray) -> np.ndarray:
     results = np.zeros_like(z_cm, dtype=float)
     for idx, z in enumerate(z_cm):
-        x = 0.0
-        y = 0.0
-        Bx, By, Bz = evaluate_modes_at_point(BnR, Bnphi, BnZ, ntor_vals, ref_grid.R, ref_grid.Z, x, y, z)
+        Bx, By, Bz = _evaluate_modes_at_point(BnR, Bnphi, BnZ, 0, grid.R, grid.Z, 0.0, 0.0, z)
         results[idx] = float(np.real(Bz))
     return results
 
@@ -109,24 +103,22 @@ def main() -> int:
     if abs(z_offset_m) > 1e-9:
         print("WARNING: coil not centered on z=0; analytic comparison assumes zero offset", file=sys.stderr)
 
-    ref_grid, ntor_vals_ref, BnR_modes_ref, Bnphi_modes_ref, BnZ_modes_ref = load_bnvac_modes(str(args.reference))
-    vec_grid, ntor_vals_vec, BnR_modes_vec, Bnphi_modes_vec, BnZ_modes_vec = load_anvac_modes(str(args.vector))
+    mode_fourier = _load_mode_from_bnvac(args.reference, ntor=0)
+    mode_vector, _ = _load_mode_from_anvac(args.vector, ntor=0)
 
-    if not np.array_equal(ntor_vals_ref, ntor_vals_vec):
-        raise RuntimeError("ntor spectra differ between reference and vector datasets")
+    weights = currents * FOURIER_REFERENCE_CURRENT
+    BnR_ref = _tensordot_currents(weights, mode_fourier.BnR)
+    Bnphi_ref = _tensordot_currents(weights, mode_fourier.Bnphi)
+    BnZ_ref = _tensordot_currents(weights, mode_fourier.BnZ)
 
-    BnR_ref = superpose_modes(BnR_modes_ref, currents, FOURIER_REFERENCE_CURRENT)
-    Bnphi_ref = superpose_modes(Bnphi_modes_ref, currents, FOURIER_REFERENCE_CURRENT)
-    BnZ_ref = superpose_modes(BnZ_modes_ref, currents, FOURIER_REFERENCE_CURRENT)
-
-    BnR_vec = superpose_modes(BnR_modes_vec, currents, FOURIER_REFERENCE_CURRENT)
-    Bnphi_vec = superpose_modes(Bnphi_modes_vec, currents, FOURIER_REFERENCE_CURRENT)
-    BnZ_vec = superpose_modes(BnZ_modes_vec, currents, FOURIER_REFERENCE_CURRENT)
+    BnR_vec = _tensordot_currents(weights, mode_vector.BnR)
+    Bnphi_vec = _tensordot_currents(weights, mode_vector.Bnphi)
+    BnZ_vec = _tensordot_currents(weights, mode_vector.BnZ)
 
     z_cm = np.linspace(-args.axis_range, args.axis_range, args.samples, dtype=float)
 
-    B_ref_axis = compute_axis_field_fourier(ref_grid, ntor_vals_ref, BnR_ref, Bnphi_ref, BnZ_ref, z_cm)
-    B_vec_axis = compute_axis_field_fourier(vec_grid, ntor_vals_vec, BnR_vec, Bnphi_vec, BnZ_vec, z_cm)
+    B_ref_axis = compute_axis_field_fourier(mode_fourier.grid, BnR_ref, Bnphi_ref, BnZ_ref, z_cm)
+    B_vec_axis = compute_axis_field_fourier(mode_vector.grid, BnR_vec, Bnphi_vec, BnZ_vec, z_cm)
     B_direct_axis = compute_axis_field_direct(args.coil, currents, z_cm)
     B_analytic_axis = analytic_loop_field(radius_m, currents, z_cm)
 
