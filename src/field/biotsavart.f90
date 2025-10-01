@@ -177,6 +177,75 @@ function compute_magnetic_field(coils, x) result(B)
 end function compute_magnetic_field
 
 
+subroutine compute_magnetic_field_array(coils, points, B)
+    type(coils_t), intent(in) :: coils
+    real(dp), intent(in) :: points(:, :) !< Cartesian evaluation points
+    real(dp), intent(out) :: B(:, :)      !< Cartesian magnetic field
+
+    integer :: n_segments, n_points, iseg, ip
+    real(dp), allocatable :: seg_start(:, :), seg_end(:, :)
+    real(dp), allocatable :: dl_hat(:, :), seg_length(:), current_fac(:)
+    real(dp) :: dx_i(3), dx_f(3), R_i, R_f, eps, denom, factor
+    real(dp) :: cross(3)
+
+    if (size(points, 1) /= 3) then
+        B(:, :) = 0.0d0
+        return
+    end if
+
+    if (size(B, 1) /= 3 .or. size(B, 2) /= size(points, 2)) then
+        B(:, :) = 0.0d0
+        return
+    end if
+
+    n_segments = size(coils%x) - 1
+    n_points = size(points, 2)
+
+    if (n_segments <= 0 .or. n_points <= 0) then
+        if (n_points > 0) B(:, :) = 0.0d0
+        return
+    end if
+
+    allocate(seg_start(3, n_segments), seg_end(3, n_segments))
+    allocate(dl_hat(3, n_segments), seg_length(n_segments))
+    allocate(current_fac(n_segments))
+
+    do iseg = 1, n_segments
+        seg_start(:, iseg) = [coils%x(iseg), coils%y(iseg), coils%z(iseg)]
+        seg_end(:, iseg) = [coils%x(iseg + 1), coils%y(iseg + 1), coils%z(iseg + 1)]
+        dl_hat(:, iseg) = seg_end(:, iseg) - seg_start(:, iseg)
+        seg_length(iseg) = calc_norm(dl_hat(:, iseg))
+        if (seg_length(iseg) > 0.0d0) then
+            dl_hat(:, iseg) = dl_hat(:, iseg) / seg_length(iseg)
+        else
+            dl_hat(:, iseg) = 0.0d0
+        end if
+        current_fac(iseg) = coils%current(iseg) / clight
+    end do
+
+    B(:, :) = 0.0d0
+
+    do iseg = 1, n_segments
+        if (current_fac(iseg) == 0.0d0 .or. seg_length(iseg) == 0.0d0) cycle
+        do ip = 1, n_points
+            dx_i = points(:, ip) - seg_start(:, iseg)
+            dx_f = points(:, ip) - seg_end(:, iseg)
+            R_i = calc_norm(dx_i)
+            R_f = calc_norm(dx_f)
+            if (R_i == 0.0d0 .or. R_f == 0.0d0) cycle
+            denom = R_i + R_f
+            if (denom == 0.0d0) cycle
+            eps = seg_length(iseg) / denom
+            if (abs(eps) >= 1.0d0) cycle
+            cross = cross_product(dl_hat(:, iseg), dx_i / R_i)
+            factor = current_fac(iseg) * (2.0d0 * eps / (1.0d0 - eps * eps)) / R_f
+            B(:, ip) = B(:, ip) + factor * cross
+        end do
+    end do
+
+end subroutine compute_magnetic_field_array
+
+
 function get_segment_vector(coils, i) result(dl)
     type(coils_t), intent(in) :: coils
     integer, intent(in) :: i

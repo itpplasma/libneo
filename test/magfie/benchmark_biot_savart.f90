@@ -3,7 +3,8 @@ program benchmark_biot_savart
   use math_constants, only: current_si_to_cgs, C
   use coil_tools, only: coil_t, coils_read_GPEC, coils_append, coil_deinit, grid_from_bounding_box, &
        biot_savart_sum_coils
-  use neo_biotsavart, only: coils_t, load_coils_from_gpec_file, coils_deinit, compute_magnetic_field
+  use neo_biotsavart, only: coils_t, load_coils_from_gpec_file, coils_deinit, &
+       compute_magnetic_field, compute_magnetic_field_array
   use fortplot, only: figure, plot, savefig, xlabel, ylabel, title, legend, set_yscale
 
   implicit none
@@ -258,22 +259,43 @@ contains
     type(coils_t), intent(in) :: coils
     real(dp), intent(in), dimension(:) :: R, Z, cosphi, sinphi
     real(dp), intent(out), dimension(3, size(Z), size(cosphi), size(R)) :: Bcyl
-    integer :: kR, kZ, kphi
-    real(dp) :: eval_point(3), Bxyz(3)
+    integer :: n_points, kR, kZ, kphi, idx
+    real(dp), allocatable :: points(:, :), Bxyz(:, :)
 
+    n_points = size(R) * size(Z) * size(cosphi)
+    allocate(points(3, n_points))
+    allocate(Bxyz(3, n_points))
+
+    idx = 0
     do kZ = 1, size(Z)
-      eval_point(3) = Z(kZ)
       do kphi = 1, size(cosphi)
         do kR = 1, size(R)
-          eval_point(1) = R(kR) * cosphi(kphi)
-          eval_point(2) = R(kR) * sinphi(kphi)
-          Bxyz = compute_magnetic_field(coils, eval_point)
-          Bcyl(1, kZ, kphi, kR) = Bxyz(1) * cosphi(kphi) + Bxyz(2) * sinphi(kphi)
-          Bcyl(2, kZ, kphi, kR) = -Bxyz(1) * sinphi(kphi) + Bxyz(2) * cosphi(kphi)
-          Bcyl(3, kZ, kphi, kR) = Bxyz(3)
+          idx = idx + 1
+          points(1, idx) = R(kR) * cosphi(kphi)
+          points(2, idx) = R(kR) * sinphi(kphi)
+          points(3, idx) = Z(kZ)
         end do
       end do
     end do
+
+    call compute_magnetic_field_array(coils, points, Bxyz)
+
+    idx = 0
+    do kZ = 1, size(Z)
+      do kphi = 1, size(cosphi)
+        do kR = 1, size(R)
+          idx = idx + 1
+          Bcyl(1, kZ, kphi, kR) = Bxyz(1, idx) * cosphi(kphi) + &
+            Bxyz(2, idx) * sinphi(kphi)
+          Bcyl(2, kZ, kphi, kR) = -Bxyz(1, idx) * sinphi(kphi) + &
+            Bxyz(2, idx) * cosphi(kphi)
+          Bcyl(3, kZ, kphi, kR) = Bxyz(3, idx)
+        end do
+      end do
+    end do
+
+    deallocate(points)
+    deallocate(Bxyz)
   end subroutine evaluate_neo
 
   subroutine cleanup_coils(coils)
