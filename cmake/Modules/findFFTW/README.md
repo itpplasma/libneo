@@ -77,7 +77,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${findFFTW_DIR}")
 
 And add a file called `downloadFindFFTW.cmake.in` to your project containing the following:
 ```cmake
-cmake_minimum_required(VERSION 2.8.2)
+cmake_minimum_required(VERSION 3.22)
 
 project(findFFTW-download NONE)
 

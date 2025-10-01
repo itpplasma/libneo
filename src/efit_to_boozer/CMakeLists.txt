@@ -2,7 +2,7 @@
 # List of source files are in CMakeSources.in.
 
 # Basic cmake settings/requirements
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.22)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
 # Basic project settings.
@@ -16,7 +16,10 @@ set (efit_to_boozer_VERSION_MINOR 0)
 set (efit_to_boozer_VERSION_PATCH 3)
 
 enable_language(C Fortran)
-enable_testing()
+
+if(LIBNEO_ENABLE_TESTS)
+    enable_testing()
+endif()
 
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 

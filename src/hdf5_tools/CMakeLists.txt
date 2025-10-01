@@ -1,5 +1,5 @@
 ### Basic settings
-cmake_minimum_required (VERSION 3.12)
+cmake_minimum_required (VERSION 3.22)
 
 ### Define the project
 # project(hdf5_tools)
