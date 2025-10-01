@@ -87,6 +87,7 @@ def read_currents(currents_file):
 
 
 AMPERE_TO_STATAMPERE = 2.99792458e9
+FOURIER_REFERENCE_CURRENT = 0.1  # Gauss kernels are tabulated for 0.1 A per coil
 
 
 def load_gpec_coils(filename):
@@ -369,8 +370,8 @@ def load_anvac_modes(field_file):
     return grid, ntor_vals, BnR, Bnphi, BnZ
 
 
-def superpose_modes(bn_modes, currents):
-    return np.tensordot(currents, bn_modes, axes=(0, 1))
+def superpose_modes(bn_modes, currents, scale=1.0):
+    return np.tensordot(currents * scale, bn_modes, axes=(0, 1))
 
 
 def evaluate_modes_at_point(BnR_modes, Bnphi_modes, BnZ_modes, ntor_vals, R_grid, Z_grid, x_val, y_val, z_val):
@@ -578,13 +579,13 @@ def main():
     # Use raw Fourier data directly (no spline interpolation)
     print("\nUsing raw Fourier data on native grid...")
 
-    BnR_ref_modes_total = superpose_modes(BnR_modes_ref, currents)
-    Bnphi_ref_modes_total = superpose_modes(Bnphi_modes_ref, currents)
-    BnZ_ref_modes_total = superpose_modes(BnZ_modes_ref, currents)
+    BnR_ref_modes_total = superpose_modes(BnR_modes_ref, currents, FOURIER_REFERENCE_CURRENT)
+    Bnphi_ref_modes_total = superpose_modes(Bnphi_modes_ref, currents, FOURIER_REFERENCE_CURRENT)
+    BnZ_ref_modes_total = superpose_modes(BnZ_modes_ref, currents, FOURIER_REFERENCE_CURRENT)
 
-    BnR_vec_modes_total = superpose_modes(BnR_modes_vec, currents)
-    Bnphi_vec_modes_total = superpose_modes(Bnphi_modes_vec, currents)
-    BnZ_vec_modes_total = superpose_modes(BnZ_modes_vec, currents)
+    BnR_vec_modes_total = superpose_modes(BnR_modes_vec, currents, FOURIER_REFERENCE_CURRENT)
+    Bnphi_vec_modes_total = superpose_modes(Bnphi_modes_vec, currents, FOURIER_REFERENCE_CURRENT)
+    BnZ_vec_modes_total = superpose_modes(BnZ_modes_vec, currents, FOURIER_REFERENCE_CURRENT)
 
     BnR_ref_total = BnR_ref_modes_total[mode_index]
     Bnphi_ref_total = Bnphi_ref_modes_total[mode_index]
