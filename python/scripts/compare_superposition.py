@@ -66,6 +66,18 @@ except ImportError as exc:
     sys.exit(1)
 
 
+class grid_t:
+    def __init__(self):
+        self.nR = 0
+        self.nZ = 0
+        self.R_min = 0.0
+        self.R_max = 0.0
+        self.Z_min = 0.0
+        self.Z_max = 0.0
+        self.R = np.empty((0,))
+        self.Z = np.empty((0,))
+
+
 def read_currents(currents_file):
     """Read coil currents from file."""
     with open(currents_file, 'r') as f:
@@ -210,10 +222,143 @@ def bilinear_interpolate(R_grid, Z_grid, field, R_val, Z_val):
             t * u * f11)
 
 
+def load_bnvac_modes(field_file):
+    import h5py
+    grid = grid_t()
+    with h5py.File(field_file, 'r') as file:
+        mode_names = sorted(
+            [name for name in file.keys() if name.startswith('ntor_')],
+            key=lambda name: int(name.split('_')[1])
+        )
+        ntor_vals = np.array([int(name.split('_')[1]) for name in mode_names], dtype=int)
+        first = mode_names[0]
+        ncoil = file[f'/{first}/ncoil'][()]
+        grid.nR = file[f'/{first}/nR'][()]
+        grid.nZ = file[f'/{first}/nZ'][()]
+        grid.R_min = file[f'/{first}/R_min'][()]
+        grid.R_max = file[f'/{first}/R_max'][()]
+        grid.Z_min = file[f'/{first}/Z_min'][()]
+        grid.Z_max = file[f'/{first}/Z_max'][()]
+        grid.R = np.linspace(grid.R_min, grid.R_max, grid.nR)
+        grid.Z = np.linspace(grid.Z_min, grid.Z_max, grid.nZ)
+        num_modes = len(mode_names)
+        BnR = np.empty((num_modes, ncoil, grid.nR, grid.nZ), dtype=complex)
+        Bnphi = np.empty_like(BnR)
+        BnZ = np.empty_like(BnR)
+        for idx, name in enumerate(mode_names):
+            for kcoil in range(1, ncoil + 1):
+                dataset = file[f'/{name}/coil_{kcoil:02}/Bn_R'][()]
+                data_complex = dataset['real'] + 1j * dataset['imag']
+                BnR[idx, kcoil - 1, :, :] = data_complex.T
+                dataset = file[f'/{name}/coil_{kcoil:02}/Bn_phi'][()]
+                data_complex = dataset['real'] + 1j * dataset['imag']
+                Bnphi[idx, kcoil - 1, :, :] = data_complex.T
+                dataset = file[f'/{name}/coil_{kcoil:02}/Bn_Z'][()]
+                data_complex = dataset['real'] + 1j * dataset['imag']
+                BnZ[idx, kcoil - 1, :, :] = data_complex.T
+    return grid, ntor_vals, BnR, Bnphi, BnZ
+
+
+def load_anvac_modes(field_file):
+    import netCDF4
+    grid = grid_t()
+    with netCDF4.Dataset(field_file, 'r') as ds:
+        grid.R = np.array(ds['R'][:])
+        grid.Z = np.array(ds['Z'][:])
+        grid.nR = grid.R.size
+        grid.nZ = grid.Z.size
+        grid.R_min = grid.R[0]
+        grid.R_max = grid.R[-1]
+        grid.Z_min = grid.Z[0]
+        grid.Z_max = grid.Z[-1]
+        ntor_vals = np.array(ds['ntor'][:], dtype=int)
+        AnR = ds['AnR_real'][:] + 1j * ds['AnR_imag'][:]
+        Anphi = ds['Anphi_real'][:] + 1j * ds['Anphi_imag'][:]
+        AnZ = ds['AnZ_real'][:] + 1j * ds['AnZ_imag'][:]
+        dAnphi_dR = ds['dAnphi_dR_real'][:] + 1j * ds['dAnphi_dR_imag'][:]
+        dAnphi_dZ = ds['dAnphi_dZ_real'][:] + 1j * ds['dAnphi_dZ_imag'][:]
+
+    # Move ntor dimension to front and ensure order (ntor, coil, R, Z)
+    def reorder(arr):
+        arr = np.moveaxis(arr, -1, 0)  # (ntor, coil, Z, R)
+        arr = np.swapaxes(arr, 2, 3)   # (ntor, coil, R, Z)
+        return arr
+
+    AnR = reorder(AnR)
+    Anphi = reorder(Anphi)
+    AnZ = reorder(AnZ)
+    dAnphi_dR = reorder(dAnphi_dR)
+    dAnphi_dZ = reorder(dAnphi_dZ)
+
+    n_modes, ncoil, _, _ = AnR.shape
+    dAnR_dZ = np.zeros_like(AnR)
+    dAnZ_dR = np.zeros_like(AnR)
+
+    dZ = (grid.Z_max - grid.Z_min) / (grid.nZ - 1)
+    dR = (grid.R_max - grid.R_min) / (grid.nR - 1)
+
+    dAnR_dZ[:, :, :, 1:-1] = (AnR[:, :, :, 2:] - AnR[:, :, :, :-2]) / (2.0 * dZ)
+    dAnR_dZ[:, :, :, 0] = (AnR[:, :, :, 1] - AnR[:, :, :, 0]) / dZ
+    dAnR_dZ[:, :, :, -1] = (AnR[:, :, :, -1] - AnR[:, :, :, -2]) / dZ
+
+    dAnZ_dR[:, :, 1:-1, :] = (AnZ[:, :, 2:, :] - AnZ[:, :, :-2, :]) / (2.0 * dR)
+    dAnZ_dR[:, :, 0, :] = (AnZ[:, :, 1, :] - AnZ[:, :, 0, :]) / dR
+    dAnZ_dR[:, :, -1, :] = (AnZ[:, :, -1, :] - AnZ[:, :, -2, :]) / dR
+
+    ntor_array = ntor_vals[:, np.newaxis, np.newaxis, np.newaxis].astype(float)
+    R_mesh = grid.R[np.newaxis, np.newaxis, :, np.newaxis]
+
+    BnR = -dAnphi_dZ.copy()
+    nonzero = ntor_vals != 0
+    if np.any(nonzero):
+        idx = np.where(nonzero)[0][:, np.newaxis, np.newaxis, np.newaxis]
+        BnR[nonzero] = BnR[nonzero] + (1j * ntor_array[nonzero] / R_mesh) * AnZ[nonzero]
+
+    Bnphi = dAnR_dZ - dAnZ_dR
+
+    BnZ = (Anphi + R_mesh * dAnphi_dR) / R_mesh
+    if np.any(nonzero):
+        BnZ[nonzero] = BnZ[nonzero] - (1j * ntor_array[nonzero] / R_mesh) * AnR[nonzero]
+
+    return grid, ntor_vals, BnR, Bnphi, BnZ
+
+
+def superpose_modes(bn_modes, currents):
+    return np.tensordot(currents, bn_modes, axes=(0, 1))
+
+
+def evaluate_modes_at_point(BnR_modes, Bnphi_modes, BnZ_modes, ntor_vals, R_grid, Z_grid, x_val, y_val, z_val):
+    R_val = np.hypot(x_val, y_val)
+    phi_val = np.arctan2(y_val, x_val)
+    BR_total = 0.0
+    Bphi_total = 0.0
+    BZ_total = 0.0
+    for mode_idx, n in enumerate(ntor_vals):
+        BR = bilinear_interpolate(R_grid, Z_grid, BnR_modes[mode_idx], R_val, z_val)
+        Bphi = bilinear_interpolate(R_grid, Z_grid, Bnphi_modes[mode_idx], R_val, z_val)
+        BZ = bilinear_interpolate(R_grid, Z_grid, BnZ_modes[mode_idx], R_val, z_val)
+        if np.isnan(BR) or np.isnan(Bphi) or np.isnan(BZ):
+            continue
+        if n == 0:
+            BR_total += BR.real
+            Bphi_total += Bphi.real
+            BZ_total += BZ.real
+        else:
+            factor = np.exp(1j * n * phi_val)
+            BR_total += 2.0 * np.real(BR * factor)
+            Bphi_total += 2.0 * np.real(Bphi * factor)
+            BZ_total += 2.0 * np.real(BZ * factor)
+    cosphi = np.cos(phi_val)
+    sinphi = np.sin(phi_val)
+    Bx = BR_total * cosphi - Bphi_total * sinphi
+    By = BR_total * sinphi + Bphi_total * cosphi
+    return Bx, By, BZ_total
+
+
 def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
                            R_grid, Z_grid,
-                           BnR_ref_total, Bnphi_ref_total, BnZ_ref_total,
-                           BnR_test_total, Bnphi_test_total, BnZ_test_total):
+                           ntor_vals_ref, BnR_ref_modes_total, Bnphi_ref_modes_total, BnZ_ref_modes_total,
+                           ntor_vals_vec, BnR_vec_modes_total, Bnphi_vec_modes_total, BnZ_vec_modes_total):
     if args.axis_origin is None or args.axis_normal is None or args.coil_radius is None:
         return None
 
@@ -257,36 +402,17 @@ def validate_axis_response(args, coil_files, coil_currents, coils_per_file,
         R_val = np.hypot(x_val, y_val)
         phi_val = np.arctan2(y_val, x_val)
 
-        BR_ref = bilinear_interpolate(R_grid, Z_grid, BnR_ref_total, R_val, z_val)
-        Bphi_ref = bilinear_interpolate(R_grid, Z_grid, Bnphi_ref_total, R_val, z_val)
-        BZ_ref = bilinear_interpolate(R_grid, Z_grid, BnZ_ref_total, R_val, z_val)
+        Bx_ref, By_ref, Bz_ref = evaluate_modes_at_point(
+            BnR_ref_modes_total, Bnphi_ref_modes_total, BnZ_ref_modes_total,
+            ntor_vals_ref, R_grid, Z_grid, x_val=x_eval[idx], y_val=y_eval[idx], z_val=z_eval[idx]
+        )
+        B_parallel_gpec[idx] = Bx_ref * axis_normal[0] + By_ref * axis_normal[1] + Bz_ref * axis_normal[2]
 
-        BR_vec = bilinear_interpolate(R_grid, Z_grid, BnR_test_total, R_val, z_val)
-        Bphi_vec = bilinear_interpolate(R_grid, Z_grid, Bnphi_test_total, R_val, z_val)
-        BZ_vec = bilinear_interpolate(R_grid, Z_grid, BnZ_test_total, R_val, z_val)
-
-        cosphi = np.cos(phi_val)
-        sinphi = np.sin(phi_val)
-
-        if not (np.isnan(BR_ref) or np.isnan(Bphi_ref) or np.isnan(BZ_ref)):
-            Bx_ref = (BR_ref * cosphi - Bphi_ref * sinphi).real
-            By_ref = (BR_ref * sinphi + Bphi_ref * cosphi).real
-            Bz_ref = BZ_ref.real
-            B_parallel_gpec[idx] = (
-                Bx_ref * axis_normal[0] + By_ref * axis_normal[1] + Bz_ref * axis_normal[2]
-            )
-        else:
-            B_parallel_gpec[idx] = np.nan
-
-        if not (np.isnan(BR_vec) or np.isnan(Bphi_vec) or np.isnan(BZ_vec)):
-            Bx_vec = (BR_vec * cosphi - Bphi_vec * sinphi).real
-            By_vec = (BR_vec * sinphi + Bphi_vec * cosphi).real
-            Bz_vec = BZ_vec.real
-            B_parallel_vec[idx] = (
-                Bx_vec * axis_normal[0] + By_vec * axis_normal[1] + Bz_vec * axis_normal[2]
-            )
-        else:
-            B_parallel_vec[idx] = np.nan
+        Bx_vec, By_vec, Bz_vec = evaluate_modes_at_point(
+            BnR_vec_modes_total, Bnphi_vec_modes_total, BnZ_vec_modes_total,
+            ntor_vals_vec, R_grid, Z_grid, x_val=x_eval[idx], y_val=y_eval[idx], z_val=z_eval[idx]
+        )
+        B_parallel_vec[idx] = Bx_vec * axis_normal[0] + By_vec * axis_normal[1] + Bz_vec * axis_normal[2]
 
     # Analytical reference (SI -> Gauss)
     mu0 = 4e-7 * np.pi
@@ -362,62 +488,64 @@ def main():
     print(f"  Number of currents: {len(currents)}")
     print(f"  Current range: [{np.min(currents):.1f}, {np.max(currents):.1f}] A")
 
-    # Read field data
+    # Read field data for all harmonics
     print(f"\nReading reference (GPEC Fourier): {args.reference}")
-    ref_grid, BnR, Bnphi, BnZ = read_Bnvac_fourier(str(args.reference), ntor=args.ntor)
+    ref_grid, ntor_vals_ref, BnR_modes_ref, Bnphi_modes_ref, BnZ_modes_ref = load_bnvac_modes(
+        str(args.reference)
+    )
 
     print(f"Reading test (coil_tools vector_potential): {args.test}")
-    test_grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier(
-        str(args.test), ntor=args.ntor
+    test_grid, ntor_vals_vec, BnR_modes_vec, Bnphi_modes_vec, BnZ_modes_vec = load_anvac_modes(
+        str(args.test)
     )
+
+    if not np.array_equal(ntor_vals_ref, ntor_vals_vec):
+        print("Error: ntor spectra differ between reference and vector-potential datasets.")
+        sys.exit(1)
+    ntor_vals = ntor_vals_ref
 
     ncoil = len(currents)
     coils_per_file = [read_gpec_header(path)[0] for path in args.coil_files]
     if sum(coils_per_file) != ncoil:
         print("Error: Number of currents does not match total coils defined in geometry files.")
         sys.exit(1)
-    if BnR.shape[0] != ncoil:
-        print(f"Error: Number of coils ({BnR.shape[0]}) in reference file != currents ({ncoil})")
+    if BnR_modes_ref.shape[1] != ncoil:
+        print(
+            f"Error: Number of coils ({BnR_modes_ref.shape[1]}) in reference file != currents ({ncoil})"
+        )
+        sys.exit(1)
+
+    if args.ntor not in ntor_vals:
+        print(f"Error: Requested ntor={args.ntor} not available (max {ntor_vals.max()}).")
+        sys.exit(1)
+    mode_index = int(np.where(ntor_vals == args.ntor)[0][0])
+
+    if (ref_grid.nR != test_grid.nR or ref_grid.nZ != test_grid.nZ or
+            not np.allclose(ref_grid.R, test_grid.R) or not np.allclose(ref_grid.Z, test_grid.Z)):
+        print("Error: Reference and vector-potential grids do not match.")
         sys.exit(1)
 
     # Use raw Fourier data directly (no spline interpolation)
     print("\nUsing raw Fourier data on native grid...")
 
-    # Reference has B directly
-    BnR_ref = BnR
-    Bnphi_ref = Bnphi
-    BnZ_ref = BnZ
+    BnR_ref_modes_total = superpose_modes(BnR_modes_ref, currents)
+    Bnphi_ref_modes_total = superpose_modes(Bnphi_modes_ref, currents)
+    BnZ_ref_modes_total = superpose_modes(BnZ_modes_ref, currents)
 
-    # Test: compute B from curl of A using stored derivatives
-    # B_R = (1/R) ∂A_Z/∂φ - ∂A_φ/∂Z = (i n / R) A_Z - ∂A_φ/∂Z
-    # B_φ = ∂A_R/∂Z - ∂A_Z/∂R
-    # B_Z = (1/R)[∂(R A_φ)/∂R - ∂A_R/∂φ] = (1/R)[A_φ + R ∂A_φ/∂R - i n A_R]
-    R_grid = np.linspace(test_grid.R_min, test_grid.R_max, test_grid.nR)
-    Z_grid = np.linspace(test_grid.Z_min, test_grid.Z_max, test_grid.nZ)
-    R_mesh = R_grid[np.newaxis, :, np.newaxis]  # (1, nR, 1) for shape (ncoil, nR, nZ)
+    BnR_vec_modes_total = superpose_modes(BnR_modes_vec, currents)
+    Bnphi_vec_modes_total = superpose_modes(Bnphi_modes_vec, currents)
+    BnZ_vec_modes_total = superpose_modes(BnZ_modes_vec, currents)
 
-    BnR_test = (1j * args.ntor / R_mesh) * AnZ - dAnphi_dZ
-    # For B_phi, need ∂A_R/∂Z and ∂A_Z/∂R - compute with finite differences
-    dAnR_dZ = np.zeros_like(AnR)
-    dAnZ_dR = np.zeros_like(AnZ)
-    dZ = (test_grid.Z_max - test_grid.Z_min) / (test_grid.nZ - 1)
-    dR = (test_grid.R_max - test_grid.R_min) / (test_grid.nR - 1)
-    dAnR_dZ[:, :, 1:-1] = (AnR[:, :, 2:] - AnR[:, :, :-2]) / (2 * dZ)
-    dAnZ_dR[:, 1:-1, :] = (AnZ[:, 2:, :] - AnZ[:, :-2, :]) / (2 * dR)
-    Bnphi_test = dAnR_dZ - dAnZ_dR
-    BnZ_test = (Anphi + R_mesh * dAnphi_dR - 1j * args.ntor * AnR) / R_mesh
+    BnR_ref_total = BnR_ref_modes_total[mode_index]
+    Bnphi_ref_total = Bnphi_ref_modes_total[mode_index]
+    BnZ_ref_total = BnZ_ref_modes_total[mode_index]
 
-    # Compute superposition weighted by currents
-    print("\nComputing superposition with coil currents...")
+    BnR_test_total = BnR_vec_modes_total[mode_index]
+    Bnphi_test_total = Bnphi_vec_modes_total[mode_index]
+    BnZ_test_total = BnZ_vec_modes_total[mode_index]
 
-    # Sum over coils weighted by currents (Fourier mode n=2)
-    BnR_ref_total = np.sum(currents[:, np.newaxis, np.newaxis] * BnR_ref, axis=0)
-    Bnphi_ref_total = np.sum(currents[:, np.newaxis, np.newaxis] * Bnphi_ref, axis=0)
-    BnZ_ref_total = np.sum(currents[:, np.newaxis, np.newaxis] * BnZ_ref, axis=0)
-
-    BnR_test_total = np.sum(currents[:, np.newaxis, np.newaxis] * BnR_test, axis=0)
-    Bnphi_test_total = np.sum(currents[:, np.newaxis, np.newaxis] * Bnphi_test, axis=0)
-    BnZ_test_total = np.sum(currents[:, np.newaxis, np.newaxis] * BnZ_test, axis=0)
+    R_grid = ref_grid.R
+    Z_grid = ref_grid.Z
 
     # Compute field magnitudes for Fourier methods
     B_ref_mag = np.sqrt((BnR_ref_total * np.conj(BnR_ref_total) +
@@ -443,12 +571,14 @@ def main():
         coils_per_file,
         R_grid,
         Z_grid,
-        BnR_ref_total,
-        Bnphi_ref_total,
-        BnZ_ref_total,
-        BnR_test_total,
-        Bnphi_test_total,
-        BnZ_test_total,
+        ntor_vals,
+        BnR_ref_modes_total,
+        Bnphi_ref_modes_total,
+        BnZ_ref_modes_total,
+        ntor_vals,
+        BnR_vec_modes_total,
+        Bnphi_vec_modes_total,
+        BnZ_vec_modes_total,
     )
     if axis_result is not None:
         print("\nAxis validation against analytical solution:")
@@ -490,7 +620,7 @@ def main():
     diff_2_3 = log_B_direct - log_B_test
 
     # Statistics
-    print("\nThree-way comparison statistics (Fourier mode n=2):")
+    print(f"\nThree-way comparison statistics (Fourier mode n={args.ntor}):")
     print(f"  Mean |B| (GPEC Fourier):      {np.mean(B_ref_mag):.6e}  (max: {np.max(B_ref_mag):.2f}, min: {np.min(B_ref_mag):.2f})")
     print(f"  Mean |B| (vector_potential):  {np.mean(B_test_mag):.6e}  (max: {np.max(B_test_mag):.2f}, min: {np.min(B_test_mag):.2f})")
     print(f"  Mean |B| (direct Biot-Savart): {np.mean(B_direct_mag):.6e}  (max: {np.max(B_direct_mag):.2f}, min: {np.min(B_direct_mag):.2f})")
