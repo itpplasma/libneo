@@ -88,12 +88,29 @@ def compile_ascot_library(clone_dir: Path) -> Path:
             link_flags.append("-lomp")
 
     # Check for standard Linux HDF5 locations
-    for hdf5_include in [Path("/usr/include/hdf5/serial"), Path("/usr/include/hdf5")]:
+    for hdf5_include in [Path("/usr/include/hdf5/serial"), Path("/usr/include/hdf5"), Path("/usr/include")]:
         if hdf5_include.exists():
             flags.append(f"-I{hdf5_include}")
             break
 
-    for hdf5_lib in [Path("/usr/lib/x86_64-linux-gnu/hdf5/serial"), Path("/usr/lib/x86_64-linux-gnu")]:
+    # Architecture-agnostic library paths (x86_64, aarch64, etc.)
+    import platform
+    machine = platform.machine()
+    multiarch = None
+    if machine == "x86_64":
+        multiarch = "x86_64-linux-gnu"
+    elif machine in ("aarch64", "arm64"):
+        multiarch = "aarch64-linux-gnu"
+
+    lib_search_paths = []
+    if multiarch:
+        lib_search_paths.extend([
+            Path(f"/usr/lib/{multiarch}/hdf5/serial"),
+            Path(f"/usr/lib/{multiarch}")
+        ])
+    lib_search_paths.extend([Path("/usr/lib/hdf5/serial"), Path("/usr/lib")])
+
+    for hdf5_lib in lib_search_paths:
         if hdf5_lib.exists() and (hdf5_lib / "libhdf5.so").exists():
             link_flags.append(f"-L{hdf5_lib}")
             break
