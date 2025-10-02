@@ -315,7 +315,8 @@ def main() -> None:
             "or install manually if not on Debian/Ubuntu."
         )
 
-    # Import from ASCOT5's a5py (PYTHONPATH should be set by CMake test environment)
+    # Add cloned ASCOT5 to Python path (it was just cloned above)
+    sys.path.insert(0, str(ascot_clone))
     from a5py.physlib.analyticequilibrium import analyticGS  # type: ignore
 
     rms_tol = 3.0e-2

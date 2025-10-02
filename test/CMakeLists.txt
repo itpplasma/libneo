@@ -177,9 +177,6 @@ add_test(
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/test_ascot5_compare.py
           --build-dir ${CMAKE_BINARY_DIR}
 )
-set_tests_properties(test_ascot5_compare PROPERTIES
-  ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/test/ascot5_compare/ascot5:$ENV{PYTHONPATH}"
-)
 
 if(LIBNEO_TESTING_ENABLED)
   add_test(
