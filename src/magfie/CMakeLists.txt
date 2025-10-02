@@ -28,6 +28,8 @@ target_link_libraries(magfie PRIVATE
     netcdf
     netcdff
     hdf5_tools
+    BLAS::BLAS
+    LAPACK::LAPACK
     FFTW::DoubleThreads
     FFTW::Double
 )
