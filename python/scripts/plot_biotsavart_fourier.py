@@ -39,6 +39,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
+import numpy as np
+
 from numpy import (
     abs,
     allclose,
@@ -82,6 +84,7 @@ from numpy.linalg import norm
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+from matplotlib.path import Path as MplPath
 from scipy.interpolate import RectBivariateSpline
 
 SCRIPT_PATH = Path(__file__).resolve()
@@ -137,6 +140,14 @@ def _set_convex_wall_filename(path: Path) -> None:
     buffer.value = str(path).encode()
 
 
+def _find_convex_wall(coil_files: Sequence[Path]) -> Path | None:
+    for coil_file in coil_files:
+        candidate = coil_file.parent / "convexwall.dat"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 FOURIER_REFERENCE_CURRENT = 0.1  # coil_tools Fourier tables assume 0.1 A per coil
 DEFAULT_FFT_SAMPLES = 256
 
@@ -159,6 +170,33 @@ class ModeData:
     BnR: ndarray  # shape (ncoil, nR, nZ)
     Bnphi: ndarray
     BnZ: ndarray
+
+
+def _create_convex_mask(grid: Grid, convex_path: Path) -> ndarray:
+    data = np.loadtxt(convex_path, dtype=float)
+    if data.ndim != 2 or data.shape[1] < 2:
+        raise ValueError(f"convex wall file {convex_path} must contain R Z columns")
+    vertices = data[:, :2]
+    if not np.allclose(vertices[0], vertices[-1]):
+        vertices = np.vstack([vertices, vertices[0]])
+    path = MplPath(vertices)
+    R_mesh, Z_mesh = meshgrid(grid.R, grid.Z, indexing="ij")
+    points = np.column_stack((R_mesh.ravel(), Z_mesh.ravel()))
+    mask = path.contains_points(points, radius=-1e-9).reshape(R_mesh.shape)
+    return mask
+
+
+def _apply_mask(array: ndarray | None, mask: ndarray | None) -> ndarray | None:
+    if array is None or mask is None:
+        return array
+    result = np.array(array, copy=True)
+    if result.ndim == 2:
+        result = np.where(mask, result, np.nan)
+    elif result.ndim == 3:
+        result = np.where(mask[np.newaxis, :, :], result, np.nan)
+    else:
+        raise ValueError("Unsupported array dimension for clipping")
+    return result
 
 
 def _parse_args() -> argparse.Namespace:
@@ -194,6 +232,8 @@ def _parse_args() -> argparse.Namespace:
                         help="Filename for optional axis validation plot")
     parser.add_argument("--dpi", type=int, default=150, help="Figure DPI for saved plots")
     parser.add_argument("--show", action="store_true", help="Display figures interactively")
+    parser.add_argument("--clip-convex-wall", action="store_true",
+                        help="Mask magnitudes outside the convex wall polygon if available")
 
     axis_group = parser.add_argument_group("Axis validation")
     axis_group.add_argument("--axis-origin", type=float, nargs=3,
@@ -1124,6 +1164,8 @@ def main() -> None:
             f"Mismatch between currents ({currents.size}) and Fourier data ({mode_fourier.BnR.shape[0]})"
         )
 
+    convex_wall_path: Path | None = _find_convex_wall(args.coil_files)
+
     BnR_spline_all = mode_vector.BnR
     Bnphi_spline_all = mode_vector.Bnphi
     BnZ_spline_all = mode_vector.BnZ
@@ -1213,15 +1255,8 @@ def main() -> None:
         bp_ext[:, n_phi, :] = bp_ordered[:, 0, :]
         bz_ext[:, n_phi, :] = bz_ordered[:, 0, :]
 
-        convex_candidate: Path | None = None
-        for coil_file in args.coil_files:
-            candidate = coil_file.parent / "convexwall.dat"
-            if candidate.exists():
-                convex_candidate = candidate
-                break
-
-        if convex_candidate is not None:
-            _set_convex_wall_filename(convex_candidate)
+        if convex_wall_path is not None:
+            _set_convex_wall_filename(convex_wall_path)
         else:
             raise FileNotFoundError(
                 "convexwall.dat not found alongside coil geometry; required for field_divB0"
@@ -1297,6 +1332,22 @@ def main() -> None:
     BnZ_rect1_sum = _tensordot_currents(weights, BnZ_rect1_all)
     magnitude_rect1 = _magnitude_squared(BnR_rect1_sum, Bnphi_rect1_sum, BnZ_rect1_sum)
 
+    clip_mask = None
+    if args.clip_convex_wall:
+        if convex_wall_path is None:
+            raise FileNotFoundError("--clip-convex-wall requested but convexwall.dat not found")
+        clip_mask = _create_convex_mask(mode_fourier.grid, convex_wall_path)
+        magnitude_fourier = _apply_mask(magnitude_fourier, clip_mask)
+        magnitude_vector = _apply_mask(magnitude_vector, clip_mask)
+        magnitude_spline = _apply_mask(magnitude_spline, clip_mask)
+        magnitude_rect5 = _apply_mask(magnitude_rect5, clip_mask)
+        magnitude_rect3 = _apply_mask(magnitude_rect3, clip_mask)
+        magnitude_rect1 = _apply_mask(magnitude_rect1, clip_mask)
+        if magnitude_field_divb0 is not None:
+            magnitude_field_divb0 = _apply_mask(magnitude_field_divb0, clip_mask)
+        if direct_magnitude is not None:
+            direct_magnitude = _apply_mask(direct_magnitude, clip_mask)
+
     if args.per_coil_output is not None:
         _create_per_coil_plot(args, mode_fourier, mode_vector,
                               BnR_spline_all, Bnphi_spline_all, BnZ_spline_all,
@@ -1318,6 +1369,12 @@ def main() -> None:
             'B_phi': _build_component_dict(Bnphi_fourier_sum, Bnphi_vector_sum, Bnphi_spline_sum, Bnphi_direct),
             'B_Z': _build_component_dict(BnZ_fourier_sum, BnZ_vector_sum, BnZ_spline_sum, BnZ_direct),
         }
+
+        if clip_mask is not None:
+            for dataset in components.values():
+                for key, value in dataset.items():
+                    if value is not None:
+                        dataset[key] = _apply_mask(value, clip_mask)
 
         _create_sum_plot(
             args,
