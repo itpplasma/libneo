@@ -670,6 +670,22 @@ def _axis_validation(
         print(f"  Vector vs analytic gauge (max rel): {amax(rel_err_vs_analytic) * 100.0:.4f}%")
 
 
+def _log10_magnitude(array: ndarray) -> ndarray:
+    arr = np.array(array, dtype=float, copy=True)
+    invalid = ~isfinite(arr)
+    arr[~invalid] = np.log10(np.maximum(arr[~invalid], 1e-300))
+    arr[invalid] = np.nan
+    return arr
+
+
+def _finite_extents(arrays: Sequence[ndarray]) -> Tuple[float, float]:
+    mins = [np.nanmin(a) for a in arrays if np.isfinite(a).any()]
+    maxs = [np.nanmax(a) for a in arrays if np.isfinite(a).any()]
+    if not mins or not maxs:
+        return 0.0, 1.0
+    return float(min(mins)), float(max(maxs))
+
+
 def _create_per_coil_plot(
     args: argparse.Namespace,
     mode_fourier: ModeData,
@@ -685,11 +701,12 @@ def _create_per_coil_plot(
     titles = ("reference", "Anvac", "Bnvac")
 
     log_bn2 = empty((3, ncoil, grid.nR, grid.nZ), dtype=float)
-    log_bn2[0] = log10(maximum(_magnitude_squared(mode_fourier.BnR, mode_fourier.Bnphi, mode_fourier.BnZ), 1e-300))
-    log_bn2[1] = log10(maximum(_magnitude_squared(mode_vector.BnR, mode_vector.Bnphi, mode_vector.BnZ), 1e-300))
-    log_bn2[2] = log10(maximum(_magnitude_squared(BnR_spline_all, Bnphi_spline_all, BnZ_spline_all), 1e-300))
+    log_bn2[0] = _log10_magnitude(_magnitude_squared(mode_fourier.BnR, mode_fourier.Bnphi, mode_fourier.BnZ))
+    log_bn2[1] = _log10_magnitude(_magnitude_squared(mode_vector.BnR, mode_vector.Bnphi, mode_vector.BnZ))
+    log_bn2[2] = _log10_magnitude(_magnitude_squared(BnR_spline_all, Bnphi_spline_all, BnZ_spline_all))
 
-    norm = Normalize(vmin=amin(log_bn2), vmax=amax(log_bn2))
+    vmin, vmax = _finite_extents(log_bn2.reshape(-1, grid.nR, grid.nZ))
+    norm = Normalize(vmin=vmin, vmax=vmax)
     fig, axs = plt.subplots(ncoil, 3, figsize=(9, 3 * ncoil), layout="constrained")
 
     for kcoil in range(ncoil):
@@ -759,25 +776,24 @@ def _create_deriv_diff_plot(
     fig, axs = plt.subplots(len(rows), len(titles), figsize=(12, 9), layout="constrained")
     extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
 
-    all_values = []
+    log_panels = []
     for comp in rows:
         data = components[comp]
-        all_values.extend(
+        log_panels.extend(
             [
-                log10(maximum(abs(data["analytic"]), 1e-300)),
-                log10(maximum(abs(data["spline"]), 1e-300)),
-                log10(maximum(abs(data["delta"]), 1e-300)),
+                _log10_magnitude(abs(data["analytic"])),
+                _log10_magnitude(abs(data["spline"])),
+                _log10_magnitude(abs(data["delta"])),
             ]
         )
-    vmin = min(arr.min() for arr in all_values)
-    vmax = max(arr.max() for arr in all_values)
+    vmin, vmax = _finite_extents(log_panels)
 
     for i, comp in enumerate(rows):
         data = components[comp]
         arrays = (
-            log10(maximum(abs(data["analytic"]), 1e-300)),
-            log10(maximum(abs(data["spline"]), 1e-300)),
-            log10(maximum(abs(data["delta"]), 1e-300)),
+            _log10_magnitude(abs(data["analytic"])),
+            _log10_magnitude(abs(data["spline"])),
+            _log10_magnitude(abs(data["delta"])),
         )
         for j, arr in enumerate(arrays):
             ax = axs[i, j]
@@ -965,22 +981,18 @@ def _create_sum_plot(
     bottom_titles = ("field_divB0 sum", "Rect k=5 sum", "Rect k=3 sum", "Rect k=1 sum")
     bottom_panels = [magnitude_field_divb0, magnitude_rect5, magnitude_rect3, magnitude_rect1]
 
-    accum = [log10(maximum(panel, 1e-300)) for panel in top_panels]
-    if magnitude_field_divb0 is not None:
-        accum.append(log10(maximum(magnitude_field_divb0, 1e-300)))
-    if magnitude_rect5 is not None:
-        accum.append(log10(maximum(magnitude_rect5, 1e-300)))
-    if magnitude_rect3 is not None:
-        accum.append(log10(maximum(magnitude_rect3, 1e-300)))
-    if magnitude_rect1 is not None:
-        accum.append(log10(maximum(magnitude_rect1, 1e-300)))
+    log_top = [_log10_magnitude(panel) for panel in top_panels]
+    log_bottom = [_log10_magnitude(panel) if panel is not None else None for panel in bottom_panels]
+    accum: List[ndarray] = list(log_top)
+    accum.extend(arr for arr in log_bottom if arr is not None)
     if components is not None:
         for dataset in components.values():
             for value in dataset.values():
                 if value is not None:
-                    accum.append(log10(maximum(value, 1e-300)))
+                    accum.append(_log10_magnitude(value))
 
-    norm = Normalize(vmin=min(a.min() for a in accum), vmax=max(a.max() for a in accum))
+    vmin, vmax = _finite_extents(accum)
+    norm = Normalize(vmin=vmin, vmax=vmax)
 
     n_component_rows = 0 if components is None else len(components)
     nrows = 2 + n_component_rows
@@ -991,7 +1003,7 @@ def _create_sum_plot(
     for idx, label in enumerate(top_titles):
         ax = axs[0, idx]
         im = ax.imshow(
-            log10(maximum(top_panels[idx], 1e-300)).T,
+            log_top[idx].T,
             origin="lower",
             cmap="magma",
             extent=extent,
@@ -1008,11 +1020,11 @@ def _create_sum_plot(
         plotted_axes.append(ax)
 
     # Plot bottom panels
-    for bottom_idx, (panel, title) in enumerate(zip(bottom_panels, bottom_titles)):
+    for bottom_idx, (panel, title) in enumerate(zip(log_bottom, bottom_titles)):
         if panel is not None and title:
             ax = axs[1, bottom_idx]
             im_bottom = ax.imshow(
-                log10(maximum(panel, 1e-300)).T,
+                panel.T,
                 origin="lower",
                 cmap="magma",
                 extent=extent,
@@ -1046,9 +1058,9 @@ def _create_sum_plot(
                 if col >= len(panels) or panels[col] is None:
                     ax.axis("off")
                     continue
-                panel = panels[col]
+                panel = _log10_magnitude(panels[col])
                 im = ax.imshow(
-                    log10(maximum(panel, 1e-300)).T,
+                    panel.T,
                     origin="lower",
                     cmap="magma",
                     extent=extent,
