@@ -85,81 +85,81 @@ jobs:
         run: |
           set -euo pipefail
           python3 <<'PY'
-import html
-import os
-import pathlib
-import shutil
-from datetime import datetime, timezone
+          import html
+          import os
+          import pathlib
+          import shutil
+          from datetime import datetime, timezone
 
-workspace = pathlib.Path.cwd()
-png_src = workspace / "png-artifacts"
-dashboard = workspace / "dashboard"
-images_dst = dashboard / "images"
+          workspace = pathlib.Path.cwd()
+          png_src = workspace / "png-artifacts"
+          dashboard = workspace / "dashboard"
+          images_dst = dashboard / "images"
 
-if dashboard.exists():
-    shutil.rmtree(dashboard)
-dashboard.mkdir(parents=True, exist_ok=True)
+          if dashboard.exists():
+              shutil.rmtree(dashboard)
+          dashboard.mkdir(parents=True, exist_ok=True)
 
-png_files = []
-if png_src.exists():
-    png_files = sorted(png_src.rglob("*.png"))
-    for src in png_files:
-        rel = src.relative_to(png_src)
-        dest = images_dst / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
+          png_files = []
+          if png_src.exists():
+              png_files = sorted(png_src.rglob("*.png"))
+              for src in png_files:
+                  rel = src.relative_to(png_src)
+                  dest = images_dst / rel
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(src, dest)
 
-timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-branch = os.environ.get("BRANCH_NAME", "unknown")
-commit = os.environ.get("COMMIT_SHA", "")[:12]
-run_id = os.environ.get("RUN_ID", "")
-repo = os.environ.get("REPOSITORY", "")
+          timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+          branch = os.environ.get("BRANCH_NAME", "unknown")
+          commit = os.environ.get("COMMIT_SHA", "")[:12]
+          run_id = os.environ.get("RUN_ID", "")
+          repo = os.environ.get("REPOSITORY", "")
 
-def render_gallery(images):
-    if not images:
-        return "<p>No PNG outputs were produced for this run.</p>"
-    blocks = []
-    for img in sorted(images):
-        rel = (pathlib.Path("images") / img.relative_to(png_src)).as_posix()
-        blocks.append(
-            "<figure>"
-            f"<img src='{html.escape(rel)}' alt='{html.escape(rel)}' loading='lazy'>"
-            f"<figcaption>{html.escape(rel)}</figcaption>"
-            "</figure>"
-        )
-    return "<div class='gallery'>" + "".join(blocks) + "</div>"
+          def render_gallery(images):
+              if not images:
+                  return "<p>No PNG outputs were produced for this run.</p>"
+              blocks = []
+              for img in sorted(images):
+                  rel = (pathlib.Path("images") / img.relative_to(png_src)).as_posix()
+                  blocks.append(
+                      "<figure>"
+                      f"<img src='{html.escape(rel)}' alt='{html.escape(rel)}' loading='lazy'>"
+                      f"<figcaption>{html.escape(rel)}</figcaption>"
+                      "</figure>"
+                  )
+              return "<div class='gallery'>" + "".join(blocks) + "</div>"
 
-gallery_html = render_gallery(png_files)
+          gallery_html = render_gallery(png_files)
 
-dashboard_index = f"""<!DOCTYPE html>
-<html lang='en'>
-<head>
-  <meta charset='utf-8'>
-  <title>libneo magfie PNG dashboard</title>
-  <style>
-    body {{ font-family: Arial, sans-serif; margin: 2rem; }}
-    a {{ color: #0366d6; }}
-    .meta {{ margin-bottom: 1.5rem; }}
-    .gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }}
-    figure {{ margin: 0; }}
-    figcaption {{ margin-top: 0.5rem; font-size: 0.9rem; word-break: break-word; }}
-    img {{ width: 100%; height: auto; border: 1px solid #ccd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-  </style>
-</head>
-<body>
-  <h1>libneo magfie PNG dashboard</h1>
-  <div class='meta'>
-    <p><strong>Branch:</strong> {html.escape(branch)}</p>
-    <p><strong>Commit:</strong> <code>{html.escape(commit)}</code></p>
-    <p><strong>Workflow run:</strong> <a href='https://github.com/{html.escape(repo)}/actions/runs/{html.escape(run_id)}'>{html.escape(run_id)}</a></p>
-    <p><strong>Generated:</strong> {html.escape(timestamp)}</p>
-  </div>
-  {gallery_html}
-</body>
-</html>
-"""
+          dashboard_index = f"""<!DOCTYPE html>
+          <html lang='en'>
+          <head>
+            <meta charset='utf-8'>
+            <title>libneo magfie PNG dashboard</title>
+            <style>
+              body {{ font-family: Arial, sans-serif; margin: 2rem; }}
+              a {{ color: #0366d6; }}
+              .meta {{ margin-bottom: 1.5rem; }}
+              .gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }}
+              figure {{ margin: 0; }}
+              figcaption {{ margin-top: 0.5rem; font-size: 0.9rem; word-break: break-word; }}
+              img {{ width: 100%; height: auto; border: 1px solid #ccd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            </style>
+          </head>
+          <body>
+            <h1>libneo magfie PNG dashboard</h1>
+            <div class='meta'>
+              <p><strong>Branch:</strong> {html.escape(branch)}</p>
+              <p><strong>Commit:</strong> <code>{html.escape(commit)}</code></p>
+              <p><strong>Workflow run:</strong> <a href='https://github.com/{html.escape(repo)}/actions/runs/{html.escape(run_id)}'>{html.escape(run_id)}</a></p>
+              <p><strong>Generated:</strong> {html.escape(timestamp)}</p>
+            </div>
+            {gallery_html}
+          </body>
+          </html>
+          """
 
-(dashboard / "index.html").write_text(dashboard_index, encoding="utf-8")
+          (dashboard / "index.html").write_text(dashboard_index, encoding="utf-8")
 PY
 
       - name: Configure Pages
