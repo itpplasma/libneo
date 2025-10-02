@@ -1,6 +1,6 @@
 program test_analytical_gs_circular
     use iso_fortran_env, only: dp => real64
-    use analytical_gs_circular
+    use analytical_gs_solver
     implicit none
 
     integer :: test_count, pass_count

@@ -19,7 +19,7 @@ add_library(magfie STATIC
     magfie_cyl.f90
     geoflux_field.f90
     coil_tools.f90
-    analytical_gs_circular.f90
+    analytical_gs_solver.f90
     analytical_tokamak_field.f90
     ../fftw3.F90
 )
