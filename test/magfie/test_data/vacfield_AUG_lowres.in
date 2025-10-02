@@ -3,8 +3,8 @@
   Rmax = 267.0d0
   Zmin = -154.0d0
   Zmax = 150.4d0
-  nR = 32
-  nZ = 40
+  nR = 64
+  nZ = 80
   nphi = 64
   nmax = 16
   prefactor = 5.0e-1

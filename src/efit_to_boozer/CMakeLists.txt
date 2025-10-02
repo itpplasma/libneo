@@ -74,25 +74,9 @@ target_link_libraries(efit_to_boozer
     magfie
 )
 
-# Grab Python
-find_package(
-  Python
-  COMPONENTS Interpreter Development.Module NumPy
-  REQUIRED)
-
-if (Python_FOUND)
-    message(STATUS "Python found: ${Python_EXECUTABLE}")
-    message(STATUS "Python version: ${Python_VERSION}")
-    message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
-    message(STATUS "Python libraries: ${Python_LIBRARIES}")
-else()
-    message("Python with NumPy not found, skipping interface build.")
-    return()
-endif()
-
 # F2PY headers
 execute_process(
-  COMMAND "${PYTHON_EXECUTABLE}" -c
+  COMMAND "${Python_EXECUTABLE}" -c
           "import numpy.f2py; print(numpy.f2py.get_include())"
   OUTPUT_VARIABLE F2PY_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)

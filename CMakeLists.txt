@@ -194,6 +194,39 @@ add_subdirectory(src/transport)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
+# Python toolchain discovery (shared by bindings and tests)
+find_package(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
+
+if(NOT Python_FOUND)
+    message(FATAL_ERROR "Python with NumPy development headers is required.")
+endif()
+
+message(STATUS "Python: ${Python_EXECUTABLE}")
+message(STATUS "Python version: ${Python_VERSION}")
+message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
+message(STATUS "Python libraries: ${Python_LIBRARIES}")
+
+execute_process(
+    COMMAND "${Python_EXECUTABLE}"
+    -c "import os; import numpy.f2py; print(os.path.dirname(numpy.f2py.__file__))"
+    OUTPUT_VARIABLE F2PY_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+set(F2PY_INCLUDE_DIR "${F2PY_DIR}/src" CACHE PATH "f2py include directory")
+
+include_directories(
+    BEFORE
+    ${Python_INCLUDE_DIRS}
+    ${Python_NumPy_INCLUDE_DIRS}
+    ${F2PY_INCLUDE_DIR}
+)
+
+if(NOT TARGET fortranobject)
+    add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
+    target_link_libraries(fortranobject PUBLIC Python::NumPy)
+    target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
+endif()
+
 # Sources for libneo core
 include(CMakeSources.in)
 
@@ -248,41 +281,9 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 # Python bindings
 
-find_package(Python COMPONENTS Interpreter Development NumPy)
-
-message(STATUS "Python: ${Python_EXECUTABLE}")
-message(STATUS "Python version: ${Python_VERSION}")
-message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
-message(STATUS "Python libraries: ${Python_LIBRARIES}")
-
-if(NOT Python_FOUND)
-    message("Python with NumPy not found, skipping interface build.")
-    return()
-endif()
-
-# F2PY headers
-execute_process(
-    COMMAND "${Python_EXECUTABLE}"
-    -c "import os; import numpy.f2py; print(os.path.dirname(numpy.f2py.__file__))"
-    OUTPUT_VARIABLE F2PY_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-set(F2PY_INCLUDE_DIR "${F2PY_DIR}/src")
-
-include_directories(
-    BEFORE
-    ${Python_INCLUDE_DIRS}
-    ${Python_NumPy_INCLUDE_DIRS}
-    ${F2PY_INCLUDE_DIR}
-)
-
 message(STATUS "Python f2py include dir: ${F2PY_INCLUDE_DIR}")
 message(STATUS "Python numpy include dir: ${Python_NumPy_INCLUDE_DIRS}")
 message(STATUS "Python binary output dir: ${CMAKE_CURRENT_BINARY_DIR}")
-
-add_library(fortranobject OBJECT "${F2PY_INCLUDE_DIR}/fortranobject.c")
-target_link_libraries(fortranobject PUBLIC Python::NumPy)
-target_include_directories(fortranobject PUBLIC "${F2PY_INCLUDE_DIR}")
 
 add_custom_command(
     OUTPUT _magfiemodule.c _magfie-f2pywrappers.f _magfie-f2pywrappers2.f90
