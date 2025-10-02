@@ -101,7 +101,8 @@ def _render_gallery(rel_paths: Iterable[Path]) -> str:
 
 
 def _build_branch_html(branch: str, commit: str, run_id: str, repo: str,
-                       timestamp: str, gallery_html: str, pr_info: dict | None) -> str:
+                       timestamp: str, gallery_html: str, pr_info: dict | None,
+                       back_link_href: str) -> str:
     pr_section = ""
     if pr_info:
         pr_url = pr_info.get("url", "")
@@ -129,7 +130,7 @@ def _build_branch_html(branch: str, commit: str, run_id: str, repo: str,
   </style>
 </head>
 <body>
-  <a href='../index.html' class='back-link'>← Back to all branches</a>
+  <a href='{html.escape(back_link_href)}' class='back-link'>← Back to all branches</a>
   <h1>Test Dashboard – {html.escape(branch)}</h1>
   <div class='meta'>
     <p><strong>Branch:</strong> {html.escape(branch)}</p>
@@ -265,6 +266,10 @@ def main() -> None:
             f"Invalid branch name leads to path outside output directory: {args.branch}"
         )
 
+    back_link_href = Path(
+        os.path.relpath(test_root / "index.html", branch_path)
+    ).as_posix()
+
     branch_images = branch_path / "images"
 
     if branch_path.exists():
@@ -285,6 +290,7 @@ def main() -> None:
         timestamp=timestamp,
         gallery_html=gallery_html,
         pr_info=pr_info,
+        back_link_href=back_link_href,
     )
     branch_path.joinpath("index.html").write_text(branch_html, encoding="utf-8")
 
