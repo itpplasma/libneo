@@ -5,6 +5,8 @@ module geoflux_coordinates
     use math_constants, only : pi
     use geqdsk_tools, only : geqdsk_t, geqdsk_read, geqdsk_standardise, geqdsk_deinit
     use binsrc_sub, only : binsrc
+    use interpolate, only : SplineData1D, construct_splines_1d, &
+        destroy_splines_1d, evaluate_splines_1d
 
     implicit none
 
@@ -38,6 +40,10 @@ module geoflux_coordinates
         real(dp), allocatable :: theta_nodes(:)
         real(dp), allocatable :: R_cache(:,:)
         real(dp), allocatable :: Z_cache(:,:)
+        type(SplineData1D) :: psi_of_s_spline
+        type(SplineData1D) :: s_of_psi_spline
+        logical :: psi_of_s_ready = .false.
+        logical :: s_of_psi_ready = .false.
         logical :: cache_built = .false.
     end type geoflux_context_t
 
@@ -79,6 +85,7 @@ contains
         ctx%ray_step = max(ctx%max_radius/100.0_dp, 1.0d-3)
 
         call build_radial_mapping()
+        call build_radial_splines()
 
         ns_val = default_ns_cache
         ntheta_val = default_ntheta_cache
@@ -218,6 +225,14 @@ contains
         if (ctx%initialised) then
             call geqdsk_deinit(ctx%geqdsk)
         end if
+        if (ctx%psi_of_s_ready) then
+            call destroy_splines_1d(ctx%psi_of_s_spline)
+            ctx%psi_of_s_ready = .false.
+        end if
+        if (ctx%s_of_psi_ready) then
+            call destroy_splines_1d(ctx%s_of_psi_spline)
+            ctx%s_of_psi_ready = .false.
+        end if
         if (allocated(ctx%psi_grid)) deallocate(ctx%psi_grid)
         if (allocated(ctx%s_grid)) deallocate(ctx%s_grid)
         if (allocated(ctx%s_nodes)) deallocate(ctx%s_nodes)
@@ -285,6 +300,47 @@ contains
 
         deallocate(tor_flux)
     end subroutine build_radial_mapping
+
+    subroutine build_radial_splines()
+        integer :: npsi, i
+        real(dp), allocatable :: psi_samples(:)
+        real(dp) :: s_uniform
+        real(dp) :: psi_min, psi_max
+        integer, parameter :: spline_order = 5
+
+        npsi = size(ctx%psi_grid)
+        if (npsi < 2) then
+            ctx%psi_of_s_ready = .false.
+            ctx%s_of_psi_ready = .false.
+            return
+        end if
+
+        if (ctx%psi_of_s_ready) then
+            call destroy_splines_1d(ctx%psi_of_s_spline)
+            ctx%psi_of_s_ready = .false.
+        end if
+        if (ctx%s_of_psi_ready) then
+            call destroy_splines_1d(ctx%s_of_psi_spline)
+            ctx%s_of_psi_ready = .false.
+        end if
+
+        allocate(psi_samples(npsi))
+        do i = 1, npsi
+            s_uniform = real(i - 1, dp) / real(npsi - 1, dp)
+            psi_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%psi_grid, s_uniform)
+        end do
+
+        call construct_splines_1d(0.0_dp, 1.0_dp, psi_samples, spline_order, &
+            .false., ctx%psi_of_s_spline)
+        ctx%psi_of_s_ready = .true.
+        deallocate(psi_samples)
+
+        psi_min = minval(ctx%psi_grid)
+        psi_max = maxval(ctx%psi_grid)
+        call construct_splines_1d(psi_min, psi_max, ctx%s_grid, spline_order, &
+            .false., ctx%s_of_psi_spline)
+        ctx%s_of_psi_ready = .true.
+    end subroutine build_radial_splines
 
     subroutine build_flux_surface_cache()
         integer :: is, itheta
@@ -429,7 +485,12 @@ contains
         real(dp), intent(in) :: s_val
         real(dp) :: psi_val
 
-        psi_val = interp1(ctx%s_grid, ctx%psi_grid, clamp01(s_val))
+        if (ctx%psi_of_s_ready) then
+            call evaluate_splines_1d(ctx%psi_of_s_spline, clamp01(s_val), psi_val)
+        else
+            psi_val = linear_interp_monotonic(ctx%s_grid, ctx%psi_grid, &
+                clamp01(s_val))
+        end if
     end function psi_from_s
 
     function s_from_position(R_val, Z_val) result(s_val)
@@ -438,7 +499,13 @@ contains
         real(dp) :: psi_val
 
         psi_val = psi_from_position(R_val, Z_val)
-        s_val = clamp01(interp1(ctx%psi_grid, ctx%s_grid, psi_val))
+        if (ctx%s_of_psi_ready) then
+            call evaluate_splines_1d(ctx%s_of_psi_spline, &
+                clamp(psi_val, minval(ctx%psi_grid), maxval(ctx%psi_grid)), s_val)
+        else
+            s_val = linear_interp_monotonic(ctx%psi_grid, ctx%s_grid, psi_val)
+        end if
+        s_val = clamp01(s_val)
     end function s_from_position
 
     function psi_from_position(R_val, Z_val) result(psi_val)
@@ -576,16 +643,21 @@ contains
         val = min(max(x, 0.0_dp), 1.0_dp)
     end function clamp01
 
-    function interp1(x, y, xval) result(yval)
+    function linear_interp_monotonic(x, y, xval) result(yval)
         real(dp), intent(in) :: x(:), y(:), xval
         real(dp) :: yval
         integer :: n, idx
-        real(dp) :: x1, x2, y1, y2, w
+        real(dp) :: x1, x2, w
+        real(dp) :: x_clamped
 
         n = size(x)
         if (n /= size(y)) then
-            write(*,*) 'geoflux_coordinates: inconsistent interpolation arrays.'
-            error stop
+            error stop 'geoflux_coordinates: inconsistent interpolation arrays.'
+        end if
+
+        if (n == 0) then
+            yval = 0.0_dp
+            return
         end if
 
         if (n == 1) then
@@ -593,32 +665,24 @@ contains
             return
         end if
 
-        if (x(n) >= x(1)) then
-            if (xval <= x(1)) then
-                yval = y(1)
-                return
-            else if (xval >= x(n)) then
-                yval = y(n)
-                return
+        do idx = 2, n
+            if (x(idx) < x(idx - 1)) then
+                error stop 'geoflux_coordinates: interpolation abscissae must be non-decreasing.'
             end if
+        end do
 
-            call binsrc(x, 1, n, xval, idx)
-            idx = max(2, min(n, idx))
-        else
-            if (xval >= x(1)) then
-                yval = y(1)
-                return
-            else if (xval <= x(n)) then
-                yval = y(n)
-                return
-            end if
+        x_clamped = clamp(xval, x(1), x(n))
 
-            idx = 2
-            do while (idx <= n .and. x(idx) > xval)
-                idx = idx + 1
-            end do
-            idx = max(2, min(n, idx))
+        if (x_clamped <= x(1)) then
+            yval = y(1)
+            return
+        else if (x_clamped >= x(n)) then
+            yval = y(n)
+            return
         end if
+
+        call binsrc(x, 1, n, x_clamped, idx)
+        idx = max(2, min(n, idx))
 
         x1 = x(idx - 1)
         x2 = x(idx)
@@ -626,12 +690,10 @@ contains
         if (abs(x2 - x1) < 1.0d-14) then
             yval = 0.5_dp * (y(idx - 1) + y(idx))
         else
-            w = (xval - x1) / (x2 - x1)
-            y1 = y(idx - 1)
-            y2 = y(idx)
-            yval = (1.0_dp - w) * y1 + w * y2
+            w = (x_clamped - x1) / (x2 - x1)
+            yval = (1.0_dp - w) * y(idx - 1) + w * y(idx)
         end if
-    end function interp1
+    end function linear_interp_monotonic
 
     subroutine assign_geoflux_to_cyl_jacobian(s_val, theta_val, phi_val, R_val, Z_val, jac)
         real(dp), intent(in) :: s_val, theta_val, phi_val, R_val, Z_val
