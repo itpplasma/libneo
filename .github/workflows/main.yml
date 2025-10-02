@@ -47,17 +47,16 @@ jobs:
         run: |
           pytest -q
 
-      - name: Upload magfie PNG artifacts
+      - name: Upload test PNG artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: magfie-pngs
-          path: |
-            build/test/magfie/**/*.png
+          name: test-pngs
+          path: build/test/**/*.png
           if-no-files-found: warn
 
   dashboard:
-    name: Build magfie dashboard
+    name: Build test dashboard
     needs: GNU
     if: always()
     runs-on: ubuntu-22.04
@@ -65,19 +64,15 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    env:
-      BRANCH_NAME: ${{ github.ref_name }}
-      COMMIT_SHA: ${{ github.sha }}
-      RUN_ID: ${{ github.run_id }}
-      REPOSITORY: ${{ github.repository }}
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download magfie PNG artifacts
+      - name: Download PNG artifacts
         uses: actions/download-artifact@v4
         with:
-          name: magfie-pngs
+          name: test-pngs
           path: png-artifacts
           if-no-files-found: ignore
 
@@ -97,6 +92,8 @@ jobs:
           fi
 
       - name: Generate dashboard
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 tools/ci/render_magfie_dashboard.py \
