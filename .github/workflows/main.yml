@@ -17,25 +17,15 @@ concurrency:
 
 jobs:
   GNU:
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     env:
       LIBNEO_TESTING: "1"
-    container:
-      image: ghcr.io/itpplasma/devel:latest
-      options: --user root
 
     name: Build and test
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Fix permissions
-        run: |
-          git config --global --add safe.directory `pwd`
-
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --break-system-packages -r requirements.txt
       - name: Build
         run: |
           make
@@ -51,10 +41,9 @@ jobs:
           path: build/test_artifacts/*.png
           if-no-files-found: ignore
 
-      - name: Editable install of libneo (system-wide)
+      - name: Editable install of libneo
         run: |
-          python3 -m pip install --break-system-packages -r requirements.txt
-          python3 -m pip install --break-system-packages -e .
+          pip install --break-system-packages -e .
 
       - name: Run Python tests (pytest)
         run: |
@@ -62,7 +51,7 @@ jobs:
 
       - name: Compare with ASCOT5 reference
         run: |
-          python3 test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
+          python test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
 
       - name: Upload test image artifacts
         if: always()
@@ -79,7 +68,7 @@ jobs:
     name: Build test dashboard
     needs: GNU
     if: ${{ needs.GNU.result == 'success' }}
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     permissions:
       contents: read
       pages: write
@@ -94,32 +83,6 @@ jobs:
         with:
           repository: lazy-fortran/testboard
           path: testboard
-
-      - name: Install fpm
-        run: |
-          set -euo pipefail
-          wget -q https://github.com/fortran-lang/fpm/releases/download/v0.12.0/fpm-0.12.0-linux-x86_64-gcc-12
-          chmod +x fpm-0.12.0-linux-x86_64-gcc-12
-          sudo mv fpm-0.12.0-linux-x86_64-gcc-12 /usr/local/bin/fpm
-
-      - name: Ensure gfortran is available
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y gfortran
-
-      - name: Install dashboard dependencies
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends wget rsync curl jq ca-certificates gnupg
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
-            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
-            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gh
 
       - name: Build testboard
         run: |
@@ -228,7 +191,7 @@ jobs:
     name: Deploy to GitHub Pages
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     needs: dashboard
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     permissions:
       contents: read
       pages: write
