@@ -88,8 +88,10 @@ def _render_gallery(rel_paths: Iterable[Path]) -> str:
         rel_str = rel_str.as_posix()
         items.append(
             "<figure>"
+            f"<a href='{html.escape(rel_str)}' target='_blank'>"
             f"<img src='{html.escape(rel_str)}' alt='{html.escape(rel_str)}'"
             " loading='lazy'>"
+            "</a>"
             f"<figcaption>{html.escape(rel_str)}</figcaption>"
             "</figure>"
         )
@@ -119,8 +121,10 @@ def _build_branch_html(branch: str, commit: str, run_id: str, repo: str,
     .meta {{ margin-bottom: 1.5rem; }}
     .gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }}
     figure {{ margin: 0; }}
+    figure a {{ display: block; cursor: pointer; }}
     figcaption {{ margin-top: 0.5rem; font-size: 0.9rem; word-break: break-word; }}
-    img {{ width: 100%; height: auto; border: 1px solid #ccd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+    img {{ width: 100%; height: auto; border: 1px solid #ccd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: box-shadow 0.2s, transform 0.2s; }}
+    img:hover {{ box-shadow: 0 4px 8px rgba(0,0,0,0.2); transform: scale(1.02); }}
     .back-link {{ display: inline-block; margin-bottom: 1rem; }}
   </style>
 </head>
