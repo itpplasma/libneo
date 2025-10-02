@@ -304,7 +304,7 @@ def main() -> None:
     lib_path = compile_ascot_library(ascot_clone)
     lib, _ = load_ascot_functions(lib_path)
 
-    # Check for required Python dependencies (must be installed system-wide)
+    # Check for required Python dependencies
     try:
         import unyt
     except ImportError:
@@ -314,14 +314,14 @@ def main() -> None:
             "  sudo apt install python3-unyt"
         )
 
+    # Import a5py from the cloned ASCOT5 repo (no system package exists)
+    sys.path.insert(0, str(ascot_clone))
     try:
         from a5py.physlib.analyticequilibrium import analyticGS  # type: ignore
-    except ImportError:
+    except ImportError as e:
         raise ImportError(
-            "The 'a5py' module is required for ASCOT5 comparison.\n"
-            "Please install it on the system:\n"
-            "  sudo apt install python3-a5py\n"
-            "or install from source if not available in your distribution."
+            f"Failed to import a5py from cloned ASCOT5 repository: {e}\n"
+            f"Tried to import from: {ascot_clone}"
         )
 
     rms_tol = 3.0e-2
