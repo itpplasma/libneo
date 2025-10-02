@@ -185,6 +185,8 @@ def _parse_args() -> argparse.Namespace:
                         help="Filename for per-coil magnitude comparison plot")
     parser.add_argument("--sum-output", type=Path,
                         help="Filename for coil-summed magnitude plot (four-panel)")
+    parser.add_argument("--deriv-diff-output", type=Path,
+                        help="Filename for diagnostic plot comparing spline vs analytic gauge")
     parser.add_argument("--axis-output", type=Path,
                         help="Filename for optional axis validation plot")
     parser.add_argument("--dpi", type=int, default=150, help="Figure DPI for saved plots")
@@ -220,7 +222,7 @@ def _load_mode_from_bnvac(path: Path, ntor: int) -> ModeData:
     return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ)
 
 
-def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict | None]:
+def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict | None, dict | None]:
     grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier(str(path), ntor=ntor)
     grid = Grid(
         R=array(grid_raw.R, copy=True),
@@ -237,12 +239,41 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict | None]
         BnR, Bnphi, BnZ = _compute_axisymmetric_field(
             grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
         )
-        return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ), None
+        return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ), None, None
 
-    gauged_AnR, gauged_AnZ = _gauge_anvac_with_spline(grid, AnR, Anphi, AnZ, ntor)
-    spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor)
-    BnR, Bnphi, BnZ = _field_divfree_rect(spl, grid.R, grid.Z, ntor=ntor)
-    return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ), spl
+    gauged_spline_R, gauged_spline_Z = _gauge_anvac_with_spline(grid, AnR, Anphi, AnZ, ntor)
+    spl_spline = spline_gauged_Anvac(grid_raw, gauged_spline_R, gauged_spline_Z, ntor=ntor)
+    BnR_spline, Bnphi_spline, BnZ_spline = _field_divfree_rect(
+        spl_spline, grid.R, grid.Z, ntor=ntor
+    )
+
+    gauged_analytic_R, gauged_analytic_Z = gauge_Anvac(
+        grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=ntor
+    )
+    gauged_analytic_R = gauged_analytic_R - 0.5j * Anphi
+    spl_analytic = spline_gauged_Anvac(
+        grid_raw, gauged_analytic_R, gauged_analytic_Z, ntor=ntor
+    )
+    BnR_analytic, Bnphi_analytic, BnZ_analytic = _field_divfree_rect(
+        spl_analytic, grid.R, grid.Z, ntor=ntor
+    )
+
+    diagnostics = {
+        "gauged_diff_R": gauged_spline_R - gauged_analytic_R,
+        "gauged_diff_Z": gauged_spline_Z - gauged_analytic_Z,
+        "BnR_spline": BnR_spline,
+        "Bnphi_spline": Bnphi_spline,
+        "BnZ_spline": BnZ_spline,
+        "BnR_analytic": BnR_analytic,
+        "Bnphi_analytic": Bnphi_analytic,
+        "BnZ_analytic": BnZ_analytic,
+    }
+
+    return (
+        ModeData(grid=grid, BnR=BnR_spline, Bnphi=Bnphi_spline, BnZ=BnZ_spline),
+        spl_spline,
+        diagnostics,
+    )
 
 
 def _ensure_same_grid(lhs: Grid, rhs: Grid) -> None:
@@ -495,6 +526,9 @@ def _axis_validation(
     BnR_direct: ndarray | None,
     Bnphi_direct: ndarray | None,
     BnZ_direct: ndarray | None,
+    BnR_analytic: ndarray | None = None,
+    Bnphi_analytic: ndarray | None = None,
+    BnZ_analytic: ndarray | None = None,
 ) -> None:
     if args.axis_origin is None or args.axis_normal is None or args.coil_radius is None:
         return
@@ -516,6 +550,7 @@ def _axis_validation(
     B_parallel_fourier = zeros_like(s_vals)
     B_parallel_vector = zeros_like(s_vals)
     B_parallel_direct = zeros_like(s_vals)
+    B_parallel_analytic = zeros_like(s_vals) if BnR_analytic is not None else None
 
     for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
         Bx_f, By_f, Bz_f = _evaluate_modes_at_point(
@@ -531,6 +566,14 @@ def _axis_validation(
             x_val, y_val, z_val,
         )
         B_parallel_vector[idx] = Bx_v * direction[0] + By_v * direction[1] + Bz_v * direction[2]
+
+        if B_parallel_analytic is not None:
+            Bx_a, By_a, Bz_a = _evaluate_modes_at_point(
+                BnR_analytic, Bnphi_analytic, BnZ_analytic,
+                args.ntor, grid.R, grid.Z,
+                x_val, y_val, z_val,
+            )
+            B_parallel_analytic[idx] = Bx_a * direction[0] + By_a * direction[1] + Bz_a * direction[2]
 
         if BnR_direct is not None and Bnphi_direct is not None and BnZ_direct is not None:
             Bx_d, By_d, Bz_d = _evaluate_modes_at_point(
@@ -564,6 +607,8 @@ def _axis_validation(
         ax.plot(s_vals, B_parallel_fourier, label="Fourier", linewidth=1.2)
         ax.plot(s_vals, B_parallel_vector, label="Vector", linewidth=1.2)
         ax.plot(s_vals, B_parallel_direct, label="Direct", linewidth=1.2)
+        if B_parallel_analytic is not None:
+            ax.plot(s_vals, B_parallel_analytic, label="Analytic gauge", linewidth=1.2, linestyle="-." )
         ax.set_xlabel("Axis coordinate s [cm]")
         ax.set_ylabel("B_parallel [Gauss]")
         ax.legend(loc="best")
@@ -575,6 +620,11 @@ def _axis_validation(
     print(f"  Fourier vs analytic: {amax(rel_err_fourier) * 100.0:.4f}%")
     print(f"  Vector  vs analytic: {amax(rel_err_vector) * 100.0:.4f}%")
     print(f"  Direct  vs analytic: {amax(rel_err_direct) * 100.0:.4f}%")
+    if B_parallel_analytic is not None:
+        abs_err_analytic = abs(B_parallel_vector - B_parallel_analytic)
+        rel_err_vs_analytic = abs_err_analytic / maximum(abs(B_parallel_analytic), 1e-20)
+        print(f"  Vector vs analytic gauge (max abs): {amax(abs_err_analytic):.4e}")
+        print(f"  Vector vs analytic gauge (max rel): {amax(rel_err_vs_analytic) * 100.0:.4f}%")
 
 
 def _create_per_coil_plot(
@@ -652,6 +702,63 @@ def _compute_rect_spline_field(
         BnZ_interp[k] = spline_Z_real(grid.R, grid.Z) + 1j * spline_Z_imag(grid.R, grid.Z)
 
     return BnR_interp, Bnphi_interp, BnZ_interp
+
+
+def _create_deriv_diff_plot(
+    output: Path,
+    grid: Grid,
+    components: dict,
+    coil_projections: Sequence[Tuple[ndarray, ndarray]] | None,
+    show: bool,
+) -> None:
+    rows = ("B_R", "B_phi", "B_Z")
+    titles = ("Analytic", "Spline", "|Δ|")
+    fig, axs = plt.subplots(len(rows), len(titles), figsize=(12, 9), layout="constrained")
+    extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
+
+    all_values = []
+    for comp in rows:
+        data = components[comp]
+        all_values.extend(
+            [
+                log10(maximum(abs(data["analytic"]), 1e-300)),
+                log10(maximum(abs(data["spline"]), 1e-300)),
+                log10(maximum(abs(data["delta"]), 1e-300)),
+            ]
+        )
+    vmin = min(arr.min() for arr in all_values)
+    vmax = max(arr.max() for arr in all_values)
+
+    for i, comp in enumerate(rows):
+        data = components[comp]
+        arrays = (
+            log10(maximum(abs(data["analytic"]), 1e-300)),
+            log10(maximum(abs(data["spline"]), 1e-300)),
+            log10(maximum(abs(data["delta"]), 1e-300)),
+        )
+        for j, arr in enumerate(arrays):
+            ax = axs[i, j]
+            im = ax.imshow(
+                arr.T,
+                origin="lower",
+                cmap="magma",
+                extent=extent,
+                vmin=vmin,
+                vmax=vmax,
+                interpolation="bilinear",
+            )
+            ax.set_title(f"{comp} {titles[j]}")
+            ax.set_xlabel("R [cm]")
+            ax.set_ylabel("Z [cm]")
+            if coil_projections:
+                for R_path, Z_path in coil_projections:
+                    ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
+            ax.set_aspect("equal", adjustable="box")
+
+    fig.colorbar(im, ax=axs, location="bottom", fraction=0.05, pad=0.08, label="log10 |B_n|")
+    fig.savefig(output, dpi=150, bbox_inches="tight")
+    if not show:
+        plt.close(fig)
 
 
 def _gauge_anvac_with_spline(
@@ -977,7 +1084,7 @@ def main() -> None:
     args = _parse_args()
 
     mode_fourier = _load_mode_from_bnvac(args.reference, args.ntor)
-    mode_vector, spline_vec = _load_mode_from_anvac(args.test, args.ntor)
+    mode_vector, spline_vec, diagnostics = _load_mode_from_anvac(args.test, args.ntor)
     _ensure_same_grid(mode_fourier.grid, mode_vector.grid)
 
     coil_projections = None
@@ -1000,14 +1107,9 @@ def main() -> None:
             f"Mismatch between currents ({currents.size}) and Fourier data ({mode_fourier.BnR.shape[0]})"
         )
 
-    if spline_vec is None:
-        BnR_spline_all = mode_vector.BnR
-        Bnphi_spline_all = mode_vector.Bnphi
-        BnZ_spline_all = mode_vector.BnZ
-    else:
-        BnR_spline_all, Bnphi_spline_all, BnZ_spline_all = _field_divfree_rect(
-            spline_vec, mode_vector.grid.R, mode_vector.grid.Z, ntor=args.ntor
-        )
+    BnR_spline_all = mode_vector.BnR
+    Bnphi_spline_all = mode_vector.Bnphi
+    BnZ_spline_all = mode_vector.BnZ
 
     weights = currents * args.prefactor
     BnR_fourier_sum = _tensordot_currents(weights, mode_fourier.BnR)
@@ -1021,6 +1123,49 @@ def main() -> None:
     BnR_spline_sum = _tensordot_currents(weights, BnR_spline_all)
     Bnphi_spline_sum = _tensordot_currents(weights, Bnphi_spline_all)
     BnZ_spline_sum = _tensordot_currents(weights, BnZ_spline_all)
+
+    BnR_analytic_sum = Bnphi_analytic_sum = BnZ_analytic_sum = None
+    if diagnostics is not None:
+        BnR_analytic_sum = _tensordot_currents(weights, diagnostics["BnR_analytic"])
+        Bnphi_analytic_sum = _tensordot_currents(weights, diagnostics["Bnphi_analytic"])
+        BnZ_analytic_sum = _tensordot_currents(weights, diagnostics["BnZ_analytic"])
+
+        max_gauge_R = amax(abs(diagnostics["gauged_diff_R"]))
+        max_gauge_Z = amax(abs(diagnostics["gauged_diff_Z"]))
+        print(
+            f"Gauge diagnostics: max |ΔA_R| = {max_gauge_R:.3e}, max |ΔA_Z| = {max_gauge_Z:.3e}"
+        )
+
+        if args.deriv_diff_output is not None:
+            diff_components = {
+                "B_R": {
+                    "analytic": BnR_analytic_sum,
+                    "spline": BnR_spline_sum,
+                    "delta": BnR_spline_sum - BnR_analytic_sum,
+                },
+                "B_phi": {
+                    "analytic": Bnphi_analytic_sum,
+                    "spline": Bnphi_spline_sum,
+                    "delta": Bnphi_spline_sum - Bnphi_analytic_sum,
+                },
+                "B_Z": {
+                    "analytic": BnZ_analytic_sum,
+                    "spline": BnZ_spline_sum,
+                    "delta": BnZ_spline_sum - BnZ_analytic_sum,
+                },
+            }
+            max_delta = max(
+                amax(abs(arr["delta"])) for arr in diff_components.values()
+            )
+            print(f"Gauge diagnostics: max |ΔB| (coil-weighted) = {max_delta:.3e}")
+
+            _create_deriv_diff_plot(
+                args.deriv_diff_output,
+                mode_fourier.grid,
+                diff_components,
+                coil_projections,
+                args.show,
+            )
 
     BnR_direct = Bnphi_direct = BnZ_direct = None
     direct_magnitude = None
@@ -1199,6 +1344,9 @@ def main() -> None:
             BnR_direct,
             Bnphi_direct,
             BnZ_direct,
+            BnR_analytic_sum,
+            Bnphi_analytic_sum,
+            BnZ_analytic_sum,
         )
 
 

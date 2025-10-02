@@ -3,6 +3,8 @@
 
 set(VACFIELD_EXE "${VACFIELD_EXE}")
 set(TEST_DATA_DIR "${TEST_DATA_DIR}")
+set(OUTPUT_DIR "${OUTPUT_DIR}")
+set(AUG_OUTPUT_DIR "${OUTPUT_DIR}/aug")
 
 # Check that required files exist
 set(REQUIRED_FILES
@@ -17,15 +19,18 @@ foreach(file ${REQUIRED_FILES})
     endif()
 endforeach()
 
+# Create output directory hierarchy
+file(MAKE_DIRECTORY "${AUG_OUTPUT_DIR}")
+
 # Clean up old output files
-file(REMOVE "${TEST_DATA_DIR}/aug_reference.h5")
-file(REMOVE "${TEST_DATA_DIR}/aug_test.nc")
+file(REMOVE "${AUG_OUTPUT_DIR}/aug_reference.h5")
+file(REMOVE "${AUG_OUTPUT_DIR}/aug_test.nc")
 
 message(STATUS "Running GPEC Fourier Biot-Savart (aug_reference.h5)...")
 execute_process(
-    COMMAND "${VACFIELD_EXE}" GPEC 2 aug_bu.dat aug_bl.dat
-            Fourier vacfield_AUG_lowres.in aug_reference.h5
-    WORKING_DIRECTORY "${TEST_DATA_DIR}"
+    COMMAND "${VACFIELD_EXE}" GPEC 2 ${TEST_DATA_DIR}/aug_bu.dat ${TEST_DATA_DIR}/aug_bl.dat
+            Fourier ${TEST_DATA_DIR}/vacfield_AUG_lowres.in aug_reference.h5
+    WORKING_DIRECTORY "${AUG_OUTPUT_DIR}"
     RESULT_VARIABLE result_fourier
     OUTPUT_VARIABLE output_fourier
     ERROR_VARIABLE error_fourier
@@ -37,9 +42,9 @@ endif()
 
 message(STATUS "Running coil_tools vector_potential Biot-Savart (aug_test.nc)...")
 execute_process(
-    COMMAND "${VACFIELD_EXE}" GPEC 2 aug_bu.dat aug_bl.dat
-            vector_potential vacfield_AUG_lowres.in aug_test.nc
-    WORKING_DIRECTORY "${TEST_DATA_DIR}"
+    COMMAND "${VACFIELD_EXE}" GPEC 2 ${TEST_DATA_DIR}/aug_bu.dat ${TEST_DATA_DIR}/aug_bl.dat
+            vector_potential ${TEST_DATA_DIR}/vacfield_AUG_lowres.in aug_test.nc
+    WORKING_DIRECTORY "${AUG_OUTPUT_DIR}"
     RESULT_VARIABLE result_vecpot
     OUTPUT_VARIABLE output_vecpot
     ERROR_VARIABLE error_vecpot
@@ -50,11 +55,11 @@ if(NOT result_vecpot EQUAL 0)
 endif()
 
 # Check that output files were created
-if(NOT EXISTS "${TEST_DATA_DIR}/aug_reference.h5")
+if(NOT EXISTS "${AUG_OUTPUT_DIR}/aug_reference.h5")
     message(FATAL_ERROR "Output file aug_reference.h5 was not created")
 endif()
 
-if(NOT EXISTS "${TEST_DATA_DIR}/aug_test.nc")
+if(NOT EXISTS "${AUG_OUTPUT_DIR}/aug_test.nc")
     message(FATAL_ERROR "Output file aug_test.nc was not created")
 endif()
 
@@ -66,8 +71,8 @@ if(NOT DEFINED PROJECT_SOURCE_DIR)
 endif()
 
 set(COMPARISON_SCRIPT "${PROJECT_SOURCE_DIR}/python/scripts/plot_biotsavart_fourier.py")
-set(PER_COIL_PLOT "${TEST_DATA_DIR}/biotsavart_fourier.png")
-set(SUM_PLOT "${TEST_DATA_DIR}/biotsavart_fourier_sum.png")
+set(PER_COIL_PLOT "${AUG_OUTPUT_DIR}/biotsavart_fourier.png")
+set(SUM_PLOT "${AUG_OUTPUT_DIR}/biotsavart_fourier_sum.png")
 
 set(MEDIAN_ERROR_EXCEEDED FALSE)
 set(MEAN_ERROR_EXCEEDED FALSE)
@@ -79,14 +84,15 @@ if(EXISTS "${COMPARISON_SCRIPT}")
     execute_process(
         COMMAND "${CMAKE_COMMAND}" -E env MPLBACKEND=Agg
                 python3 "${COMPARISON_SCRIPT}"
-                "${TEST_DATA_DIR}/aug_reference.h5"
-                "${TEST_DATA_DIR}/aug_test.nc"
+                aug_reference.h5
+                aug_test.nc
                 --currents "${TEST_DATA_DIR}/aug_currents.txt"
                 --coil-files "${TEST_DATA_DIR}/aug_bu.dat" "${TEST_DATA_DIR}/aug_bl.dat"
                 --ntor 2
-                --per-coil-output "${PER_COIL_PLOT}"
-                --sum-output "${SUM_PLOT}"
-        WORKING_DIRECTORY "${TEST_DATA_DIR}"
+                --per-coil-output biotsavart_fourier.png
+                --sum-output biotsavart_fourier_sum.png
+                --deriv-diff-output biotsavart_fourier_derivdiff.png
+        WORKING_DIRECTORY "${AUG_OUTPUT_DIR}"
         RESULT_VARIABLE comparison_result
         OUTPUT_VARIABLE comparison_output
         ERROR_VARIABLE comparison_error
@@ -122,11 +128,12 @@ else()
 endif()
 
 message(STATUS "AUG Biot-Savart comparison test completed successfully")
-message(STATUS "Generated files:")
+message(STATUS "Generated files under ${AUG_OUTPUT_DIR}:")
 message(STATUS "  - aug_reference.h5 (GPEC Fourier)")
 message(STATUS "  - aug_test.nc (coil_tools vector_potential)")
 message(STATUS "  - biotsavart_fourier.png (per-coil diagnostics)")
 message(STATUS "  - biotsavart_fourier_sum.png (summed-field diagnostics)")
+message(STATUS "  - biotsavart_fourier_derivdiff.png (gauge derivative diagnostics)")
 
 if(MEDIAN_ERROR_EXCEEDED)
     message(FATAL_ERROR "Median relative error (${MEDIAN_ERROR_VALUE}%) exceeds tolerance (50%)")
