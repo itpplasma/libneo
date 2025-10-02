@@ -58,16 +58,35 @@ jobs:
   dashboard:
     name: Build test dashboard
     needs: GNU
-    if: always()
+    if: ${{ always() && github.event_name == 'push' }}
     runs-on: ubuntu-22.04
     permissions:
-      contents: read
-      pages: write
-      id-token: write
+      contents: write
       pull-requests: read
     steps:
-      - name: Checkout
+      - name: Checkout source for scripts
         uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout or create gh-pages branch
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git clone --branch gh-pages --depth 1 https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git dashboard
+          else
+            mkdir -p dashboard
+            cd dashboard
+            git init
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git checkout -b gh-pages
+            git remote add origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+            echo "# Test Dashboards" > README.md
+            git add README.md
+            git commit -m "Initialize gh-pages branch"
+            git push -u origin gh-pages
+          fi
 
       - name: Download PNG artifacts
         uses: actions/download-artifact@v4
@@ -76,27 +95,12 @@ jobs:
           path: png-artifacts
           if-no-files-found: ignore
 
-      - name: Restore previously published site
-        if: ${{ github.event_name == 'push' }}
-        run: |
-          set -euo pipefail
-          rm -rf dashboard
-          mkdir -p dashboard
-          if curl --silent --head --fail https://itpplasma.github.io/libneo/index.html >/dev/null 2>&1; then
-            rm -rf dashboard_existing
-            mkdir -p dashboard_existing
-            wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=1 \
-              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/
-            rsync -a dashboard_existing/ dashboard/ || true
-            rm -rf dashboard_existing
-          fi
-
       - name: Generate dashboard
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 tools/ci/render_magfie_dashboard.py \
+          python3 source/tools/ci/render_magfie_dashboard.py \
             --png-root png-artifacts \
             --output dashboard \
             --branch "${{ github.ref_name }}" \
@@ -104,29 +108,15 @@ jobs:
             --run-id "${{ github.run_id }}" \
             --repo "${{ github.repository }}"
 
-      - name: Configure Pages
-        if: ${{ github.event_name == 'push' }}
-        uses: actions/configure-pages@v5
-
-      - name: Upload dashboard artifact
-        if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './dashboard'
-
-  deploy:
-    name: Deploy to GitHub Pages
-    if: github.event_name == 'push'
-    needs: dashboard
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Commit and push dashboard
+        run: |
+          cd dashboard
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update test dashboard for ${{ github.ref_name }} @ ${{ github.sha }}"
+            git push
+          fi

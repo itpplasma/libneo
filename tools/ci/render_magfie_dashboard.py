@@ -257,11 +257,17 @@ def main() -> None:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     test_root = output_dir / "test"
-    branch_path = test_root / Path(args.branch)
+
+    # Sanitize branch name to prevent path traversal
+    branch_path = (test_root / args.branch).resolve()
+    if test_root.resolve() not in branch_path.parents:
+        raise ValueError(
+            f"Invalid branch name leads to path outside output directory: {args.branch}"
+        )
+
     branch_images = branch_path / "images"
 
-    branch_exists = branch_path.exists()
-    if branch_exists:
+    if branch_path.exists():
         shutil.rmtree(branch_path)
     branch_images.mkdir(parents=True, exist_ok=True)
 
