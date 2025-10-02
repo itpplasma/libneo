@@ -69,6 +69,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout testboard
+        uses: actions/checkout@v4
+        with:
+          repository: lazy-fortran/testboard
+          path: testboard
+
+      - name: Install fpm
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/fortran-lang/fpm/releases/download/v0.12.0/fpm-0.12.0-linux-x86_64-gcc-12
+          chmod +x fpm-0.12.0-linux-x86_64-gcc-12
+          sudo mv fpm-0.12.0-linux-x86_64-gcc-12 /usr/local/bin/fpm
+
+      - name: Ensure gfortran is available
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gfortran
+
+      - name: Build testboard
+        run: |
+          set -euo pipefail
+          cd testboard
+          fpm build
+
       - name: Download PNG artifacts
         uses: actions/download-artifact@v4
         with:
@@ -79,14 +104,15 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         run: |
           set -euo pipefail
-          rm -rf dashboard
+          rm -rf dashboard dashboard_existing
           mkdir -p dashboard
-          if curl --silent --head --fail https://itpplasma.github.io/libneo/test/index.html >/dev/null 2>&1; then
+          BASE_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/test/"
+          INDEX_URL="${BASE_URL}index.html"
+          if curl --silent --head --fail "$INDEX_URL" >/dev/null 2>&1; then
             echo "Existing site found, restoring..."
-            rm -rf dashboard_existing
             mkdir -p dashboard_existing
             if wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=2 \
-              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/test/ 2>&1; then
+              --directory-prefix dashboard_existing "$BASE_URL" 2>&1; then
               if [ -n "$(ls -A dashboard_existing)" ]; then
                 echo "Restoring $(find dashboard_existing -type f | wc -l) files"
                 rsync -a dashboard_existing/ dashboard/
@@ -102,15 +128,19 @@ jobs:
       - name: Generate dashboard
         env:
           GH_TOKEN: ${{ github.token }}
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          python3 tools/ci/render_magfie_dashboard.py \
-            --png-root png-artifacts \
-            --output dashboard \
-            --branch "${{ github.ref_name }}" \
-            --commit "${{ github.sha }}" \
-            --run-id "${{ github.run_id }}" \
-            --repo "${{ github.repository }}"
+          cd testboard
+          fpm run testboard -- \
+            --png-root ../png-artifacts \
+            --output ../dashboard \
+            --branch "${GITHUB_REF_NAME}" \
+            --commit "${GITHUB_SHA}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --project-name "libneo" \
+            --github-pages-url "${PAGES_BASE_URL}"
 
       - name: Configure Pages
         if: ${{ github.event_name == 'push' }}
