@@ -4,6 +4,15 @@ name: Build and test
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   GNU:
     runs-on: ubuntu-22.04
@@ -49,19 +58,20 @@ jobs:
             build/test/magfie/**/*.png
           if-no-files-found: warn
 
-  publish-pages:
-    name: Publish magfie dashboard
+  dashboard:
+    name: Build magfie dashboard
     needs: GNU
     if: always()
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
     env:
       BRANCH_NAME: ${{ github.ref_name }}
       COMMIT_SHA: ${{ github.sha }}
-      REPOSITORY: ${{ github.repository }}
       RUN_ID: ${{ github.run_id }}
+      REPOSITORY: ${{ github.repository }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download magfie PNG artifacts
         uses: actions/download-artifact@v4
         with:
@@ -69,214 +79,106 @@ jobs:
           path: png-artifacts
           if-no-files-found: ignore
 
-      - name: Clone gh-pages branch
-        env:
-          REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-        run: |
-          set -euo pipefail
-          rm -rf site
-          if git ls-remote --exit-code "$REPO_URL" gh-pages >/dev/null 2>&1; then
-            git clone --depth 1 --branch gh-pages "$REPO_URL" site
-          else
-            git clone --depth 1 "$REPO_URL" site
-            cd site
-            git checkout --orphan gh-pages
-            rm -rf ./*
-            cd ..
-          fi
-
-      - name: Prepare dashboard content
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          COMMIT_SHA: ${{ github.sha }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          PNG_SRC: ${{ github.workspace }}/png-artifacts
+      - name: Generate dashboard
         run: |
           set -euo pipefail
           python3 <<'PY'
-import datetime
 import html
-import json
 import os
 import pathlib
 import shutil
+from datetime import datetime, timezone
 
-site_root = pathlib.Path("site")
-site_root.mkdir(exist_ok=True)
-test_root = site_root / "test"
-test_root.mkdir(exist_ok=True)
+workspace = pathlib.Path.cwd()
+png_src = workspace / "png-artifacts"
+dashboard = workspace / "dashboard"
+images_dst = dashboard / "images"
 
-branch_name = os.environ["BRANCH_NAME"]
-branch_path = test_root / pathlib.Path(branch_name)
-if branch_path.exists():
-    shutil.rmtree(branch_path)
-branch_path.mkdir(parents=True, exist_ok=True)
+if dashboard.exists():
+    shutil.rmtree(dashboard)
+dashboard.mkdir(parents=True, exist_ok=True)
 
-png_src = pathlib.Path(os.environ.get("PNG_SRC", ""))
 png_files = []
 if png_src.exists():
     png_files = sorted(png_src.rglob("*.png"))
+    for src in png_files:
+        rel = src.relative_to(png_src)
+        dest = images_dst / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
 
-copied = []
-base_candidate = png_src / "build" / "test" / "magfie"
-for src in png_files:
-    if not src.is_file():
-        continue
-    try:
-        rel = src.relative_to(base_candidate)
-    except ValueError:
-        try:
-            rel = src.relative_to(png_src)
-        except ValueError:
-            rel = pathlib.Path(src.name)
-    dest = branch_path / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dest)
-    copied.append(rel)
+timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+branch = os.environ.get("BRANCH_NAME", "unknown")
+commit = os.environ.get("COMMIT_SHA", "")[:12]
+run_id = os.environ.get("RUN_ID", "")
+repo = os.environ.get("REPOSITORY", "")
 
-metadata_path = test_root / "branches.json"
-if metadata_path.exists():
-    with metadata_path.open("r", encoding="utf-8") as handle:
-        metadata = json.load(handle)
-else:
-    metadata = {}
-
-timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
-metadata[branch_name] = {
-    "path": branch_name,
-    "updated": timestamp,
-    "commit": os.environ["COMMIT_SHA"],
-    "has_pngs": bool(copied),
-    "run_id": os.environ["RUN_ID"],
-}
-
-with metadata_path.open("w", encoding="utf-8") as handle:
-    json.dump(metadata, handle, indent=2, sort_keys=True)
-
-def render_root(metadata_dict, target_path):
-    rows = []
-    for branch, info in sorted(metadata_dict.items()):
-        path = info["path"]
-        link = f"test/{path}/"
-        updated = info.get("updated", "-")
-        commit = info.get("commit", "-")[:12]
-        run_id = info.get("run_id")
-        run_link = f"https://github.com/{os.environ['REPOSITORY']}/actions/runs/{run_id}" if run_id else "#"
-        status = "available" if info.get("has_pngs") else "missing"
-        rows.append(
-            "<tr>"
-            f"<td><a href='{html.escape(link)}'>{html.escape(branch)}</a></td>"
-            f"<td>{html.escape(updated)}</td>"
-            f"<td><code>{html.escape(commit)}</code></td>"
-            f"<td><a href='{html.escape(run_link)}'>run {html.escape(str(run_id) if run_id else '-')}</a></td>"
-            f"<td>{html.escape(status)}</td>"
-            "</tr>"
-        )
-
-    table_rows = "\n".join(rows) if rows else "<tr><td colspan='5'>No branches have published PNGs yet.</td></tr>"
-    target_path.write_text(
-        """<!DOCTYPE html>
-<html lang=\"en\">
-<head>
-  <meta charset=\"utf-8\">
-  <title>libneo Test Artifacts</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 2rem; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
-    th { background-color: #f5f5f5; }
-    code { font-family: Consolas, monospace; }
-  </style>
-</head>
-<body>
-  <h1>libneo Test Artifacts</h1>
-  <p>Latest ingest: {updated}</p>
-  <p>Browse per-branch dashboards under <code>/test/&lt;branch&gt;/</code>.</p>
-  <table>
-    <thead><tr><th>Branch</th><th>Updated (UTC)</th><th>Commit</th><th>Workflow</th><th>PNG Status</th></tr></thead>
-    <tbody>
-      {rows}
-    </tbody>
-  </table>
-</body>
-</html>
-""".replace("{rows}", table_rows).replace("{updated}", html.escape(timestamp)),
-        encoding="utf-8",
-    )
-
-def render_branch_page(branch_dir, images):
-    rel_root = pathlib.Path(".")
-    gallery_items = []
+def render_gallery(images):
+    if not images:
+        return "<p>No PNG outputs were produced for this run.</p>"
+    blocks = []
     for img in sorted(images):
-        img_path = img.as_posix()
-        gallery_items.append(
-            f"<figure><img src='{html.escape(img_path)}' alt='{html.escape(img_path)}' loading='lazy'>"
-            f"<figcaption>{html.escape(img_path)}</figcaption></figure>"
+        rel = (pathlib.Path("images") / img.relative_to(png_src)).as_posix()
+        blocks.append(
+            "<figure>"
+            f"<img src='{html.escape(rel)}' alt='{html.escape(rel)}' loading='lazy'>"
+            f"<figcaption>{html.escape(rel)}</figcaption>"
+            "</figure>"
         )
-    gallery_html = "".join(gallery_items)
-    content = """<!DOCTYPE html>
-<html lang=\"en\">
+    return "<div class='gallery'>" + "".join(blocks) + "</div>"
+
+gallery_html = render_gallery(png_files)
+
+dashboard_index = f"""<!DOCTYPE html>
+<html lang='en'>
 <head>
-  <meta charset=\"utf-8\">
-  <title>libneo magfie PNGs – {branch}</title>
+  <meta charset='utf-8'>
+  <title>libneo magfie PNG dashboard</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 2rem; }
-    a { color: #0366d6; }
-    .meta { margin-bottom: 1.5rem; }
-    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
-    figure { margin: 0; }
-    figcaption { margin-top: 0.5rem; font-size: 0.9rem; word-break: break-all; }
-    img { width: 100%; height: auto; border: 1px solid #ccd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    body {{ font-family: Arial, sans-serif; margin: 2rem; }}
+    a {{ color: #0366d6; }}
+    .meta {{ margin-bottom: 1.5rem; }}
+    .gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }}
+    figure {{ margin: 0; }}
+    figcaption {{ margin-top: 0.5rem; font-size: 0.9rem; word-break: break-word; }}
+    img {{ width: 100%; height: auto; border: 1px solid #ccd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
   </style>
 </head>
 <body>
-  <h1>Branch: {branch}</h1>
-  <div class=\"meta\">
-    <p><a href=\"../../index.html\">Back to overview</a></p>
-    <p>Updated: {updated}</p>
-    <p>Commit: <code>{commit}</code></p>
-    <p>Workflow run: <a href=\"https://github.com/{repo}/actions/runs/{run}\">{run}</a></p>
+  <h1>libneo magfie PNG dashboard</h1>
+  <div class='meta'>
+    <p><strong>Branch:</strong> {html.escape(branch)}</p>
+    <p><strong>Commit:</strong> <code>{html.escape(commit)}</code></p>
+    <p><strong>Workflow run:</strong> <a href='https://github.com/{html.escape(repo)}/actions/runs/{html.escape(run_id)}'>{html.escape(run_id)}</a></p>
+    <p><strong>Generated:</strong> {html.escape(timestamp)}</p>
   </div>
-  {body}
+  {gallery_html}
 </body>
 </html>
 """
-    if images:
-        body_html = f"<div class='gallery'>{gallery_html}</div>"
-    else:
-        body_html = "<p>No PNG outputs were produced for this run.</p>"
-    branch_dir.joinpath("index.html").write_text(
-        content.format(
-            branch=html.escape(branch_name),
-            updated=html.escape(timestamp),
-            commit=html.escape(os.environ["COMMIT_SHA"][:12]),
-            repo=html.escape(os.environ["REPOSITORY"]),
-            run=html.escape(os.environ["RUN_ID"]),
-            body=body_html,
-        ),
-        encoding="utf-8",
-    )
 
-render_branch_page(branch_path, copied)
-render_root(metadata, site_root / "index.html")
-test_overview = site_root / "test" / "index.html"
-render_root(metadata, test_overview)
+(dashboard / "index.html").write_text(dashboard_index, encoding="utf-8")
 PY
 
-      - name: Commit and push updates
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          cd site
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add --all
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "Update magfie dashboard for ${BRANCH_NAME} (${COMMIT_SHA::12})"
-            git push origin gh-pages
-          fi
+      - name: Configure Pages
+        if: github.event_name == 'push'
+        uses: actions/configure-pages@v5
+
+      - name: Upload dashboard artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dashboard'
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push'
+    needs: dashboard
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
