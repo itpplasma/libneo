@@ -78,17 +78,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Checkout testboard
-        uses: actions/checkout@v4
-        with:
-          repository: lazy-fortran/testboard
-          path: testboard
-
-      - name: Build testboard
+      - name: Download testboard ARM64 binary
         run: |
           set -euo pipefail
-          cd testboard
-          fpm build
+          curl -LO https://github.com/lazy-fortran/testboard/releases/latest/download/testboard-aarch64
+          chmod +x testboard-aarch64
 
       - name: Download image artifacts
         uses: actions/download-artifact@v4
@@ -126,10 +120,9 @@ jobs:
           PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          cd testboard
-          fpm run testboard -- \
-            --image-root ../image-artifacts \
-            --output ../dashboard \
+          ./testboard-aarch64 \
+            --image-root image-artifacts \
+            --output dashboard \
             --branch "${GITHUB_REF_NAME}" \
             --commit "${GITHUB_SHA}" \
             --run-id "${GITHUB_RUN_ID}" \
