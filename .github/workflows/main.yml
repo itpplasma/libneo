@@ -82,14 +82,21 @@ jobs:
           rm -rf dashboard
           mkdir -p dashboard
           if curl --silent --head --fail https://itpplasma.github.io/libneo/index.html >/dev/null 2>&1; then
+            echo "Existing site found, restoring..."
             rm -rf dashboard_existing
             mkdir -p dashboard_existing
-            wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=1 \
-              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/
-            if [ -n "$(ls -A dashboard_existing)" ]; then
-              rsync -a dashboard_existing/ dashboard/
+            if wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=1 \
+              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/ 2>&1; then
+              if [ -n "$(ls -A dashboard_existing)" ]; then
+                echo "Restoring $(find dashboard_existing -type f | wc -l) files"
+                rsync -a dashboard_existing/ dashboard/
+              fi
+            else
+              echo "wget failed, starting with empty dashboard"
             fi
             rm -rf dashboard_existing
+          else
+            echo "No existing site found, starting fresh"
           fi
 
       - name: Generate dashboard
