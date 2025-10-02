@@ -39,3 +39,12 @@ jobs:
       - name: Run Python tests (pytest)
         run: |
           pytest -q
+
+      - name: Upload magfie PNG artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magfie-pngs
+          path: |
+            build/test/magfie/**/*.png
+          if-no-files-found: warn
