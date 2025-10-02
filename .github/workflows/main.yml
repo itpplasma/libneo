@@ -2,7 +2,18 @@
 
 name: Build and test
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   GNU:
@@ -39,3 +50,180 @@ jobs:
       - name: Run Python tests (pytest)
         run: |
           pytest -q
+
+      - name: Upload test image artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-images
+          path: |
+            build/test/**/*.png
+            build/test/**/*.jpg
+            build/test/**/*.jpeg
+          if-no-files-found: warn
+
+  dashboard:
+    name: Build test dashboard
+    needs: GNU
+    if: ${{ needs.GNU.result == 'success' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout testboard
+        uses: actions/checkout@v4
+        with:
+          repository: lazy-fortran/testboard
+          path: testboard
+
+      - name: Install fpm
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/fortran-lang/fpm/releases/download/v0.12.0/fpm-0.12.0-linux-x86_64-gcc-12
+          chmod +x fpm-0.12.0-linux-x86_64-gcc-12
+          sudo mv fpm-0.12.0-linux-x86_64-gcc-12 /usr/local/bin/fpm
+
+      - name: Ensure gfortran is available
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gfortran
+
+      - name: Install dashboard dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget rsync curl jq ca-certificates gnupg
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gh
+
+      - name: Build testboard
+        run: |
+          set -euo pipefail
+          cd testboard
+          fpm build
+
+      - name: Download image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: test-images
+          path: image-artifacts
+
+      - name: Restore previously published site
+        run: |
+          set -euo pipefail
+          rm -rf dashboard dashboard_existing
+          mkdir -p dashboard
+          BASE_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/test/"
+          INDEX_URL="${BASE_URL}index.html"
+          if curl --silent --head --fail "$INDEX_URL" >/dev/null 2>&1; then
+            echo "Existing site found, restoring..."
+            mkdir -p dashboard_existing
+            if wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=2 \
+              --directory-prefix dashboard_existing "$BASE_URL" 2>&1; then
+              if [ -n "$(ls -A dashboard_existing)" ]; then
+                echo "Restoring $(find dashboard_existing -type f | wc -l) files"
+                rsync -a dashboard_existing/ dashboard/
+              fi
+            else
+              echo "wget failed, starting with empty dashboard"
+            fi
+            rm -rf dashboard_existing
+          else
+            echo "No existing site found, starting fresh"
+          fi
+
+      - name: Generate dashboard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          cd testboard
+          fpm run testboard -- \
+            --image-root ../image-artifacts \
+            --output ../dashboard \
+            --branch "${GITHUB_REF_NAME}" \
+            --commit "${GITHUB_SHA}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --project-name "libneo" \
+            --github-pages-url "${PAGES_BASE_URL}"
+
+      - name: Prune closed branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH_JSON="dashboard/test/branches.json"
+          if [ ! -f "$BRANCH_JSON" ]; then
+            echo "No branches metadata found; skipping pruning"
+            exit 0
+          fi
+
+          tmp_json=$(mktemp)
+          cp "$BRANCH_JSON" "$tmp_json"
+
+          for branch in $(jq -r 'keys[]' "$tmp_json"); do
+            pr_number=$(jq -r --arg b "$branch" '.[$b].pr_info.number // empty' "$tmp_json")
+            keep=1
+
+            if [ -n "$pr_number" ] && [ "$pr_number" != "null" ]; then
+              pr_state=$(gh pr view "$pr_number" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+              if [ "$pr_state" = "CLOSED" ] || [ "$pr_state" = "MERGED" ]; then
+                keep=0
+              fi
+            else
+              if ! git ls-remote --heads origin "$branch" >/dev/null 2>&1; then
+                if [ "$branch" != "main" ]; then
+                  keep=0
+                fi
+              fi
+            fi
+
+            if [ "$keep" -eq 0 ]; then
+              echo "Pruning branch $branch from dashboard"
+              jq --arg branch "$branch" 'del(.[$branch])' "$BRANCH_JSON" > "$BRANCH_JSON.tmp"
+              mv "$BRANCH_JSON.tmp" "$BRANCH_JSON"
+              rm -rf "dashboard/test/$branch"
+            fi
+          done
+
+          rm -f "$tmp_json"
+
+      - name: Configure Pages
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/configure-pages@v5
+
+      - name: Upload dashboard artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dashboard'
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    needs: dashboard
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
