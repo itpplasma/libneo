@@ -314,14 +314,15 @@ def main() -> None:
             "  sudo apt install python3-unyt"
         )
 
-    # Import a5py from the cloned ASCOT5 repo (no system package exists)
-    sys.path.insert(0, str(ascot_clone))
+    # Import a5py from system installation
     try:
         from a5py.physlib.analyticequilibrium import analyticGS  # type: ignore
     except ImportError as e:
         raise ImportError(
-            f"Failed to import a5py from cloned ASCOT5 repository: {e}\n"
-            f"Tried to import from: {ascot_clone}"
+            f"Failed to import a5py: {e}\n"
+            "Please install a5py system-wide:\n"
+            "  pip install -e /path/to/ascot5\n"
+            "or install globally from the ASCOT5 repository."
         )
 
     rms_tol = 3.0e-2
