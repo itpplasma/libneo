@@ -70,6 +70,7 @@ def compile_ascot_library(clone_dir: Path) -> Path:
     flags: list[str] = []
     link_flags: list[str] = ["-fopenmp", "-lhdf5_hl", "-lhdf5"]
 
+    # Check for Homebrew (macOS)
     homebrew_root = Path("/opt/homebrew")
     if homebrew_root.exists():
         hb_include = homebrew_root / "include"
@@ -85,6 +86,17 @@ def compile_ascot_library(clone_dir: Path) -> Path:
         if omp_lib.exists():
             link_flags.append(f"-L{omp_lib}")
             link_flags.append("-lomp")
+
+    # Check for standard Linux HDF5 locations
+    for hdf5_include in [Path("/usr/include/hdf5/serial"), Path("/usr/include/hdf5")]:
+        if hdf5_include.exists():
+            flags.append(f"-I{hdf5_include}")
+            break
+
+    for hdf5_lib in [Path("/usr/lib/x86_64-linux-gnu/hdf5/serial"), Path("/usr/lib/x86_64-linux-gnu")]:
+        if hdf5_lib.exists() and (hdf5_lib / "libhdf5.so").exists():
+            link_flags.append(f"-L{hdf5_lib}")
+            break
 
     run(["make", "clean"], cwd=clone_dir)
     run([
