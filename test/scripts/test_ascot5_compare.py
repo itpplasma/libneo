@@ -308,10 +308,11 @@ def main() -> None:
     try:
         import unyt
     except ImportError:
-        print("Warning: 'unyt' module not found. Installing via pip...")
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--quiet", "--break-system-packages", "unyt"],
-            check=True
+        raise ImportError(
+            "The 'unyt' module is required for ASCOT5 comparison.\n"
+            "Please install it on the system:\n"
+            "  sudo apt install python3-unyt\n"
+            "or install manually if not on Debian/Ubuntu."
         )
 
     sys.path.insert(0, str(ascot_clone / "a5py"))
