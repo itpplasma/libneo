@@ -315,7 +315,17 @@ def main() -> None:
             "or install manually if not on Debian/Ubuntu."
         )
 
-    sys.path.insert(0, str(ascot_clone / "a5py"))
+    # Add ASCOT5's a5py to path, ensuring it's used instead of any system-installed version
+    a5py_path = str(ascot_clone / "a5py")
+    if a5py_path in sys.path:
+        sys.path.remove(a5py_path)
+    sys.path.insert(0, a5py_path)
+
+    # Clear any previously imported a5py modules to force reload from correct path
+    for module_name in list(sys.modules.keys()):
+        if module_name.startswith('a5py') or module_name.startswith('physlib'):
+            del sys.modules[module_name]
+
     from physlib.analyticequilibrium import analyticGS  # type: ignore
 
     rms_tol = 3.0e-2
