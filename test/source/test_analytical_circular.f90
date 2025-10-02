@@ -31,10 +31,6 @@ program test_analytical_circular
     call test_divergence_free_circular()
     call test_divergence_free_shaped()
 
-    ! Generate PNG artifacts
-    call generate_flux_surface_plot(output_dir, "circular")
-    call generate_flux_surface_plot(output_dir, "shaped")
-
     print *, ""
     print *, "===================="
     print *, "Test Summary:"
