@@ -4,6 +4,13 @@ name: Build and test
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   GNU:
     runs-on: ubuntu-22.04
@@ -39,3 +46,90 @@ jobs:
       - name: Run Python tests (pytest)
         run: |
           pytest -q
+
+      - name: Upload magfie PNG artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: magfie-pngs
+          path: |
+            build/test/magfie/**/*.png
+          if-no-files-found: warn
+
+  dashboard:
+    name: Build magfie dashboard
+    needs: GNU
+    if: ${{ always() }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    env:
+      BRANCH_NAME: ${{ github.ref_name }}
+      COMMIT_SHA: ${{ github.sha }}
+      RUN_ID: ${{ github.run_id }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download magfie PNG artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: magfie-pngs
+          path: png-artifacts
+          if-no-files-found: ignore
+
+      - name: Restore previously published site
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          set -euo pipefail
+          rm -rf dashboard
+          mkdir -p dashboard
+          if curl --silent --head --fail https://itpplasma.github.io/libneo/index.html >/dev/null 2>&1; then
+            rm -rf dashboard_existing
+            mkdir -p dashboard_existing
+            wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=1 \
+              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/
+            rsync -a dashboard_existing/ dashboard/ || true
+            rm -rf dashboard_existing
+          fi
+
+      - name: Generate dashboard
+        run: |
+          set -euo pipefail
+          python3 tools/ci/render_magfie_dashboard.py \
+            --png-root png-artifacts \
+            --output dashboard \
+            --branch "${{ github.ref_name }}" \
+            --commit "${{ github.sha }}" \
+            --run-id "${{ github.run_id }}" \
+            --repo "${{ github.repository }}"
+
+      - name: Configure Pages
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/configure-pages@v5
+
+      - name: Upload dashboard artifact
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dashboard'
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: ${{ github.event_name == 'push' }}
+    needs: dashboard
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
