@@ -62,6 +62,9 @@ jobs:
             build/test/**/*.png
             build/test/**/*.jpg
             build/test/**/*.jpeg
+            build/test_artifacts/**/*.png
+            build/test_artifacts/**/*.jpg
+            build/test_artifacts/**/*.jpeg
           if-no-files-found: warn
 
   dashboard:
