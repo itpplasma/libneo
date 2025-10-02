@@ -31,6 +31,9 @@ program test_analytical_circular
     call test_divergence_free_circular()
     call test_divergence_free_shaped()
 
+    call generate_flux_csv(output_dir, "circular")
+    call generate_flux_csv(output_dir, "shaped")
+
     print *, ""
     print *, "===================="
     print *, "Test Summary:"
@@ -387,14 +390,14 @@ contains
         print *, ""
     end subroutine test_divergence_free_shaped
 
-    subroutine generate_flux_surface_plot(output_dir, case_type)
+    subroutine generate_flux_csv(output_dir, case_type)
         character(len=*), intent(in) :: output_dir, case_type
         type(analytical_circular_eq_t) :: eq
         real(dp) :: R0, epsilon, kappa, delta, A_param, B0
         integer, parameter :: nR = 100, nZ = 100
         real(dp) :: R_min, R_max, Z_min, Z_max, R, Z, psi
         integer :: i, j, unit_num
-        character(len=512) :: filename, python_script
+        character(len=512) :: filename
 
         print *, "Generating flux surface data (", trim(case_type), ")..."
 
@@ -413,13 +416,11 @@ contains
             call eq%init(R0, epsilon, kappa_in=kappa, delta_in=delta, A_in=A_param, B0_in=B0)
         end if
 
-        ! Grid bounds
         R_min = R0 * (1.0_dp - 1.2_dp * epsilon)
         R_max = R0 * (1.0_dp + 1.2_dp * epsilon)
         Z_min = -R0 * 1.2_dp * kappa * epsilon
         Z_max = R0 * 1.2_dp * kappa * epsilon
 
-        ! Write psi data to CSV
         write(filename, '(A,"/flux_",A,".csv")') trim(output_dir), trim(case_type)
         open(newunit=unit_num, file=trim(filename), status='replace', action='write')
         write(unit_num, '(A)') "R,Z,psi"
@@ -436,51 +437,9 @@ contains
         close(unit_num)
         print *, "  Wrote ", trim(filename)
 
-        ! Generate Python plotting script
-        write(filename, '(A,"/plot_flux_",A,".py")') trim(output_dir), trim(case_type)
-        open(newunit=unit_num, file=trim(filename), status='replace', action='write')
-
-        write(unit_num, '(A)') "#!/usr/bin/env python"
-        write(unit_num, '(A)') "import numpy as np"
-        write(unit_num, '(A)') "import matplotlib.pyplot as plt"
-        write(unit_num, '(A)') ""
-        write(unit_num, '(A,A,A,A,A)') "data = np.loadtxt('", trim(output_dir), &
-            "/flux_", trim(case_type), ".csv', delimiter=',', skiprows=1)"
-        write(unit_num, '(A)') "R = data[:, 0]"
-        write(unit_num, '(A)') "Z = data[:, 1]"
-        write(unit_num, '(A)') "psi = data[:, 2]"
-        write(unit_num, '(A)') ""
-        write(unit_num, '(A,I0,A,I0,A)') "R_grid = R.reshape(", nR, ", ", nZ, ")"
-        write(unit_num, '(A,I0,A,I0,A)') "Z_grid = Z.reshape(", nR, ", ", nZ, ")"
-        write(unit_num, '(A,I0,A,I0,A)') "psi_grid = psi.reshape(", nR, ", ", nZ, ")"
-        write(unit_num, '(A)') ""
-        write(unit_num, '(A)') "plt.figure(figsize=(10, 8))"
-        write(unit_num, '(A)') "levels = np.linspace(psi.min(), psi.max(), 20)"
-        write(unit_num, '(A)') &
-            "plt.contour(R_grid, Z_grid, psi_grid, levels=levels, colors='black', linewidths=0.5)"
-        write(unit_num, '(A)') &
-            "plt.contour(R_grid, Z_grid, psi_grid, levels=[0], colors='red', linewidths=2)"
-        write(unit_num, '(A)') "plt.xlabel('R [m]', fontsize=12)"
-        write(unit_num, '(A)') "plt.ylabel('Z [m]', fontsize=12)"
-        write(unit_num, '(A,A,A)') "plt.title('", trim(case_type), &
-            " Tokamak Flux Surfaces (Cerfon-Freidberg)', fontsize=14)"
-        write(unit_num, '(A)') "plt.axis('equal')"
-        write(unit_num, '(A)') "plt.grid(True, alpha=0.3)"
-        write(unit_num, '(A,A,A,A,A)') "plt.savefig('", trim(output_dir), &
-            "/flux_", trim(case_type), ".png', dpi=150, bbox_inches='tight')"
-        write(unit_num, '(A,A,A,A,A)') "print('Generated ", trim(output_dir), &
-            "/flux_", trim(case_type), ".png')"
-
-        close(unit_num)
-        print *, "  Wrote ", trim(filename)
-
-        ! Execute Python script
-        write(python_script, '(A," ",A)') "python", trim(filename)
-        call execute_command_line(trim(python_script))
-
         call eq%cleanup()
         print *, ""
-    end subroutine generate_flux_surface_plot
+    end subroutine generate_flux_csv
 
     subroutine assert_close(actual, expected, tolerance, test_name)
         real(dp), intent(in) :: actual, expected, tolerance
