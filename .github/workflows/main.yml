@@ -90,6 +90,12 @@ jobs:
           name: test-images
           path: image-artifacts
 
+      - name: Remove ASCOT5 logo files
+        run: |
+          set -euo pipefail
+          find image-artifacts -type f \( -name "logo.png" -o -name "icon.png" \) -delete
+          echo "Removed ASCOT5 logo and icon files from artifacts"
+
       - name: Restore previously published site
         run: |
           set -euo pipefail
