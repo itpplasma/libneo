@@ -85,10 +85,10 @@ def _build_branch_html(branch: str, commit: str, run_id: str, repo: str,
 """
 
 
-def _build_overview(metadata: dict[str, dict[str, str]], timestamp: str) -> str:
+def _build_test_overview(metadata: dict[str, dict[str, str]], timestamp: str) -> str:
     rows = []
     for branch, info in sorted(metadata.items()):
-        link = f"test/{info['path'].rstrip('/')}/"
+        link = f"{info['path'].rstrip('/')}/"
         updated = info.get("updated", "-")
         commit = info.get("commit", "-")[:12]
         run_id = info.get("run_id", "-")
@@ -118,7 +118,7 @@ def _build_overview(metadata: dict[str, dict[str, str]], timestamp: str) -> str:
 <html lang='en'>
 <head>
   <meta charset='utf-8'>
-  <title>libneo Test Dashboards</title>
+  <title>libneo Branch Dashboards</title>
   <style>
     body {{ font-family: Arial, sans-serif; margin: 2rem; }}
     table {{ border-collapse: collapse; width: 100%; margin-top: 1rem; }}
@@ -128,9 +128,8 @@ def _build_overview(metadata: dict[str, dict[str, str]], timestamp: str) -> str:
   </style>
 </head>
 <body>
-  <h1>libneo Test Dashboards</h1>
-  <p>Latest update: {html.escape(timestamp)}</p>
-  <p>Per-branch dashboards reside under <code>/test/&lt;branch&gt;/</code>.</p>
+  <h1>Branch Dashboards</h1>
+  <p>Generated: {html.escape(timestamp)}</p>
   <table>
     <thead>
       <tr><th>Branch</th><th>Updated (UTC)</th><th>Commit</th><th>Workflow</th><th>Status</th></tr>
@@ -144,29 +143,22 @@ def _build_overview(metadata: dict[str, dict[str, str]], timestamp: str) -> str:
 """
 
 
-def _build_test_overview(metadata: dict[str, dict[str, str]], timestamp: str) -> str:
-    links = []
-    for branch, info in sorted(metadata.items()):
-        link = f"{info['path'].rstrip('/')}/"
-        links.append(f"<li><a href='{html.escape(link)}'>{html.escape(branch)}</a></li>")
-    if not links:
-        links.append("<li>No branch dashboards published yet.</li>")
-    items = "\n".join(links)
+def _build_root_stub(timestamp: str) -> str:
     return f"""<!DOCTYPE html>
 <html lang='en'>
 <head>
   <meta charset='utf-8'>
-  <title>libneo Branch Dashboards</title>
+  <title>libneo GitHub Pages</title>
+  <meta http-equiv='refresh' content='0; url=./test/' />
   <style>
     body {{ font-family: Arial, sans-serif; margin: 2rem; }}
   </style>
 </head>
 <body>
-  <h1>Branch Dashboards</h1>
+  <h1>libneo GitHub Pages</h1>
+  <p>This site hosts automatically generated test dashboards.</p>
+  <p>You will be redirected to <a href='./test/'>/test/</a> momentarily.</p>
   <p>Generated: {html.escape(timestamp)}</p>
-  <ul>
-{items}
-  </ul>
 </body>
 </html>
 """
@@ -232,11 +224,16 @@ def main() -> None:
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
 
-    overview_html = _build_overview(metadata, timestamp)
-    output_dir.joinpath("index.html").write_text(overview_html, encoding="utf-8")
-
     test_overview_html = _build_test_overview(metadata, timestamp)
     test_root.joinpath("index.html").write_text(test_overview_html, encoding="utf-8")
+
+    root_index = output_dir / "index.html"
+    if root_index.exists():
+        existing = root_index.read_text(encoding="utf-8")
+        if "libneo Test Dashboards" in existing:
+            root_index.unlink()
+    if not root_index.exists():
+        root_index.write_text(_build_root_stub(timestamp), encoding="utf-8")
 
 
 if __name__ == "__main__":
