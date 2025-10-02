@@ -39,6 +39,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
+import numpy as np
+
 from numpy import (
     abs,
     allclose,
@@ -82,6 +84,7 @@ from numpy.linalg import norm
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+from matplotlib.path import Path as MplPath
 from scipy.interpolate import RectBivariateSpline
 
 SCRIPT_PATH = Path(__file__).resolve()
@@ -137,6 +140,14 @@ def _set_convex_wall_filename(path: Path) -> None:
     buffer.value = str(path).encode()
 
 
+def _find_convex_wall(coil_files: Sequence[Path]) -> Path | None:
+    for coil_file in coil_files:
+        candidate = coil_file.parent / "convexwall.dat"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 FOURIER_REFERENCE_CURRENT = 0.1  # coil_tools Fourier tables assume 0.1 A per coil
 DEFAULT_FFT_SAMPLES = 256
 
@@ -159,6 +170,33 @@ class ModeData:
     BnR: ndarray  # shape (ncoil, nR, nZ)
     Bnphi: ndarray
     BnZ: ndarray
+
+
+def _create_convex_mask(grid: Grid, convex_path: Path) -> ndarray:
+    data = np.loadtxt(convex_path, dtype=float)
+    if data.ndim != 2 or data.shape[1] < 2:
+        raise ValueError(f"convex wall file {convex_path} must contain R Z columns")
+    vertices = data[:, :2]
+    if not np.allclose(vertices[0], vertices[-1]):
+        vertices = np.vstack([vertices, vertices[0]])
+    path = MplPath(vertices)
+    R_mesh, Z_mesh = meshgrid(grid.R, grid.Z, indexing="ij")
+    points = np.column_stack((R_mesh.ravel(), Z_mesh.ravel()))
+    mask = path.contains_points(points, radius=-1e-9).reshape(R_mesh.shape)
+    return mask
+
+
+def _apply_mask(array: ndarray | None, mask: ndarray | None) -> ndarray | None:
+    if array is None or mask is None:
+        return array
+    result = np.array(array, copy=True)
+    if result.ndim == 2:
+        result = np.where(mask, result, np.nan)
+    elif result.ndim == 3:
+        result = np.where(mask[np.newaxis, :, :], result, np.nan)
+    else:
+        raise ValueError("Unsupported array dimension for clipping")
+    return result
 
 
 def _parse_args() -> argparse.Namespace:
@@ -194,6 +232,8 @@ def _parse_args() -> argparse.Namespace:
                         help="Filename for optional axis validation plot")
     parser.add_argument("--dpi", type=int, default=150, help="Figure DPI for saved plots")
     parser.add_argument("--show", action="store_true", help="Display figures interactively")
+    parser.add_argument("--clip-convex-wall", action="store_true",
+                        help="Mask magnitudes outside the convex wall polygon if available")
 
     axis_group = parser.add_argument_group("Axis validation")
     axis_group.add_argument("--axis-origin", type=float, nargs=3,
@@ -630,6 +670,22 @@ def _axis_validation(
         print(f"  Vector vs analytic gauge (max rel): {amax(rel_err_vs_analytic) * 100.0:.4f}%")
 
 
+def _log10_magnitude(array: ndarray) -> ndarray:
+    arr = np.array(array, dtype=float, copy=True)
+    invalid = ~isfinite(arr)
+    arr[~invalid] = np.log10(np.maximum(arr[~invalid], 1e-300))
+    arr[invalid] = np.nan
+    return arr
+
+
+def _finite_extents(arrays: Sequence[ndarray]) -> Tuple[float, float]:
+    mins = [np.nanmin(a) for a in arrays if np.isfinite(a).any()]
+    maxs = [np.nanmax(a) for a in arrays if np.isfinite(a).any()]
+    if not mins or not maxs:
+        return 0.0, 1.0
+    return float(min(mins)), float(max(maxs))
+
+
 def _create_per_coil_plot(
     args: argparse.Namespace,
     mode_fourier: ModeData,
@@ -645,11 +701,12 @@ def _create_per_coil_plot(
     titles = ("reference", "Anvac", "Bnvac")
 
     log_bn2 = empty((3, ncoil, grid.nR, grid.nZ), dtype=float)
-    log_bn2[0] = log10(maximum(_magnitude_squared(mode_fourier.BnR, mode_fourier.Bnphi, mode_fourier.BnZ), 1e-300))
-    log_bn2[1] = log10(maximum(_magnitude_squared(mode_vector.BnR, mode_vector.Bnphi, mode_vector.BnZ), 1e-300))
-    log_bn2[2] = log10(maximum(_magnitude_squared(BnR_spline_all, Bnphi_spline_all, BnZ_spline_all), 1e-300))
+    log_bn2[0] = _log10_magnitude(_magnitude_squared(mode_fourier.BnR, mode_fourier.Bnphi, mode_fourier.BnZ))
+    log_bn2[1] = _log10_magnitude(_magnitude_squared(mode_vector.BnR, mode_vector.Bnphi, mode_vector.BnZ))
+    log_bn2[2] = _log10_magnitude(_magnitude_squared(BnR_spline_all, Bnphi_spline_all, BnZ_spline_all))
 
-    norm = Normalize(vmin=amin(log_bn2), vmax=amax(log_bn2))
+    vmin, vmax = _finite_extents(log_bn2.reshape(-1, grid.nR, grid.nZ))
+    norm = Normalize(vmin=vmin, vmax=vmax)
     fig, axs = plt.subplots(ncoil, 3, figsize=(9, 3 * ncoil), layout="constrained")
 
     for kcoil in range(ncoil):
@@ -719,25 +776,24 @@ def _create_deriv_diff_plot(
     fig, axs = plt.subplots(len(rows), len(titles), figsize=(12, 9), layout="constrained")
     extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
 
-    all_values = []
+    log_panels = []
     for comp in rows:
         data = components[comp]
-        all_values.extend(
+        log_panels.extend(
             [
-                log10(maximum(abs(data["analytic"]), 1e-300)),
-                log10(maximum(abs(data["spline"]), 1e-300)),
-                log10(maximum(abs(data["delta"]), 1e-300)),
+                _log10_magnitude(abs(data["analytic"])),
+                _log10_magnitude(abs(data["spline"])),
+                _log10_magnitude(abs(data["delta"])),
             ]
         )
-    vmin = min(arr.min() for arr in all_values)
-    vmax = max(arr.max() for arr in all_values)
+    vmin, vmax = _finite_extents(log_panels)
 
     for i, comp in enumerate(rows):
         data = components[comp]
         arrays = (
-            log10(maximum(abs(data["analytic"]), 1e-300)),
-            log10(maximum(abs(data["spline"]), 1e-300)),
-            log10(maximum(abs(data["delta"]), 1e-300)),
+            _log10_magnitude(abs(data["analytic"])),
+            _log10_magnitude(abs(data["spline"])),
+            _log10_magnitude(abs(data["delta"])),
         )
         for j, arr in enumerate(arrays):
             ax = axs[i, j]
@@ -925,22 +981,18 @@ def _create_sum_plot(
     bottom_titles = ("field_divB0 sum", "Rect k=5 sum", "Rect k=3 sum", "Rect k=1 sum")
     bottom_panels = [magnitude_field_divb0, magnitude_rect5, magnitude_rect3, magnitude_rect1]
 
-    accum = [log10(maximum(panel, 1e-300)) for panel in top_panels]
-    if magnitude_field_divb0 is not None:
-        accum.append(log10(maximum(magnitude_field_divb0, 1e-300)))
-    if magnitude_rect5 is not None:
-        accum.append(log10(maximum(magnitude_rect5, 1e-300)))
-    if magnitude_rect3 is not None:
-        accum.append(log10(maximum(magnitude_rect3, 1e-300)))
-    if magnitude_rect1 is not None:
-        accum.append(log10(maximum(magnitude_rect1, 1e-300)))
+    log_top = [_log10_magnitude(panel) for panel in top_panels]
+    log_bottom = [_log10_magnitude(panel) if panel is not None else None for panel in bottom_panels]
+    accum: List[ndarray] = list(log_top)
+    accum.extend(arr for arr in log_bottom if arr is not None)
     if components is not None:
         for dataset in components.values():
             for value in dataset.values():
                 if value is not None:
-                    accum.append(log10(maximum(value, 1e-300)))
+                    accum.append(_log10_magnitude(value))
 
-    norm = Normalize(vmin=min(a.min() for a in accum), vmax=max(a.max() for a in accum))
+    vmin, vmax = _finite_extents(accum)
+    norm = Normalize(vmin=vmin, vmax=vmax)
 
     n_component_rows = 0 if components is None else len(components)
     nrows = 2 + n_component_rows
@@ -951,7 +1003,7 @@ def _create_sum_plot(
     for idx, label in enumerate(top_titles):
         ax = axs[0, idx]
         im = ax.imshow(
-            log10(maximum(top_panels[idx], 1e-300)).T,
+            log_top[idx].T,
             origin="lower",
             cmap="magma",
             extent=extent,
@@ -968,11 +1020,11 @@ def _create_sum_plot(
         plotted_axes.append(ax)
 
     # Plot bottom panels
-    for bottom_idx, (panel, title) in enumerate(zip(bottom_panels, bottom_titles)):
+    for bottom_idx, (panel, title) in enumerate(zip(log_bottom, bottom_titles)):
         if panel is not None and title:
             ax = axs[1, bottom_idx]
             im_bottom = ax.imshow(
-                log10(maximum(panel, 1e-300)).T,
+                panel.T,
                 origin="lower",
                 cmap="magma",
                 extent=extent,
@@ -1006,9 +1058,9 @@ def _create_sum_plot(
                 if col >= len(panels) or panels[col] is None:
                     ax.axis("off")
                     continue
-                panel = panels[col]
+                panel = _log10_magnitude(panels[col])
                 im = ax.imshow(
-                    log10(maximum(panel, 1e-300)).T,
+                    panel.T,
                     origin="lower",
                     cmap="magma",
                     extent=extent,
@@ -1124,6 +1176,8 @@ def main() -> None:
             f"Mismatch between currents ({currents.size}) and Fourier data ({mode_fourier.BnR.shape[0]})"
         )
 
+    convex_wall_path: Path | None = _find_convex_wall(args.coil_files)
+
     BnR_spline_all = mode_vector.BnR
     Bnphi_spline_all = mode_vector.Bnphi
     BnZ_spline_all = mode_vector.BnZ
@@ -1213,15 +1267,8 @@ def main() -> None:
         bp_ext[:, n_phi, :] = bp_ordered[:, 0, :]
         bz_ext[:, n_phi, :] = bz_ordered[:, 0, :]
 
-        convex_candidate: Path | None = None
-        for coil_file in args.coil_files:
-            candidate = coil_file.parent / "convexwall.dat"
-            if candidate.exists():
-                convex_candidate = candidate
-                break
-
-        if convex_candidate is not None:
-            _set_convex_wall_filename(convex_candidate)
+        if convex_wall_path is not None:
+            _set_convex_wall_filename(convex_wall_path)
         else:
             raise FileNotFoundError(
                 "convexwall.dat not found alongside coil geometry; required for field_divB0"
@@ -1297,6 +1344,22 @@ def main() -> None:
     BnZ_rect1_sum = _tensordot_currents(weights, BnZ_rect1_all)
     magnitude_rect1 = _magnitude_squared(BnR_rect1_sum, Bnphi_rect1_sum, BnZ_rect1_sum)
 
+    clip_mask = None
+    if args.clip_convex_wall:
+        if convex_wall_path is None:
+            raise FileNotFoundError("--clip-convex-wall requested but convexwall.dat not found")
+        clip_mask = _create_convex_mask(mode_fourier.grid, convex_wall_path)
+        magnitude_fourier = _apply_mask(magnitude_fourier, clip_mask)
+        magnitude_vector = _apply_mask(magnitude_vector, clip_mask)
+        magnitude_spline = _apply_mask(magnitude_spline, clip_mask)
+        magnitude_rect5 = _apply_mask(magnitude_rect5, clip_mask)
+        magnitude_rect3 = _apply_mask(magnitude_rect3, clip_mask)
+        magnitude_rect1 = _apply_mask(magnitude_rect1, clip_mask)
+        if magnitude_field_divb0 is not None:
+            magnitude_field_divb0 = _apply_mask(magnitude_field_divb0, clip_mask)
+        if direct_magnitude is not None:
+            direct_magnitude = _apply_mask(direct_magnitude, clip_mask)
+
     if args.per_coil_output is not None:
         _create_per_coil_plot(args, mode_fourier, mode_vector,
                               BnR_spline_all, Bnphi_spline_all, BnZ_spline_all,
@@ -1318,6 +1381,12 @@ def main() -> None:
             'B_phi': _build_component_dict(Bnphi_fourier_sum, Bnphi_vector_sum, Bnphi_spline_sum, Bnphi_direct),
             'B_Z': _build_component_dict(BnZ_fourier_sum, BnZ_vector_sum, BnZ_spline_sum, BnZ_direct),
         }
+
+        if clip_mask is not None:
+            for dataset in components.values():
+                for key, value in dataset.items():
+                    if value is not None:
+                        dataset[key] = _apply_mask(value, clip_mask)
 
         _create_sum_plot(
             args,
