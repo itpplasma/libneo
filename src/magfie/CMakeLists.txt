@@ -17,9 +17,7 @@ add_library(magfie STATIC
     magfield_mod.f90
     polylag_3.f90
     magfie_cyl.f90
-    ../coordinates/geoflux_coordinates.f90
     geoflux_field.f90
-    geqdsk_tools.f90
     coil_tools.f90
     ../fftw3.F90
 )

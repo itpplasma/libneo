@@ -21,6 +21,7 @@ add_library(neo STATIC
     src/new_vmec_allocation_stuff.f90
     src/coordinates/cylindrical_cartesian.f90
     src/coordinates/vmec_coordinates.f90
+    src/coordinates/geoflux_coordinates.f90
     src/coordinates/libneo_coordinates.f90
     src/coordinates/libneo_coordinates_vmec.f90
     src/coordinates/libneo_coordinates_geoflux.f90
@@ -29,6 +30,7 @@ add_library(neo STATIC
     src/vmec/vmec_field_tools.f90
     src/plag_coeff.f90
     src/binsrc.f90
+    src/magfie/geqdsk_tools.f90
     src/boozer_converter.f90
     src/magfie/magfie_vmec.f90
     src/util/simpson_integration.f90
