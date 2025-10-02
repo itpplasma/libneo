@@ -81,6 +81,21 @@ jobs:
           path: png-artifacts
           if-no-files-found: ignore
 
+      - name: Restore previously published site
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          set -euo pipefail
+          rm -rf dashboard
+          mkdir -p dashboard
+          if curl --silent --head --fail https://itpplasma.github.io/libneo/index.html >/dev/null 2>&1; then
+            rm -rf dashboard_existing
+            mkdir -p dashboard_existing
+            wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=1 \
+              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/
+            rsync -a dashboard_existing/ dashboard/ || true
+            rm -rf dashboard_existing
+          fi
+
       - name: Generate dashboard
         run: |
           set -euo pipefail
