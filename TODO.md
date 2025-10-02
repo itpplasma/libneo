@@ -189,6 +189,121 @@ end subroutine
    - Evaluation is polynomial+log (~20 arithmetic ops, very fast)
    - Comparable to spline interpolation speed
 
+### Implementation Guidance
+
+**Q1: TDD adherence** - Should we write tests before each implementation section?
+
+**Answer**: YES, use pragmatic TDD adapted for scientific computing.
+
+**Recommended approach**:
+- §1-§2: Write unit tests BEFORE implementing each basis/particular function
+  - Test basis functions against hand-calculated values at 2-3 points
+  - Test derivatives with finite differences (tolerance ~10⁻⁸)
+- §3: Write integration test with ASCOT5 ITER case BEFORE implementing solver
+- §5: System tests for physical properties (∇·B=0, flux surfaces)
+
+**Flexibility**: You CAN implement multiple related functions together (e.g., all 7 basis functions), THEN test comprehensively. Scientific computing often needs the full picture.
+
+**TDD rhythm**: Test → Implement → Verify → Next function
+
+---
+
+**Q2: LAPACK availability** - Is LAPACK ready to use?
+
+**Answer**: YES, LAPACK is ALREADY AVAILABLE in the build system.
+
+**Evidence**:
+```bash
+# CMakeLists.txt has: find_package(LAPACK REQUIRED)
+# CMakeSources.in links: LAPACK::LAPACK
+# src/solve_systems.f90 already uses dgesv
+```
+
+**Usage in §3**:
+```fortran
+subroutine solve_coefficients(epsilon, A_param, coeffs)
+    real(dp) :: mat(7,7), rhs(7)
+    integer :: ipiv(7), info
+
+    ! Set up boundary matrix...
+
+    call dgesv(7, 1, mat, 7, ipiv, rhs, 7, info)
+    if (info /= 0) error stop "LAPACK solve failed"
+
+    coeffs = rhs
+end subroutine
+```
+
+**Action**: Just use it directly. No build system changes needed.
+
+---
+
+**Q3: Module organization** - Use src/magfie/ or src/field/?
+
+**Answer**: STAY IN `src/magfie/` as specified.
+
+**Reasoning**:
+```
+src/field/      - Stellarator-specific, 3D coil fields (not for tokamaks)
+src/magfie/     - Magnetic field implementations (VMEC, GEQDSK, analytical)
+src/coordinates/- Coordinate transformations
+```
+
+**Your files fit with existing magfie modules**:
+```
+src/magfie/
+├── geoflux_field.f90          ← Similar: field from GEQDSK
+├── geqdsk_tools.f90           ← Similar: equilibrium utilities
+├── magfie_vmec.f90            ← Similar: VMEC field evaluation
+├── analytical_gs_circular.f90 ← YOUR NEW FILE (same pattern)
+└── analytical_tokamak_field.f90 ← YOUR NEW FILE (same pattern)
+```
+
+**Decision**: Keep in `src/magfie/`.
+
+---
+
+**Q4: Starting point** - Ready to start with §0 and §1?
+
+**Answer**: YES, READY TO START NOW.
+
+**§0 Baseline** - ✅ COMPLETE (TODO.md committed)
+
+**§1 Next steps**:
+```bash
+# Create files
+touch test/source/test_analytical_gs_circular.f90
+touch src/magfie/analytical_gs_circular.f90
+
+# Write tests first (TDD)
+# 1. Test ψ₀, ψ₁, ψ₂ at known points
+# 2. Implement ψ₀, ψ₁, ψ₂
+# 3. Add to CMakeLists
+# 4. Build and verify
+# 5. Continue with ψ₃-ψ₆
+```
+
+**Execution order**:
+1. ✅ §0: Commit TODO.md (DONE)
+2. §1: Basis functions (TDD: test first, then implement)
+3. §2: Particular solutions (TDD: test first, then implement)
+4. §3: Boundary solver (integration test with ASCOT5 coefficients)
+5. §4: Field evaluation interface
+6. §5: System tests (∇·B=0, circular flux surfaces)
+7. §6: CMake integration
+8. §7: Documentation
+9. §8: Final validation
+
+**Ready checklist**:
+- [x] LAPACK available? YES
+- [x] Clean git status? YES (TODO.md committed)
+- [x] File locations? YES - src/magfie/
+- [x] TDD approach? YES - tests before implementation
+- [x] Reference equations? YES - in TODO.md
+- [x] Validation target? YES - ASCOT5 ITER coefficients
+
+**START NOW** with §1 basis functions! 🚀
+
 ---
 
 ## ✅ COMPLETED: coordinate_system_t for VMEC & Geoflux
