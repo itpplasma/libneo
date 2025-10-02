@@ -113,11 +113,11 @@ subroutine is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
     real(dp) :: fluxfunction_trial, fluxfunction
     real(dp) :: x(3,n), R
     integer :: idx
-    integer, parameter :: seed_base = 42
+    integer, parameter :: seed_value = 42
 
-    x(1,:) = get_random_numbers(Rmin, Rmax, n, seed_base)
-    x(2,:) = get_random_numbers(phimin, phimax, n, seed_base + 1)
-    x(3,:) = get_random_numbers(Zmin, Zmax, n, seed_base + 2)
+    x(1,:) = get_random_numbers(Rmin, Rmax, n, seed_value)
+    x(2,:) = get_random_numbers(phimin, phimax, n, seed_value)
+    x(3,:) = get_random_numbers(Zmin, Zmax, n, seed_value)
 
     do idx = 1, n
         call field%compute_abfield(x(:,idx), A, B)
@@ -152,11 +152,11 @@ subroutine is_curla_plus_fluxfunction_equal_b(field, &
     real(dp) :: A(3), B(3), curla(3), fluxfunction, B_from_a_and_fluxfunction(3)
     real(dp) :: x(3,n), R
     integer :: idx
-    integer, parameter :: seed_base = 42
+    integer, parameter :: seed_value = 42
 
-    x(1,:) = get_random_numbers(Rmin, Rmax, n, seed_base)
-    x(2,:) = get_random_numbers(Zmin, Zmax, n, seed_base + 1)
-    x(3,:) = get_random_numbers(phimin, phimax, n, seed_base + 2)
+    x(1,:) = get_random_numbers(Rmin, Rmax, n, seed_value)
+    x(2,:) = get_random_numbers(Zmin, Zmax, n, seed_value)
+    x(3,:) = get_random_numbers(phimin, phimax, n, seed_value)
 
     do idx = 1, n
         call field%compute_abfield(x(:,idx), A, B)
