@@ -216,7 +216,7 @@ PY
                   keep=0
                 fi
               fi
-            end if
+            fi
 
             if [ "$keep" -eq 0 ]; then
               echo "Pruning branch $branch from dashboard"
