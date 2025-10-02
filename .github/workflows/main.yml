@@ -51,12 +51,15 @@ jobs:
         run: |
           pytest -q
 
-      - name: Upload test PNG artifacts
+      - name: Upload test image artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-pngs
-          path: build/test/**/*.png
+          name: test-images
+          path: |
+            build/test/**/*.png
+            build/test/**/*.jpg
+            build/test/**/*.jpeg
           if-no-files-found: warn
 
   dashboard:
@@ -92,20 +95,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gfortran
 
+      - name: Install dashboard dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget rsync curl jq ca-certificates gnupg
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gh
+
       - name: Build testboard
         run: |
           set -euo pipefail
           cd testboard
           fpm build
 
-      - name: Download PNG artifacts
+      - name: Download image artifacts
         uses: actions/download-artifact@v4
         with:
-          name: test-pngs
-          path: png-artifacts
+          name: test-images
+          path: image-artifacts
 
       - name: Restore previously published site
-        if: ${{ github.event_name == 'push' }}
         run: |
           set -euo pipefail
           rm -rf dashboard dashboard_existing
@@ -137,7 +152,7 @@ jobs:
           set -euo pipefail
           cd testboard
           fpm run testboard -- \
-            --png-root ../png-artifacts \
+            --image-root ../image-artifacts \
             --output ../dashboard \
             --branch "${GITHUB_REF_NAME}" \
             --commit "${GITHUB_SHA}" \
@@ -145,6 +160,47 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --project-name "libneo" \
             --github-pages-url "${PAGES_BASE_URL}"
+
+      - name: Prune closed branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH_JSON="dashboard/test/branches.json"
+          if [ ! -f "$BRANCH_JSON" ]; then
+            echo "No branches metadata found; skipping pruning"
+            exit 0
+          fi
+
+          tmp_json=$(mktemp)
+          cp "$BRANCH_JSON" "$tmp_json"
+
+          for branch in $(jq -r 'keys[]' "$tmp_json"); do
+            pr_number=$(jq -r --arg b "$branch" '.[$b].pr_info.number // empty' "$tmp_json")
+            keep=1
+
+            if [ -n "$pr_number" ] && [ "$pr_number" != "null" ]; then
+              pr_state=$(gh pr view "$pr_number" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+              if [ "$pr_state" = "CLOSED" ] || [ "$pr_state" = "MERGED" ]; then
+                keep=0
+              fi
+            else
+              if ! git ls-remote --heads origin "$branch" >/dev/null 2>&1; then
+                if [ "$branch" != "main" ]; then
+                  keep=0
+                fi
+              fi
+            end if
+
+            if [ "$keep" -eq 0 ]; then
+              echo "Pruning branch $branch from dashboard"
+              jq --arg branch "$branch" 'del(.[$branch])' "$BRANCH_JSON" > "$BRANCH_JSON.tmp"
+              mv "$BRANCH_JSON.tmp" "$BRANCH_JSON"
+              rm -rf "dashboard/test/$branch"
+            fi
+          done
+
+          rm -f "$tmp_json"
 
       - name: Configure Pages
         if: ${{ github.event_name == 'push' }}
