@@ -81,12 +81,12 @@ jobs:
           set -euo pipefail
           rm -rf dashboard
           mkdir -p dashboard
-          if curl --silent --head --fail https://itpplasma.github.io/libneo/index.html >/dev/null 2>&1; then
+          if curl --silent --head --fail https://itpplasma.github.io/libneo/test/index.html >/dev/null 2>&1; then
             echo "Existing site found, restoring..."
             rm -rf dashboard_existing
             mkdir -p dashboard_existing
-            if wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=1 \
-              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/ 2>&1; then
+            if wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=2 \
+              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/test/ 2>&1; then
               if [ -n "$(ls -A dashboard_existing)" ]; then
                 echo "Restoring $(find dashboard_existing -type f | wc -l) files"
                 rsync -a dashboard_existing/ dashboard/
