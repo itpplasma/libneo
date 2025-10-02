@@ -4,6 +4,75 @@ _Last updated: 2025-10-02_
 
 ---
 
+## 🚧 ACTIVE: Classic Solov'ev Solution - Verification & Comparison
+
+**Goal**: Implement classic Solov'ev analytical solution for circular tokamaks as verification benchmark
+
+**Status**: Planning - will serve as independent verification of Cerfon-Freidberg circular limit
+
+### Motivation
+The Cerfon-Freidberg 7-basis-function solution should reduce to the classic Solov'ev solution for circular case (κ=1, δ=0). The classic Solov'ev has a **closed-form analytical formula** for the Shafranov shift that we can use to verify our implementation.
+
+### References
+1. **MATLAB source**: `/Users/ert/Dropbox/proj/stud/Bacc_Verena_Eslbauer/Solov_ev.m`
+2. Classic Solov'ev flux function:
+   ```
+   ψ(R,Z) = (b·R₀² + c₀·R²)·Z²/2 + (a - c₀)·(R² - R₀²)²/8
+   ```
+   where a, b, c₀ are Solov'ev parameters
+
+### Implementation Plan
+
+**§1. Implement Classic Solov'ev Module**
+- [ ] Create `src/magfie/solovev_equilibrium.f90`
+- [ ] Implement flux function ψ(R,Z) with parameters a, b, c₀
+- [ ] Implement derivatives ∂ψ/∂R, ∂ψ/∂Z
+- [ ] Implement magnetic field B_R, B_Z, B_φ
+- [ ] Add analytical Shafranov shift formula (derive from ∂ψ/∂R = 0)
+- [ ] Simple interface: `init(R0, a, b, c0, B0)`
+
+**§2. Derive Analytical Shafranov Shift Formula**
+- [ ] For classic Solov'ev, magnetic axis is where ∂ψ/∂R = 0 at Z=0
+- [ ] Solve analytically: derivative of ψ(R,0) = 0
+- [ ] Result: Δ = f(a, b, c₀, R₀) - derive exact formula
+- [ ] This will be our **ground truth** for circular case verification
+
+**§3. Update Test Suite**
+- [ ] Add `test_solovev_vs_cerfon()` to `test_analytical_circular.f90`
+- [ ] Compare Shafranov shifts: classic Solov'ev vs Cerfon-Freidberg circular
+- [ ] Map Cerfon-Freidberg parameter A to classic Solov'ev (a,b,c₀)
+- [ ] Verify flux surfaces match between both solutions
+- [ ] Test tolerance: shift should agree to < 1% for circular case
+
+**§4. Enhanced Visualization**
+- [ ] Update `generate_flux_surface_plot()` to include both solutions
+- [ ] Plot Cerfon-Freidberg flux surfaces (solid lines)
+- [ ] Overlay classic Solov'ev flux surfaces (dashed lines)
+- [ ] For circular case only - shaped case uses Cerfon-Freidberg only
+- [ ] Output: `build/test/flux_circular_comparison.png`
+- [ ] Should show perfect overlap if implementation is correct
+
+**§5. Documentation**
+- [ ] Document parameter mapping: A ↔ (a,b,c₀)
+- [ ] Document exact Shafranov shift formula for classic Solov'ev
+- [ ] Add usage example comparing both solutions
+- [ ] Update README with verification methodology
+
+### Success Criteria
+- Classic Solov'ev Shafranov shift matches Cerfon-Freidberg circular to < 1%
+- Flux surface overlay plot shows perfect agreement (dashed on solid)
+- Provides independent analytical verification of Cerfon-Freidberg implementation
+- Exact analytical formula available for future reference
+
+### Parameter Mapping (To Be Determined)
+Need to establish relationship between:
+- Cerfon-Freidberg: parameter A, ε, κ=1, δ=0
+- Classic Solov'ev: parameters a, b, c₀
+
+Both are Solov'ev profiles with source term (1-A)x² + A, so mapping should exist.
+
+---
+
 ## ✅ COMPLETED: Analytical Tokamak Field (Cerfon-Freidberg) - FULL CASE
 
 **Goal**: Implement complete Cerfon-Freidberg "One size fits all" analytical equilibrium solver with elongation and triangularity
