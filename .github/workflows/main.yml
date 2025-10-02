@@ -58,7 +58,7 @@ jobs:
   dashboard:
     name: Build test dashboard
     needs: GNU
-    if: always()
+    if: ${{ needs.GNU.result == 'success' }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
