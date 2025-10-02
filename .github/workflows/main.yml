@@ -59,7 +59,7 @@ jobs:
   dashboard:
     name: Build magfie dashboard
     needs: GNU
-    if: always()
+    if: ${{ always() }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -174,7 +174,7 @@ PY
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name == 'push'
+    if: ${{ github.event_name == 'push' }}
     needs: dashboard
     runs-on: ubuntu-22.04
     permissions:
