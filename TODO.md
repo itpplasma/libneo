@@ -4,171 +4,322 @@ _Last updated: 2025-10-02_
 
 ---
 
-## 🚧 ACTIVE: Analytical Circular Tokamak Field (Solov'ev-type)
+## 🚧 ACTIVE: Analytical Tokamak Field (Cerfon-Freidberg) - FULL CASE
 
-**Goal**: Clean-room implementation of circular tokamak equilibrium for testing canonical coordinates
+**Goal**: Implement complete Cerfon-Freidberg "One size fits all" analytical equilibrium solver with elongation and triangularity
 
-**Status**: Planning phase
+**Status**: Implementation phase - porting FULL general solver from Verena Eslbauer's MATLAB implementation
+
+### References
+1. **Primary**: Cerfon & Freidberg, "One size fits all" analytic solutions to the Grad-Shafranov equation,
+   Physics of Plasmas 17, 032502 (2010), DOI: 10.1063/1.3328818
+2. **Implementation source**: Verena Eslbauer, "Two analytical solutions to the Grad-Shafranov equation
+   using Solov'ev pressure and poloidal current profiles", Bachelor thesis, TU Graz, November 20, 2017
+3. **MATLAB code**: `/Users/ert/Dropbox/proj/stud/Bacc_Verena_Eslbauer/One_size_fits_all.m`
 
 ### Background
-Implement simplified Cerfon-Freidberg analytical Grad-Shafranov solution for circular tokamak (κ=1, δ=0).
-This generalizes the classical Solov'ev (1968) equilibrium to finite aspect ratio.
-
-**Reference**: Cerfon & Freidberg, Physics of Plasmas 17, 032502 (2010) - equations implemented from published paper (no GPL code)
-
-**Use case**: Simple, exact test field for Meiss canonical coordinates in SIMPLE before using real GEQDSK data
+Fortran port of Eslbauer's COMPLETE MATLAB implementation supporting arbitrary shapes.
+Uses 7 basis functions to solve linearized Grad-Shafranov equation with Solov'ev profiles.
+**Supports arbitrary ε (aspect ratio), κ (elongation), and δ (triangularity)**.
 
 ### Implementation Plan
 
-#### Files to Create
-1. `src/magfie/analytical_gs_circular.f90` - Core GS solver
-   - 7 basis functions (symmetric case)
-   - Boundary condition setup
-   - Coefficient solver (7×7 LAPACK)
+### Mathematical Formulation (from Eslbauer thesis, Section 3.2)
 
-2. `src/magfie/analytical_tokamak_field.f90` - Field evaluation interface
-   - Initialize equilibrium (R₀, ε, A, B₀)
-   - Evaluate ψ(R,Z) and derivatives
-   - Compute B-field components (B_R, B_Z, B_φ)
+**Normalized coordinates**: x = R/R₀, y = Z/R₀
 
-3. `test/source/test_analytical_circular.f90` - Validation tests
-   - Verify ∇·B = 0
-   - Check separatrix location
-   - Compare with ASCOT5 ITER coefficients
-   - Flux surface shape validation
+**Linearized Grad-Shafranov equation**:
+```
+Δ*ψ = x·∂/∂x(1/x·∂ψ/∂x) + ∂²ψ/∂y² = (1-A)x² + A
+```
+
+**Solution decomposition**:
+```
+ψ(x,y) = ψ_p(x,y) + Σᵢ₌₁⁷ cᵢ·ψᵢ(x,y)
+```
+
+**Basis functions** (Cerfon-Freidberg Eq. 8, up-down symmetric):
+```
+ψ₁ = 1
+ψ₂ = x²
+ψ₃ = y² - x²ln(x)
+ψ₄ = x⁴ - 4x²y²
+ψ₅ = 2y⁴ - 9x²y² + [3x⁴ - 12x²y²]ln(x)
+ψ₆ = x⁶ - 12x⁴y² + 8x²y⁴
+ψ₇ = 8y⁶ - 140x²y⁴ + 75x⁴y² + [180x⁴y² - 120x²y⁴ - 15x⁶]ln(x)
+```
+
+**Particular solution** (Cerfon-Freidberg Eq. 9):
+```
+ψ_p = x⁴/8 + A(x²ln(x)/2 - x⁴/8)
+```
+
+**Parametric plasma boundary** (Eslbauer Eq. 3.14):
+```
+x(τ) = 1 + ε·cos(τ + δ·sin(τ))
+y(τ) = ε·κ·sin(τ)
+τ ∈ [0, 2π]
+```
+where ε = inverse aspect ratio, κ = elongation, δ = triangularity
+
+**Boundary conditions** (7 equations for GENERAL shaped plasma):
+1. ψ(1+ε, 0) = 0  (outer equatorial, τ=0)
+2. ψ(1-ε, 0) = 0  (inner equatorial, τ=π)
+3. ψ(1-δε, κε) = 0  (high point, τ=π/2)
+4. ∂ψ/∂x(1-δε, κε) = 0  (high point is extremum)
+5. ∂²ψ/∂y²(1+ε, 0) = -N₁·∂ψ/∂x(1+ε, 0)  (outer curvature)
+6. ∂²ψ/∂y²(1-ε, 0) = -N₂·∂ψ/∂x(1-ε, 0)  (inner curvature)
+7. ∂²ψ/∂x²(1-δε, κε) = -N₃·∂ψ/∂y(1-δε, κε)  (high point curvature)
+
+**Curvature coefficients** (Eslbauer page 19, general case):
+```
+α = arcsin(δ)  (triangularity angle)
+N₁ = -(1+α)²/(ε·κ²)
+N₂ = (1-α)²/(ε·κ²)
+N₃ = -κ/(ε·cos²(α))
+```
+
+#### Files to Update/Create
+1. **RENAME**: `analytical_gs_circular.f90` → `analytical_gs_solver.f90`
+   - 7 basis functions ψᵢ(x,y) with first and second derivatives
+   - Particular solution ψ_p(x,y, A)
+   - General boundary solver supporting ε, κ, δ
+   - LAPACK dgesv for 7×7 system
+   - **DELETE ALL HARDCODED COEFFICIENTS**
+
+2. `src/magfie/analytical_tokamak_field.f90` - **UPDATE EXISTING**
+   - Update to support κ, δ parameters (not just circular!)
+   - Change init signature: `init(R0, epsilon, kappa, delta, A_param, B0)`
+   - Update coefficient indexing (1:7 not 0:6)
+   - Add proper Cerfon-Freidberg + Eslbauer attribution
+
+3. `test/source/test_analytical_circular.f90` - **UPDATE EXISTING**
+   - Test ITER shaped case (ε=0.32, κ=1.7, δ=0.33, A=-0.142)
+   - Test circular limit (κ=1, δ=0)
+   - Remove all ASCOT5 references
+   - Verify ∇·B=0 for shaped plasmas
 
 #### Interface Design
 
 ```fortran
 ! Module: analytical_tokamak_field
-type :: analytical_circular_eq_t
-    real(dp) :: R0, epsilon, A_param, B0
-    real(dp) :: coeffs(0:6)
+type :: analytical_tokamak_eq_t  ! Renamed from circular!
+    real(dp) :: R0, epsilon, kappa, delta, A_param, B0
+    real(dp) :: coeffs(7)  ! 1:7 indexing
+    real(dp) :: psimult
     logical :: initialized = .false.
 contains
-    procedure :: init => init_circular_equilibrium
+    procedure :: init => init_tokamak_equilibrium
     procedure :: eval_psi => evaluate_psi
     procedure :: eval_psi_derivatives
     procedure :: eval_bfield => evaluate_bfield
     procedure :: cleanup => destroy_equilibrium
 end type
 
-! Initialization
-subroutine init(self, R0, epsilon, A_param, B0)
-    ! Solve 7×7 system for coefficients
+! Initialization - NOW WITH KAPPA AND DELTA
+subroutine init(self, R0, epsilon, kappa, delta, A_param, B0, psimult_in)
+    ! Solves 7×7 boundary condition system for general shape
+    ! kappa = elongation (κ)
+    ! delta = triangularity (δ)
 end subroutine
 
-! Evaluation
+! Evaluation (unchanged interface)
 function eval_psi(self, R, Z) result(psi)
-    ! Returns poloidal flux ψ(R,Z)
-end function
-
 subroutine eval_bfield(self, R, Z, B_R, B_Z, B_phi, B_mod)
-    ! Returns magnetic field components
-end subroutine
 ```
 
-#### Steps (in order)
+#### Detailed Implementation Steps
 
-**§0. Baseline**
-- [ ] Verify clean git status in libneo
-- [ ] Document plan in this TODO
+**§0. Baseline** ✅
+- [x] Document complete mathematical formulation from Eslbauer thesis
+- [x] Update TODO.md with all equations and references
+- [x] Note: Need to REPLACE hardcoded implementation
 
-**§1. Basis Functions Module**
-- [ ] Create `analytical_gs_circular.f90`
-- [ ] Implement 7 basis functions ψᵢ(x,y) for i=0..6
-  - x = R/R₀, y = Z/R₀ (normalized coordinates)
-  - Implement as pure functions
-- [ ] Implement first derivatives (∂ψᵢ/∂x, ∂ψᵢ/∂y)
-- [ ] Implement second derivatives (∂²ψᵢ/∂x², ∂²ψᵢ/∂y², ∂²ψᵢ/∂x∂y)
-- [ ] Add unit tests for basis function values at key points
+**§1. Rewrite Basis Functions**
+- [ ] **CRITICAL**: Basis functions are indexed 1-7 (not 0-6)
+- [ ] Implement 7 basis functions from Cerfon-Freidberg Eq. 8:
+  ```fortran
+  pure function psi_1(x, y) result(psi)  ! = 1
+  pure function psi_2(x, y) result(psi)  ! = x²
+  pure function psi_3(x, y) result(psi)  ! = y² - x²ln(x)
+  pure function psi_4(x, y) result(psi)  ! = x⁴ - 4x²y²
+  pure function psi_5(x, y) result(psi)  ! = 2y⁴ - 9x²y² + [3x⁴-12x²y²]ln(x)
+  pure function psi_6(x, y) result(psi)  ! = x⁶ - 12x⁴y² + 8x²y⁴
+  pure function psi_7(x, y) result(psi)  ! = 8y⁶ - 140x²y⁴ + 75x⁴y² + [...]ln(x)
+  ```
+- [ ] Implement first derivatives for all 7 functions
+- [ ] Implement second derivatives (∂²/∂x², ∂²/∂y²) needed for boundary conditions
+- [ ] Remove old psi_0 through psi_6 functions
 
-**§2. Particular Solutions**
-- [ ] Implement ψ_part_0(x,y) and ψ_part_1(x,y)
-  - ψ_part_0(x,y) = 1 - x²
-  - ψ_part_1(x,y) = x⁴ - 4x² + log(x) + 8x²log(x) - 12x²log²(x)
-                     + (2 - 12log(x))y² + 12y²log²(x) + y⁴
-  - These are given explicitly in Cerfon-Freidberg Eq. 9
-- [ ] Implement derivatives of particular solutions
-- [ ] Test against analytical formulas
+**§2. Fix Particular Solutions**
+- [ ] Implement correct particular solution (single function):
+  ```fortran
+  ψ_p(x,y) = x⁴/8 + A·(x²ln(x)/2 - x⁴/8)
+  ```
+- [ ] This replaces the current split into psi_part_0 and psi_part_1
+- [ ] Implement derivatives ∂ψ_p/∂x, ∂ψ_p/∂y
+- [ ] Implement second derivatives ∂²ψ_p/∂x², ∂²ψ_p/∂y²
 
-**§3. Boundary Condition Solver**
-- [ ] Implement `setup_boundary_matrix(epsilon, A, mat, rhs)`
-  - 7 boundary conditions for circular case
-  - Boundary points: (1±ε, 0), (1, ε)
-  - Curvature conditions
-- [ ] Implement `solve_coefficients(epsilon, A, coeffs)`
-  - Use LAPACK dgesv for 7×7 system
-  - Return c₀-c₆
-- [ ] Verify against ASCOT5 ITER coefficients (ε=0.323, A=-0.155)
+**§3. Implement GENERAL Boundary Condition Solver**
+- [ ] **DELETE** hardcoded coefficient section (lines 207-218)
+- [ ] Implement 7×7 matrix setup for GENERAL shaped case:
+  ```fortran
+  subroutine solve_coefficients(epsilon, kappa, delta, A_param, coeffs)
+    real(dp), intent(in) :: epsilon, kappa, delta, A_param
+    real(dp), intent(out) :: coeffs(7)
+    real(dp) :: mat(7,7), rhs(7)
+    real(dp) :: x_out, x_in, x_high, y_high
+    real(dp) :: alpha, N1, N2, N3
+    integer :: ipiv(7), info
 
-**§4. Field Evaluation Module**
-- [ ] Create `analytical_tokamak_field.f90`
-- [ ] Implement `analytical_circular_eq_t` type
-- [ ] Implement initialization routine
-- [ ] Implement ψ(R,Z) evaluation
-  - User passes physical coords (R, Z) in meters
-  - Convert internally: x=R/R₀, y=Z/R₀
-  - Evaluate ψ(x,y) using coefficients and particular solutions
-  - Scale: ψ_phys = ψ_norm * psimult (use psimult=200 like ASCOT5)
-- [ ] Implement derivatives ∂ψ/∂R, ∂ψ/∂Z
-- [ ] Implement B-field evaluation:
-  - B_R = -(1/R)∂ψ/∂Z
-  - B_Z = (1/R)∂ψ/∂R
-  - B_φ = F(ψ)/R  where F(ψ) ≈ B₀·R₀ (constant for initial impl.)
-  - B_mod = √(B_R² + B_Z² + B_φ²)
-  - Note: Can refine F(ψ) in §8 if needed
+    ! Boundary points from parametric representation
+    x_out = 1.0_dp + epsilon     ! τ=0
+    x_in = 1.0_dp - epsilon      ! τ=π
+    x_high = 1.0_dp - delta*epsilon  ! τ=π/2
+    y_high = kappa*epsilon
 
-**§5. Integration Tests**
-- [ ] Create `test_analytical_circular.f90`
-- [ ] Test 1: ITER circular equilibrium
-  - Initialize with R₀=6.2, ε=0.323, A=-0.155, B₀=5.3
-  - Verify coefficients match ASCOT5
-  - Verify ψ=0 on separatrix
-- [ ] Test 2: Divergence-free B-field
-  - Sample points in plasma
-  - Compute ∇·B numerically
-  - Verify |∇·B| < 10⁻¹² (exact to machine precision)
-- [ ] Test 3: Flux surface shapes
-  - Trace flux surfaces at multiple ψ values
-  - Verify circular cross-sections
-- [ ] Test 4: Large aspect ratio limit
-  - Test with ε → 0
-  - Compare with Solov'ev formulas
+    ! Curvature coefficients
+    alpha = asin(delta)
+    N1 = -(1.0_dp + alpha)**2 / (epsilon * kappa**2)
+    N2 = (1.0_dp - alpha)**2 / (epsilon * kappa**2)
+    N3 = -kappa / (epsilon * cos(alpha)**2)
 
-**§6. CMake Integration**
-- [ ] Add files to `src/magfie/CMakeLists.txt`
-- [ ] Add test to `test/CMakeLists.txt`
-- [ ] Build and verify: `make clean && make`
-- [ ] Run tests: `ctest -R test_analytical_circular`
+    ! Row 1: ψ(x_out, 0) = 0
+    mat(1,:) = [eval basis at (x_out, 0)]
+    rhs(1) = -psi_p(x_out, 0.0_dp, A_param)
 
-**§7. Documentation**
-- [ ] Add module-level documentation
-- [ ] Document initialization parameters
+    ! Row 2: ψ(x_in, 0) = 0
+    mat(2,:) = [eval basis at (x_in, 0)]
+    rhs(2) = -psi_p(x_in, 0.0_dp, A_param)
+
+    ! Row 3: ψ(x_high, y_high) = 0
+    mat(3,:) = [eval basis at (x_high, y_high)]
+    rhs(3) = -psi_p(x_high, y_high, A_param)
+
+    ! Row 4: ∂ψ/∂x(x_high, y_high) = 0
+    mat(4,:) = [eval ∂ψᵢ/∂x at (x_high, y_high)]
+    rhs(4) = -dpsi_p_dx(x_high, y_high, A_param)
+
+    ! Row 5: ∂²ψ/∂y²(x_out, 0) + N₁·∂ψ/∂x(x_out, 0) = 0
+    ! Row 6: ∂²ψ/∂y²(x_in, 0) + N₂·∂ψ/∂x(x_in, 0) = 0
+    ! Row 7: ∂²ψ/∂x²(x_high, y_high) + N₃·∂ψ/∂y(x_high, y_high) = 0
+
+    call dgesv(7, 1, mat, 7, ipiv, rhs, 7, info)
+    if (info /= 0) error stop "Boundary condition matrix singular"
+    coeffs = rhs
+  end subroutine
+  ```
+- [ ] Test with ITER shaped: ε=0.32, κ=1.7, δ=0.33, A=-0.142
+- [ ] Test circular limit: κ=1, δ=0
+
+**§4. Update Field Evaluation Module**
+- [ ] Rename type: `analytical_circular_eq_t` → `analytical_tokamak_eq_t`
+- [ ] Add kappa, delta fields to type
+- [ ] Update init signature: add kappa, delta parameters
+- [ ] Update coefficient array: `coeffs(0:6)` → `coeffs(7)`
+- [ ] Update solve_coefficients call to pass kappa, delta
+- [ ] Update ψ evaluation loop (1:7 indexing)
+- [ ] Update attribution (remove ASCOT5, add Eslbauer)
+
+**§5. Update Tests**
+- [ ] Rename test file? Or keep as test_analytical_circular.f90 (tests circular limit)
+- [ ] Remove ALL "ASCOT5" mentions
+- [ ] Test ITER shaped case: R₀=6.2, ε=0.32, κ=1.7, δ=0.33, A=-0.142, B₀=5.3
+- [ ] Test circular limit: same but κ=1, δ=0
+- [ ] Test ∇·B=0 for both cases
+- [ ] Verify shaped flux surfaces (elongated, triangular)
+- [ ] Much tighter tolerances with proper solver!
+
+**§6. Build & Verify**
+- [ ] No CMake changes needed (files already exist)
+- [ ] Build: `make clean && make`
+- [ ] Run tests: `ctest -R test_analytical`
+  - Should see test_analytical_gs_circular pass
+  - Should see test_analytical_circular pass
+- [ ] Fix any compilation errors or test failures
+
+**§7. Documentation & Final Cleanup**
+- [ ] Verify all ASCOT5 mentions removed from code
+- [ ] Verify proper attribution in all files:
+  ```fortran
+  !> Implementation based on:
+  !>   - Cerfon & Freidberg, "One size fits all" analytic solutions,
+  !>     Physics of Plasmas 17, 032502 (2010), DOI: 10.1063/1.3328818
+  !>   - Verena Eslbauer, "Two analytical solutions to the Grad-Shafranov equation",
+  !>     Bachelor thesis, TU Graz, November 20, 2017
+  !>
+  !> Fortran port of the MATLAB implementation from Eslbauer's thesis.
+  ```
+- [ ] Update module-level documentation
 - [ ] Add usage example in comments
-- [ ] Note: "Clean-room implementation from Cerfon-Freidberg (2010)"
 
-**§8. Validation & Finalization**
-- [ ] Compare full B-field with ASCOT5 at sample points
-- [ ] Verify performance (field evaluation ~1 μs, initialization < 100 ms)
-- [ ] Optional refinements if needed:
-  - More accurate F(ψ) from particular solutions
-  - Edge case handling
-- [ ] Git commit with descriptive message
-- [ ] Update this TODO as complete
+**§8. Validation & Commit**
+- [ ] Run full test suite: `make test`
+- [ ] Verify test output makes sense (no warnings, reasonable values)
+- [ ] Verify coefficients are different from hardcoded ones (proper solve!)
+- [ ] Prepare git commit:
+  ```
+  git add src/magfie/analytical_gs_circular.f90
+  git add src/magfie/analytical_tokamak_field.f90
+  git add test/source/test_analytical_circular.f90
+  git add TODO.md
+  git commit -m "Implement proper Cerfon-Freidberg GS solver
+
+  Replace hardcoded coefficients with actual boundary condition solver.
+  Port implementation from Verena Eslbauer's bachelor thesis (TU Graz, 2017).
+
+  - 7 basis functions from Cerfon-Freidberg Eq. 8
+  - Particular solution from Eq. 9
+  - 7x7 LAPACK solver for circular boundary conditions
+  - Proper attribution to Cerfon & Freidberg (2010) and Eslbauer (2017)
+  - Remove all ASCOT5 references
+
+  Refs: Physics of Plasmas 17, 032502 (2010), DOI: 10.1063/1.3328818"
+  ```
 
 ### Success Criteria
-- Coefficients match ASCOT5 ITER circular case to 10⁻⁸
-- ∇·B = 0 to machine precision
-- Flux surfaces are circular (κ=1, δ=0)
-- No GPL code used (clean-room from paper)
-- Tests pass in CI
+- General solver works for arbitrary ε and A (not just ITER case)
+- ∇·B = 0 to machine precision everywhere in plasma
+- Flux surfaces are circular (κ=1, δ=0) for circular case
+- Boundary conditions satisfied at separatrix
+- All ASCOT5 references removed
+- Proper attribution to Cerfon-Freidberg and Eslbauer
+- Tests pass with improved accuracy
 
-### Notes
-- Uses only symmetric basis functions (c₇-c₁₁ = 0)
-- Valid for arbitrary aspect ratio (unlike pure Solov'ev)
-- Simpler than geoflux (no GEQDSK, no splines)
-- Perfect for testing coordinate transformations
+### Key Implementation Notes from Eslbauer Thesis
+
+**From Section 3.2, pages 17-22**:
+
+1. **Basis function indexing**: ψᵢ for i=1..7 (MATLAB c_1 to c_7, Fortran coeffs(1:7))
+
+2. **Particular solution**: ψ_p = x⁴/8 + A(x²ln(x)/2 - x⁴/8) [Eq. 3.12-3.13]
+
+3. **General boundary points** (parametric, works for ALL shapes):
+   - Outer equatorial: x=1+ε, y=0 (τ=0)
+   - Inner equatorial: x=1-ε, y=0 (τ=π)
+   - High point: x=1-δε, y=κε (τ=π/2)
+
+4. **Curvature coefficients** (GENERAL formulas, Eq. 3.14e-g):
+   ```fortran
+   alpha = asin(delta)
+   N1 = -(1 + alpha)**2 / (epsilon * kappa**2)
+   N2 = (1 - alpha)**2 / (epsilon * kappa**2)
+   N3 = -kappa / (epsilon * cos(alpha)**2)
+   ```
+   These automatically reduce to circular case when κ=1, δ=0!
+
+5. **MATLAB symbolic solve → Fortran LAPACK numeric**:
+   - MATLAB uses `solve([eqn1...eqn7])` symbolically
+   - We build mat(7,7) and rhs(7) numerically, call dgesv
+
+6. **ITER shaped parameters** (Table 3.1, page 21):
+   - R₀=6.2 m, ε=0.32, κ=1.7, δ=0.33, B₀=5.3 T, A=-0.142
+   - Expected coefficients (Table 3.2): c₁=0.0673, c₂=-0.1827, c₃=-0.0414,
+     c₄=-0.1503, c₅=0.0014, c₆=-0.0106, c₇=-0.0003
+
+7. **Circular limit test**: Same ITER but κ=1, δ=0
+   - Coefficients will differ from shaped case
+   - Validates general solver reduces correctly
 
 ### Implementation Details (Clarifications)
 1. **F(ψ) function**: Use F(ψ) = B₀·R₀ (constant) for initial implementation
