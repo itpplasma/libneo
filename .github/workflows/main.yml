@@ -60,6 +60,10 @@ jobs:
         run: |
           pytest -q
 
+      - name: Compare with ASCOT5 reference
+        run: |
+          python3 test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
+
       - name: Upload test image artifacts
         if: always()
         uses: actions/upload-artifact@v4

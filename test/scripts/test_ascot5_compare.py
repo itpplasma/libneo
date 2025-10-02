@@ -66,11 +66,24 @@ def compile_ascot_library(clone_dir: Path) -> Path:
     if compiler is None:
         raise RuntimeError("gcc or gcc-14 not found; required to build ascot5 reference library")
 
-    env = os.environ.copy()
-    omp_include = Path("/opt/homebrew/opt/libomp/include")
-    omp_lib = Path("/opt/homebrew/opt/libomp/lib")
-    flags = [f"-I{Path('/opt/homebrew/include')}", f"-I{omp_include}"]
-    link_flags = [f"-L{Path('/opt/homebrew/lib')}", f"-L{omp_lib}", "-lhdf5_hl", "-lhdf5", "-fopenmp", "-lomp"]
+    flags: list[str] = []
+    link_flags: list[str] = ["-fopenmp", "-lhdf5_hl", "-lhdf5"]
+
+    homebrew_root = Path("/opt/homebrew")
+    if homebrew_root.exists():
+        hb_include = homebrew_root / "include"
+        if hb_include.exists():
+            flags.append(f"-I{hb_include}")
+        omp_include = homebrew_root / "opt" / "libomp" / "include"
+        if omp_include.exists():
+            flags.append(f"-I{omp_include}")
+        hb_lib = homebrew_root / "lib"
+        if hb_lib.exists():
+            link_flags.append(f"-L{hb_lib}")
+        omp_lib = homebrew_root / "opt" / "libomp" / "lib"
+        if omp_lib.exists():
+            link_flags.append(f"-L{omp_lib}")
+            link_flags.append("-lomp")
 
     run(["make", "clean"], cwd=clone_dir)
     run([
