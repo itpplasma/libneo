@@ -2,15 +2,15 @@ module analytical_gs_solver
     !> Analytical Grad-Shafranov solver for tokamak equilibria
     !>
     !> Implementation based on:
-    !>   - Cerfon & Freidberg, "One size fits all" analytic solutions,
+    !>   - Cerfon & Freidberg, One size fits all analytic solutions,
     !>     Physics of Plasmas 17, 032502 (2010), DOI: 10.1063/1.3328818
-    !>   - Verena Eslbauer, "Two analytical solutions to the Grad-Shafranov equation
-    !>     using Solov'ev pressure and poloidal current profiles",
+    !>   - Verena Eslbauer, Two analytical solutions to the Grad-Shafranov
+    !>     equation using Solovev pressure and poloidal current profiles,
     !>     Bachelor thesis, TU Graz, November 20, 2017
     !>
-    !> Fortran port of the MATLAB implementation from Eslbauer's thesis.
+    !> Fortran port of the MATLAB implementation from the Eslbauer thesis.
     !> Supports general shaped tokamaks with elongation (κ) and triangularity (δ).
-    use iso_fortran_env, only: dp => real64
+    use, intrinsic :: iso_fortran_env, only: dp => real64
     implicit none
 
     private

@@ -1,9 +1,12 @@
 module analytical_tokamak_field
     !> Analytical tokamak field evaluation using Cerfon-Freidberg equilibria
     !>
-    !> Clean-room implementation from Cerfon & Freidberg, Phys. Plasmas 17, 032502 (2010)
+    !> Implementation following Cerfon & Freidberg
+    !> (Physics of Plasmas 17, 032502, 2010) and Verena Eslbauer
+    !> (Two analytical solutions to the Grad-Shafranov equation,
+    !> Bachelor thesis, TU Graz, 2017).
     !> Provides magnetic field components for circular tokamak equilibria
-    use iso_fortran_env, only: dp => real64
+    use, intrinsic :: iso_fortran_env, only: dp => real64
     use analytical_gs_solver
     implicit none
 

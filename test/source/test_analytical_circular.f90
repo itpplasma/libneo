@@ -4,8 +4,8 @@ program test_analytical_circular
     !>
     !> Based on Cerfon & Freidberg, Phys. Plasmas 17, 032502 (2010)
     !> and Verena Eslbauer, Bachelor thesis, TU Graz (2017)
-    use iso_fortran_env, only: dp => real64
-    use cerfon_freidberg_field
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use analytical_tokamak_field, only: analytical_circular_eq_t
     implicit none
 
     integer :: test_count, pass_count

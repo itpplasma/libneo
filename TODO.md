@@ -1,6 +1,6 @@
 # libneo TODO
 
-_Last updated: 2025-10-02_
+_Last updated: 2025-10-02 (streamlined ASCOT comparisons)_
 
 ---
 
@@ -15,9 +15,9 @@ _Last updated: 2025-10-02_
 - ✅ Restored the committed Cerfon-Freidberg analytical solver sources (`analytical_gs_solver.f90`, `analytical_tokamak_field.f90`) in magfie.
 - ✅ `test_analytical_circular.x` focuses on Cerfon-Freidberg checks and emits CSV flux data for downstream comparisons.
 - ✅ Added `test/scripts/test_ascot5_compare.py` which
-  - runs the libneo analytical test to export circular flux data,
+  - runs the libneo analytical test to export circular and shaped flux data,
   - shallow-clones `ascot5` and builds a minimal shared library exposing `B_GS`,
-  - compares flux contours/norms and saves an overlay plot under `build/test/ascot5_compare`.
+  - solves for ASCOT5 coefficients case-by-case and overlays flux surfaces under `build/test/ascot5_compare/libneo_flux`.
 - 🚧 Fine-tune RMS/axis-shift tolerances once the comparison is stable in CI.
 
 ### Motivation
