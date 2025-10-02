@@ -80,6 +80,7 @@ from numpy.linalg import norm
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+from scipy.interpolate import RectBivariateSpline
 
 SCRIPT_PATH = Path(__file__).resolve()
 REPO_ROOT = SCRIPT_PATH.parents[2]
@@ -116,7 +117,6 @@ from libneo.biotsavart_fourier import (  # type: ignore  # noqa: E402
     gauged_Anvac_from_Bnvac,
     gauge_Anvac,
     spline_gauged_Anvac,
-    field_divfree,
 )
 import _magfie  # type: ignore  # noqa: E402
 from _magfie import (
@@ -220,7 +220,7 @@ def _load_mode_from_bnvac(path: Path, ntor: int) -> ModeData:
     return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ)
 
 
-def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict]:
+def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict | None]:
     grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier(str(path), ntor=ntor)
     grid = Grid(
         R=array(grid_raw.R, copy=True),
@@ -233,13 +233,15 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict]:
         Z_max=float(grid_raw.Z_max),
     )
 
-    gauged_AnR, gauged_AnZ = gauge_Anvac(
-        grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=ntor
-    )
-    if ntor != 0:
-        gauged_AnR = gauged_AnR - 0.5j * Anphi
+    if ntor == 0:
+        BnR, Bnphi, BnZ = _compute_axisymmetric_field(
+            grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+        )
+        return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ), None
+
+    gauged_AnR, gauged_AnZ = _gauge_anvac_with_spline(grid, AnR, Anphi, AnZ, ntor)
     spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor)
-    BnR, Bnphi, BnZ = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
+    BnR, Bnphi, BnZ = _field_divfree_rect(spl, grid.R, grid.Z, ntor=ntor)
     return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ), spl
 
 
@@ -538,9 +540,8 @@ def _axis_validation(
             )
             B_parallel_direct[idx] = Bx_d * direction[0] + By_d * direction[1] + Bz_d * direction[2]
 
-    if BnR_direct is None or Bnphi_direct is None or BnZ_direct is None:
-        Bx_raw, By_raw, Bz_raw = _compute_segment_direct_field(coil_files, coil_currents_amp, x_eval, y_eval, z_eval)
-        B_parallel_direct = Bx_raw * direction[0] + By_raw * direction[1] + Bz_raw * direction[2]
+    Bx_raw, By_raw, Bz_raw = _compute_segment_direct_field(coil_files, coil_currents_amp, x_eval, y_eval, z_eval)
+    B_parallel_direct = Bx_raw * direction[0] + By_raw * direction[1] + Bz_raw * direction[2]
 
     mu0 = 4e-7 * pi
     radius_m = args.coil_radius / 100.0
@@ -624,16 +625,171 @@ def _create_per_coil_plot(
         plt.close(fig)
 
 
+def _compute_rect_spline_field(
+    BnR: ndarray,
+    Bnphi: ndarray,
+    BnZ: ndarray,
+    grid: Grid,
+    order: int,
+) -> Tuple[ndarray, ndarray, ndarray]:
+    """Compute field using RectBivariateSpline interpolation of a given order."""
+    ncoil = BnR.shape[0]
+    BnR_interp = zeros_like(BnR)
+    Bnphi_interp = zeros_like(Bnphi)
+    BnZ_interp = zeros_like(BnZ)
+
+    for k in range(ncoil):
+        spline_R_real = RectBivariateSpline(grid.R, grid.Z, BnR[k].real, kx=order, ky=order)
+        spline_R_imag = RectBivariateSpline(grid.R, grid.Z, BnR[k].imag, kx=order, ky=order)
+        BnR_interp[k] = spline_R_real(grid.R, grid.Z) + 1j * spline_R_imag(grid.R, grid.Z)
+
+        spline_phi_real = RectBivariateSpline(grid.R, grid.Z, Bnphi[k].real, kx=order, ky=order)
+        spline_phi_imag = RectBivariateSpline(grid.R, grid.Z, Bnphi[k].imag, kx=order, ky=order)
+        Bnphi_interp[k] = spline_phi_real(grid.R, grid.Z) + 1j * spline_phi_imag(grid.R, grid.Z)
+
+        spline_Z_real = RectBivariateSpline(grid.R, grid.Z, BnZ[k].real, kx=order, ky=order)
+        spline_Z_imag = RectBivariateSpline(grid.R, grid.Z, BnZ[k].imag, kx=order, ky=order)
+        BnZ_interp[k] = spline_Z_real(grid.R, grid.Z) + 1j * spline_Z_imag(grid.R, grid.Z)
+
+    return BnR_interp, Bnphi_interp, BnZ_interp
+
+
+def _gauge_anvac_with_spline(
+    grid: Grid,
+    AnR: ndarray,
+    Anphi: ndarray,
+    AnZ: ndarray,
+    ntor: int,
+) -> Tuple[ndarray, ndarray]:
+    """Apply the non-axisymmetric gauge using spline-derived derivatives."""
+
+    ncoil = AnR.shape[0]
+    R_vals = grid.R
+    Z_vals = grid.Z
+    gauged_AnR = zeros_like(AnR)
+    gauged_AnZ = zeros_like(AnZ)
+
+    factor = 1j / ntor
+    R_matrix = R_vals[:, newaxis]
+
+    for k in range(ncoil):
+        spl_Aphi_real = RectBivariateSpline(R_vals, Z_vals, Anphi[k].real, kx=5, ky=5)
+        spl_Aphi_imag = RectBivariateSpline(R_vals, Z_vals, Anphi[k].imag, kx=5, ky=5)
+        Aphi_eval = spl_Aphi_real(R_vals, Z_vals) + 1j * spl_Aphi_imag(R_vals, Z_vals)
+        dAphi_dR = spl_Aphi_real(R_vals, Z_vals, dx=1, dy=0) + 1j * spl_Aphi_imag(R_vals, Z_vals, dx=1, dy=0)
+        dAphi_dZ = spl_Aphi_real(R_vals, Z_vals, dx=0, dy=1) + 1j * spl_Aphi_imag(R_vals, Z_vals, dx=0, dy=1)
+
+        spl_AnR_real = RectBivariateSpline(R_vals, Z_vals, AnR[k].real, kx=5, ky=5)
+        spl_AnR_imag = RectBivariateSpline(R_vals, Z_vals, AnR[k].imag, kx=5, ky=5)
+        AnR_eval = spl_AnR_real(R_vals, Z_vals) + 1j * spl_AnR_imag(R_vals, Z_vals)
+
+        spl_AnZ_real = RectBivariateSpline(R_vals, Z_vals, AnZ[k].real, kx=5, ky=5)
+        spl_AnZ_imag = RectBivariateSpline(R_vals, Z_vals, AnZ[k].imag, kx=5, ky=5)
+        AnZ_eval = spl_AnZ_real(R_vals, Z_vals) + 1j * spl_AnZ_imag(R_vals, Z_vals)
+
+        gauged_AnR[k] = AnR_eval + factor * (R_matrix * dAphi_dR + Aphi_eval)
+        gauged_AnZ[k] = AnZ_eval + factor * R_matrix * dAphi_dZ
+
+    return gauged_AnR, gauged_AnZ
+
+
+def _field_divfree_rect(
+    spl: dict,
+    R_vals: ndarray,
+    Z_vals: ndarray,
+    ntor: int,
+) -> Tuple[ndarray, ndarray, ndarray]:
+    """Reproduce ``field_divfree`` using RectBivariateSpline evaluation."""
+
+    if ntor == 0:
+        raise ValueError("_field_divfree_rect requires ntor != 0; use _compute_axisymmetric_field")
+
+    ncoil = len(spl['AnR_Re'])
+    nR = R_vals.size
+    nZ = Z_vals.size
+    R_matrix = R_vals[:, newaxis]
+
+    BnR = zeros((ncoil, nR, nZ), dtype=complex)
+    Bnphi = zeros_like(BnR)
+    BnZ = zeros_like(BnR)
+
+    for k in range(ncoil):
+        anR_real = spl['AnR_Re'][k](R_vals, Z_vals)
+        anR_imag = spl['AnR_Im'][k](R_vals, Z_vals)
+        anZ_real = spl['AnZ_Re'][k](R_vals, Z_vals)
+        anZ_imag = spl['AnZ_Im'][k](R_vals, Z_vals)
+
+        anR = anR_real + 1j * anR_imag
+        anZ = anZ_real + 1j * anZ_imag
+
+        dAnR_dZ = spl['AnR_Re'][k](R_vals, Z_vals, dy=1) + 1j * spl['AnR_Im'][k](R_vals, Z_vals, dy=1)
+        dAnZ_dR = spl['AnZ_Re'][k](R_vals, Z_vals, dx=1) + 1j * spl['AnZ_Im'][k](R_vals, Z_vals, dx=1)
+
+        BnR[k] = 1j * ntor * anZ / R_matrix
+        Bnphi[k] = dAnR_dZ - dAnZ_dR
+        BnZ[k] = -1j * ntor * anR / R_matrix
+
+    return BnR, Bnphi, BnZ
+
+
+def _compute_axisymmetric_field(
+    grid: Grid,
+    AnR: ndarray,
+    Anphi: ndarray,
+    AnZ: ndarray,
+    _dAnphi_dR: ndarray,
+    _dAnphi_dZ: ndarray,
+) -> Tuple[ndarray, ndarray, ndarray]:
+    """Compute the axisymmetric (ntor=0) magnetic field directly from vector potential data."""
+
+    ncoil = AnR.shape[0]
+    BnR = zeros_like(AnR)
+    Bnphi = zeros_like(AnR)
+    BnZ = zeros_like(AnR)
+
+    R_vals = grid.R
+    Z_vals = grid.Z
+
+    for k in range(ncoil):
+        A_R = AnR[k]
+        A_phi = Anphi[k]
+        A_Z = AnZ[k]
+
+        spline_Aphi_real = RectBivariateSpline(R_vals, Z_vals, A_phi.real, kx=5, ky=5)
+        spline_Aphi_imag = RectBivariateSpline(R_vals, Z_vals, A_phi.imag, kx=5, ky=5)
+        dAphi_dZ = spline_Aphi_real(R_vals, Z_vals, dy=1) + 1j * spline_Aphi_imag(R_vals, Z_vals, dy=1)
+        dAphi_dR = spline_Aphi_real(R_vals, Z_vals, dx=1) + 1j * spline_Aphi_imag(R_vals, Z_vals, dx=1)
+
+        BnR[k] = -dAphi_dZ
+        BnZ[k] = dAphi_dR + A_phi / R_vals[:, newaxis]
+
+        spline_AR_real = RectBivariateSpline(R_vals, Z_vals, A_R.real, kx=5, ky=5)
+        spline_AR_imag = RectBivariateSpline(R_vals, Z_vals, A_R.imag, kx=5, ky=5)
+        dA_R_dZ = spline_AR_real(R_vals, Z_vals, dy=1) + 1j * spline_AR_imag(R_vals, Z_vals, dy=1)
+
+        spline_AZ_real = RectBivariateSpline(R_vals, Z_vals, A_Z.real, kx=5, ky=5)
+        spline_AZ_imag = RectBivariateSpline(R_vals, Z_vals, A_Z.imag, kx=5, ky=5)
+        dA_Z_dR = spline_AZ_real(R_vals, Z_vals, dx=1) + 1j * spline_AZ_imag(R_vals, Z_vals, dx=1)
+
+        Bnphi[k] = dA_R_dZ - dA_Z_dR
+
+    return BnR, Bnphi, BnZ
+
+
 def _create_sum_plot(
     args: argparse.Namespace,
     magnitude_fourier: ndarray,
     magnitude_vector: ndarray,
     magnitude_spline: ndarray,
     magnitude_field_divb0: ndarray | None,
+    magnitude_rect5: ndarray | None,
+    magnitude_rect3: ndarray | None,
+    magnitude_rect1: ndarray | None,
     magnitude_direct: ndarray | None,
     output: Path,
     grid: Grid,
     coil_projections: Sequence[Tuple[ndarray, ndarray]] | None,
+    components: dict[str, dict[str, ndarray]] | None = None,
 ) -> None:
     top_titles = ("reference sum", "Anvac sum", "Bnvac sum", "Direct sum")
     top_panels = [magnitude_fourier, magnitude_vector, magnitude_spline]
@@ -642,16 +798,29 @@ def _create_sum_plot(
     else:
         top_panels.append(magnitude_direct)
 
-    bottom_titles = ("field_divB0 sum", "", "", "")
-    bottom_panel = magnitude_field_divb0
+    bottom_titles = ("field_divB0 sum", "Rect k=5 sum", "Rect k=3 sum", "Rect k=1 sum")
+    bottom_panels = [magnitude_field_divb0, magnitude_rect5, magnitude_rect3, magnitude_rect1]
 
     accum = [log10(maximum(panel, 1e-300)) for panel in top_panels]
-    if bottom_panel is not None:
-        accum.append(log10(maximum(bottom_panel, 1e-300)))
+    if magnitude_field_divb0 is not None:
+        accum.append(log10(maximum(magnitude_field_divb0, 1e-300)))
+    if magnitude_rect5 is not None:
+        accum.append(log10(maximum(magnitude_rect5, 1e-300)))
+    if magnitude_rect3 is not None:
+        accum.append(log10(maximum(magnitude_rect3, 1e-300)))
+    if magnitude_rect1 is not None:
+        accum.append(log10(maximum(magnitude_rect1, 1e-300)))
+    if components is not None:
+        for dataset in components.values():
+            for value in dataset.values():
+                if value is not None:
+                    accum.append(log10(maximum(value, 1e-300)))
 
     norm = Normalize(vmin=min(a.min() for a in accum), vmax=max(a.max() for a in accum))
 
-    fig, axs = plt.subplots(2, 4, figsize=(14, 7.5), layout="constrained")
+    n_component_rows = 0 if components is None else len(components)
+    nrows = 2 + n_component_rows
+    fig, axs = plt.subplots(nrows, 4, figsize=(14, 3.5 * nrows), layout="constrained")
     extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
     plotted_axes = []
 
@@ -674,31 +843,63 @@ def _create_sum_plot(
         ax.set_aspect("equal", adjustable="box")
         plotted_axes.append(ax)
 
-    if bottom_panel is not None:
-        ax = axs[1, 0]
-        im_bottom = ax.imshow(
-            log10(maximum(bottom_panel, 1e-300)).T,
-            origin="lower",
-            cmap="magma",
-            extent=extent,
-            norm=norm,
-            interpolation="bilinear",
-        )
-        ax.set_title(bottom_titles[0])
-        ax.set_xlabel("R [cm]")
-        ax.set_ylabel("Z [cm]")
-        if coil_projections:
-            for R_path, Z_path in coil_projections:
-                ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
-        ax.set_aspect("equal", adjustable="box")
-        plotted_axes.append(ax)
-        im = im_bottom
-    else:
-        ax = axs[1, 0]
-        ax.axis("off")
+    # Plot bottom panels
+    for bottom_idx, (panel, title) in enumerate(zip(bottom_panels, bottom_titles)):
+        if panel is not None and title:
+            ax = axs[1, bottom_idx]
+            im_bottom = ax.imshow(
+                log10(maximum(panel, 1e-300)).T,
+                origin="lower",
+                cmap="magma",
+                extent=extent,
+                norm=norm,
+                interpolation="bilinear",
+            )
+            ax.set_title(title)
+            ax.set_xlabel("R [cm]")
+            ax.set_ylabel("Z [cm]")
+            if coil_projections:
+                for R_path, Z_path in coil_projections:
+                    ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
+            ax.set_aspect("equal", adjustable="box")
+            plotted_axes.append(ax)
+            im = im_bottom
+        else:
+            axs[1, bottom_idx].axis("off")
 
-    for idx in range(1, 4):
+    # Turn off remaining bottom panels (none, ensured by padding)
+    for idx in range(len(bottom_panels), 4):
         axs[1, idx].axis("off")
+
+    if components is not None:
+        row = 2
+        for comp_label, datasets in components.items():
+            titles = [f"{comp_label} {name}" for name in ["reference", "Anvac", "Bnvac", "Direct"]]
+            panels = [datasets.get(key) for key in ["reference", "anvac", "bnvac", "direct"]]
+            # ensure rows exist even if fewer than 4 panels
+            for col in range(4):
+                ax = axs[row, col]
+                if col >= len(panels) or panels[col] is None:
+                    ax.axis("off")
+                    continue
+                panel = panels[col]
+                im = ax.imshow(
+                    log10(maximum(panel, 1e-300)).T,
+                    origin="lower",
+                    cmap="magma",
+                    extent=extent,
+                    norm=norm,
+                    interpolation="bilinear",
+                )
+                ax.set_title(titles[col])
+                ax.set_xlabel("R [cm]")
+                ax.set_ylabel("Z [cm]")
+                if coil_projections:
+                    for R_path, Z_path in coil_projections:
+                        ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
+                ax.set_aspect("equal", adjustable="box")
+                plotted_axes.append(ax)
+            row += 1
 
     cbar = fig.colorbar(im, ax=plotted_axes, location="bottom", fraction=0.05, pad=0.08)
     cbar.set_label("log10 |Σ B_n|^2")
@@ -714,6 +915,9 @@ def _print_stats(
     magnitude_vector: ndarray,
     magnitude_spline: ndarray,
     magnitude_field_divb0: ndarray | None,
+    magnitude_rect5: ndarray | None,
+    magnitude_rect3: ndarray | None,
+    magnitude_rect1: ndarray | None,
     magnitude_direct: ndarray | None,
 ) -> None:
     rel_err_vector = abs(magnitude_vector - magnitude_fourier) / (magnitude_fourier + 1e-15)
@@ -735,6 +939,27 @@ def _print_stats(
         mean_field = float(mean(rel_err_field) * 100.0)
         print(f"Median relative error (field_divB0): {median_field:.4f}%")
         print(f"Mean relative error (field_divB0):   {mean_field:.4f}%")
+
+    if magnitude_rect5 is not None:
+        rel_err_rect5 = abs(magnitude_rect5 - magnitude_fourier) / (magnitude_fourier + 1e-15)
+        median_rect5 = float(median(rel_err_rect5) * 100.0)
+        mean_rect5 = float(mean(rel_err_rect5) * 100.0)
+        print(f"Median relative error (Rect k=5): {median_rect5:.4f}%")
+        print(f"Mean relative error (Rect k=5):   {mean_rect5:.4f}%")
+
+    if magnitude_rect3 is not None:
+        rel_err_rect3 = abs(magnitude_rect3 - magnitude_fourier) / (magnitude_fourier + 1e-15)
+        median_rect3 = float(median(rel_err_rect3) * 100.0)
+        mean_rect3 = float(mean(rel_err_rect3) * 100.0)
+        print(f"Median relative error (Rect k=3): {median_rect3:.4f}%")
+        print(f"Mean relative error (Rect k=3):   {mean_rect3:.4f}%")
+
+    if magnitude_rect1 is not None:
+        rel_err_rect1 = abs(magnitude_rect1 - magnitude_fourier) / (magnitude_fourier + 1e-15)
+        median_rect1 = float(median(rel_err_rect1) * 100.0)
+        mean_rect1 = float(mean(rel_err_rect1) * 100.0)
+        print(f"Median relative error (Rect k=1): {median_rect1:.4f}%")
+        print(f"Mean relative error (Rect k=1):   {mean_rect1:.4f}%")
 
     if magnitude_direct is None:
         return
@@ -775,9 +1000,14 @@ def main() -> None:
             f"Mismatch between currents ({currents.size}) and Fourier data ({mode_fourier.BnR.shape[0]})"
         )
 
-    BnR_spline_all, Bnphi_spline_all, BnZ_spline_all = field_divfree(
-        spline_vec, mode_vector.grid.R, mode_vector.grid.Z, ntor=args.ntor
-    )
+    if spline_vec is None:
+        BnR_spline_all = mode_vector.BnR
+        Bnphi_spline_all = mode_vector.Bnphi
+        BnZ_spline_all = mode_vector.BnZ
+    else:
+        BnR_spline_all, Bnphi_spline_all, BnZ_spline_all = _field_divfree_rect(
+            spline_vec, mode_vector.grid.R, mode_vector.grid.Z, ntor=args.ntor
+        )
 
     weights = currents * args.prefactor
     BnR_fourier_sum = _tensordot_currents(weights, mode_fourier.BnR)
@@ -880,22 +1110,67 @@ def main() -> None:
     magnitude_vector = _magnitude_squared(BnR_vector_sum, Bnphi_vector_sum, BnZ_vector_sum)
     magnitude_spline = _magnitude_squared(BnR_spline_sum, Bnphi_spline_sum, BnZ_spline_sum)
 
+    # Compute RectBivariateSpline field variants for comparison
+    BnR_rect5_all, Bnphi_rect5_all, BnZ_rect5_all = _compute_rect_spline_field(
+        BnR_spline_all, Bnphi_spline_all, BnZ_spline_all, mode_fourier.grid, order=5
+    )
+    BnR_rect5_sum = _tensordot_currents(weights, BnR_rect5_all)
+    Bnphi_rect5_sum = _tensordot_currents(weights, Bnphi_rect5_all)
+    BnZ_rect5_sum = _tensordot_currents(weights, BnZ_rect5_all)
+    magnitude_rect5 = _magnitude_squared(BnR_rect5_sum, Bnphi_rect5_sum, BnZ_rect5_sum)
+
+    BnR_rect3_all, Bnphi_rect3_all, BnZ_rect3_all = _compute_rect_spline_field(
+        BnR_spline_all, Bnphi_spline_all, BnZ_spline_all, mode_fourier.grid, order=3
+    )
+    BnR_rect3_sum = _tensordot_currents(weights, BnR_rect3_all)
+    Bnphi_rect3_sum = _tensordot_currents(weights, Bnphi_rect3_all)
+    BnZ_rect3_sum = _tensordot_currents(weights, BnZ_rect3_all)
+    magnitude_rect3 = _magnitude_squared(BnR_rect3_sum, Bnphi_rect3_sum, BnZ_rect3_sum)
+
+    BnR_rect1_all, Bnphi_rect1_all, BnZ_rect1_all = _compute_rect_spline_field(
+        BnR_spline_all, Bnphi_spline_all, BnZ_spline_all, mode_fourier.grid, order=1
+    )
+    BnR_rect1_sum = _tensordot_currents(weights, BnR_rect1_all)
+    Bnphi_rect1_sum = _tensordot_currents(weights, Bnphi_rect1_all)
+    BnZ_rect1_sum = _tensordot_currents(weights, BnZ_rect1_all)
+    magnitude_rect1 = _magnitude_squared(BnR_rect1_sum, Bnphi_rect1_sum, BnZ_rect1_sum)
+
     if args.per_coil_output is not None:
         _create_per_coil_plot(args, mode_fourier, mode_vector,
                               BnR_spline_all, Bnphi_spline_all, BnZ_spline_all,
                               args.per_coil_output, coil_projections)
 
+    components = None
     if args.sum_output is not None:
+        def _build_component_dict(ref: ndarray, vec: ndarray, spline_arr: ndarray, direct_arr: ndarray | None) -> dict[str, ndarray | None]:
+            mapping: dict[str, ndarray | None] = {
+                'reference': abs(ref)**2,
+                'anvac': abs(vec)**2,
+                'bnvac': abs(spline_arr)**2,
+                'direct': abs(direct_arr)**2 if direct_arr is not None else None,
+            }
+            return mapping
+
+        components = {
+            'B_R': _build_component_dict(BnR_fourier_sum, BnR_vector_sum, BnR_spline_sum, BnR_direct),
+            'B_phi': _build_component_dict(Bnphi_fourier_sum, Bnphi_vector_sum, Bnphi_spline_sum, Bnphi_direct),
+            'B_Z': _build_component_dict(BnZ_fourier_sum, BnZ_vector_sum, BnZ_spline_sum, BnZ_direct),
+        }
+
         _create_sum_plot(
             args,
             magnitude_fourier,
             magnitude_vector,
             magnitude_spline,
             magnitude_field_divb0,
+            magnitude_rect5,
+            magnitude_rect3,
+            magnitude_rect1,
             direct_magnitude,
             args.sum_output,
             mode_fourier.grid,
             coil_projections,
+            components,
         )
 
     _print_stats(
@@ -903,6 +1178,9 @@ def main() -> None:
         magnitude_vector,
         magnitude_spline,
         magnitude_field_divb0,
+        magnitude_rect5,
+        magnitude_rect3,
+        magnitude_rect1,
         direct_magnitude,
     )
 
