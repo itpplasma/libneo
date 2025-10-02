@@ -315,17 +315,7 @@ def main() -> None:
             "or install manually if not on Debian/Ubuntu."
         )
 
-    # Add ASCOT5 repo root to path so 'a5py' package can be imported
-    ascot_root = str(ascot_clone)
-    if ascot_root in sys.path:
-        sys.path.remove(ascot_root)
-    sys.path.insert(0, ascot_root)
-
-    # Clear any previously imported a5py modules to force reload from correct path
-    for module_name in list(sys.modules.keys()):
-        if module_name.startswith('a5py') or module_name.startswith('physlib'):
-            del sys.modules[module_name]
-
+    # Import from ASCOT5's a5py (PYTHONPATH should be set by CMake test environment)
     from a5py.physlib.analyticequilibrium import analyticGS  # type: ignore
 
     rms_tol = 3.0e-2
