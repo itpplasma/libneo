@@ -299,25 +299,30 @@ def main() -> None:
     ascot_clone = artifact_root / "ascot5"
     if ascot_clone.exists():
         shutil.rmtree(ascot_clone)
-    run(["git", "clone", "--depth", "1", "https://github.com/ascot4fusion/ascot5.git", str(ascot_clone)])
+    run(["git", "clone", "--depth", "1", "--branch", "5.6.1", "https://github.com/ascot4fusion/ascot5.git", str(ascot_clone)])
 
     lib_path = compile_ascot_library(ascot_clone)
     lib, _ = load_ascot_functions(lib_path)
 
-    # Check for required Python dependencies
+    # Check for required Python dependencies (must be installed system-wide)
     try:
         import unyt
     except ImportError:
         raise ImportError(
             "The 'unyt' module is required for ASCOT5 comparison.\n"
             "Please install it on the system:\n"
-            "  sudo apt install python3-unyt\n"
-            "or install manually if not on Debian/Ubuntu."
+            "  sudo apt install python3-unyt"
         )
 
-    # Add cloned ASCOT5 to Python path (it was just cloned above)
-    sys.path.insert(0, str(ascot_clone))
-    from a5py.physlib.analyticequilibrium import analyticGS  # type: ignore
+    try:
+        from a5py.physlib.analyticequilibrium import analyticGS  # type: ignore
+    except ImportError:
+        raise ImportError(
+            "The 'a5py' module is required for ASCOT5 comparison.\n"
+            "Please install it on the system:\n"
+            "  sudo apt install python3-a5py\n"
+            "or install from source if not available in your distribution."
+        )
 
     rms_tol = 3.0e-2
     shift_tol = 2.0e-3
