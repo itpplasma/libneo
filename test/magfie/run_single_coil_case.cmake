@@ -71,9 +71,13 @@ if(NOT EXISTS "${COMPARISON_SCRIPT}")
     message(FATAL_ERROR "Comparison script not found: ${COMPARISON_SCRIPT}")
 endif()
 
+if(NOT DEFINED PYTHON_EXECUTABLE)
+    set(PYTHON_EXECUTABLE python3)
+endif()
+
 message(STATUS "Running comparison for single coil scenario...")
 execute_process(
-    COMMAND python3 "${COMPARISON_SCRIPT}"
+    COMMAND "${PYTHON_EXECUTABLE}" "${COMPARISON_SCRIPT}"
             "${REFERENCE_FILE}"
             "${TEST_FILE}"
             --currents "${CURRENT_FILE}"

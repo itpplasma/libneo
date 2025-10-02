@@ -55,9 +55,13 @@ if(NOT EXISTS "${CHECK_SCRIPT}")
     message(FATAL_ERROR "Axisymmetric check script not found: ${CHECK_SCRIPT}")
 endif()
 
+if(NOT DEFINED PYTHON_EXECUTABLE)
+    set(PYTHON_EXECUTABLE python3)
+endif()
+
 message(STATUS "Validating axisymmetric coil response...")
 execute_process(
-    COMMAND python3 "${CHECK_SCRIPT}"
+    COMMAND "${PYTHON_EXECUTABLE}" "${CHECK_SCRIPT}"
             --reference "${REFERENCE_FILE}"
             --vector "${TEST_FILE}"
             --coil "${COIL_FILE}"

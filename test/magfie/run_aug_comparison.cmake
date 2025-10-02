@@ -79,11 +79,15 @@ set(MEAN_ERROR_EXCEEDED FALSE)
 set(MEDIAN_ERROR_VALUE 0.0)
 set(MEAN_ERROR_VALUE 0.0)
 
+if(NOT DEFINED PYTHON_EXECUTABLE)
+    set(PYTHON_EXECUTABLE python3)
+endif()
+
 if(EXISTS "${COMPARISON_SCRIPT}")
     message(STATUS "Running unified Biot-Savart comparison...")
     execute_process(
         COMMAND "${CMAKE_COMMAND}" -E env MPLBACKEND=Agg
-                python3 "${COMPARISON_SCRIPT}"
+                "${PYTHON_EXECUTABLE}" "${COMPARISON_SCRIPT}"
                 aug_reference.h5
                 aug_test.nc
                 --currents "${TEST_DATA_DIR}/aug_currents.txt"

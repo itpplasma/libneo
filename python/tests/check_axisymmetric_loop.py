@@ -104,7 +104,7 @@ def main() -> int:
         print("WARNING: coil not centered on z=0; analytic comparison assumes zero offset", file=sys.stderr)
 
     mode_fourier = _load_mode_from_bnvac(args.reference, ntor=0)
-    mode_vector, _ = _load_mode_from_anvac(args.vector, ntor=0)
+    mode_vector, _, _ = _load_mode_from_anvac(args.vector, ntor=0)
 
     weights = currents * FOURIER_REFERENCE_CURRENT
     BnR_ref = _tensordot_currents(weights, mode_fourier.BnR)

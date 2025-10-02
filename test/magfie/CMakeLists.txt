@@ -1,5 +1,7 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/magfie)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 # Test executable for Biot-Savart Fourier routines
 add_executable(test_coil_tools_biot_savart.x test_coil_tools_biot_savart.f90)
 target_link_libraries(test_coil_tools_biot_savart.x PRIVATE 
@@ -46,6 +48,7 @@ add_test(NAME test_aug_biot_savart_comparison
         -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
         -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
         -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/run_aug_comparison.cmake
 )
 
@@ -86,6 +89,7 @@ add_test(NAME test_single_coil_biot_savart
         -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
         -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
         -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}
         -DOUTPUT_DIR:PATH=${CMAKE_BINARY_DIR}/test/magfie/single_coil
         -P ${CMAKE_CURRENT_SOURCE_DIR}/run_single_coil_case.cmake
 )
@@ -101,6 +105,7 @@ add_test(NAME test_axisymmetric_biot_savart
         -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
         -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
         -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}
         -DOUTPUT_DIR:PATH=${CMAKE_BINARY_DIR}/test/magfie/axisymmetric_coil
         -P ${CMAKE_CURRENT_SOURCE_DIR}/run_axisymmetric_case.cmake
 )

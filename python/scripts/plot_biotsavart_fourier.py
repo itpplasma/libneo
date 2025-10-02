@@ -111,6 +111,7 @@ for venv_candidate in (REPO_ROOT / ".venv", REPO_ROOT.parent / ".venv"):
         if site_packages is not None and str(site_packages) not in sys.path:
             sys.path.insert(0, str(site_packages))
 
+
 from libneo.biotsavart_fourier import (  # type: ignore  # noqa: E402
     read_Bnvac_fourier,
     read_Anvac_fourier,
