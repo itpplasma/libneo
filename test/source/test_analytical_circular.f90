@@ -479,7 +479,7 @@ contains
         print *, "  Wrote ", trim(filename)
 
         ! Execute Python script
-        write(python_script, '(A," ",A)') "python", trim(filename)
+        write(python_script, '(A," ",A)') "python3", trim(filename)
         call execute_command_line(trim(python_script))
 
         call eq%cleanup()
