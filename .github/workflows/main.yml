@@ -165,28 +165,6 @@ jobs:
             --project-name "libneo" \
             --github-pages-url "${PAGES_BASE_URL}"
 
-      - name: Fix branch back-links
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-from pathlib import Path
-import os
-
-root = Path('dashboard/test')
-overview = root / 'index.html'
-if not overview.exists():
-    raise SystemExit('overview page missing; cannot fix back-links')
-
-for html_path in root.glob('**/index.html'):
-    if html_path == overview:
-        continue
-    relative = os.path.relpath(overview, html_path.parent)
-    text = html_path.read_text(encoding='utf-8')
-    if 'href="../index.html"' in text:
-        text = text.replace('href="../index.html"', f'href="{relative}"')
-        html_path.write_text(text, encoding='utf-8')
-PY
-
       - name: Prune closed branches
         env:
           GH_TOKEN: ${{ github.token }}
