@@ -1,0 +1,16 @@
+{
+  "feature/test-dashboard": {
+    "commit": "94ccf070cc40c5f91e98320795175ec340341be2",
+    "has_pngs": true,
+    "path": "feature/test-dashboard",
+    "pr_info": {
+      "draft": false,
+      "number": 139,
+      "title": "Add automated test dashboard with PR support",
+      "url": "https://github.com/itpplasma/libneo/pull/139"
+    },
+    "repo": "itpplasma/libneo",
+    "run_id": "18192643878",
+    "updated": "2025-10-02T12:17:52+00:00"
+  }
+}
