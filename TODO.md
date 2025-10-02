@@ -12,6 +12,7 @@ _Last updated: 2025-10-02_
 
 ### Current Implementation Status
 - ✅ Removed legacy Solovev Fortran modules and scrubbed build/test references.
+- ✅ Restored the committed Cerfon-Freidberg analytical solver sources (`analytical_gs_solver.f90`, `analytical_tokamak_field.f90`) in magfie.
 - ✅ `test_analytical_circular.x` focuses on Cerfon-Freidberg checks and emits CSV flux data for downstream comparisons.
 - ✅ Added `test/scripts/test_ascot5_compare.py` which
   - runs the libneo analytical test to export circular flux data,
