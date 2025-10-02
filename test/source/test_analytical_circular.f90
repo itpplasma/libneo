@@ -5,7 +5,7 @@ program test_analytical_circular
     !> Based on Cerfon & Freidberg, Phys. Plasmas 17, 032502 (2010)
     !> and Verena Eslbauer, Bachelor thesis, TU Graz (2017)
     use iso_fortran_env, only: dp => real64
-    use analytical_tokamak_field
+    use cerfon_freidberg_field
     implicit none
 
     integer :: test_count, pass_count
@@ -142,11 +142,11 @@ contains
     subroutine test_shafranov_shift_circular()
         !> Test analytical Shafranov shift for circular tokamak
         !>
-        !> For the Solov'ev solution with circular cross-section, the magnetic axis
+        !> For the analytic solution with circular cross-section, the magnetic axis
         !> is shifted inward from the geometric center R0. The shift Δ is related to
         !> the parameter A and can be computed by finding where ∂ψ/∂R = 0 at Z=0.
         !>
-        !> For the Cerfon-Freidberg/Solov'ev solution in circular geometry,
+        !> For the Cerfon-Freidberg/analytic solution in circular geometry,
         !> the Shafranov shift is approximately: Δ/a ≈ -A·ε (to leading order)
         type(analytical_circular_eq_t) :: eq
         real(dp) :: R0, epsilon, A_param, B0
@@ -196,7 +196,7 @@ contains
         ! due to plasma pressure and hoop force
         shift = R_axis - R0
 
-        ! Analytical estimate for Solov'ev equilibrium
+        ! Analytical estimate for analytic equilibrium
         ! The parameter A is related to βp (poloidal beta)
         ! For A < 0, this corresponds to finite pressure, giving outward shift
         ! Δ ≈ βp·ε·R0 (to leading order), where βp ∼ |A|
@@ -228,7 +228,7 @@ contains
             print *, "    Computed: Δ = ", shift, " m (Δ/a = ", shift/(epsilon*R0), ")"
             print *, "    Analytical: Δ ≈ ", shift_analytical, " m"
             print *, "    Difference: ", abs(shift - shift_analytical), " m"
-            ! Don't fail, just report - exact formula may differ
+            ! Do not fail, just report - exact formula may differ
             print *, "  PASS: Shift reported (exact formula may differ from estimate)"
             pass_count = pass_count + 1
             test_count = test_count + 1
@@ -237,6 +237,31 @@ contains
         call eq%cleanup()
         print *, ""
     end subroutine test_shafranov_shift_circular
+
+    function compute_shift_numerical(eq, epsilon) result(shift)
+        !> Helper function to compute Shafranov shift numerically
+        type(analytical_circular_eq_t), intent(in) :: eq
+        real(dp), intent(in) :: epsilon
+        real(dp) :: shift
+        real(dp) :: R, Z, R_axis, dpsi_dR, dpsi_dZ, tol, dR
+        integer :: i
+
+        Z = 0.0_dp
+        R_axis = eq%R0
+        dR = 0.001_dp * epsilon * eq%R0
+        tol = 1.0e30_dp
+
+        do i = 1, 1000
+            R = eq%R0 - 0.5_dp * epsilon * eq%R0 + (i - 1) * dR
+            call eq%eval_psi_derivatives(R, Z, dpsi_dR, dpsi_dZ)
+            if (abs(dpsi_dR) < tol) then
+                tol = abs(dpsi_dR)
+                R_axis = R
+            end if
+        end do
+
+        shift = R_axis - eq%R0
+    end function compute_shift_numerical
 
     subroutine test_divergence_free_circular()
         type(analytical_circular_eq_t) :: eq
@@ -419,7 +444,7 @@ contains
         write(filename, '(A,"/plot_flux_",A,".py")') trim(output_dir), trim(case_type)
         open(newunit=unit_num, file=trim(filename), status='replace', action='write')
 
-        write(unit_num, '(A)') "#!/usr/bin/env python3"
+        write(unit_num, '(A)') "#!/usr/bin/env python"
         write(unit_num, '(A)') "import numpy as np"
         write(unit_num, '(A)') "import matplotlib.pyplot as plt"
         write(unit_num, '(A)') ""
@@ -454,7 +479,7 @@ contains
         print *, "  Wrote ", trim(filename)
 
         ! Execute Python script
-        write(python_script, '(A," ",A)') "python3", trim(filename)
+        write(python_script, '(A," ",A)') "python", trim(filename)
         call execute_command_line(trim(python_script))
 
         call eq%cleanup()

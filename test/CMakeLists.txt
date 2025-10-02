@@ -172,6 +172,12 @@ add_fortran_test(test_coordinate_systems)
 # add_fortran_test(test_analytical_gs_circular)  # TODO: update for new interface
 add_fortran_test(test_analytical_circular)
 
+add_test(
+  NAME test_ascot5_compare
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/test_ascot5_compare.py
+          --build-dir ${CMAKE_BINARY_DIR}
+)
+
 if(LIBNEO_TESTING_ENABLED)
   add_test(
     NAME test_geoflux

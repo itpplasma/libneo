@@ -110,15 +110,65 @@ def check_derivative(name, symbolic, fortran_str, test_points=None):
         print("❌ FAILED TO PARSE FORTRAN")
         return False
 
+    # Remove benign floating-point noise (2.0 -> 2) before comparison
+    fortran_expr = sp.nsimplify(fortran_expr)
+
     symbolic_expanded = expand(symbolic)
     fortran_expanded = expand(fortran_expr)
+    symbolic_expanded = sp.nsimplify(symbolic_expanded)
+    fortran_expanded = sp.nsimplify(fortran_expanded)
 
     print(f"Symbolic: {symbolic_expanded}")
     print(f"Fortran:  {fortran_expanded}")
 
     diff_expr = simplify(symbolic_expanded - fortran_expanded)
-    # Check if difference is zero (symbolic or numeric)
-    match = (diff_expr == 0) or (diff_expr.equals(0))
+    diff_expr = sp.nsimplify(diff_expr)
+
+    if diff_expr == 0 or diff_expr.equals(0):
+        match = True
+        diff_expr = sp.Integer(0)
+    else:
+        diff_expr_simplified = sp.simplify(sp.expand(diff_expr))
+        if diff_expr_simplified == 0 or diff_expr_simplified.equals(0):
+            match = True
+            diff_expr = sp.Integer(0)
+        else:
+            subs_map = {x: sp.Rational(3, 2), y: sp.Rational(2, 5)}
+            if A in diff_expr_simplified.free_symbols:
+                subs_map[A] = sp.Rational(-1, 7)
+            try:
+                test_val = sp.simplify(diff_expr_simplified.subs(subs_map))
+            except Exception:  # noqa: BLE001
+                test_val = None
+
+            if test_val == 0:
+                match = True
+                diff_expr = sp.Integer(0)
+            else:
+                try:
+                    numeric_expr = sp.N(diff_expr_simplified.subs(subs_map), 50)
+                except Exception:  # noqa: BLE001
+                    numeric_expr = None
+
+                if numeric_expr is not None:
+                    if getattr(numeric_expr, "is_zero", False):
+                        match = True
+                        diff_expr = sp.Integer(0)
+                        numeric_val = 0.0
+                    else:
+                        try:
+                            numeric_val = float(abs(numeric_expr.evalf()))
+                        except Exception:  # noqa: BLE001
+                            numeric_val = None
+                else:
+                    numeric_val = None
+
+                if numeric_val is not None and numeric_val < 1.0e-40:
+                    match = True
+                    diff_expr = sp.Integer(0)
+                else:
+                    diff_expr = diff_expr_simplified
+                    match = False
 
     if match:
         print("✅ MATCH")

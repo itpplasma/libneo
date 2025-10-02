@@ -19,8 +19,8 @@ add_library(magfie STATIC
     magfie_cyl.f90
     geoflux_field.f90
     coil_tools.f90
-    analytical_gs_solver.f90
-    analytical_tokamak_field.f90
+    cerfon_freidberg_equilibrium.f90
+    cerfon_freidberg_field.f90
     ../fftw3.F90
 )
 target_link_libraries(magfie PRIVATE
