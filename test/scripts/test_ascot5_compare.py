@@ -309,7 +309,10 @@ def main() -> None:
         import unyt
     except ImportError:
         print("Warning: 'unyt' module not found. Installing via pip...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "unyt"], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--quiet", "--break-system-packages", "unyt"],
+            check=True
+        )
 
     sys.path.insert(0, str(ascot_clone / "a5py"))
     from physlib.analyticequilibrium import analyticGS  # type: ignore
