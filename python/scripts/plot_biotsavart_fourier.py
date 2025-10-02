@@ -71,6 +71,8 @@ from numpy import (
     zeros,
     zeros_like,
     isnan,
+    isfinite,
+    errstate,
     pi,
     meshgrid,
 )
@@ -869,7 +871,8 @@ def _compute_axisymmetric_field(
         dAphi_dR = spline_Aphi_real(R_vals, Z_vals, dx=1) + 1j * spline_Aphi_imag(R_vals, Z_vals, dx=1)
 
         BnR[k] = -dAphi_dZ
-        BnZ[k] = dAphi_dR + A_phi / R_vals[:, newaxis]
+        with errstate(divide="ignore", invalid="ignore"):
+            BnZ[k] = dAphi_dR + A_phi / R_vals[:, newaxis]
 
         spline_AR_real = RectBivariateSpline(R_vals, Z_vals, A_R.real, kx=5, ky=5)
         spline_AR_imag = RectBivariateSpline(R_vals, Z_vals, A_R.imag, kx=5, ky=5)
@@ -880,6 +883,19 @@ def _compute_axisymmetric_field(
         dA_Z_dR = spline_AZ_real(R_vals, Z_vals, dx=1) + 1j * spline_AZ_imag(R_vals, Z_vals, dx=1)
 
         Bnphi[k] = dA_R_dZ - dA_Z_dR
+
+        if R_vals[0] == 0.0 and R_vals.size > 1:
+            BnR[k, 0, :] = BnR[k, 1, :]
+            Bnphi[k, 0, :] = Bnphi[k, 1, :]
+            BnZ[k, 0, :] = BnZ[k, 1, :]
+
+        invalid = ~isfinite(BnZ[k])
+        if invalid.any():
+            finite_vals = BnZ[k][isfinite(BnZ[k])]
+            if finite_vals.size > 0:
+                BnZ[k][invalid] = finite_vals[0]
+            else:
+                BnZ[k][invalid] = 0.0
 
     return BnR, Bnphi, BnZ
 

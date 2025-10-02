@@ -62,9 +62,21 @@ def read_coil_radius(path: Path) -> Tuple[float, float]:
 
 def compute_axis_field_fourier(grid, BnR, Bnphi, BnZ, z_cm: np.ndarray) -> np.ndarray:
     results = np.zeros_like(z_cm, dtype=float)
+    positive_radii = grid.R[grid.R > 0.0]
+    fallback_r = float(positive_radii[0]) if positive_radii.size > 0 else 1.0e-6
     for idx, z in enumerate(z_cm):
         Bx, By, Bz = _evaluate_modes_at_point(BnR, Bnphi, BnZ, 0, grid.R, grid.Z, 0.0, 0.0, z)
-        results[idx] = float(np.real(Bz))
+        if not np.isfinite(Bz):
+            Bz_samples = []
+            for sign in (-1.0, 1.0):
+                Bx_eps, By_eps, Bz_eps = _evaluate_modes_at_point(
+                    BnR, Bnphi, BnZ, 0, grid.R, grid.Z, sign * fallback_r, 0.0, z
+                )
+                if np.isfinite(Bz_eps):
+                    Bz_samples.append(Bz_eps)
+            if Bz_samples:
+                Bz = float(np.mean(Bz_samples))
+        results[idx] = float(np.real(Bz)) if np.isfinite(Bz) else float("nan")
     return results
 
 
