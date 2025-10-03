@@ -27,7 +27,11 @@ def _set_test_cwd(monkeypatch):
     target = Path(__file__).parent
     monkeypatch.chdir(target)
     _debug(f"cwd set to {Path.cwd()}")
-    _debug(f"convexwall.dat present: {(target / 'convexwall.dat').exists()}")
+    repo_root = target.resolve().parents[1]
+    convex_src = (target / '../../test/resources/convexwall.dat').resolve()
+    _debug(f"convexwall source: {convex_src}")
+    _debug(f"convexwall source exists: {convex_src.exists()}")
+    _debug(f"test.geqdsk present: {(target / 'test.geqdsk').exists()}")
     _debug(f"field_divB0.inp present: {(target / 'field_divB0.inp').exists()}")
 
 

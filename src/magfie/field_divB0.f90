@@ -801,7 +801,7 @@ end subroutine read_field1
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine stretch_coords(r,z,rm,zm)
-  use input_files, only : iunit,convexfile
+  use input_files, only : convexfile
   use libneo_kinds, only : dp
   use math_constants, only : TWOPI
 
@@ -813,7 +813,7 @@ subroutine stretch_coords(r,z,rm,zm)
   integer icall, i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrzmx=100 ! possible max. of nrz
   integer, parameter :: nrhotht=360
-  integer :: iflag
+  integer :: iflag, unit_convex, ios
   real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
   real(dp), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable :: rho_w, tht_w
@@ -827,13 +827,30 @@ subroutine stretch_coords(r,z,rm,zm)
     nrz = 0
     rad_w = 0.
     zet_w = 0.
-    open(iunit, file=trim(convexfile), status='old', action='read')
+    ios = 0
+    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
+         iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: stretch_coords unable to open convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: missing convex wall file'
+    end if
     do i=1,nrzmx
-      read(iunit,*,END=10)rad_w(i),zet_w(i)
+      read(unit_convex,*,iostat=ios)rad_w(i),zet_w(i)
+      if (ios /= 0) exit
       nrz = nrz + 1
     end do
-10  continue
-    close(iunit)
+    close(unit_convex)
+    if (ios > 0) then
+      write(*,*) 'ERROR: stretch_coords failed reading convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: invalid convex wall file'
+    end if
+    if (nrz == 0) then
+      write(*,*) 'ERROR: stretch_coords found zero points in convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: empty convex wall file'
+    end if
 
     allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
     R0 = (maxval(rad_w(1:nrz)) +  minval(rad_w(1:nrz)))*0.5
