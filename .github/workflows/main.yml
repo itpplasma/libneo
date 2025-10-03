@@ -45,9 +45,30 @@ jobs:
         run: |
           pip install --break-system-packages -e .
 
+      - name: Debug Python environment
+        run: |
+          echo "=== Python version ==="
+          python3 --version
+          echo "=== Pytest version ==="
+          python3 -m pytest --version
+          echo "=== Test import of _efit_to_boozer ==="
+          python3 -c "import _efit_to_boozer; print('Import successful')" || echo "Import failed with exit code $?"
+          echo "=== Collect tests only ==="
+          python3 -m pytest --collect-only python/tests/test_boozer.py || echo "Collection failed with exit code $?"
+
       - name: Run Python tests (pytest)
         run: |
-          pytest -q
+          set -x
+          echo "=== Running pytest with verbose output ==="
+          python3 -m pytest -v --tb=short python/tests/test_boozer.py::test_get_boozer_transform 2>&1 | tee pytest_output.log || {
+            EXIT_CODE=$?
+            echo "=== Pytest failed with exit code: $EXIT_CODE ==="
+            echo "=== Last 50 lines of output ==="
+            tail -50 pytest_output.log
+            echo "=== Checking for segfault ==="
+            dmesg | tail -20 || echo "Cannot access dmesg"
+            exit $EXIT_CODE
+          }
 
       - name: Compare with ASCOT5 reference
         run: |
