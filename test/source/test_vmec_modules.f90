@@ -1,6 +1,7 @@
 program test_vmec_modules
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use vmec_coordinates
+    use cylindrical_cartesian, only: cyl_to_cart
     implicit none
 
     procedure(transform_i), pointer :: fptr

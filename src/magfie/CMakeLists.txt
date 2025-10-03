@@ -17,8 +17,10 @@ add_library(magfie STATIC
     magfield_mod.f90
     polylag_3.f90
     magfie_cyl.f90
-    geqdsk_tools.f90
+    geoflux_field.f90
     coil_tools.f90
+    analytical_gs_solver.f90
+    analytical_tokamak_field.f90
     ../fftw3.F90
 )
 target_link_libraries(magfie PRIVATE
@@ -26,10 +28,11 @@ target_link_libraries(magfie PRIVATE
     netcdf
     netcdff
     hdf5_tools
+    BLAS::BLAS
+    LAPACK::LAPACK
     FFTW::DoubleThreads
     FFTW::Double
 )
 set_property(TARGET neo_field PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::magfie ALIAS magfie)
-

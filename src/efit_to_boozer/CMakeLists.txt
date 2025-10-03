@@ -75,20 +75,12 @@ target_link_libraries(efit_to_boozer
 )
 
 # Grab Python
-find_package(
-  Python
-  COMPONENTS Interpreter Development.Module NumPy
-  REQUIRED)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 
-if (Python_FOUND)
-    message(STATUS "Python found: ${Python_EXECUTABLE}")
-    message(STATUS "Python version: ${Python_VERSION}")
-    message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
-    message(STATUS "Python libraries: ${Python_LIBRARIES}")
-else()
-    message("Python with NumPy not found, skipping interface build.")
-    return()
-endif()
+message(STATUS "Python found: ${Python_EXECUTABLE}")
+message(STATUS "Python version: ${Python_VERSION}")
+message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
+message(STATUS "Python libraries: ${Python_LIBRARIES}")
 
 # F2PY headers
 execute_process(

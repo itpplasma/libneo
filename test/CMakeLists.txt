@@ -14,6 +14,24 @@ include_directories(${MPI_Fortran_INCLUDE_PATH})
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
 
+set(LIBNEO_TESTING_ENABLED OFF)
+if(DEFINED ENV{LIBNEO_TESTING})
+  string(STRIP "$ENV{LIBNEO_TESTING}" _libneo_testing_raw)
+  string(TOLOWER "${_libneo_testing_raw}" _libneo_testing_value)
+  if(NOT _libneo_testing_value STREQUAL ""
+      AND NOT _libneo_testing_value STREQUAL "0"
+      AND NOT _libneo_testing_value STREQUAL "false"
+      AND NOT _libneo_testing_value STREQUAL "no"
+      AND NOT _libneo_testing_value STREQUAL "off")
+    set(LIBNEO_TESTING_ENABLED ON)
+  endif()
+endif()
+
+find_package(Python COMPONENTS Interpreter)
+if (NOT Python_FOUND)
+  message(FATAL_ERROR "Python interpreter required for GEQDSK scripts")
+endif()
+
 execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -64,6 +82,25 @@ target_link_libraries(test_geqdsk_tools.x
   ${MAGFIE_LIB}
 )
 
+if(LIBNEO_TESTING_ENABLED)
+  set(TEST_DATA_DIR ${CMAKE_BINARY_DIR}/test_data)
+  file(MAKE_DIRECTORY ${TEST_DATA_DIR})
+  set(TEST_ARTIFACT_DIR ${CMAKE_BINARY_DIR}/test_artifacts)
+  file(MAKE_DIRECTORY ${TEST_ARTIFACT_DIR})
+
+  add_executable(test_geoflux.x source/test_geoflux.f90)
+  target_link_libraries(test_geoflux.x
+    ${COMMON_LIBS}
+    ${MAGFIE_LIB}
+  )
+
+  add_executable(geoflux_coord_dump.x source/geoflux_coord_dump.f90)
+  target_link_libraries(geoflux_coord_dump.x
+    ${COMMON_LIBS}
+    ${MAGFIE_LIB}
+  )
+endif()
+
 add_executable(test_simpson.x source/test_simpson.f90)
 target_link_libraries(test_simpson.x
   ${COMMON_LIBS}
@@ -101,6 +138,15 @@ target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
 add_executable(test_vmec_modules.x source/test_vmec_modules.f90)
 target_link_libraries(test_vmec_modules.x neo)
 
+add_executable(test_coordinate_systems.x source/test_coordinate_systems.f90)
+target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
+
+# TODO: Update test for new psi_1..psi_7 interface
+# add_executable(test_analytical_gs_circular.x source/test_analytical_gs_circular.f90)
+# target_link_libraries(test_analytical_gs_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
+
+add_executable(test_analytical_circular.x source/test_analytical_circular.f90)
+target_link_libraries(test_analytical_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
 
 
 ## Standard tests according to standard libneo Fortran test convention.
@@ -122,6 +168,46 @@ add_fortran_test(test_batch_interpolate)
 add_fortran_test(test_collision_freqs)
 add_fortran_test(test_transport)
 add_fortran_test(test_vmec_modules)
+add_fortran_test(test_coordinate_systems)
+# add_fortran_test(test_analytical_gs_circular)  # TODO: update for new interface
+add_fortran_test(test_analytical_circular)
+
+add_test(
+  NAME test_ascot5_compare
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/test_ascot5_compare.py
+          --build-dir ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_ascot5_compare PROPERTIES
+  ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/test/ascot5_compare/ascot5/build:$ENV{LD_LIBRARY_PATH}"
+)
+
+if(LIBNEO_TESTING_ENABLED)
+  add_test(
+    NAME test_geoflux
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/run_geoflux_test.py
+            --exe $<TARGET_FILE:test_geoflux.x>
+            --data-dir ${TEST_DATA_DIR}
+  )
+
+  add_test(
+    NAME test_geqdsk_plot
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geqdsk_plot.py
+            --data-dir ${TEST_DATA_DIR}
+            --output-dir ${TEST_ARTIFACT_DIR}
+            --basename geqdsk
+  )
+  set_tests_properties(test_geqdsk_plot PROPERTIES DEPENDS test_geoflux)
+
+  add_test(
+    NAME test_geoflux_plot
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geoflux_plot.py
+            --exe $<TARGET_FILE:geoflux_coord_dump.x>
+            --data-dir ${TEST_DATA_DIR}
+            --output-dir ${TEST_ARTIFACT_DIR}
+            --basename geoflux
+  )
+  set_tests_properties(test_geoflux_plot PROPERTIES DEPENDS test_geoflux)
+endif()
 
 ## Custom tests
 
