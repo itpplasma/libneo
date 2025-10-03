@@ -1,35 +1,38 @@
-import os
 from pathlib import Path
+
 import pytest
-
-# Mark all tests in this module as expected to fail due to a Fortran-side
-# allocation bug in field_divB0.f90 (see issue #126). Once fixed, remove.
-pytestmark = pytest.mark.xfail(reason="Fortran allocate() re-entry bug in field_divB0.f90; see issue #126", strict=False)
-
 import numpy as np
+from _efit_to_boozer import efit_to_boozer
 from efit_to_boozer.boozer import (get_boozer_harmonics_divide_f_by_B0, get_boozer_harmonics,
-    get_boozer_transform, get_B0_of_s_theta_boozer, get_boozer_harmonics_divide_f_by_B0_1D)
+    get_boozer_transform, get_B0_of_s_theta_boozer, get_boozer_harmonics_divide_f_by_B0_1D,
+    get_magnetic_axis)
 import matplotlib.pyplot as plt
+
+
+@pytest.fixture(autouse=True)
+def _set_test_cwd(monkeypatch):
+    monkeypatch.chdir(Path(__file__).parent)
+
+
+def _figure_path(name: str) -> Path:
+    repo_root = Path(__file__).resolve().parents[2]
+    target = repo_root / "build" / "test"
+    target.mkdir(parents=True, exist_ok=True)
+    return target / name
 
 
 def test_get_boozer_transform():
     stor = np.array([0.9, 0.6])
-    nth = np.array([32])
-    dth_of_thb, G_of_thb = get_boozer_transform(stor, nth)
-    print(dth_of_thb)
-    print(G_of_thb)
-
-
-@pytest.fixture(autouse=True, scope="module")
-def _xfail_boozer_module():
-    """
-    XFAIL the entire module due to Fortran allocation bug (issue #126),
-    and ensure CWD is the test dir for when the bug is fixed.
-    """
-    pytest.xfail("Fortran allocate() re-entry bug in field_divB0.f90; see issue #126")
-    # No yield, we exit early with xfail
-
-
+    nth = 32
+    (r_of_thb, dth_of_thb, G_of_thb, theta_boozers,
+     theta_geoms, theta_symflux, B0) = get_boozer_transform(stor, nth)
+    assert len(r_of_thb) == stor.size - 1
+    assert len(dth_of_thb) == stor.size - 1
+    assert len(G_of_thb) == stor.size - 1
+    assert theta_boozers.shape == (stor.size - 1, 2 * nth + 1)
+    assert theta_geoms.shape == (stor.size - 1, 2 * nth + 1)
+    assert theta_symflux.shape == (2 * nth,)
+    assert len(B0) == stor.size - 1
 def test_get_boozer_harmonics_1D():
     nth = np.array([16])
 
@@ -62,7 +65,7 @@ def test_get_boozer_harmonics_1D():
     plt.legend()
     plt.xlabel('m')
     plt.ylabel(r'abs($C_n$)')
-    plt.savefig('test_get_boozer_harmonics_1D.png')
+    plt.savefig(_figure_path('test_get_boozer_harmonics_1D.png'))
 
 
 def test_get_boozer_harmonics_2D():
@@ -117,7 +120,7 @@ def test_get_boozer_harmonics_2D():
     plt.legend()
     plt.xlabel("m")
     plt.ylabel(r"abs($C_n$)")
-    plt.savefig('test_get_boozer_harmonics_2D.png')
+    plt.savefig(_figure_path('test_get_boozer_harmonics_2D.png'))
 
 
 def test_get_boozer_harmonics_divide_f_by_B0_1D():
@@ -170,7 +173,7 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D():
     plt.legend()
     plt.xlabel('m')
     plt.ylabel(r'abs($C_n$)')
-    plt.savefig('test_get_boozer_harmonics_divide_f_by_B0_1D.png')
+    plt.savefig(_figure_path('test_get_boozer_harmonics_divide_f_by_B0_1D.png'))
 
 
 def test_get_boozer_harmonics_divide_f_by_B0_2D():
@@ -234,7 +237,7 @@ def test_get_boozer_harmonics_divide_f_by_B0_2D():
     plt.legend()
     plt.xlabel("m")
     plt.ylabel(r"abs($C_{mn}$)")
-    plt.savefig('test_get_boozer_harmonics_divide_f_by_B0_2D.png')
+    plt.savefig(_figure_path('test_get_boozer_harmonics_divide_f_by_B0_2D.png'))
 
 
 @pytest.mark.skip(reason="Not implemented currently")
@@ -296,21 +299,24 @@ def test_get_boozer_harmonics_divide_f_by_B0_1D_fft():
 
 def test_get_B0_of_s_theta_boozer():
     stor = np.array([0.3, 0.6])
-    nth = np.array([32])
-    theta = np.linspace(0, 2*np.pi, nth[0])
+    nth = 32
+    theta = np.linspace(0, 2*np.pi, nth)
     B0 = get_B0_of_s_theta_boozer(stor, nth)
     plt.figure()
     plt.plot(theta, B0[0](theta))
     plt.ylabel(r"$B_0$ [G]")
     plt.xlabel(r"$\vartheta$ [rad]")
-    plt.title(f"stor = {stor[0]}, nth = {nth[0]}")
-    plt.savefig('test_get_B0_of_s_theta_boozer.png')
+    plt.title(f"stor = {stor[0]}, nth = {nth}")
+    plt.savefig(_figure_path('test_get_B0_of_s_theta_boozer.png'))
 
 def test_get_magnetic_axis():
-    efit_to_boozer.efit_to_boozer.init()
-    R_axis, Z_axis=get_magnetic_axis()
-    print(R_axis)
-    print(Z_axis)
+    efit_to_boozer.init()
+    try:
+        R_axis, Z_axis = get_magnetic_axis()
+    finally:
+        efit_to_boozer.deinit()
+    assert np.isfinite(R_axis)
+    assert np.isfinite(Z_axis)
 
 if __name__ == "__main__":
     pytest.main([__file__, "-s"])
