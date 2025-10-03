@@ -48,7 +48,7 @@ jobs:
       - name: Run Python tests (pytest)
         run: |
           pytest test/python -q
-          pytest python/tests -q --ignore=python/tests/test_boozer.py
+          pytest python/tests -q
 
       - name: Compare with ASCOT5 reference
         run: |

@@ -2,11 +2,15 @@ from pathlib import Path
 
 import pytest
 import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 from _efit_to_boozer import efit_to_boozer
 from efit_to_boozer.boozer import (get_boozer_harmonics_divide_f_by_B0, get_boozer_harmonics,
     get_boozer_transform, get_B0_of_s_theta_boozer, get_boozer_harmonics_divide_f_by_B0_1D,
     get_magnetic_axis)
-import matplotlib.pyplot as plt
 
 
 @pytest.fixture(autouse=True)
