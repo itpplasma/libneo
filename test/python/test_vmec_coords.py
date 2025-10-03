@@ -86,11 +86,8 @@ def test_vmec_plot_surfaces_visual_check(tmp_path):
         # Save to build directory for artifact collection
         build_artifact = Path("build/test/python/vmec_surfaces.png")
         build_artifact.parent.mkdir(parents=True, exist_ok=True)
-
-        fig.savefig(build_artifact)
         outfile = build_artifact
-        # Show interactively; in headless backends this is a no-op
-        plt.show()
+        fig.savefig(build_artifact)
         plt.close(fig)
         assert outfile.exists()
         assert outfile.stat().st_size > 0
