@@ -83,13 +83,12 @@ def test_vmec_plot_surfaces_visual_check(tmp_path):
             ax.set_ylabel("Z [m]")
             ax.axis("equal")
 
-        # Save to both tmp_path and build directory for artifact collection
-        outfile = tmp_path / "vmec_surfaces.png"
+        # Save to build directory for artifact collection
         build_artifact = Path("build/test/python/vmec_surfaces.png")
         build_artifact.parent.mkdir(parents=True, exist_ok=True)
 
-        fig.savefig(outfile)
         fig.savefig(build_artifact)
+        outfile = build_artifact
         # Show interactively; in headless backends this is a no-op
         plt.show()
         plt.close(fig)

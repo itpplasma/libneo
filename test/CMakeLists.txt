@@ -83,10 +83,13 @@ target_link_libraries(test_geqdsk_tools.x
 )
 
 if(LIBNEO_TESTING_ENABLED)
-  set(TEST_DATA_DIR ${CMAKE_BINARY_DIR}/test_data)
-  file(MAKE_DIRECTORY ${TEST_DATA_DIR})
-  set(TEST_ARTIFACT_DIR ${CMAKE_BINARY_DIR}/test_artifacts)
-  file(MAKE_DIRECTORY ${TEST_ARTIFACT_DIR})
+  set(TEST_OUTPUT_DIR ${CMAKE_BINARY_DIR}/test)
+  file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR})
+  # Create subdirectories for different test types
+  file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR}/source)
+  file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR}/scripts)
+  file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR}/python)
+  file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR}/poincare)
 
   add_executable(test_geoflux.x source/test_geoflux.f90)
   target_link_libraries(test_geoflux.x
@@ -176,9 +179,10 @@ add_test(
   NAME test_ascot5_compare
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/test_ascot5_compare.py
           --build-dir ${CMAKE_BINARY_DIR}
+          --output-dir ${CMAKE_BINARY_DIR}/test/scripts
 )
 set_tests_properties(test_ascot5_compare PROPERTIES
-  ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/test/ascot5_compare/ascot5/build:$ENV{LD_LIBRARY_PATH}"
+  ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/test/scripts/ascot5/build:$ENV{LD_LIBRARY_PATH}"
 )
 
 if(LIBNEO_TESTING_ENABLED)
@@ -186,14 +190,14 @@ if(LIBNEO_TESTING_ENABLED)
     NAME test_geoflux
     COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/run_geoflux_test.py
             --exe $<TARGET_FILE:test_geoflux.x>
-            --data-dir ${TEST_DATA_DIR}
+            --data-dir ${TEST_OUTPUT_DIR}/scripts
   )
 
   add_test(
     NAME test_geqdsk_plot
     COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geqdsk_plot.py
-            --data-dir ${TEST_DATA_DIR}
-            --output-dir ${TEST_ARTIFACT_DIR}
+            --data-dir ${TEST_OUTPUT_DIR}/scripts
+            --output-dir ${TEST_OUTPUT_DIR}/scripts
             --basename geqdsk
   )
   set_tests_properties(test_geqdsk_plot PROPERTIES DEPENDS test_geoflux)
@@ -202,8 +206,8 @@ if(LIBNEO_TESTING_ENABLED)
     NAME test_geoflux_plot
     COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geoflux_plot.py
             --exe $<TARGET_FILE:geoflux_coord_dump.x>
-            --data-dir ${TEST_DATA_DIR}
-            --output-dir ${TEST_ARTIFACT_DIR}
+            --data-dir ${TEST_OUTPUT_DIR}/scripts
+            --output-dir ${TEST_OUTPUT_DIR}/scripts
             --basename geoflux
   )
   set_tests_properties(test_geoflux_plot PROPERTIES DEPENDS test_geoflux)

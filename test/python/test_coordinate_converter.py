@@ -56,19 +56,25 @@ def test_MarsCoord2StorThetageom_stor2sqrtspol():
     assert np.allclose(sqrtspol, stor2sqrtspol(stor),atol=1e-2)
 
 def test_MarsCoords2StorThetageom_visual_check():
+    from pathlib import Path
     converter = StorGeom2MarsCoords(mars_dir)
     test_stor = np.linspace(0.0, 1, 5)
     test_theta_geom = np.linspace(-np.pi, np.pi, 800)
-    plt.figure()
+    fig = plt.figure()
     for stor in test_stor:
         sqrtspol, chi = converter(stor, test_theta_geom)
         plt.plot(test_theta_geom, chi, '.', label=f"stor={stor}")
     plt.xlabel('theta_geom [1]')
     plt.ylabel('chi [1]')
     plt.legend()
+    output = Path("build/test/python/mars_coords_visual.png")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=150, bbox_inches='tight')
     plt.show()
+    plt.close(fig)
 
 def test_MarsCoords2StorThetageom_coords_domain_visual_check():
+    from pathlib import Path
     converter = StorGeom2MarsCoords(mars_dir)
     mars_coords = converter.mars_coords
     stor_geom_coords = converter.stor_geom_coords
@@ -100,7 +106,11 @@ def test_MarsCoords2StorThetageom_coords_domain_visual_check():
     ax[1].set_xlabel('chi [1]')
     ax[1].set_ylabel('theta_geom [1]')
     ax[1].legend()
+    output = Path("build/test/python/mars_coords_domain.png")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=150, bbox_inches='tight')
     plt.show()
+    plt.close(fig)
 
 def test_MarsCoord2StorThetageom_performance_profile():
     import cProfile
