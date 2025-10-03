@@ -46,9 +46,12 @@ jobs:
           pip install --break-system-packages -e .
 
       - name: Run Python tests (pytest)
+        env:
+          PYTHONFAULTHANDLER: "1"
+          LIBNEO_DEBUG_BOOZER: "1"
         run: |
           pytest test/python -q
-          pytest python/tests -q
+          pytest python/tests -vv -s
 
       - name: Compare with ASCOT5 reference
         run: |
