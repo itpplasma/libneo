@@ -45,13 +45,9 @@ jobs:
         run: |
           pip install --break-system-packages -e .
 
-      - name: Debug Python import
-        run: |
-          python3 -c "import sys; print(f'Python: {sys.version}'); import _efit_to_boozer; print('Import OK')" || echo "Import failed with code $?"
-
       - name: Run Python tests (pytest)
         run: |
-          pytest -v --tb=short 2>&1 | head -100 || echo "Pytest failed with exit code $?"
+          pytest -q
 
       - name: Compare with ASCOT5 reference
         run: |
