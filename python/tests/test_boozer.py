@@ -24,7 +24,11 @@ def _debug(msg: str) -> None:
 
 @pytest.fixture(autouse=True)
 def _set_test_cwd(monkeypatch):
-    monkeypatch.chdir(Path(__file__).parent)
+    target = Path(__file__).parent
+    monkeypatch.chdir(target)
+    _debug(f"cwd set to {Path.cwd()}")
+    _debug(f"convexwall.dat present: {(target / 'convexwall.dat').exists()}")
+    _debug(f"field_divB0.inp present: {(target / 'field_divB0.inp').exists()}")
 
 
 def _figure_path(name: str) -> Path:
