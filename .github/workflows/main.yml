@@ -47,7 +47,11 @@ jobs:
 
       - name: Run Python tests (pytest)
         run: |
-          pytest -q
+          pytest -v --tb=short || {
+            EXIT_CODE=$?
+            echo "=== Pytest failed with exit code: $EXIT_CODE ==="
+            exit $EXIT_CODE
+          }
 
       - name: Compare with ASCOT5 reference
         run: |
