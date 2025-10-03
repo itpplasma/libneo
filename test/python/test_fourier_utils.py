@@ -1,17 +1,24 @@
 # %% Standard imports
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
 
 # modules to test
 from libneo import fourier_coefs_half, fourier_coefs_full, get_half_fft
 
-def save_plot(fig, filename):
-    """Helper to save plots to build/test/python directory"""
-    output = Path(f"build/test/python/{filename}")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, dpi=150, bbox_inches='tight')
-    return output
+
+def _figure_path(name: str) -> Path:
+    repo_root = Path(__file__).resolve().parents[2]
+    target = repo_root / "build" / "test" / "python"
+    target.mkdir(parents=True, exist_ok=True)
+    return target / name
+
+
+def _save_current_figure(name: str) -> None:
+    plt.savefig(_figure_path(name), dpi=150, bbox_inches="tight")
+    plt.close()
+
 
 def test_fourier_coefs_half():
     x = np.linspace(0, 2*np.pi, 100)
@@ -23,6 +30,7 @@ def test_fourier_coefs_half():
     assert not is_imag_part_vanisching(f_eval)
     assert np.allclose(np.real(f_eval), trial_trigonometric_func(new_x))
 
+
 def test_fourier_coefs_full():
     x = np.linspace(0, 2*np.pi, 100)
     m = np.arange(-4, 5)
@@ -32,6 +40,7 @@ def test_fourier_coefs_full():
     assert is_complex(f_eval)
     assert is_imag_part_vanisching(f_eval)
     assert np.allclose(np.real(f_eval), trial_trigonometric_func(new_x))
+
 
 def test_fourier_coefs_half_on_complex_function():
     x = np.linspace(0, 2*np.pi, 100)
@@ -44,6 +53,7 @@ def test_fourier_coefs_half_on_complex_function():
     assert not np.allclose(np.real(f_eval), np.real(complex_trial_func(new_x)))
     assert not np.allclose(np.imag(f_eval), np.imag(complex_trial_func(new_x)))
 
+
 def test_fourier_coefs_full_on_complex_function():
     x = np.linspace(0, 2*np.pi, 100)
     m = np.arange(-4, 5)
@@ -55,12 +65,14 @@ def test_fourier_coefs_full_on_complex_function():
     assert np.allclose(np.real(fft_eval), np.real(complex_trial_func(new_x)))
     assert np.allclose(np.imag(fft_eval), np.imag(complex_trial_func(new_x)))
 
+
 def test_get_half_fft_coefficients_on_trigonometric_func():
     grid = np.linspace(0, 2*np.pi, 20)
     fm, m = get_half_fft(trial_trigonometric_func(grid), grid)
     # The coefficients from the trial function sin(x)*sin(x)*cos(x) + 1
-    assert np.allclose(fm.real, np.array([1,0.25,0,-0.25,0,0,0,0,0,0]))
-    assert np.allclose(fm.imag, np.array([0,0,0,0,0,0,0,0,0,0]))
+    assert np.allclose(fm.real, np.array([1, 0.25, 0, -0.25, 0, 0, 0, 0, 0, 0]))
+    assert np.allclose(fm.imag, np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+
 
 def test_get_half_fft_even_odd_grid():
     even_grid = np.linspace(-np.pi, np.pi, 20)
@@ -72,6 +84,7 @@ def test_get_half_fft_even_odd_grid():
     assert np.allclose(f_odd(odd_grid), trial_func(odd_grid))
     assert not np.allclose(f_odd(even_grid), trial_func(even_grid))
 
+
 def test_get_half_fft_on_trigonometric_func():
     grid = np.linspace(0, 2*np.pi, 20)
     fm, m = get_half_fft(trial_trigonometric_func(grid), grid)
@@ -81,12 +94,14 @@ def test_get_half_fft_on_trigonometric_func():
     assert not is_imag_part_vanisching(fft_eval)
     assert np.allclose(np.real(fft_eval), trial_trigonometric_func(grid_eval))
 
+
 def test_get_half_fft_on_func():
     grid = np.linspace(-np.pi, np.pi, 20)
     between_grid = grid[:-1] + 0.5*np.diff(grid)
     fft_series = get_fft_series_lambda_function(trial_func, grid)
     assert np.allclose(fft_series(grid), trial_func(grid))
     assert not np.allclose(fft_series(between_grid), trial_func(between_grid))
+
 
 def test_get_half_fft_phaseshift():
     grid = np.linspace(0, 2*np.pi, 10)
@@ -97,7 +112,8 @@ def test_get_half_fft_phaseshift():
     grid_plus_pi = grid + np.pi
     assert np.allclose(f_plus_pi(grid_plus_pi), trial_func(grid_plus_pi))
     grid_plus_pi_between = get_intermediate_steps(grid_plus_pi)
-    assert not np.allclose(f_plus_pi(grid_plus_pi_between), trial_func(grid_plus_pi_between))   
+    assert not np.allclose(f_plus_pi(grid_plus_pi_between), trial_func(grid_plus_pi_between))
+
 
 def test_get_half_fft_phaseshift_visual_check():
     grid = np.linspace(0, 2*np.pi, 10)
@@ -105,18 +121,17 @@ def test_get_half_fft_phaseshift_visual_check():
     f_minus_pi = get_fft_series_lambda_function(trial_func, grid - np.pi)
     f_plus_pi = get_fft_series_lambda_function(trial_func, grid + np.pi)
     grid_eval = add_intermediate_steps(grid)
-    fig = plt.figure()
+    plt.figure()
     plt.plot(grid_eval, trial_func(grid_eval), 'ro-', label='base function')
     plt.plot(grid_eval, f(grid_eval), 'D-', label='no shift')
     plt.plot(grid_eval, f_plus_pi(grid_eval), 'x-', label='+pi shifted')
-    plt.plot(grid_eval, f_minus_pi(grid_eval),'+--', label='-pi shifted')
+    plt.plot(grid_eval, f_minus_pi(grid_eval), '+--', label='-pi shifted')
     plt.legend()
     plt.xlabel('x [1]')
     plt.ylabel('f(x) [1]')
     plt.title('Reconstruction of trial function from ffts on shifted intervals')
-    save_plot(fig, "fourier_phaseshift_visual.png")
-    plt.show()
-    plt.close(fig)
+    _save_current_figure('fourier_utils_phaseshift.png')
+
 
 def test_get_half_fft_even_odd_grid_visual_check():
     even_grid = np.linspace(-np.pi, np.pi, 10)
@@ -124,7 +139,7 @@ def test_get_half_fft_even_odd_grid_visual_check():
     f_even = get_fft_series_lambda_function(trial_func, even_grid)
     f_odd = get_fft_series_lambda_function(trial_func, odd_grid)
     grid_eval = np.sort(np.concatenate([even_grid, odd_grid]))
-    fig = plt.figure()
+    plt.figure()
     plt.plot(grid_eval, trial_func(grid_eval), 'D-', label='base function')
     plt.plot(grid_eval, f_even(grid_eval), 'x-', label='fft on even grid')
     plt.plot(grid_eval, f_odd(grid_eval), '+-', label='fft on odd grid')
@@ -132,19 +147,21 @@ def test_get_half_fft_even_odd_grid_visual_check():
     plt.xlabel('x [1]')
     plt.ylabel('f(x) [1]')
     plt.title('Reconstruction of trial function from ffts on even and odd grid')
-    save_plot(fig, "fourier_even_odd_grid_visual.png")
-    plt.show()
-    plt.close(fig)
+    _save_current_figure('fourier_utils_even_odd.png')
+
 
 def get_fft_series_lambda_function(func, grid):
     fm, m = get_half_fft(func(grid), grid)
     return lambda x: np.real(fm.dot(np.exp(1.0j * np.outer(m, x))))
 
+
 def add_intermediate_steps(grid):
-    return np.sort(np.concatenate([grid,get_intermediate_steps(grid)]))
+    return np.sort(np.concatenate([grid, get_intermediate_steps(grid)]))
+
 
 def get_intermediate_steps(grid):
     return grid[:-1] + 0.5*np.diff(grid)
+
 
 def test_fourier_coefs_visual_check():
     x = np.linspace(0, 2*np.pi, 100)
@@ -153,69 +170,69 @@ def test_fourier_coefs_visual_check():
     m_half = np.arange(0, 5)
     fm_half = fourier_coefs_half(trial_trigonometric_func(x)[:-1], x, m_half)
     x_rand = np.sort(np.random.uniform(0, 2*np.pi, 20))
-    f_eval = np.real(fm.dot(np.exp(1.0j * np.outer(m, x_rand))))
-    f_eval_half = np.real(fm_half.dot(np.exp(1.0j * np.outer(m_half, x_rand))))
-    fig = plt.figure()
+    plt.figure()
     plt.plot(x, trial_trigonometric_func(x), label='trial function')
-    plt.plot(x_rand, f_eval, 'o', label='full fourier eval')
-    plt.plot(x_rand, f_eval_half, 'x', label='half fourier eval')
+    plt.plot(x_rand, np.real(fm.dot(np.exp(1.0j * np.outer(m, x_rand)))), 'o', label='full fourier eval')
+    plt.plot(x_rand, np.real(fm_half.dot(np.exp(1.0j * np.outer(m_half, x_rand)))), 'x', label='half fourier eval')
     plt.legend()
     plt.xlabel('x [1]')
     plt.ylabel('f(x) [1]')
     plt.title('Reconstruction of trial function from fourier coef computation')
-    save_plot(fig, "fourier_coefs_visual.png")
-    plt.show()
-    plt.close(fig)
+    _save_current_figure('fourier_utils_fourier_coefs.png')
+
 
 def test_get_half_fft_visual_check():
-    make_visual_check_get_half_fft_on(trial_trigonometric_func)
-    make_visual_check_get_half_fft_on(trial_func)
+    make_visual_check_get_half_fft_on(trial_trigonometric_func, 'trig')
+    make_visual_check_get_half_fft_on(trial_func, 'ramp')
 
-def make_visual_check_get_half_fft_on(func):
+
+def make_visual_check_get_half_fft_on(func, label: str):
     grid = np.linspace(0, 2*np.pi, 20)
     fm, m = get_half_fft(func(grid), grid)
-    grid_eval = np.sort(np.concatenate([grid,grid[:-1] + 0.5*np.diff(grid)]))
+    grid_eval = np.sort(np.concatenate([grid, grid[:-1] + 0.5*np.diff(grid)]))
     fourier_eval = fm.dot(np.exp(1.0j * np.outer(m, grid_eval)))
-    fig = plt.figure()
+    plt.figure()
     plt.plot(grid, func(grid), 'D', label='trial data')
     plt.plot(grid_eval, np.real(fourier_eval), '-x', label='half fft eval')
     plt.legend()
     plt.xlabel('x [1]')
     plt.ylabel('f(x) [1]')
     plt.title('Reconstruction of trial function from fft results')
-    func_name = func.__name__
-    save_plot(fig, f"fourier_half_fft_{func_name}_visual.png")
-    plt.show()
-    plt.close(fig)
+    _save_current_figure(f'fourier_utils_half_fft_{label}.png')
+
 
 def test_get_half_fft_coefficients_visual_check():
     grid = np.linspace(0, 2*np.pi, 20)
     fm, m = get_half_fft(trial_trigonometric_func(grid), grid)
-    fig = plt.figure()
+    plt.figure()
     plt.plot(m, fm.real, '-D', label='real-part fft coefs')
     plt.plot(m, fm.imag, '-x', label='imag-part fft coefs')
     plt.legend()
     plt.xlabel('modenumber m [1]')
     plt.ylabel('fm [1]')
     plt.title('Fourier coefficients of trigonometric function from FFT')
-    save_plot(fig, "fourier_coefficients_visual.png")
-    plt.show()
-    plt.close(fig)
+    _save_current_figure('fourier_utils_coefficients.png')
+
 
 def trial_trigonometric_func(x):
-    return np.sin(x)*np.sin(x)*np.cos(x) + 1
+    return np.sin(x) * np.sin(x) * np.cos(x) + 1
+
 
 def trial_func(x):
     return np.mod(x, 2*np.pi)
 
+
 def complex_trial_func(x):
-    return np.sin(x) + np.sin(x)*np.cos(x)*1.0j
+    return np.sin(x) + np.sin(x) * np.cos(x) * 1.0j
+
 
 def is_imag_part_vanisching(x):
     return np.allclose(np.imag(x), 0)
 
+
 def is_complex(x):
     return np.iscomplexobj(x)
+
 
 def test_angle_conversion_example_visual_check():
     chi = np.linspace(-np.pi, np.pi, 50)
@@ -253,13 +270,15 @@ def test_angle_conversion_example_visual_check():
     ax[0].legend()
     ax[0].axis('equal')
     plt.suptitle('Conversion between geom and chi angle functions')
-    save_plot(fig, "fourier_angle_conversion_visual.png")
-    plt.show()
-    plt.close(fig)
+    _save_current_figure('fourier_utils_geom_vs_chi.png')
 
-def trial_geom_func(x, boundary: float=-np.pi):
-    angle = (x - np.pi - boundary) + np.sin((x - np.pi - boundary)) + 0.3*np.sin(2*(x - np.pi - boundary))
-    return np.mod(angle + np.pi, 2*np.pi) - np.pi
+
+def trial_geom_func(x, boundary: float = -np.pi):
+    angle = (x - np.pi - boundary) + np.sin((x - np.pi - boundary)) + 0.3 * np.sin(
+        2 * (x - np.pi - boundary)
+    )
+    return np.mod(angle + np.pi, 2 * np.pi) - np.pi
+
 
 def sort_by_first_list(list1, list2):
     if isinstance(list1, np.ndarray):
@@ -284,8 +303,3 @@ if __name__ == '__main__':
     test_get_half_fft_phaseshift()
     print("All tests passed!")
     test_get_half_fft_phaseshift_visual_check()
-    test_get_half_fft_even_odd_grid_visual_check()
-    test_fourier_coefs_visual_check()
-    test_get_half_fft_visual_check()
-    test_get_half_fft_coefficients_visual_check()
-    test_angle_conversion_example_visual_check()
