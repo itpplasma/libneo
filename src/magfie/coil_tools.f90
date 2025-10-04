@@ -10,11 +10,13 @@ module coil_tools
   public :: coil_t, coil_init, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
     coils_write_AUG, coils_read_AUG, &
-    coils_write_Nemov, coils_read_Nemov, &
+    coils_write_nemov, coils_read_nemov, &
     coils_write_GPEC, coils_read_GPEC, &
-    read_currents, Biot_Savart_sum_coils, Biot_Savart_Fourier, &
-    write_Bvac_Nemov, write_Bnvac_Fourier, read_Bnvac_Fourier, &
-    Vector_Potential_Biot_Savart_Fourier, write_Anvac_Fourier
+    read_currents, grid_from_bounding_box, &
+    biot_savart_sum_coils, biot_savart_fourier, &
+    write_Bvac_nemov, write_Bnvac_fourier, read_Bnvac_fourier, &
+    vector_potential_biot_savart_fourier, write_Anvac_fourier, read_Anvac_fourier, &
+    sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac
 
   type :: coil_t
     integer :: nseg = 0
@@ -43,7 +45,7 @@ contains
     ! gfortran 14.2.1 thinks that the equivalent
     ! implied do loop may be uninitialized here
     do k = omit_lo, cnt - 1 + omit_lo
-      linspace(k) = lo + k * step
+      linspace(k + 1) = lo + k * step
     end do
     if (omit_hi == 0) linspace(cnt) = hi
   end function linspace
@@ -180,7 +182,7 @@ contains
     deallocate(R_Z_phi)
   end subroutine coils_read_AUG
 
-  subroutine coils_write_Nemov(filename, coils)
+  subroutine coils_write_nemov(filename, coils)
     character(len = *), intent(in) :: filename
     type(coil_t), intent(in), dimension(:) :: coils
     integer :: fid, kc, ks
@@ -198,9 +200,9 @@ contains
         coils(kc)%XYZ(:, 1), 0.0, kc
     end do
     close(fid)
-  end subroutine coils_write_Nemov
+  end subroutine coils_write_nemov
 
-  subroutine coils_read_Nemov(filename, coils)
+  subroutine coils_read_nemov(filename, coils)
     character(len = *), intent(in) :: filename
     type(coil_t), intent(out), allocatable, dimension(:) :: coils
     integer :: fid, total, k, ncoil, kc, nseg, ks, idum
@@ -235,7 +237,7 @@ contains
         read (fid, *) coils(kc)%XYZ(:, ks), cur, idum
         k = k + 1
         if (idum /= kc) then
-          write (error_unit, '("coils_read_Nemov: expected coil index ", ' // &
+          write (error_unit, '("coils_read_nemov: expected coil index ", ' // &
             'i0, " in ", a, " at line ", i0, ", but got ", i0)') kc, filename, k, idum
           error stop
         end if
@@ -243,7 +245,7 @@ contains
       read (fid, *) X, Y, Z, cur, idum
     end do
     close(fid)
-  end subroutine coils_read_Nemov
+  end subroutine coils_read_nemov
 
   subroutine coils_write_GPEC(filename, coils)
     use math_constants, only: length_si_to_cgs
@@ -321,9 +323,27 @@ contains
     close(fid)
   end subroutine read_currents
 
-  subroutine Biot_Savart_sum_coils(coils, Ic, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
+  subroutine grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
     use math_constants, only: pi
+    real(dp), intent(in) :: Rmin, Rmax
+    integer, intent(in) :: nR
+    real(dp), dimension(:), intent(inout) :: R
+    real(dp), intent(in) :: Zmin, Zmax
+    integer, intent(in) :: nZ
+    real(dp), dimension(:), intent(inout) :: Z
+    integer, intent(in), optional :: nphi
+    real(dp), dimension(:), intent(inout), optional :: phi
+
+    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
+    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
+    if (present(nphi) .and. present(phi)) then
+      ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+      phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)
+    end if
+  end subroutine grid_from_bounding_box
+
+  subroutine biot_savart_sum_coils(coils, Ic, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
     type(coil_t), intent(in), dimension(:) :: coils
     real(dp), intent(in), dimension(:) :: Ic
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
@@ -334,16 +354,14 @@ contains
     real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ_c(3), BXYZ(3)
 
     if (size(coils) /= size(Ic)) then
-      write (error_unit, arg_size_fmt) 'Biot_Savart_sum_coils', &
+      write (error_unit, arg_size_fmt) 'biot_savart_sum_coils', &
         'size(coils)', size(coils), 'size(Ic)', size(Ic)
       error stop
     end if
     ncoil = size(coils)
-    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
-    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
     cosphi(:) = cos(phi)
     sinphi(:) = sin(phi)
-    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
     allocate(Bvac(3, nZ, nphi, nR))
     Bvac(:, :, :, :) = 0d0
     !$omp parallel do schedule(static) collapse(3) default(none) &
@@ -377,16 +395,107 @@ contains
       end do
     end do
     !$omp end parallel do
-  end subroutine Biot_Savart_sum_coils
+  end subroutine biot_savart_sum_coils
 
-  subroutine Vector_Potential_Biot_Savart_Fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+  subroutine biot_savart_fourier(coils, nmax, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
+    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
+    !$ use omp_lib, only: omp_get_max_threads
+    use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
+      fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
+      FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
+    type(coil_t), intent(in), dimension(:) :: coils
+    integer, intent(in) :: nmax
+    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(in) :: nR, nphi, nZ
+    complex(dp), intent(out), dimension(:, :, :, :, :), allocatable :: Bn
+    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
+    real(dp), dimension(nphi) :: phi, cosphi, sinphi
+    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ(3)
+    type(c_ptr) :: plan_nphi, p_BR, p_Bphi, p_BZ, p_BnR, p_Bnphi, p_BnZ
+    real(c_double), dimension(:), pointer :: BR, Bphi, BZ
+    complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
+
+    if (nmax > nphi / 4) then
+      write (error_unit, '("biot_savart_fourier: requested nmax = ", ' // &
+        'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
+      error stop
+    end if
+    nfft = nphi / 2 + 1
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
+    cosphi(:) = cos(phi)
+    sinphi(:) = sin(phi)
+    ncoil = size(coils)
+    allocate(Bn(0:nmax, 3, nR, nZ, ncoil))
+    ! prepare FFTW
+    !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
+    !$ call fftw_plan_with_nthreads(omp_get_max_threads())
+    p_BR = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_BR, BR, [nphi])
+    p_Bphi = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_Bphi, Bphi, [nphi])
+    p_BZ = fftw_alloc_real(int(nphi, c_size_t))
+    call c_f_pointer(p_BZ, BZ, [nphi])
+    p_BnR = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_BnR, BnR, [nfft])
+    p_Bnphi = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_Bnphi, Bnphi, [nfft])
+    p_BnZ = fftw_alloc_complex(int(nfft, c_size_t))
+    call c_f_pointer(p_BnZ, BnZ, [nfft])
+    plan_nphi = fftw_plan_dft_r2c_1d(nphi, BR, BnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
+    do kc = 1, ncoil
+      do kZ = 1, nZ
+        do kR = 1, nR
+          !$omp parallel do schedule(static) default(none) &
+          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) &
+          !$omp shared(nphi, kc, coils, R, kR, Z, kZ, cosphi, sinphi, BR, Bphi, BZ)
+          do kphi = 1, nphi
+            XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)]
+            ! Biot-Savart integral over coil segments
+            BXYZ(:) = 0d0
+            XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
+            dist_f = sqrt(sum(XYZ_f * XYZ_f))
+            do ks = 1, coils(kc)%nseg
+              XYZ_i(:) = XYZ_f
+              dist_i = dist_f
+              XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
+              dist_f = sqrt(sum(XYZ_f * XYZ_f))
+              BXYZ(:) = BXYZ + &
+                (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
+                (dist_i + dist_f) / (dist_i * dist_f * (dist_i * dist_f + sum(XYZ_i * XYZ_f)))
+            end do
+            BR(kphi) = BXYZ(1) * cosphi(kphi) + BXYZ(2) * sinphi(kphi)
+            Bphi(kphi) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
+            BZ(kphi) = BXYZ(3)
+          end do
+          !$omp end parallel do
+          call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
+          call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
+          call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
+          Bn(0:nmax, 1, kR, kZ, kc) = BnR(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 2, kR, kZ, kc) = Bnphi(1:nmax+1) / dble(nphi)
+          Bn(0:nmax, 3, kR, kZ, kc) = BnZ(1:nmax+1) / dble(nphi)
+        end do
+      end do
+    end do
+    call fftw_destroy_plan(plan_nphi)
+    call fftw_free(p_BR)
+    call fftw_free(p_Bphi)
+    call fftw_free(p_BZ)
+    call fftw_free(p_BnR)
+    call fftw_free(p_Bnphi)
+    call fftw_free(p_BnZ)
+    !$ call fftw_cleanup_threads()
+    ! nullify pointers past this point
+  end subroutine biot_savart_fourier
+
+  subroutine vector_potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
     !$ use omp_lib, only: omp_get_max_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
-    use math_constants, only: pi
     use field_sub, only: read_field_input, stretch_coords
 
     type(coil_t), intent(in), dimension(:) :: coils
@@ -406,17 +515,15 @@ contains
     complex(c_double_complex), dimension(:), pointer :: fft_output
 
     if (nmax > nphi / 4) then
-      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
+      write (error_unit, '("biot_savart_fourier: requested nmax = ", ' // &
         'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
       error stop
     end if
     nfft = nphi / 2 + 1
     ncoil = size(coils)
-    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
-    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z, nphi, phi)
     cosphi(:) = cos(phi)
     sinphi(:) = sin(phi)
-    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
     allocate(AnR(0:nmax, nR, nZ, ncoil))
     allocate(Anphi(0:nmax, nR, nZ, ncoil))
     allocate(AnZ(0:nmax, nR, nZ, ncoil))
@@ -510,9 +617,69 @@ contains
     call fftw_free(p_fft_output)
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
-  end subroutine Vector_Potential_Biot_Savart_Fourier
+  end subroutine vector_potential_biot_savart_fourier
 
-  subroutine write_Anvac_Fourier(filename, ncoil, nmax, &
+  subroutine sum_coils_gauge_single_mode_Anvac(AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
+    Ic, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, gauged_AnR, gauged_AnZ)
+    use math_constants, only: imun => IMUN
+    complex(dp), dimension(:, :, :, :), intent(in) :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    real(dp), dimension(:), intent(in) :: Ic
+    integer, intent(in) :: ntor
+    real(dp), intent(in) :: Rmin, Rmax
+    integer, intent(in) :: nR
+    real(dp), intent(in) :: Zmin, Zmax
+    integer, intent(in) :: nZ
+    complex(dp), dimension(:, :), allocatable, intent(inout) :: gauged_AnR, gauged_AnZ
+    integer :: ncoil, kcoil, kZ
+    real(dp) :: R(nR), Z(nZ)
+
+    ! TODO: check array sizes
+    ncoil = size(Ic)
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
+    if (allocated(gauged_AnR)) deallocate(gauged_AnR)
+    if (allocated(gauged_AnZ)) deallocate(gauged_AnZ)
+    allocate(gauged_AnR(nR, nZ), gauged_AnZ(nR, nZ))
+    gauged_AnR(:, :) = (0d0, 0d0)
+    gauged_AnZ(:, :) = (0d0, 0d0)
+    ! TODO: OpenMP?
+    do kcoil = 1, ncoil
+      do kZ = 1, nZ
+        gauged_AnR(:, kZ) = gauged_AnR(:, kZ) + Ic(kcoil) * &
+          (AnR(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dR(ntor, :, kZ, kcoil) + &
+          imun / ntor * Anphi(ntor, :, kZ, kcoil))
+        gauged_AnZ(:, kZ) = gauged_AnZ(:, kZ) + Ic(kcoil) * &
+          (AnZ(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dZ(ntor, :, kZ, kcoil))
+      end do
+    end do
+  end subroutine sum_coils_gauge_single_mode_Anvac
+
+  subroutine gauged_Anvac_from_Bnvac(BnR, BnZ, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, &
+    gauged_AnR, gauged_AnZ)
+    use math_constants, only: imun => IMUN
+    complex(dp), dimension(:, :), intent(in) :: BnR, BnZ
+    integer, intent(in) :: ntor
+    real(dp), intent(in) :: Rmin, Rmax
+    integer, intent(in) :: nR
+    real(dp), intent(in) :: Zmin, Zmax
+    integer, intent(in) :: nZ
+    complex(dp), dimension(:, :), allocatable, intent(inout) :: gauged_AnR, gauged_AnZ
+    integer :: kZ
+    real(dp) :: R(nR), Z(nZ)
+
+    ! TODO: check array sizes
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
+    if (allocated(gauged_AnR)) deallocate(gauged_AnR)
+    if (allocated(gauged_AnZ)) deallocate(gauged_AnZ)
+    allocate(gauged_AnR(nR, nZ), gauged_AnZ(nR, nZ))
+    gauged_AnR(:, :) = (0d0, 0d0)
+    gauged_AnZ(:, :) = (0d0, 0d0)
+    do kZ = 1, nZ
+      gauged_AnR(:, kZ) = imun / ntor * R * BnZ(:, kZ)
+      gauged_AnZ(:, kZ) = -imun / ntor * R * BnR(:, kZ)
+    end do
+  end subroutine gauged_Anvac_from_Bnvac
+
+  subroutine write_Anvac_fourier(filename, ncoil, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
     use netcdf
     character(len = *), intent(in) :: filename
@@ -520,220 +687,160 @@ contains
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
     integer, intent(in) :: nR, nphi, nZ
     complex(dp), intent(in), dimension(:, :, :, :) :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
-    real(dp), dimension(:), allocatable :: R, Z, coil_number, ntor
-    integer :: status, ncid
+    real(dp) :: R(nR), Z(nZ)
+    integer :: coil_number(ncoil), ntor(nmax + 1)
+    integer :: ncid
     integer :: dimid_R, dimid_Z, dimid_tor, dimid_coil
     integer :: varid_R, varid_Z, varid_ntor, varid_coils, varid_nR, varid_nphi, varid_nZ
-    integer :: varid_actual_data
     integer :: k
 
-    allocate(R(nR), Z(nZ), coil_number(ncoil), ntor(nmax))
-
-    R = linspace(Rmin, Rmax, nR, 0, 0)
-    Z = linspace(Zmin, Zmax, nZ, 0, 0)
+    call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
     coil_number = [(k, k = 1, ncoil)]
     ntor = [(k, k = 0, nmax)]
 
-    status = nf90_create(filename, NF90_NETCDF4, ncid)
-    call nc_check(status, 'open')
+    call nc_check('create', nf90_create(filename, NF90_NETCDF4, ncid))
 
     ! define dimensions metadata
-    status = nf90_def_dim(ncid, 'R', nR, dimid_R)
-    status = nf90_def_dim(ncid, 'Z', nZ, dimid_Z)
-    status = nf90_def_dim(ncid, 'ntor', nmax+1, dimid_tor)
-    status = nf90_def_dim(ncid, 'coil_number', ncoil, dimid_coil)
+    call nc_check('def_dim', nf90_def_dim(ncid, 'R', nR, dimid_R))
+    call nc_check('def_dim', nf90_def_dim(ncid, 'Z', nZ, dimid_Z))
+    call nc_check('def_dim', nf90_def_dim(ncid, 'ntor', nmax+1, dimid_tor))
+    call nc_check('def_dim', nf90_def_dim(ncid, 'coil_number', ncoil, dimid_coil))
 
     ! define variables metadata
-    status = nf90_def_var(ncid, 'R', NF90_DOUBLE, [dimid_R], varid_R)
-    status = nf90_def_var(ncid, 'Z', NF90_DOUBLE, [dimid_Z], varid_Z)
-    status = nf90_def_var(ncid, 'ntor', NF90_DOUBLE, [dimid_tor], varid_ntor)
-    status = nf90_def_var(ncid, 'coil_number', NF90_DOUBLE, [dimid_coil], varid_coils)
-    status = nf90_def_var(ncid, 'nR', NF90_DOUBLE, varid_nR)
-    status = nf90_def_var(ncid, 'nphi', NF90_DOUBLE, varid_nphi)
-    status = nf90_def_var(ncid, 'nZ', NF90_DOUBLE, varid_nZ)
+    call nc_check('def_var', nf90_def_var(ncid, 'R', NF90_DOUBLE, [dimid_R], varid_R))
+    call nc_check('def_var', nf90_def_var(ncid, 'Z', NF90_DOUBLE, [dimid_Z], varid_Z))
+    call nc_check('def_var', nf90_def_var(ncid, 'ntor', NF90_INT, [dimid_tor], varid_ntor))
+    call nc_check('def_var', nf90_def_var(ncid, 'coil_number', NF90_INT, [dimid_coil], varid_coils))
+    call nc_check('def_var', nf90_def_var(ncid, 'nR', NF90_INT, varid_nR))
+    call nc_check('def_var', nf90_def_var(ncid, 'nphi', NF90_INT, varid_nphi))
+    call nc_check('def_var', nf90_def_var(ncid, 'nZ', NF90_INT, varid_nZ))
 
     ! write variables and comments metadata
-    status = nf90_put_var(ncid, varid_R, R)
-    status = nf90_put_att(ncid, varid_R, 'comment', 'R components of grid in cm')
-    status = nf90_put_var(ncid, varid_Z, Z)
-    status = nf90_put_att(ncid, varid_Z, 'comment', 'Z components of grid in cm')
-    status = nf90_put_var(ncid, varid_ntor, ntor)
-    status = nf90_put_att(ncid, varid_ntor, 'comment', 'toroidal mode numbers')
-    status = nf90_put_var(ncid, varid_coils, coil_number)
-    status = nf90_put_att(ncid, varid_coils, 'comment', 'coil numbers')
-    status = nf90_put_var(ncid, varid_nR, nR)
-    status = nf90_put_att(ncid, varid_nR, 'comment', 'number of grid points in R direction')
-    status = nf90_put_var(ncid, varid_nphi, nphi)
-    status = nf90_put_att(ncid, varid_nphi, 'comment', 'number of grid points in phi direction')
-    status = nf90_put_var(ncid, varid_nZ, nZ)
-    status = nf90_put_att(ncid, varid_nZ, 'comment', 'number of grid points in Z direction')
+    call nc_check('put_var', nf90_put_var(ncid, varid_R, R))
+    call nc_check('put_att', nf90_put_att(ncid, varid_R, 'comment', 'R components of grid in cm'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_Z, Z))
+    call nc_check('put_att', nf90_put_att(ncid, varid_Z, 'comment', 'Z components of grid in cm'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_ntor, ntor))
+    call nc_check('put_att', nf90_put_att(ncid, varid_ntor, 'comment', 'toroidal mode numbers'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_coils, coil_number))
+    call nc_check('put_att', nf90_put_att(ncid, varid_coils, 'comment', 'coil numbers'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_nR, nR))
+    call nc_check('put_att', nf90_put_att(ncid, varid_nR, 'comment', 'number of grid points in R direction'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_nphi, nphi))
+    call nc_check('put_att', nf90_put_att(ncid, varid_nphi, 'comment', 'number of grid points in phi direction'))
+    call nc_check('put_var', nf90_put_var(ncid, varid_nZ, nZ))
+    call nc_check('put_att', nf90_put_att(ncid, varid_nZ, 'comment', 'number of grid points in Z direction'))
 
     ! process actual data
-    status = nf90_def_var(ncid, 'AnR_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(AnR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of R component of vector potential')
-    status = nf90_def_var(ncid, 'AnR_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(AnR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of R component of vector potential')
+    call write_actual_data(AnR, 'AnR', 'R')
+    call write_actual_data(Anphi, 'Anphi', 'phi')
+    call write_actual_data(AnZ, 'AnZ', 'Z')
+    call write_actual_data(dAnphi_dR, 'dAnphi_dR', 'derivative w.r.t. R of phi')
+    call write_actual_data(dAnphi_dZ, 'dAnphi_dZ', 'derivative w.r.t. Z of phi')
 
-    status = nf90_def_var(ncid, 'Anphi_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(Anphi))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of phi component of vector potential')
-    status = nf90_def_var(ncid, 'Anphi_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(Anphi))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of phi component of vector potential')
+    call nc_check('close', nf90_close(ncid))
 
-    status = nf90_def_var(ncid, 'AnZ_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(AnZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of Z component of vector potential')
-    status = nf90_def_var(ncid, 'AnZ_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(AnZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of Z component of vector potential')
+  contains
+    subroutine write_actual_data(var, name, component)
+      complex(dp), intent(in), dimension(:, :, :, :) :: var
+      character(len = *), intent(in) :: name
+      character(len = *), intent(in) :: component
+      integer :: varid_actual_data
 
-    status = nf90_def_var(ncid, 'dAnphi_dR_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
-    status = nf90_def_var(ncid, 'dAnphi_dR_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dR))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of derivative w.r.t. R of phi component of vector potential')
+      call nc_check('def_var', nf90_def_var(ncid, name // '_real', NF90_DOUBLE, &
+        [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
+      call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Re))
+      call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
+        'real part of toroidal Fourier mode of ' // component // &
+        ' component of vector potential'))
+      call nc_check('def_var', nf90_def_var(ncid, name // '_imag', NF90_DOUBLE, &
+        [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
+      call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Im))
+      call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
+        'imaginary part of toroidal Fourier mode of ' // component // &
+        ' component of vector potential'))
+    end subroutine write_actual_data
+  end subroutine write_Anvac_fourier
 
-    status = nf90_def_var(ncid, 'dAnphi_dZ_real', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, real(dAnphi_dZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'real part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
-    status = nf90_def_var(ncid, 'dAnphi_dZ_imag', NF90_DOUBLE, &
-      [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data)
-    status = nf90_put_var(ncid, varid_actual_data, aimag(dAnphi_dZ))
-    status = nf90_put_att(ncid, varid_actual_data, 'comment', &
-      'imaginary part of toroidal Fourier mode of derivative w.r.t. Z of phi component of vector potential')
+  subroutine read_Anvac_fourier(filename, ncoil, nmax, &
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+    use netcdf
+    character(len = *), intent(in) :: filename
+    integer, intent(out) :: ncoil, nmax
+    real(dp), intent(out) :: Rmin, Rmax, Zmin, Zmax
+    integer, intent(out) :: nR, nphi, nZ
+    complex(dp), dimension(:, :, :, :), allocatable, intent(inout) :: &
+      AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    integer :: ncid
+    integer :: dimid_R, dimid_Z, dimid_tor, dimid_coil
+    integer :: varid_R, varid_Z, varid_nphi
+    real(dp), dimension(:), allocatable :: R, Z
 
-    status = nf90_close(ncid)
-    call nc_check(status, 'close')
-  end subroutine write_Anvac_Fourier
+    call nc_check('open', nf90_open(filename, NF90_NOWRITE, ncid))
 
-  subroutine nc_check(status, operation)
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'R', dimid_R))
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'Z', dimid_Z))
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'ntor', dimid_tor))
+    call nc_check('inq_dimid', nf90_inq_dimid(ncid, 'coil_number', dimid_coil))
+
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_R, len = nR))
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_Z, len = nZ))
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_tor, len = nmax))
+    nmax = nmax - 1
+    call nc_check('inquire_dimension', &
+      nf90_inquire_dimension(ncid, dimid_coil, len = ncoil))
+
+    call nc_check('inq_varid', nf90_inq_varid(ncid, 'nphi', varid_nphi))
+    call nc_check('get_var', nf90_get_var(ncid, varid_nphi, nphi))
+
+    call nc_check('inq_varid', nf90_inq_varid(ncid, 'R', varid_R))
+    call nc_check('inq_varid', nf90_inq_varid(ncid, 'Z', varid_Z))
+    allocate(R(nR), Z(nZ))
+    call nc_check('get_var', nf90_get_var(ncid, varid_R, R))
+    call nc_check('get_var', nf90_get_var(ncid, varid_Z, Z))
+    Rmin = R(1)
+    Rmax = R(nR)
+    Zmin = Z(1)
+    Zmax = Z(nZ)
+
+    ! process actual data
+    call read_actual_data(AnR, 'AnR')
+    call read_actual_data(Anphi, 'Anphi')
+    call read_actual_data(AnZ, 'AnZ')
+    call read_actual_data(dAnphi_dR, 'dAnphi_dR')
+    call read_actual_data(dAnphi_dZ, 'dAnphi_dZ')
+
+    call nc_check('close', nf90_close(ncid))
+    deallocate(R, Z)
+
+  contains
+    subroutine read_actual_data(var, name)
+      complex(dp), dimension(:, :, :, :), allocatable, intent(inout) :: var
+      character(len = *), intent(in) :: name
+      integer :: varid_actual_data
+
+      allocate(var(0:nmax, nR, nZ, ncoil))
+      call nc_check('inq_varid', nf90_inq_varid(ncid, name // '_real', varid_actual_data))
+      call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Re))
+      call nc_check('inq_varid', nf90_inq_varid(ncid, name // '_imag', varid_actual_data))
+      call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Im))
+    end subroutine read_actual_data
+  end subroutine read_Anvac_fourier
+
+  subroutine nc_check(operation, status)
     use netcdf, only: NF90_NOERR, nf90_strerror
-    integer, intent(in) :: status
     character(len=*), intent(in) :: operation
+    integer, intent(in) :: status
 
     if (status == NF90_NOERR) return
-    write (*, '("Error encountered during ", a, ": ", a)') operation, nf90_strerror(status)
+    write (*, '("Error encountered during nf90_", a, ": ", a)') operation, nf90_strerror(status)
     error stop
   end subroutine nc_check
 
-  subroutine Biot_Savart_Fourier(coils, nmax, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
-    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
-    !$ use omp_lib, only: omp_get_max_threads
-    use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
-      fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
-      FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
-    use math_constants, only: pi
-    type(coil_t), intent(in), dimension(:) :: coils
-    integer, intent(in) :: nmax
-    real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
-    integer, intent(in) :: nR, nphi, nZ
-    complex(dp), intent(out), dimension(:, :, :, :, :), allocatable :: Bn
-    integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
-    real(dp), dimension(nphi) :: phi, cosphi, sinphi
-    real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ(3)
-    type(c_ptr) :: plan_nphi, p_BR, p_Bphi, p_BZ, p_BnR, p_Bnphi, p_BnZ
-    real(c_double), dimension(:), pointer :: BR, Bphi, BZ
-    complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
-
-    if (nmax > nphi / 4) then
-      write (error_unit, '("Biot_Savart_Fourier: requested nmax = ", ' // &
-        'i0, ", but only ", i0, " modes available.")') nmax, nphi / 4
-      error stop
-    end if
-    nfft = nphi / 2 + 1
-    R(:) = linspace(Rmin, Rmax, nR, 0, 0)
-    phi(:) = linspace(0d0, 2d0 * pi, nphi, 0, 1)  ! half-open interval: do not repeat phi = 0 at phi = 2 pi
-    cosphi(:) = cos(phi)
-    sinphi(:) = sin(phi)
-    Z(:) = linspace(Zmin, Zmax, nZ, 0, 0)
-    ncoil = size(coils)
-    allocate(Bn(0:nmax, 3, nR, nZ, ncoil))
-    ! prepare FFTW
-    !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
-    !$ call fftw_plan_with_nthreads(omp_get_max_threads())
-    p_BR = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_BR, BR, [nphi])
-    p_Bphi = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_Bphi, Bphi, [nphi])
-    p_BZ = fftw_alloc_real(int(nphi, c_size_t))
-    call c_f_pointer(p_BZ, BZ, [nphi])
-    p_BnR = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_BnR, BnR, [nfft])
-    p_Bnphi = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_Bnphi, Bnphi, [nfft])
-    p_BnZ = fftw_alloc_complex(int(nfft, c_size_t))
-    call c_f_pointer(p_BnZ, BnZ, [nfft])
-    plan_nphi = fftw_plan_dft_r2c_1d(nphi, BR, BnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
-    do kc = 1, ncoil
-      do kZ = 1, nZ
-        do kR = 1, nR
-          !$omp parallel do schedule(static) default(none) &
-          !$omp private(kphi, ks, XYZ_r, XYZ_i, XYZ_f, dist_i, dist_f, BXYZ) &
-          !$omp shared(nphi, kc, coils, R, kR, Z, kZ, cosphi, sinphi, BR, Bphi, BZ)
-          do kphi = 1, nphi
-            XYZ_r(:) = [R(kR) * cosphi(kphi), R(kR) * sinphi(kphi), Z(kZ)]
-            ! Biot-Savart integral over coil segments
-            BXYZ(:) = 0d0
-            XYZ_f(:) = coils(kc)%XYZ(:, coils(kc)%nseg) - XYZ_r
-            dist_f = sqrt(sum(XYZ_f * XYZ_f))
-            do ks = 1, coils(kc)%nseg
-              XYZ_i(:) = XYZ_f
-              dist_i = dist_f
-              XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
-              dist_f = sqrt(sum(XYZ_f * XYZ_f))
-              BXYZ(:) = BXYZ + &
-                (XYZ_i([2, 3, 1]) * XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2]) * XYZ_f([2, 3, 1])) * &
-                (dist_i + dist_f) / (dist_i * dist_f * (dist_i * dist_f + sum(XYZ_i * XYZ_f)))
-            end do
-            BR(kphi) = BXYZ(1) * cosphi(kphi) + BXYZ(2) * sinphi(kphi)
-            Bphi(kphi) = BXYZ(2) * cosphi(kphi) - BXYZ(1) * sinphi(kphi)
-            BZ(kphi) = BXYZ(3)
-          end do
-          !$omp end parallel do
-          call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
-          call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
-          call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
-          Bn(0:nmax, 1, kR, kZ, kc) = BnR(1:nmax+1) / dble(nphi)
-          Bn(0:nmax, 2, kR, kZ, kc) = Bnphi(1:nmax+1) / dble(nphi)
-          Bn(0:nmax, 3, kR, kZ, kc) = BnZ(1:nmax+1) / dble(nphi)
-        end do
-      end do
-    end do
-    call fftw_destroy_plan(plan_nphi)
-    call fftw_free(p_BR)
-    call fftw_free(p_Bphi)
-    call fftw_free(p_BZ)
-    call fftw_free(p_BnR)
-    call fftw_free(p_Bnphi)
-    call fftw_free(p_BnZ)
-    !$ call fftw_cleanup_threads()
-    ! nullify pointers past this point
-  end subroutine Biot_Savart_Fourier
-
-  subroutine write_Bvac_Nemov(filename, Rmin, Rmax, Zmin, Zmax, Bvac)
+  subroutine write_Bvac_nemov(filename, Rmin, Rmax, Zmin, Zmax, Bvac)
     use math_constants, only: pi
     character(len = *), intent(in) :: filename
     real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
@@ -741,7 +848,7 @@ contains
     integer :: fid, nR, nphi, nZ, kR, kphi, kZ
 
     if (size(Bvac, 1) /= 3) then
-      write (error_unit, arg_size_fmt) 'write_Bnvac_Nemov', 'size(Bvac, 1)', size(Bvac, 1), '3', 3
+      write (error_unit, arg_size_fmt) 'write_Bnvac_nemov', 'size(Bvac, 1)', size(Bvac, 1), '3', 3
       error stop
     end if
     nZ = size(Bvac, 2)
@@ -766,9 +873,9 @@ contains
       end do
     end do
     close(fid)
-  end subroutine write_Bvac_Nemov
+  end subroutine write_Bvac_nemov
 
-  subroutine write_Bnvac_Fourier(filename, Bn, Rmin, Rmax, Zmin, Zmax)
+  subroutine write_Bnvac_fourier(filename, Bn, Rmin, Rmax, Zmin, Zmax)
     use hdf5_tools, only: HID_T, h5_open_rw, h5_create_parent_groups, h5_add, h5_close
     character(len = *), intent(in) :: filename
     complex(dp), dimension(0:, :, :, :, :), intent(in) :: Bn
@@ -778,7 +885,7 @@ contains
     character(len = 7) :: modename, coilname
 
     if (size(Bn, 2) /= 3) then
-      write (error_unit, arg_size_fmt) 'write_Bnvac_Fourier', &
+      write (error_unit, arg_size_fmt) 'write_Bnvac_fourier', &
         'size(Bn, 2)', size(Bn, 2), '3', 3
       error stop
     end if
@@ -816,9 +923,9 @@ contains
       end do
     end do
     call h5_close(h5id_root)
-  end subroutine write_Bnvac_Fourier
+  end subroutine write_Bnvac_fourier
 
-  subroutine read_Bnvac_Fourier(filename, ntor, Ic, nR, nZ, Rmin, Rmax, Zmin, Zmax, &
+  subroutine read_Bnvac_fourier(filename, ntor, Ic, nR, nZ, Rmin, Rmax, Zmin, Zmax, &
     Bnvac_R, Bnvac_Z)
     use hdf5_tools, only: HID_T, h5_open, h5_get, h5_close
     character(len = *), intent(in) :: filename
@@ -848,7 +955,7 @@ contains
     call h5_get(h5id_root, modename // '/nZ', nZ)
     call h5_get(h5id_root, modename // '/ncoil', ncoil)
     if (ncoil /= size(Ic)) then
-      write (error_unit, arg_size_fmt) 'read_Bnvac_Fourier', &
+      write (error_unit, arg_size_fmt) 'read_Bnvac_fourier', &
         'ncoil', ncoil, 'size(Ic)', size(Ic)
       error stop
     end if
@@ -864,6 +971,6 @@ contains
     end do
     call h5_close(h5id_root)
     deallocate(Bn)
-  end subroutine read_Bnvac_Fourier
+  end subroutine read_Bnvac_fourier
 
 end module coil_tools
