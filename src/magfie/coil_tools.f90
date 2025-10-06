@@ -506,7 +506,7 @@ contains
     integer, intent(in) :: nR, nphi, nZ
     complex(dp), intent(out), dimension(:, :, :, :), allocatable :: &
       AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
-    integer :: nfft, ncoil, kc, ks, ks_prev, kR, kphi, kZ, nmode
+    integer :: nfft, ncoil, kc, ks, ks_prev, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
     real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
       AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
@@ -583,8 +583,8 @@ contains
               eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
               AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
               common_gradient_term(:) = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
-              grad_AX(:) = grad_AX - XYZ_if(1) * common_gradient_term
-              grad_AY(:) = grad_AY - XYZ_if(2) * common_gradient_term
+              grad_AX(:) = grad_AX + XYZ_if(1) * common_gradient_term
+              grad_AY(:) = grad_AY + XYZ_if(2) * common_gradient_term
               ks_prev = ks
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
@@ -605,42 +605,6 @@ contains
           dAnphi_dR(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
           call fftw_execute_dft_r2c(plan_nphi, dAphi_dZ, fft_output)
           dAnphi_dZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
-        end do
-      end do
-    end do
-    do kc = 1, ncoil
-      do nmode = 0, nmax
-        do kZ = 1, nZ
-          do kR = 1, nR
-            if (nR == 1) then
-              dAnphi_dR(nmode, kR, kZ, kc) = cmplx(0.0_dp, 0.0_dp, kind=dp)
-            else if (kR == 1) then
-              dAnphi_dR(nmode, kR, kZ, kc) = (Anphi(nmode, kR + 1, kZ, kc) - Anphi(nmode, kR, kZ, kc))/ &
-                (R(kR + 1) - R(kR))
-            else if (kR == nR) then
-              dAnphi_dR(nmode, kR, kZ, kc) = (Anphi(nmode, kR, kZ, kc) - Anphi(nmode, kR - 1, kZ, kc))/ &
-                (R(kR) - R(kR - 1))
-            else
-              dAnphi_dR(nmode, kR, kZ, kc) = (Anphi(nmode, kR + 1, kZ, kc) - Anphi(nmode, kR - 1, kZ, kc))/ &
-                (R(kR + 1) - R(kR - 1))
-            end if
-          end do
-        end do
-        do kR = 1, nR
-          do kZ = 1, nZ
-            if (nZ == 1) then
-              dAnphi_dZ(nmode, kR, kZ, kc) = cmplx(0.0_dp, 0.0_dp, kind=dp)
-            else if (kZ == 1) then
-              dAnphi_dZ(nmode, kR, kZ, kc) = (Anphi(nmode, kR, kZ + 1, kc) - Anphi(nmode, kR, kZ, kc))/ &
-                (Z(kZ + 1) - Z(kZ))
-            else if (kZ == nZ) then
-              dAnphi_dZ(nmode, kR, kZ, kc) = (Anphi(nmode, kR, kZ, kc) - Anphi(nmode, kR, kZ - 1, kc))/ &
-                (Z(kZ) - Z(kZ - 1))
-            else
-              dAnphi_dZ(nmode, kR, kZ, kc) = (Anphi(nmode, kR, kZ + 1, kc) - Anphi(nmode, kR, kZ - 1, kc))/ &
-                (Z(kZ + 1) - Z(kZ - 1))
-            end if
-          end do
         end do
       end do
     end do
