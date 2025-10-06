@@ -8,7 +8,7 @@ if (FORTPLOT_OVERRIDE_REPO)
     set(_fortplot_repo ${FORTPLOT_OVERRIDE_REPO})
     set(_fortplot_tag HEAD)
 else()
-    set(_fortplot_repo git@github.com:lazy-fortran/fortplot.git)
+    set(_fortplot_repo https://github.com/lazy-fortran/fortplot.git)
     set(_fortplot_tag main)
 endif()
 
