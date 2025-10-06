@@ -14,6 +14,7 @@ vacfield_exe="${build_dir}/vacfield.x"
 plot_script="${repo_root}/python/scripts/plot_biotsavart_fourier_cli.py"
 data_dir="${repo_root}/test/magfie/test_data"
 output_dir="${build_dir}/test/magfie/plot_fourier/${case_name}"
+python_exec="${PYTHON_EXECUTABLE:-python3}"
 
 mkdir -p "${output_dir}"
 
@@ -59,7 +60,7 @@ deriv_png="${output_dir}/${case_name}_deriv_diff.png"
 export MPLBACKEND=Agg
 export PYTHONPATH="${repo_root}/python:${build_dir}"
 export LD_LIBRARY_PATH="${build_dir}:${LD_LIBRARY_PATH-}"
-python3 "${plot_script}" \
+"${python_exec}" "${plot_script}" \
     "${ref_file}" "${vec_file}" \
     --currents "${currents_file}" \
     --coil-files "${coil_files[@]}" \

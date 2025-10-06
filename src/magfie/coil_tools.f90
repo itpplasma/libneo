@@ -490,8 +490,8 @@ contains
   end subroutine biot_savart_fourier
 
   subroutine vector_potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
-    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
-    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
+    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, dAnphi_dx, dAnphi_dy)
+    use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer, c_null_ptr
     !$ use omp_lib, only: omp_get_max_threads
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
@@ -506,13 +506,15 @@ contains
     integer, intent(in) :: nR, nphi, nZ
     complex(dp), intent(out), dimension(:, :, :, :), allocatable :: &
       AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    complex(dp), intent(out), dimension(:, :, :, :), allocatable, optional :: dAnphi_dx, dAnphi_dy
     integer :: nfft, ncoil, kc, ks, ks_prev, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
     real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
-      AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
-    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_fft_output
-    real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
+      AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3), inv_actual_R
+    type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_dAphi_dx, p_dAphi_dy, p_fft_output
+    real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ, dAphi_dx_phi, dAphi_dy_phi
     complex(c_double_complex), dimension(:), pointer :: fft_output
+    logical :: need_cartesian_derivs
 
     if (nmax > nphi / 4) then
       write (error_unit, '("biot_savart_fourier: requested nmax = ", ' // &
@@ -529,6 +531,9 @@ contains
     allocate(AnZ(0:nmax, nR, nZ, ncoil))
     allocate(dAnphi_dR(0:nmax, nR, nZ, ncoil))
     allocate(dAnphi_dZ(0:nmax, nR, nZ, ncoil))
+    need_cartesian_derivs = present(dAnphi_dx) .or. present(dAnphi_dy)
+    if (present(dAnphi_dx)) allocate(dAnphi_dx(0:nmax, nR, nZ, ncoil))
+    if (present(dAnphi_dy)) allocate(dAnphi_dy(0:nmax, nR, nZ, ncoil))
     ! prepare FFTW
     !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
     !$ call fftw_plan_with_nthreads(omp_get_max_threads())
@@ -542,6 +547,17 @@ contains
     call c_f_pointer(p_dAphi_dR, dAphi_dR, [nphi])
     p_dAphi_dZ = fftw_alloc_real(int(nphi, c_size_t))
     call c_f_pointer(p_dAphi_dZ, dAphi_dZ, [nphi])
+    if (need_cartesian_derivs) then
+      p_dAphi_dx = fftw_alloc_real(int(nphi, c_size_t))
+      call c_f_pointer(p_dAphi_dx, dAphi_dx_phi, [nphi])
+      p_dAphi_dy = fftw_alloc_real(int(nphi, c_size_t))
+      call c_f_pointer(p_dAphi_dy, dAphi_dy_phi, [nphi])
+    else
+      p_dAphi_dx = c_null_ptr
+      p_dAphi_dy = c_null_ptr
+      nullify(dAphi_dx_phi)
+      nullify(dAphi_dy_phi)
+    end if
     p_fft_output = fftw_alloc_complex(int(nfft, c_size_t))
     call c_f_pointer(p_fft_output, fft_output, [nfft])
     plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
@@ -562,9 +578,9 @@ contains
           end if
           !$omp parallel do schedule(static) default(none) &
           !$omp private(kphi, ks, ks_prev, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
-          !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term) &
+          !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term, inv_actual_R) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
-          !$omp actual_R, actual_Z, min_distance, max_eccentricity)
+          !$omp dAphi_dx_phi, dAphi_dy_phi, need_cartesian_derivs, actual_R, actual_Z, min_distance, max_eccentricity)
           do kphi = 1, nphi
             XYZ_r(:) = [actual_R * cosphi(kphi), actual_R * sinphi(kphi), actual_Z]
             AXYZ(:) = 0d0
@@ -593,6 +609,17 @@ contains
             dAphi_dR(kphi) = grad_AY(1) * cosphi(kphi) ** 2 - grad_AX(2) * sinphi(kphi) ** 2 + &
               (grad_AY(2) - grad_AX(1)) * cosphi(kphi) * sinphi(kphi)
             dAphi_dZ(kphi) = grad_AY(3) * cosphi(kphi) - grad_AX(3) * sinphi(kphi)
+            if (need_cartesian_derivs) then
+              if (actual_R <= 0d0) then
+                inv_actual_R = 0d0
+              else
+                inv_actual_R = 1d0 / actual_R
+              end if
+              dAphi_dx_phi(kphi) = grad_AY(1) * cosphi(kphi) - grad_AX(1) * sinphi(kphi) + &
+                (AXYZ(2) * sinphi(kphi) ** 2 + AXYZ(1) * cosphi(kphi) * sinphi(kphi)) * inv_actual_R
+              dAphi_dy_phi(kphi) = grad_AY(2) * cosphi(kphi) - grad_AX(2) * sinphi(kphi) - &
+                (AXYZ(2) * cosphi(kphi) * sinphi(kphi) + AXYZ(1) * cosphi(kphi) ** 2) * inv_actual_R
+            end if
           end do
           !$omp end parallel do
           call fftw_execute_dft_r2c(plan_nphi, AR, fft_output)
@@ -605,6 +632,14 @@ contains
           dAnphi_dR(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
           call fftw_execute_dft_r2c(plan_nphi, dAphi_dZ, fft_output)
           dAnphi_dZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          if (present(dAnphi_dx)) then
+            call fftw_execute_dft_r2c(plan_nphi, dAphi_dx_phi, fft_output)
+            dAnphi_dx(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          end if
+          if (present(dAnphi_dy)) then
+            call fftw_execute_dft_r2c(plan_nphi, dAphi_dy_phi, fft_output)
+            dAnphi_dy(0:nmax, kR, kZ, kc) = fft_output(1:nmax+1) / dble(nphi)
+          end if
         end do
       end do
     end do
@@ -614,6 +649,10 @@ contains
     call fftw_free(p_AZ)
     call fftw_free(p_dAphi_dR)
     call fftw_free(p_dAphi_dZ)
+    if (need_cartesian_derivs) then
+      call fftw_free(p_dAphi_dx)
+      call fftw_free(p_dAphi_dy)
+    end if
     call fftw_free(p_fft_output)
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
