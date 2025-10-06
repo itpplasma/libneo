@@ -62,3 +62,11 @@ set_tests_properties(test_coil_tools_biot_savart PROPERTIES
     LABELS "magfie;biot_savart"
     TIMEOUT 300
 )
+
+set(PLOT_FOURIER_SCRIPT ${CMAKE_SOURCE_DIR}/test/magfie/scripts/run_plot_fourier.sh)
+
+add_test(NAME plot_fourier_aug
+    COMMAND bash ${PLOT_FOURIER_SCRIPT} ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR} aug_lowres)
+set_tests_properties(plot_fourier_aug PROPERTIES
+    LABELS "magfie;coil_tools;python"
+    TIMEOUT 600)

@@ -1,5 +1,11 @@
 # %%
 from numpy import amin, amax, arange, arctan2, conj, empty, linspace, log10, pi, sqrt
+import os
+import matplotlib
+
+if os.environ.get("MPLBACKEND") is None:
+    matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from libneo.biotsavart_fourier import *
@@ -52,4 +58,11 @@ for kcoil in range(ncoil):
         axs[kcoil, k].set_title(f"coil {kcoil + 1}, {'reference' if k == 0 else 'test'}")
 cbar = fig.colorbar(im, ax=axs, location='bottom')
 cbar.set_label(r'$\log_{10} |\vec{B}_{n}|^{2}$')
-plt.show()
+output_path = os.environ.get("LIBNEO_PLOT_OUTPUT")
+if output_path:
+    plt.savefig(output_path, dpi=150)
+
+if os.environ.get("LIBNEO_PLOT_SHOW", "0") != "0":
+    plt.show()
+else:
+    plt.close(fig)
