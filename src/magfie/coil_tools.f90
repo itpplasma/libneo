@@ -583,8 +583,8 @@ contains
               eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
               AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
               common_gradient_term(:) = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
-              grad_AX(:) = grad_AX - XYZ_if(1) * common_gradient_term
-              grad_AY(:) = grad_AY - XYZ_if(2) * common_gradient_term
+              grad_AX(:) = grad_AX + XYZ_if(1) * common_gradient_term
+              grad_AY(:) = grad_AY + XYZ_if(2) * common_gradient_term
               ks_prev = ks
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
