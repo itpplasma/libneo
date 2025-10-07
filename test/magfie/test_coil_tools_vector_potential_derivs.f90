@@ -18,8 +18,8 @@ program test_coil_tools_vector_potential_derivs
     real(dp), parameter :: Zmax = 0.6_dp
     real(dp), parameter :: min_distance = 1.0e-6_dp
     real(dp), parameter :: max_eccentricity = 0.999_dp
-    real(dp), parameter :: abs_tol = 1.0e-8_dp
-    real(dp), parameter :: rel_tol = 1.0e-1_dp
+    real(dp), parameter :: abs_tol = 1.0e-10_dp
+    real(dp), parameter :: rel_tol = 1.0e-2_dp
     logical, parameter :: use_convex_wall = .false.
     character(len=*), parameter :: plot_directory = COIL_TOOLS_PLOT_DIR
     character(len=*), parameter :: script_directory = COIL_TOOLS_SCRIPT_DIR
