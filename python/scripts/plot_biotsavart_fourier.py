@@ -243,7 +243,7 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeDa
     )
     if ntor != 0:
         gauged_AnR = gauged_AnR - 0.5j * Anphi
-    spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor)
+    spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor, Anphi=Anphi)
     BnR, Bnphi, BnZ = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
 
     # Version 2: Compute derivatives from RectBivariateSpline of Aphi
@@ -267,7 +267,7 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeDa
     )
     if ntor != 0:
         gauged_AnR_spline = gauged_AnR_spline - 0.5j * Anphi
-    spl_spline = spline_gauged_Anvac(grid_raw, gauged_AnR_spline, gauged_AnZ_spline, ntor=ntor)
+    spl_spline = spline_gauged_Anvac(grid_raw, gauged_AnR_spline, gauged_AnZ_spline, ntor=ntor, Anphi=Anphi)
     BnR_spline, Bnphi_spline, BnZ_spline = field_divfree(spl_spline, grid.R, grid.Z, ntor=ntor)
 
     diagnostics = {
