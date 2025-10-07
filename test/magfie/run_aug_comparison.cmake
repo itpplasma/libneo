@@ -95,7 +95,6 @@ if(EXISTS "${COMPARISON_SCRIPT}")
                 --ntor 2
                 --per-coil-output biotsavart_fourier.png
                 --sum-output biotsavart_fourier_sum.png
-                --deriv-diff-output biotsavart_fourier_derivdiff.png
         WORKING_DIRECTORY "${AUG_OUTPUT_DIR}"
         RESULT_VARIABLE comparison_result
         OUTPUT_VARIABLE comparison_output

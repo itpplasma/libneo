@@ -92,6 +92,9 @@ def gauged_Anvac_from_Bnvac(grid, BnR, BnZ, ntor=2):
 def gauge_Anvac(grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=2):
     from numpy import newaxis
 
+    if ntor == 0:
+        return AnR, AnZ
+
     gauged_AnR = AnR + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dR + 1j / ntor * Anphi
     gauged_AnZ = AnZ + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dZ
     return gauged_AnR, gauged_AnZ
