@@ -271,8 +271,8 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeDa
     BnR_spline, Bnphi_spline, BnZ_spline = field_divfree(spl_spline, grid.R, grid.Z, ntor=ntor)
 
     diagnostics = {
-        'dAphi_dR_stored': dAphi_dR,
-        'dAphi_dZ_stored': dAphi_dZ,
+        'dAphi_dR_stored': dAnphi_dR,
+        'dAphi_dZ_stored': dAnphi_dZ,
         'dAphi_dR_spline': dAphi_dR_spline,
         'dAphi_dZ_spline': dAphi_dZ_spline,
     }
