@@ -381,6 +381,9 @@ def _magnitude_squared(BnR: ndarray, Bnphi: ndarray, BnZ: ndarray) -> ndarray:
 
 
 def _tensordot_currents(currents: ndarray, array: ndarray) -> ndarray:
+    if array.shape[0] != currents.size:
+        # Single coil case - no coil dimension, just multiply by single current
+        return currents[0] * array
     return tensordot(currents, array, axes=(0, 0))
 
 
