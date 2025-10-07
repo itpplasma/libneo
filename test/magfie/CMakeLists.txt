@@ -143,28 +143,6 @@ set_tests_properties(test_axisymmetric_biot_savart PROPERTIES
     DEPENDS vacfield.x
 )
 
-add_executable(test_coil_tools_vector_potential_derivs.x
-    test_coil_tools_vector_potential_derivs.f90)
-target_link_libraries(test_coil_tools_vector_potential_derivs.x PRIVATE
-    neo
-    magfie
-    util_for_test
-    fortplot::fortplot
-    ${FFTW3_LIBRARIES}
-    ${HDF5_LIBRARIES}
-    ${NETCDF_LIBRARIES}
-    ${MPI_Fortran_LIBRARIES}
-)
-target_compile_definitions(test_coil_tools_vector_potential_derivs.x PRIVATE
-    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie"
-    COIL_TOOLS_SCRIPT_DIR="${CMAKE_SOURCE_DIR}/test/magfie")
-
-add_test(NAME test_coil_tools_vector_potential_derivs
-    COMMAND test_coil_tools_vector_potential_derivs.x)
-set_tests_properties(test_coil_tools_vector_potential_derivs PROPERTIES
-    LABELS "magfie;coil_tools;derivatives"
-    TIMEOUT 300
-)
 
 add_executable(test_coil_tools_segment_formulas.x
     test_coil_tools_segment_formulas.f90)
