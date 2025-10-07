@@ -55,6 +55,27 @@ set_tests_properties(test_coil_tools_vector_potential_derivs PROPERTIES
     TIMEOUT 300
 )
 
+add_executable(test_coil_tools_segment_formulas.x
+    test_coil_tools_segment_formulas.f90)
+target_link_libraries(test_coil_tools_segment_formulas.x PRIVATE
+    neo
+    magfie
+    util_for_test
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+target_compile_definitions(test_coil_tools_segment_formulas.x PRIVATE
+    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie")
+
+add_test(NAME test_coil_tools_segment_formulas
+    COMMAND test_coil_tools_segment_formulas.x)
+set_tests_properties(test_coil_tools_segment_formulas PROPERTIES
+    LABELS "magfie;coil_tools;formulas"
+    TIMEOUT 60
+)
+
 # Register the test
 add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
 

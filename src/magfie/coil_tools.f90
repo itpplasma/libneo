@@ -16,7 +16,9 @@ module coil_tools
     biot_savart_sum_coils, biot_savart_fourier, &
     write_Bvac_nemov, write_Bnvac_fourier, read_Bnvac_fourier, &
     vector_potential_biot_savart_fourier, write_Anvac_fourier, read_Anvac_fourier, &
-    sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac
+    sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac, &
+    segment_vector_potential_contribution, segment_eccentricity, &
+    segment_gradient_kernel, segment_gradient_contribution
 
   type :: coil_t
     integer :: nseg = 0
@@ -585,12 +587,10 @@ contains
               dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
               XYZ_if = coils(kc)%XYZ(:, ks) - coils(kc)%XYZ(:, ks_prev)
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
-              eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
-              AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
-              common_gradient_term(:) = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
-              grad_AX(:) = grad_AX + XYZ_if(1) * common_gradient_term
-              grad_AY(:) = grad_AY + XYZ_if(2) * common_gradient_term
-              grad_AZ(:) = grad_AZ + XYZ_if(3) * common_gradient_term
+              eccentricity = segment_eccentricity(dist_if, dist_i, dist_f, max_eccentricity)
+              AXYZ(:) = AXYZ + segment_vector_potential_contribution(XYZ_if, dist_if, eccentricity)
+              common_gradient_term(:) = segment_gradient_kernel(XYZ_i, XYZ_f, dist_i, dist_f)
+              call segment_gradient_contribution(XYZ_if, common_gradient_term, grad_AX, grad_AY, grad_AZ)
               ks_prev = ks
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
@@ -996,5 +996,38 @@ contains
     call h5_close(h5id_root)
     deallocate(Bn)
   end subroutine read_Bnvac_fourier
+
+  ! Small helper functions for Biot-Savart segment contributions
+  ! These are extracted for testing and validation
+
+  pure function segment_vector_potential_contribution(XYZ_segment, dist_segment, eccentricity) result(dA)
+    real(dp), intent(in) :: XYZ_segment(3)
+    real(dp), intent(in) :: dist_segment
+    real(dp), intent(in) :: eccentricity
+    real(dp) :: dA(3)
+    dA = XYZ_segment / dist_segment * log((1.0_dp + eccentricity) / (1.0_dp - eccentricity))
+  end function segment_vector_potential_contribution
+
+  pure function segment_eccentricity(dist_segment, dist_i, dist_f, max_ecc) result(ecc)
+    real(dp), intent(in) :: dist_segment, dist_i, dist_f, max_ecc
+    real(dp) :: ecc
+    ecc = min(max_ecc, dist_segment / (dist_i + dist_f))
+  end function segment_eccentricity
+
+  pure function segment_gradient_kernel(XYZ_i, XYZ_f, dist_i, dist_f) result(grad_kernel)
+    real(dp), intent(in) :: XYZ_i(3), XYZ_f(3)
+    real(dp), intent(in) :: dist_i, dist_f
+    real(dp) :: grad_kernel(3)
+    grad_kernel = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
+  end function segment_gradient_kernel
+
+  pure subroutine segment_gradient_contribution(XYZ_segment, grad_kernel, grad_AX, grad_AY, grad_AZ)
+    real(dp), intent(in) :: XYZ_segment(3)
+    real(dp), intent(in) :: grad_kernel(3)
+    real(dp), intent(inout) :: grad_AX(3), grad_AY(3), grad_AZ(3)
+    grad_AX = grad_AX + XYZ_segment(1) * grad_kernel
+    grad_AY = grad_AY + XYZ_segment(2) * grad_kernel
+    grad_AZ = grad_AZ + XYZ_segment(3) * grad_kernel
+  end subroutine segment_gradient_contribution
 
 end module coil_tools
