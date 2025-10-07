@@ -185,6 +185,8 @@ def _parse_args() -> argparse.Namespace:
                         help="Filename for per-coil magnitude comparison plot")
     parser.add_argument("--sum-output", type=Path,
                         help="Filename for coil-summed magnitude plot (four-panel)")
+    parser.add_argument("--deriv-diff-output", type=Path,
+                        help="Filename for derivative comparison diagnostic plot")
     parser.add_argument("--axis-output", type=Path,
                         help="Filename for optional axis validation plot")
     parser.add_argument("--dpi", type=int, default=150, help="Figure DPI for saved plots")
@@ -220,7 +222,9 @@ def _load_mode_from_bnvac(path: Path, ntor: int) -> ModeData:
     return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ)
 
 
-def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict]:
+def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeData, dict]:
+    from scipy.interpolate import RectBivariateSpline
+
     grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier(str(path), ntor=ntor)
     grid = Grid(
         R=array(grid_raw.R, copy=True),
@@ -233,6 +237,7 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict]:
         Z_max=float(grid_raw.Z_max),
     )
 
+    # Version 1: Use stored derivatives from NetCDF
     gauged_AnR, gauged_AnZ = gauge_Anvac(
         grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=ntor
     )
@@ -240,7 +245,42 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict]:
         gauged_AnR = gauged_AnR - 0.5j * Anphi
     spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor)
     BnR, Bnphi, BnZ = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
-    return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ), spl
+
+    # Version 2: Compute derivatives from RectBivariateSpline of Aphi
+    ncoil = Anphi.shape[0]
+    dAphi_dR_spline = zeros_like(Anphi)
+    dAphi_dZ_spline = zeros_like(Anphi)
+
+    for ic in range(ncoil):
+        # Create spline of Aphi for this coil
+        spl_Aphi_real = RectBivariateSpline(grid.R, grid.Z, Anphi[ic].real)
+        spl_Aphi_imag = RectBivariateSpline(grid.R, grid.Z, Anphi[ic].imag)
+
+        # Evaluate derivatives
+        dAphi_dR_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=1, dy=0, grid=False) +
+                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=1, dy=0, grid=False))
+        dAphi_dZ_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=0, dy=1, grid=False) +
+                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=0, dy=1, grid=False))
+
+    gauged_AnR_spline, gauged_AnZ_spline = gauge_Anvac(
+        grid_raw, AnR, Anphi, AnZ, dAphi_dR_spline, dAphi_dZ_spline, ntor=ntor
+    )
+    if ntor != 0:
+        gauged_AnR_spline = gauged_AnR_spline - 0.5j * Anphi
+    spl_spline = spline_gauged_Anvac(grid_raw, gauged_AnR_spline, gauged_AnZ_spline, ntor=ntor)
+    BnR_spline, Bnphi_spline, BnZ_spline = field_divfree(spl_spline, grid.R, grid.Z, ntor=ntor)
+
+    diagnostics = {
+        'dAphi_dR_stored': dAphi_dR,
+        'dAphi_dZ_stored': dAphi_dZ,
+        'dAphi_dR_spline': dAphi_dR_spline,
+        'dAphi_dZ_spline': dAphi_dZ_spline,
+    }
+
+    mode_stored = ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ)
+    mode_spline = ModeData(grid=grid, BnR=BnR_spline, Bnphi=Bnphi_spline, BnZ=BnZ_spline)
+
+    return mode_stored, spl, mode_spline, diagnostics
 
 
 def _ensure_same_grid(lhs: Grid, rhs: Grid) -> None:
@@ -583,6 +623,7 @@ def _create_per_coil_plot(
     args: argparse.Namespace,
     mode_fourier: ModeData,
     mode_vector: ModeData,
+    mode_vector_spline: ModeData,
     BnR_spline_all: ndarray,
     Bnphi_spline_all: ndarray,
     BnZ_spline_all: ndarray,
@@ -591,15 +632,16 @@ def _create_per_coil_plot(
 ) -> None:
     ncoil = mode_fourier.BnR.shape[0]
     grid = mode_fourier.grid
-    titles = ("reference", "Anvac", "Bnvac")
+    titles = ("reference", "Anvac (stored)", "Anvac (spline)", "Bnvac")
 
-    log_bn2 = empty((3, ncoil, grid.nR, grid.nZ), dtype=float)
+    log_bn2 = empty((4, ncoil, grid.nR, grid.nZ), dtype=float)
     log_bn2[0] = log10(maximum(_magnitude_squared(mode_fourier.BnR, mode_fourier.Bnphi, mode_fourier.BnZ), 1e-300))
     log_bn2[1] = log10(maximum(_magnitude_squared(mode_vector.BnR, mode_vector.Bnphi, mode_vector.BnZ), 1e-300))
-    log_bn2[2] = log10(maximum(_magnitude_squared(BnR_spline_all, Bnphi_spline_all, BnZ_spline_all), 1e-300))
+    log_bn2[2] = log10(maximum(_magnitude_squared(mode_vector_spline.BnR, mode_vector_spline.Bnphi, mode_vector_spline.BnZ), 1e-300))
+    log_bn2[3] = log10(maximum(_magnitude_squared(BnR_spline_all, Bnphi_spline_all, BnZ_spline_all), 1e-300))
 
     norm = Normalize(vmin=amin(log_bn2), vmax=amax(log_bn2))
-    fig, axs = plt.subplots(ncoil, 3, figsize=(9, 3 * ncoil), layout="constrained")
+    fig, axs = plt.subplots(ncoil, 4, figsize=(12, 3 * ncoil), layout="constrained")
 
     for kcoil in range(ncoil):
         for col, label in enumerate(titles):
@@ -708,8 +750,81 @@ def _create_sum_plot(
     fig.savefig(output, dpi=args.dpi, bbox_inches="tight")
     if not args.show:
         plt.close(fig)
+def _create_deriv_comparison_plot(
+    args: argparse.Namespace,
+    diagnostics: dict,
+    grid: Grid,
+    currents: ndarray,
+    output: Path,
+) -> None:
+    """Plot comparison of stored vs spline-derived dAphi/dR and dAphi/dZ."""
+    dAphi_dR_stored = diagnostics['dAphi_dR_stored']
+    dAphi_dZ_stored = diagnostics['dAphi_dZ_stored']
+    dAphi_dR_spline = diagnostics['dAphi_dR_spline']
+    dAphi_dZ_spline = diagnostics['dAphi_dZ_spline']
 
+    # Weight by currents and sum over coils
+    weights = currents * args.prefactor
+    dAphi_dR_stored_sum = _tensordot_currents(weights, dAphi_dR_stored)
+    dAphi_dZ_stored_sum = _tensordot_currents(weights, dAphi_dZ_stored)
+    dAphi_dR_spline_sum = _tensordot_currents(weights, dAphi_dR_spline)
+    dAphi_dZ_spline_sum = _tensordot_currents(weights, dAphi_dZ_spline)
 
+    # Compute magnitude
+    mag_dR_stored = abs(dAphi_dR_stored_sum)
+    mag_dZ_stored = abs(dAphi_dZ_stored_sum)
+    mag_dR_spline = abs(dAphi_dR_spline_sum)
+    mag_dZ_spline = abs(dAphi_dZ_spline_sum)
+
+    # Create 2x2 plot - just the values side by side
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10), layout="constrained")
+    extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
+
+    # Find common colorbar limits for each derivative
+    vmin_dR = min(amin(mag_dR_stored), amin(mag_dR_spline))
+    vmax_dR = max(amax(mag_dR_stored), amax(mag_dR_spline))
+    vmin_dZ = min(amin(mag_dZ_stored), amin(mag_dZ_spline))
+    vmax_dZ = max(amax(mag_dZ_stored), amax(mag_dZ_spline))
+
+    # dAphi/dR stored
+    im0 = axs[0, 0].imshow(mag_dR_stored.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dR, vmax=vmax_dR)
+    axs[0, 0].set_title("dAphi/dR (stored)")
+    axs[0, 0].set_xlabel("R [cm]")
+    axs[0, 0].set_ylabel("Z [cm]")
+    fig.colorbar(im0, ax=axs[0, 0])
+
+    # dAphi/dR spline
+    im1 = axs[0, 1].imshow(mag_dR_spline.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dR, vmax=vmax_dR)
+    axs[0, 1].set_title("dAphi/dR (spline)")
+    axs[0, 1].set_xlabel("R [cm]")
+    axs[0, 1].set_ylabel("Z [cm]")
+    fig.colorbar(im1, ax=axs[0, 1])
+
+    # dAphi/dZ stored
+    im2 = axs[1, 0].imshow(mag_dZ_stored.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dZ, vmax=vmax_dZ)
+    axs[1, 0].set_title("dAphi/dZ (stored)")
+    axs[1, 0].set_xlabel("R [cm]")
+    axs[1, 0].set_ylabel("Z [cm]")
+    fig.colorbar(im2, ax=axs[1, 0])
+
+    # dAphi/dZ spline
+    im3 = axs[1, 1].imshow(mag_dZ_spline.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dZ, vmax=vmax_dZ)
+    axs[1, 1].set_title("dAphi/dZ (spline)")
+    axs[1, 1].set_xlabel("R [cm]")
+    axs[1, 1].set_ylabel("Z [cm]")
+    fig.colorbar(im3, ax=axs[1, 1])
+
+    fig.savefig(output, dpi=args.dpi, bbox_inches="tight")
+    if not args.show:
+        plt.close(fig)
 
 
 def _print_stats(
@@ -755,7 +870,7 @@ def main() -> None:
     args = _parse_args()
 
     mode_fourier = _load_mode_from_bnvac(args.reference, args.ntor)
-    mode_vector, spline_vec = _load_mode_from_anvac(args.test, args.ntor)
+    mode_vector, spline_vec, mode_vector_spline, diagnostics = _load_mode_from_anvac(args.test, args.ntor)
     _ensure_same_grid(mode_fourier.grid, mode_vector.grid)
 
     coil_projections = None
@@ -884,9 +999,13 @@ def main() -> None:
     magnitude_spline = _magnitude_squared(BnR_spline_sum, Bnphi_spline_sum, BnZ_spline_sum)
 
     if args.per_coil_output is not None:
-        _create_per_coil_plot(args, mode_fourier, mode_vector,
+        _create_per_coil_plot(args, mode_fourier, mode_vector, mode_vector_spline,
                               BnR_spline_all, Bnphi_spline_all, BnZ_spline_all,
                               args.per_coil_output, coil_projections)
+
+    if args.deriv_diff_output is not None:
+        _create_deriv_comparison_plot(args, diagnostics, mode_fourier.grid, currents,
+                                      args.deriv_diff_output)
 
     if args.sum_output is not None:
         _create_sum_plot(
