@@ -1,6 +1,5 @@
 program test_coil_tools_vector_potential_derivs
     use, intrinsic :: iso_fortran_env, only: output_unit
-    use fortplot, only: figure, plot, savefig, title, xlabel, ylabel
     use coil_tools, only: coil_t, coil_init, coil_deinit, grid_from_bounding_box, &
                           vector_potential_biot_savart_fourier
     use libneo_kinds, only: dp
@@ -100,13 +99,10 @@ program test_coil_tools_vector_potential_derivs
     end do
 
     call ensure_plot_directory(plot_directory)
-    call save_error_plot( &
-        R, dphi_error_vs_R, 'Relative error |Δ(dAφ/dR)|', &
-        trim(plot_directory)//'/coil_tools_dAphi_dR_error.png', 'R coordinate')
-    call save_error_plot( &
-        Z, dphi_error_vs_Z, 'Relative error |Δ(dAφ/dZ)|', &
-        trim(plot_directory)//'/coil_tools_dAphi_dZ_error.png', 'Z coordinate')
-    ! store maximum errors across slices for diagnostics if needed
+    call save_error_data(R, dphi_error_vs_R, trim(plot_directory)//'/dAphi_dR_error.csv')
+    call save_error_data(Z, dphi_error_vs_Z, trim(plot_directory)//'/dAphi_dZ_error.csv')
+
+    call generate_plots(plot_directory)
 
     if (max_rel_err_R > rel_tol .or. max_rel_err_Z > rel_tol) then
         call print_fail
@@ -198,19 +194,30 @@ contains
         end if
     end subroutine ensure_plot_directory
 
-    subroutine save_error_plot(axis_vals, error_vals, ttl, filename, axis_label)
+    subroutine save_error_data(axis_vals, error_vals, filename)
         real(dp), intent(in) :: axis_vals(:)
         real(dp), intent(in) :: error_vals(:)
-        character(len=*), intent(in) :: ttl
         character(len=*), intent(in) :: filename
-        character(len=*), intent(in) :: axis_label
+        integer :: fid, k
 
-        call figure()
-        call plot(axis_vals, error_vals)
-        call title(ttl)
-        call xlabel(axis_label)
-        call ylabel('Relative error')
-        call savefig(filename)
-    end subroutine save_error_plot
+        open(newunit=fid, file=filename, status='replace', action='write')
+        write(fid, '(a)') 'coord,error'
+        do k = 1, size(axis_vals)
+            write(fid, '(es24.16e3, ",", es24.16e3)') axis_vals(k), error_vals(k)
+        end do
+        close(fid)
+    end subroutine save_error_data
+
+    subroutine generate_plots(plot_dir)
+        character(len=*), intent(in) :: plot_dir
+        character(len=512) :: command
+        integer :: istat
+
+        command = 'python3 test/magfie/plot_vector_potential_derivs.py "'//trim(plot_dir)//'"'
+        call execute_command_line(trim(command), exitstat=istat)
+        if (istat /= 0) then
+            write (output_unit, '(a)') 'Warning: failed to generate plots with Python'
+        end if
+    end subroutine generate_plots
 
 end program test_coil_tools_vector_potential_derivs
