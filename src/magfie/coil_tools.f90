@@ -509,7 +509,7 @@ contains
     integer :: nfft, ncoil, kc, ks, ks_prev, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
     real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
-      AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
+      AXYZ(3), grad_AX(3), grad_AY(3), grad_AZ(3), eccentricity, common_gradient_term(3)
     type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_fft_output
     real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
     complex(c_double_complex), dimension(:), pointer :: fft_output
@@ -562,7 +562,7 @@ contains
           end if
           !$omp parallel do schedule(static) default(none) &
           !$omp private(kphi, ks, ks_prev, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
-          !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term) &
+          !$omp AXYZ, grad_AX, grad_AY, grad_AZ, eccentricity, common_gradient_term) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
           !$omp actual_R, actual_Z, min_distance, max_eccentricity)
           do kphi = 1, nphi
@@ -570,6 +570,7 @@ contains
             AXYZ(:) = 0d0
             grad_AX(:) = 0d0
             grad_AY(:) = 0d0
+            grad_AZ(:) = 0d0
             ks_prev = coils(kc)%nseg
             XYZ_f(:) = coils(kc)%XYZ(:, ks_prev) - XYZ_r
             dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
@@ -585,6 +586,7 @@ contains
               common_gradient_term(:) = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
               grad_AX(:) = grad_AX + XYZ_if(1) * common_gradient_term
               grad_AY(:) = grad_AY + XYZ_if(2) * common_gradient_term
+              grad_AZ(:) = grad_AZ + XYZ_if(3) * common_gradient_term
               ks_prev = ks
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
