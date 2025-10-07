@@ -99,11 +99,11 @@ program test_coil_tools_vector_potential_derivs
         end do
     end do
 
-    call validate_cartesian_gradients(R, Z, max_rel_err_R, max_rel_err_Z)
-
     call ensure_plot_directory(plot_directory)
     call save_error_data(R, dphi_error_vs_R, trim(plot_directory)//'/dAphi_dR_error.csv')
     call save_error_data(Z, dphi_error_vs_Z, trim(plot_directory)//'/dAphi_dZ_error.csv')
+
+    call validate_cartesian_gradients(R, Z, plot_directory)
 
     call generate_plots(plot_directory)
 
@@ -224,15 +224,17 @@ contains
         end if
     end subroutine generate_plots
 
-    subroutine validate_cartesian_gradients(R, Z, max_err_R, max_err_Z)
+    subroutine validate_cartesian_gradients(R, Z, plot_dir)
         real(dp), intent(in) :: R(:), Z(:)
-        real(dp), intent(inout) :: max_err_R, max_err_Z
+        character(len=*), intent(in) :: plot_dir
         real(dp), allocatable :: grad_AX(:, :, :, :), grad_AY(:, :, :, :), grad_AZ(:, :, :, :)
-        integer :: fid
+        real(dp), allocatable :: grad_profile(:)
+        integer :: fid, kR, kZ, icomp
 
         allocate(grad_AX(3, nR, nZ, 1))
         allocate(grad_AY(3, nR, nZ, 1))
         allocate(grad_AZ(3, nR, nZ, 1))
+        allocate(grad_profile(nR))
 
         open (newunit=fid, file='debug_cartesian_gradients.dat', status='old', action='read', form='unformatted')
         read (fid) grad_AX
@@ -247,6 +249,30 @@ contains
         write (output_unit, '(a, 2es12.4)') '  grad_AX range:', minval(grad_AX), maxval(grad_AX)
         write (output_unit, '(a, 2es12.4)') '  grad_AY range:', minval(grad_AY), maxval(grad_AY)
         write (output_unit, '(a, 2es12.4)') '  grad_AZ range:', minval(grad_AZ), maxval(grad_AZ)
+
+        ! Save grad_AX components along R at Z=0
+        do icomp = 1, 3
+            do kR = 1, nR
+                grad_profile(kR) = grad_AX(icomp, kR, nZ/2, 1)
+            end do
+            call save_error_data(R, grad_profile, trim(plot_dir)//'/grad_AX_comp'//char(ichar('0')+icomp)//'_vs_R.csv')
+        end do
+
+        ! Save grad_AY components along R at Z=0
+        do icomp = 1, 3
+            do kR = 1, nR
+                grad_profile(kR) = grad_AY(icomp, kR, nZ/2, 1)
+            end do
+            call save_error_data(R, grad_profile, trim(plot_dir)//'/grad_AY_comp'//char(ichar('0')+icomp)//'_vs_R.csv')
+        end do
+
+        ! Save grad_AZ components along R at Z=0
+        do icomp = 1, 3
+            do kR = 1, nR
+                grad_profile(kR) = grad_AZ(icomp, kR, nZ/2, 1)
+            end do
+            call save_error_data(R, grad_profile, trim(plot_dir)//'/grad_AZ_comp'//char(ichar('0')+icomp)//'_vs_R.csv')
+        end do
     end subroutine validate_cartesian_gradients
 
 end program test_coil_tools_vector_potential_derivs

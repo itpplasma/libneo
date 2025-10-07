@@ -27,6 +27,69 @@ def plot_errors(plot_dir):
             'title': r'Relative error $|\Delta(dA_\phi/dZ)|$',
             'xlabel': 'Z coordinate (cm)',
             'output': 'coil_tools_dAphi_dZ_error.png'
+        },
+        {
+            'file': 'grad_AX_comp1_vs_R.csv',
+            'title': r'$\partial A_x/\partial x$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_x/\partial x$',
+            'output': 'grad_AX_comp1.png'
+        },
+        {
+            'file': 'grad_AX_comp2_vs_R.csv',
+            'title': r'$\partial A_x/\partial y$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_x/\partial y$',
+            'output': 'grad_AX_comp2.png'
+        },
+        {
+            'file': 'grad_AX_comp3_vs_R.csv',
+            'title': r'$\partial A_x/\partial z$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_x/\partial z$',
+            'output': 'grad_AX_comp3.png'
+        },
+        {
+            'file': 'grad_AY_comp1_vs_R.csv',
+            'title': r'$\partial A_y/\partial x$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_y/\partial x$',
+            'output': 'grad_AY_comp1.png'
+        },
+        {
+            'file': 'grad_AY_comp2_vs_R.csv',
+            'title': r'$\partial A_y/\partial y$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_y/\partial y$',
+            'output': 'grad_AY_comp2.png'
+        },
+        {
+            'file': 'grad_AY_comp3_vs_R.csv',
+            'title': r'$\partial A_y/\partial z$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_y/\partial z$',
+            'output': 'grad_AY_comp3.png'
+        },
+        {
+            'file': 'grad_AZ_comp1_vs_R.csv',
+            'title': r'$\partial A_z/\partial x$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_z/\partial x$',
+            'output': 'grad_AZ_comp1.png'
+        },
+        {
+            'file': 'grad_AZ_comp2_vs_R.csv',
+            'title': r'$\partial A_z/\partial y$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_z/\partial y$',
+            'output': 'grad_AZ_comp2.png'
+        },
+        {
+            'file': 'grad_AZ_comp3_vs_R.csv',
+            'title': r'$\partial A_z/\partial z$ vs R at $\phi=0$, Z=0',
+            'xlabel': 'R coordinate (cm)',
+            'ylabel': r'$\partial A_z/\partial z$',
+            'output': 'grad_AZ_comp3.png'
         }
     ]
 
@@ -38,13 +101,14 @@ def plot_errors(plot_dir):
             print(f"Warning: {input_file} not found, skipping")
             continue
 
-        coords, errors = load_error_data(input_file)
+        coords, values = load_error_data(input_file)
 
         plt.figure(figsize=(8, 6))
-        plt.plot(coords, errors, 'b-', linewidth=1.5)
+        plt.plot(coords, values, 'b-', linewidth=1.5)
         plt.title(plot_spec['title'], fontsize=14)
         plt.xlabel(plot_spec['xlabel'], fontsize=12)
-        plt.ylabel('Relative error', fontsize=12)
+        ylabel = plot_spec.get('ylabel', 'Relative error')
+        plt.ylabel(ylabel, fontsize=12)
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.savefig(output_file, dpi=150)
