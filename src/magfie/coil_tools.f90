@@ -16,7 +16,9 @@ module coil_tools
     biot_savart_sum_coils, biot_savart_fourier, &
     write_Bvac_nemov, write_Bnvac_fourier, read_Bnvac_fourier, &
     vector_potential_biot_savart_fourier, write_Anvac_fourier, read_Anvac_fourier, &
-    sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac
+    sum_coils_gauge_single_mode_Anvac, gauged_Anvac_from_Bnvac, &
+    segment_vector_potential_contribution, segment_eccentricity, &
+    segment_gradient_kernel, segment_gradient_contribution
 
   type :: coil_t
     integer :: nseg = 0
@@ -496,8 +498,7 @@ contains
     use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
-    use field_sub, only: stretch_coords
-    use input_files, only: convexfile
+    use field_sub, only: read_field_input, stretch_coords
 
     type(coil_t), intent(in), dimension(:) :: coils
     integer, intent(in) :: nmax
@@ -510,10 +511,11 @@ contains
     integer :: nfft, ncoil, kc, ks, ks_prev, kR, kphi, kZ
     real(dp), dimension(nphi) :: phi, cosphi, sinphi
     real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
-      AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
+      AXYZ(3), grad_AX(3), grad_AY(3), grad_AZ(3), eccentricity, common_gradient_term(3)
     type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_fft_output
     real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
     complex(c_double_complex), dimension(:), pointer :: fft_output
+    real(dp), dimension(:, :, :, :), allocatable :: debug_grad_AX, debug_grad_AY, debug_grad_AZ
 
     if (nmax > nphi / 4) then
       write (error_unit, '("biot_savart_fourier: requested nmax = ", ' // &
@@ -530,6 +532,9 @@ contains
     allocate(AnZ(0:nmax, nR, nZ, ncoil))
     allocate(dAnphi_dR(0:nmax, nR, nZ, ncoil))
     allocate(dAnphi_dZ(0:nmax, nR, nZ, ncoil))
+    allocate(debug_grad_AX(3, nR, nZ, ncoil))
+    allocate(debug_grad_AY(3, nR, nZ, ncoil))
+    allocate(debug_grad_AZ(3, nR, nZ, ncoil))
     ! prepare FFTW
     !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
     !$ call fftw_plan_with_nthreads(omp_get_max_threads())
@@ -548,7 +553,7 @@ contains
     plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
 
     if (use_convex_wall) then
-      convexfile = 'convexwall.dat'  ! Set default convex wall filename
+      call read_field_input  ! read convex wall
     end if
 
     do kc = 1, ncoil
@@ -563,14 +568,15 @@ contains
           end if
           !$omp parallel do schedule(static) default(none) &
           !$omp private(kphi, ks, ks_prev, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
-          !$omp AXYZ, grad_AX, grad_AY, eccentricity, common_gradient_term) &
+          !$omp AXYZ, grad_AX, grad_AY, grad_AZ, eccentricity, common_gradient_term) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
-          !$omp actual_R, actual_Z, min_distance, max_eccentricity)
+          !$omp actual_R, actual_Z, min_distance, max_eccentricity, debug_grad_AX, debug_grad_AY, debug_grad_AZ)
           do kphi = 1, nphi
             XYZ_r(:) = [actual_R * cosphi(kphi), actual_R * sinphi(kphi), actual_Z]
             AXYZ(:) = 0d0
             grad_AX(:) = 0d0
             grad_AY(:) = 0d0
+            grad_AZ(:) = 0d0
             ks_prev = coils(kc)%nseg
             XYZ_f(:) = coils(kc)%XYZ(:, ks_prev) - XYZ_r
             dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
@@ -581,11 +587,10 @@ contains
               dist_f = max(min_distance, sqrt(sum(XYZ_f * XYZ_f)))
               XYZ_if = coils(kc)%XYZ(:, ks) - coils(kc)%XYZ(:, ks_prev)
               dist_if = sqrt(sum(XYZ_if * XYZ_if))
-              eccentricity = min(max_eccentricity, dist_if / (dist_i + dist_f))
-              AXYZ(:) = AXYZ + XYZ_if / dist_if * log((1 + eccentricity) / (1 - eccentricity))
-              common_gradient_term(:) = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
-              grad_AX(:) = grad_AX - XYZ_if(1) * common_gradient_term
-              grad_AY(:) = grad_AY - XYZ_if(2) * common_gradient_term
+              eccentricity = segment_eccentricity(dist_if, dist_i, dist_f, max_eccentricity)
+              AXYZ(:) = AXYZ + segment_vector_potential_contribution(XYZ_if, dist_if, eccentricity)
+              common_gradient_term(:) = segment_gradient_kernel(XYZ_i, XYZ_f, dist_i, dist_f)
+              call segment_gradient_contribution(XYZ_if, common_gradient_term, grad_AX, grad_AY, grad_AZ)
               ks_prev = ks
             end do
             AR(kphi) = AXYZ(1) * cosphi(kphi) + AXYZ(2) * sinphi(kphi)
@@ -594,6 +599,11 @@ contains
             dAphi_dR(kphi) = grad_AY(1) * cosphi(kphi) ** 2 - grad_AX(2) * sinphi(kphi) ** 2 + &
               (grad_AY(2) - grad_AX(1)) * cosphi(kphi) * sinphi(kphi)
             dAphi_dZ(kphi) = grad_AY(3) * cosphi(kphi) - grad_AX(3) * sinphi(kphi)
+            if (kphi == 1) then
+              debug_grad_AX(:, kR, kZ, kc) = grad_AX
+              debug_grad_AY(:, kR, kZ, kc) = grad_AY
+              debug_grad_AZ(:, kR, kZ, kc) = grad_AZ
+            end if
           end do
           !$omp end parallel do
           call fftw_execute_dft_r2c(plan_nphi, AR, fft_output)
@@ -609,6 +619,7 @@ contains
         end do
       end do
     end do
+    call write_debug_gradients(debug_grad_AX, debug_grad_AY, debug_grad_AZ)
     call fftw_destroy_plan(plan_nphi)
     call fftw_free(p_AR)
     call fftw_free(p_Aphi)
@@ -619,6 +630,18 @@ contains
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
   end subroutine vector_potential_biot_savart_fourier
+
+  subroutine write_debug_gradients(grad_AX, grad_AY, grad_AZ)
+    use, intrinsic :: iso_fortran_env, only: output_unit
+    real(dp), dimension(:, :, :, :), intent(in) :: grad_AX, grad_AY, grad_AZ
+    integer :: fid
+    open (newunit=fid, file='debug_cartesian_gradients.dat', status='replace', action='write', form='unformatted')
+    write (fid) grad_AX
+    write (fid) grad_AY
+    write (fid) grad_AZ
+    close (fid)
+    write (output_unit, '(a)') 'Wrote debug Cartesian gradients to debug_cartesian_gradients.dat'
+  end subroutine write_debug_gradients
 
   subroutine sum_coils_gauge_single_mode_Anvac(AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
     Ic, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, gauged_AnR, gauged_AnZ)
@@ -973,5 +996,38 @@ contains
     call h5_close(h5id_root)
     deallocate(Bn)
   end subroutine read_Bnvac_fourier
+
+  ! Small helper functions for Biot-Savart segment contributions
+  ! These are extracted for testing and validation
+
+  pure function segment_vector_potential_contribution(XYZ_segment, dist_segment, eccentricity) result(dA)
+    real(dp), intent(in) :: XYZ_segment(3)
+    real(dp), intent(in) :: dist_segment
+    real(dp), intent(in) :: eccentricity
+    real(dp) :: dA(3)
+    dA = XYZ_segment / dist_segment * log((1.0_dp + eccentricity) / (1.0_dp - eccentricity))
+  end function segment_vector_potential_contribution
+
+  pure function segment_eccentricity(dist_segment, dist_i, dist_f, max_ecc) result(ecc)
+    real(dp), intent(in) :: dist_segment, dist_i, dist_f, max_ecc
+    real(dp) :: ecc
+    ecc = min(max_ecc, dist_segment / (dist_i + dist_f))
+  end function segment_eccentricity
+
+  pure function segment_gradient_kernel(XYZ_i, XYZ_f, dist_i, dist_f) result(grad_kernel)
+    real(dp), intent(in) :: XYZ_i(3), XYZ_f(3)
+    real(dp), intent(in) :: dist_i, dist_f
+    real(dp) :: grad_kernel(3)
+    grad_kernel = (XYZ_i / dist_i + XYZ_f / dist_f) / (dist_i * dist_f + sum(XYZ_i * XYZ_f))
+  end function segment_gradient_kernel
+
+  pure subroutine segment_gradient_contribution(XYZ_segment, grad_kernel, grad_AX, grad_AY, grad_AZ)
+    real(dp), intent(in) :: XYZ_segment(3)
+    real(dp), intent(in) :: grad_kernel(3)
+    real(dp), intent(inout) :: grad_AX(3), grad_AY(3), grad_AZ(3)
+    grad_AX = grad_AX + XYZ_segment(1) * grad_kernel
+    grad_AY = grad_AY + XYZ_segment(2) * grad_kernel
+    grad_AZ = grad_AZ + XYZ_segment(3) * grad_kernel
+  end subroutine segment_gradient_contribution
 
 end module coil_tools

@@ -2,7 +2,11 @@
 
 name: Build and test
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
 permissions:
   contents: read
@@ -13,23 +17,15 @@ concurrency:
 
 jobs:
   GNU:
-    runs-on: ubuntu-22.04
-    container:
-      image: ghcr.io/itpplasma/devel:latest
-      options: --user root
+    runs-on: self-hosted
+    env:
+      LIBNEO_TESTING: "1"
 
     name: Build and test
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Fix permissions
-        run: |
-          git config --global --add safe.directory `pwd`
-
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --break-system-packages -r requirements.txt
       - name: Build
         run: |
           make
@@ -38,90 +34,170 @@ jobs:
         run: |
           cd build && ctest --output-on-failure
 
-      - name: Editable install of libneo (system-wide)
+      - name: Upload GEQDSK plots
+        uses: actions/upload-artifact@v4
+        with:
+          name: geqdsk-plots
+          path: build/test_artifacts/*.png
+          if-no-files-found: ignore
+
+      - name: Editable install of libneo
         run: |
-          python3 -m pip install --break-system-packages -r requirements.txt
-          python3 -m pip install --break-system-packages -e .
+          pip install --break-system-packages -e .
 
       - name: Run Python tests (pytest)
+        env:
+          PYTHONFAULTHANDLER: "1"
+          LIBNEO_DEBUG_BOOZER: "1"
         run: |
-          pytest -q
+          pytest test/python -q
+          pytest python/tests -vv -s
 
-      - name: Upload magfie PNG artifacts
+      - name: Compare with ASCOT5 reference
+        run: |
+          python test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
+
+      - name: Upload test image artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: magfie-pngs
+          name: test-images
           path: |
-            build/test/magfie/**/*.png
+            build/test/**/*.png
+            build/test/**/*.jpg
+            build/test/**/*.jpeg
+            build/test_artifacts/**/*.png
+            build/test_artifacts/**/*.jpg
+            build/test_artifacts/**/*.jpeg
           if-no-files-found: warn
 
   dashboard:
-    name: Build magfie dashboard
+    name: Build test dashboard
     needs: GNU
-    if: ${{ always() }}
-    runs-on: ubuntu-22.04
+    if: ${{ needs.GNU.result == 'success' }}
+    runs-on: self-hosted
     permissions:
       contents: read
       pages: write
       id-token: write
-    env:
-      BRANCH_NAME: ${{ github.ref_name }}
-      COMMIT_SHA: ${{ github.sha }}
-      RUN_ID: ${{ github.run_id }}
-      REPOSITORY: ${{ github.repository }}
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download magfie PNG artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: magfie-pngs
-          path: png-artifacts
-          if-no-files-found: ignore
-
-      - name: Restore previously published site
-        if: ${{ github.event_name == 'push' }}
+      - name: Download testboard ARM64 binary
         run: |
           set -euo pipefail
-          rm -rf dashboard
+          curl -LO https://github.com/lazy-fortran/testboard/releases/latest/download/testboard-aarch64
+          chmod +x testboard-aarch64
+
+      - name: Download image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: test-images
+          path: image-artifacts
+
+      - name: Remove ASCOT5 logo files
+        run: |
+          set -euo pipefail
+          find image-artifacts -type f \( -name "logo.png" -o -name "icon.png" \) -delete
+          echo "Removed ASCOT5 logo and icon files from artifacts"
+
+      - name: Restore previously published site
+        run: |
+          set -euo pipefail
+          rm -rf dashboard dashboard_existing
           mkdir -p dashboard
-          if curl --silent --head --fail https://itpplasma.github.io/libneo/index.html >/dev/null 2>&1; then
-            rm -rf dashboard_existing
+          BASE_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/test/"
+          INDEX_URL="${BASE_URL}index.html"
+          if curl --silent --head --fail "$INDEX_URL" >/dev/null 2>&1; then
+            echo "Existing site found, restoring..."
             mkdir -p dashboard_existing
-            wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=1 \
-              --directory-prefix dashboard_existing https://itpplasma.github.io/libneo/
-            rsync -a dashboard_existing/ dashboard/ || true
+            if wget --quiet --recursive --no-parent --no-host-directories --cut-dirs=2 \
+              --directory-prefix dashboard_existing "$BASE_URL" 2>&1; then
+              if [ -n "$(ls -A dashboard_existing)" ]; then
+                echo "Restoring $(find dashboard_existing -type f | wc -l) files"
+                rsync -a dashboard_existing/ dashboard/
+              fi
+            else
+              echo "wget failed, starting with empty dashboard"
+            fi
             rm -rf dashboard_existing
+          else
+            echo "No existing site found, starting fresh"
           fi
 
       - name: Generate dashboard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          python3 tools/ci/render_magfie_dashboard.py \
-            --png-root png-artifacts \
+          ./testboard-aarch64 \
+            --image-root image-artifacts \
             --output dashboard \
-            --branch "${{ github.ref_name }}" \
-            --commit "${{ github.sha }}" \
-            --run-id "${{ github.run_id }}" \
-            --repo "${{ github.repository }}"
+            --branch "${GITHUB_REF_NAME}" \
+            --commit "${GITHUB_SHA}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --project-name "libneo" \
+            --github-pages-url "${PAGES_BASE_URL}"
+
+      - name: Prune closed branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH_JSON="dashboard/test/branches.json"
+          if [ ! -f "$BRANCH_JSON" ]; then
+            echo "No branches metadata found; skipping pruning"
+            exit 0
+          fi
+
+          tmp_json=$(mktemp)
+          cp "$BRANCH_JSON" "$tmp_json"
+
+          for branch in $(jq -r 'keys[]' "$tmp_json"); do
+            pr_number=$(jq -r --arg b "$branch" '.[$b].pr_info.number // empty' "$tmp_json")
+            keep=1
+
+            if [ -n "$pr_number" ] && [ "$pr_number" != "null" ]; then
+              pr_state=$(gh pr view "$pr_number" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+              if [ "$pr_state" = "CLOSED" ] || [ "$pr_state" = "MERGED" ]; then
+                keep=0
+              fi
+            else
+              if ! git ls-remote --heads origin "$branch" >/dev/null 2>&1; then
+                if [ "$branch" != "main" ]; then
+                  keep=0
+                fi
+              fi
+            fi
+
+            if [ "$keep" -eq 0 ]; then
+              echo "Pruning branch $branch from dashboard"
+              jq --arg branch "$branch" 'del(.[$branch])' "$BRANCH_JSON" > "$BRANCH_JSON.tmp"
+              mv "$BRANCH_JSON.tmp" "$BRANCH_JSON"
+              rm -rf "dashboard/test/$branch"
+            fi
+          done
+
+          rm -f "$tmp_json"
 
       - name: Configure Pages
         if: ${{ github.event_name == 'push' }}
         uses: actions/configure-pages@v5
 
       - name: Upload dashboard artifact
-        if: ${{ github.event_name == 'push' }}
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dashboard'
 
   deploy:
     name: Deploy to GitHub Pages
-    if: ${{ github.event_name == 'push' }}
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     needs: dashboard
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     permissions:
       contents: read
       pages: write

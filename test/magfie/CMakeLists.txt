@@ -9,9 +9,29 @@ endif()
 
 set(_MAGFIE_TEST_PYTHON_EXECUTABLE "${Python_EXECUTABLE}")
 
+include(FetchContent)
+
+set(FORTPLOT_OVERRIDE_REPO $ENV{FORTPLOT_OVERRIDE_REPO})
+if (FORTPLOT_OVERRIDE_REPO)
+    message(STATUS "Using overridden fortplot repository: ${FORTPLOT_OVERRIDE_REPO}")
+    set(_fortplot_repo ${FORTPLOT_OVERRIDE_REPO})
+    set(_fortplot_tag HEAD)
+else()
+    set(_fortplot_repo https://github.com/lazy-fortran/fortplot.git)
+    set(_fortplot_tag main)
+endif()
+
+FetchContent_Declare(fortplot
+    GIT_REPOSITORY ${_fortplot_repo}
+    GIT_TAG ${_fortplot_tag}
+    GIT_SHALLOW TRUE
+)
+
+FetchContent_MakeAvailable(fortplot)
+
 # Test executable for Biot-Savart Fourier routines
 add_executable(test_coil_tools_biot_savart.x test_coil_tools_biot_savart.f90)
-target_link_libraries(test_coil_tools_biot_savart.x PRIVATE 
+target_link_libraries(test_coil_tools_biot_savart.x PRIVATE
     neo
     magfie
     util_for_test
@@ -22,6 +42,9 @@ target_link_libraries(test_coil_tools_biot_savart.x PRIVATE
 )
 
 # Register the test
+add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
+
+# Set test properties
 add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
 
 # Set test properties
@@ -121,4 +144,70 @@ set_tests_properties(test_axisymmetric_biot_savart PROPERTIES
     LABELS "magfie;biot_savart;integration;axisymmetric"
     TIMEOUT 300
     DEPENDS vacfield.x
+)
+
+add_executable(test_coil_tools_vector_potential_derivs.x
+    test_coil_tools_vector_potential_derivs.f90)
+target_link_libraries(test_coil_tools_vector_potential_derivs.x PRIVATE
+    neo
+    magfie
+    util_for_test
+    fortplot::fortplot
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+target_compile_definitions(test_coil_tools_vector_potential_derivs.x PRIVATE
+    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie"
+    COIL_TOOLS_SCRIPT_DIR="${CMAKE_SOURCE_DIR}/test/magfie")
+
+add_test(NAME test_coil_tools_vector_potential_derivs
+    COMMAND test_coil_tools_vector_potential_derivs.x)
+set_tests_properties(test_coil_tools_vector_potential_derivs PROPERTIES
+    LABELS "magfie;coil_tools;derivatives"
+    TIMEOUT 300
+)
+
+add_executable(test_coil_tools_segment_formulas.x
+    test_coil_tools_segment_formulas.f90)
+target_link_libraries(test_coil_tools_segment_formulas.x PRIVATE
+    neo
+    magfie
+    util_for_test
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+target_compile_definitions(test_coil_tools_segment_formulas.x PRIVATE
+    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie")
+
+add_test(NAME test_coil_tools_segment_formulas
+    COMMAND test_coil_tools_segment_formulas.x)
+set_tests_properties(test_coil_tools_segment_formulas PROPERTIES
+    LABELS "magfie;coil_tools;formulas"
+    TIMEOUT 60
+)
+
+add_executable(test_coil_tools_aphi_gradients.x
+    test_coil_tools_aphi_gradients.f90)
+target_link_libraries(test_coil_tools_aphi_gradients.x PRIVATE
+    neo
+    magfie
+    util_for_test
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+target_compile_definitions(test_coil_tools_aphi_gradients.x PRIVATE
+    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie"
+    COIL_TOOLS_SCRIPT_DIR="${CMAKE_SOURCE_DIR}/test/magfie")
+
+add_test(NAME test_coil_tools_aphi_gradients
+    COMMAND test_coil_tools_aphi_gradients.x)
+set_tests_properties(test_coil_tools_aphi_gradients PROPERTIES
+    LABELS "magfie;coil_tools;derivatives"
+    TIMEOUT 60
 )

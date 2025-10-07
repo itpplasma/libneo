@@ -52,6 +52,7 @@ def test_vmec_plot_surfaces_visual_check(tmp_path):
     multiple zeta values in the RZ plane and save to file.
     """
     import matplotlib.pyplot as plt
+    from pathlib import Path
 
     with tempfile.TemporaryDirectory() as td:
         path = os.path.join(td, "wout.nc")
@@ -81,10 +82,12 @@ def test_vmec_plot_surfaces_visual_check(tmp_path):
             ax.set_xlabel("R [m]")
             ax.set_ylabel("Z [m]")
             ax.axis("equal")
-        outfile = tmp_path / "vmec_surfaces.png"
-        fig.savefig(outfile)
-        # Show interactively; in headless backends this is a no-op
-        plt.show()
+
+        # Save to build directory for artifact collection
+        build_artifact = Path("build/test/python/vmec_surfaces.png")
+        build_artifact.parent.mkdir(parents=True, exist_ok=True)
+        outfile = build_artifact
+        fig.savefig(build_artifact)
         plt.close(fig)
         assert outfile.exists()
         assert outfile.stat().st_size > 0

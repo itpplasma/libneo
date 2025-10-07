@@ -113,10 +113,11 @@ subroutine is_trial_field(field, Rmin, Rmax, Zmin, Zmax, phimin, phimax)
     real(dp) :: fluxfunction_trial, fluxfunction
     real(dp) :: x(3,n), R
     integer :: idx
+    integer, parameter :: seed_value = 42
 
-    x(1,:) = get_random_numbers(Rmin, Rmax, n)
-    x(2,:) = get_random_numbers(phimin, phimax, n)
-    x(3,:) = get_random_numbers(Zmin, Zmax, n)
+    x(1,:) = get_random_numbers(Rmin, Rmax, n, seed_value)
+    x(2,:) = get_random_numbers(phimin, phimax, n, seed_value)
+    x(3,:) = get_random_numbers(Zmin, Zmax, n, seed_value)
 
     do idx = 1, n
         call field%compute_abfield(x(:,idx), A, B)
@@ -151,10 +152,11 @@ subroutine is_curla_plus_fluxfunction_equal_b(field, &
     real(dp) :: A(3), B(3), curla(3), fluxfunction, B_from_a_and_fluxfunction(3)
     real(dp) :: x(3,n), R
     integer :: idx
+    integer, parameter :: seed_value = 42
 
-    x(1,:) = get_random_numbers(Rmin, Rmax, n)
-    x(2,:) = get_random_numbers(Zmin, Zmax, n)
-    x(3,:) = get_random_numbers(phimin, phimax, n)
+    x(1,:) = get_random_numbers(Rmin, Rmax, n, seed_value)
+    x(2,:) = get_random_numbers(Zmin, Zmax, n, seed_value)
+    x(3,:) = get_random_numbers(phimin, phimax, n, seed_value)
 
     do idx = 1, n
         call field%compute_abfield(x(:,idx), A, B)
@@ -176,14 +178,20 @@ subroutine is_curla_plus_fluxfunction_equal_b(field, &
 end subroutine is_curla_plus_fluxfunction_equal_b
 
 
-function get_random_numbers(xmin, xmax, n, seed) result(x)
+function get_random_numbers(xmin, xmax, n, seed_value) result(x)
     real(dp), intent(in) :: xmin, xmax
     integer, intent(in) :: n
-    integer, dimension(:), intent(in), optional :: seed
+    integer, intent(in), optional :: seed_value
     real(dp), dimension(:), allocatable :: x
+    integer :: seed_size
+    integer, allocatable :: seed(:)
 
-    if (present(seed)) then
+    if (present(seed_value)) then
+        call random_seed(size=seed_size)
+        allocate(seed(seed_size))
+        seed = seed_value
         call random_seed(put=seed)
+        deallocate(seed)
     end if
     allocate(x(n))
     call random_number(x)
