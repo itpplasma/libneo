@@ -45,9 +45,6 @@ target_link_libraries(test_coil_tools_biot_savart.x PRIVATE
 add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
 
 # Set test properties
-add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
-
-# Set test properties
 set_tests_properties(test_coil_tools_biot_savart PROPERTIES
     LABELS "magfie;biot_savart"
     TIMEOUT 300
