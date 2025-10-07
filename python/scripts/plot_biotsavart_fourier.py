@@ -562,98 +562,35 @@ def _axis_validation(
     B_parallel_spline = zeros_like(s_vals)
     B_parallel_direct = zeros_like(s_vals)
 
-    if args.ntor == 0:
-        # For axisymmetric case, evaluate cylindrical components directly
-        for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
-            R_val = hypot(x_val, y_val)
-            phi_val = arctan2(y_val, x_val)
+    for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
+        Bx_f, By_f, Bz_f = _evaluate_modes_at_point(
+            BnR_fourier, Bnphi_fourier, BnZ_fourier,
+            args.ntor, grid.R, grid.Z,
+            x_val, y_val, z_val,
+        )
+        B_parallel_fourier[idx] = Bx_f * direction[0] + By_f * direction[1] + Bz_f * direction[2]
 
-            BR_f = _bilinear_interpolate(grid.R, grid.Z, BnR_fourier, R_val, z_val)
-            Bphi_f = _bilinear_interpolate(grid.R, grid.Z, Bnphi_fourier, R_val, z_val)
-            BZ_f = _bilinear_interpolate(grid.R, grid.Z, BnZ_fourier, R_val, z_val)
+        Bx_v, By_v, Bz_v = _evaluate_modes_at_point(
+            BnR_vector, Bnphi_vector, BnZ_vector,
+            args.ntor, grid.R, grid.Z,
+            x_val, y_val, z_val,
+        )
+        B_parallel_vector[idx] = Bx_v * direction[0] + By_v * direction[1] + Bz_v * direction[2]
 
-            BR_v = _bilinear_interpolate(grid.R, grid.Z, BnR_vector, R_val, z_val)
-            Bphi_v = _bilinear_interpolate(grid.R, grid.Z, Bnphi_vector, R_val, z_val)
-            BZ_v = _bilinear_interpolate(grid.R, grid.Z, BnZ_vector, R_val, z_val)
+        Bx_s, By_s, Bz_s = _evaluate_modes_at_point(
+            BnR_spline, Bnphi_spline, BnZ_spline,
+            args.ntor, grid.R, grid.Z,
+            x_val, y_val, z_val,
+        )
+        B_parallel_spline[idx] = Bx_s * direction[0] + By_s * direction[1] + Bz_s * direction[2]
 
-            BR_s = _bilinear_interpolate(grid.R, grid.Z, BnR_spline, R_val, z_val)
-            Bphi_s = _bilinear_interpolate(grid.R, grid.Z, Bnphi_spline, R_val, z_val)
-            BZ_s = _bilinear_interpolate(grid.R, grid.Z, BnZ_spline, R_val, z_val)
-
-            # For ntor=0, fields are real
-            BR_f = BR_f.real if hasattr(BR_f, 'real') else BR_f
-            Bphi_f = Bphi_f.real if hasattr(Bphi_f, 'real') else Bphi_f
-            BZ_f = BZ_f.real if hasattr(BZ_f, 'real') else BZ_f
-
-            BR_v = BR_v.real if hasattr(BR_v, 'real') else BR_v
-            Bphi_v = Bphi_v.real if hasattr(Bphi_v, 'real') else Bphi_v
-            BZ_v = BZ_v.real if hasattr(BZ_v, 'real') else BZ_v
-
-            BR_s = BR_s.real if hasattr(BR_s, 'real') else BR_s
-            Bphi_s = Bphi_s.real if hasattr(Bphi_s, 'real') else Bphi_s
-            BZ_s = BZ_s.real if hasattr(BZ_s, 'real') else BZ_s
-
-            # Convert to Cartesian
-            cosphi = cos(phi_val)
-            sinphi = sin(phi_val)
-
-            Bx_f = BR_f * cosphi - Bphi_f * sinphi
-            By_f = BR_f * sinphi + Bphi_f * cosphi
-
-            Bx_v = BR_v * cosphi - Bphi_v * sinphi
-            By_v = BR_v * sinphi + Bphi_v * cosphi
-
-            Bx_s = BR_s * cosphi - Bphi_s * sinphi
-            By_s = BR_s * sinphi + Bphi_s * cosphi
-
-            B_parallel_fourier[idx] = Bx_f * direction[0] + By_f * direction[1] + BZ_f * direction[2]
-            B_parallel_vector[idx] = Bx_v * direction[0] + By_v * direction[1] + BZ_v * direction[2]
-            B_parallel_spline[idx] = Bx_s * direction[0] + By_s * direction[1] + BZ_s * direction[2]
-
-            if BnR_direct is not None and Bnphi_direct is not None and BnZ_direct is not None:
-                BR_d = _bilinear_interpolate(grid.R, grid.Z, BnR_direct, R_val, z_val)
-                Bphi_d = _bilinear_interpolate(grid.R, grid.Z, Bnphi_direct, R_val, z_val)
-                BZ_d = _bilinear_interpolate(grid.R, grid.Z, BnZ_direct, R_val, z_val)
-
-                BR_d = BR_d.real if hasattr(BR_d, 'real') else BR_d
-                Bphi_d = Bphi_d.real if hasattr(Bphi_d, 'real') else Bphi_d
-                BZ_d = BZ_d.real if hasattr(BZ_d, 'real') else BZ_d
-
-                Bx_d = BR_d * cosphi - Bphi_d * sinphi
-                By_d = BR_d * sinphi + Bphi_d * cosphi
-
-                B_parallel_direct[idx] = Bx_d * direction[0] + By_d * direction[1] + BZ_d * direction[2]
-    else:
-        # For non-axisymmetric case, use the existing Fourier reconstruction
-        for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
-            Bx_f, By_f, Bz_f = _evaluate_modes_at_point(
-                BnR_fourier, Bnphi_fourier, BnZ_fourier,
+        if BnR_direct is not None and Bnphi_direct is not None and BnZ_direct is not None:
+            Bx_d, By_d, Bz_d = _evaluate_modes_at_point(
+                BnR_direct, Bnphi_direct, BnZ_direct,
                 args.ntor, grid.R, grid.Z,
                 x_val, y_val, z_val,
             )
-            B_parallel_fourier[idx] = Bx_f * direction[0] + By_f * direction[1] + Bz_f * direction[2]
-
-            Bx_v, By_v, Bz_v = _evaluate_modes_at_point(
-                BnR_vector, Bnphi_vector, BnZ_vector,
-                args.ntor, grid.R, grid.Z,
-                x_val, y_val, z_val,
-            )
-            B_parallel_vector[idx] = Bx_v * direction[0] + By_v * direction[1] + Bz_v * direction[2]
-
-            Bx_s, By_s, Bz_s = _evaluate_modes_at_point(
-                BnR_spline, Bnphi_spline, BnZ_spline,
-                args.ntor, grid.R, grid.Z,
-                x_val, y_val, z_val,
-            )
-            B_parallel_spline[idx] = Bx_s * direction[0] + By_s * direction[1] + Bz_s * direction[2]
-
-            if BnR_direct is not None and Bnphi_direct is not None and BnZ_direct is not None:
-                Bx_d, By_d, Bz_d = _evaluate_modes_at_point(
-                    BnR_direct, Bnphi_direct, BnZ_direct,
-                    args.ntor, grid.R, grid.Z,
-                    x_val, y_val, z_val,
-                )
-                B_parallel_direct[idx] = Bx_d * direction[0] + By_d * direction[1] + Bz_d * direction[2]
+            B_parallel_direct[idx] = Bx_d * direction[0] + By_d * direction[1] + Bz_d * direction[2]
 
     if BnR_direct is None or Bnphi_direct is None or BnZ_direct is None:
         Bx_raw, By_raw, Bz_raw = _compute_segment_direct_field(coil_files, coil_currents_amp, x_eval, y_eval, z_eval)
