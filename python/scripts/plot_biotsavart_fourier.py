@@ -1,147 +1,54 @@
 #!/usr/bin/env python3
-"""Unified Biot–Savart comparison and plotting tool.
-
-This script combines the functionality of the previous
-``compare_superposition.py`` and ``plot_biotsavart_fourier.py`` helpers:
-
-* Loads Fourier-mode (Bn) data and vector-potential (An) data from coil_tools
-  outputs and reconstructs the magnetic-field harmonics.
-* Optionally evaluates a direct segment-based Biot–Savart reference using the
-  GPEC coil geometry and currents.
-* Computes statistics (median/mean relative error) between the Fourier,
-  vector-potential, and direct fields.
-* Generates diagnostic plots for per-coil magnitudes and a four-panel summed
-  comparison (Fourier, vector, direct, coil geometry).
-* Can validate the magnetic field along a specified axis against an analytic
-  circular-coil solution.
-
-Example (matches the AUG CTest invocation):
-
-```
-python3 plot_biotsavart_fourier.py \
-    test/magfie/test_data/aug_reference.h5 \
-    test/magfie/test_data/aug_test.nc \
-    --currents test/magfie/test_data/aug_currents.txt \
-    --coil-files test/magfie/test_data/aug_bu.dat test/magfie/test_data/aug_bl.dat \
-    --ntor 2 \
-    --comparison-output test/magfie/test_data/superposition_comparison.png \
-    --per-coil-output test/magfie/test_data/biotsavart_fourier.png \
-    --sum-output test/magfie/test_data/biotsavart_fourier_sum.png
-```
-"""
+"""Compare coil_tools Fourier field data against Anvac reconstructions using all modes."""
 
 from __future__ import annotations
 
 import argparse
-import ctypes
-import sys
 from dataclasses import dataclass
+from math import pi
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
-
-from numpy import (
-    abs,
-    allclose,
-    amin,
-    amax,
-    array,
-    asarray,
-    conj,
-    cos,
-    exp,
-    full,
-    hypot,
-    arctan2,
-    linspace,
-    log10,
-    maximum,
-    mean,
-    median,
-    ndarray,
-    newaxis,
-    outer,
-    real,
-    sin,
-    sqrt,
-    searchsorted,
-    stack,
-    swapaxes,
-    tensordot,
-    empty,
-    zeros,
-    zeros_like,
-    isnan,
-    pi,
-    meshgrid,
-)
-
-from numpy.fft import fft
-from numpy.linalg import norm
+from typing import Dict, List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+import numpy as np
+from numpy import (
+    amax,
+    amin,
+    array,
+    asarray,
+    cos,
+    linspace,
+    log10,
+    mean,
+    median,
+    sin,
+    sqrt,
+    zeros,
+    zeros_like,
+)
+from numpy.fft import fft
+from scipy.interpolate import RectBivariateSpline
 
-SCRIPT_PATH = Path(__file__).resolve()
-REPO_ROOT = SCRIPT_PATH.parents[2]
-PYTHON_DIR = REPO_ROOT / "python"
-BUILD_DIR = REPO_ROOT / "build"
-
-
-def _find_site_packages(base: Path) -> Path | None:
-    lib_dir = base / "lib"
-    if not lib_dir.exists():
-        return None
-    for subdir in lib_dir.iterdir():
-        if not subdir.is_dir():
-            continue
-        site_packages = subdir / "site-packages"
-        if site_packages.exists():
-            return site_packages
-    return None
-
-
-for candidate in (PYTHON_DIR, BUILD_DIR):
-    if candidate.exists() and str(candidate) not in sys.path:
-        sys.path.insert(0, str(candidate))
-
-for venv_candidate in (REPO_ROOT / ".venv", REPO_ROOT.parent / ".venv"):
-    if venv_candidate.exists():
-        site_packages = _find_site_packages(venv_candidate)
-        if site_packages is not None and str(site_packages) not in sys.path:
-            sys.path.insert(0, str(site_packages))
-
-from libneo.biotsavart_fourier import (  # type: ignore  # noqa: E402
-    read_Bnvac_fourier,
-    read_Anvac_fourier,
-    gauged_Anvac_from_Bnvac,
-    gauge_Anvac,
-    spline_gauged_Anvac,
+from libneo.biotsavart_fourier import (
     field_divfree,
+    gauge_Anvac,
+    read_Anvac_fourier_all,
+    read_Bnvac_fourier_all,
+    reconstruct_field_from_modes,
+    spline_gauged_Anvac,
 )
-import _magfie  # type: ignore  # noqa: E402
-from _magfie import (
-    compute_field_from_gpec_file,
-    field_divb0_initialize_from_grid,
-    field_divb0_eval,
-)
-
-
-def _set_convex_wall_filename(path: Path) -> None:
-    """Write ``path`` into the Fortran ``convexfile`` module variable."""
-
-    lib = ctypes.CDLL(_magfie.__file__)
-    buffer = (ctypes.c_char * 1024).in_dll(lib, "__input_files_MOD_convexfile")
-    buffer.value = str(path).encode()
+from _magfie import compute_field_from_gpec_file
 
 
 FOURIER_REFERENCE_CURRENT = 0.1  # coil_tools Fourier tables assume 0.1 A per coil
-DEFAULT_FFT_SAMPLES = 256
+DEFAULT_FFT_SAMPLES = 192
 
 
 @dataclass
 class Grid:
-    R: ndarray
-    Z: ndarray
+    R: np.ndarray
+    Z: np.ndarray
     nR: int
     nZ: int
     R_min: float
@@ -151,82 +58,63 @@ class Grid:
 
 
 @dataclass
-class ModeData:
+class ModeSet:
     grid: Grid
-    BnR: ndarray  # shape (ncoil, nR, nZ)
-    Bnphi: ndarray
-    BnZ: ndarray
+    mode_numbers: np.ndarray  # (nmodes,)
+    BnR: np.ndarray  # (nmodes, ncoil, nR, nZ)
+    Bnphi: np.ndarray
+    BnZ: np.ndarray
+
+    @property
+    def nmodes(self) -> int:
+        return self.mode_numbers.size
+
+    @property
+    def ncoil(self) -> int:
+        return self.BnR.shape[1]
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Compare coil_tools Fourier, vector-potential, and direct Biot–Savart outputs",
+        description="Compare coil_tools Fourier, Anvac and direct Biot–Savart results",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("reference", type=Path, help="coil_tools Fourier HDF5 file (Bn)")
-    parser.add_argument("test", type=Path, help="coil_tools vector-potential NetCDF file (An)")
-    parser.add_argument("--currents", type=Path, help="Text file with coil currents (ampere)")
-    parser.add_argument(
-        "--coil-files",
-        type=Path,
-        nargs="+",
-        help="One or more coil geometry files in GPEC format (required for direct comparison)",
-    )
-    parser.add_argument("--ntor", type=int, default=2, help="Toroidal mode number to analyse")
-    parser.add_argument(
-        "--fft-samples",
-        type=int,
-        default=DEFAULT_FFT_SAMPLES,
-        help="Number of toroidal samples for direct Biot–Savart FFT",
-    )
+    parser.add_argument("reference", type=Path, help="coil_tools Fourier HDF5 file (Bnvac)")
+    parser.add_argument("test", type=Path, help="coil_tools vector-potential NetCDF file (Anvac)")
+    parser.add_argument("--currents", type=Path, required=True, help="Text file with coil currents (A)")
+    parser.add_argument("--coil-files", type=Path, nargs="+", required=True,
+                        help="Coil geometry files in GPEC format")
+    parser.add_argument("--ntor", type=int, default=0,
+                        help="Toroidal mode to highlight in diagnostic tables")
+    parser.add_argument("--fft-samples", type=int, default=DEFAULT_FFT_SAMPLES,
+                        help="Number of toroidal samples for direct FFT")
     parser.add_argument("--prefactor", type=float, default=FOURIER_REFERENCE_CURRENT,
-                        help="Reference current used when tabulating the Fourier kernels (A)")
+                        help="Reference current scaling applied to Fourier tables (A)")
     parser.add_argument("--per-coil-output", type=Path,
-                        help="Filename for per-coil magnitude comparison plot")
+                        help="Output PNG for per-coil |B| maps (phi=0)")
     parser.add_argument("--sum-output", type=Path,
-                        help="Filename for coil-summed magnitude plot (four-panel)")
+                        help="Output PNG for total-field |B| comparison (phi=0)")
     parser.add_argument("--deriv-diff-output", type=Path,
-                        help="Filename for derivative comparison diagnostic plot")
+                        help="Output PNG comparing stored vs spline dAphi/dR,Z for --ntor")
     parser.add_argument("--axis-output", type=Path,
-                        help="Filename for optional axis validation plot")
-    parser.add_argument("--dpi", type=int, default=150, help="Figure DPI for saved plots")
+                        help="Output PNG for on-axis field comparison")
+    parser.add_argument("--axis-origin", type=float, nargs=3,
+                        help="Axis origin (cm) for validation plot")
+    parser.add_argument("--axis-normal", type=float, nargs=3,
+                        help="Axis direction vector (not normalised)")
+    parser.add_argument("--axis-range", type=float, default=60.0,
+                        help="Half-length of axis segment (cm)")
+    parser.add_argument("--axis-samples", type=int, default=181,
+                        help="Number of samples along the validation axis")
+    parser.add_argument("--coil-radius", type=float,
+                        help="Optional analytic circular coil radius (cm) for reference curve")
+    parser.add_argument("--dpi", type=int, default=150, help="DPI for saved figures")
     parser.add_argument("--show", action="store_true", help="Display figures interactively")
-
-    axis_group = parser.add_argument_group("Axis validation")
-    axis_group.add_argument("--axis-origin", type=float, nargs=3,
-                            help="Axis origin (cm) for analytic comparison")
-    axis_group.add_argument("--axis-normal", type=float, nargs=3,
-                            help="Axis direction vector")
-    axis_group.add_argument("--axis-range", type=float, default=100.0,
-                            help="Half-length of axis segment (cm)")
-    axis_group.add_argument("--axis-samples", type=int, default=200,
-                            help="Number of samples along axis")
-    axis_group.add_argument("--coil-radius", type=float,
-                            help="Analytic circular coil radius (cm)")
-
     return parser.parse_args()
 
 
-def _load_mode_from_bnvac(path: Path, ntor: int) -> ModeData:
-    grid_raw, BnR, Bnphi, BnZ = read_Bnvac_fourier(str(path), ntor=ntor)
-    grid = Grid(
-        R=array(grid_raw.R, copy=True),
-        Z=array(grid_raw.Z, copy=True),
-        nR=grid_raw.nR,
-        nZ=grid_raw.nZ,
-        R_min=float(grid_raw.R_min),
-        R_max=float(grid_raw.R_max),
-        Z_min=float(grid_raw.Z_min),
-        Z_max=float(grid_raw.Z_max),
-    )
-    return ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ)
-
-
-def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeData, dict]:
-    from scipy.interpolate import RectBivariateSpline
-
-    grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier(str(path), ntor=ntor)
-    grid = Grid(
+def _build_grid(grid_raw) -> Grid:
+    return Grid(
         R=array(grid_raw.R, copy=True),
         Z=array(grid_raw.Z, copy=True),
         nR=grid_raw.nR,
@@ -237,38 +125,102 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeDa
         Z_max=float(grid_raw.Z_max),
     )
 
-    # Version 1: Use stored derivatives from NetCDF
-    gauged_AnR, gauged_AnZ = gauge_Anvac(
-        grid_raw, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=ntor
+
+def _load_fourier_modes(path: Path) -> ModeSet:
+    grid_raw, mode_numbers, BnR, Bnphi, BnZ = read_Bnvac_fourier_all(str(path))
+    grid = _build_grid(grid_raw)
+    return ModeSet(
+        grid=grid,
+        mode_numbers=mode_numbers,
+        BnR=array(BnR, dtype=complex),
+        Bnphi=array(Bnphi, dtype=complex),
+        BnZ=array(BnZ, dtype=complex),
     )
-    if ntor != 0:
-        gauged_AnR = gauged_AnR - 0.5j * Anphi
-    spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor, Anphi=Anphi)
-    BnR, Bnphi, BnZ = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
 
-    # Version 2: Compute derivatives from RectBivariateSpline of Aphi
-    ncoil = Anphi.shape[0]
-    dAphi_dR_spline = zeros_like(Anphi)
-    dAphi_dZ_spline = zeros_like(Anphi)
 
-    for ic in range(ncoil):
-        # Create spline of Aphi for this coil
-        spl_Aphi_real = RectBivariateSpline(grid.R, grid.Z, Anphi[ic].real)
-        spl_Aphi_imag = RectBivariateSpline(grid.R, grid.Z, Anphi[ic].imag)
+def _load_anvac_modes(path: Path, target_mode_numbers: np.ndarray) -> Tuple[ModeSet, ModeSet, Dict[str, np.ndarray]]:
+    grid_raw, mode_numbers, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier_all(str(path))
+    if not np.array_equal(mode_numbers, target_mode_numbers):
+        raise ValueError(
+            "Anvac NetCDF file does not contain the same toroidal modes as the Fourier reference"
+        )
 
-        # Evaluate derivatives on grid - need grid=True to return 2D array
-        dAphi_dR_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=1, dy=0, grid=True) +
-                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=1, dy=0, grid=True))
-        dAphi_dZ_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=0, dy=1, grid=True) +
-                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=0, dy=1, grid=True))
+    grid = _build_grid(grid_raw)
+    nmodes, ncoil, nR, nZ = AnR.shape
 
-    gauged_AnR_spline, gauged_AnZ_spline = gauge_Anvac(
-        grid_raw, AnR, Anphi, AnZ, dAphi_dR_spline, dAphi_dZ_spline, ntor=ntor
-    )
-    if ntor != 0:
-        gauged_AnR_spline = gauged_AnR_spline - 0.5j * Anphi
-    spl_spline = spline_gauged_Anvac(grid_raw, gauged_AnR_spline, gauged_AnZ_spline, ntor=ntor, Anphi=Anphi)
-    BnR_spline, Bnphi_spline, BnZ_spline = field_divfree(spl_spline, grid.R, grid.Z, ntor=ntor)
+    BnR_stored = np.empty((nmodes, ncoil, nR, nZ), dtype=complex)
+    Bnphi_stored = np.empty_like(BnR_stored)
+    BnZ_stored = np.empty_like(BnR_stored)
+
+    BnR_spline = np.empty_like(BnR_stored)
+    Bnphi_spline = np.empty_like(BnR_stored)
+    BnZ_spline = np.empty_like(BnR_stored)
+
+    dAphi_dR_spline = np.empty_like(Anphi)
+    dAphi_dZ_spline = np.empty_like(Anphi)
+
+    for mode_idx, ntor in enumerate(mode_numbers):
+        AnR_mode = AnR[mode_idx]
+        Anphi_mode = Anphi[mode_idx]
+        AnZ_mode = AnZ[mode_idx]
+        dAnphi_dR_mode = dAnphi_dR[mode_idx]
+        dAnphi_dZ_mode = dAnphi_dZ[mode_idx]
+
+        gauged_AnR, gauged_AnZ = gauge_Anvac(
+            grid_raw,
+            AnR_mode,
+            Anphi_mode,
+            AnZ_mode,
+            dAnphi_dR_mode,
+            dAnphi_dZ_mode,
+            ntor=ntor,
+        )
+        if ntor != 0:
+            gauged_AnR = gauged_AnR - 0.5j * Anphi_mode
+        spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor, Anphi=Anphi_mode)
+        BnR_tmp, Bnphi_tmp, BnZ_tmp = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
+        BnR_stored[mode_idx] = BnR_tmp
+        Bnphi_stored[mode_idx] = Bnphi_tmp
+        BnZ_stored[mode_idx] = BnZ_tmp
+
+        if ntor == 0:
+            for coil_idx in range(ncoil):
+                spl_real = RectBivariateSpline(grid.R, grid.Z, Anphi_mode[coil_idx].real)
+                spl_imag = RectBivariateSpline(grid.R, grid.Z, Anphi_mode[coil_idx].imag)
+                dAphi_dR_spline[mode_idx, coil_idx] = (
+                    spl_real(grid.R, grid.Z, dx=1, dy=0, grid=True)
+                    + 1j * spl_imag(grid.R, grid.Z, dx=1, dy=0, grid=True)
+                )
+                dAphi_dZ_spline[mode_idx, coil_idx] = (
+                    spl_real(grid.R, grid.Z, dx=0, dy=1, grid=True)
+                    + 1j * spl_imag(grid.R, grid.Z, dx=0, dy=1, grid=True)
+                )
+        else:
+            dAphi_dR_spline[mode_idx] = dAnphi_dR_mode
+            dAphi_dZ_spline[mode_idx] = dAnphi_dZ_mode
+
+        gauged_AnR_spline, gauged_AnZ_spline = gauge_Anvac(
+            grid_raw,
+            AnR_mode,
+            Anphi_mode,
+            AnZ_mode,
+            dAphi_dR_spline[mode_idx],
+            dAphi_dZ_spline[mode_idx],
+            ntor=ntor,
+        )
+        if ntor != 0:
+            gauged_AnR_spline = gauged_AnR_spline - 0.5j * Anphi_mode
+        spl_spline = spline_gauged_Anvac(
+            grid_raw,
+            gauged_AnR_spline,
+            gauged_AnZ_spline,
+            ntor=ntor,
+            Anphi=Anphi_mode,
+        )
+        BnR_tmp, Bnphi_tmp, BnZ_tmp = field_divfree(spl_spline, grid.R, grid.Z, ntor=ntor)
+        BnR_spline[mode_idx] = BnR_tmp
+        Bnphi_spline[mode_idx] = Bnphi_tmp
+        BnZ_spline[mode_idx] = BnZ_tmp
 
     diagnostics = {
         'dAphi_dR_stored': dAnphi_dR,
@@ -277,21 +229,22 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeDa
         'dAphi_dZ_spline': dAphi_dZ_spline,
     }
 
-    mode_stored = ModeData(grid=grid, BnR=BnR, Bnphi=Bnphi, BnZ=BnZ)
-    mode_spline = ModeData(grid=grid, BnR=BnR_spline, Bnphi=Bnphi_spline, BnZ=BnZ_spline)
-
-    return mode_stored, spl, mode_spline, diagnostics
+    stored = ModeSet(grid=grid, mode_numbers=mode_numbers, BnR=BnR_stored,
+                     Bnphi=Bnphi_stored, BnZ=BnZ_stored)
+    spline = ModeSet(grid=grid, mode_numbers=mode_numbers, BnR=BnR_spline,
+                     Bnphi=Bnphi_spline, BnZ=BnZ_spline)
+    return stored, spline, diagnostics
 
 
 def _ensure_same_grid(lhs: Grid, rhs: Grid) -> None:
     if lhs.nR != rhs.nR or lhs.nZ != rhs.nZ:
         raise ValueError("Grid dimensions differ between inputs")
-    if not allclose(lhs.R, rhs.R) or not allclose(lhs.Z, rhs.Z):
+    if not np.allclose(lhs.R, rhs.R) or not np.allclose(lhs.Z, rhs.Z):
         raise ValueError("Reference and test grids do not match")
 
 
-def _read_currents(path: Path) -> ndarray:
-    values = []
+def _read_currents(path: Path) -> np.ndarray:
+    values: List[float] = []
     with open(path, "r", encoding="utf-8") as handle:
         for line in handle:
             stripped = line.strip()
@@ -301,8 +254,8 @@ def _read_currents(path: Path) -> ndarray:
     return asarray(values, dtype=float)
 
 
-def _load_coil_projections(filenames: Sequence[Path]) -> List[Tuple[ndarray, ndarray]]:
-    projections: List[Tuple[ndarray, ndarray]] = []
+def _load_coil_projections(filenames: Sequence[Path]) -> List[Tuple[np.ndarray, np.ndarray]]:
+    projections: List[Tuple[np.ndarray, np.ndarray]] = []
     for filename in filenames:
         with open(filename, "r", encoding="utf-8") as handle:
             header = handle.readline().split()
@@ -324,30 +277,271 @@ def _load_coil_projections(filenames: Sequence[Path]) -> List[Tuple[ndarray, nda
                 coords.append([float(val) for val in closing])
                 coords = asarray(coords)
                 coords_cm = coords * 100.0
-                R_path = hypot(coords_cm[:, 0], coords_cm[:, 1])
+                R_path = np.hypot(coords_cm[:, 0], coords_cm[:, 1])
                 Z_path = coords_cm[:, 2]
                 projections.append((R_path, Z_path))
     return projections
 
 
-def _read_gpec_header(path: Path) -> int:
-    with open(path, "r", encoding="utf-8") as handle:
-        header = handle.readline().split()
-    if len(header) < 4:
-        raise ValueError(f"Malformed GPEC header in {path}")
-    return int(header[0])
+def _sum_over_coils(weights: np.ndarray, modes: np.ndarray) -> np.ndarray:
+    """Sum over coils with given weights; modes has shape (nmodes,ncoil,...)"""
+    if modes.shape[1] != weights.size:
+        raise ValueError("Weights do not match number of coils")
+    return np.tensordot(weights, modes, axes=(0, 1))
+
+
+def _reconstruct_field_map_on_grid(
+    BnR_modes: np.ndarray,
+    Bnphi_modes: np.ndarray,
+    BnZ_modes: np.ndarray,
+    mode_numbers: np.ndarray,
+    phi: float,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Reconstruct Bx, By, Bz on the cylindrical grid at fixed toroidal angle phi."""
+    nmodes, nR, nZ = BnR_modes.shape
+    if nmodes != mode_numbers.size:
+        raise ValueError("Mode number list does not match mode array shape")
+
+    BR = BnR_modes[0].real.copy()
+    Bphi = Bnphi_modes[0].real.copy()
+    BZ = BnZ_modes[0].real.copy()
+
+    if nmodes > 1:
+        exp_factor = np.exp(1j * mode_numbers[1:] * phi)
+        for idx, factor in enumerate(exp_factor, start=1):
+            BR += 2.0 * np.real(BnR_modes[idx] * factor)
+            Bphi += 2.0 * np.real(Bnphi_modes[idx] * factor)
+            BZ += 2.0 * np.real(BnZ_modes[idx] * factor)
+
+    cosphi = cos(phi)
+    sinphi = sin(phi)
+    Bx = BR * cosphi - Bphi * sinphi
+    By = BR * sinphi + Bphi * cosphi
+    return Bx, By, BZ
+
+
+def _field_magnitude(Bx: np.ndarray, By: np.ndarray, Bz: np.ndarray) -> np.ndarray:
+    return np.sqrt(Bx**2 + By**2 + Bz**2)
+
+
+def _coils_field_magnitude(
+    mode_set: ModeSet,
+    weights: np.ndarray,
+    phi: float,
+) -> np.ndarray:
+    """Return |B| maps (phi fixed) for each individual coil including weights."""
+    nmodes, ncoil, _, _ = mode_set.BnR.shape
+    results = np.empty((ncoil, mode_set.grid.nR, mode_set.grid.nZ), dtype=float)
+    for coil_idx in range(ncoil):
+        scaled_BnR = mode_set.BnR[:, coil_idx] * weights[coil_idx]
+        scaled_Bnphi = mode_set.Bnphi[:, coil_idx] * weights[coil_idx]
+        scaled_BnZ = mode_set.BnZ[:, coil_idx] * weights[coil_idx]
+        Bx, By, Bz = _reconstruct_field_map_on_grid(
+            scaled_BnR,
+            scaled_Bnphi,
+            scaled_BnZ,
+            mode_set.mode_numbers,
+            phi,
+        )
+        results[coil_idx] = _field_magnitude(Bx, By, Bz)
+    return results
+
+
+def _create_per_coil_plot(
+    args: argparse.Namespace,
+    fourier: ModeSet,
+    anvac_stored: ModeSet,
+    anvac_spline: ModeSet,
+    weights: np.ndarray,
+    coil_projections: List[Tuple[np.ndarray, np.ndarray]] | None,
+) -> None:
+    ncoil = fourier.ncoil
+    phi = 0.0
+
+    maps_fourier = _coils_field_magnitude(fourier, weights, phi)
+    maps_anvac = _coils_field_magnitude(anvac_stored, weights, phi)
+    maps_spline = _coils_field_magnitude(anvac_spline, weights, phi)
+
+    titles = ("Fourier", "Anvac (stored)", "Anvac (spline)")
+    data = (maps_fourier, maps_anvac, maps_spline)
+
+    vmax = max(map_data.max() for map_data in data)
+    vmin = min(map_data.min() for map_data in data)
+    norm = Normalize(vmin=vmin, vmax=vmax)
+
+    fig, axs = plt.subplots(ncoil, 3, figsize=(12, 3 * ncoil), layout="constrained")
+    extent = [fourier.grid.R_min, fourier.grid.R_max, fourier.grid.Z_min, fourier.grid.Z_max]
+
+    for coil_idx in range(ncoil):
+        for col, label in enumerate(titles):
+            ax = axs[coil_idx, col] if ncoil > 1 else axs[col]
+            im = ax.imshow(
+                data[col][coil_idx].T,
+                origin="lower",
+                cmap="magma",
+                extent=extent,
+                norm=norm,
+                interpolation="bilinear",
+            )
+            ax.set_title(f"Coil {coil_idx + 1}: {label}")
+            ax.set_xlabel("R [cm]")
+            ax.set_ylabel("Z [cm]")
+            if coil_projections:
+                for R_path, Z_path in coil_projections:
+                    ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
+            ax.set_aspect("equal", adjustable="box")
+
+    fig.colorbar(im, ax=axs, location="bottom", fraction=0.05, pad=0.08, label="|B| [G]")
+    fig.savefig(args.per_coil_output, dpi=args.dpi, bbox_inches="tight")
+    if not args.show:
+        plt.close(fig)
+
+
+def _create_sum_plot(
+    args: argparse.Namespace,
+    grid: Grid,
+    coil_projections: List[Tuple[np.ndarray, np.ndarray]] | None,
+    fourier_map: np.ndarray,
+    anvac_map: np.ndarray,
+    spline_map: np.ndarray,
+    direct_map: np.ndarray | None,
+) -> None:
+    panels = []
+    titles = []
+
+    if direct_map is not None:
+        reference = direct_map
+        panels.append(direct_map)
+        titles.append("Direct")
+    else:
+        reference = fourier_map
+
+    panels.extend([fourier_map, anvac_map, spline_map])
+    titles.extend(["Fourier", "Anvac (stored)", "Anvac (spline)"])
+
+    finite_ref = reference[np.isfinite(reference)]
+    if finite_ref.size:
+        vmin = np.percentile(finite_ref, 1.0)
+        vmax = np.percentile(finite_ref, 99.0)
+        if vmax <= vmin:
+            vmin = finite_ref.min()
+            vmax = finite_ref.max()
+    else:
+        vmin = reference.min()
+        vmax = reference.max()
+
+    norm = Normalize(vmin=vmin, vmax=vmax)
+
+    fig, axs = plt.subplots(1, len(panels), figsize=(4 * len(panels), 4.5), layout="constrained")
+    if len(panels) == 1:
+        axs = [axs]
+    extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
+
+    for ax, panel, title in zip(axs, panels, titles):
+        im = ax.imshow(
+            panel.T,
+            origin="lower",
+            cmap="magma",
+            extent=extent,
+            norm=norm,
+            interpolation="bilinear",
+        )
+        ax.set_title(title)
+        ax.set_xlabel("R [cm]")
+        ax.set_ylabel("Z [cm]")
+        if coil_projections:
+            for R_path, Z_path in coil_projections:
+                ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
+        ax.set_aspect("equal", adjustable="box")
+
+    fig.colorbar(im, ax=axs, location="bottom", fraction=0.05, pad=0.08, label="|B(φ=0)| [G]")
+    fig.savefig(args.sum_output, dpi=args.dpi, bbox_inches="tight")
+    if not args.show:
+        plt.close(fig)
+
+
+def _create_deriv_comparison_plot(
+    args: argparse.Namespace,
+    diagnostics: Dict[str, np.ndarray],
+    grid: Grid,
+    weights: np.ndarray,
+    mode_numbers: np.ndarray,
+) -> None:
+    if args.ntor not in mode_numbers:
+        raise ValueError(f"Requested ntor={args.ntor} not present in data")
+    mode_idx = int(np.where(mode_numbers == args.ntor)[0][0])
+
+    dAphi_dR_stored = diagnostics['dAphi_dR_stored'][mode_idx]
+    dAphi_dZ_stored = diagnostics['dAphi_dZ_stored'][mode_idx]
+    dAphi_dR_spline = diagnostics['dAphi_dR_spline'][mode_idx]
+    dAphi_dZ_spline = diagnostics['dAphi_dZ_spline'][mode_idx]
+
+    weights_expand = weights[:, None, None]
+    dR_stored_sum = np.tensordot(weights, dAphi_dR_stored, axes=(0, 0))
+    dZ_stored_sum = np.tensordot(weights, dAphi_dZ_stored, axes=(0, 0))
+    dR_spline_sum = np.tensordot(weights, dAphi_dR_spline, axes=(0, 0))
+    dZ_spline_sum = np.tensordot(weights, dAphi_dZ_spline, axes=(0, 0))
+
+    mag_dR_stored = np.abs(dR_stored_sum)
+    mag_dZ_stored = np.abs(dZ_stored_sum)
+    mag_dR_spline = np.abs(dR_spline_sum)
+    mag_dZ_spline = np.abs(dZ_spline_sum)
+
+    extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10), layout="constrained")
+
+    vmin_dR = min(mag_dR_stored.min(), mag_dR_spline.min())
+    vmax_dR = max(mag_dR_stored.max(), mag_dR_spline.max())
+    vmin_dZ = min(mag_dZ_stored.min(), mag_dZ_spline.min())
+    vmax_dZ = max(mag_dZ_stored.max(), mag_dZ_spline.max())
+
+    im0 = axs[0, 0].imshow(mag_dR_stored.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dR, vmax=vmax_dR)
+    axs[0, 0].set_title("|dAphi/dR| (stored)")
+    axs[0, 0].set_xlabel("R [cm]")
+    axs[0, 0].set_ylabel("Z [cm]")
+    fig.colorbar(im0, ax=axs[0, 0])
+
+    im1 = axs[0, 1].imshow(mag_dR_spline.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dR, vmax=vmax_dR)
+    axs[0, 1].set_title("|dAphi/dR| (spline)")
+    axs[0, 1].set_xlabel("R [cm]")
+    axs[0, 1].set_ylabel("Z [cm]")
+    fig.colorbar(im1, ax=axs[0, 1])
+
+    im2 = axs[1, 0].imshow(mag_dZ_stored.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dZ, vmax=vmax_dZ)
+    axs[1, 0].set_title("|dAphi/dZ| (stored)")
+    axs[1, 0].set_xlabel("R [cm]")
+    axs[1, 0].set_ylabel("Z [cm]")
+    fig.colorbar(im2, ax=axs[1, 0])
+
+    im3 = axs[1, 1].imshow(mag_dZ_spline.T, origin="lower", cmap="viridis",
+                            extent=extent, interpolation="bilinear",
+                            vmin=vmin_dZ, vmax=vmax_dZ)
+    axs[1, 1].set_title("|dAphi/dZ| (spline)")
+    axs[1, 1].set_xlabel("R [cm]")
+    axs[1, 1].set_ylabel("Z [cm]")
+    fig.colorbar(im3, ax=axs[1, 1])
+
+    fig.savefig(args.deriv_diff_output, dpi=args.dpi, bbox_inches="tight")
+    if not args.show:
+        plt.close(fig)
 
 
 def _compute_segment_direct_field(
     coil_files: Sequence[Path],
-    coil_currents: ndarray,
-    x_eval: ndarray,
-    y_eval: ndarray,
-    z_eval: ndarray,
-) -> Tuple[ndarray, ndarray, ndarray]:
-    Bx_total = zeros_like(x_eval, dtype=float)
-    By_total = zeros_like(y_eval, dtype=float)
-    Bz_total = zeros_like(z_eval, dtype=float)
+    coil_currents: np.ndarray,
+    x_eval: np.ndarray,
+    y_eval: np.ndarray,
+    z_eval: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    Bx_total = np.zeros_like(x_eval, dtype=float)
+    By_total = np.zeros_like(y_eval, dtype=float)
+    Bz_total = np.zeros_like(z_eval, dtype=float)
 
     offset = 0
     for coil_file in coil_files:
@@ -360,22 +554,26 @@ def _compute_segment_direct_field(
         offset += ncoil
 
         Bx, By, Bz = compute_field_from_gpec_file(
-            str(coil_file), currents_slice, x_eval, y_eval, z_eval
+            str(coil_file),
+            currents_slice,
+            x_eval.reshape(-1),
+            y_eval.reshape(-1),
+            z_eval.reshape(-1),
         )
-        Bx_total += Bx
-        By_total += By
-        Bz_total += Bz
+        Bx_total += Bx.reshape(x_eval.shape)
+        By_total += By.reshape(y_eval.shape)
+        Bz_total += Bz.reshape(z_eval.shape)
 
     return Bx_total, By_total, Bz_total
 
 
-def _compute_direct_fourier_mode(
+def _compute_direct_fourier_modes(
     coil_files: Sequence[Path],
-    coil_currents: ndarray,
+    coil_currents: np.ndarray,
     grid: Grid,
-    ntor: int,
+    mode_numbers: np.ndarray,
     n_phi: int,
-) -> Tuple[ndarray, ndarray, ndarray, ndarray, ndarray, ndarray, ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     R_grid = grid.R
     Z_grid = grid.Z
     nR, nZ = grid.nR, grid.nZ
@@ -385,682 +583,301 @@ def _compute_direct_fourier_mode(
     Bphi_all = zeros_like(BR_all)
     BZ_all = zeros_like(BR_all)
 
-    R_mesh, Z_mesh = meshgrid(R_grid, Z_grid, indexing="ij")
-    base_x = R_mesh.reshape(-1)
-    base_z = Z_mesh.reshape(-1)
+    R_mesh, Z_mesh = np.meshgrid(R_grid, Z_grid, indexing="ij")
+    base_R = R_mesh.reshape(-1)
+    base_Z = Z_mesh.reshape(-1)
 
     for idx, phi in enumerate(phi_grid):
         cosphi = cos(phi)
         sinphi = sin(phi)
-        x_eval = base_x * cosphi
-        y_eval = base_x * sinphi
-        z_eval = base_z
+        x_eval = (base_R * cosphi).reshape(nR, nZ)
+        y_eval = (base_R * sinphi).reshape(nR, nZ)
+        z_eval = base_Z.reshape(nR, nZ)
 
-        Bx, By, Bz = _compute_segment_direct_field(
-            coil_files, coil_currents, x_eval, y_eval, z_eval
-        )
-
-        Bx = Bx.reshape(nR, nZ)
-        By = By.reshape(nR, nZ)
-        Bz = Bz.reshape(nR, nZ)
+        Bx, By, Bz = _compute_segment_direct_field(coil_files, coil_currents, x_eval, y_eval, z_eval)
 
         BR_all[:, :, idx] = Bx * cosphi + By * sinphi
         Bphi_all[:, :, idx] = -Bx * sinphi + By * cosphi
         BZ_all[:, :, idx] = Bz
 
     fft_norm = 1.0 / n_phi
-    BnR = fft(BR_all, axis=2)[:, :, ntor] * fft_norm
-    Bnphi = fft(Bphi_all, axis=2)[:, :, ntor] * fft_norm
-    BnZ = fft(BZ_all, axis=2)[:, :, ntor] * fft_norm
+    fft_BR = fft(BR_all, axis=2) * fft_norm
+    fft_Bphi = fft(Bphi_all, axis=2) * fft_norm
+    fft_BZ = fft(BZ_all, axis=2) * fft_norm
 
-    return BnR, Bnphi, BnZ, BR_all, Bphi_all, BZ_all, phi_grid
+    nmodes = mode_numbers.size
+    BnR = np.empty((nmodes, nR, nZ), dtype=complex)
+    Bnphi = np.empty_like(BnR)
+    BnZ = np.empty_like(BnR)
 
-
-def _magnitude_squared(BnR: ndarray, Bnphi: ndarray, BnZ: ndarray) -> ndarray:
-    return (BnR * conj(BnR) + Bnphi * conj(Bnphi) + BnZ * conj(BnZ)).real
-
-
-def _tensordot_currents(currents: ndarray, array: ndarray) -> ndarray:
-    if array.shape[0] != currents.size:
-        # Single coil case - no coil dimension, just multiply by single current
-        return currents[0] * array
-    return tensordot(currents, array, axes=(0, 0))
-
-
-def _summed_magnitude(
-    currents: ndarray,
-    BnR: ndarray,
-    Bnphi: ndarray,
-    BnZ: ndarray,
-) -> ndarray:
-    sum_BnR = _tensordot_currents(currents, BnR)
-    sum_Bnphi = _tensordot_currents(currents, Bnphi)
-    sum_BnZ = _tensordot_currents(currents, BnZ)
-    return _magnitude_squared(sum_BnR, sum_Bnphi, sum_BnZ)
-
-
-def _bilinear_interpolate(
-    R_grid: ndarray,
-    Z_grid: ndarray,
-    field: ndarray,
-    R_val: float,
-    Z_val: float,
-) -> float:
-    if R_val < R_grid[0] or R_val > R_grid[-1] or Z_val < Z_grid[0] or Z_val > Z_grid[-1]:
-        return float("nan")
-
-    i_hi = searchsorted(R_grid, R_val)
-    if i_hi == 0:
-        i0 = i1 = 0
-        t = 0.0
-    elif i_hi >= R_grid.size:
-        i0 = i1 = R_grid.size - 1
-        t = 0.0
-    else:
-        i0, i1 = i_hi - 1, i_hi
-        denom = R_grid[i1] - R_grid[i0]
-        t = 0.0 if denom == 0.0 else (R_val - R_grid[i0]) / denom
-
-    j_hi = searchsorted(Z_grid, Z_val)
-    if j_hi == 0:
-        j0 = j1 = 0
-        u = 0.0
-    elif j_hi >= Z_grid.size:
-        j0 = j1 = Z_grid.size - 1
-        u = 0.0
-    else:
-        j0, j1 = j_hi - 1, j_hi
-        denom = Z_grid[j1] - Z_grid[j0]
-        u = 0.0 if denom == 0.0 else (Z_val - Z_grid[j0]) / denom
-
-    f00 = field[i0, j0]
-    f01 = field[i0, j1]
-    f10 = field[i1, j0]
-    f11 = field[i1, j1]
-
-    return ((1.0 - t) * (1.0 - u) * f00 +
-            (1.0 - t) * u * f01 +
-            t * (1.0 - u) * f10 +
-            t * u * f11)
-
-
-def _evaluate_modes_at_point(
-    BnR_modes: ndarray,
-    Bnphi_modes: ndarray,
-    BnZ_modes: ndarray,
-    ntor: int,
-    R_grid: ndarray,
-    Z_grid: ndarray,
-    x_val: float,
-    y_val: float,
-    z_val: float,
-) -> Tuple[float, float, float]:
-    R_val = hypot(x_val, y_val)
-    phi_val = arctan2(y_val, x_val)
-
-    BR = _bilinear_interpolate(R_grid, Z_grid, BnR_modes, R_val, z_val)
-    Bphi = _bilinear_interpolate(R_grid, Z_grid, Bnphi_modes, R_val, z_val)
-    BZ = _bilinear_interpolate(R_grid, Z_grid, BnZ_modes, R_val, z_val)
-
-    if isnan(BR) or isnan(Bphi) or isnan(BZ):
-        return float("nan"), float("nan"), float("nan")
-
-    if ntor == 0:
-        BR_total = BR.real
-        Bphi_total = Bphi.real
-        BZ_total = BZ.real
-    else:
-        factor = exp(1j * ntor * phi_val)
-        BR_total = 2.0 * real(BR * factor)
-        Bphi_total = 2.0 * real(Bphi * factor)
-        BZ_total = 2.0 * real(BZ * factor)
-
-    cosphi = cos(phi_val)
-    sinphi = sin(phi_val)
-    Bx = BR_total * cosphi - Bphi_total * sinphi
-    By = BR_total * sinphi + Bphi_total * cosphi
-    return Bx, By, BZ_total
-
-
-def _axis_validation(
-    args: argparse.Namespace,
-    coil_files: Sequence[Path],
-    coil_currents_amp: ndarray,
-    grid: Grid,
-    BnR_fourier: ndarray,
-    Bnphi_fourier: ndarray,
-    BnZ_fourier: ndarray,
-    BnR_vector: ndarray,
-    Bnphi_vector: ndarray,
-    BnZ_vector: ndarray,
-    BnR_spline: ndarray,
-    Bnphi_spline: ndarray,
-    BnZ_spline: ndarray,
-    BnR_direct: ndarray | None,
-    Bnphi_direct: ndarray | None,
-    BnZ_direct: ndarray | None,
-) -> None:
-    if args.axis_origin is None or args.axis_normal is None or args.coil_radius is None:
-        return
-
-    origin = asarray(args.axis_origin, dtype=float)
-    normal = asarray(args.axis_normal, dtype=float)
-    norm_vec = norm(normal)
-    if norm_vec == 0.0:
-        raise ValueError("Axis normal vector must be non-zero")
-    direction = normal / norm_vec
-
-    s_vals = linspace(-args.axis_range, args.axis_range, args.axis_samples)
-    points = origin[newaxis, :] + outer(s_vals, direction)
-
-    x_eval = points[:, 0]
-    y_eval = points[:, 1]
-    z_eval = points[:, 2]
-
-    B_parallel_fourier = zeros_like(s_vals)
-    B_parallel_vector = zeros_like(s_vals)
-    B_parallel_spline = zeros_like(s_vals)
-    B_parallel_direct = zeros_like(s_vals)
-
-    for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
-        Bx_f, By_f, Bz_f = _evaluate_modes_at_point(
-            BnR_fourier, Bnphi_fourier, BnZ_fourier,
-            args.ntor, grid.R, grid.Z,
-            x_val, y_val, z_val,
-        )
-        B_parallel_fourier[idx] = Bx_f * direction[0] + By_f * direction[1] + Bz_f * direction[2]
-
-        Bx_v, By_v, Bz_v = _evaluate_modes_at_point(
-            BnR_vector, Bnphi_vector, BnZ_vector,
-            args.ntor, grid.R, grid.Z,
-            x_val, y_val, z_val,
-        )
-        B_parallel_vector[idx] = Bx_v * direction[0] + By_v * direction[1] + Bz_v * direction[2]
-
-        Bx_s, By_s, Bz_s = _evaluate_modes_at_point(
-            BnR_spline, Bnphi_spline, BnZ_spline,
-            args.ntor, grid.R, grid.Z,
-            x_val, y_val, z_val,
-        )
-        B_parallel_spline[idx] = Bx_s * direction[0] + By_s * direction[1] + Bz_s * direction[2]
-
-        if BnR_direct is not None and Bnphi_direct is not None and BnZ_direct is not None:
-            Bx_d, By_d, Bz_d = _evaluate_modes_at_point(
-                BnR_direct, Bnphi_direct, BnZ_direct,
-                args.ntor, grid.R, grid.Z,
-                x_val, y_val, z_val,
+    n_phi_available = fft_BR.shape[2]
+    for idx, ntor in enumerate(mode_numbers):
+        if ntor >= n_phi_available:
+            raise ValueError(
+                f"Requested mode ntor={ntor} exceeds Nyquist limit for n_phi={n_phi_available}"
             )
-            B_parallel_direct[idx] = Bx_d * direction[0] + By_d * direction[1] + Bz_d * direction[2]
+        BnR[idx] = fft_BR[:, :, ntor]
+        Bnphi[idx] = fft_Bphi[:, :, ntor]
+        BnZ[idx] = fft_BZ[:, :, ntor]
 
-    if BnR_direct is None or Bnphi_direct is None or BnZ_direct is None:
-        Bx_raw, By_raw, Bz_raw = _compute_segment_direct_field(coil_files, coil_currents_amp, x_eval, y_eval, z_eval)
-        B_parallel_direct = Bx_raw * direction[0] + By_raw * direction[1] + Bz_raw * direction[2]
-
-    mu0 = 4e-7 * pi
-    radius_m = args.coil_radius / 100.0
-    s_vals_m = s_vals / 100.0
-    current_ampere = sum(coil_currents_amp)
-    B_analytic = mu0 * current_ampere * radius_m**2 / (2.0 * (radius_m**2 + s_vals_m**2)**1.5)
-    B_analytic *= 1.0e4  # Tesla -> Gauss
-
-    abs_err_fourier = abs(B_parallel_fourier - B_analytic)
-    abs_err_vector = abs(B_parallel_vector - B_analytic)
-    abs_err_spline = abs(B_parallel_spline - B_analytic)
-    abs_err_direct = abs(B_parallel_direct - B_analytic)
-
-    rel_err_fourier = abs_err_fourier / maximum(abs(B_analytic), 1e-20)
-    rel_err_vector = abs_err_vector / maximum(abs(B_analytic), 1e-20)
-    rel_err_spline = abs_err_spline / maximum(abs(B_analytic), 1e-20)
-    rel_err_direct = abs_err_direct / maximum(abs(B_analytic), 1e-20)
-
-    if args.axis_output is not None:
-        fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
-        ax.plot(s_vals, B_analytic, label="Analytic", linestyle="--", linewidth=1.6)
-        ax.plot(s_vals, B_parallel_fourier, label="Fourier", linewidth=1.2)
-        ax.plot(s_vals, B_parallel_vector, label="Anvac (stored)", linewidth=1.2)
-        ax.plot(s_vals, B_parallel_spline, label="Anvac (spline)", linewidth=1.2)
-        ax.plot(s_vals, B_parallel_direct, label="Direct", linewidth=1.2)
-        ax.set_xlabel("Axis coordinate s [cm]")
-        ax.set_ylabel("B_parallel [Gauss]")
-        ax.legend(loc="best")
-        fig.savefig(args.axis_output, dpi=args.dpi, bbox_inches="tight")
-        if not args.show:
-            plt.close(fig)
-
-    print("Axis validation (max relative errors):")
-    print(f"  Fourier vs analytic: {amax(rel_err_fourier) * 100.0:.4f}%")
-    print(f"  Anvac (stored) vs analytic: {amax(rel_err_vector) * 100.0:.4f}%")
-    print(f"  Anvac (spline) vs analytic: {amax(rel_err_spline) * 100.0:.4f}%")
-    print(f"  Direct  vs analytic: {amax(rel_err_direct) * 100.0:.4f}%")
+    return BnR, Bnphi, BnZ, phi_grid
 
 
-def _create_per_coil_plot(
-    args: argparse.Namespace,
-    mode_fourier: ModeData,
-    mode_vector: ModeData,
-    mode_vector_spline: ModeData,
-    BnR_spline_all: ndarray,
-    Bnphi_spline_all: ndarray,
-    BnZ_spline_all: ndarray,
-    output: Path,
-    coil_projections: Sequence[Tuple[ndarray, ndarray]] | None,
-) -> None:
-    ncoil = mode_fourier.BnR.shape[0]
-    grid = mode_fourier.grid
-    titles = ("reference", "Anvac (stored)", "Anvac (spline)", "Bnvac")
-
-    log_bn2 = empty((4, ncoil, grid.nR, grid.nZ), dtype=float)
-    log_bn2[0] = log10(maximum(_magnitude_squared(mode_fourier.BnR, mode_fourier.Bnphi, mode_fourier.BnZ), 1e-300))
-    log_bn2[1] = log10(maximum(_magnitude_squared(mode_vector.BnR, mode_vector.Bnphi, mode_vector.BnZ), 1e-300))
-    log_bn2[2] = log10(maximum(_magnitude_squared(mode_vector_spline.BnR, mode_vector_spline.Bnphi, mode_vector_spline.BnZ), 1e-300))
-    log_bn2[3] = log10(maximum(_magnitude_squared(BnR_spline_all, Bnphi_spline_all, BnZ_spline_all), 1e-300))
-
-    norm = Normalize(vmin=amin(log_bn2), vmax=amax(log_bn2))
-    fig, axs = plt.subplots(ncoil, 4, figsize=(12, 3 * ncoil), layout="constrained")
-
-    for kcoil in range(ncoil):
-        for col, label in enumerate(titles):
-            ax = axs[kcoil, col] if ncoil > 1 else axs[col]
-            im = ax.imshow(
-                log_bn2[col][kcoil].T,
-                origin="lower",
-                cmap="magma",
-                extent=[grid.R_min, grid.R_max, grid.Z_min, grid.Z_max],
-                norm=norm,
-                interpolation="bilinear",
-            )
-            ax.set_title(f"Coil {kcoil + 1}: {label}")
-            ax.set_xlabel("R [cm]")
-            ax.set_ylabel("Z [cm]")
-            if coil_projections:
-                for R_path, Z_path in coil_projections:
-                    ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
-            ax.set_aspect("equal", adjustable="box")
-
-    cbar = fig.colorbar(im, ax=axs, location="bottom", fraction=0.05, pad=0.08)
-    cbar.set_label("log10 |B_n|^2")
-    fig.savefig(output, dpi=args.dpi, bbox_inches="tight")
-    if not args.show:
-        plt.close(fig)
-
-
-def _create_sum_plot(
-    args: argparse.Namespace,
-    magnitude_fourier: ndarray,
-    magnitude_vector: ndarray,
-    magnitude_spline: ndarray,
-    magnitude_field_divb0: ndarray | None,
-    magnitude_direct: ndarray | None,
-    output: Path,
+def _compute_axis_profiles(
     grid: Grid,
-    coil_projections: Sequence[Tuple[ndarray, ndarray]] | None,
-) -> None:
-    top_titles = ("reference sum", "Anvac sum", "Bnvac sum", "Direct sum")
-    top_panels = [magnitude_fourier, magnitude_vector, magnitude_spline]
-    if magnitude_direct is None:
-        top_panels.append(magnitude_fourier)
-    else:
-        top_panels.append(magnitude_direct)
+    mode_numbers: np.ndarray,
+    BnR_modes: np.ndarray,
+    Bnphi_modes: np.ndarray,
+    BnZ_modes: np.ndarray,
+    origin: np.ndarray,
+    direction: np.ndarray,
+    s_vals: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    points = origin[None, :] + s_vals[:, None] * direction[None, :]
+    Bx, By, Bz = reconstruct_field_from_modes(
+        BnR_modes,
+        Bnphi_modes,
+        BnZ_modes,
+        mode_numbers,
+        grid.R,
+        grid.Z,
+        points[:, 0],
+        points[:, 1],
+        points[:, 2],
+    )
+    B_parallel = Bx * direction[0] + By * direction[1] + Bz * direction[2]
+    B_mag = _field_magnitude(Bx, By, Bz)
+    return B_parallel, B_mag
 
-    bottom_titles = ("field_divB0 sum", "", "", "")
-    bottom_panel = magnitude_field_divb0
 
-    accum = [log10(maximum(panel, 1e-300)) for panel in top_panels]
-    if bottom_panel is not None:
-        accum.append(log10(maximum(bottom_panel, 1e-300)))
-
-    norm = Normalize(vmin=min(a.min() for a in accum), vmax=max(a.max() for a in accum))
-
-    fig, axs = plt.subplots(2, 4, figsize=(14, 7.5), layout="constrained")
-    extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
-    plotted_axes = []
-
-    for idx, label in enumerate(top_titles):
-        ax = axs[0, idx]
-        im = ax.imshow(
-            log10(maximum(top_panels[idx], 1e-300)).T,
-            origin="lower",
-            cmap="magma",
-            extent=extent,
-            norm=norm,
-            interpolation="bilinear",
-        )
-        ax.set_title(label)
-        ax.set_xlabel("R [cm]")
-        ax.set_ylabel("Z [cm]")
-        if coil_projections:
-            for R_path, Z_path in coil_projections:
-                ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
-        ax.set_aspect("equal", adjustable="box")
-        plotted_axes.append(ax)
-
-    if bottom_panel is not None:
-        ax = axs[1, 0]
-        im_bottom = ax.imshow(
-            log10(maximum(bottom_panel, 1e-300)).T,
-            origin="lower",
-            cmap="magma",
-            extent=extent,
-            norm=norm,
-            interpolation="bilinear",
-        )
-        ax.set_title(bottom_titles[0])
-        ax.set_xlabel("R [cm]")
-        ax.set_ylabel("Z [cm]")
-        if coil_projections:
-            for R_path, Z_path in coil_projections:
-                ax.plot(R_path, Z_path, color="black", linewidth=0.8, alpha=0.6)
-        ax.set_aspect("equal", adjustable="box")
-        plotted_axes.append(ax)
-        im = im_bottom
-    else:
-        ax = axs[1, 0]
-        ax.axis("off")
-
-    for idx in range(1, 4):
-        axs[1, idx].axis("off")
-
-    cbar = fig.colorbar(im, ax=plotted_axes, location="bottom", fraction=0.05, pad=0.08)
-    cbar.set_label("log10 |Σ B_n|^2")
-    fig.savefig(output, dpi=args.dpi, bbox_inches="tight")
-    if not args.show:
-        plt.close(fig)
-def _create_deriv_comparison_plot(
+def _create_axis_plot(
     args: argparse.Namespace,
-    diagnostics: dict,
-    grid: Grid,
-    currents: ndarray,
-    output: Path,
+    axis_points: np.ndarray,
+    direction: np.ndarray,
+    s_vals: np.ndarray,
+    B_parallel_fourier: np.ndarray,
+    B_parallel_anvac: np.ndarray,
+    B_parallel_spline: np.ndarray,
+    B_parallel_direct_modes: np.ndarray,
+    B_parallel_direct_segments: np.ndarray,
+    analytic_curve: np.ndarray | None,
 ) -> None:
-    """Plot comparison of stored vs spline-derived dAphi/dR and dAphi/dZ."""
-    dAphi_dR_stored = diagnostics['dAphi_dR_stored']
-    dAphi_dZ_stored = diagnostics['dAphi_dZ_stored']
-    dAphi_dR_spline = diagnostics['dAphi_dR_spline']
-    dAphi_dZ_spline = diagnostics['dAphi_dZ_spline']
-
-    # Weight by currents and sum over coils
-    weights = currents * args.prefactor
-    dAphi_dR_stored_sum = _tensordot_currents(weights, dAphi_dR_stored)
-    dAphi_dZ_stored_sum = _tensordot_currents(weights, dAphi_dZ_stored)
-    dAphi_dR_spline_sum = _tensordot_currents(weights, dAphi_dR_spline)
-    dAphi_dZ_spline_sum = _tensordot_currents(weights, dAphi_dZ_spline)
-
-    # Compute magnitude
-    mag_dR_stored = abs(dAphi_dR_stored_sum)
-    mag_dZ_stored = abs(dAphi_dZ_stored_sum)
-    mag_dR_spline = abs(dAphi_dR_spline_sum)
-    mag_dZ_spline = abs(dAphi_dZ_spline_sum)
-
-    # Create 2x2 plot - just the values side by side
-    fig, axs = plt.subplots(2, 2, figsize=(12, 10), layout="constrained")
-    extent = [grid.R_min, grid.R_max, grid.Z_min, grid.Z_max]
-
-    # Find common colorbar limits for each derivative
-    vmin_dR = min(amin(mag_dR_stored), amin(mag_dR_spline))
-    vmax_dR = max(amax(mag_dR_stored), amax(mag_dR_spline))
-    vmin_dZ = min(amin(mag_dZ_stored), amin(mag_dZ_spline))
-    vmax_dZ = max(amax(mag_dZ_stored), amax(mag_dZ_spline))
-
-    # dAphi/dR stored
-    im0 = axs[0, 0].imshow(mag_dR_stored.T, origin="lower", cmap="viridis",
-                            extent=extent, interpolation="bilinear",
-                            vmin=vmin_dR, vmax=vmax_dR)
-    axs[0, 0].set_title("dAphi/dR (stored)")
-    axs[0, 0].set_xlabel("R [cm]")
-    axs[0, 0].set_ylabel("Z [cm]")
-    fig.colorbar(im0, ax=axs[0, 0])
-
-    # dAphi/dR spline
-    im1 = axs[0, 1].imshow(mag_dR_spline.T, origin="lower", cmap="viridis",
-                            extent=extent, interpolation="bilinear",
-                            vmin=vmin_dR, vmax=vmax_dR)
-    axs[0, 1].set_title("dAphi/dR (spline)")
-    axs[0, 1].set_xlabel("R [cm]")
-    axs[0, 1].set_ylabel("Z [cm]")
-    fig.colorbar(im1, ax=axs[0, 1])
-
-    # dAphi/dZ stored
-    im2 = axs[1, 0].imshow(mag_dZ_stored.T, origin="lower", cmap="viridis",
-                            extent=extent, interpolation="bilinear",
-                            vmin=vmin_dZ, vmax=vmax_dZ)
-    axs[1, 0].set_title("dAphi/dZ (stored)")
-    axs[1, 0].set_xlabel("R [cm]")
-    axs[1, 0].set_ylabel("Z [cm]")
-    fig.colorbar(im2, ax=axs[1, 0])
-
-    # dAphi/dZ spline
-    im3 = axs[1, 1].imshow(mag_dZ_spline.T, origin="lower", cmap="viridis",
-                            extent=extent, interpolation="bilinear",
-                            vmin=vmin_dZ, vmax=vmax_dZ)
-    axs[1, 1].set_title("dAphi/dZ (spline)")
-    axs[1, 1].set_xlabel("R [cm]")
-    axs[1, 1].set_ylabel("Z [cm]")
-    fig.colorbar(im3, ax=axs[1, 1])
-
-    fig.savefig(output, dpi=args.dpi, bbox_inches="tight")
+    fig, ax = plt.subplots(figsize=(7.5, 4.5), layout="constrained")
+    ax.plot(s_vals, B_parallel_fourier, label="Fourier", linewidth=1.4)
+    ax.plot(s_vals, B_parallel_anvac, label="Anvac (stored)", linewidth=1.2)
+    ax.plot(s_vals, B_parallel_spline, label="Anvac (spline)", linewidth=1.2)
+    ax.plot(s_vals, B_parallel_direct_modes, label="Direct FFT", linewidth=1.0)
+    ax.plot(s_vals, B_parallel_direct_segments, label="Direct segments", linewidth=1.0, linestyle="--")
+    if analytic_curve is not None:
+        ax.plot(s_vals, analytic_curve, label="Analytic circle", linewidth=1.0, linestyle=":")
+    ax.set_xlabel("Axis coordinate s [cm]")
+    ax.set_ylabel("B_parallel [G]")
+    ax.legend(loc="best")
+    fig.savefig(args.axis_output, dpi=args.dpi, bbox_inches="tight")
     if not args.show:
         plt.close(fig)
 
 
-def _print_stats(
-    magnitude_fourier: ndarray,
-    magnitude_vector: ndarray,
-    magnitude_spline: ndarray,
-    magnitude_field_divb0: ndarray | None,
-    magnitude_direct: ndarray | None,
-) -> None:
-    rel_err_vector = abs(magnitude_vector - magnitude_fourier) / (magnitude_fourier + 1e-15)
-    rel_err_spline = abs(magnitude_spline - magnitude_fourier) / (magnitude_fourier + 1e-15)
-
-    median_vector = float(median(rel_err_vector) * 100.0)
-    mean_vector = float(mean(rel_err_vector) * 100.0)
-    median_spline = float(median(rel_err_spline) * 100.0)
-    mean_spline = float(mean(rel_err_spline) * 100.0)
-
-    print(f"Median relative error (vector): {median_vector:.4f}%")
-    print(f"Mean relative error (vector):   {mean_vector:.4f}%")
-    print(f"Median relative error (spline): {median_spline:.4f}%")
-    print(f"Mean relative error (spline):   {mean_spline:.4f}%")
-
-    if magnitude_field_divb0 is not None:
-        rel_err_field = abs(magnitude_field_divb0 - magnitude_fourier) / (magnitude_fourier + 1e-15)
-        median_field = float(median(rel_err_field) * 100.0)
-        mean_field = float(mean(rel_err_field) * 100.0)
-        print(f"Median relative error (field_divB0): {median_field:.4f}%")
-        print(f"Mean relative error (field_divB0):   {mean_field:.4f}%")
-
-    if magnitude_direct is None:
-        return
-
-    rel_err_direct = abs(magnitude_direct - magnitude_fourier) / (magnitude_fourier + 1e-15)
-    median_direct = float(median(rel_err_direct) * 100.0)
-    mean_direct = float(mean(rel_err_direct) * 100.0)
-
-    print("Direct vs Fourier:")
-    print(f"  Median relative error: {median_direct:.4f}%")
-    print(f"  Mean relative error:   {mean_direct:.4f}%")
+def _print_stats(reference_map: np.ndarray, comparison_map: np.ndarray, label: str) -> Tuple[float, float]:
+    rel_err = np.abs(comparison_map - reference_map) / np.maximum(reference_map, 1e-15)
+    median_err = float(median(rel_err) * 100.0)
+    mean_err = float(mean(rel_err) * 100.0)
+    print(f"Median relative error ({label}): {median_err:.4f}%")
+    print(f"Mean relative error   ({label}): {mean_err:.4f}%")
+    return median_err, mean_err
 
 
 def main() -> None:
     args = _parse_args()
 
-    mode_fourier = _load_mode_from_bnvac(args.reference, args.ntor)
-    mode_vector, spline_vec, mode_vector_spline, diagnostics = _load_mode_from_anvac(args.test, args.ntor)
-    _ensure_same_grid(mode_fourier.grid, mode_vector.grid)
+    fourier = _load_fourier_modes(args.reference)
+    anvac_stored, anvac_spline, diagnostics = _load_anvac_modes(args.test, fourier.mode_numbers)
+    _ensure_same_grid(fourier.grid, anvac_stored.grid)
 
-    coil_projections = None
-    if args.coil_files:
-        coil_projections = _load_coil_projections(args.coil_files)
-
-    if args.currents is None:
-        raise ValueError("--currents is required for comparison")
-    if not args.coil_files:
-        raise ValueError("--coil-files is required for comparison")
+    coil_projections = _load_coil_projections(args.coil_files)
 
     currents = _read_currents(args.currents)
-    coil_counts = [_read_gpec_header(path) for path in args.coil_files]
-    if sum(coil_counts) != currents.size:
+    if currents.size != fourier.ncoil:
         raise ValueError(
-            f"Currents file provides {currents.size} entries but geometry defines {sum(coil_counts)} coils"
+            f"Current file provides {currents.size} entries but geometry defines {fourier.ncoil} coils"
         )
-    if mode_fourier.BnR.shape[0] != currents.size:
-        raise ValueError(
-            f"Mismatch between currents ({currents.size}) and Fourier data ({mode_fourier.BnR.shape[0]})"
-        )
+    weights = currents * args.prefactor
+    currents_physical = currents
 
-    BnR_spline_all, Bnphi_spline_all, BnZ_spline_all = field_divfree(
-        spline_vec, mode_vector.grid.R, mode_vector.grid.Z, ntor=args.ntor
+    # Sum over coils
+    BnR_fourier_sum = _sum_over_coils(weights, fourier.BnR)
+    Bnphi_fourier_sum = _sum_over_coils(weights, fourier.Bnphi)
+    BnZ_fourier_sum = _sum_over_coils(weights, fourier.BnZ)
+
+    BnR_anvac_sum = _sum_over_coils(weights, anvac_stored.BnR)
+    Bnphi_anvac_sum = _sum_over_coils(weights, anvac_stored.Bnphi)
+    BnZ_anvac_sum = _sum_over_coils(weights, anvac_stored.BnZ)
+
+    BnR_spline_sum = _sum_over_coils(weights, anvac_spline.BnR)
+    Bnphi_spline_sum = _sum_over_coils(weights, anvac_spline.Bnphi)
+    BnZ_spline_sum = _sum_over_coils(weights, anvac_spline.BnZ)
+
+    # Direct Fourier modes (already weighted by currents)
+    BnR_direct_sum, Bnphi_direct_sum, BnZ_direct_sum, _ = _compute_direct_fourier_modes(
+        args.coil_files,
+        currents_physical,
+        fourier.grid,
+        fourier.mode_numbers,
+        args.fft_samples,
     )
 
-    weights = currents * args.prefactor
-    BnR_fourier_sum = _tensordot_currents(weights, mode_fourier.BnR)
-    Bnphi_fourier_sum = _tensordot_currents(weights, mode_fourier.Bnphi)
-    BnZ_fourier_sum = _tensordot_currents(weights, mode_fourier.BnZ)
+    # Field maps at phi = 0
+    Bx_fourier_map, By_fourier_map, Bz_fourier_map = _reconstruct_field_map_on_grid(
+        BnR_fourier_sum,
+        Bnphi_fourier_sum,
+        BnZ_fourier_sum,
+        fourier.mode_numbers,
+        phi=0.0,
+    )
+    Bx_anvac_map, By_anvac_map, Bz_anvac_map = _reconstruct_field_map_on_grid(
+        BnR_anvac_sum,
+        Bnphi_anvac_sum,
+        BnZ_anvac_sum,
+        fourier.mode_numbers,
+        phi=0.0,
+    )
+    Bx_spline_map, By_spline_map, Bz_spline_map = _reconstruct_field_map_on_grid(
+        BnR_spline_sum,
+        Bnphi_spline_sum,
+        BnZ_spline_sum,
+        fourier.mode_numbers,
+        phi=0.0,
+    )
+    Bx_direct_map, By_direct_map, Bz_direct_map = _reconstruct_field_map_on_grid(
+        BnR_direct_sum,
+        Bnphi_direct_sum,
+        BnZ_direct_sum,
+        fourier.mode_numbers,
+        phi=0.0,
+    )
 
-    BnR_vector_sum = _tensordot_currents(weights, mode_vector.BnR)
-    Bnphi_vector_sum = _tensordot_currents(weights, mode_vector.Bnphi)
-    BnZ_vector_sum = _tensordot_currents(weights, mode_vector.BnZ)
+    magnitude_fourier = _field_magnitude(Bx_fourier_map, By_fourier_map, Bz_fourier_map)
+    magnitude_anvac = _field_magnitude(Bx_anvac_map, By_anvac_map, Bz_anvac_map)
+    magnitude_spline = _field_magnitude(Bx_spline_map, By_spline_map, Bz_spline_map)
+    magnitude_direct = _field_magnitude(Bx_direct_map, By_direct_map, Bz_direct_map)
 
-    BnR_spline_sum = _tensordot_currents(weights, BnR_spline_all)
-    Bnphi_spline_sum = _tensordot_currents(weights, Bnphi_spline_all)
-    BnZ_spline_sum = _tensordot_currents(weights, BnZ_spline_all)
-
-    BnR_direct = Bnphi_direct = BnZ_direct = None
-    direct_magnitude = None
-    magnitude_field_divb0 = None
-    if args.coil_files:
-        (BnR_direct, Bnphi_direct, BnZ_direct,
-         BR_samples, Bphi_samples, BZ_samples, phi_grid) = _compute_direct_fourier_mode(
-            args.coil_files, currents, mode_fourier.grid, args.ntor, args.fft_samples
-        )
-        direct_magnitude = _magnitude_squared(BnR_direct, Bnphi_direct, BnZ_direct)
-
-        nR = int(mode_fourier.grid.nR)
-        nZ = int(mode_fourier.grid.nZ)
-        n_phi = phi_grid.size
-
-        br_ordered = swapaxes(BR_samples, 1, 2)
-        bp_ordered = swapaxes(Bphi_samples, 1, 2)
-        bz_ordered = swapaxes(BZ_samples, 1, 2)
-
-        n_phi_ext = n_phi + 1
-        br_ext = zeros((nR, n_phi_ext, nZ), dtype=float, order="F")
-        bp_ext = zeros((nR, n_phi_ext, nZ), dtype=float, order="F")
-        bz_ext = zeros((nR, n_phi_ext, nZ), dtype=float, order="F")
-        br_ext[:, :n_phi, :] = br_ordered
-        bp_ext[:, :n_phi, :] = bp_ordered
-        bz_ext[:, :n_phi, :] = bz_ordered
-        br_ext[:, n_phi, :] = br_ordered[:, 0, :]
-        bp_ext[:, n_phi, :] = bp_ordered[:, 0, :]
-        bz_ext[:, n_phi, :] = bz_ordered[:, 0, :]
-
-        convex_candidate: Path | None = None
-        for coil_file in args.coil_files:
-            candidate = coil_file.parent / "convexwall.dat"
-            if candidate.exists():
-                convex_candidate = candidate
-                break
-
-        if convex_candidate is not None:
-            _set_convex_wall_filename(convex_candidate)
-        else:
-            raise FileNotFoundError(
-                "convexwall.dat not found alongside coil geometry; required for field_divB0"
-            )
-
-        field_divb0_initialize_from_grid(
-            args.ntor,
-            mode_fourier.grid.R_min,
-            mode_fourier.grid.R_max,
-            0.0,
-            2.0 * pi,
-            mode_fourier.grid.Z_min,
-            mode_fourier.grid.Z_max,
-            br_ext,
-            bp_ext,
-            bz_ext,
-            nR,
-            n_phi_ext,
-            nZ,
-        )
-
-        R_mesh, Z_mesh = meshgrid(mode_fourier.grid.R, mode_fourier.grid.Z, indexing="ij")
-        r_flat = R_mesh.reshape(-1)
-        z_flat = Z_mesh.reshape(-1)
-        n_points = r_flat.size
-
-        BR_field = zeros((nR, nZ, n_phi))
-        Bphi_field = zeros_like(BR_field)
-        BZ_field = zeros_like(BR_field)
-
-        phi_buffer = zeros(n_points)
-
-        for idx in range(n_phi):
-            phi_buffer[:] = phi_grid[idx]
-            br_slice, bp_slice, bz_slice = field_divb0_eval(r_flat, phi_buffer, z_flat, n_points)
-            BR_field[:, :, idx] = br_slice.reshape(nR, nZ)
-            Bphi_field[:, :, idx] = bp_slice.reshape(nR, nZ)
-            BZ_field[:, :, idx] = bz_slice.reshape(nR, nZ)
-
-        fft_norm = 1.0 / n_phi
-        BnR_field = fft(BR_field, axis=2)[:, :, args.ntor] * fft_norm
-        Bnphi_field = fft(Bphi_field, axis=2)[:, :, args.ntor] * fft_norm
-        BnZ_field = fft(BZ_field, axis=2)[:, :, args.ntor] * fft_norm
-
-        magnitude_field_divb0 = _magnitude_squared(BnR_field, Bnphi_field, BnZ_field)
-
-    magnitude_fourier = _magnitude_squared(BnR_fourier_sum, Bnphi_fourier_sum, BnZ_fourier_sum)
-    magnitude_vector = _magnitude_squared(BnR_vector_sum, Bnphi_vector_sum, BnZ_vector_sum)
-    magnitude_spline = _magnitude_squared(BnR_spline_sum, Bnphi_spline_sum, BnZ_spline_sum)
-
+    # Plots
     if args.per_coil_output is not None:
-        _create_per_coil_plot(args, mode_fourier, mode_vector, mode_vector_spline,
-                              BnR_spline_all, Bnphi_spline_all, BnZ_spline_all,
-                              args.per_coil_output, coil_projections)
-
-    if args.deriv_diff_output is not None:
-        _create_deriv_comparison_plot(args, diagnostics, mode_fourier.grid, currents,
-                                      args.deriv_diff_output)
+        _create_per_coil_plot(args, fourier, anvac_stored, anvac_spline, weights, coil_projections)
 
     if args.sum_output is not None:
         _create_sum_plot(
             args,
-            magnitude_fourier,
-            magnitude_vector,
-            magnitude_spline,
-            magnitude_field_divb0,
-            direct_magnitude,
-            args.sum_output,
-            mode_fourier.grid,
+            fourier.grid,
             coil_projections,
+            magnitude_fourier,
+            magnitude_anvac,
+            magnitude_spline,
+            magnitude_direct,
         )
 
-    _print_stats(
-        magnitude_fourier,
-        magnitude_vector,
-        magnitude_spline,
-        magnitude_field_divb0,
-        direct_magnitude,
-    )
-
-    if args.axis_origin is not None and args.axis_normal is not None and args.coil_radius is not None:
-        _axis_validation(
+    if args.deriv_diff_output is not None:
+        _create_deriv_comparison_plot(
             args,
-            args.coil_files,
+            diagnostics,
+            fourier.grid,
             weights,
-            mode_fourier.grid,
+            fourier.mode_numbers,
+        )
+
+    print("Comparison statistics (relative errors wrt Fourier map at φ=0):")
+    _print_stats(magnitude_fourier, magnitude_anvac, "Anvac (stored)")
+    _print_stats(magnitude_fourier, magnitude_spline, "Anvac (spline)")
+    _print_stats(magnitude_fourier, magnitude_direct, "Direct")
+
+    if args.axis_output is not None:
+        if args.axis_origin is None or args.axis_normal is None:
+            raise ValueError("Axis origin and normal must be provided for axis output")
+        origin = asarray(args.axis_origin, dtype=float)
+        direction = asarray(args.axis_normal, dtype=float)
+        direction /= np.linalg.norm(direction)
+        s_vals = linspace(-args.axis_range, args.axis_range, args.axis_samples)
+        points = origin[None, :] + s_vals[:, None] * direction[None, :]
+
+        B_parallel_fourier, _ = _compute_axis_profiles(
+            fourier.grid,
+            fourier.mode_numbers,
             BnR_fourier_sum,
             Bnphi_fourier_sum,
             BnZ_fourier_sum,
-            BnR_vector_sum,
-            Bnphi_vector_sum,
-            BnZ_vector_sum,
+            origin,
+            direction,
+            s_vals,
+        )
+        B_parallel_anvac, _ = _compute_axis_profiles(
+            fourier.grid,
+            fourier.mode_numbers,
+            BnR_anvac_sum,
+            Bnphi_anvac_sum,
+            BnZ_anvac_sum,
+            origin,
+            direction,
+            s_vals,
+        )
+        B_parallel_spline, _ = _compute_axis_profiles(
+            fourier.grid,
+            fourier.mode_numbers,
             BnR_spline_sum,
             Bnphi_spline_sum,
             BnZ_spline_sum,
-            BnR_direct,
-            Bnphi_direct,
-            BnZ_direct,
+            origin,
+            direction,
+            s_vals,
+        )
+        B_parallel_direct_modes, _ = _compute_axis_profiles(
+            fourier.grid,
+            fourier.mode_numbers,
+            BnR_direct_sum,
+            Bnphi_direct_sum,
+            BnZ_direct_sum,
+            origin,
+            direction,
+            s_vals,
+        )
+
+        # Direct segment evaluation for reference
+        Bx_seg, By_seg, Bz_seg = _compute_segment_direct_field(
+            args.coil_files,
+            currents_physical,
+            points[:, 0].reshape(-1, 1),
+            points[:, 1].reshape(-1, 1),
+            points[:, 2].reshape(-1, 1),
+        )
+        B_parallel_segments = (
+            Bx_seg[:, 0] * direction[0]
+            + By_seg[:, 0] * direction[1]
+            + Bz_seg[:, 0] * direction[2]
+        )
+
+        analytic_curve = None
+        if args.coil_radius is not None:
+            radius_m = args.coil_radius / 100.0
+            s_vals_m = s_vals / 100.0
+            mu0 = 4e-7 * pi
+            analytic_curve = (
+                mu0
+                * currents_physical.sum()
+                * radius_m**2
+                / (2.0 * (radius_m**2 + s_vals_m**2) ** 1.5)
+                * 1.0e4
+            )
+
+        _create_axis_plot(
+            args,
+            points,
+            direction,
+            s_vals,
+            B_parallel_fourier,
+            B_parallel_anvac,
+            B_parallel_spline,
+            B_parallel_direct_modes,
+            B_parallel_segments,
+            analytic_curve,
         )
 
 
