@@ -152,7 +152,16 @@ def field_divfree(spl, R, Z, ntor=2):
         AnZ[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z) + 1j * spl['AnZ_Im'][kcoil](R, Z)
         dAnR_dZ[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z, dy=1) + 1j * spl['AnR_Im'][kcoil](R, Z, dy=1)
         dAnZ_dR[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z, dx=1) + 1j * spl['AnZ_Im'][kcoil](R, Z, dx=1)
-    BnR = 1j * ntor * AnZ / R[newaxis, :, newaxis]
-    Bnphi = dAnR_dZ - dAnZ_dR
-    BnZ = -1j * ntor * AnR / R[newaxis, :, newaxis]
+    if ntor == 0:
+        # For axisymmetric case, use curl directly without Fourier phase
+        dAnR_dR = empty((ncoil, nR, nZ), dtype=complex)
+        for kcoil in range(ncoil):
+            dAnR_dR[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z, dx=1) + 1j * spl['AnR_Im'][kcoil](R, Z, dx=1)
+        BnR = dAnZ_dR
+        Bnphi = dAnR_dZ - dAnZ_dR
+        BnZ = -(dAnR_dR + AnR / R[newaxis, :, newaxis])
+    else:
+        BnR = 1j * ntor * AnZ / R[newaxis, :, newaxis]
+        Bnphi = dAnR_dZ - dAnZ_dR
+        BnZ = -1j * ntor * AnR / R[newaxis, :, newaxis]
     return squeeze(BnR), squeeze(Bnphi), squeeze(BnZ)
