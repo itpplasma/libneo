@@ -127,7 +127,21 @@ set_tests_properties(test_single_coil_biot_savart PROPERTIES
     DEPENDS vacfield.x
 )
 
+add_test(NAME test_axisymmetric_biot_savart
+    COMMAND ${CMAKE_COMMAND}
+        -DVACFIELD_EXE=$<TARGET_FILE:vacfield.x>
+        -DTEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/test_data
+        -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DPYTHON_EXECUTABLE=${_MAGFIE_TEST_PYTHON_EXECUTABLE}
+        -DOUTPUT_DIR:PATH=${CMAKE_BINARY_DIR}/test/magfie/axisymmetric_coil
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/run_axisymmetric_case.cmake
+)
 
+set_tests_properties(test_axisymmetric_biot_savart PROPERTIES
+    LABELS "magfie;biot_savart;integration;axisymmetric"
+    TIMEOUT 300
+    DEPENDS vacfield.x
+)
 
 add_executable(test_coil_tools_segment_formulas.x
     test_coil_tools_segment_formulas.f90)
