@@ -20,6 +20,7 @@ program test_coil_tools_vector_potential_derivs
     real(dp), parameter :: max_eccentricity = 0.999_dp
     real(dp), parameter :: abs_tol = 1.0e-10_dp
     real(dp), parameter :: rel_tol = 1.0e-2_dp
+    real(dp), parameter :: fd_step = 1.0e-6_dp
     logical, parameter :: use_convex_wall = .false.
     character(len=*), parameter :: plot_directory = COIL_TOOLS_PLOT_DIR
     character(len=*), parameter :: script_directory = COIL_TOOLS_SCRIPT_DIR
@@ -28,6 +29,9 @@ program test_coil_tools_vector_potential_derivs
     complex(dp), allocatable :: AnR(:, :, :, :), Anphi(:, :, :, :), AnZ(:, :, :, :)
     complex(dp), allocatable :: dAnphi_dR(:, :, :, :), dAnphi_dZ(:, :, :, :)
     complex(dp), allocatable :: fd_dAnphi_dR(:, :, :, :), fd_dAnphi_dZ(:, :, :, :)
+    complex(dp), allocatable :: AnR_plus(:, :, :, :), Anphi_plus(:, :, :, :), AnZ_plus(:, :, :, :)
+    complex(dp), allocatable :: AnR_minus(:, :, :, :), Anphi_minus(:, :, :, :), AnZ_minus(:, :, :, :)
+    complex(dp), allocatable :: dAnphi_dR_dummy(:, :, :, :), dAnphi_dZ_dummy(:, :, :, :)
     complex(dp) :: fd_value
     real(dp), allocatable :: R(:), Z(:), phi(:)
     real(dp) :: rel_err
@@ -52,10 +56,44 @@ program test_coil_tools_vector_potential_derivs
         coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
         Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
 
+    ! Compute finite differences with tiny perturbations
+    write (output_unit, '(a, es10.3)') '  Computing finite differences with step h =', fd_step
+
+    ! R + h
+    call vector_potential_biot_savart_fourier( &
+        coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+        Rmin + fd_step, Rmax + fd_step, Zmin, Zmax, nR, nphi, nZ, &
+        AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+
+    ! R - h
+    call vector_potential_biot_savart_fourier( &
+        coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+        Rmin - fd_step, Rmax - fd_step, Zmin, Zmax, nR, nphi, nZ, &
+        AnR_minus, Anphi_minus, AnZ_minus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+
     allocate (fd_dAnphi_dR(0:nmax, nR, nZ, size(coils)))
     allocate (fd_dAnphi_dZ(0:nmax, nR, nZ, size(coils)))
-    fd_dAnphi_dR = (0.0_dp, 0.0_dp)
-    fd_dAnphi_dZ = (0.0_dp, 0.0_dp)
+
+    ! Central difference for dR
+    fd_dAnphi_dR = (Anphi_plus - Anphi_minus) / (2.0_dp * fd_step)
+
+    deallocate(AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+    deallocate(AnR_minus, Anphi_minus, AnZ_minus)
+
+    ! Z + h
+    call vector_potential_biot_savart_fourier( &
+        coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+        Rmin, Rmax, Zmin + fd_step, Zmax + fd_step, nR, nphi, nZ, &
+        AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+
+    ! Z - h
+    call vector_potential_biot_savart_fourier( &
+        coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
+        Rmin, Rmax, Zmin - fd_step, Zmax - fd_step, nR, nphi, nZ, &
+        AnR_minus, Anphi_minus, AnZ_minus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+
+    ! Central difference for dZ
+    fd_dAnphi_dZ = (Anphi_plus - Anphi_minus) / (2.0_dp * fd_step)
 
     max_rel_err_R = 0.0_dp
     max_rel_err_Z = 0.0_dp
@@ -70,11 +108,10 @@ program test_coil_tools_vector_potential_derivs
         do nmode = 0, nmax
             do kZ = 1, nZ
                 do kR = 1, nR
-                    fd_value = finite_difference_R(Anphi(nmode, :, kZ, kc), R, kR)
-                    fd_dAnphi_dR(nmode, kR, kZ, kc) = fd_value
                     skip_point = abs(R(kR) - coil_radius) < exclusion_R
                     if (.not. skip_point) then
-                        rel_err = derivative_error(fd_value, dAnphi_dR(nmode, kR, kZ, kc), abs_tol)
+                        rel_err = derivative_error(fd_dAnphi_dR(nmode, kR, kZ, kc), &
+                                                   dAnphi_dR(nmode, kR, kZ, kc), abs_tol)
                         max_rel_err_R = max(max_rel_err_R, rel_err)
                         if (kZ == mid_Z) then
                             dphi_error_vs_R(kR) = max(dphi_error_vs_R(kR), rel_err)
@@ -84,11 +121,10 @@ program test_coil_tools_vector_potential_derivs
             end do
             do kR = 1, nR
                 do kZ = 1, nZ
-                    fd_value = finite_difference_Z(Anphi(nmode, kR, :, kc), Z, kZ)
-                    fd_dAnphi_dZ(nmode, kR, kZ, kc) = fd_value
                     skip_point = abs(R(kR) - coil_radius) < exclusion_R
                     if (.not. skip_point) then
-                        rel_err = derivative_error(fd_value, dAnphi_dZ(nmode, kR, kZ, kc), abs_tol)
+                        rel_err = derivative_error(fd_dAnphi_dZ(nmode, kR, kZ, kc), &
+                                                   dAnphi_dZ(nmode, kR, kZ, kc), abs_tol)
                         max_rel_err_Z = max(max_rel_err_Z, rel_err)
                         if (kR == mid_R) then
                             dphi_error_vs_Z(kZ) = max(dphi_error_vs_Z(kZ), rel_err)
@@ -135,44 +171,6 @@ contains
             coil%XYZ(3, k) = 0.0_dp
         end do
     end subroutine create_circular_coil
-
-    pure function finite_difference_R(values, coords, idx) result(df)
-        complex(dp), intent(in) :: values(:)
-        real(dp), intent(in) :: coords(:)
-        integer, intent(in) :: idx
-        complex(dp) :: df
-        real(dp) :: delta
-
-        if (idx == 1) then
-            delta = coords(2) - coords(1)
-            df = (values(2) - values(1))/delta
-        else if (idx == size(coords)) then
-            delta = coords(idx) - coords(idx - 1)
-            df = (values(idx) - values(idx - 1))/delta
-        else
-            delta = coords(idx + 1) - coords(idx - 1)
-            df = (values(idx + 1) - values(idx - 1))/delta
-        end if
-    end function finite_difference_R
-
-    pure function finite_difference_Z(values, coords, idx) result(df)
-        complex(dp), intent(in) :: values(:)
-        real(dp), intent(in) :: coords(:)
-        integer, intent(in) :: idx
-        complex(dp) :: df
-        real(dp) :: delta
-
-        if (idx == 1) then
-            delta = coords(2) - coords(1)
-            df = (values(2) - values(1))/delta
-        else if (idx == size(coords)) then
-            delta = coords(idx) - coords(idx - 1)
-            df = (values(idx) - values(idx - 1))/delta
-        else
-            delta = coords(idx + 1) - coords(idx - 1)
-            df = (values(idx + 1) - values(idx - 1))/delta
-        end if
-    end function finite_difference_Z
 
     pure function derivative_error(fd_val, analytic_val, abs_floor) result(err)
         complex(dp), intent(in) :: fd_val

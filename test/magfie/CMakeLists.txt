@@ -76,6 +76,28 @@ set_tests_properties(test_coil_tools_segment_formulas PROPERTIES
     TIMEOUT 60
 )
 
+add_executable(test_coil_tools_aphi_gradients.x
+    test_coil_tools_aphi_gradients.f90)
+target_link_libraries(test_coil_tools_aphi_gradients.x PRIVATE
+    neo
+    magfie
+    util_for_test
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+target_compile_definitions(test_coil_tools_aphi_gradients.x PRIVATE
+    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie"
+    COIL_TOOLS_SCRIPT_DIR="${CMAKE_SOURCE_DIR}/test/magfie")
+
+add_test(NAME test_coil_tools_aphi_gradients
+    COMMAND test_coil_tools_aphi_gradients.x)
+set_tests_properties(test_coil_tools_aphi_gradients PROPERTIES
+    LABELS "magfie;coil_tools;derivatives"
+    TIMEOUT 60
+)
+
 # Register the test
 add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
 
