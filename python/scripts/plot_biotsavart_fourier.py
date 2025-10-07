@@ -3,10 +3,15 @@ from numpy import amin, amax, arange, arctan2, conj, empty, linspace, log10, pi,
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from libneo.biotsavart_fourier import *
+import sys
 
 # %%
-ref = input('Paste the path to the HDF5 file')
-test = input('Paste the path to the NetCDF4 file')
+if len(sys.argv) >= 3:
+    ref = sys.argv[1]
+    test = sys.argv[2]
+else:
+    ref = input('Paste the path to the HDF5 file')
+    test = input('Paste the path to the NetCDF4 file')
 
 # %%
 ref_grid, BnR, Bnphi, BnZ = read_Bnvac_fourier(ref)
