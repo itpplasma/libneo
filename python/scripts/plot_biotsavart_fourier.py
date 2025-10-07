@@ -533,6 +533,9 @@ def _axis_validation(
     BnR_vector: ndarray,
     Bnphi_vector: ndarray,
     BnZ_vector: ndarray,
+    BnR_spline: ndarray,
+    Bnphi_spline: ndarray,
+    BnZ_spline: ndarray,
     BnR_direct: ndarray | None,
     Bnphi_direct: ndarray | None,
     BnZ_direct: ndarray | None,
@@ -556,6 +559,7 @@ def _axis_validation(
 
     B_parallel_fourier = zeros_like(s_vals)
     B_parallel_vector = zeros_like(s_vals)
+    B_parallel_spline = zeros_like(s_vals)
     B_parallel_direct = zeros_like(s_vals)
 
     for idx, (x_val, y_val, z_val) in enumerate(zip(x_eval, y_eval, z_eval)):
@@ -572,6 +576,13 @@ def _axis_validation(
             x_val, y_val, z_val,
         )
         B_parallel_vector[idx] = Bx_v * direction[0] + By_v * direction[1] + Bz_v * direction[2]
+
+        Bx_s, By_s, Bz_s = _evaluate_modes_at_point(
+            BnR_spline, Bnphi_spline, BnZ_spline,
+            args.ntor, grid.R, grid.Z,
+            x_val, y_val, z_val,
+        )
+        B_parallel_spline[idx] = Bx_s * direction[0] + By_s * direction[1] + Bz_s * direction[2]
 
         if BnR_direct is not None and Bnphi_direct is not None and BnZ_direct is not None:
             Bx_d, By_d, Bz_d = _evaluate_modes_at_point(
@@ -594,17 +605,20 @@ def _axis_validation(
 
     abs_err_fourier = abs(B_parallel_fourier - B_analytic)
     abs_err_vector = abs(B_parallel_vector - B_analytic)
+    abs_err_spline = abs(B_parallel_spline - B_analytic)
     abs_err_direct = abs(B_parallel_direct - B_analytic)
 
     rel_err_fourier = abs_err_fourier / maximum(abs(B_analytic), 1e-20)
     rel_err_vector = abs_err_vector / maximum(abs(B_analytic), 1e-20)
+    rel_err_spline = abs_err_spline / maximum(abs(B_analytic), 1e-20)
     rel_err_direct = abs_err_direct / maximum(abs(B_analytic), 1e-20)
 
     if args.axis_output is not None:
         fig, ax = plt.subplots(figsize=(8, 4), layout="constrained")
         ax.plot(s_vals, B_analytic, label="Analytic", linestyle="--", linewidth=1.6)
         ax.plot(s_vals, B_parallel_fourier, label="Fourier", linewidth=1.2)
-        ax.plot(s_vals, B_parallel_vector, label="Vector", linewidth=1.2)
+        ax.plot(s_vals, B_parallel_vector, label="Anvac (stored)", linewidth=1.2)
+        ax.plot(s_vals, B_parallel_spline, label="Anvac (spline)", linewidth=1.2)
         ax.plot(s_vals, B_parallel_direct, label="Direct", linewidth=1.2)
         ax.set_xlabel("Axis coordinate s [cm]")
         ax.set_ylabel("B_parallel [Gauss]")
@@ -615,7 +629,8 @@ def _axis_validation(
 
     print("Axis validation (max relative errors):")
     print(f"  Fourier vs analytic: {amax(rel_err_fourier) * 100.0:.4f}%")
-    print(f"  Vector  vs analytic: {amax(rel_err_vector) * 100.0:.4f}%")
+    print(f"  Anvac (stored) vs analytic: {amax(rel_err_vector) * 100.0:.4f}%")
+    print(f"  Anvac (spline) vs analytic: {amax(rel_err_spline) * 100.0:.4f}%")
     print(f"  Direct  vs analytic: {amax(rel_err_direct) * 100.0:.4f}%")
 
 
@@ -1040,6 +1055,9 @@ def main() -> None:
             BnR_vector_sum,
             Bnphi_vector_sum,
             BnZ_vector_sum,
+            BnR_spline_sum,
+            Bnphi_spline_sum,
+            BnZ_spline_sum,
             BnR_direct,
             Bnphi_direct,
             BnZ_direct,
