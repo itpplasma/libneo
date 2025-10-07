@@ -513,6 +513,7 @@ contains
     type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_fft_output
     real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
     complex(c_double_complex), dimension(:), pointer :: fft_output
+    real(dp), dimension(:, :, :, :), allocatable :: debug_grad_AX, debug_grad_AY, debug_grad_AZ
 
     if (nmax > nphi / 4) then
       write (error_unit, '("biot_savart_fourier: requested nmax = ", ' // &
@@ -529,6 +530,9 @@ contains
     allocate(AnZ(0:nmax, nR, nZ, ncoil))
     allocate(dAnphi_dR(0:nmax, nR, nZ, ncoil))
     allocate(dAnphi_dZ(0:nmax, nR, nZ, ncoil))
+    allocate(debug_grad_AX(3, nR, nZ, ncoil))
+    allocate(debug_grad_AY(3, nR, nZ, ncoil))
+    allocate(debug_grad_AZ(3, nR, nZ, ncoil))
     ! prepare FFTW
     !$ if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
     !$ call fftw_plan_with_nthreads(omp_get_max_threads())
@@ -564,7 +568,7 @@ contains
           !$omp private(kphi, ks, ks_prev, XYZ_r, XYZ_i, XYZ_f, XYZ_if, dist_i, dist_f, dist_if, &
           !$omp AXYZ, grad_AX, grad_AY, grad_AZ, eccentricity, common_gradient_term) &
           !$omp shared(nphi, kc, coils, R, kr, Z, kZ, cosphi, sinphi, AR, Aphi, AZ, dAphi_dR, dAphi_dZ, &
-          !$omp actual_R, actual_Z, min_distance, max_eccentricity)
+          !$omp actual_R, actual_Z, min_distance, max_eccentricity, debug_grad_AX, debug_grad_AY, debug_grad_AZ)
           do kphi = 1, nphi
             XYZ_r(:) = [actual_R * cosphi(kphi), actual_R * sinphi(kphi), actual_Z]
             AXYZ(:) = 0d0
@@ -595,6 +599,11 @@ contains
             dAphi_dR(kphi) = grad_AY(1) * cosphi(kphi) ** 2 - grad_AX(2) * sinphi(kphi) ** 2 + &
               (grad_AY(2) - grad_AX(1)) * cosphi(kphi) * sinphi(kphi)
             dAphi_dZ(kphi) = grad_AY(3) * cosphi(kphi) - grad_AX(3) * sinphi(kphi)
+            if (kphi == 1) then
+              debug_grad_AX(:, kR, kZ, kc) = grad_AX
+              debug_grad_AY(:, kR, kZ, kc) = grad_AY
+              debug_grad_AZ(:, kR, kZ, kc) = grad_AZ
+            end if
           end do
           !$omp end parallel do
           call fftw_execute_dft_r2c(plan_nphi, AR, fft_output)
@@ -610,6 +619,7 @@ contains
         end do
       end do
     end do
+    call write_debug_gradients(debug_grad_AX, debug_grad_AY, debug_grad_AZ)
     call fftw_destroy_plan(plan_nphi)
     call fftw_free(p_AR)
     call fftw_free(p_Aphi)
@@ -620,6 +630,18 @@ contains
     !$ call fftw_cleanup_threads()
     ! nullify pointers past this point
   end subroutine vector_potential_biot_savart_fourier
+
+  subroutine write_debug_gradients(grad_AX, grad_AY, grad_AZ)
+    use, intrinsic :: iso_fortran_env, only: output_unit
+    real(dp), dimension(:, :, :, :), intent(in) :: grad_AX, grad_AY, grad_AZ
+    integer :: fid
+    open (newunit=fid, file='debug_cartesian_gradients.dat', status='replace', action='write', form='unformatted')
+    write (fid) grad_AX
+    write (fid) grad_AY
+    write (fid) grad_AZ
+    close (fid)
+    write (output_unit, '(a)') 'Wrote debug Cartesian gradients to debug_cartesian_gradients.dat'
+  end subroutine write_debug_gradients
 
   subroutine sum_coils_gauge_single_mode_Anvac(AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
     Ic, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, gauged_AnR, gauged_AnZ)

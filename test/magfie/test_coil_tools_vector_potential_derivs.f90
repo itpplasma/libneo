@@ -99,6 +99,8 @@ program test_coil_tools_vector_potential_derivs
         end do
     end do
 
+    call validate_cartesian_gradients(R, Z, max_rel_err_R, max_rel_err_Z)
+
     call ensure_plot_directory(plot_directory)
     call save_error_data(R, dphi_error_vs_R, trim(plot_directory)//'/dAphi_dR_error.csv')
     call save_error_data(Z, dphi_error_vs_Z, trim(plot_directory)//'/dAphi_dZ_error.csv')
@@ -221,5 +223,30 @@ contains
             write (output_unit, '(a)') 'Warning: failed to generate plots with Python'
         end if
     end subroutine generate_plots
+
+    subroutine validate_cartesian_gradients(R, Z, max_err_R, max_err_Z)
+        real(dp), intent(in) :: R(:), Z(:)
+        real(dp), intent(inout) :: max_err_R, max_err_Z
+        real(dp), allocatable :: grad_AX(:, :, :, :), grad_AY(:, :, :, :), grad_AZ(:, :, :, :)
+        integer :: fid
+
+        allocate(grad_AX(3, nR, nZ, 1))
+        allocate(grad_AY(3, nR, nZ, 1))
+        allocate(grad_AZ(3, nR, nZ, 1))
+
+        open (newunit=fid, file='debug_cartesian_gradients.dat', status='old', action='read', form='unformatted')
+        read (fid) grad_AX
+        read (fid) grad_AY
+        read (fid) grad_AZ
+        close (fid)
+
+        write (output_unit, '(a)') 'Cartesian gradients loaded successfully'
+        write (output_unit, '(a, 3es12.4)') '  Sample grad_AX at midpoint:', grad_AX(:, nR/2, nZ/2, 1)
+        write (output_unit, '(a, 3es12.4)') '  Sample grad_AY at midpoint:', grad_AY(:, nR/2, nZ/2, 1)
+        write (output_unit, '(a, 3es12.4)') '  Sample grad_AZ at midpoint:', grad_AZ(:, nR/2, nZ/2, 1)
+        write (output_unit, '(a, 2es12.4)') '  grad_AX range:', minval(grad_AX), maxval(grad_AX)
+        write (output_unit, '(a, 2es12.4)') '  grad_AY range:', minval(grad_AY), maxval(grad_AY)
+        write (output_unit, '(a, 2es12.4)') '  grad_AZ range:', minval(grad_AZ), maxval(grad_AZ)
+    end subroutine validate_cartesian_gradients
 
 end program test_coil_tools_vector_potential_derivs
