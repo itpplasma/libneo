@@ -45,7 +45,8 @@ target_link_libraries(test_coil_tools_vector_potential_derivs.x PRIVATE
     ${MPI_Fortran_LIBRARIES}
 )
 target_compile_definitions(test_coil_tools_vector_potential_derivs.x PRIVATE
-    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie")
+    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie"
+    COIL_TOOLS_SCRIPT_DIR="${CMAKE_SOURCE_DIR}/test/magfie")
 
 add_test(NAME test_coil_tools_vector_potential_derivs
     COMMAND test_coil_tools_vector_potential_derivs.x)

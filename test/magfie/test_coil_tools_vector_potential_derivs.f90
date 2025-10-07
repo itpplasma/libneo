@@ -22,6 +22,7 @@ program test_coil_tools_vector_potential_derivs
     real(dp), parameter :: rel_tol = 1.0e-1_dp
     logical, parameter :: use_convex_wall = .false.
     character(len=*), parameter :: plot_directory = COIL_TOOLS_PLOT_DIR
+    character(len=*), parameter :: script_directory = COIL_TOOLS_SCRIPT_DIR
 
     type(coil_t), allocatable :: coils(:)
     complex(dp), allocatable :: AnR(:, :, :, :), Anphi(:, :, :, :), AnZ(:, :, :, :)
@@ -210,10 +211,11 @@ contains
 
     subroutine generate_plots(plot_dir)
         character(len=*), intent(in) :: plot_dir
-        character(len=512) :: command
+        character(len=1024) :: command
         integer :: istat
 
-        command = 'python3 test/magfie/plot_vector_potential_derivs.py "'//trim(plot_dir)//'"'
+        command = 'python3 "'//trim(script_directory)// &
+                  '/plot_vector_potential_derivs.py" "'//trim(plot_dir)//'"'
         call execute_command_line(trim(command), exitstat=istat)
         if (istat /= 0) then
             write (output_unit, '(a)') 'Warning: failed to generate plots with Python'
