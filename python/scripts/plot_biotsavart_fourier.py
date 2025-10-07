@@ -256,11 +256,11 @@ def _load_mode_from_anvac(path: Path, ntor: int) -> Tuple[ModeData, dict, ModeDa
         spl_Aphi_real = RectBivariateSpline(grid.R, grid.Z, Anphi[ic].real)
         spl_Aphi_imag = RectBivariateSpline(grid.R, grid.Z, Anphi[ic].imag)
 
-        # Evaluate derivatives
-        dAphi_dR_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=1, dy=0, grid=False) +
-                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=1, dy=0, grid=False))
-        dAphi_dZ_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=0, dy=1, grid=False) +
-                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=0, dy=1, grid=False))
+        # Evaluate derivatives on grid - need grid=True to return 2D array
+        dAphi_dR_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=1, dy=0, grid=True) +
+                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=1, dy=0, grid=True))
+        dAphi_dZ_spline[ic] = (spl_Aphi_real(grid.R, grid.Z, dx=0, dy=1, grid=True) +
+                                1j * spl_Aphi_imag(grid.R, grid.Z, dx=0, dy=1, grid=True))
 
     gauged_AnR_spline, gauged_AnZ_spline = gauge_Anvac(
         grid_raw, AnR, Anphi, AnZ, dAphi_dR_spline, dAphi_dZ_spline, ntor=ntor
