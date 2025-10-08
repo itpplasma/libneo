@@ -35,7 +35,7 @@ class TestFourierAnvacAgreement(unittest.TestCase):
             raise unittest.SkipTest("Single-coil reference data missing; run test suite first")
 
         cls.grid_ref, cls.mode_numbers, BnR_ref, Bnphi_ref, BnZ_ref = read_Bnvac_fourier_all(str(REFERENCE_H5))
-        grid_anv, mode_numbers_anv, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier_all(str(ANVAC_NC))
+        grid_anv, mode_numbers_anv, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, AnX_raw, AnY_raw, AnZ_raw =             read_Anvac_fourier_all(str(ANVAC_NC))
         if not np.array_equal(cls.mode_numbers, mode_numbers_anv):
             raise unittest.SkipTest("Mode numbers differ between Fourier and Anvac datasets")
 
@@ -69,8 +69,6 @@ class TestFourierAnvacAgreement(unittest.TestCase):
                 dAnphi_dZ[idx],
                 ntor=ntor,
             )
-            if ntor != 0:
-                gauged_AnR = gauged_AnR - 0.5j * Anphi[idx]
             spl = spline_gauged_Anvac(grid_anv, gauged_AnR, gauged_AnZ, ntor=ntor, Anphi=Anphi[idx])
             BnR_mode, Bnphi_mode, BnZ_mode = field_divfree(spl, cls.grid_ref.R, cls.grid_ref.Z, ntor=ntor)
             if BnR_mode.ndim == 2:
@@ -107,8 +105,6 @@ class TestFourierAnvacAgreement(unittest.TestCase):
                 dAphi_dZ_spline[idx],
                 ntor=ntor,
             )
-            if ntor != 0:
-                gauged_AnR = gauged_AnR - 0.5j * Anphi[idx]
             spl = spline_gauged_Anvac(grid_anv, gauged_AnR, gauged_AnZ, ntor=ntor, Anphi=Anphi[idx])
             BnR_mode, Bnphi_mode, BnZ_mode = field_divfree(spl, cls.grid_ref.R, cls.grid_ref.Z, ntor=ntor)
             if BnR_mode.ndim == 2:
@@ -118,6 +114,26 @@ class TestFourierAnvacAgreement(unittest.TestCase):
             cls.BnR_anvac_spline_sum[idx] = np.tensordot(cls.weights, BnR_mode, axes=(0, 0))
             cls.Bnphi_anvac_spline_sum[idx] = np.tensordot(cls.weights, Bnphi_mode, axes=(0, 0))
             cls.BnZ_anvac_spline_sum[idx] = np.tensordot(cls.weights, BnZ_mode, axes=(0, 0))
+
+        inv_R = np.divide(
+            1.0,
+            cls.grid_ref.R.reshape((1, 1, -1, 1)),
+            out=np.zeros((1, 1, cls.grid_ref.nR, 1), dtype=float),
+            where=cls.grid_ref.R.reshape((1, 1, -1, 1)) > 0.0,
+        )
+        try:
+            dAnR_dZ = np.gradient(AnR, grid_anv.Z, axis=3, edge_order=2)
+            dAnZ_dR = np.gradient(AnZ, grid_anv.R, axis=2, edge_order=2)
+        except ValueError:
+            dAnR_dZ = np.gradient(AnR, grid_anv.Z, axis=3, edge_order=1)
+            dAnZ_dR = np.gradient(AnZ, grid_anv.R, axis=2, edge_order=1)
+        ntor_vals = cls.mode_numbers.reshape((-1, 1, 1, 1)).astype(float)
+        BnR_ung_modes = 1j * ntor_vals * AnZ * inv_R - dAnphi_dZ
+        Bnphi_ung_modes = dAnR_dZ - dAnZ_dR
+        BnZ_ung_modes = Anphi * inv_R + dAnphi_dR - 1j * ntor_vals * AnR * inv_R
+        cls.BnR_ungauged_sum = np.tensordot(cls.weights, BnR_ung_modes, axes=(0, 1))
+        cls.Bnphi_ungauged_sum = np.tensordot(cls.weights, Bnphi_ung_modes, axes=(0, 1))
+        cls.BnZ_ungauged_sum = np.tensordot(cls.weights, BnZ_ung_modes, axes=(0, 1))
 
         cls.R_center = np.hypot(197.2682697, 72.00853957)
         cls.Z_center = 78.0
@@ -157,6 +173,18 @@ class TestFourierAnvacAgreement(unittest.TestCase):
             cls.BnR_anvac_spline_sum,
             cls.Bnphi_anvac_spline_sum,
             cls.BnZ_anvac_spline_sum,
+            cls.mode_numbers,
+            cls.grid_ref.R,
+            cls.grid_ref.Z,
+            X_map,
+            Y_map,
+            Z_map,
+        )
+
+        cls.Bx_anvac_ung_map, cls.By_anvac_ung_map, cls.Bz_anvac_ung_map = reconstruct_field_from_modes(
+            cls.BnR_ungauged_sum,
+            cls.Bnphi_ungauged_sum,
+            cls.BnZ_ungauged_sum,
             cls.mode_numbers,
             cls.grid_ref.R,
             cls.grid_ref.Z,
@@ -214,6 +242,10 @@ class TestFourierAnvacAgreement(unittest.TestCase):
             0.10,
             "Center-field components differ by more than 10%",
         )
+
+    def test_ungauged_field_finite(self):
+        mag_ungauged = np.sqrt(self.Bx_anvac_ung_map**2 + self.By_anvac_ung_map**2 + self.Bz_anvac_ung_map**2)
+        self.assertTrue(np.all(np.isfinite(mag_ungauged)))
 
     @unittest.expectedFailure
     def test_field_map_rms(self):

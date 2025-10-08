@@ -25,7 +25,8 @@ program vacfield
   type(coil_t), dimension(:), allocatable :: coils, more_coils
   real(dp), allocatable :: Ic(:), Bvac(:, :, :, :)
   complex(dp), allocatable :: Bnvac(:, :, :, :, :)
-  complex(dp), dimension(:, :, :, :), allocatable :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+  complex(dp), dimension(:, :, :, :), allocatable :: AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
+    AnX_raw, AnY_raw, AnZ_raw
 
   argc = command_argument_count()
   if (argc < 1) then
@@ -131,9 +132,11 @@ program vacfield
     call check_number_of_args(5 + num_coilfiles)
     call get_command_argument(5 + num_coilfiles, field_file)
     call vector_potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
-      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
+      AnX_raw, AnY_raw, AnZ_raw)
     call write_Anvac_fourier(trim(field_file), size(coils), nmax, &
-      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+      Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
+      AnX_raw, AnY_raw, AnZ_raw)
   else
     write (error_unit, '("unknown output type ", a)') trim(field_type)
     error stop

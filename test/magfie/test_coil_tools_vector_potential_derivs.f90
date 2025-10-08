@@ -26,12 +26,14 @@ program test_coil_tools_vector_potential_derivs
     character(len=*), parameter :: script_directory = COIL_TOOLS_SCRIPT_DIR
 
     type(coil_t), allocatable :: coils(:)
-    complex(dp), allocatable :: AnR(:, :, :, :), Anphi(:, :, :, :), AnZ(:, :, :, :)
+    complex(dp), allocatable :: AnR(:, :, :, :), Anphi(:, :, :, :), AnZ(:, :, :, :), &
+                             AnX_raw(:, :, :, :), AnY_raw(:, :, :, :), AnZ_raw(:, :, :, :)
     complex(dp), allocatable :: dAnphi_dR(:, :, :, :), dAnphi_dZ(:, :, :, :)
     complex(dp), allocatable :: fd_dAnphi_dR(:, :, :, :), fd_dAnphi_dZ(:, :, :, :)
     complex(dp), allocatable :: AnR_plus(:, :, :, :), Anphi_plus(:, :, :, :), AnZ_plus(:, :, :, :)
     complex(dp), allocatable :: AnR_minus(:, :, :, :), Anphi_minus(:, :, :, :), AnZ_minus(:, :, :, :)
-    complex(dp), allocatable :: dAnphi_dR_dummy(:, :, :, :), dAnphi_dZ_dummy(:, :, :, :)
+    complex(dp), allocatable :: dAnphi_dR_dummy(:, :, :, :), dAnphi_dZ_dummy(:, :, :, :), &
+                             AnX_dummy(:, :, :, :), AnY_dummy(:, :, :, :), AnZ_dummy(:, :, :, :)
     complex(dp) :: fd_value
     real(dp), allocatable :: R(:), Z(:), phi(:)
     real(dp) :: rel_err
@@ -54,7 +56,8 @@ program test_coil_tools_vector_potential_derivs
 
     call vector_potential_biot_savart_fourier( &
         coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
-        Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+        Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
+        AnX_raw, AnY_raw, AnZ_raw)
 
     ! Compute finite differences with tiny perturbations
     write (output_unit, '(a, es10.3)') '  Computing finite differences with step h =', fd_step
@@ -63,13 +66,15 @@ program test_coil_tools_vector_potential_derivs
     call vector_potential_biot_savart_fourier( &
         coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
         Rmin + fd_step, Rmax + fd_step, Zmin, Zmax, nR, nphi, nZ, &
-        AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+        AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy, &
+        AnX_dummy, AnY_dummy, AnZ_dummy)
 
     ! R - h
     call vector_potential_biot_savart_fourier( &
         coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
         Rmin - fd_step, Rmax - fd_step, Zmin, Zmax, nR, nphi, nZ, &
-        AnR_minus, Anphi_minus, AnZ_minus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+        AnR_minus, Anphi_minus, AnZ_minus, dAnphi_dR_dummy, dAnphi_dZ_dummy, &
+        AnX_dummy, AnY_dummy, AnZ_dummy)
 
     allocate (fd_dAnphi_dR(0:nmax, nR, nZ, size(coils)))
     allocate (fd_dAnphi_dZ(0:nmax, nR, nZ, size(coils)))
@@ -79,18 +84,23 @@ program test_coil_tools_vector_potential_derivs
 
     deallocate(AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
     deallocate(AnR_minus, Anphi_minus, AnZ_minus)
+    if (allocated(AnX_dummy)) deallocate(AnX_dummy)
+    if (allocated(AnY_dummy)) deallocate(AnY_dummy)
+    if (allocated(AnZ_dummy)) deallocate(AnZ_dummy)
 
     ! Z + h
     call vector_potential_biot_savart_fourier( &
         coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
         Rmin, Rmax, Zmin + fd_step, Zmax + fd_step, nR, nphi, nZ, &
-        AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+        AnR_plus, Anphi_plus, AnZ_plus, dAnphi_dR_dummy, dAnphi_dZ_dummy, &
+        AnX_dummy, AnY_dummy, AnZ_dummy)
 
     ! Z - h
     call vector_potential_biot_savart_fourier( &
         coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
         Rmin, Rmax, Zmin - fd_step, Zmax - fd_step, nR, nphi, nZ, &
-        AnR_minus, Anphi_minus, AnZ_minus, dAnphi_dR_dummy, dAnphi_dZ_dummy)
+        AnR_minus, Anphi_minus, AnZ_minus, dAnphi_dR_dummy, dAnphi_dZ_dummy, &
+        AnX_dummy, AnY_dummy, AnZ_dummy)
 
     ! Central difference for dZ
     fd_dAnphi_dZ = (Anphi_plus - Anphi_minus) / (2.0_dp * fd_step)

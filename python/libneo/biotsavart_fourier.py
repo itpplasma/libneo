@@ -122,7 +122,7 @@ def read_Anvac_fourier(field_file='AUG_B_coils.nc', ntor=2):
     from numpy import array, empty
     import netCDF4
 
-    if (not path.exists(field_file)):
+    if not path.exists(field_file):
         raise FileNotFoundError(ENOENT, strerror(ENOENT), field_file)
     grid = grid_t()
     rootgrp = netCDF4.Dataset(field_file, 'r')
@@ -140,6 +140,9 @@ def read_Anvac_fourier(field_file='AUG_B_coils.nc', ntor=2):
     AnZ = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
     dAnphi_dR = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
     dAnphi_dZ = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
+    AnX_raw = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
+    AnY_raw = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
+    AnZ_raw = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
     for kcoil in range(ncoil):
         AnR[kcoil, :, :].real = rootgrp['AnR_real'][kcoil, :, :, ntor].T
         AnR[kcoil, :, :].imag = rootgrp['AnR_imag'][kcoil, :, :, ntor].T
@@ -151,8 +154,19 @@ def read_Anvac_fourier(field_file='AUG_B_coils.nc', ntor=2):
         dAnphi_dR[kcoil, :, :].imag = rootgrp['dAnphi_dR_imag'][kcoil, :, :, ntor].T
         dAnphi_dZ[kcoil, :, :].real = rootgrp['dAnphi_dZ_real'][kcoil, :, :, ntor].T
         dAnphi_dZ[kcoil, :, :].imag = rootgrp['dAnphi_dZ_imag'][kcoil, :, :, ntor].T
+        if 'AnX_raw_real' in rootgrp.variables:
+            AnX_raw[kcoil, :, :].real = rootgrp['AnX_raw_real'][kcoil, :, :, ntor].T
+            AnX_raw[kcoil, :, :].imag = rootgrp['AnX_raw_imag'][kcoil, :, :, ntor].T
+            AnY_raw[kcoil, :, :].real = rootgrp['AnY_raw_real'][kcoil, :, :, ntor].T
+            AnY_raw[kcoil, :, :].imag = rootgrp['AnY_raw_imag'][kcoil, :, :, ntor].T
+            AnZ_raw[kcoil, :, :].real = rootgrp['AnZ_raw_real'][kcoil, :, :, ntor].T
+            AnZ_raw[kcoil, :, :].imag = rootgrp['AnZ_raw_imag'][kcoil, :, :, ntor].T
+        else:
+            AnX_raw[kcoil, :, :] = 0.0j
+            AnY_raw[kcoil, :, :] = 0.0j
+            AnZ_raw[kcoil, :, :] = AnZ[kcoil, :, :]
     rootgrp.close()
-    return grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    return grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, AnX_raw, AnY_raw, AnZ_raw
 
 
 def read_Anvac_fourier_all(field_file='AUG_B_coils.nc'):
@@ -190,6 +204,11 @@ def read_Anvac_fourier_all(field_file='AUG_B_coils.nc'):
         AnZ = _allocate()
         dAnphi_dR = _allocate()
         dAnphi_dZ = _allocate()
+        AnX_raw = _allocate()
+        AnY_raw = _allocate()
+        AnZ_raw = _allocate()
+
+        has_raw = 'AnX_raw_real' in rootgrp.variables
 
         for n in range(nmode):
             for kcoil in range(ncoil):
@@ -203,10 +222,21 @@ def read_Anvac_fourier_all(field_file='AUG_B_coils.nc'):
                 dAnphi_dR[n, kcoil].imag = rootgrp['dAnphi_dR_imag'][kcoil, :, :, n].T
                 dAnphi_dZ[n, kcoil].real = rootgrp['dAnphi_dZ_real'][kcoil, :, :, n].T
                 dAnphi_dZ[n, kcoil].imag = rootgrp['dAnphi_dZ_imag'][kcoil, :, :, n].T
+                if has_raw:
+                    AnX_raw[n, kcoil].real = rootgrp['AnX_raw_real'][kcoil, :, :, n].T
+                    AnX_raw[n, kcoil].imag = rootgrp['AnX_raw_imag'][kcoil, :, :, n].T
+                    AnY_raw[n, kcoil].real = rootgrp['AnY_raw_real'][kcoil, :, :, n].T
+                    AnY_raw[n, kcoil].imag = rootgrp['AnY_raw_imag'][kcoil, :, :, n].T
+                    AnZ_raw[n, kcoil].real = rootgrp['AnZ_raw_real'][kcoil, :, :, n].T
+                    AnZ_raw[n, kcoil].imag = rootgrp['AnZ_raw_imag'][kcoil, :, :, n].T
+                else:
+                    AnX_raw[n, kcoil] = 0.0j
+                    AnY_raw[n, kcoil] = 0.0j
+                    AnZ_raw[n, kcoil] = AnZ[n, kcoil]
     finally:
         rootgrp.close()
 
-    return grid, mode_numbers, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
+    return grid, mode_numbers, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, AnX_raw, AnY_raw, AnZ_raw
 
 
 def reconstruct_field_from_modes(
@@ -335,98 +365,97 @@ def gauged_Anvac_from_Bnvac(grid, BnR, BnZ, ntor=2):
 
 
 def gauge_Anvac(grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=2):
-    from numpy import newaxis
+    """Return the raw vector-potential harmonics.
 
-    if ntor == 0:
-        return AnR, AnZ
+    Historically this routine attempted to adjust ``AnR``/``AnZ`` for non-zero
+    toroidal mode numbers so that curl(A) could be reconstructed without
+    explicitly differentiating ``Aphi``. The shortcut dropped the
+    dAphi/dR and dAphi/dZ terms and introduced order-10% errors in the resulting
+    magnetic field. We now keep the full set of harmonics and evaluate the curl
+    directly downstream. The parameters are maintained for API compatibility
+    with older tooling.
+    """
 
-    gauged_AnR = AnR + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dR + 1j / ntor * Anphi
-    gauged_AnZ = AnZ + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dZ
-    return gauged_AnR, gauged_AnZ
+    _ = grid, dAnphi_dR, dAnphi_dZ, ntor  # preserve signature, silence lint
+    return AnR, AnZ
 
 
 def spline_gauged_Anvac(grid, gauged_AnR, gauged_AnZ, ntor=2, Anphi=None):
     from scipy.interpolate import RectBivariateSpline
 
     ncoil = gauged_AnR.shape[0]
+    _ = ntor  # kept for backwards-compatible signature
+    if Anphi is None:
+        raise ValueError('Anphi must be supplied when constructing curl splines')
+
     spl = {
         'AnR_Re': [None] * ncoil,
         'AnR_Im': [None] * ncoil,
         'AnZ_Re': [None] * ncoil,
         'AnZ_Im': [None] * ncoil,
+        'Anphi_Re': [None] * ncoil,
+        'Anphi_Im': [None] * ncoil,
     }
     for kcoil in range(ncoil):
         spl['AnR_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnR[kcoil].real, kx=5, ky=5)
         spl['AnR_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnR[kcoil].imag, kx=5, ky=5)
         spl['AnZ_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnZ[kcoil].real, kx=5, ky=5)
         spl['AnZ_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnZ[kcoil].imag, kx=5, ky=5)
-
-    # For ntor=0, also spline Aphi since we need it for B = curl(A)
-    if ntor == 0 and Anphi is not None:
-        spl['Anphi_Re'] = [None] * ncoil
-        spl['Anphi_Im'] = [None] * ncoil
-        for kcoil in range(ncoil):
-            spl['Anphi_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].real, kx=5, ky=5)
-            spl['Anphi_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].imag, kx=5, ky=5)
+        spl['Anphi_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].real, kx=5, ky=5)
+        spl['Anphi_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].imag, kx=5, ky=5)
 
     return spl
 
 
 def field_divfree(spl, R, Z, ntor=2):
-    """Evaluate vector potential splines and return Fourier amplitude of magnetic field.
+    """Evaluate vector potential splines and return Fourier amplitudes of the magnetic field.
 
-    Keyword arguments:
-    spl -- dict of splines from spline_gauged_Anvac
-    R -- array of radii in cylindrical coordinates
-    Z -- array of altitudes in cylindrical coordinates
-
-    Return values:
-    BnR -- R component of the magnetic field's Fourier mode
-    Bnphi -- phi component of the magnetic field's Fourier mode
-    BnZ -- Z component of the magnetic field's Fourier mode
-
-    The returned arrays have shape (ncoil, nR, nZ), where nR and nZ
-    are the number of elements in the arrays R and Z, respectively.
-    ncoil is the number of coils taken from the input splines.
+    The full curl is evaluated in cylindrical coordinates for arbitrary toroidal
+    mode numbers.
     """
 
-    from numpy import atleast_1d, empty, newaxis, squeeze
+    from numpy import atleast_1d, empty, squeeze
 
     R = atleast_1d(R).ravel()
     Z = atleast_1d(Z).ravel()
     nR = R.size
     nZ = Z.size
     ncoil = len(spl['AnR_Re'])
+
     AnR = empty((ncoil, nR, nZ), dtype=complex)
     AnZ = empty((ncoil, nR, nZ), dtype=complex)
+    Anphi = empty((ncoil, nR, nZ), dtype=complex)
     dAnR_dZ = empty((ncoil, nR, nZ), dtype=complex)
     dAnZ_dR = empty((ncoil, nR, nZ), dtype=complex)
+    dAnphi_dR = empty((ncoil, nR, nZ), dtype=complex)
+    dAnphi_dZ = empty((ncoil, nR, nZ), dtype=complex)
+    Aphi_over_R = empty((ncoil, nR, nZ), dtype=complex)
+    AnR_over_R = empty((ncoil, nR, nZ), dtype=complex)
+    AnZ_over_R = empty((ncoil, nR, nZ), dtype=complex)
+
     for kcoil in range(ncoil):
-        AnR[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z) + 1j * spl['AnR_Im'][kcoil](R, Z)
-        AnZ[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z) + 1j * spl['AnZ_Im'][kcoil](R, Z)
-        dAnR_dZ[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z, dy=1) + 1j * spl['AnR_Im'][kcoil](R, Z, dy=1)
-        dAnZ_dR[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z, dx=1) + 1j * spl['AnZ_Im'][kcoil](R, Z, dx=1)
-    if ntor == 0:
-        # For axisymmetric case (ntor=0), use curl in cylindrical coords:
-        # BR = -dAphi/dZ
-        # Bphi = dAR/dZ - dAZ/dR
-        # BZ = dAphi/dR + Aphi/R
-        if 'Anphi_Re' not in spl:
-            raise ValueError("For ntor=0, Aphi splines must be provided")
+        AnR[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z, grid=True) + 1j * spl['AnR_Im'][kcoil](R, Z, grid=True)
+        AnZ[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z, grid=True) + 1j * spl['AnZ_Im'][kcoil](R, Z, grid=True)
+        Anphi[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, grid=True) + 1j * spl['Anphi_Im'][kcoil](R, Z, grid=True)
+        dAnR_dZ[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z, dy=1, grid=True) + 1j * spl['AnR_Im'][kcoil](R, Z, dy=1, grid=True)
+        dAnZ_dR[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z, dx=1, grid=True) + 1j * spl['AnZ_Im'][kcoil](R, Z, dx=1, grid=True)
+        dAnphi_dR[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dx=1, grid=True) + 1j * spl['Anphi_Im'][kcoil](R, Z, dx=1, grid=True)
+        dAnphi_dZ[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dy=1, grid=True) + 1j * spl['Anphi_Im'][kcoil](R, Z, dy=1, grid=True)
 
-        Anphi = empty((ncoil, nR, nZ), dtype=complex)
-        dAnphi_dR = empty((ncoil, nR, nZ), dtype=complex)
-        dAnphi_dZ = empty((ncoil, nR, nZ), dtype=complex)
-        for kcoil in range(ncoil):
-            Anphi[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z) + 1j * spl['Anphi_Im'][kcoil](R, Z)
-            dAnphi_dR[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dx=1) + 1j * spl['Anphi_Im'][kcoil](R, Z, dx=1)
-            dAnphi_dZ[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dy=1) + 1j * spl['Anphi_Im'][kcoil](R, Z, dy=1)
+    for iR, R_val in enumerate(R):
+        if abs(R_val) > 0.0:
+            factor = 1.0 / R_val
+            Aphi_over_R[:, iR, :] = Anphi[:, iR, :] * factor
+            AnR_over_R[:, iR, :] = AnR[:, iR, :] * factor
+            AnZ_over_R[:, iR, :] = AnZ[:, iR, :] * factor
+        else:
+            Aphi_over_R[:, iR, :] = dAnphi_dR[:, iR, :]
+            AnR_over_R[:, iR, :] = 0.0
+            AnZ_over_R[:, iR, :] = 0.0
 
-        BnR = -dAnphi_dZ
-        Bnphi = dAnR_dZ - dAnZ_dR
-        BnZ = dAnphi_dR + Anphi / R[newaxis, :, newaxis]
-    else:
-        BnR = 1j * ntor * AnZ / R[newaxis, :, newaxis]
-        Bnphi = dAnR_dZ - dAnZ_dR
-        BnZ = -1j * ntor * AnR / R[newaxis, :, newaxis]
+    ntor_factor = 1j * ntor
+
+    BnR = ntor_factor * AnZ_over_R - dAnphi_dZ
+    Bnphi = dAnR_dZ - dAnZ_dR
+    BnZ = dAnphi_dR + Aphi_over_R - ntor_factor * AnR_over_R
     return squeeze(BnR), squeeze(Bnphi), squeeze(BnZ)

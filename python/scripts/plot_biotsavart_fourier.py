@@ -138,8 +138,8 @@ def _load_fourier_modes(path: Path) -> ModeSet:
     )
 
 
-def _load_anvac_modes(path: Path, target_mode_numbers: np.ndarray) -> Tuple[ModeSet, ModeSet, Dict[str, np.ndarray]]:
-    grid_raw, mode_numbers, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier_all(str(path))
+def _load_anvac_modes(path: Path, target_mode_numbers: np.ndarray) -> Tuple[ModeSet, ModeSet, Dict[str, np.ndarray], ModeSet]:
+    grid_raw, mode_numbers, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, AnX_raw, AnY_raw, AnZ_raw =         read_Anvac_fourier_all(str(path))
     if not np.array_equal(mode_numbers, target_mode_numbers):
         raise ValueError(
             "Anvac NetCDF file does not contain the same toroidal modes as the Fourier reference"
@@ -175,8 +175,6 @@ def _load_anvac_modes(path: Path, target_mode_numbers: np.ndarray) -> Tuple[Mode
             dAnphi_dZ_mode,
             ntor=ntor,
         )
-        if ntor != 0:
-            gauged_AnR = gauged_AnR - 0.5j * Anphi_mode
         spl = spline_gauged_Anvac(grid_raw, gauged_AnR, gauged_AnZ, ntor=ntor, Anphi=Anphi_mode)
         BnR_tmp, Bnphi_tmp, BnZ_tmp = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
         BnR_stored[mode_idx] = BnR_tmp
@@ -208,8 +206,6 @@ def _load_anvac_modes(path: Path, target_mode_numbers: np.ndarray) -> Tuple[Mode
             dAphi_dZ_spline[mode_idx],
             ntor=ntor,
         )
-        if ntor != 0:
-            gauged_AnR_spline = gauged_AnR_spline - 0.5j * Anphi_mode
         spl_spline = spline_gauged_Anvac(
             grid_raw,
             gauged_AnR_spline,
@@ -222,18 +218,34 @@ def _load_anvac_modes(path: Path, target_mode_numbers: np.ndarray) -> Tuple[Mode
         Bnphi_spline[mode_idx] = Bnphi_tmp
         BnZ_spline[mode_idx] = BnZ_tmp
 
+    BnR_ungauged, Bnphi_ungauged, BnZ_ungauged = _compute_ungauged_modes(
+        mode_numbers,
+        AnR,
+        Anphi,
+        AnZ,
+        dAnphi_dR,
+        dAnphi_dZ,
+        grid_raw.R,
+        grid_raw.Z,
+    )
+
     diagnostics = {
         'dAphi_dR_stored': dAnphi_dR,
         'dAphi_dZ_stored': dAnphi_dZ,
         'dAphi_dR_spline': dAphi_dR_spline,
         'dAphi_dZ_spline': dAphi_dZ_spline,
+        'AnX_raw': AnX_raw,
+        'AnY_raw': AnY_raw,
+        'AnZ_raw': AnZ_raw,
     }
 
     stored = ModeSet(grid=grid, mode_numbers=mode_numbers, BnR=BnR_stored,
                      Bnphi=Bnphi_stored, BnZ=BnZ_stored)
     spline = ModeSet(grid=grid, mode_numbers=mode_numbers, BnR=BnR_spline,
                      Bnphi=Bnphi_spline, BnZ=BnZ_spline)
-    return stored, spline, diagnostics
+    ungauged = ModeSet(grid=grid, mode_numbers=mode_numbers, BnR=BnR_ungauged,
+                       Bnphi=Bnphi_ungauged, BnZ=BnZ_ungauged)
+    return stored, spline, diagnostics, ungauged
 
 
 def _ensure_same_grid(lhs: Grid, rhs: Grid) -> None:
@@ -288,6 +300,36 @@ def _sum_over_coils(weights: np.ndarray, modes: np.ndarray) -> np.ndarray:
     if modes.shape[1] != weights.size:
         raise ValueError("Weights do not match number of coils")
     return np.tensordot(weights, modes, axes=(0, 1))
+
+
+def _compute_ungauged_modes(
+    mode_numbers: np.ndarray,
+    AnR: np.ndarray,
+    Anphi: np.ndarray,
+    AnZ: np.ndarray,
+    dAphi_dR: np.ndarray,
+    dAphi_dZ: np.ndarray,
+    R_vals: np.ndarray,
+    Z_vals: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute curl(A) for ungauged Fourier harmonics in cylindrical coordinates."""
+    ntor = mode_numbers.reshape((-1, 1, 1, 1)).astype(float)
+    R_grid = R_vals.reshape((1, 1, -1, 1))
+    inv_R = np.divide(
+        1.0, R_grid,
+        out=np.zeros_like(R_grid, dtype=float),
+        where=np.abs(R_grid) > 0.0,
+    )
+    try:
+        dAnR_dZ = np.gradient(AnR, Z_vals, axis=3, edge_order=2)
+        dAnZ_dR = np.gradient(AnZ, R_vals, axis=2, edge_order=2)
+    except ValueError:
+        dAnR_dZ = np.gradient(AnR, Z_vals, axis=3, edge_order=1)
+        dAnZ_dR = np.gradient(AnZ, R_vals, axis=2, edge_order=1)
+    BR = 1j * ntor * AnZ * inv_R - dAphi_dZ
+    Bphi = dAnR_dZ - dAnZ_dR
+    BZ = Anphi * inv_R + dAphi_dR - 1j * ntor * AnR * inv_R
+    return BR, Bphi, BZ
 
 
 def _reconstruct_field_map_on_grid(
@@ -404,6 +446,7 @@ def _create_sum_plot(
     fourier_map: np.ndarray,
     anvac_map: np.ndarray,
     spline_map: np.ndarray,
+    ungauged_map: np.ndarray,
     direct_map: np.ndarray | None,
 ) -> None:
     panels = []
@@ -416,8 +459,8 @@ def _create_sum_plot(
     else:
         reference = fourier_map
 
-    panels.extend([fourier_map, anvac_map, spline_map])
-    titles.extend(["Fourier", "Anvac (stored)", "Anvac (spline)"])
+    panels.extend([fourier_map, anvac_map, spline_map, ungauged_map])
+    titles.extend(["Fourier", "Anvac (stored)", "Anvac (spline)", "Anvac (ungauged)"])
 
     finite_ref = reference[np.isfinite(reference)]
     if finite_ref.size:
@@ -658,6 +701,7 @@ def _create_axis_plot(
     B_parallel_fourier: np.ndarray,
     B_parallel_anvac: np.ndarray,
     B_parallel_spline: np.ndarray,
+    B_parallel_ungauged: np.ndarray,
     B_parallel_direct_modes: np.ndarray,
     B_parallel_direct_segments: np.ndarray,
     analytic_curve: np.ndarray | None,
@@ -666,6 +710,7 @@ def _create_axis_plot(
     ax.plot(s_vals, B_parallel_fourier, label="Fourier", linewidth=1.4)
     ax.plot(s_vals, B_parallel_anvac, label="Anvac (stored)", linewidth=1.2)
     ax.plot(s_vals, B_parallel_spline, label="Anvac (spline)", linewidth=1.2)
+    ax.plot(s_vals, B_parallel_ungauged, label="Anvac (ungauged)", linewidth=1.0)
     ax.plot(s_vals, B_parallel_direct_modes, label="Direct FFT", linewidth=1.0)
     ax.plot(s_vals, B_parallel_direct_segments, label="Direct segments", linewidth=1.0, linestyle="--")
     if analytic_curve is not None:
@@ -691,7 +736,9 @@ def main() -> None:
     args = _parse_args()
 
     fourier = _load_fourier_modes(args.reference)
-    anvac_stored, anvac_spline, diagnostics = _load_anvac_modes(args.test, fourier.mode_numbers)
+    anvac_stored, anvac_spline, diagnostics, anvac_ungauged = _load_anvac_modes(
+        args.test, fourier.mode_numbers
+    )
     _ensure_same_grid(fourier.grid, anvac_stored.grid)
 
     coil_projections = _load_coil_projections(args.coil_files)
@@ -719,6 +766,10 @@ def main() -> None:
     BnR_spline_sum = _sum_over_coils(currents_modes, anvac_spline.BnR)
     Bnphi_spline_sum = _sum_over_coils(currents_modes, anvac_spline.Bnphi)
     BnZ_spline_sum = _sum_over_coils(currents_modes, anvac_spline.BnZ)
+
+    BnR_ungauged_sum = _sum_over_coils(currents_modes, anvac_ungauged.BnR)
+    Bnphi_ungauged_sum = _sum_over_coils(currents_modes, anvac_ungauged.Bnphi)
+    BnZ_ungauged_sum = _sum_over_coils(currents_modes, anvac_ungauged.BnZ)
 
     # Direct Fourier modes (already weighted by currents)
     BnR_direct_sum, Bnphi_direct_sum, BnZ_direct_sum, _ = _compute_direct_fourier_modes(
@@ -751,6 +802,13 @@ def main() -> None:
         fourier.mode_numbers,
         phi=0.0,
     )
+    Bx_ungauged_map, By_ungauged_map, Bz_ungauged_map = _reconstruct_field_map_on_grid(
+        BnR_ungauged_sum,
+        Bnphi_ungauged_sum,
+        BnZ_ungauged_sum,
+        fourier.mode_numbers,
+        phi=0.0,
+    )
     Bx_direct_map, By_direct_map, Bz_direct_map = _reconstruct_field_map_on_grid(
         BnR_direct_sum,
         Bnphi_direct_sum,
@@ -762,6 +820,7 @@ def main() -> None:
     magnitude_fourier = _field_magnitude(Bx_fourier_map, By_fourier_map, Bz_fourier_map)
     magnitude_anvac = _field_magnitude(Bx_anvac_map, By_anvac_map, Bz_anvac_map)
     magnitude_spline = _field_magnitude(Bx_spline_map, By_spline_map, Bz_spline_map)
+    magnitude_ungauged = _field_magnitude(Bx_ungauged_map, By_ungauged_map, Bz_ungauged_map)
     magnitude_direct = _field_magnitude(Bx_direct_map, By_direct_map, Bz_direct_map)
 
     # Plots
@@ -776,6 +835,7 @@ def main() -> None:
             magnitude_fourier,
             magnitude_anvac,
             magnitude_spline,
+            magnitude_ungauged,
             magnitude_direct,
         )
 
@@ -791,6 +851,7 @@ def main() -> None:
     print("Comparison statistics (relative errors wrt Fourier map at φ=0):")
     _print_stats(magnitude_fourier, magnitude_anvac, "Anvac (stored)")
     _print_stats(magnitude_fourier, magnitude_spline, "Anvac (spline)")
+    _print_stats(magnitude_fourier, magnitude_ungauged, "Anvac (ungauged)")
     _print_stats(magnitude_fourier, magnitude_direct, "Direct")
 
     if args.axis_output is not None:
@@ -828,6 +889,16 @@ def main() -> None:
             BnR_spline_sum,
             Bnphi_spline_sum,
             BnZ_spline_sum,
+            origin,
+            direction,
+            s_vals,
+        )
+        B_parallel_ungauged, _ = _compute_axis_profiles(
+            fourier.grid,
+            fourier.mode_numbers,
+            BnR_ungauged_sum,
+            Bnphi_ungauged_sum,
+            BnZ_ungauged_sum,
             origin,
             direction,
             s_vals,
@@ -878,6 +949,7 @@ def main() -> None:
             B_parallel_fourier,
             B_parallel_anvac,
             B_parallel_spline,
+            B_parallel_ungauged,
             B_parallel_direct_modes,
             B_parallel_segments,
             analytic_curve,

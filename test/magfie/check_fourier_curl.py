@@ -1,89 +1,53 @@
 #!/usr/bin/env python3
-"""Check curl formulas for Fourier modes with physical cylindrical components"""
+"""Symbolically verify the curl(A) formulas used for Fourier harmonics."""
 
 import sympy as sp
-from sympy import symbols, cos, sin, exp, I, diff, simplify, re
 
-# Cylindrical coordinates and mode number
-R, phi, Z, n = symbols('R phi Z n', real=True)
-n = symbols('n', integer=True, nonzero=True)
+def main() -> int:
+    R, Z, phi, n = sp.symbols('R Z phi n', real=True)
+    AR_tilde = sp.Function('AR_tilde')(R, Z)
+    Aphi_tilde = sp.Function('Aphi_tilde')(R, Z)
+    AZ_tilde = sp.Function('AZ_tilde')(R, Z)
 
-# Fourier mode amplitudes (complex)
-AR_re, AR_im = symbols('AR_re AR_im', real=True)
-Aphi_re, Aphi_im = symbols('Aphi_re Aphi_im', real=True)
-AZ_re, AZ_im = symbols('AZ_re AZ_im', real=True)
+    exp_factor = sp.exp(sp.I * n * phi)
 
-AR_tilde = AR_re + I * AR_im
-Aphi_tilde = Aphi_re + I * Aphi_im
-AZ_tilde = AZ_re + I * AZ_im
+    A_R = AR_tilde * exp_factor
+    A_phi = Aphi_tilde * exp_factor
+    A_Z = AZ_tilde * exp_factor
 
-# Physical vector potential components for mode n
-# A(R,φ,Z) = 2*Re[Ã(R,Z) * e^(inφ)]
-AR = 2 * re(AR_tilde * exp(I * n * phi))
-Aphi = 2 * re(Aphi_tilde * exp(I * n * phi))
-AZ = 2 * re(AZ_tilde * exp(I * n * phi))
+    BR = sp.simplify(sp.diff(A_Z, phi) / R - sp.diff(A_phi, Z))
+    Bphi = sp.simplify(sp.diff(A_R, Z) - sp.diff(A_Z, R))
+    BZ = sp.simplify(sp.diff(R * A_phi, R) / R - sp.diff(A_R, phi) / R)
 
-print("Physical vector potential components:")
-print(f"AR = {AR}")
-print(f"Aphi = {Aphi}")
-print(f"AZ = {AZ}")
-print()
+    expected_BR = (sp.I * n / R) * AZ_tilde * exp_factor - sp.diff(Aphi_tilde, Z) * exp_factor
+    expected_Bphi = (sp.diff(AR_tilde, Z) - sp.diff(AZ_tilde, R)) * exp_factor
+    expected_BZ = (
+        sp.diff(Aphi_tilde, R) * exp_factor + Aphi_tilde * exp_factor / R
+        - sp.I * n * AR_tilde * exp_factor / R
+    )
 
-# Curl in cylindrical coordinates for physical components:
-# B_R = (1/R)∂A_Z/∂φ - ∂A_φ/∂Z
-# B_φ = ∂A_R/∂Z - ∂A_Z/∂R
-# B_Z = (1/R)∂(R*A_φ)/∂R - (1/R)∂A_R/∂φ
+    diff_BR = sp.simplify(BR - expected_BR)
+    diff_Bphi = sp.simplify(Bphi - expected_Bphi)
+    diff_BZ = sp.simplify(BZ - expected_BZ)
 
-BR = diff(AZ, phi) / R - diff(Aphi, Z)
-Bphi = diff(AR, Z) - diff(AZ, R)
-BZ = diff(R * Aphi, R) / R - diff(AR, phi) / R
+    if any(expr != 0 for expr in (diff_BR, diff_Bphi, diff_BZ)):
+        raise SystemExit(
+            f"Curl identities failed\n"
+            f"  B_R difference: {diff_BR}\n"
+            f"  B_phi difference: {diff_Bphi}\n"
+            f"  B_Z difference: {diff_BZ}\n"
+        )
 
-print("Computing curl B = ∇×A...")
-print()
+    axis_BR = sp.simplify(sp.diff(Aphi_tilde, Z).subs(n, 0))
+    axis_Bphi = sp.simplify((sp.diff(AR_tilde, Z) - sp.diff(AZ_tilde, R)).subs(n, 0))
+    axis_BZ = sp.simplify((sp.diff(Aphi_tilde, R) + Aphi_tilde / R).subs(n, 0))
 
-# Simplify
-BR_simplified = simplify(BR)
-Bphi_simplified = simplify(Bphi)
-BZ_simplified = simplify(BZ)
+    assert axis_BR == sp.diff(Aphi_tilde, Z)
+    assert axis_Bphi == sp.diff(AR_tilde, Z) - sp.diff(AZ_tilde, R)
+    assert axis_BZ == sp.diff(Aphi_tilde, R) + Aphi_tilde / R
 
-print("B_R =", BR_simplified)
-print()
-print("B_φ =", Bphi_simplified)
-print()
-print("B_Z =", BZ_simplified)
-print()
+    return 0
 
-# Extract coefficients of cos(n*phi) and sin(n*phi) for each component
-# B = 2*Re[B̃ * e^(inφ)] = 2*(B̃_re*cos(nφ) - B̃_im*sin(nφ))
 
-print("\n" + "="*70)
-print("Checking if for ntor≠0, when Aphi_tilde = 0:")
-print("="*70)
-
-# Substitute Aphi_tilde = 0 (which is what we store for ntor≠0)
-BR_no_aphi = simplify(BR.subs([(Aphi_re, 0), (Aphi_im, 0)]))
-BZ_no_aphi = simplify(BZ.subs([(Aphi_re, 0), (Aphi_im, 0)]))
-
-print(f"\nB_R (with Aphi=0) = {BR_no_aphi}")
-print(f"B_Z (with Aphi=0) = {BZ_no_aphi}")
-
-# Check if this matches the Fourier formula:
-# B_R = 2*Re[i*n/R * AZ_tilde * e^(inφ)]
-# B_Z = 2*Re[-i*n/R * AR_tilde * e^(inφ)]
-
-expected_BR = 2 * re(I * n / R * AZ_tilde * exp(I * n * phi))
-expected_BZ = 2 * re(-I * n / R * AR_tilde * exp(I * n * phi))
-
-print(f"\nExpected B_R (Fourier) = {simplify(expected_BR)}")
-print(f"Expected B_Z (Fourier) = {simplify(expected_BZ)}")
-
-diff_BR = simplify(BR_no_aphi - expected_BR)
-diff_BZ = simplify(BZ_no_aphi - expected_BZ)
-
-print(f"\nDifference B_R: {diff_BR}")
-print(f"Difference B_Z: {diff_BZ}")
-
-if diff_BR == 0 and diff_BZ == 0:
-    print("\n✓ Fourier formulas are CORRECT when Aphi=0 for ntor≠0")
-else:
-    print("\n✗ Fourier formulas are WRONG!")
+if __name__ == '__main__':
+    raise SystemExit(main())
