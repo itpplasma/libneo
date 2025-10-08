@@ -58,7 +58,48 @@ set_tests_properties(test_coil_tools_vector_potential_derivs PROPERTIES
 add_test(NAME test_coil_tools_biot_savart COMMAND test_coil_tools_biot_savart.x)
 
 # Set test properties
-set_tests_properties(test_coil_tools_biot_savart PROPERTIES 
+set_tests_properties(test_coil_tools_biot_savart PROPERTIES
     LABELS "magfie;biot_savart"
+    TIMEOUT 300
+)
+
+# Test for ntor=0 field reconstruction with tilted coil
+add_executable(test_ntor0_tilted_coil.x test_ntor0_tilted_coil.f90)
+target_link_libraries(test_ntor0_tilted_coil.x PRIVATE
+    neo
+    magfie
+    util_for_test
+    ${FFTW3_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${NETCDF_LIBRARIES}
+    ${MPI_Fortran_LIBRARIES}
+)
+
+add_test(
+    NAME generate_tilted_coil_geometry
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_tilted_coil.py
+            ${CMAKE_CURRENT_BINARY_DIR}/tilted_coil.dat
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(
+    NAME compute_tilted_coil_fourier_modes
+    COMMAND test_ntor0_tilted_coil.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(compute_tilted_coil_fourier_modes PROPERTIES
+    DEPENDS generate_tilted_coil_geometry
+    LABELS "magfie;ntor0"
+    TIMEOUT 300
+)
+
+add_test(
+    NAME validate_ntor0_field_reconstruction
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/validate_ntor0_fix.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(validate_ntor0_field_reconstruction PROPERTIES
+    DEPENDS compute_tilted_coil_fourier_modes
+    LABELS "magfie;ntor0"
     TIMEOUT 300
 )

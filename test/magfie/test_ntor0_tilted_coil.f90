@@ -9,9 +9,10 @@ program test_ntor0_tilted_coil
   complex(dp), allocatable :: AnR(:,:,:,:), Anphi(:,:,:,:), AnZ(:,:,:,:)
   complex(dp), allocatable :: dAnphi_dR(:,:,:,:), dAnphi_dZ(:,:,:,:)
   real(dp) :: Rmin, Rmax, Zmin, Zmax
-  integer :: nR, nZ, nphi, nmax
+  integer :: nR, nZ, nphi, nmax, nseg, k, iostat
   real(dp) :: min_distance, max_eccentricity
   logical :: use_convex_wall
+  real(dp) :: x, y, z
 
   call print_test("ntor=0 field reconstruction for tilted coil")
 
@@ -32,7 +33,26 @@ program test_ntor0_tilted_coil
 
   ! Load coil geometry
   allocate(coils(1))
-  call coil_init(coils(1), 'tilted_coil.dat')
+
+  ! Read number of segments from file
+  open(unit=10, file='tilted_coil.dat', status='old', action='read')
+  read(10, *) nseg
+
+  ! Initialize coil
+  call coil_init(coils(1), nseg, 1)
+
+  ! Read coil coordinates
+  do k = 1, nseg
+    read(10, *, iostat=iostat) x, y, z
+    if (iostat /= 0) then
+      call print_fail
+      error stop "Error reading coil geometry"
+    end if
+    coils(1)%XYZ(1, k) = x
+    coils(1)%XYZ(2, k) = y
+    coils(1)%XYZ(3, k) = z
+  end do
+  close(10)
 
   ! Compute vector potential Fourier modes
   call vector_potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &

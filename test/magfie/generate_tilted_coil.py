@@ -41,6 +41,7 @@ if __name__ == '__main__':
     with open(output_file, 'w') as f:
         f.write(f"{nseg}\n")
         for i in range(nseg):
-            f.write(f"{xyz[0,i]:23.16e} {xyz[1,i]:23.16e} {xyz[2,i]:23.16e}\n")
+            # Current is 1.0 abampere (= 10 A) per segment
+            f.write(f"{xyz[0,i]:23.16e} {xyz[1,i]:23.16e} {xyz[2,i]:23.16e} 1.0\n")
 
     print(f"Wrote {nseg}-segment tilted coil to {output_file}")
