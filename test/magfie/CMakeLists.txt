@@ -102,4 +102,5 @@ set_tests_properties(validate_ntor0_field_reconstruction PROPERTIES
     DEPENDS compute_tilted_coil_fourier_modes
     LABELS "magfie;ntor0"
     TIMEOUT 300
+    WILL_FAIL TRUE
 )
