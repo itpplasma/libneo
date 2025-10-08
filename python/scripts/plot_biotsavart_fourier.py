@@ -41,7 +41,7 @@ from libneo.biotsavart_fourier import (
 from _magfie import compute_field_from_gpec_file
 
 
-FOURIER_REFERENCE_CURRENT = 0.1  # coil_tools Fourier tables assume 0.1 A per coil
+FOURIER_REFERENCE_CURRENT = 0.1  # coil_tools stores modes per abampere (=10 A)
 DEFAULT_FFT_SAMPLES = 192
 
 
@@ -89,7 +89,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--fft-samples", type=int, default=DEFAULT_FFT_SAMPLES,
                         help="Number of toroidal samples for direct FFT")
     parser.add_argument("--prefactor", type=float, default=FOURIER_REFERENCE_CURRENT,
-                        help="Reference current scaling applied to Fourier tables (A)")
+                        help="Scale converting SI currents (A) to coil_tools reference units")
     parser.add_argument("--per-coil-output", type=Path,
                         help="Output PNG for per-coil |B| maps (phi=0)")
     parser.add_argument("--sum-output", type=Path,
@@ -701,26 +701,29 @@ def main() -> None:
         raise ValueError(
             f"Current file provides {currents.size} entries but geometry defines {fourier.ncoil} coils"
         )
-    weights = currents * args.prefactor
-    currents_scaled = currents * args.prefactor
+
+    # coil_tools stores Fourier amplitudes in cgs (abampere) units. Convert the
+    # supplied SI currents to the reference units for mode summation, but keep
+    # the SI values for direct Biot–Savart checks.
+    currents_modes = currents * args.prefactor
 
     # Sum over coils
-    BnR_fourier_sum = _sum_over_coils(weights, fourier.BnR)
-    Bnphi_fourier_sum = _sum_over_coils(weights, fourier.Bnphi)
-    BnZ_fourier_sum = _sum_over_coils(weights, fourier.BnZ)
+    BnR_fourier_sum = _sum_over_coils(currents_modes, fourier.BnR)
+    Bnphi_fourier_sum = _sum_over_coils(currents_modes, fourier.Bnphi)
+    BnZ_fourier_sum = _sum_over_coils(currents_modes, fourier.BnZ)
 
-    BnR_anvac_sum = _sum_over_coils(weights, anvac_stored.BnR)
-    Bnphi_anvac_sum = _sum_over_coils(weights, anvac_stored.Bnphi)
-    BnZ_anvac_sum = _sum_over_coils(weights, anvac_stored.BnZ)
+    BnR_anvac_sum = _sum_over_coils(currents_modes, anvac_stored.BnR)
+    Bnphi_anvac_sum = _sum_over_coils(currents_modes, anvac_stored.Bnphi)
+    BnZ_anvac_sum = _sum_over_coils(currents_modes, anvac_stored.BnZ)
 
-    BnR_spline_sum = _sum_over_coils(weights, anvac_spline.BnR)
-    Bnphi_spline_sum = _sum_over_coils(weights, anvac_spline.Bnphi)
-    BnZ_spline_sum = _sum_over_coils(weights, anvac_spline.BnZ)
+    BnR_spline_sum = _sum_over_coils(currents_modes, anvac_spline.BnR)
+    Bnphi_spline_sum = _sum_over_coils(currents_modes, anvac_spline.Bnphi)
+    BnZ_spline_sum = _sum_over_coils(currents_modes, anvac_spline.BnZ)
 
     # Direct Fourier modes (already weighted by currents)
     BnR_direct_sum, Bnphi_direct_sum, BnZ_direct_sum, _ = _compute_direct_fourier_modes(
         args.coil_files,
-        currents_scaled,
+        currents,
         fourier.grid,
         fourier.mode_numbers,
         args.fft_samples,
@@ -759,16 +762,11 @@ def main() -> None:
     magnitude_fourier = _field_magnitude(Bx_fourier_map, By_fourier_map, Bz_fourier_map)
     magnitude_anvac = _field_magnitude(Bx_anvac_map, By_anvac_map, Bz_anvac_map)
     magnitude_spline = _field_magnitude(Bx_spline_map, By_spline_map, Bz_spline_map)
-    # For now, display the Fourier reference in the direct column until
-    # the standalone segment evaluator is brought to parity in all cases.
-    magnitude_direct = magnitude_fourier.copy()
-    Bx_direct_map = Bx_fourier_map.copy()
-    By_direct_map = By_fourier_map.copy()
-    Bz_direct_map = Bz_fourier_map.copy()
+    magnitude_direct = _field_magnitude(Bx_direct_map, By_direct_map, Bz_direct_map)
 
     # Plots
     if args.per_coil_output is not None:
-        _create_per_coil_plot(args, fourier, anvac_stored, anvac_spline, weights, coil_projections)
+        _create_per_coil_plot(args, fourier, anvac_stored, anvac_spline, currents_modes, coil_projections)
 
     if args.sum_output is not None:
         _create_sum_plot(
@@ -786,7 +784,7 @@ def main() -> None:
             args,
             diagnostics,
             fourier.grid,
-            weights,
+            currents_modes,
             fourier.mode_numbers,
         )
 
@@ -844,12 +842,11 @@ def main() -> None:
             direction,
             s_vals,
         )
-        B_parallel_direct_modes = B_parallel_fourier.copy()
 
         # Direct segment evaluation for reference
         Bx_seg, By_seg, Bz_seg = _compute_segment_direct_field(
             args.coil_files,
-            currents_scaled,
+            currents,
             points[:, 0].reshape(-1, 1),
             points[:, 1].reshape(-1, 1),
             points[:, 2].reshape(-1, 1),
@@ -859,7 +856,6 @@ def main() -> None:
             + By_seg[:, 0] * direction[1]
             + Bz_seg[:, 0] * direction[2]
         )
-        B_parallel_segments = B_parallel_fourier.copy()
 
         analytic_curve = None
         if args.coil_radius is not None:
@@ -868,7 +864,7 @@ def main() -> None:
             mu0 = 4e-7 * pi
             analytic_curve = (
                 mu0
-                * currents_scaled.sum()
+                * currents.sum()
                 * radius_m**2
                 / (2.0 * (radius_m**2 + s_vals_m**2) ** 1.5)
                 * 1.0e4
