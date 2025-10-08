@@ -8,59 +8,65 @@ matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 import sys
 
-def circular_coil_analytical(s_vals, R_center, Z_center, tilt_rad, coil_radius, current=1.0):
-    """Analytical field on axis of tilted circular coil in CGS units.
+from libneo.biotsavart_fourier import (
+    read_Anvac_fourier, gauge_Anvac, spline_gauged_Anvac
+)
 
-    For a circular coil of radius a with current I, the field on axis at distance z from center is:
-    B = (2*pi*I*a^2) / (a^2 + z^2)^(3/2)  (in CGS: I in abamperes, distances in cm)
+def coil_orientation_vectors(phi0, tilt_theta_deg, tilt_psi_deg):
+    """Construct in-plane basis and axis vectors for the tilted coil."""
+    theta = np.deg2rad(tilt_theta_deg)
+    psi = np.deg2rad(tilt_psi_deg)
 
-    For tilted coil: transform observation points to coil frame, compute field along coil axis,
-    then transform back to cylindrical coordinates.
-    """
-    BR_list = []
-    Bphi_list = []
-    BZ_list = []
+    e_R = np.array([cos(phi0), sin(phi0), 0.0])
+    e_phi = np.array([-sin(phi0), cos(phi0), 0.0])
+    e_Z = np.array([0.0, 0.0, 1.0])
 
-    for s in s_vals:
-        # Position along tilted coil axis in lab frame
-        R_obs = R_center + s * cos(tilt_rad)
-        Z_obs = Z_center + s * sin(tilt_rad)
+    n_vec = sin(theta) * cos(psi) * e_R + sin(theta) * sin(psi) * e_phi + cos(theta) * e_Z
+    n_vec = n_vec / np.linalg.norm(n_vec)
 
-        # Distance along coil axis (in coil frame, this is the z coordinate)
-        z_coil = s
+    candidate = np.cross(n_vec, e_Z)
+    if np.linalg.norm(candidate) < 1e-12:
+        candidate = np.cross(n_vec, e_R)
+    u_vec = candidate / np.linalg.norm(candidate)
+    v_vec = np.cross(n_vec, u_vec)
+    return u_vec, v_vec, n_vec
 
-        # Analytical field magnitude along coil axis (pointing along axis direction)
-        a = coil_radius
-        B_mag = (2.0 * pi * current * a**2) / (a**2 + z_coil**2)**(1.5)
 
-        # Field direction is along the coil axis (tilted in R-Z plane)
-        # Coil axis direction: (cos(tilt), 0, sin(tilt)) in cylindrical coords
-        # This gives B_R and B_Z components, B_phi = 0 by symmetry
-        BR_list.append(-B_mag * cos(tilt_rad))  # Negative because field points opposite to axis direction on one side
-        Bphi_list.append(0.0)
-        BZ_list.append(-B_mag * sin(tilt_rad))
+def circular_coil_analytical(s_vals, center_xyz, axis_hat, coil_radius, current=1.0):
+    """Analytical magnetic field along the coil axis for a circular coil."""
+    s_vals = np.asarray(s_vals, dtype=float)
+    axis_hat = axis_hat / np.linalg.norm(axis_hat)
+    axis_points = center_xyz[:, None] + axis_hat[:, None] * s_vals[None, :]
+    phi_points = np.mod(np.arctan2(axis_points[1, :], axis_points[0, :]), 2.0 * pi)
 
-    return np.array(BR_list), np.array(Bphi_list), np.array(BZ_list)
+    B_mag = (2.0 * pi * current * coil_radius**2) / (coil_radius**2 + s_vals**2) ** 1.5
+    B_cart = -axis_hat[:, None] * B_mag[None, :]
+
+    cosphi = np.cos(phi_points)
+    sinphi = np.sin(phi_points)
+    BR = B_cart[0, :] * cosphi + B_cart[1, :] * sinphi
+    Bphi = -B_cart[0, :] * sinphi + B_cart[1, :] * cosphi
+    BZ = B_cart[2, :]
+    return BR, Bphi, BZ, axis_points, phi_points
 
 def main():
-    from libneo.biotsavart_fourier import (
-        read_Anvac_fourier, gauge_Anvac, spline_gauged_Anvac, field_divfree
-    )
-
     # Coil parameters (from generate_tilted_coil.py)
     R_center = 2.0
+    phi_center = 0.35
     Z_center = 0.8
     coil_radius = 2.0
-    tilt_deg = 30.0
-    tilt_rad = np.deg2rad(tilt_deg)
+    tilt_theta = 30.0
+    tilt_psi = 35.0
     current = 1.0  # abampere
 
-    # Tilted coil axis: passes through center at angle to Z-axis
-    # Points along axis: (R, Z) = (R_center + s*cos(tilt), Z_center + s*sin(tilt))
     s_vals = np.linspace(-2.0, 2.0, 30)  # Distance along tilted axis
-    R_vals = R_center + s_vals * cos(tilt_rad)
-    Z_vals = Z_center + s_vals * sin(tilt_rad)
-    phi_test = 0.0  # At phi=0 plane
+    center_xyz = np.array([R_center * cos(phi_center), R_center * sin(phi_center), Z_center])
+    _, _, axis_hat = coil_orientation_vectors(phi_center, tilt_theta, tilt_psi)
+    BR_analytical_full, Bphi_analytical_full, BZ_analytical_full, axis_points, phi_vals = (
+        circular_coil_analytical(s_vals, center_xyz, axis_hat, coil_radius, current=current)
+    )
+    X_axis, Y_axis, Z_axis = axis_points
+    R_vals = np.sqrt(X_axis**2 + Y_axis**2)
 
     # Load nmax from NetCDF to know how many modes to sum
     import netCDF4
@@ -69,14 +75,113 @@ def main():
         ntor_array = nc.variables['ntor'][:]
         nmax = int(np.max(ntor_array))
 
+    # Read ntor=0 data once to obtain grid and cache vectors
+    grid0, AnR0, Anphi0, AnZ0, dAnphi_dR0, dAnphi_dZ0 = read_Anvac_fourier(
+        'tilted_coil_Anvac.nc', ntor=0
+    )
+
+    valid_mask = (
+        (R_vals >= grid0.R_min) & (R_vals <= grid0.R_max) &
+        (Z_axis >= grid0.Z_min) & (Z_axis <= grid0.Z_max)
+    )
+    if not np.all(valid_mask):
+        clipped = np.count_nonzero(~valid_mask)
+        print(f"Warning: {clipped} evaluation points lie outside spline domain and will be skipped.")
+
+    R_eval = R_vals[valid_mask]
+    Z_eval = Z_axis[valid_mask]
+    s_eval = s_vals[valid_mask]
+    phi_eval = phi_vals[valid_mask]
+
+    if R_eval.size == 0:
+        print("No evaluation points fall inside the spline grid. Aborting.")
+        return 1
+
+    BR_analytical = BR_analytical_full[valid_mask]
+    Bphi_analytical = Bphi_analytical_full[valid_mask]
+    BZ_analytical = BZ_analytical_full[valid_mask]
+
     # Sum ALL Fourier modes from ntor=0 to ntor=nmax for full field reconstruction
-    BR_fourier_full = None
-    Bphi_fourier_full = None
-    BZ_fourier_full = None
+    npts = R_eval.size
+    BR_fourier_gauged = np.zeros(npts)
+    Bphi_fourier_gauged = np.zeros(npts)
+    BZ_fourier_gauged = np.zeros(npts)
+    BR_fourier_ungauged = np.zeros(npts)
+    Bphi_fourier_ungauged = np.zeros(npts)
+    BZ_fourier_ungauged = np.zeros(npts)
+
+    def evaluate_mode_at_points(spl, R_points, Z_points, ntor):
+        """Return summed coil contribution of Fourier mode at specific points."""
+        from numpy import sum as np_sum
+
+        R_points = np.asarray(R_points, dtype=float)
+        Z_points = np.asarray(Z_points, dtype=float)
+        npts_local = R_points.size
+        ncoil = len(spl['AnR_Re'])
+        BnR = np.empty((ncoil, npts_local), dtype=complex)
+        Bnphi = np.empty_like(BnR)
+        BnZ = np.empty_like(BnR)
+        has_Anphi = 'Anphi_Re' in spl
+
+        for kcoil in range(ncoil):
+            AnR_re = spl['AnR_Re'][kcoil].ev(R_points, Z_points)
+            AnR_im = spl['AnR_Im'][kcoil].ev(R_points, Z_points)
+            AnZ_re = spl['AnZ_Re'][kcoil].ev(R_points, Z_points)
+            AnZ_im = spl['AnZ_Im'][kcoil].ev(R_points, Z_points)
+            dAnR_dZ_re = spl['AnR_Re'][kcoil].ev(R_points, Z_points, dy=1)
+            dAnR_dZ_im = spl['AnR_Im'][kcoil].ev(R_points, Z_points, dy=1)
+            dAnZ_dR_re = spl['AnZ_Re'][kcoil].ev(R_points, Z_points, dx=1)
+            dAnZ_dR_im = spl['AnZ_Im'][kcoil].ev(R_points, Z_points, dx=1)
+
+            AnR = AnR_re + 1j * AnR_im
+            AnZ = AnZ_re + 1j * AnZ_im
+            dAnR_dZ = dAnR_dZ_re + 1j * dAnR_dZ_im
+            dAnZ_dR = dAnZ_dR_re + 1j * dAnZ_dR_im
+
+            if has_Anphi:
+                Anphi_re = spl['Anphi_Re'][kcoil].ev(R_points, Z_points)
+                Anphi_im = spl['Anphi_Im'][kcoil].ev(R_points, Z_points)
+                dAnphi_dR_re = spl['Anphi_Re'][kcoil].ev(R_points, Z_points, dx=1)
+                dAnphi_dR_im = spl['Anphi_Im'][kcoil].ev(R_points, Z_points, dx=1)
+                dAnphi_dZ_re = spl['Anphi_Re'][kcoil].ev(R_points, Z_points, dy=1)
+                dAnphi_dZ_im = spl['Anphi_Im'][kcoil].ev(R_points, Z_points, dy=1)
+
+                Anphi = Anphi_re + 1j * Anphi_im
+                dAnphi_dR = dAnphi_dR_re + 1j * dAnphi_dR_im
+                dAnphi_dZ = dAnphi_dZ_re + 1j * dAnphi_dZ_im
+
+                BnR[kcoil, :] = 1j * ntor * AnZ / R_points - dAnphi_dZ
+                Bnphi[kcoil, :] = dAnR_dZ - dAnZ_dR
+                BnZ[kcoil, :] = dAnphi_dR + Anphi / R_points - 1j * ntor * AnR / R_points
+            else:
+                if ntor == 0:
+                    raise ValueError("For ntor=0, Aphi splines must be provided")
+                BnR[kcoil, :] = 1j * ntor * AnZ / R_points
+                Bnphi[kcoil, :] = dAnR_dZ - dAnZ_dR
+                BnZ[kcoil, :] = -1j * ntor * AnR / R_points
+
+        return (
+            np_sum(BnR, axis=0),
+            np_sum(Bnphi, axis=0),
+            np_sum(BnZ, axis=0),
+        )
+
+    data_cache = {
+        0: (grid0, AnR0, Anphi0, AnZ0, dAnphi_dR0, dAnphi_dZ0),
+    }
 
     for ntor in range(0, nmax + 1):
-        grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier(
-            'tilted_coil_Anvac.nc', ntor=ntor
+        if ntor in data_cache:
+            grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = data_cache[ntor]
+        else:
+            grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = read_Anvac_fourier(
+                'tilted_coil_Anvac.nc', ntor=ntor
+            )
+
+        # Ungauged (direct Biot-Savart gauge)
+        spl_ungauged = spline_gauged_Anvac(grid, AnR, AnZ, ntor=ntor, Anphi=Anphi)
+        BnR_ungauged, Bnphi_ungauged, BnZ_ungauged = evaluate_mode_at_points(
+            spl_ungauged, R_eval, Z_eval, ntor
         )
 
         # Apply gauge transformation
@@ -84,77 +189,61 @@ def main():
             grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=ntor
         )
 
-        # Spline including Anphi
-        spl = spline_gauged_Anvac(grid, gauged_AnR, gauged_AnZ, ntor=ntor, Anphi=Anphi)
+        # Spline for gauged fields (keep ntor=0 ungauged by reusing original Anphi)
+        spl_gauged = spline_gauged_Anvac(
+            grid,
+            gauged_AnR,
+            gauged_AnZ,
+            ntor=ntor,
+            Anphi=Anphi if ntor == 0 else None,
+        )
 
         # Compute field from this Fourier mode
-        BnR, Bnphi, BnZ = field_divfree(spl, grid.R, grid.Z, ntor=ntor)
+        BnR_gauged, Bnphi_gauged, BnZ_gauged = evaluate_mode_at_points(
+            spl_gauged, R_eval, Z_eval, ntor
+        )
 
-        # Sum contributions (for ntor>0, need to evaluate cos(ntor*phi) and sin(ntor*phi) at phi=0)
-        # At phi=0: cos(ntor*0) = 1, sin(ntor*0) = 0, so only real part contributes
-        if BR_fourier_full is None:
-            BR_fourier_full = BnR.real
-            Bphi_fourier_full = Bnphi.real
-            BZ_fourier_full = BnZ.real
+        phase = np.exp(1j * ntor * phi_eval)
+        BR_fourier_ungauged += np.real(BnR_ungauged * phase)
+        Bphi_fourier_ungauged += np.real(Bnphi_ungauged * phase)
+        BZ_fourier_ungauged += np.real(BnZ_ungauged * phase)
+
+        if ntor == 0:
+            BR_fourier_gauged += np.real(BnR_ungauged * phase)
+            Bphi_fourier_gauged += np.real(Bnphi_ungauged * phase)
+            BZ_fourier_gauged += np.real(BnZ_ungauged * phase)
         else:
-            BR_fourier_full += BnR.real
-            Bphi_fourier_full += Bnphi.real
-            BZ_fourier_full += BnZ.real
+            BR_fourier_gauged += np.real(BnR_gauged * phase)
+            Bphi_fourier_gauged += np.real(Bnphi_gauged * phase)
+            BZ_fourier_gauged += np.real(BnZ_gauged * phase)
 
     print(f"Summed Fourier modes ntor=0 to ntor={nmax} for full field reconstruction")
 
     # Compute analytical field on coil axis
-    BR_analytical, Bphi_analytical, BZ_analytical = circular_coil_analytical(
-        s_vals, R_center, Z_center, tilt_rad, coil_radius, current=current
-    )
-
-    # Extract Fourier reconstruction along tilted axis from the full summed field
-    BR_fourier_list = []
-    Bphi_fourier_list = []
-    BZ_fourier_list = []
-
-    for R, Z in zip(R_vals, Z_vals):
-        idx_R = np.argmin(np.abs(grid.R - R))
-        idx_Z = np.argmin(np.abs(grid.Z - Z))
-        # Handle squeezed arrays (single coil case)
-        if BR_fourier_full.ndim == 2:
-            BR_f = BR_fourier_full[idx_R, idx_Z]
-            Bphi_f = Bphi_fourier_full[idx_R, idx_Z]
-            BZ_f = BZ_fourier_full[idx_R, idx_Z]
-        else:
-            BR_f = BR_fourier_full[0, idx_R, idx_Z]
-            Bphi_f = Bphi_fourier_full[0, idx_R, idx_Z]
-            BZ_f = BZ_fourier_full[0, idx_R, idx_Z]
-
-        BR_fourier_list.append(BR_f)
-        Bphi_fourier_list.append(Bphi_f)
-        BZ_fourier_list.append(BZ_f)
-
-    BR_fourier_arr = np.array(BR_fourier_list)
-    Bphi_fourier_arr = np.array(Bphi_fourier_list)
-    BZ_fourier_arr = np.array(BZ_fourier_list)
-
     # Create comparison plot
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    axes[0].plot(s_vals, BR_analytical, 'ko-', label='Analytical (on-axis)', linewidth=2, markersize=4)
-    axes[0].plot(s_vals, BR_fourier_arr, 'r^--', label='Fourier Sum (all modes)', linewidth=2, markersize=6)
+    axes[0].plot(s_eval, BR_analytical, 'ko-', label='Analytical (on-axis)', linewidth=2, markersize=4)
+    axes[0].plot(s_eval, BR_fourier_ungauged, 'r^--', label='Fourier Sum (ungauged)', linewidth=2, markersize=6)
+    axes[0].plot(s_eval, BR_fourier_gauged, 'bs-.', label='Fourier Sum (gauged n>0)', linewidth=2, markersize=5)
     axes[0].set_xlabel('Distance along coil axis (m)', fontsize=12)
     axes[0].set_ylabel('$B_R$ (G)', fontsize=12)
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
     axes[0].set_title('Radial Component')
 
-    axes[1].plot(s_vals, Bphi_analytical, 'ko-', label='Analytical (on-axis)', linewidth=2, markersize=4)
-    axes[1].plot(s_vals, Bphi_fourier_arr, 'r^--', label='Fourier Sum (all modes)', linewidth=2, markersize=6)
+    axes[1].plot(s_eval, Bphi_analytical, 'ko-', label='Analytical (on-axis)', linewidth=2, markersize=4)
+    axes[1].plot(s_eval, Bphi_fourier_ungauged, 'r^--', label='Fourier Sum (ungauged)', linewidth=2, markersize=6)
+    axes[1].plot(s_eval, Bphi_fourier_gauged, 'bs-.', label='Fourier Sum (gauged n>0)', linewidth=2, markersize=5)
     axes[1].set_xlabel('Distance along coil axis (m)', fontsize=12)
     axes[1].set_ylabel('$B_\\phi$ (G)', fontsize=12)
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
     axes[1].set_title('Toroidal Component')
 
-    axes[2].plot(s_vals, BZ_analytical, 'ko-', label='Analytical (on-axis)', linewidth=2, markersize=4)
-    axes[2].plot(s_vals, BZ_fourier_arr, 'r^--', label='Fourier Sum (all modes)', linewidth=2, markersize=6)
+    axes[2].plot(s_eval, BZ_analytical, 'ko-', label='Analytical (on-axis)', linewidth=2, markersize=4)
+    axes[2].plot(s_eval, BZ_fourier_ungauged, 'r^--', label='Fourier Sum (ungauged)', linewidth=2, markersize=6)
+    axes[2].plot(s_eval, BZ_fourier_gauged, 'bs-.', label='Fourier Sum (gauged n>0)', linewidth=2, markersize=5)
     axes[2].set_xlabel('Distance along coil axis (m)', fontsize=12)
     axes[2].set_ylabel('$B_Z$ (G)', fontsize=12)
     axes[2].legend()
@@ -166,37 +255,56 @@ def main():
     print("\nSaved plot to ntor0_validation.png")
 
     # Compute relative errors
-    mask = np.abs(BR_analytical) > 1e-5
-    if mask.sum() > 0:
-        err_BR = np.mean(np.abs(BR_fourier_arr[mask] - BR_analytical[mask]) / np.abs(BR_analytical[mask])) * 100
-    else:
-        err_BR = 0
+    def relative_errors(reconstructed):
+        mask = np.abs(BR_analytical) > 1e-5
+        err_BR = (
+            np.mean(np.abs(reconstructed[0][mask] - BR_analytical[mask]) / np.abs(BR_analytical[mask])) * 100
+            if mask.sum() > 0 else 0
+        )
 
-    mask = np.abs(Bphi_analytical) > 1e-5
-    if mask.sum() > 0:
-        err_Bphi = np.mean(np.abs(Bphi_fourier_arr[mask] - Bphi_analytical[mask]) / np.abs(Bphi_analytical[mask])) * 100
-    else:
-        err_Bphi = 0
+        mask = np.abs(Bphi_analytical) > 1e-5
+        err_Bphi = (
+            np.mean(np.abs(reconstructed[1][mask] - Bphi_analytical[mask]) / np.abs(Bphi_analytical[mask])) * 100
+            if mask.sum() > 0 else 0
+        )
 
-    mask = np.abs(BZ_analytical) > 1e-5
-    if mask.sum() > 0:
-        err_BZ = np.mean(np.abs(BZ_fourier_arr[mask] - BZ_analytical[mask]) / np.abs(BZ_analytical[mask])) * 100
-    else:
-        err_BZ = 0
+        mask = np.abs(BZ_analytical) > 1e-5
+        err_BZ = (
+            np.mean(np.abs(reconstructed[2][mask] - BZ_analytical[mask]) / np.abs(BZ_analytical[mask])) * 100
+            if mask.sum() > 0 else 0
+        )
+        return err_BR, err_Bphi, err_BZ
+
+    err_gauged = relative_errors(
+        (BR_fourier_gauged, Bphi_fourier_gauged, BZ_fourier_gauged)
+    )
+    err_ungauged = relative_errors(
+        (BR_fourier_ungauged, Bphi_fourier_ungauged, BZ_fourier_ungauged)
+    )
 
     print(f"\nRelative errors along coil axis (mean where |B_analytical| > 1e-5 G):")
-    print(f"  BR:   {err_BR:.2f}%")
-    print(f"  Bphi: {err_Bphi:.2f}%")
-    print(f"  BZ:   {err_BZ:.2f}%")
+    print(
+        "  Gauged   -> BR: {:.2f}%, Bphi: {:.2f}%, BZ: {:.2f}%".format(*err_gauged)
+    )
+    print(
+        "  Ungauged -> BR: {:.2f}%, Bphi: {:.2f}%, BZ: {:.2f}%".format(*err_ungauged)
+    )
 
-    # Test criterion: Full Fourier sum should match analytical solution within 5%
-    max_err = max(err_BR, err_Bphi, err_BZ)
+    max_err_gauged = max(err_gauged)
+    max_err_ungauged = max(err_ungauged)
+    max_err = max(max_err_gauged, max_err_ungauged)
 
     if max_err < 5.0:
-        print(f"\n✓ TEST PASSED: Full Fourier reconstruction matches analytical on-axis field (max error {max_err:.2f}%)")
+        print(
+            "\n✓ TEST PASSED: Fourier reconstructions (gauged and ungauged) match analytical on-axis field "
+            f"(worst-case error {max_err:.2f}%)"
+        )
         return 0
     else:
-        print(f"\n✗ TEST FAILED: Fourier reconstruction does not match analytical field (max error {max_err:.2f}%)")
+        print(
+            "\n✗ TEST FAILED: Fourier reconstructions deviate from analytical field "
+            f"(worst-case error {max_err:.2f}%)"
+        )
         return 1
 
 if __name__ == '__main__':

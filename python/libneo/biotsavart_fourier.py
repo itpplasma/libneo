@@ -45,7 +45,7 @@ def read_Bnvac_fourier(field_file='AUG_B_coils.h5', ntor=2):
 def read_Anvac_fourier(field_file='AUG_B_coils.nc', ntor=2):
     from os import path, strerror
     from errno import ENOENT
-    from numpy import array, empty
+    from numpy import array, empty, transpose
     import netCDF4
 
     if (not path.exists(field_file)):
@@ -66,23 +66,43 @@ def read_Anvac_fourier(field_file='AUG_B_coils.nc', ntor=2):
     AnZ = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
     dAnphi_dR = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
     dAnphi_dZ = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
+    def read_complex_component(name):
+        """Return array ordered as (ntor, R, Z, coil)."""
+        var_re = rootgrp[f"{name}_real"]
+        var_im = rootgrp[f"{name}_imag"]
+        try:
+            axes = tuple(var_re.dimensions.index(dim)
+                         for dim in ('ntor', 'R', 'Z', 'coil_number'))
+        except ValueError as err:
+            raise ValueError(
+                f"Unexpected dimensions for variable {name}_real: "
+                f"{var_re.dimensions}"
+            ) from err
+        data_re = transpose(array(var_re[:]), axes)
+        data_im = transpose(array(var_im[:]), axes)
+        return data_re + 1j * data_im
+
+    AnR_all = read_complex_component('AnR')
+    Anphi_all = read_complex_component('Anphi')
+    AnZ_all = read_complex_component('AnZ')
+    dAnphi_dR_all = read_complex_component('dAnphi_dR')
+    dAnphi_dZ_all = read_complex_component('dAnphi_dZ')
+
     for kcoil in range(ncoil):
-        AnR[kcoil, :, :].real = rootgrp['AnR_real'][kcoil, :, :, ntor].T
-        AnR[kcoil, :, :].imag = rootgrp['AnR_imag'][kcoil, :, :, ntor].T
-        Anphi[kcoil, :, :].real = rootgrp['Anphi_real'][kcoil, :, :, ntor].T
-        Anphi[kcoil, :, :].imag = rootgrp['Anphi_imag'][kcoil, :, :, ntor].T
-        AnZ[kcoil, :, :].real = rootgrp['AnZ_real'][kcoil, :, :, ntor].T
-        AnZ[kcoil, :, :].imag = rootgrp['AnZ_imag'][kcoil, :, :, ntor].T
-        dAnphi_dR[kcoil, :, :].real = rootgrp['dAnphi_dR_real'][kcoil, :, :, ntor].T
-        dAnphi_dR[kcoil, :, :].imag = rootgrp['dAnphi_dR_imag'][kcoil, :, :, ntor].T
-        dAnphi_dZ[kcoil, :, :].real = rootgrp['dAnphi_dZ_real'][kcoil, :, :, ntor].T
-        dAnphi_dZ[kcoil, :, :].imag = rootgrp['dAnphi_dZ_imag'][kcoil, :, :, ntor].T
+        AnR[kcoil, :, :] = AnR_all[ntor, :, :, kcoil]
+        Anphi[kcoil, :, :] = Anphi_all[ntor, :, :, kcoil]
+        AnZ[kcoil, :, :] = AnZ_all[ntor, :, :, kcoil]
+        dAnphi_dR[kcoil, :, :] = dAnphi_dR_all[ntor, :, :, kcoil]
+        dAnphi_dZ[kcoil, :, :] = dAnphi_dZ_all[ntor, :, :, kcoil]
     rootgrp.close()
     return grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ
 
 
 def gauged_Anvac_from_Bnvac(grid, BnR, BnZ, ntor=2):
     from numpy import newaxis
+
+    if ntor == 0:
+        raise ValueError("gauged_Anvac_from_Bnvac is undefined for ntor=0")
 
     gauged_AnR = 1j / ntor * grid.R[newaxis, :, newaxis] * BnZ
     gauged_AnZ = -1j / ntor * grid.R[newaxis, :, newaxis] * BnR
@@ -118,15 +138,14 @@ def spline_gauged_Anvac(grid, gauged_AnR, gauged_AnZ, ntor=2, Anphi=None):
         spl['AnZ_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnZ[kcoil].real, kx=5, ky=5)
         spl['AnZ_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnZ[kcoil].imag, kx=5, ky=5)
 
-    # For ntor=0, also spline Aphi since we need it for B = curl(A)
-    if ntor == 0:
-        if Anphi is None:
-            raise ValueError("For ntor=0, Anphi must be provided to spline_gauged_Anvac")
+    if Anphi is not None:
         spl['Anphi_Re'] = [None] * ncoil
         spl['Anphi_Im'] = [None] * ncoil
         for kcoil in range(ncoil):
             spl['Anphi_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].real, kx=5, ky=5)
             spl['Anphi_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].imag, kx=5, ky=5)
+    elif ntor == 0:
+        raise ValueError("For ntor=0, Anphi must be provided to spline_gauged_Anvac")
 
     return spl
 
@@ -174,14 +193,8 @@ def field_divfree(spl, R, Z, ntor=None):
         dAnR_dZ[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z, dy=1) + 1j * spl['AnR_Im'][kcoil](R, Z, dy=1)
         dAnZ_dR[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z, dx=1) + 1j * spl['AnZ_Im'][kcoil](R, Z, dx=1)
 
-    if ntor == 0:
-        # For axisymmetric case (ntor=0), use curl in cylindrical coords:
-        # B_R = -∂A_φ/∂Z
-        # B_φ = ∂A_R/∂Z - ∂A_Z/∂R
-        # B_Z = ∂A_φ/∂R + A_φ/R
-        if 'Anphi_Re' not in spl:
-            raise ValueError("For ntor=0, Aphi splines must be provided")
-
+    has_Anphi = 'Anphi_Re' in spl
+    if has_Anphi:
         Anphi = empty((ncoil, nR, nZ), dtype=complex)
         dAnphi_dR = empty((ncoil, nR, nZ), dtype=complex)
         dAnphi_dZ = empty((ncoil, nR, nZ), dtype=complex)
@@ -190,11 +203,15 @@ def field_divfree(spl, R, Z, ntor=None):
             dAnphi_dR[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dx=1) + 1j * spl['Anphi_Im'][kcoil](R, Z, dx=1)
             dAnphi_dZ[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dy=1) + 1j * spl['Anphi_Im'][kcoil](R, Z, dy=1)
 
-        BnR = -dAnphi_dZ
+    if has_Anphi:
+        # General curl formula for arbitrary ntor
+        BnR = 1j * ntor * AnZ / R[newaxis, :, newaxis] - dAnphi_dZ
         Bnphi = dAnR_dZ - dAnZ_dR
-        BnZ = dAnphi_dR + Anphi / R[newaxis, :, newaxis]
+        BnZ = dAnphi_dR + Anphi / R[newaxis, :, newaxis] - 1j * ntor * AnR / R[newaxis, :, newaxis]
     else:
-        # Original formulas for n ≠ 0
+        if ntor == 0:
+            raise ValueError("For ntor=0, Aphi splines must be provided")
+        # Original formulas for gauge with Anphi ≡ 0
         BnR = 1j * ntor * AnZ / R[newaxis, :, newaxis]
         Bnphi = dAnR_dZ - dAnZ_dR
         BnZ = -1j * ntor * AnR / R[newaxis, :, newaxis]
