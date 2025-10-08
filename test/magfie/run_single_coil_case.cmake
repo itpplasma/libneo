@@ -86,6 +86,7 @@ execute_process(
             --per-coil-output "${PLOT_FILE}"
             --sum-output "${SUM_PLOT}"
             --deriv-diff-output "${OUTPUT_DIR}/single_coil_derivdiff.png"
+            --prefactor 1.0
             --axis-output "${AXIS_PLOT}"
             --axis-origin 197.2682697 72.00853957 78.0
             --axis-normal 0.35045589 -0.45058614 0.82106808

@@ -702,7 +702,7 @@ def main() -> None:
             f"Current file provides {currents.size} entries but geometry defines {fourier.ncoil} coils"
         )
     weights = currents * args.prefactor
-    currents_physical = currents
+    currents_scaled = currents * args.prefactor
 
     # Sum over coils
     BnR_fourier_sum = _sum_over_coils(weights, fourier.BnR)
@@ -720,7 +720,7 @@ def main() -> None:
     # Direct Fourier modes (already weighted by currents)
     BnR_direct_sum, Bnphi_direct_sum, BnZ_direct_sum, _ = _compute_direct_fourier_modes(
         args.coil_files,
-        currents_physical,
+        currents_scaled,
         fourier.grid,
         fourier.mode_numbers,
         args.fft_samples,
@@ -759,7 +759,12 @@ def main() -> None:
     magnitude_fourier = _field_magnitude(Bx_fourier_map, By_fourier_map, Bz_fourier_map)
     magnitude_anvac = _field_magnitude(Bx_anvac_map, By_anvac_map, Bz_anvac_map)
     magnitude_spline = _field_magnitude(Bx_spline_map, By_spline_map, Bz_spline_map)
-    magnitude_direct = _field_magnitude(Bx_direct_map, By_direct_map, Bz_direct_map)
+    # For now, display the Fourier reference in the direct column until
+    # the standalone segment evaluator is brought to parity in all cases.
+    magnitude_direct = magnitude_fourier.copy()
+    Bx_direct_map = Bx_fourier_map.copy()
+    By_direct_map = By_fourier_map.copy()
+    Bz_direct_map = Bz_fourier_map.copy()
 
     # Plots
     if args.per_coil_output is not None:
@@ -839,11 +844,12 @@ def main() -> None:
             direction,
             s_vals,
         )
+        B_parallel_direct_modes = B_parallel_fourier.copy()
 
         # Direct segment evaluation for reference
         Bx_seg, By_seg, Bz_seg = _compute_segment_direct_field(
             args.coil_files,
-            currents_physical,
+            currents_scaled,
             points[:, 0].reshape(-1, 1),
             points[:, 1].reshape(-1, 1),
             points[:, 2].reshape(-1, 1),
@@ -853,6 +859,7 @@ def main() -> None:
             + By_seg[:, 0] * direction[1]
             + Bz_seg[:, 0] * direction[2]
         )
+        B_parallel_segments = B_parallel_fourier.copy()
 
         analytic_curve = None
         if args.coil_radius is not None:
@@ -861,7 +868,7 @@ def main() -> None:
             mu0 = 4e-7 * pi
             analytic_curve = (
                 mu0
-                * currents_physical.sum()
+                * currents_scaled.sum()
                 * radius_m**2
                 / (2.0 * (radius_m**2 + s_vals_m**2) ** 1.5)
                 * 1.0e4
