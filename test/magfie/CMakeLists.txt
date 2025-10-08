@@ -75,6 +75,12 @@ target_link_libraries(test_ntor0_tilted_coil.x PRIVATE
     ${MPI_Fortran_LIBRARIES}
 )
 
+add_executable(compute_axis_biot_savart.x compute_axis_biot_savart.f90)
+target_link_libraries(compute_axis_biot_savart.x PRIVATE
+    neo
+    magfie
+)
+
 add_test(
     NAME generate_tilted_coil_geometry
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_tilted_coil.py
