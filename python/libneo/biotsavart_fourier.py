@@ -92,12 +92,16 @@ def gauged_Anvac_from_Bnvac(grid, BnR, BnZ, ntor=2):
 def gauge_Anvac(grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=2):
     from numpy import newaxis
 
+    if ntor == 0:
+        # For axisymmetric case, no gauge transformation needed
+        return AnR, AnZ
+
     gauged_AnR = AnR + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dR + 1j / ntor * Anphi
     gauged_AnZ = AnZ + 1j / ntor * grid.R[newaxis, :, newaxis] * dAnphi_dZ
     return gauged_AnR, gauged_AnZ
 
 
-def spline_gauged_Anvac(grid, gauged_AnR, gauged_AnZ, ntor=2):
+def spline_gauged_Anvac(grid, gauged_AnR, gauged_AnZ, ntor=2, Anphi=None):
     from scipy.interpolate import RectBivariateSpline
 
     ncoil = gauged_AnR.shape[0]
@@ -106,22 +110,35 @@ def spline_gauged_Anvac(grid, gauged_AnR, gauged_AnZ, ntor=2):
         'AnR_Im': [None] * ncoil,
         'AnZ_Re': [None] * ncoil,
         'AnZ_Im': [None] * ncoil,
+        'ntor': ntor,
     }
     for kcoil in range(ncoil):
         spl['AnR_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnR[kcoil].real, kx=5, ky=5)
         spl['AnR_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnR[kcoil].imag, kx=5, ky=5)
         spl['AnZ_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnZ[kcoil].real, kx=5, ky=5)
         spl['AnZ_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, gauged_AnZ[kcoil].imag, kx=5, ky=5)
+
+    # For ntor=0, also spline Aphi since we need it for B = curl(A)
+    if ntor == 0:
+        if Anphi is None:
+            raise ValueError("For ntor=0, Anphi must be provided to spline_gauged_Anvac")
+        spl['Anphi_Re'] = [None] * ncoil
+        spl['Anphi_Im'] = [None] * ncoil
+        for kcoil in range(ncoil):
+            spl['Anphi_Re'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].real, kx=5, ky=5)
+            spl['Anphi_Im'][kcoil] = RectBivariateSpline(grid.R, grid.Z, Anphi[kcoil].imag, kx=5, ky=5)
+
     return spl
 
 
-def field_divfree(spl, R, Z, ntor=2):
+def field_divfree(spl, R, Z, ntor=None):
     """Evaluate vector potential splines and return Fourier amplitude of magnetic field.
 
     Keyword arguments:
     spl -- dict of splines from spline_gauged_Anvac
     R -- array of radii in cylindrical coordinates
     Z -- array of altitudes in cylindrical coordinates
+    ntor -- toroidal mode number (if None, read from spl dict)
 
     Return values:
     BnR -- R component of the magnetic field's Fourier mode
@@ -134,6 +151,13 @@ def field_divfree(spl, R, Z, ntor=2):
     """
 
     from numpy import atleast_1d, empty, newaxis, squeeze
+
+    # Auto-detect ntor from spline dict if not provided
+    if ntor is None:
+        if 'ntor' in spl:
+            ntor = spl['ntor']
+        else:
+            ntor = 2  # Default for backward compatibility
 
     R = atleast_1d(R).ravel()
     Z = atleast_1d(Z).ravel()
@@ -149,7 +173,30 @@ def field_divfree(spl, R, Z, ntor=2):
         AnZ[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z) + 1j * spl['AnZ_Im'][kcoil](R, Z)
         dAnR_dZ[kcoil, :, :] = spl['AnR_Re'][kcoil](R, Z, dy=1) + 1j * spl['AnR_Im'][kcoil](R, Z, dy=1)
         dAnZ_dR[kcoil, :, :] = spl['AnZ_Re'][kcoil](R, Z, dx=1) + 1j * spl['AnZ_Im'][kcoil](R, Z, dx=1)
-    BnR = 1j * ntor * AnZ / R[newaxis, :, newaxis]
-    Bnphi = dAnR_dZ - dAnZ_dR
-    BnZ = -1j * ntor * AnR / R[newaxis, :, newaxis]
+
+    if ntor == 0:
+        # For axisymmetric case (ntor=0), use curl in cylindrical coords:
+        # B_R = -∂A_φ/∂Z
+        # B_φ = ∂A_R/∂Z - ∂A_Z/∂R
+        # B_Z = ∂A_φ/∂R + A_φ/R
+        if 'Anphi_Re' not in spl:
+            raise ValueError("For ntor=0, Aphi splines must be provided")
+
+        Anphi = empty((ncoil, nR, nZ), dtype=complex)
+        dAnphi_dR = empty((ncoil, nR, nZ), dtype=complex)
+        dAnphi_dZ = empty((ncoil, nR, nZ), dtype=complex)
+        for kcoil in range(ncoil):
+            Anphi[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z) + 1j * spl['Anphi_Im'][kcoil](R, Z)
+            dAnphi_dR[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dx=1) + 1j * spl['Anphi_Im'][kcoil](R, Z, dx=1)
+            dAnphi_dZ[kcoil, :, :] = spl['Anphi_Re'][kcoil](R, Z, dy=1) + 1j * spl['Anphi_Im'][kcoil](R, Z, dy=1)
+
+        BnR = -dAnphi_dZ
+        Bnphi = dAnR_dZ - dAnZ_dR
+        BnZ = dAnphi_dR + Anphi / R[newaxis, :, newaxis]
+    else:
+        # Original formulas for n ≠ 0
+        BnR = 1j * ntor * AnZ / R[newaxis, :, newaxis]
+        Bnphi = dAnR_dZ - dAnZ_dR
+        BnZ = -1j * ntor * AnR / R[newaxis, :, newaxis]
+
     return squeeze(BnR), squeeze(Bnphi), squeeze(BnZ)
