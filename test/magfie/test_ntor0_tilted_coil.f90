@@ -1,14 +1,20 @@
 program test_ntor0_tilted_coil
   use util_for_test, only: print_test, print_ok, print_fail
   use coil_tools, only: coil_t, coil_init, coil_deinit, &
-                       vector_potential_biot_savart_fourier, write_Anvac_fourier
+                       vector_potential_biot_savart_fourier, write_Anvac_fourier, &
+                       biot_savart_fourier, write_Bnvac_fourier, &
+                       biot_savart_sum_coils, write_Bvac_nemov
   use libneo_kinds, only: dp
   use math_constants, only: length_si_to_cgs
+  use hdf5_tools, only: h5_init, h5_deinit
   implicit none
 
   type(coil_t), allocatable :: coils(:)
   complex(dp), allocatable :: AnR(:,:,:,:), Anphi(:,:,:,:), AnZ(:,:,:,:)
   complex(dp), allocatable :: dAnphi_dR(:,:,:,:), dAnphi_dZ(:,:,:,:)
+  complex(dp), allocatable :: Bn(:,:,:,:,:)
+  real(dp), allocatable :: Bvac(:,:,:,:)
+  real(dp), allocatable :: Ic(:)
   real(dp) :: Rmin, Rmax, Zmin, Zmax
   integer :: nR, nZ, nphi, nmax, nseg, k, iostat
   real(dp) :: min_distance, max_eccentricity
@@ -63,11 +69,25 @@ program test_ntor0_tilted_coil
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, &
     AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
 
-  ! Write to NetCDF file
+  ! Compute magnetic field Fourier modes (per-coil)
+  call biot_savart_fourier(coils, nmax, Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
+
+  call h5_init()
+
+  ! Write to NetCDF and HDF5 files
   call write_Anvac_fourier('tilted_coil_Anvac.nc', 1, nmax, &
     Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, &
     AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
+  call write_Bnvac_fourier('tilted_coil_Bnvac.h5', Bn, Rmin, Rmax, Zmin, Zmax)
 
+  allocate(Ic(1))
+  Ic(1) = 1.0_dp
+  call biot_savart_sum_coils(coils, Ic, Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bvac)
+  call write_Bvac_nemov('tilted_coil_Bvac.dat', Rmin, Rmax, Zmin, Zmax, Bvac)
+
+  call h5_deinit()
+
+  deallocate(Ic, Bvac, Bn)
   call coil_deinit(coils(1))
   deallocate(coils)
 

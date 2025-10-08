@@ -15,11 +15,14 @@ matplotlib.use("Agg")  # Non-interactive backend
 import matplotlib.pyplot as plt
 import netCDF4
 import numpy as np
+from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = Path.cwd()
 COIL_FILE = BUILD_DIR / "tilted_coil.dat"
 FOURIER_FILE = BUILD_DIR / "tilted_coil_Anvac.nc"
+BNVAC_FILE = BUILD_DIR / "tilted_coil_Bnvac.h5"
+BVAC_FILE = BUILD_DIR / "tilted_coil_Bvac.dat"
 AXIS_SOLVER = BUILD_DIR / "compute_axis_biot_savart.x"
 CLIGHT = 2.99792458e10  # cm / s
 
@@ -154,11 +157,41 @@ def compute_direct_biot_savart(axis_points: np.ndarray) -> np.ndarray:
     return data
 
 
+def read_Bvac_nemov(path: Path):
+    with open(path, "r", encoding="utf-8") as f:
+        header = f.readline().split()
+        if len(header) < 4:
+            raise ValueError("Malformed Bvac header")
+        nR, nphi_plus1, nZ, _ = map(int, header[:4])
+        Rmin, Rmax = map(float, f.readline().split())
+        phimin, phimax = map(float, f.readline().split())
+        Zmin, Zmax = map(float, f.readline().split())
+        data = np.loadtxt(f, dtype=float)
+    expected = nR * nZ * nphi_plus1
+    if data.shape[0] != expected:
+        raise ValueError(f"Bvac file row mismatch: expected {expected}, got {data.shape[0]}")
+    raw = data.reshape((nR, nphi_plus1, nZ, 3), order="C")
+    components = np.moveaxis(raw, -1, 0)  # (3, nR, nphi+1, nZ)
+    components = components[:, :, :-1, :]  # drop duplicate phi
+    components = np.transpose(components, (0, 2, 3, 1))  # (3, nphi, nZ, nR)
+    R_grid = np.linspace(Rmin, Rmax, nR)
+    Z_grid = np.linspace(Zmin, Zmax, nZ)
+    phi_grid = np.linspace(phimin, phimax, nphi_plus1)[:-1]
+    return R_grid, phi_grid, Z_grid, components
+
+
+def eval_complex_spline(x_grid, y_grid, values, x_points, y_points):
+    spline_re = RectBivariateSpline(x_grid, y_grid, values.real, kx=3, ky=3)
+    spline_im = RectBivariateSpline(x_grid, y_grid, values.imag, kx=3, ky=3)
+    return spline_re.ev(x_points, y_points) + 1j * spline_im.ev(x_points, y_points)
+
+
 def main() -> int:
     from libneo.biotsavart_fourier import (
         field_divfree,
         gauge_Anvac,
         read_Anvac_fourier,
+        read_Bnvac_fourier,
         spline_gauged_Anvac,
     )
 
@@ -225,6 +258,10 @@ def main() -> int:
     BR_fourier_gauged = np.zeros(npts)
     Bphi_fourier_gauged = np.zeros(npts)
     BZ_fourier_gauged = np.zeros(npts)
+    BR_bnvac = Bphi_bnvac = BZ_bnvac = None
+    BR_bvac = Bphi_bvac = BZ_bvac = None
+    has_bnvac = BNVAC_FILE.exists()
+    has_bvac = BVAC_FILE.exists()
 
     cache = {0: (grid0, AnR0, Anphi0, AnZ0, dAnphi_dR0, dAnphi_dZ0)}
 
@@ -264,6 +301,44 @@ def main() -> int:
             Bphi_fourier_gauged += np.real(Bnphi_gauged * phase)
             BZ_fourier_gauged += np.real(BnZ_gauged * phase)
 
+    if has_bnvac:
+        BR_bnvac = np.zeros(npts)
+        Bphi_bnvac = np.zeros(npts)
+        BZ_bnvac = np.zeros(npts)
+        for ntor in range(0, nmax + 1):
+            grid_b, BnR, Bnphi, BnZ = read_Bnvac_fourier(str(BNVAC_FILE), ntor=ntor)
+            total_R = np.zeros(npts, dtype=complex)
+            total_phi = np.zeros(npts, dtype=complex)
+            total_Z = np.zeros(npts, dtype=complex)
+            for kcoil in range(BnR.shape[0]):
+                total_R += eval_complex_spline(grid_b.R, grid_b.Z, BnR[kcoil], R_eval_cm, Z_eval_cm)
+                total_phi += eval_complex_spline(grid_b.R, grid_b.Z, Bnphi[kcoil], R_eval_cm, Z_eval_cm)
+                total_Z += eval_complex_spline(grid_b.R, grid_b.Z, BnZ[kcoil], R_eval_cm, Z_eval_cm)
+            phase = np.exp(1j * ntor * phi_eval)
+            BR_bnvac += np.real(total_R * phase)
+            Bphi_bnvac += np.real(total_phi * phase)
+            BZ_bnvac += np.real(total_Z * phase)
+
+    if has_bvac:
+        R_grid_bvac, phi_grid_bvac, Z_grid_bvac, Bvac_components = read_Bvac_nemov(BVAC_FILE)
+        interpolators = [
+            RegularGridInterpolator(
+                (phi_grid_bvac, Z_grid_bvac, R_grid_bvac),
+                Bvac_components[i],
+                bounds_error=False,
+                fill_value=None,
+            )
+            for i in range(3)
+        ]
+        phi_mod = np.mod(phi_eval, 2.0 * np.pi)
+        phi_wrap = phi_mod.copy()
+        mask_wrap = phi_wrap >= phi_grid_bvac[-1]
+        phi_wrap[mask_wrap] -= 2.0 * np.pi
+        points = np.column_stack((phi_wrap, Z_eval_cm, R_eval_cm))
+        BR_bvac = interpolators[0](points)
+        Bphi_bvac = interpolators[1](points)
+        BZ_bvac = interpolators[2](points)
+
     direct_cart = compute_direct_biot_savart(axis_eval)
     if direct_cart.shape[0] != npts:
         raise RuntimeError("Direct Biot-Savart solver returned unexpected sample count.")
@@ -278,6 +353,10 @@ def main() -> int:
     axes[0].plot(s_eval, BR_analytical, "k-", label="Analytical", linewidth=2)
     axes[0].plot(s_eval, BR_fourier_ungauged, "r^--", label="Fourier (ungauged)", linewidth=2, markersize=5)
     axes[0].plot(s_eval, BR_fourier_gauged, "bs-.", label="Fourier (gauged n>0)", linewidth=2, markersize=5)
+    if has_bnvac:
+        axes[0].plot(s_eval, BR_bnvac, "mD:", label="Fourier (Bnvac)", linewidth=1.8, markersize=4)
+    if has_bvac:
+        axes[0].plot(s_eval, BR_bvac, "co-", label="Bvac (grid)", linewidth=1.8, markersize=4)
     axes[0].plot(s_eval, BR_direct, "gx-", label="Direct Biot-Savart", linewidth=1.8, markersize=5)
     axes[0].set_xlabel("Axis coordinate s (m)")
     axes[0].set_ylabel("$B_R$ (G)")
@@ -287,6 +366,10 @@ def main() -> int:
     axes[1].plot(s_eval, Bphi_analytical, "k-", label="Analytical", linewidth=2)
     axes[1].plot(s_eval, Bphi_fourier_ungauged, "r^--", linewidth=2, markersize=5)
     axes[1].plot(s_eval, Bphi_fourier_gauged, "bs-.", linewidth=2, markersize=5)
+    if has_bnvac:
+        axes[1].plot(s_eval, Bphi_bnvac, "mD:", linewidth=1.8, markersize=4)
+    if has_bvac:
+        axes[1].plot(s_eval, Bphi_bvac, "co-", linewidth=1.8, markersize=4)
     axes[1].plot(s_eval, Bphi_direct, "gx-", linewidth=1.8, markersize=5)
     axes[1].set_xlabel("Axis coordinate s (m)")
     axes[1].set_ylabel("$B_\\phi$ (G)")
@@ -296,6 +379,10 @@ def main() -> int:
     axes[2].plot(s_eval, BZ_analytical, "k-", label="Analytical", linewidth=2)
     axes[2].plot(s_eval, BZ_fourier_ungauged, "r^--", linewidth=2, markersize=5)
     axes[2].plot(s_eval, BZ_fourier_gauged, "bs-.", linewidth=2, markersize=5)
+    if has_bnvac:
+        axes[2].plot(s_eval, BZ_bnvac, "mD:", linewidth=1.8, markersize=4)
+    if has_bvac:
+        axes[2].plot(s_eval, BZ_bvac, "co-", linewidth=1.8, markersize=4)
     axes[2].plot(s_eval, BZ_direct, "gx-", linewidth=1.8, markersize=5)
     axes[2].set_xlabel("Axis coordinate s (m)")
     axes[2].set_ylabel("$B_Z$ (G)")
@@ -329,39 +416,46 @@ def main() -> int:
             BR_direct[0], Bphi_direct[0], BZ_direct[0]
         )
     )
+    if BR_bnvac is not None:
+        print(
+            "  Fourier Bnvac   : BR = {:+.3e}, Bphi = {:+.3e}, BZ = {:+.3e}".format(
+                BR_bnvac[0], Bphi_bnvac[0], BZ_bnvac[0]
+            )
+        )
+    if BR_bvac is not None:
+        print(
+            "  Bvac (grid)     : BR = {:+.3e}, Bphi = {:+.3e}, BZ = {:+.3e}".format(
+                BR_bvac[0], Bphi_bvac[0], BZ_bvac[0]
+            )
+        )
 
     def rel_error(ref, val):
         mask = np.abs(ref) > 1e-5
         if np.count_nonzero(mask) == 0:
             return 0.0
         return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
-
-    err_fourier_ungauged = (
-        rel_error(BR_analytical, BR_fourier_ungauged),
-        rel_error(Bphi_analytical, Bphi_fourier_ungauged),
-        rel_error(BZ_analytical, BZ_fourier_ungauged),
-    )
-    err_fourier_gauged = (
-        rel_error(BR_analytical, BR_fourier_gauged),
-        rel_error(Bphi_analytical, Bphi_fourier_gauged),
-        rel_error(BZ_analytical, BZ_fourier_gauged),
-    )
-    err_direct = (
-        rel_error(BR_analytical, BR_direct),
-        rel_error(Bphi_analytical, Bphi_direct),
-        rel_error(BZ_analytical, BZ_direct),
-    )
+    error_sets = [
+        ("Fourier ungauged", BR_fourier_ungauged, Bphi_fourier_ungauged, BZ_fourier_ungauged),
+        ("Fourier gauged", BR_fourier_gauged, Bphi_fourier_gauged, BZ_fourier_gauged),
+        ("Direct Biot-Savart", BR_direct, Bphi_direct, BZ_direct),
+    ]
+    if BR_bnvac is not None:
+        error_sets.append(("Fourier Bnvac", BR_bnvac, Bphi_bnvac, BZ_bnvac))
+    if BR_bvac is not None:
+        error_sets.append(("Bvac grid", BR_bvac, Bphi_bvac, BZ_bvac))
 
     print("\nRelative errors vs analytical solution (mean where |B| > 1e-5 G):")
-    print("  Fourier ungauged   -> BR: {:.2f}%, Bphi: {:.2f}%, BZ: {:.2f}%".format(*err_fourier_ungauged))
-    print("  Fourier gauged     -> BR: {:.2f}%, Bphi: {:.2f}%, BZ: {:.2f}%".format(*err_fourier_gauged))
-    print("  Direct Biot-Savart -> BR: {:.2f}%, Bphi: {:.2f}%, BZ: {:.2f}%".format(*err_direct))
+    errors = []
+    for label, BR_set, Bphi_set, BZ_set in error_sets:
+        err = (
+            rel_error(BR_analytical, BR_set),
+            rel_error(Bphi_analytical, Bphi_set),
+            rel_error(BZ_analytical, BZ_set),
+        )
+        errors.append((label, err))
+        print("  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(*err, label=label))
 
-    max_err = max(
-        max(err_fourier_ungauged),
-        max(err_fourier_gauged),
-        max(err_direct),
-    )
+    max_err = max(max(err) for _, err in errors)
 
     if max_err < 5.0:
         print(
