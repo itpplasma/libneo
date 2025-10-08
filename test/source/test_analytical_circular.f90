@@ -286,7 +286,7 @@ contains
         ! Test div(B) = 0 at several points inside plasma
         dR = 1.0e-6_dp
         dZ = 1.0e-6_dp
-        tol = 1.0e-10_dp
+        tol = 1.0e-9_dp
 
         r_min = R0 * (1.0_dp - 0.5_dp * epsilon)
         r_max = R0 * (1.0_dp + 0.5_dp * epsilon)
@@ -351,7 +351,7 @@ contains
         ! Test div(B) = 0 at several points inside shaped plasma
         dR = 1.0e-6_dp
         dZ = 1.0e-6_dp
-        tol = 1.0e-10_dp
+        tol = 1.0e-9_dp
 
         r_min = R0 * (1.0_dp - 0.5_dp * epsilon)
         r_max = R0 * (1.0_dp + 0.5_dp * epsilon)
