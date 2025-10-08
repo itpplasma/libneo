@@ -3,6 +3,7 @@ program test_ntor0_tilted_coil
   use coil_tools, only: coil_t, coil_init, coil_deinit, &
                        vector_potential_biot_savart_fourier, write_Anvac_fourier
   use libneo_kinds, only: dp
+  use math_constants, only: length_si_to_cgs
   implicit none
 
   type(coil_t), allocatable :: coils(:)
@@ -13,14 +14,17 @@ program test_ntor0_tilted_coil
   real(dp) :: min_distance, max_eccentricity
   logical :: use_convex_wall
   real(dp) :: x, y, z
+  real(dp) :: scale
 
   call print_test("ntor=0 field reconstruction for tilted coil")
 
-  ! Grid parameters
-  Rmin = 0.5_dp
-  Rmax = 4.0_dp
-  Zmin = -1.5_dp
-  Zmax = 2.5_dp
+  scale = length_si_to_cgs
+
+  ! Grid parameters (converted to cm)
+  Rmin = scale * 0.5_dp
+  Rmax = scale * 4.0_dp
+  Zmin = scale * (-1.5_dp)
+  Zmax = scale * 2.5_dp
   nR = 50
   nZ = 50
   nphi = 192
@@ -48,9 +52,9 @@ program test_ntor0_tilted_coil
       call print_fail
       error stop "Error reading coil geometry"
     end if
-    coils(1)%XYZ(1, k) = x
-    coils(1)%XYZ(2, k) = y
-    coils(1)%XYZ(3, k) = z
+    coils(1)%XYZ(1, k) = scale * x
+    coils(1)%XYZ(2, k) = scale * y
+    coils(1)%XYZ(3, k) = scale * z
   end do
   close(10)
 

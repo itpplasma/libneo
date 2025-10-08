@@ -44,7 +44,7 @@ def circular_coil_analytical(
     a_cm = coil_radius * scale
     s_cm = s_vals * scale
     B_mag = (2.0 * np.pi * current * a_cm**2) / (a_cm**2 + s_cm**2) ** 1.5
-    B_cart = -axis_hat[:, None] * B_mag[None, :]
+    B_cart = axis_hat[:, None] * B_mag[None, :]
 
     cosphi = np.cos(phi)
     sinphi = np.sin(phi)
@@ -184,6 +184,9 @@ def main() -> int:
     )
     R_vals = np.sqrt(axis_points[0, :] ** 2 + axis_points[1, :] ** 2)
     Z_vals = axis_points[2, :]
+    scale = 100.0  # m -> cm
+    R_vals_cm = R_vals * scale
+    Z_vals_cm = Z_vals * scale
 
     with netCDF4.Dataset(FOURIER_FILE) as nc:
         ntor_array = nc.variables["ntor"][:]
@@ -192,10 +195,10 @@ def main() -> int:
     grid0, AnR0, Anphi0, AnZ0, dAnphi_dR0, dAnphi_dZ0 = read_Anvac_fourier(str(FOURIER_FILE), ntor=0)
 
     valid_mask = (
-        (R_vals >= grid0.R_min)
-        & (R_vals <= grid0.R_max)
-        & (Z_vals >= grid0.Z_min)
-        & (Z_vals <= grid0.Z_max)
+        (R_vals_cm >= grid0.R_min)
+        & (R_vals_cm <= grid0.R_max)
+        & (Z_vals_cm >= grid0.Z_min)
+        & (Z_vals_cm <= grid0.Z_max)
     )
     if not np.any(valid_mask):
         print("No axis points fall inside the spline domain.")
@@ -205,8 +208,8 @@ def main() -> int:
         skipped = np.count_nonzero(~valid_mask)
         print(f"Warning: {skipped} axis points lie outside the spline grid and will be ignored.")
 
-    R_eval = R_vals[valid_mask]
-    Z_eval = Z_vals[valid_mask]
+    R_eval_cm = R_vals_cm[valid_mask]
+    Z_eval_cm = Z_vals_cm[valid_mask]
     phi_eval = phi_vals[valid_mask]
     s_eval = s_vals[valid_mask]
     axis_eval = axis_points[:, valid_mask]
@@ -215,7 +218,7 @@ def main() -> int:
     Bphi_analytical = Bphi_analytical_full[valid_mask]
     BZ_analytical = BZ_analytical_full[valid_mask]
 
-    npts = R_eval.size
+    npts = R_eval_cm.size
     BR_fourier_ungauged = np.zeros(npts)
     Bphi_fourier_ungauged = np.zeros(npts)
     BZ_fourier_ungauged = np.zeros(npts)
@@ -234,7 +237,7 @@ def main() -> int:
 
         spl_ungauged = spline_gauged_Anvac(grid, AnR, AnZ, ntor=ntor, Anphi=Anphi)
         BnR_ungauged, Bnphi_ungauged, BnZ_ungauged = evaluate_mode_at_points(
-            spl_ungauged, R_eval, Z_eval, ntor
+            spl_ungauged, R_eval_cm, Z_eval_cm, ntor
         )
 
         gauged_AnR, gauged_AnZ = gauge_Anvac(grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=ntor)
@@ -245,7 +248,7 @@ def main() -> int:
             ntor=ntor,
             Anphi=Anphi if ntor == 0 else None,
         )
-        BnR_gauged, Bnphi_gauged, BnZ_gauged = evaluate_mode_at_points(spl_gauged, R_eval, Z_eval, ntor)
+        BnR_gauged, Bnphi_gauged, BnZ_gauged = evaluate_mode_at_points(spl_gauged, R_eval_cm, Z_eval_cm, ntor)
 
         phase = np.exp(1j * ntor * phi_eval)
         BR_fourier_ungauged += np.real(BnR_ungauged * phase)
