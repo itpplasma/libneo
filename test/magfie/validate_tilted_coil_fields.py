@@ -35,7 +35,6 @@ XFAIL_LABELS = {"Fourier gauged", "Fourier (gauged n>0)"}
 sys.path.append(str(SCRIPT_DIR))
 from tilted_coil_geometry import _plane_basis  # noqa: E402
 
-
 @dataclass
 class VectorComponents:
     radial: np.ndarray
@@ -44,15 +43,6 @@ class VectorComponents:
 
     def magnitude(self) -> np.ndarray:
         return np.sqrt(self.radial**2 + self.toroidal**2 + self.vertical**2)
-
-
-@dataclass
-class PlaneData:
-    label: str
-    R: np.ndarray
-    Z: np.ndarray
-    magnitude: np.ndarray
-
 
 DEFAULT_STYLE = {"linewidth": 2}
 FIELD_STYLES: Dict[str, Dict[str, float]] = {
@@ -70,19 +60,16 @@ FIELD_STYLES: Dict[str, Dict[str, float]] = {
     "An from B (Bvac)": {"color": "c", "linestyle": "-", "marker": "o", "markersize": 4},
 }
 
-
 def get_plot_style(label: str) -> Dict[str, float]:
     style = DEFAULT_STYLE.copy()
     style.update(FIELD_STYLES.get(label, {}))
     return style
-
 
 def mean_relative_error(reference: np.ndarray, values: np.ndarray, threshold: float = 1e-5) -> float:
     mask = np.abs(reference) > threshold
     if np.count_nonzero(mask) == 0:
         return 0.0
     return float(np.mean(np.abs(values[mask] - reference[mask]) / np.abs(reference[mask])) * 100.0)
-
 
 def plot_component_series(
     filename: str,
@@ -122,7 +109,6 @@ def plot_component_series(
     fig.savefig(filename, dpi=150)
     print(f"Saved plot to {filename}")
 
-
 def plot_mode_series(
     filename: str,
     mode_index: int,
@@ -134,8 +120,9 @@ def plot_mode_series(
     title = f"{title_prefix} (n={mode_index})"
     plot_component_series(filename, s_eval, component_sets, ylabels, title_prefix=title)
 
-
-def plot_plane_magnitudes(plane_variants: List[PlaneData], filename: str) -> None:
+def plot_plane_magnitudes(
+    plane_variants: List[Tuple[str, np.ndarray, np.ndarray, np.ndarray]], filename: str
+) -> None:
     if not plane_variants:
         return
 
@@ -145,15 +132,15 @@ def plot_plane_magnitudes(plane_variants: List[PlaneData], filename: str) -> Non
     if len(plane_variants) == 1:
         axes = [axes]
 
-    direct_data = next((pd for pd in plane_variants if pd.label == "Direct Biot-Savart"), None)
+    direct_data = next((pd for pd in plane_variants if pd[0] == "Direct Biot-Savart"), None)
     if direct_data is not None:
-        vmax = float(np.max(direct_data.magnitude))
-        positive = direct_data.magnitude[direct_data.magnitude > 0]
+        vmax = float(np.max(direct_data[3]))
+        positive = direct_data[3][direct_data[3] > 0]
         vmin = float(np.min(positive)) if positive.size else vmax * 1e-12
     else:
-        vmax = max(float(np.max(pd.magnitude)) for pd in plane_variants)
+        vmax = max(float(np.max(pd[3])) for pd in plane_variants)
         positive = np.concatenate(
-            [pd.magnitude[pd.magnitude > 0] for pd in plane_variants if np.any(pd.magnitude > 0)]
+            [pd[3][pd[3] > 0] for pd in plane_variants if np.any(pd[3] > 0)]
         )
         vmin = float(np.min(positive)) if positive.size else vmax * 1e-12
 
@@ -161,17 +148,17 @@ def plot_plane_magnitudes(plane_variants: List[PlaneData], filename: str) -> Non
     norm = LogNorm(vmin=vmin, vmax=max(vmax, vmin * 10.0))
 
     pcm = None
-    for ax, pd in zip(axes, plane_variants):
-        safe_mag = np.where(pd.magnitude > vmin, pd.magnitude, vmin)
+    for ax, (label, R_mesh, Z_mesh, mag) in zip(axes, plane_variants):
+        safe_mag = np.where(mag > vmin, mag, vmin)
         pcm = ax.pcolormesh(
-            pd.R,
-            pd.Z,
+            R_mesh,
+            Z_mesh,
             safe_mag,
             shading="auto",
             cmap="viridis",
             norm=norm,
         )
-        ax.set_title(pd.label)
+        ax.set_title(label)
         ax.set_xlabel("R (m)")
         if ax is axes[0]:
             ax.set_ylabel("Z (m)")
@@ -180,7 +167,6 @@ def plot_plane_magnitudes(plane_variants: List[PlaneData], filename: str) -> Non
     fig.colorbar(pcm, ax=axes, label="|B| (G)")
     fig.savefig(filename, dpi=150)
     print(f"Saved plot to {filename}")
-
 
 def components_from_tuple(data: Tuple[np.ndarray, ...]) -> VectorComponents:
     def _to_array(values):
@@ -197,15 +183,12 @@ def components_from_tuple(data: Tuple[np.ndarray, ...]) -> VectorComponents:
         vertical=vertical,
     )
 
-
 def components_from_totals(array: np.ndarray) -> VectorComponents:
     return VectorComponents(array[0, :], array[1, :], array[2, :])
-
 
 def components_from_radial_vertical(radial: np.ndarray, vertical: np.ndarray) -> VectorComponents:
     filler = np.full_like(radial, np.nan)
     return VectorComponents(radial, filler, vertical)
-
 
 def summarize_component_errors(
     analytical: VectorComponents,
@@ -226,7 +209,6 @@ def summarize_component_errors(
     non_xfail = [max(err) for label, err in results if label not in xfail_labels]
     max_err = max(non_xfail) if non_xfail else 0.0
     return max_err, results, [(label, err) for label, err in results if label in xfail_labels]
-
 
 def report_harmonic_errors(
     header: str,
@@ -258,7 +240,6 @@ def report_harmonic_errors(
                 )
             )
 
-
 def report_vector_potential_comparisons(
     mode_indices: Iterable[int],
     reference_modes: Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]],
@@ -287,10 +268,6 @@ def report_vector_potential_comparisons(
         if len(entries) > 1:
             print("; ".join(entries))
 
-
-
-
-
 def circular_coil_analytical(
     s_vals: np.ndarray,
     center_xyz: np.ndarray,
@@ -316,7 +293,6 @@ def circular_coil_analytical(
     Bphi = -B_cart[0, :] * sinphi + B_cart[1, :] * cosphi
     BZ = B_cart[2, :]
     return BR, Bphi, BZ, pts, phi
-
 
 def evaluate_mode_at_points(spl: dict, R_points: np.ndarray, Z_points: np.ndarray, ntor: int):
     """Evaluate Fourier mode at specific (R, Z) points for all coils."""
@@ -364,7 +340,6 @@ def evaluate_mode_at_points(spl: dict, R_points: np.ndarray, Z_points: np.ndarra
             BnZ[kcoil, :] = -1j * ntor * AnR / R_points
 
     return np_sum(BnR, axis=0), np_sum(Bnphi, axis=0), np_sum(BnZ, axis=0)
-
 
 def compute_direct_biot_savart(axis_points: np.ndarray) -> np.ndarray:
     """Call the Fortran biotsavart_field solver for direct B along axis."""
@@ -417,7 +392,6 @@ def compute_direct_biot_savart(axis_points: np.ndarray) -> np.ndarray:
         data = data[np.newaxis, :]
     return data
 
-
 def read_Bvac_nemov(path: Path):
     with open(path, "r", encoding="utf-8") as f:
         header = f.readline().split()
@@ -440,7 +414,6 @@ def read_Bvac_nemov(path: Path):
     phi_grid = np.linspace(phimin, phimax, nphi_plus1)[:-1]
     return R_grid, phi_grid, Z_grid, components
 
-
 def eval_complex_spline(x_grid, y_grid, values, x_points, y_points):
     spline_re = RectBivariateSpline(x_grid, y_grid, values.real, kx=3, ky=3)
     spline_im = RectBivariateSpline(x_grid, y_grid, values.imag, kx=3, ky=3)
@@ -459,7 +432,6 @@ def evaluate_vector_potential_spline(spl: dict, R_points: np.ndarray, Z_points: 
             total_phi += spl["Anphi_Re"][kcoil].ev(R_points, Z_points) + 1j * spl["Anphi_Im"][kcoil].ev(R_points, Z_points)
 
     return total_R, total_phi, total_Z
-
 
 def main() -> int:
     from libneo.biotsavart_fourier import (
@@ -541,11 +513,7 @@ def main() -> int:
     fourier_modes_ungauged_A = {}
     fourier_modes_gauged_A = {}
     BR_bnvac = Bphi_bnvac = BZ_bnvac = None
-    BR_bnvac_plane = Bphi_bnvac_plane = BZ_bnvac_plane = None
-    R_mesh_cm_bnvac = Z_mesh_cm_bnvac = None
     BR_bvac = Bphi_bvac = BZ_bvac = None
-    BR_bvac_plane = Bphi_bvac_plane = BZ_bvac_plane = None
-    R_mesh_cm_bvac = Z_mesh_cm_bvac = None
     has_bnvac = BNVAC_FILE.exists()
     has_bvac = BVAC_FILE.exists()
 
@@ -624,47 +592,22 @@ def main() -> int:
         BR_bnvac = np.zeros(npts)
         Bphi_bnvac = np.zeros(npts)
         BZ_bnvac = np.zeros(npts)
-        bnvac_R_flat = None
-        bnvac_Z_flat = None
-        bnvac_shape = None
         for ntor in range(0, nmax + 1):
             grid_b, BnR, Bnphi, BnZ = read_Bnvac_fourier(str(BNVAC_FILE), ntor=ntor)
             total_R = np.zeros(npts, dtype=complex)
             total_phi = np.zeros(npts, dtype=complex)
             total_Z = np.zeros(npts, dtype=complex)
-            if bnvac_R_flat is None:
-                R_mesh_cm_bnvac, Z_mesh_cm_bnvac = np.meshgrid(grid_b.R, grid_b.Z, indexing="xy")
-                bnvac_R_flat = R_mesh_cm_bnvac.ravel()
-                bnvac_Z_flat = Z_mesh_cm_bnvac.ravel()
-                bnvac_shape = R_mesh_cm_bnvac.shape
-                BR_bnvac_plane = np.zeros(bnvac_R_flat.size)
-                Bphi_bnvac_plane = np.zeros(bnvac_R_flat.size)
-                BZ_bnvac_plane = np.zeros(bnvac_R_flat.size)
-            plane_total_R = np.zeros(bnvac_R_flat.size, dtype=complex)
-            plane_total_phi = np.zeros(bnvac_R_flat.size, dtype=complex)
-            plane_total_Z = np.zeros(bnvac_R_flat.size, dtype=complex)
             for kcoil in range(BnR.shape[0]):
                 total_R += eval_complex_spline(grid_b.R, grid_b.Z, BnR[kcoil], R_eval_cm, Z_eval_cm)
                 total_phi += eval_complex_spline(grid_b.R, grid_b.Z, Bnphi[kcoil], R_eval_cm, Z_eval_cm)
                 total_Z += eval_complex_spline(grid_b.R, grid_b.Z, BnZ[kcoil], R_eval_cm, Z_eval_cm)
-                plane_total_R += eval_complex_spline(grid_b.R, grid_b.Z, BnR[kcoil], bnvac_R_flat, bnvac_Z_flat)
-                plane_total_phi += eval_complex_spline(grid_b.R, grid_b.Z, Bnphi[kcoil], bnvac_R_flat, bnvac_Z_flat)
-                plane_total_Z += eval_complex_spline(grid_b.R, grid_b.Z, BnZ[kcoil], bnvac_R_flat, bnvac_Z_flat)
             phase = np.exp(1j * ntor * phi_eval)
             weight = reconstruction_weight(ntor)
             BR_bnvac += weight * np.real(total_R * phase)
             Bphi_bnvac += weight * np.real(total_phi * phase)
             BZ_bnvac += weight * np.real(total_Z * phase)
-            plane_phase = np.exp(1j * ntor * phi_center)
-            BR_bnvac_plane += weight * np.real(plane_total_R * plane_phase)
-            Bphi_bnvac_plane += weight * np.real(plane_total_phi * plane_phase)
-            BZ_bnvac_plane += weight * np.real(plane_total_Z * plane_phase)
             if ntor <= MODE_MAX:
                 bnvac_modes[ntor] = (total_R.copy(), total_phi.copy(), total_Z.copy())
-        if bnvac_shape is not None:
-            BR_bnvac_plane = BR_bnvac_plane.reshape(bnvac_shape)
-            Bphi_bnvac_plane = Bphi_bnvac_plane.reshape(bnvac_shape)
-            BZ_bnvac_plane = BZ_bnvac_plane.reshape(bnvac_shape)
 
     bvac_modes = {}
     if has_bvac:
@@ -686,27 +629,6 @@ def main() -> int:
         BR_bvac = interpolators_eval[0](points_eval)
         Bphi_bvac = interpolators_eval[1](points_eval)
         BZ_bvac = interpolators_eval[2](points_eval)
-        plane_phi_mod = (phi_center + 2.0 * np.pi) % (2.0 * np.pi)
-        R_mesh_cm_bvac, Z_mesh_cm_bvac = np.meshgrid(R_grid_bvac, Z_grid_bvac, indexing="xy")
-        plane_points_full = np.column_stack(
-            (
-                np.broadcast_to(plane_phi_mod, R_mesh_cm_bvac.size),
-                Z_mesh_cm_bvac.ravel(),
-                R_mesh_cm_bvac.ravel(),
-            )
-        )
-        plane_points_full[:, 0] = np.where(
-            plane_points_full[:, 0] >= phi_grid_bvac[-1],
-            plane_points_full[:, 0] - 2.0 * np.pi,
-            plane_points_full[:, 0],
-        )
-        BR_bvac_plane = interpolators_eval[0](plane_points_full)
-        Bphi_bvac_plane = interpolators_eval[1](plane_points_full)
-        BZ_bvac_plane = interpolators_eval[2](plane_points_full)
-        plane_shape = R_mesh_cm_bvac.shape
-        BR_bvac_plane = BR_bvac_plane.reshape(plane_shape)
-        Bphi_bvac_plane = Bphi_bvac_plane.reshape(plane_shape)
-        BZ_bvac_plane = BZ_bvac_plane.reshape(plane_shape)
 
         nphi_bvac = phi_grid_bvac.size
         mode_accum = {
@@ -753,7 +675,7 @@ def main() -> int:
     plane_R_flat_m = R_mesh_m_fourier.ravel()
     plane_Z_flat_m = Z_mesh_m_fourier.ravel()
 
-    plane_fields: List[PlaneData] = []
+    plane_fields: List[Tuple[str, np.ndarray, np.ndarray, np.ndarray]] = []
 
     try:
         plane_points = np.vstack(
@@ -774,7 +696,7 @@ def main() -> int:
         mag_plane_direct = np.sqrt(
             BR_plane_direct**2 + Bphi_plane_direct**2 + BZ_plane_direct**2
         )
-        plane_fields.append(PlaneData("Direct Biot-Savart", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_direct))
+        plane_fields.append(("Direct Biot-Savart", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_direct))
     except FileNotFoundError as err:
         print(f"Direct Biot-Savart plane evaluation skipped: {err}")
 
@@ -829,24 +751,8 @@ def main() -> int:
         BR_plane_gauged**2 + Bphi_plane_gauged**2 + BZ_plane_gauged**2
     )
 
-    plane_fields.append(PlaneData("Fourier (ungauged)", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_ung))
-    plane_fields.append(PlaneData("Fourier (gauged n>0)", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_gauged))
-
-    if BR_bvac_plane is not None and R_mesh_cm_bvac is not None and Z_mesh_cm_bvac is not None:
-        mag_plane_bvac = np.sqrt(
-            BR_bvac_plane**2 + Bphi_bvac_plane**2 + BZ_bvac_plane**2
-        )
-        plane_fields.append(
-            PlaneData("Bvac grid", R_mesh_cm_bvac / scale, Z_mesh_cm_bvac / scale, mag_plane_bvac)
-        )
-
-    if BR_bnvac_plane is not None and R_mesh_cm_bnvac is not None and Z_mesh_cm_bnvac is not None:
-        mag_plane_bnvac = np.sqrt(
-            BR_bnvac_plane**2 + Bphi_bnvac_plane**2 + BZ_bnvac_plane**2
-        )
-        plane_fields.append(
-            PlaneData("Fourier Bnvac", R_mesh_cm_bnvac / scale, Z_mesh_cm_bnvac / scale, mag_plane_bnvac)
-        )
+    plane_fields.append(("Fourier (ungauged)", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_ung))
+    plane_fields.append(("Fourier (gauged n>0)", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_gauged))
 
     plot_plane_magnitudes(plane_fields, "tilted_coil_RZ_comparison.png")
 
@@ -1071,7 +977,6 @@ def main() -> int:
     )
 
     return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())
