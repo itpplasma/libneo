@@ -25,6 +25,7 @@ BNVAC_FILE = BUILD_DIR / "tilted_coil_Bnvac.h5"
 BVAC_FILE = BUILD_DIR / "tilted_coil_Bvac.dat"
 AXIS_SOLVER = BUILD_DIR / "compute_axis_biot_savart.x"
 CLIGHT = 2.99792458e10  # cm / s
+MODE_MAX = 2
 
 sys.path.append(str(SCRIPT_DIR))
 from generate_tilted_coil import _plane_basis  # noqa: E402
@@ -258,8 +259,8 @@ def main() -> int:
     BR_fourier_gauged = np.zeros(npts)
     Bphi_fourier_gauged = np.zeros(npts)
     BZ_fourier_gauged = np.zeros(npts)
-    Bn2_fourier_ungauged = None
-    Bn2_fourier_gauged = None
+    fourier_modes_ungauged = {}
+    fourier_modes_gauged = {}
     BR_bnvac = Bphi_bnvac = BZ_bnvac = None
     BR_bvac = Bphi_bvac = BZ_bvac = None
     has_bnvac = BNVAC_FILE.exists()
@@ -267,7 +268,6 @@ def main() -> int:
 
     cache = {0: (grid0, AnR0, Anphi0, AnZ0, dAnphi_dR0, dAnphi_dZ0)}
 
-    ntor_target = 2
     for ntor in range(0, nmax + 1):
         if ntor in cache:
             grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = cache[ntor]
@@ -304,11 +304,11 @@ def main() -> int:
             Bphi_fourier_gauged += np.real(Bnphi_gauged * phase)
             BZ_fourier_gauged += np.real(BnZ_gauged * phase)
 
-        if ntor == ntor_target:
-            Bn2_fourier_ungauged = BnR_ungauged, Bnphi_ungauged, BnZ_ungauged
-            Bn2_fourier_gauged = BnR_gauged, Bnphi_gauged, BnZ_gauged
+        if ntor <= MODE_MAX:
+            fourier_modes_ungauged[ntor] = (BnR_ungauged.copy(), Bnphi_ungauged.copy(), BnZ_ungauged.copy())
+            fourier_modes_gauged[ntor] = (BnR_gauged.copy(), Bnphi_gauged.copy(), BnZ_gauged.copy())
 
-    Bn2_bnvac = None
+    bnvac_modes = {}
     if has_bnvac:
         BR_bnvac = np.zeros(npts)
         Bphi_bnvac = np.zeros(npts)
@@ -326,10 +326,10 @@ def main() -> int:
             BR_bnvac += np.real(total_R * phase)
             Bphi_bnvac += np.real(total_phi * phase)
             BZ_bnvac += np.real(total_Z * phase)
-            if ntor == ntor_target:
-                Bn2_bnvac = total_R, total_phi, total_Z
+            if ntor <= MODE_MAX:
+                bnvac_modes[ntor] = (total_R.copy(), total_phi.copy(), total_Z.copy())
 
-    Bn2_bvac = None
+    bvac_modes = {}
     if has_bvac:
         R_grid_bvac, phi_grid_bvac, Z_grid_bvac, Bvac_components = read_Bvac_nemov(BVAC_FILE)
         phi_mod_eval = np.mod(phi_eval, 2.0 * np.pi)
@@ -350,11 +350,11 @@ def main() -> int:
         Bphi_bvac = interpolators_eval[1](points_eval)
         BZ_bvac = interpolators_eval[2](points_eval)
 
-        # Compute Fourier harmonic n=2 directly from grid data
         nphi_bvac = phi_grid_bvac.size
-        accum_R = np.zeros(npts, dtype=complex)
-        accum_phi = np.zeros(npts, dtype=complex)
-        accum_Z = np.zeros(npts, dtype=complex)
+        mode_accum = {
+            n: [np.zeros(npts, dtype=complex) for _ in range(3)]
+            for n in range(MODE_MAX + 1)
+        }
         for idx, phi_sample in enumerate(phi_grid_bvac):
             values_R = RegularGridInterpolator(
                 (Z_grid_bvac, R_grid_bvac), Bvac_components[0, idx, :, :], bounds_error=False, fill_value=None
@@ -365,10 +365,13 @@ def main() -> int:
             values_Z = RegularGridInterpolator(
                 (Z_grid_bvac, R_grid_bvac), Bvac_components[2, idx, :, :], bounds_error=False, fill_value=None
             )(np.column_stack((Z_eval_cm, R_eval_cm)))
-            accum_R += values_R * np.exp(-1j * ntor_target * phi_sample)
-            accum_phi += values_phi * np.exp(-1j * ntor_target * phi_sample)
-            accum_Z += values_Z * np.exp(-1j * ntor_target * phi_sample)
-        Bn2_bvac = accum_R / nphi_bvac, accum_phi / nphi_bvac, accum_Z / nphi_bvac
+            for n in range(MODE_MAX + 1):
+                factor = np.exp(-1j * n * phi_sample)
+                mode_accum[n][0] += values_R * factor
+                mode_accum[n][1] += values_phi * factor
+                mode_accum[n][2] += values_Z * factor
+        for n in range(MODE_MAX + 1):
+            bvac_modes[n] = tuple(acc / nphi_bvac for acc in mode_accum[n])
 
     direct_cart = compute_direct_biot_savart(axis_eval)
     if direct_cart.shape[0] != npts:
@@ -380,13 +383,16 @@ def main() -> int:
     BZ_direct = direct_cart[:, 2]
 
     # Prepare n=2 datasets
-    def real_part(data_tuple):
-        return [np.real(comp) if data_tuple is not None else None for comp in data_tuple] if data_tuple else (None, None, None)
+    def to_real_dict(data_dict):
+        return {
+            n: tuple(np.real(comp) for comp in value)
+            for n, value in data_dict.items()
+        }
 
-    BRn2_fourier_ung, Bphin2_fourier_ung, BZn2_fourier_ung = real_part(Bn2_fourier_ungauged)
-    BRn2_fourier_gauged, Bphin2_fourier_gauged, BZn2_fourier_gauged = real_part(Bn2_fourier_gauged)
-    BRn2_bnvac, Bphin2_bnvac, BZn2_bnvac = real_part(Bn2_bnvac)
-    BRn2_bvac, Bphin2_bvac, BZn2_bvac = real_part(Bn2_bvac)
+    fourier_modes_ungauged_real = to_real_dict(fourier_modes_ungauged)
+    fourier_modes_gauged_real = to_real_dict(fourier_modes_gauged)
+    bnvac_modes_real = to_real_dict(bnvac_modes)
+    bvac_modes_real = to_real_dict(bvac_modes)
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
 
@@ -435,41 +441,58 @@ def main() -> int:
     fig.savefig("ntor0_validation.png", dpi=150)
     print("\nSaved plot to ntor0_validation.png")
 
-    fig2, axes2 = plt.subplots(1, 3, figsize=(16, 5))
-    axes2[0].set_title("Radial Component (n=2)")
-    axes2[1].set_title("Toroidal Component (n=2)")
-    axes2[2].set_title("Vertical Component (n=2)")
+    def get_component(data_dict, mode_idx, comp_idx):
+        if mode_idx not in data_dict:
+            return None
+        return data_dict[mode_idx][comp_idx]
 
-    def plot_n2(axis, label, color, marker, series):
-        if series is None:
-            return
-        axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
+    def make_mode_plot(mode_idx):
+        fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+        axes[0].set_title(f"Radial Component (n={mode_idx})")
+        axes[1].set_title(f"Toroidal Component (n={mode_idx})")
+        axes[2].set_title(f"Vertical Component (n={mode_idx})")
 
-    plot_n2(axes2[0], "Fourier (ungauged)", "r", "^--", BRn2_fourier_ung)
-    plot_n2(axes2[0], "Fourier (gauged)", "b", "s-.", BRn2_fourier_gauged)
-    plot_n2(axes2[0], "Fourier Bnvac", "m", "D:", BRn2_bnvac)
-    plot_n2(axes2[0], "Bvac grid", "c", "o-", BRn2_bvac)
+        def plot_series(axis, label, color, marker, data_dict, comp_idx):
+            series = get_component(data_dict, mode_idx, comp_idx)
+            if series is None:
+                return
+            axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
 
-    plot_n2(axes2[1], "Fourier (ungauged)", "r", "^--", Bphin2_fourier_ung)
-    plot_n2(axes2[1], "Fourier (gauged)", "b", "s-.", Bphin2_fourier_gauged)
-    plot_n2(axes2[1], "Fourier Bnvac", "m", "D:", Bphin2_bnvac)
-    plot_n2(axes2[1], "Bvac grid", "c", "o-", Bphin2_bvac)
+        plot_series(axes[0], "Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_real, 0)
+        plot_series(axes[0], "Fourier (gauged)", "b", "s-.", fourier_modes_gauged_real, 0)
+        plot_series(axes[0], "Fourier Bnvac", "m", "D:", bnvac_modes_real, 0)
+        plot_series(axes[0], "Bvac grid", "c", "o-", bvac_modes_real, 0)
 
-    plot_n2(axes2[2], "Fourier (ungauged)", "r", "^--", BZn2_fourier_ung)
-    plot_n2(axes2[2], "Fourier (gauged)", "b", "s-.", BZn2_fourier_gauged)
-    plot_n2(axes2[2], "Fourier Bnvac", "m", "D:", BZn2_bnvac)
-    plot_n2(axes2[2], "Bvac grid", "c", "o-", BZn2_bvac)
+        plot_series(axes[1], "Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_real, 1)
+        plot_series(axes[1], "Fourier (gauged)", "b", "s-.", fourier_modes_gauged_real, 1)
+        plot_series(axes[1], "Fourier Bnvac", "m", "D:", bnvac_modes_real, 1)
+        plot_series(axes[1], "Bvac grid", "c", "o-", bvac_modes_real, 1)
 
-    for ax in axes2:
-        ax.set_xlabel("Axis coordinate s (m)")
-        ax.set_ylabel("Re[B^{(n=2)}] (G)")
-        ax.grid(True, alpha=0.3)
+        plot_series(axes[2], "Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_real, 2)
+        plot_series(axes[2], "Fourier (gauged)", "b", "s-.", fourier_modes_gauged_real, 2)
+        plot_series(axes[2], "Fourier Bnvac", "m", "D:", bnvac_modes_real, 2)
+        plot_series(axes[2], "Bvac grid", "c", "o-", bvac_modes_real, 2)
 
-    handles2, labels2 = axes2[0].get_legend_handles_labels()
-    fig2.legend(handles2, labels2, loc="upper center", ncol=2)
-    fig2.tight_layout(rect=(0, 0, 1, 0.92))
-    fig2.savefig("ntor0_mode2.png", dpi=150)
-    print("Saved plot to ntor0_mode2.png")
+        if mode_idx == 0:
+            axes[0].plot(s_eval, BR_analytical, "k-", label="Analytical", linewidth=2)
+            axes[1].plot(s_eval, Bphi_analytical, "k-", label="Analytical", linewidth=2)
+            axes[2].plot(s_eval, BZ_analytical, "k-", label="Analytical", linewidth=2)
+
+        for ax in axes:
+            ax.set_xlabel("Axis coordinate s (m)")
+            ax.set_ylabel(f"Re[B^{{(n={mode_idx})}}] (G)")
+            ax.grid(True, alpha=0.3)
+
+        handles_mode, labels_mode = axes[0].get_legend_handles_labels()
+        fig.legend(handles_mode, labels_mode, loc="upper center", ncol=2)
+        fig.tight_layout(rect=(0, 0, 1, 0.92))
+        outfile = f"ntor0_mode{mode_idx}.png"
+        fig.savefig(outfile, dpi=150)
+        print(f"Saved plot to {outfile}")
+
+    make_mode_plot(0)
+    for mode_idx in range(1, MODE_MAX + 1):
+        make_mode_plot(mode_idx)
 
     print("\nField samples at first valid axis point (s = {:.3f} m):".format(s_eval[0]))
     print(
@@ -544,25 +567,61 @@ def main() -> int:
         "\n✗ TEST FAILED: At least one reconstruction deviates more than 5% from the analytical field "
         f"(worst-case error {max_err:.2f}%)"
     )
-    if Bn2_bvac is not None:
-        def rel_error_complex(ref, val):
-            mask = np.abs(ref) > 1e-5
-            if np.count_nonzero(mask) == 0:
-                return 0.0
-            return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
 
-        print("\nRelative errors for n=2 harmonic (reference = Bvac grid):")
+    def rel_error_complex(ref, val):
+        mask = np.abs(ref) > 1e-5
+        if np.count_nonzero(mask) == 0:
+            return 0.0
+        return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
+
+    if MODE_MAX >= 1 and 1 in bvac_modes:
+        print("\nRelative errors for n=1 harmonic (reference = Bvac grid):")
         for label, dataset in (
-            ("Fourier ungauged", Bn2_fourier_ungauged),
-            ("Fourier gauged", Bn2_fourier_gauged),
-            ("Fourier Bnvac", Bn2_bnvac),
+            ("Fourier ungauged", fourier_modes_ungauged),
+            ("Fourier gauged", fourier_modes_gauged),
+            ("Fourier Bnvac", bnvac_modes),
         ):
-            if dataset is None:
+            mode_data = dataset.get(1)
+            if mode_data is None:
                 continue
             err = (
-                rel_error_complex(Bn2_bvac[0], dataset[0]),
-                rel_error_complex(Bn2_bvac[1], dataset[1]),
-                rel_error_complex(Bn2_bvac[2], dataset[2]),
+                rel_error_complex(bvac_modes[1][0], mode_data[0]),
+                rel_error_complex(bvac_modes[1][1], mode_data[1]),
+                rel_error_complex(bvac_modes[1][2], mode_data[2]),
+            )
+            print("  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(*err, label=label))
+
+    if MODE_MAX >= 2 and 2 in bvac_modes:
+        print("\nRelative errors for n=2 harmonic (reference = Bvac grid):")
+        for label, dataset in (
+            ("Fourier ungauged", fourier_modes_ungauged),
+            ("Fourier gauged", fourier_modes_gauged),
+            ("Fourier Bnvac", bnvac_modes),
+        ):
+            mode_data = dataset.get(2)
+            if mode_data is None:
+                continue
+            err = (
+                rel_error_complex(bvac_modes[2][0], mode_data[0]),
+                rel_error_complex(bvac_modes[2][1], mode_data[1]),
+                rel_error_complex(bvac_modes[2][2], mode_data[2]),
+            )
+            print("  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(*err, label=label))
+
+    if 0 in bvac_modes:
+        print("\nRelative errors for n=0 harmonic (reference = Bvac grid):")
+        for label, dataset in (
+            ("Fourier ungauged", fourier_modes_ungauged),
+            ("Fourier gauged", fourier_modes_gauged),
+            ("Fourier Bnvac", bnvac_modes),
+        ):
+            mode_data = dataset.get(0)
+            if mode_data is None:
+                continue
+            err = (
+                rel_error_complex(bvac_modes[0][0], mode_data[0]),
+                rel_error_complex(bvac_modes[0][1], mode_data[1]),
+                rel_error_complex(bvac_modes[0][2], mode_data[2]),
             )
             print("  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(*err, label=label))
 
