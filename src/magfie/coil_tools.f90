@@ -642,15 +642,24 @@ contains
     gauged_AnR(:, :) = (0d0, 0d0)
     gauged_AnZ(:, :) = (0d0, 0d0)
     ! TODO: OpenMP?
-    do kcoil = 1, ncoil
-      do kZ = 1, nZ
-        gauged_AnR(:, kZ) = gauged_AnR(:, kZ) + Ic(kcoil) * &
-          (AnR(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dR(ntor, :, kZ, kcoil) + &
-          imun / ntor * Anphi(ntor, :, kZ, kcoil))
-        gauged_AnZ(:, kZ) = gauged_AnZ(:, kZ) + Ic(kcoil) * &
-          (AnZ(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dZ(ntor, :, kZ, kcoil))
+    if (ntor == 0) then
+      do kcoil = 1, ncoil
+        do kZ = 1, nZ
+          gauged_AnR(:, kZ) = gauged_AnR(:, kZ) + Ic(kcoil) * AnR(0, :, kZ, kcoil)
+          gauged_AnZ(:, kZ) = gauged_AnZ(:, kZ) + Ic(kcoil) * AnZ(0, :, kZ, kcoil)
+        end do
       end do
-    end do
+    else
+      do kcoil = 1, ncoil
+        do kZ = 1, nZ
+          gauged_AnR(:, kZ) = gauged_AnR(:, kZ) + Ic(kcoil) * &
+            (AnR(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dR(ntor, :, kZ, kcoil) + &
+            imun / ntor * Anphi(ntor, :, kZ, kcoil))
+          gauged_AnZ(:, kZ) = gauged_AnZ(:, kZ) + Ic(kcoil) * &
+            (AnZ(ntor, :, kZ, kcoil) + imun / ntor * R * dAnphi_dZ(ntor, :, kZ, kcoil))
+        end do
+      end do
+    end if
   end subroutine sum_coils_gauge_single_mode_Anvac
 
   subroutine gauged_Anvac_from_Bnvac(BnR, BnZ, ntor, Rmin, Rmax, nR, Zmin, Zmax, nZ, &
@@ -668,6 +677,10 @@ contains
 
     ! TODO: check array sizes
     call grid_from_bounding_box(Rmin, Rmax, nR, R, Zmin, Zmax, nZ, Z)
+    if (ntor == 0) then
+      write (error_unit, '("gauged_Anvac_from_Bnvac: ntor = 0 is unsupported.")')
+      error stop
+    end if
     if (allocated(gauged_AnR)) deallocate(gauged_AnR)
     if (allocated(gauged_AnZ)) deallocate(gauged_AnZ)
     allocate(gauged_AnR(nR, nZ), gauged_AnZ(nR, nZ))
