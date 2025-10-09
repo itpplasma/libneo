@@ -15,8 +15,10 @@ matplotlib.use("Agg")  # Non-interactive backend
 import matplotlib.pyplot as plt
 import netCDF4
 import numpy as np
+from dataclasses import dataclass
 from matplotlib.colors import LogNorm
 from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
+from typing import Dict, Iterable, List, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = Path.cwd()
@@ -28,10 +30,265 @@ AXIS_SOLVER = BUILD_DIR / "tilted_coil_axis_field.x"
 CLIGHT = 2.99792458e10  # cm / s
 MODE_MAX = 2
 RELATIVE_TOLERANCE_PERCENT = 6.0
-XFAIL_LABELS = {"Fourier gauged"}
+XFAIL_LABELS = {"Fourier gauged", "Fourier (gauged n>0)"}
 
 sys.path.append(str(SCRIPT_DIR))
 from tilted_coil_geometry import _plane_basis  # noqa: E402
+
+
+@dataclass
+class VectorComponents:
+    radial: np.ndarray
+    toroidal: np.ndarray
+    vertical: np.ndarray
+
+    def magnitude(self) -> np.ndarray:
+        return np.sqrt(self.radial**2 + self.toroidal**2 + self.vertical**2)
+
+
+@dataclass
+class PlaneData:
+    label: str
+    R: np.ndarray
+    Z: np.ndarray
+    magnitude: np.ndarray
+
+
+DEFAULT_STYLE = {"linewidth": 2}
+FIELD_STYLES: Dict[str, Dict[str, float]] = {
+    "Analytical": {"color": "k", "linestyle": "-"},
+    "Fourier (ungauged)": {"color": "r", "linestyle": "--", "marker": "^", "markersize": 5},
+    "Fourier (gauged n>0)": {"color": "b", "linestyle": "-.", "marker": "s", "markersize": 5},
+    "Fourier (gauged)": {"color": "b", "linestyle": "-.", "marker": "s", "markersize": 5},
+    "Fourier Bnvac": {"color": "m", "linestyle": ":", "marker": "D", "markersize": 4},
+    "Bvac grid": {"color": "c", "linestyle": "-", "marker": "o", "markersize": 4},
+    "Direct Biot-Savart": {"color": "g", "linestyle": "-", "marker": "x", "markersize": 5},
+    "An (ungauged)": {"color": "r", "linestyle": "--", "marker": "^", "markersize": 5},
+    "An (gauged)": {"color": "b", "linestyle": "-.", "marker": "s", "markersize": 5},
+    "An from B (Fourier)": {"color": "g", "linestyle": "-", "marker": "x", "markersize": 5},
+    "An from B (Bnvac)": {"color": "m", "linestyle": ":", "marker": "D", "markersize": 4},
+    "An from B (Bvac)": {"color": "c", "linestyle": "-", "marker": "o", "markersize": 4},
+}
+
+
+def get_plot_style(label: str) -> Dict[str, float]:
+    style = DEFAULT_STYLE.copy()
+    style.update(FIELD_STYLES.get(label, {}))
+    return style
+
+
+def mean_relative_error(reference: np.ndarray, values: np.ndarray, threshold: float = 1e-5) -> float:
+    mask = np.abs(reference) > threshold
+    if np.count_nonzero(mask) == 0:
+        return 0.0
+    return float(np.mean(np.abs(values[mask] - reference[mask]) / np.abs(reference[mask])) * 100.0)
+
+
+def plot_component_series(
+    filename: str,
+    s_eval: np.ndarray,
+    component_sets: List[Tuple[str, VectorComponents]],
+    ylabels: Tuple[str, str, str],
+    title_prefix: str,
+) -> None:
+    if not component_sets:
+        return
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    components = (
+        ("radial", ylabels[0], f"{title_prefix} Radial Component"),
+        ("toroidal", ylabels[1], f"{title_prefix} Toroidal Component"),
+        ("vertical", ylabels[2], f"{title_prefix} Vertical Component"),
+    )
+
+    handles = None
+    labels = None
+    for ax, (attr, ylabel, title) in zip(axes, components):
+        for label, vec in component_sets:
+            data = getattr(vec, attr)
+            if data is None or np.all(np.isnan(data)):
+                continue
+            ax.plot(s_eval, data, **get_plot_style(label), label=label)
+        ax.set_xlabel("Axis coordinate s (m)")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        ax.grid(True, alpha=0.3)
+        if handles is None:
+            handles, labels = ax.get_legend_handles_labels()
+
+    if handles:
+        fig.legend(handles, labels, loc="upper center", ncol=2)
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    fig.savefig(filename, dpi=150)
+    print(f"Saved plot to {filename}")
+
+
+def plot_mode_series(
+    filename: str,
+    mode_index: int,
+    s_eval: np.ndarray,
+    component_sets: List[Tuple[str, VectorComponents]],
+    ylabels: Tuple[str, str, str],
+    title_prefix: str,
+) -> None:
+    title = f"{title_prefix} (n={mode_index})"
+    plot_component_series(filename, s_eval, component_sets, ylabels, title_prefix=title)
+
+
+def plot_plane_magnitudes(plane_variants: List[PlaneData], filename: str) -> None:
+    if not plane_variants:
+        return
+
+    fig, axes = plt.subplots(
+        1, len(plane_variants), figsize=(5.5 * len(plane_variants), 5), constrained_layout=True
+    )
+    if len(plane_variants) == 1:
+        axes = [axes]
+
+    direct_data = next((pd for pd in plane_variants if pd.label == "Direct Biot-Savart"), None)
+    if direct_data is not None:
+        vmax = float(np.max(direct_data.magnitude))
+        positive = direct_data.magnitude[direct_data.magnitude > 0]
+        vmin = float(np.min(positive)) if positive.size else vmax * 1e-12
+    else:
+        vmax = max(float(np.max(pd.magnitude)) for pd in plane_variants)
+        positive = np.concatenate(
+            [pd.magnitude[pd.magnitude > 0] for pd in plane_variants if np.any(pd.magnitude > 0)]
+        )
+        vmin = float(np.min(positive)) if positive.size else vmax * 1e-12
+
+    vmin = max(vmin, 1e-12, vmax * 1e-12)
+    norm = LogNorm(vmin=vmin, vmax=max(vmax, vmin * 10.0))
+
+    pcm = None
+    for ax, pd in zip(axes, plane_variants):
+        safe_mag = np.where(pd.magnitude > vmin, pd.magnitude, vmin)
+        pcm = ax.pcolormesh(
+            pd.R,
+            pd.Z,
+            safe_mag,
+            shading="auto",
+            cmap="viridis",
+            norm=norm,
+        )
+        ax.set_title(pd.label)
+        ax.set_xlabel("R (m)")
+        if ax is axes[0]:
+            ax.set_ylabel("Z (m)")
+        ax.set_aspect("equal")
+
+    fig.colorbar(pcm, ax=axes, label="|B| (G)")
+    fig.savefig(filename, dpi=150)
+    print(f"Saved plot to {filename}")
+
+
+def components_from_tuple(data: Tuple[np.ndarray, ...]) -> VectorComponents:
+    def _to_array(values):
+        if values is None:
+            return None
+        return np.asarray(values, dtype=float)
+
+    radial = _to_array(data[0])
+    toroidal = _to_array(data[1]) if len(data) > 1 else None
+    vertical = _to_array(data[2]) if len(data) > 2 else None
+    return VectorComponents(
+        radial=radial,
+        toroidal=toroidal,
+        vertical=vertical,
+    )
+
+
+def components_from_totals(array: np.ndarray) -> VectorComponents:
+    return VectorComponents(array[0, :], array[1, :], array[2, :])
+
+
+def components_from_radial_vertical(radial: np.ndarray, vertical: np.ndarray) -> VectorComponents:
+    filler = np.full_like(radial, np.nan)
+    return VectorComponents(radial, filler, vertical)
+
+
+def summarize_component_errors(
+    analytical: VectorComponents,
+    comparison_sets: List[Tuple[str, VectorComponents]],
+    tolerance_percent: float,
+    xfail_labels: Iterable[str],
+    threshold: float = 1e-5,
+) -> Tuple[float, List[Tuple[str, Tuple[float, float, float]]], List[Tuple[str, Tuple[float, float, float]]]]:
+    results = []
+    for label, data in comparison_sets:
+        errs = (
+            mean_relative_error(analytical.radial, data.radial, threshold),
+            mean_relative_error(analytical.toroidal, data.toroidal, threshold),
+            mean_relative_error(analytical.vertical, data.vertical, threshold),
+        )
+        results.append((label, errs))
+
+    non_xfail = [max(err) for label, err in results if label not in xfail_labels]
+    max_err = max(non_xfail) if non_xfail else 0.0
+    return max_err, results, [(label, err) for label, err in results if label in xfail_labels]
+
+
+def report_harmonic_errors(
+    header: str,
+    mode_indices: Iterable[int],
+    reference_modes: Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]],
+    datasets: List[Tuple[str, Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]]]],
+    xfail_labels: Iterable[str],
+    threshold: float = 1e-5,
+) -> None:
+    xfail_set = set(xfail_labels)
+    for n in mode_indices:
+        if n not in reference_modes:
+            continue
+        ref_components = components_from_tuple(reference_modes[n])
+        print(f"\n{header.format(n=n)}")
+        for label, data_dict in datasets:
+            if n not in data_dict:
+                continue
+            comp = components_from_tuple(data_dict[n])
+            errs = (
+                mean_relative_error(ref_components.radial, comp.radial, threshold),
+                mean_relative_error(ref_components.toroidal, comp.toroidal, threshold),
+                mean_relative_error(ref_components.vertical, comp.vertical, threshold),
+            )
+            suffix = " [xfail]" if label in xfail_set else ""
+            print(
+                "  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%{suffix}".format(
+                    *errs, label=label, suffix=suffix
+                )
+            )
+
+
+def report_vector_potential_comparisons(
+    mode_indices: Iterable[int],
+    reference_modes: Dict[int, Tuple[np.ndarray, np.ndarray, np.ndarray]],
+    reconstructions: List[Tuple[str, Dict[int, Tuple[np.ndarray, np.ndarray]]]],
+    xfail_labels: Iterable[str],
+    threshold: float = 1e-6,
+) -> None:
+    xfail_set = set(xfail_labels)
+    print("\nRelative errors for gauged An components (reference = Fourier gauged)")
+
+    for n in mode_indices:
+        ref = reference_modes.get(n)
+        if ref is None:
+            continue
+        ref_vec = components_from_tuple(ref)
+        entries = [f"  n={n}"]
+        for label, data_dict in reconstructions:
+            if n not in data_dict:
+                continue
+            comp_R, comp_Z = data_dict[n]
+            comp_vec = components_from_radial_vertical(np.asarray(comp_R), np.asarray(comp_Z))
+            err_R = mean_relative_error(ref_vec.radial, comp_vec.radial, threshold)
+            err_Z = mean_relative_error(ref_vec.vertical, comp_vec.vertical, threshold)
+            suffix = " [xfail]" if label in xfail_set else ""
+            entries.append(f"{label}: AR {err_R:.2f}%, AZ {err_Z:.2f}%{suffix}")
+        if len(entries) > 1:
+            print("; ".join(entries))
+
+
+
 
 
 def circular_coil_analytical(
@@ -496,7 +753,7 @@ def main() -> int:
     plane_R_flat_m = R_mesh_m_fourier.ravel()
     plane_Z_flat_m = Z_mesh_m_fourier.ravel()
 
-    plane_fields = {}
+    plane_fields: List[PlaneData] = []
 
     try:
         plane_points = np.vstack(
@@ -517,7 +774,7 @@ def main() -> int:
         mag_plane_direct = np.sqrt(
             BR_plane_direct**2 + Bphi_plane_direct**2 + BZ_plane_direct**2
         )
-        plane_fields["Direct Biot-Savart"] = (R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_direct)
+        plane_fields.append(PlaneData("Direct Biot-Savart", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_direct))
     except FileNotFoundError as err:
         print(f"Direct Biot-Savart plane evaluation skipped: {err}")
 
@@ -572,86 +829,26 @@ def main() -> int:
         BR_plane_gauged**2 + Bphi_plane_gauged**2 + BZ_plane_gauged**2
     )
 
-    plane_fields["Fourier (ungauged)"] = (R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_ung)
-    plane_fields["Fourier (gauged n>0)"] = (R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_gauged)
+    plane_fields.append(PlaneData("Fourier (ungauged)", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_ung))
+    plane_fields.append(PlaneData("Fourier (gauged n>0)", R_mesh_m_fourier, Z_mesh_m_fourier, mag_plane_gauged))
 
     if BR_bvac_plane is not None and R_mesh_cm_bvac is not None and Z_mesh_cm_bvac is not None:
         mag_plane_bvac = np.sqrt(
             BR_bvac_plane**2 + Bphi_bvac_plane**2 + BZ_bvac_plane**2
         )
-        plane_fields["Bvac grid"] = (R_mesh_cm_bvac / scale, Z_mesh_cm_bvac / scale, mag_plane_bvac)
+        plane_fields.append(
+            PlaneData("Bvac grid", R_mesh_cm_bvac / scale, Z_mesh_cm_bvac / scale, mag_plane_bvac)
+        )
 
     if BR_bnvac_plane is not None and R_mesh_cm_bnvac is not None and Z_mesh_cm_bnvac is not None:
         mag_plane_bnvac = np.sqrt(
             BR_bnvac_plane**2 + Bphi_bnvac_plane**2 + BZ_bnvac_plane**2
         )
-        plane_fields["Fourier Bnvac"] = (R_mesh_cm_bnvac / scale, Z_mesh_cm_bnvac / scale, mag_plane_bnvac)
-
-    plane_order = [
-        "Direct Biot-Savart",
-        "Bvac grid",
-        "Fourier (ungauged)",
-        "Fourier (gauged n>0)",
-        "Fourier Bnvac",
-    ]
-    plane_variants = [
-        (label, plane_fields[label]) for label in plane_order if label in plane_fields
-    ]
-
-    if plane_variants:
-        fig_rz, axes_rz = plt.subplots(
-            1, len(plane_variants), figsize=(5.5 * len(plane_variants), 5), constrained_layout=True
+        plane_fields.append(
+            PlaneData("Fourier Bnvac", R_mesh_cm_bnvac / scale, Z_mesh_cm_bnvac / scale, mag_plane_bnvac)
         )
-        if len(plane_variants) == 1:
-            axes_rz = [axes_rz]
-        direct_stats = next(
-            (
-                (float(np.max(mag)), float(np.min(mag[mag > 0])) if np.any(mag > 0) else None)
-                for label, (_, _, mag) in plane_variants
-                if label == "Direct Biot-Savart" and mag.size > 0
-            ),
-            (None, None),
-        )
-        direct_vmax, direct_vmin = direct_stats
-        if direct_vmax is not None:
-            vmax = direct_vmax
-        else:
-            vmax = max(np.max(mag) for _, (_, _, mag) in plane_variants if mag.size > 0)
-        positive_samples = [
-            mag[np.isfinite(mag) & (mag > 0)]
-            for _, (_, _, mag) in plane_variants
-            if mag.size > 0
-        ]
-        positive_samples = [sample for sample in positive_samples if sample.size > 0]
-        if positive_samples:
-            global_min_positive = float(np.min([np.min(sample) for sample in positive_samples]))
-        else:
-            global_min_positive = 1.0
-        if direct_vmin is not None and direct_vmin > 0:
-            log_vmin = direct_vmin
-        else:
-            log_vmin = global_min_positive
-        log_vmin = max(log_vmin, 1e-12, vmax * 1e-12)
-        norm = LogNorm(vmin=log_vmin, vmax=max(vmax, log_vmin * 10.0))
-        pcm = None
-        for ax, (label, (R_mesh_plot, Z_mesh_plot, mag_plot)) in zip(axes_rz, plane_variants):
-            safe_mag = np.where(mag_plot > log_vmin, mag_plot, log_vmin)
-            pcm = ax.pcolormesh(
-                R_mesh_plot,
-                Z_mesh_plot,
-                safe_mag,
-                shading="auto",
-                cmap="viridis",
-                norm=norm,
-            )
-            ax.set_title(label)
-            ax.set_xlabel("R (m)")
-            if ax is axes_rz[0]:
-                ax.set_ylabel("Z (m)")
-            ax.set_aspect("equal")
-        fig_rz.colorbar(pcm, ax=axes_rz, label="|B| (G)")
-        fig_rz.savefig("tilted_coil_RZ_comparison.png", dpi=150)
-        print("Saved plot to tilted_coil_RZ_comparison.png")
+
+    plot_plane_magnitudes(plane_fields, "tilted_coil_RZ_comparison.png")
 
     # Prepare n=2 datasets
     def to_real_dict(data_dict):
@@ -692,188 +889,100 @@ def main() -> int:
     An_from_B_bnvac = reconstruct_gauged_from_B(bnvac_modes)
     An_from_B_bvac = reconstruct_gauged_from_B(bvac_modes)
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    axis_analytical = VectorComponents(BR_analytical, Bphi_analytical, BZ_analytical)
+    axis_fourier_ung = VectorComponents(BR_fourier_ungauged, Bphi_fourier_ungauged, BZ_fourier_ungauged)
+    axis_fourier_g = VectorComponents(BR_fourier_gauged, Bphi_fourier_gauged, BZ_fourier_gauged)
+    axis_direct = VectorComponents(BR_direct, Bphi_direct, BZ_direct)
+    axis_comparisons: List[Tuple[str, VectorComponents]] = [
+        ("Analytical", axis_analytical),
+        ("Fourier (ungauged)", axis_fourier_ung),
+        ("Fourier (gauged n>0)", axis_fourier_g),
+        ("Direct Biot-Savart", axis_direct),
+    ]
+    if BR_bnvac is not None:
+        axis_comparisons.append(("Fourier Bnvac", VectorComponents(BR_bnvac, Bphi_bnvac, BZ_bnvac)))
+    if BR_bvac is not None:
+        axis_comparisons.append(("Bvac grid", VectorComponents(BR_bvac, Bphi_bvac, BZ_bvac)))
 
-    axes[0].plot(s_eval, BR_analytical, "k-", label="Analytical", linewidth=2)
-    axes[0].plot(s_eval, BR_fourier_ungauged, "r^--", label="Fourier (ungauged)", linewidth=2, markersize=5)
-    axes[0].plot(s_eval, BR_fourier_gauged, "bs-.", label="Fourier (gauged n>0)", linewidth=2, markersize=5)
-    if has_bnvac:
-        axes[0].plot(s_eval, BR_bnvac, "mD:", label="Fourier (Bnvac)", linewidth=1.8, markersize=4)
-    if has_bvac:
-        axes[0].plot(s_eval, BR_bvac, "co-", label="Bvac (grid)", linewidth=1.8, markersize=4)
-    axes[0].plot(s_eval, BR_direct, "gx-", label="Direct Biot-Savart", linewidth=1.8, markersize=5)
-    axes[0].set_xlabel("Axis coordinate s (m)")
-    axes[0].set_ylabel("$B_R$ (G)")
-    axes[0].grid(True, alpha=0.3)
-    axes[0].set_title("Radial Component")
+    plot_component_series(
+        "tilted_coil_validation.png",
+        s_eval,
+        axis_comparisons,
+        ("$B_R$ (G)", "$B_\\phi$ (G)", "$B_Z$ (G)"),
+        title_prefix="Magnetic Field",
+    )
 
-    axes[1].plot(s_eval, Bphi_analytical, "k-", label="Analytical", linewidth=2)
-    axes[1].plot(s_eval, Bphi_fourier_ungauged, "r^--", linewidth=2, markersize=5)
-    axes[1].plot(s_eval, Bphi_fourier_gauged, "bs-.", linewidth=2, markersize=5)
-    if has_bnvac:
-        axes[1].plot(s_eval, Bphi_bnvac, "mD:", linewidth=1.8, markersize=4)
-    if has_bvac:
-        axes[1].plot(s_eval, Bphi_bvac, "co-", linewidth=1.8, markersize=4)
-    axes[1].plot(s_eval, Bphi_direct, "gx-", linewidth=1.8, markersize=5)
-    axes[1].set_xlabel("Axis coordinate s (m)")
-    axes[1].set_ylabel("$B_\\phi$ (G)")
-    axes[1].grid(True, alpha=0.3)
-    axes[1].set_title("Toroidal Component")
+    an_total_ung_vec = components_from_totals(An_total_ung)
+    an_total_gauged_vec = components_from_totals(An_total_gauged)
+    an_comparisons = [
+        ("An (ungauged)", an_total_ung_vec),
+        ("An (gauged)", an_total_gauged_vec),
+    ]
+    plot_component_series(
+        "tilted_coil_An_total.png",
+        s_eval,
+        an_comparisons,
+        ("Re[A_R] (G·cm)", "Re[A_\\phi] (G·cm)", "Re[A_Z] (G·cm)"),
+        title_prefix="Vector Potential",
+    )
 
-    axes[2].plot(s_eval, BZ_analytical, "k-", label="Analytical", linewidth=2)
-    axes[2].plot(s_eval, BZ_fourier_ungauged, "r^--", linewidth=2, markersize=5)
-    axes[2].plot(s_eval, BZ_fourier_gauged, "bs-.", linewidth=2, markersize=5)
-    if has_bnvac:
-        axes[2].plot(s_eval, BZ_bnvac, "mD:", linewidth=1.8, markersize=4)
-    if has_bvac:
-        axes[2].plot(s_eval, BZ_bvac, "co-", linewidth=1.8, markersize=4)
-    axes[2].plot(s_eval, BZ_direct, "gx-", linewidth=1.8, markersize=5)
-    axes[2].set_xlabel("Axis coordinate s (m)")
-    axes[2].set_ylabel("$B_Z$ (G)")
-    axes[2].grid(True, alpha=0.3)
-    axes[2].set_title("Vertical Component")
+    harmonic_datasets = [
+        ("Fourier (ungauged)", fourier_modes_ungauged_B_real),
+        ("Fourier (gauged)", fourier_modes_gauged_B_real),
+        ("Fourier Bnvac", bnvac_modes_B_real),
+        ("Bvac grid", bvac_modes_B_real),
+    ]
 
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=2)
-    fig.tight_layout(rect=(0, 0, 1, 0.92))
-    fig.savefig("tilted_coil_validation.png", dpi=150)
-    print("\nSaved plot to tilted_coil_validation.png")
+    for mode_idx in range(0, MODE_MAX + 1):
+        component_sets: List[Tuple[str, VectorComponents]] = []
+        if mode_idx == 0:
+            component_sets.append(("Analytical", axis_analytical))
+        for label, data_dict in harmonic_datasets:
+            if mode_idx not in data_dict:
+                continue
+            component_sets.append((label, components_from_tuple(data_dict[mode_idx])))
+        if component_sets:
+            plot_mode_series(
+                f"tilted_coil_mode{mode_idx}.png",
+                mode_idx,
+                s_eval,
+                component_sets,
+                (r"Re[B_R^{(n)}] (G)", r"Re[B_\\phi^{(n)}] (G)", r"Re[B_Z^{(n)}] (G)"),
+                title_prefix="Magnetic Field",
+            )
 
-    figA, axesA = plt.subplots(1, 3, figsize=(16, 5))
-    axesA[0].plot(s_eval, An_total_ung[0, :], "r^--", label="An (ungauged)", linewidth=2, markersize=5)
-    axesA[0].plot(s_eval, An_total_gauged[0, :], "bs-.", label="An (gauged)", linewidth=2, markersize=5)
-    axesA[0].set_title("An_R total")
-    axesA[0].set_xlabel("Axis coordinate s (m)")
-    axesA[0].set_ylabel("Re[A_R] (G·cm)")
-    axesA[0].grid(True, alpha=0.3)
+    vector_mode_datasets = [
+        ("Fourier (ungauged)", fourier_modes_ungauged_A_real),
+        ("Fourier (gauged)", fourier_modes_gauged_A_real),
+    ]
+    vector_recon_sets = [
+        ("An from B (Fourier)", An_from_B_fourier),
+        ("An from B (Bnvac)", An_from_B_bnvac),
+        ("An from B (Bvac)", An_from_B_bvac),
+    ]
 
-    axesA[1].plot(s_eval, An_total_ung[1, :], "r^--", linewidth=2, markersize=5)
-    axesA[1].plot(s_eval, An_total_gauged[1, :], "bs-.", linewidth=2, markersize=5)
-    axesA[1].set_title("An_φ total")
-    axesA[1].set_xlabel("Axis coordinate s (m)")
-    axesA[1].set_ylabel("Re[A_φ] (G·cm)")
-    axesA[1].grid(True, alpha=0.3)
-
-    axesA[2].plot(s_eval, An_total_ung[2, :], "r^--", linewidth=2, markersize=5)
-    axesA[2].plot(s_eval, An_total_gauged[2, :], "bs-.", linewidth=2, markersize=5)
-    axesA[2].set_title("An_Z total")
-    axesA[2].set_xlabel("Axis coordinate s (m)")
-    axesA[2].set_ylabel("Re[A_Z] (G·cm)")
-    axesA[2].grid(True, alpha=0.3)
-
-    handlesA, labelsA = axesA[0].get_legend_handles_labels()
-    figA.legend(handlesA, labelsA, loc="upper center", ncol=2)
-    figA.tight_layout(rect=(0, 0, 1, 0.92))
-    figA.savefig("tilted_coil_An_total.png", dpi=150)
-    print("Saved plot to tilted_coil_An_total.png")
-
-    def get_component(data_dict, mode_idx, comp_idx, key=None):
-        entry = data_dict.get(mode_idx)
-        if entry is None:
-            return None
-        if isinstance(entry, dict):
-            if key is None or key not in entry:
-                return None
-            values = entry[key]
-        else:
-            values = entry
-        if values[comp_idx] is None:
-            return None
-        return values[comp_idx]
-
-    def make_mode_plot(mode_idx):
-        fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-        axes[0].set_title(f"Radial Component (n={mode_idx})")
-        axes[1].set_title(f"Toroidal Component (n={mode_idx})")
-        axes[2].set_title(f"Vertical Component (n={mode_idx})")
-
-        for axis, comp_idx, ylabel in zip(
-            axes,
-            (0, 1, 2),
-            (r"Re[B_R^{(n)}] (G)", r"Re[B_\phi^{(n)}] (G)", r"Re[B_Z^{(n)}] (G)"),
-        ):
-            for label, color, marker, data_dict in (
-                ("Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_B_real),
-                ("Fourier (gauged)", "b", "s-.", fourier_modes_gauged_B_real),
-                ("Fourier Bnvac", "m", "D:", bnvac_modes_B_real),
-                ("Bvac grid", "c", "o-", bvac_modes_B_real),
-            ):
-                series = get_component(data_dict, mode_idx, comp_idx)
-                if series is None:
-                    continue
-                axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
-
-            if mode_idx == 0:
-                if comp_idx == 0:
-                    axis.plot(s_eval, BR_analytical, "k-", label="Analytical", linewidth=2)
-                elif comp_idx == 1:
-                    axis.plot(s_eval, Bphi_analytical, "k-", label="Analytical", linewidth=2)
-                else:
-                    axis.plot(s_eval, BZ_analytical, "k-", label="Analytical", linewidth=2)
-
-            axis.set_xlabel("Axis coordinate s (m)")
-            axis.set_ylabel(ylabel)
-            axis.grid(True, alpha=0.3)
-
-        handles_mode, labels_mode = axes[0].get_legend_handles_labels()
-        fig.legend(handles_mode, labels_mode, loc="upper center", ncol=2)
-        fig.tight_layout(rect=(0, 0, 1, 0.92))
-        outfile = f"tilted_coil_mode{mode_idx}.png"
-        fig.savefig(outfile, dpi=150)
-        print(f"Saved plot to {outfile}")
-
-    make_mode_plot(0)
-    for mode_idx in range(1, MODE_MAX + 1):
-        make_mode_plot(mode_idx)
-
-    def make_mode_plot_A(mode_idx):
-        fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-        axes[0].set_title(f"An_R (n={mode_idx})")
-        axes[1].set_title(f"An_φ (n={mode_idx})")
-        axes[2].set_title(f"An_Z (n={mode_idx})")
-
-        labels_colors = [
-            ("Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_A_real),
-            ("Fourier (gauged)", "b", "s-.", fourier_modes_gauged_A_real),
-        ]
-
-        for axis, comp_idx, ylabel in zip(
-            axes,
-            (0, 1, 2),
-            (r"Re[A_R^{(n)}] (G·cm)", r"Re[A_\phi^{(n)}] (G·cm)", r"Re[A_Z^{(n)}] (G·cm)"),
-        ):
-            for label, color, marker, data_dict in labels_colors:
-                series = get_component(data_dict, mode_idx, comp_idx, key='A')
-                if series is None:
-                    continue
-                axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
-
-            if mode_idx > 0 and comp_idx in (0, 2):
-                recon_sets = (
-                    ("Gauged from B", "g", "x-", An_from_B_fourier),
-                    ("Bnvac from B", "m", "D:", An_from_B_bnvac),
-                    ("Bvac from B", "c", "o-", An_from_B_bvac),
-                )
-                for label, color, marker, data_dict in recon_sets:
-                    if mode_idx not in data_dict:
-                        continue
-                    series = data_dict[mode_idx][0 if comp_idx == 0 else 1]
-                    axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
-
-            axis.set_xlabel("Axis coordinate s (m)")
-            axis.set_ylabel(ylabel)
-            axis.grid(True, alpha=0.3)
-
-        handles_mode, labels_mode = axes[0].get_legend_handles_labels()
-        fig.legend(handles_mode, labels_mode, loc="upper center", ncol=2)
-        fig.tight_layout(rect=(0, 0, 1, 0.92))
-        outfile = f"tilted_coil_An_mode{mode_idx}.png"
-        fig.savefig(outfile, dpi=150)
-        print(f"Saved plot to {outfile}")
-
-    make_mode_plot_A(0)
-    for mode_idx in range(1, MODE_MAX + 1):
-        make_mode_plot_A(mode_idx)
+    for mode_idx in range(0, MODE_MAX + 1):
+        component_sets = []
+        for label, data_dict in vector_mode_datasets:
+            if mode_idx not in data_dict:
+                continue
+            component_sets.append((label, components_from_tuple(data_dict[mode_idx])))
+        for label, data_dict in vector_recon_sets:
+            if mode_idx not in data_dict:
+                continue
+            comp_R, comp_Z = data_dict[mode_idx]
+            component_sets.append(
+                (label, components_from_radial_vertical(np.asarray(comp_R), np.asarray(comp_Z)))
+            )
+        if component_sets:
+            plot_mode_series(
+                f"tilted_coil_An_mode{mode_idx}.png",
+                mode_idx,
+                s_eval,
+                component_sets,
+                (r"Re[A_R^{(n)}] (G·cm)", r"Re[A_\\phi^{(n)}] (G·cm)", r"Re[A_Z^{(n)}] (G·cm)"),
+                title_prefix="Vector Potential",
+            )
 
     print("\nField samples at first valid axis point (s = {:.3f} m):".format(s_eval[0]))
     print(
@@ -909,47 +1018,27 @@ def main() -> int:
             )
         )
 
-    def rel_error(ref, val):
-        mask = np.abs(ref) > 1e-5
-        if np.count_nonzero(mask) == 0:
-            return 0.0
-        return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
-    error_sets = [
-        ("Fourier ungauged", BR_fourier_ungauged, Bphi_fourier_ungauged, BZ_fourier_ungauged),
-        ("Fourier gauged", BR_fourier_gauged, Bphi_fourier_gauged, BZ_fourier_gauged),
-        ("Direct Biot-Savart", BR_direct, Bphi_direct, BZ_direct),
-    ]
-    if BR_bnvac is not None:
-        error_sets.append(("Fourier Bnvac", BR_bnvac, Bphi_bnvac, BZ_bnvac))
-    if BR_bvac is not None:
-        error_sets.append(("Bvac grid", BR_bvac, Bphi_bvac, BZ_bvac))
+    comparison_for_errors = axis_comparisons[1:]
+    max_err, error_records, xfail_records = summarize_component_errors(
+        axis_analytical,
+        comparison_for_errors,
+        RELATIVE_TOLERANCE_PERCENT,
+        XFAIL_LABELS,
+    )
 
     print("\nRelative errors vs analytical solution (mean where |B| > 1e-5 G):")
-    errors = []
-    for label, BR_set, Bphi_set, BZ_set in error_sets:
-        err = (
-            rel_error(BR_analytical, BR_set),
-            rel_error(Bphi_analytical, Bphi_set),
-            rel_error(BZ_analytical, BZ_set),
-        )
-        errors.append((label, err))
-        status_suffix = " [xfail]" if label in XFAIL_LABELS else ""
+    for label, err in error_records:
+        suffix = " [xfail]" if label in XFAIL_LABELS else ""
         print(
             "  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%{suffix}".format(
-                *err, label=label, suffix=status_suffix
+                *err, label=label, suffix=suffix
             )
         )
 
-    xfail_entries = [(label, err) for label, err in errors if label in XFAIL_LABELS]
-    non_xfail_errors = [
-        max(err) for label, err in errors if label not in XFAIL_LABELS
-    ]
-    max_err = max(non_xfail_errors) if non_xfail_errors else 0.0
-
     if max_err <= RELATIVE_TOLERANCE_PERCENT:
-        if xfail_entries:
+        if xfail_records:
             print("\nExpected failures (marked xfail):")
-            for label, err in xfail_entries:
+            for label, err in xfail_records:
                 print(
                     "  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(
                         *err, label=label
@@ -966,107 +1055,20 @@ def main() -> int:
         f"{RELATIVE_TOLERANCE_PERCENT:.1f}% from the analytical field (worst-case error {max_err:.2f}%)"
     )
 
-    def rel_error_complex(ref, val):
-        mask = np.abs(ref) > 1e-5
-        if np.count_nonzero(mask) == 0:
-            return 0.0
-        return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
+    report_harmonic_errors(
+        "Relative errors for n={n} harmonic (reference = Bvac grid):",
+        range(0, MODE_MAX + 1),
+        bvac_modes_B_real,
+        harmonic_datasets,
+        XFAIL_LABELS,
+    )
 
-    if MODE_MAX >= 1 and 1 in bvac_modes_B_real:
-        print("\nRelative errors for n=1 harmonic (reference = Bvac grid):")
-        for label, dataset in (
-            ("Fourier ungauged", fourier_modes_ungauged_B_real),
-            ("Fourier gauged", fourier_modes_gauged_B_real),
-            ("Fourier Bnvac", bnvac_modes_B_real),
-            ("Bvac grid", bvac_modes_B_real),
-        ):
-            mode_data = dataset.get(1)
-            if mode_data is None:
-                continue
-            err = (
-                rel_error_complex(bvac_modes_B_real[1][0], mode_data[0]),
-                rel_error_complex(bvac_modes_B_real[1][1], mode_data[1]),
-                rel_error_complex(bvac_modes_B_real[1][2], mode_data[2]),
-            )
-            status_suffix = " [xfail]" if label in XFAIL_LABELS else ""
-            print(
-                "  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%{suffix}".format(
-                    *err, label=label, suffix=status_suffix
-                )
-            )
-
-    if MODE_MAX >= 2 and 2 in bvac_modes_B_real:
-        print("\nRelative errors for n=2 harmonic (reference = Bvac grid):")
-        for label, dataset in (
-            ("Fourier ungauged", fourier_modes_ungauged_B_real),
-            ("Fourier gauged", fourier_modes_gauged_B_real),
-            ("Fourier Bnvac", bnvac_modes_B_real),
-            ("Bvac grid", bvac_modes_B_real),
-        ):
-            mode_data = dataset.get(2)
-            if mode_data is None:
-                continue
-            err = (
-                rel_error_complex(bvac_modes_B_real[2][0], mode_data[0]),
-                rel_error_complex(bvac_modes_B_real[2][1], mode_data[1]),
-                rel_error_complex(bvac_modes_B_real[2][2], mode_data[2]),
-            )
-            status_suffix = " [xfail]" if label in XFAIL_LABELS else ""
-            print(
-                "  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%{suffix}".format(
-                    *err, label=label, suffix=status_suffix
-                )
-            )
-
-    if 0 in bvac_modes_B_real:
-        print("\nRelative errors for n=0 harmonic (reference = Bvac grid):")
-        for label, dataset in (
-            ("Fourier ungauged", fourier_modes_ungauged_B_real),
-            ("Fourier gauged", fourier_modes_gauged_B_real),
-            ("Fourier Bnvac", bnvac_modes_B_real),
-            ("Bvac grid", bvac_modes_B_real),
-        ):
-            mode_data = dataset.get(0)
-            if mode_data is None:
-                continue
-            err = (
-                rel_error_complex(bvac_modes_B_real[0][0], mode_data[0]),
-                rel_error_complex(bvac_modes_B_real[0][1], mode_data[1]),
-                rel_error_complex(bvac_modes_B_real[0][2], mode_data[2]),
-            )
-            status_suffix = " [xfail]" if label in XFAIL_LABELS else ""
-            print(
-                "  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%{suffix}".format(
-                    *err, label=label, suffix=status_suffix
-                )
-            )
-
-    if MODE_MAX >= 1:
-        print("\nRelative errors for gauged An components (reference = Fourier gauged)")
-
-        def rel_error_real(ref, val):
-            mask = np.abs(ref) > 1e-6
-            if np.count_nonzero(mask) == 0:
-                return 0.0
-            return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
-
-        for n in range(1, MODE_MAX + 1):
-            ref = fourier_modes_gauged_A_real.get(n)
-            if ref is None:
-                continue
-            entries = [f"  n={n}"]
-            for label, data_dict in (
-                ("An from B (Fourier)", An_from_B_fourier),
-                ("An from B (Bnvac)", An_from_B_bnvac),
-                ("An from B (Bvac)", An_from_B_bvac),
-            ):
-                if n not in data_dict:
-                    continue
-                comp_R, comp_Z = data_dict[n]
-                entries.append(
-                    f"{label}: AR {rel_error_real(ref[0], comp_R):.2f}%, AZ {rel_error_real(ref[2], comp_Z):.2f}%"
-                )
-            print("; ".join(entries))
+    report_vector_potential_comparisons(
+        range(1, MODE_MAX + 1),
+        fourier_modes_gauged_A_real,
+        vector_recon_sets,
+        XFAIL_LABELS,
+    )
 
     return 1
 
