@@ -1,4 +1,4 @@
-program test_ntor0_tilted_coil
+program tilted_coil_fourier_modes
   use util_for_test, only: print_test, print_ok, print_fail
   use coil_tools, only: coil_t, coil_init, coil_deinit, &
                        vector_potential_biot_savart_fourier, write_Anvac_fourier, &
@@ -22,7 +22,7 @@ program test_ntor0_tilted_coil
   real(dp) :: x, y, z
   real(dp) :: scale
 
-  call print_test("ntor=0 field reconstruction for tilted coil")
+  call print_test("tilted coil Fourier field data generation")
 
   scale = length_si_to_cgs
 
@@ -92,4 +92,4 @@ program test_ntor0_tilted_coil
   deallocate(coils)
 
   call print_ok
-end program test_ntor0_tilted_coil
+end program tilted_coil_fourier_modes

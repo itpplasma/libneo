@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a tilted circular coil for ntor=0 testing."""
+"""Generate a tilted circular coil geometry for validation workflows."""
 
 import numpy as np
 from numpy import pi, cos, sin

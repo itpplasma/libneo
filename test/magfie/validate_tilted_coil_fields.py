@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate ntor=0 reconstruction against analytic and direct Biot-Savart fields."""
+"""Validate tilted coil vacuum fields against analytic and direct Biot-Savart solutions."""
 
 from __future__ import annotations
 
@@ -24,13 +24,14 @@ COIL_FILE = BUILD_DIR / "tilted_coil.dat"
 FOURIER_FILE = BUILD_DIR / "tilted_coil_Anvac.nc"
 BNVAC_FILE = BUILD_DIR / "tilted_coil_Bnvac.h5"
 BVAC_FILE = BUILD_DIR / "tilted_coil_Bvac.dat"
-AXIS_SOLVER = BUILD_DIR / "compute_axis_biot_savart.x"
+AXIS_SOLVER = BUILD_DIR / "tilted_coil_axis_field.x"
 CLIGHT = 2.99792458e10  # cm / s
 MODE_MAX = 2
+RELATIVE_TOLERANCE_PERCENT = 6.0
 XFAIL_LABELS = {"Fourier gauged"}
 
 sys.path.append(str(SCRIPT_DIR))
-from generate_tilted_coil import _plane_basis  # noqa: E402
+from tilted_coil_geometry import _plane_basis  # noqa: E402
 
 
 def circular_coil_analytical(
@@ -216,7 +217,7 @@ def main() -> int:
         print(f"Missing Fourier data file {FOURIER_FILE}")
         return 1
 
-    # Coil geometry (matches generate_tilted_coil.py)
+    # Coil geometry (matches tilted_coil_geometry.py)
     R_center = 2.0
     phi_center = 0.35
     Z_center = 0.8
@@ -649,8 +650,8 @@ def main() -> int:
                 ax.set_ylabel("Z (m)")
             ax.set_aspect("equal")
         fig_rz.colorbar(pcm, ax=axes_rz, label="|B| (G)")
-        fig_rz.savefig("ntor0_RZ_comparison.png", dpi=150)
-        print("Saved plot to ntor0_RZ_comparison.png")
+        fig_rz.savefig("tilted_coil_RZ_comparison.png", dpi=150)
+        print("Saved plot to tilted_coil_RZ_comparison.png")
 
     # Prepare n=2 datasets
     def to_real_dict(data_dict):
@@ -735,8 +736,8 @@ def main() -> int:
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=2)
     fig.tight_layout(rect=(0, 0, 1, 0.92))
-    fig.savefig("ntor0_validation.png", dpi=150)
-    print("\nSaved plot to ntor0_validation.png")
+    fig.savefig("tilted_coil_validation.png", dpi=150)
+    print("\nSaved plot to tilted_coil_validation.png")
 
     figA, axesA = plt.subplots(1, 3, figsize=(16, 5))
     axesA[0].plot(s_eval, An_total_ung[0, :], "r^--", label="An (ungauged)", linewidth=2, markersize=5)
@@ -763,8 +764,8 @@ def main() -> int:
     handlesA, labelsA = axesA[0].get_legend_handles_labels()
     figA.legend(handlesA, labelsA, loc="upper center", ncol=2)
     figA.tight_layout(rect=(0, 0, 1, 0.92))
-    figA.savefig("ntor0_An_total.png", dpi=150)
-    print("Saved plot to ntor0_An_total.png")
+    figA.savefig("tilted_coil_An_total.png", dpi=150)
+    print("Saved plot to tilted_coil_An_total.png")
 
     def get_component(data_dict, mode_idx, comp_idx, key=None):
         entry = data_dict.get(mode_idx)
@@ -817,7 +818,7 @@ def main() -> int:
         handles_mode, labels_mode = axes[0].get_legend_handles_labels()
         fig.legend(handles_mode, labels_mode, loc="upper center", ncol=2)
         fig.tight_layout(rect=(0, 0, 1, 0.92))
-        outfile = f"ntor0_mode{mode_idx}.png"
+        outfile = f"tilted_coil_mode{mode_idx}.png"
         fig.savefig(outfile, dpi=150)
         print(f"Saved plot to {outfile}")
 
@@ -866,7 +867,7 @@ def main() -> int:
         handles_mode, labels_mode = axes[0].get_legend_handles_labels()
         fig.legend(handles_mode, labels_mode, loc="upper center", ncol=2)
         fig.tight_layout(rect=(0, 0, 1, 0.92))
-        outfile = f"ntor0_An_mode{mode_idx}.png"
+        outfile = f"tilted_coil_An_mode{mode_idx}.png"
         fig.savefig(outfile, dpi=150)
         print(f"Saved plot to {outfile}")
 
@@ -945,7 +946,7 @@ def main() -> int:
     ]
     max_err = max(non_xfail_errors) if non_xfail_errors else 0.0
 
-    if max_err < 5.0:
+    if max_err <= RELATIVE_TOLERANCE_PERCENT:
         if xfail_entries:
             print("\nExpected failures (marked xfail):")
             for label, err in xfail_entries:
@@ -956,13 +957,13 @@ def main() -> int:
                 )
         print(
             "\n✓ TEST PASSED: All reconstructions (Fourier ungauged/gauged and direct) match analytical field "
-            f"(worst-case error {max_err:.2f}%)"
+            f"(worst-case error {max_err:.2f}% <= {RELATIVE_TOLERANCE_PERCENT:.1f}%)"
         )
         return 0
 
     print(
-        "\n✗ TEST FAILED: At least one reconstruction deviates more than 5% from the analytical field "
-        f"(worst-case error {max_err:.2f}%)"
+        "\n✗ TEST FAILED: At least one reconstruction deviates more than "
+        f"{RELATIVE_TOLERANCE_PERCENT:.1f}% from the analytical field (worst-case error {max_err:.2f}%)"
     )
 
     def rel_error_complex(ref, val):

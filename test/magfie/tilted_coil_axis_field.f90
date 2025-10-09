@@ -1,4 +1,4 @@
-program compute_axis_biot_savart
+program tilted_coil_axis_field
   use iso_fortran_env, only: dp => real64
   use neo_biotsavart_field, only: biotsavart_field_t
 
@@ -12,7 +12,7 @@ program compute_axis_biot_savart
 
   argc = command_argument_count()
   if (argc /= 3) then
-    write (*, '(a)') 'Usage: compute_axis_biot_savart.x <coil_file> <axis_file> <output_file>'
+    write (*, '(a)') 'Usage: tilted_coil_axis_field.x <coil_file> <axis_file> <output_file>'
     stop 1
   end if
 
@@ -57,4 +57,4 @@ program compute_axis_biot_savart
   end do
   close(iu_out)
 
-end program compute_axis_biot_savart
+end program tilted_coil_axis_field
