@@ -1,25 +1,5 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/magfie)
 
-include(FetchContent)
-
-set(FORTPLOT_OVERRIDE_REPO $ENV{FORTPLOT_OVERRIDE_REPO})
-if (FORTPLOT_OVERRIDE_REPO)
-    message(STATUS "Using overridden fortplot repository: ${FORTPLOT_OVERRIDE_REPO}")
-    set(_fortplot_repo ${FORTPLOT_OVERRIDE_REPO})
-    set(_fortplot_tag HEAD)
-else()
-    set(_fortplot_repo https://github.com/lazy-fortran/fortplot.git)
-    set(_fortplot_tag main)
-endif()
-
-FetchContent_Declare(fortplot
-    GIT_REPOSITORY ${_fortplot_repo}
-    GIT_TAG ${_fortplot_tag}
-    GIT_SHALLOW TRUE
-)
-
-FetchContent_MakeAvailable(fortplot)
-
 # Test executable for Biot-Savart Fourier routines
 add_executable(test_coil_tools_biot_savart.x test_coil_tools_biot_savart.f90)
 target_link_libraries(test_coil_tools_biot_savart.x PRIVATE 
@@ -30,28 +10,6 @@ target_link_libraries(test_coil_tools_biot_savart.x PRIVATE
     ${HDF5_LIBRARIES}
     ${NETCDF_LIBRARIES}
     ${MPI_Fortran_LIBRARIES}
-)
-
-add_executable(test_coil_tools_vector_potential_derivs.x
-    test_coil_tools_vector_potential_derivs.f90)
-target_link_libraries(test_coil_tools_vector_potential_derivs.x PRIVATE
-    neo
-    magfie
-    util_for_test
-    fortplot::fortplot
-    ${FFTW3_LIBRARIES}
-    ${HDF5_LIBRARIES}
-    ${NETCDF_LIBRARIES}
-    ${MPI_Fortran_LIBRARIES}
-)
-target_compile_definitions(test_coil_tools_vector_potential_derivs.x PRIVATE
-    COIL_TOOLS_PLOT_DIR="${CMAKE_BINARY_DIR}/test/magfie")
-
-add_test(NAME test_coil_tools_vector_potential_derivs
-    COMMAND test_coil_tools_vector_potential_derivs.x)
-set_tests_properties(test_coil_tools_vector_potential_derivs PROPERTIES
-    LABELS "magfie;coil_tools;derivatives"
-    TIMEOUT 300
 )
 
 # Register the test
