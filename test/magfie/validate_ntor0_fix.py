@@ -186,6 +186,20 @@ def eval_complex_spline(x_grid, y_grid, values, x_points, y_points):
     spline_im = RectBivariateSpline(x_grid, y_grid, values.imag, kx=3, ky=3)
     return spline_re.ev(x_points, y_points) + 1j * spline_im.ev(x_points, y_points)
 
+def evaluate_vector_potential_spline(spl: dict, R_points: np.ndarray, Z_points: np.ndarray):
+    ncoil = len(spl["AnR_Re"])
+    total_R = np.zeros(R_points.size, dtype=complex)
+    total_Z = np.zeros(R_points.size, dtype=complex)
+    total_phi = np.zeros(R_points.size, dtype=complex) if "Anphi_Re" in spl else None
+
+    for kcoil in range(ncoil):
+        total_R += spl["AnR_Re"][kcoil].ev(R_points, Z_points) + 1j * spl["AnR_Im"][kcoil].ev(R_points, Z_points)
+        total_Z += spl["AnZ_Re"][kcoil].ev(R_points, Z_points) + 1j * spl["AnZ_Im"][kcoil].ev(R_points, Z_points)
+        if total_phi is not None:
+            total_phi += spl["Anphi_Re"][kcoil].ev(R_points, Z_points) + 1j * spl["Anphi_Im"][kcoil].ev(R_points, Z_points)
+
+    return total_R, total_phi, total_Z
+
 
 def main() -> int:
     from libneo.biotsavart_fourier import (
@@ -259,8 +273,12 @@ def main() -> int:
     BR_fourier_gauged = np.zeros(npts)
     Bphi_fourier_gauged = np.zeros(npts)
     BZ_fourier_gauged = np.zeros(npts)
+    An_total_ung = np.zeros((3, npts))
+    An_total_gauged = np.zeros((3, npts))
     fourier_modes_ungauged = {}
     fourier_modes_gauged = {}
+    fourier_modes_ungauged_A = {}
+    fourier_modes_gauged_A = {}
     BR_bnvac = Bphi_bnvac = BZ_bnvac = None
     BR_bvac = Bphi_bvac = BZ_bvac = None
     has_bnvac = BNVAC_FILE.exists()
@@ -279,6 +297,7 @@ def main() -> int:
         BnR_ungauged, Bnphi_ungauged, BnZ_ungauged = evaluate_mode_at_points(
             spl_ungauged, R_eval_cm, Z_eval_cm, ntor
         )
+        AnR_ung, Anphi_ung, AnZ_ung = evaluate_vector_potential_spline(spl_ungauged, R_eval_cm, Z_eval_cm)
 
         gauged_AnR, gauged_AnZ = gauge_Anvac(grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, ntor=ntor)
         spl_gauged = spline_gauged_Anvac(
@@ -289,24 +308,39 @@ def main() -> int:
             Anphi=Anphi if ntor == 0 else None,
         )
         BnR_gauged, Bnphi_gauged, BnZ_gauged = evaluate_mode_at_points(spl_gauged, R_eval_cm, Z_eval_cm, ntor)
+        AnR_gauged, Anphi_gauged, AnZ_gauged = evaluate_vector_potential_spline(spl_gauged, R_eval_cm, Z_eval_cm)
 
         phase = np.exp(1j * ntor * phi_eval)
         BR_fourier_ungauged += np.real(BnR_ungauged * phase)
         Bphi_fourier_ungauged += np.real(Bnphi_ungauged * phase)
         BZ_fourier_ungauged += np.real(BnZ_ungauged * phase)
+        An_total_ung[0, :] += np.real(AnR_ung * phase)
+        if Anphi_ung is not None:
+            An_total_ung[1, :] += np.real(Anphi_ung * phase)
+        An_total_ung[2, :] += np.real(AnZ_ung * phase)
 
         if ntor == 0:
             BR_fourier_gauged += np.real(BnR_ungauged * phase)
             Bphi_fourier_gauged += np.real(Bnphi_ungauged * phase)
             BZ_fourier_gauged += np.real(BnZ_ungauged * phase)
+            An_total_gauged[0, :] += np.real(AnR_ung * phase)
+            if Anphi_ung is not None:
+                An_total_gauged[1, :] += np.real(Anphi_ung * phase)
+            An_total_gauged[2, :] += np.real(AnZ_ung * phase)
         else:
             BR_fourier_gauged += np.real(BnR_gauged * phase)
             Bphi_fourier_gauged += np.real(Bnphi_gauged * phase)
             BZ_fourier_gauged += np.real(BnZ_gauged * phase)
+            An_total_gauged[0, :] += np.real(AnR_gauged * phase)
+            if Anphi_gauged is not None:
+                An_total_gauged[1, :] += np.real(Anphi_gauged * phase)
+            An_total_gauged[2, :] += np.real(AnZ_gauged * phase)
 
         if ntor <= MODE_MAX:
             fourier_modes_ungauged[ntor] = (BnR_ungauged.copy(), Bnphi_ungauged.copy(), BnZ_ungauged.copy())
             fourier_modes_gauged[ntor] = (BnR_gauged.copy(), Bnphi_gauged.copy(), BnZ_gauged.copy())
+            fourier_modes_ungauged_A[ntor] = (AnR_ung.copy(), None if Anphi_ung is None else Anphi_ung.copy(), AnZ_ung.copy())
+            fourier_modes_gauged_A[ntor] = (AnR_gauged.copy(), None if Anphi_gauged is None else Anphi_gauged.copy(), AnZ_gauged.copy())
 
     bnvac_modes = {}
     if has_bnvac:
@@ -389,10 +423,35 @@ def main() -> int:
             for n, value in data_dict.items()
         }
 
-    fourier_modes_ungauged_real = to_real_dict(fourier_modes_ungauged)
-    fourier_modes_gauged_real = to_real_dict(fourier_modes_gauged)
-    bnvac_modes_real = to_real_dict(bnvac_modes)
-    bvac_modes_real = to_real_dict(bvac_modes)
+    fourier_modes_ungauged_B_real = to_real_dict(fourier_modes_ungauged)
+    fourier_modes_gauged_B_real = to_real_dict(fourier_modes_gauged)
+    bnvac_modes_B_real = to_real_dict(bnvac_modes)
+    bvac_modes_B_real = to_real_dict(bvac_modes)
+
+    def to_real_dict_A(data_dict):
+        return {
+            n: tuple(None if comp is None else np.real(comp) for comp in value)
+            for n, value in data_dict.items()
+        }
+
+    fourier_modes_ungauged_A_real = to_real_dict_A(fourier_modes_ungauged_A)
+    fourier_modes_gauged_A_real = to_real_dict_A(fourier_modes_gauged_A)
+
+    def reconstruct_gauged_from_B(data_dict):
+        result = {}
+        for n, comps in data_dict.items():
+            if n == 0:
+                continue
+            Br, _, Bz = comps
+            result[n] = (
+                np.real(-1j * R_eval_cm * Bz / n),
+                np.real(1j * R_eval_cm * Br / n),
+            )
+        return result
+
+    An_from_B_fourier = reconstruct_gauged_from_B(fourier_modes_gauged)
+    An_from_B_bnvac = reconstruct_gauged_from_B(bnvac_modes)
+    An_from_B_bvac = reconstruct_gauged_from_B(bvac_modes)
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
 
@@ -441,10 +500,47 @@ def main() -> int:
     fig.savefig("ntor0_validation.png", dpi=150)
     print("\nSaved plot to ntor0_validation.png")
 
-    def get_component(data_dict, mode_idx, comp_idx):
-        if mode_idx not in data_dict:
+    figA, axesA = plt.subplots(1, 3, figsize=(16, 5))
+    axesA[0].plot(s_eval, An_total_ung[0, :], "r^--", label="An (ungauged)", linewidth=2, markersize=5)
+    axesA[0].plot(s_eval, An_total_gauged[0, :], "bs-.", label="An (gauged)", linewidth=2, markersize=5)
+    axesA[0].set_title("An_R total")
+    axesA[0].set_xlabel("Axis coordinate s (m)")
+    axesA[0].set_ylabel("Re[A_R] (G·cm)")
+    axesA[0].grid(True, alpha=0.3)
+
+    axesA[1].plot(s_eval, An_total_ung[1, :], "r^--", linewidth=2, markersize=5)
+    axesA[1].plot(s_eval, An_total_gauged[1, :], "bs-.", linewidth=2, markersize=5)
+    axesA[1].set_title("An_φ total")
+    axesA[1].set_xlabel("Axis coordinate s (m)")
+    axesA[1].set_ylabel("Re[A_φ] (G·cm)")
+    axesA[1].grid(True, alpha=0.3)
+
+    axesA[2].plot(s_eval, An_total_ung[2, :], "r^--", linewidth=2, markersize=5)
+    axesA[2].plot(s_eval, An_total_gauged[2, :], "bs-.", linewidth=2, markersize=5)
+    axesA[2].set_title("An_Z total")
+    axesA[2].set_xlabel("Axis coordinate s (m)")
+    axesA[2].set_ylabel("Re[A_Z] (G·cm)")
+    axesA[2].grid(True, alpha=0.3)
+
+    handlesA, labelsA = axesA[0].get_legend_handles_labels()
+    figA.legend(handlesA, labelsA, loc="upper center", ncol=2)
+    figA.tight_layout(rect=(0, 0, 1, 0.92))
+    figA.savefig("ntor0_An_total.png", dpi=150)
+    print("Saved plot to ntor0_An_total.png")
+
+    def get_component(data_dict, mode_idx, comp_idx, key=None):
+        entry = data_dict.get(mode_idx)
+        if entry is None:
             return None
-        return data_dict[mode_idx][comp_idx]
+        if isinstance(entry, dict):
+            if key is None or key not in entry:
+                return None
+            values = entry[key]
+        else:
+            values = entry
+        if values[comp_idx] is None:
+            return None
+        return values[comp_idx]
 
     def make_mode_plot(mode_idx):
         fig, axes = plt.subplots(1, 3, figsize=(16, 5))
@@ -452,36 +548,33 @@ def main() -> int:
         axes[1].set_title(f"Toroidal Component (n={mode_idx})")
         axes[2].set_title(f"Vertical Component (n={mode_idx})")
 
-        def plot_series(axis, label, color, marker, data_dict, comp_idx):
-            series = get_component(data_dict, mode_idx, comp_idx)
-            if series is None:
-                return
-            axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
+        for axis, comp_idx, ylabel in zip(
+            axes,
+            (0, 1, 2),
+            (r"Re[B_R^{(n)}] (G)", r"Re[B_\phi^{(n)}] (G)", r"Re[B_Z^{(n)}] (G)"),
+        ):
+            for label, color, marker, data_dict in (
+                ("Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_B_real),
+                ("Fourier (gauged)", "b", "s-.", fourier_modes_gauged_B_real),
+                ("Fourier Bnvac", "m", "D:", bnvac_modes_B_real),
+                ("Bvac grid", "c", "o-", bvac_modes_B_real),
+            ):
+                series = get_component(data_dict, mode_idx, comp_idx)
+                if series is None:
+                    continue
+                axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
 
-        plot_series(axes[0], "Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_real, 0)
-        plot_series(axes[0], "Fourier (gauged)", "b", "s-.", fourier_modes_gauged_real, 0)
-        plot_series(axes[0], "Fourier Bnvac", "m", "D:", bnvac_modes_real, 0)
-        plot_series(axes[0], "Bvac grid", "c", "o-", bvac_modes_real, 0)
+            if mode_idx == 0:
+                if comp_idx == 0:
+                    axis.plot(s_eval, BR_analytical, "k-", label="Analytical", linewidth=2)
+                elif comp_idx == 1:
+                    axis.plot(s_eval, Bphi_analytical, "k-", label="Analytical", linewidth=2)
+                else:
+                    axis.plot(s_eval, BZ_analytical, "k-", label="Analytical", linewidth=2)
 
-        plot_series(axes[1], "Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_real, 1)
-        plot_series(axes[1], "Fourier (gauged)", "b", "s-.", fourier_modes_gauged_real, 1)
-        plot_series(axes[1], "Fourier Bnvac", "m", "D:", bnvac_modes_real, 1)
-        plot_series(axes[1], "Bvac grid", "c", "o-", bvac_modes_real, 1)
-
-        plot_series(axes[2], "Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_real, 2)
-        plot_series(axes[2], "Fourier (gauged)", "b", "s-.", fourier_modes_gauged_real, 2)
-        plot_series(axes[2], "Fourier Bnvac", "m", "D:", bnvac_modes_real, 2)
-        plot_series(axes[2], "Bvac grid", "c", "o-", bvac_modes_real, 2)
-
-        if mode_idx == 0:
-            axes[0].plot(s_eval, BR_analytical, "k-", label="Analytical", linewidth=2)
-            axes[1].plot(s_eval, Bphi_analytical, "k-", label="Analytical", linewidth=2)
-            axes[2].plot(s_eval, BZ_analytical, "k-", label="Analytical", linewidth=2)
-
-        for ax in axes:
-            ax.set_xlabel("Axis coordinate s (m)")
-            ax.set_ylabel(f"Re[B^{{(n={mode_idx})}}] (G)")
-            ax.grid(True, alpha=0.3)
+            axis.set_xlabel("Axis coordinate s (m)")
+            axis.set_ylabel(ylabel)
+            axis.grid(True, alpha=0.3)
 
         handles_mode, labels_mode = axes[0].get_legend_handles_labels()
         fig.legend(handles_mode, labels_mode, loc="upper center", ncol=2)
@@ -493,6 +586,55 @@ def main() -> int:
     make_mode_plot(0)
     for mode_idx in range(1, MODE_MAX + 1):
         make_mode_plot(mode_idx)
+
+    def make_mode_plot_A(mode_idx):
+        fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+        axes[0].set_title(f"An_R (n={mode_idx})")
+        axes[1].set_title(f"An_φ (n={mode_idx})")
+        axes[2].set_title(f"An_Z (n={mode_idx})")
+
+        labels_colors = [
+            ("Fourier (ungauged)", "r", "^--", fourier_modes_ungauged_A_real),
+            ("Fourier (gauged)", "b", "s-.", fourier_modes_gauged_A_real),
+        ]
+
+        for axis, comp_idx, ylabel in zip(
+            axes,
+            (0, 1, 2),
+            (r"Re[A_R^{(n)}] (G·cm)", r"Re[A_\phi^{(n)}] (G·cm)", r"Re[A_Z^{(n)}] (G·cm)"),
+        ):
+            for label, color, marker, data_dict in labels_colors:
+                series = get_component(data_dict, mode_idx, comp_idx, key='A')
+                if series is None:
+                    continue
+                axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
+
+            if mode_idx > 0 and comp_idx in (0, 2):
+                recon_sets = (
+                    ("Gauged from B", "g", "x-", An_from_B_fourier),
+                    ("Bnvac from B", "m", "D:", An_from_B_bnvac),
+                    ("Bvac from B", "c", "o-", An_from_B_bvac),
+                )
+                for label, color, marker, data_dict in recon_sets:
+                    if mode_idx not in data_dict:
+                        continue
+                    series = data_dict[mode_idx][0 if comp_idx == 0 else 1]
+                    axis.plot(s_eval, series, color + marker, label=label, linewidth=2, markersize=5)
+
+            axis.set_xlabel("Axis coordinate s (m)")
+            axis.set_ylabel(ylabel)
+            axis.grid(True, alpha=0.3)
+
+        handles_mode, labels_mode = axes[0].get_legend_handles_labels()
+        fig.legend(handles_mode, labels_mode, loc="upper center", ncol=2)
+        fig.tight_layout(rect=(0, 0, 1, 0.92))
+        outfile = f"ntor0_An_mode{mode_idx}.png"
+        fig.savefig(outfile, dpi=150)
+        print(f"Saved plot to {outfile}")
+
+    make_mode_plot_A(0)
+    for mode_idx in range(1, MODE_MAX + 1):
+        make_mode_plot_A(mode_idx)
 
     print("\nField samples at first valid axis point (s = {:.3f} m):".format(s_eval[0]))
     print(
