@@ -1,9 +1,7 @@
 program test_stretch_coords
     use util_for_test, only: print_test, print_ok, print_fail
-    use iso_fortran_env, only: output_unit
+    use libneo_kinds, only: dp
     implicit none
-
-    integer, parameter :: dp = kind(1.0d0)
 
     call test_stretch_coords_large_file
     call test_stretch_coords_empty_file
@@ -12,110 +10,107 @@ contains
 
     subroutine test_stretch_coords_large_file
         use field_sub, only: stretch_coords
-
-        character(len=256) :: temp_filename
-        integer :: unit, i
-        real(dp) :: r, z, rm, zm
-        
-        call print_test("test_stretch_coords_large_file")
-        
-        ! Create a temporary convexwall file with more than 100 points
-        temp_filename = "test_convexwall.dat"
-        
-        open(newunit=unit, file=temp_filename, status='replace', action='write')
-        
-        ! Write 150 points (more than the current 100 limit)
-        do i = 1, 150
-            write(unit, '(2f12.6)') 1.0_dp + cos(2.0_dp * 3.14159_dp * i / 150.0_dp), &
-                                   sin(2.0_dp * 3.14159_dp * i / 150.0_dp)
-        end do
-        
-        close(unit)
-        
-        ! Set up the convexfile variable and test stretch_coords
-        call set_convexfile(temp_filename)
-        
-        ! Test the stretch_coords subroutine
-        r = 1.5_dp
-        z = 0.5_dp
-        call stretch_coords(r, z, rm, zm)
-        
-        ! This test should fail because the current implementation only reads 100 points
-        ! but we created a file with 150 points
-        ! The issue is that the hard-coded limit of 100 should be removed
-        call verify_all_points_read(temp_filename, 150)
-        
-        ! Clean up
-        call cleanup_test_file(temp_filename)
-        
-        call print_ok
-    end subroutine test_stretch_coords_large_file
-
-    subroutine set_convexfile(filename)
         use input_files, only: convexfile
-        character(len=*), intent(in) :: filename
-        convexfile = filename
-    end subroutine set_convexfile
 
-    subroutine cleanup_test_file(filename)
-        character(len=*), intent(in) :: filename
-        logical :: exists
-        inquire(file=filename, exist=exists)
-        if (exists) then
-            open(unit=99, file=filename, status='old')
-            close(unit=99, status='delete')
-        end if
-    end subroutine cleanup_test_file
+        real(dp), parameter :: tolerance = 1.0e-9_dp
+        real(dp), parameter :: pi_value = 2.0_dp * asin(1.0_dp)
+        real(dp), parameter :: major_radius = 10.0_dp
+        real(dp), parameter :: radius_small = 0.4_dp
+        real(dp), parameter :: radius_large = 0.8_dp
+        real(dp), parameter :: angle_probe = 5.5_dp
+        real(dp), parameter :: rho_probe = 1.0_dp
+        real(dp), parameter :: R0 = major_radius + 0.5_dp * &
+            (radius_large - radius_small)
+        character(len=*), parameter :: full_file = "test_convexwall_full.dat"
+        character(len=*), parameter :: truncated_file = "test_convexwall_truncated.dat"
 
-    subroutine verify_all_points_read(filename, expected_count)
-        character(len=*), intent(in) :: filename
-        integer, intent(in) :: expected_count
-        
-        integer :: unit, count
-        character(len=1000) :: line
-        
-        ! Count lines in the file
-        open(newunit=unit, file=filename, status='old', action='read')
-        count = 0
-        do
-            read(unit, '(A)', end=100) line
-            count = count + 1
+        integer :: unit_full, unit_trunc
+        integer :: i
+        real(dp) :: angle
+        real(dp) :: rm_full, zm_full, rm_trunc, zm_trunc
+        real(dp) :: r_input, z_input
+
+        call print_test("test_stretch_coords_large_file")
+
+        open(newunit=unit_full, file=full_file, status='replace', action='write')
+        open(newunit=unit_trunc, file=truncated_file, status='replace', action='write')
+        do i = 1, 150
+            angle = (real(i, dp) - 0.5_dp) * 2.0_dp * pi_value / 150.0_dp
+            call write_point(unit_full, major_radius, radius_small, radius_large, angle)
+            if (i <= 100) then
+                call write_point(unit_trunc, major_radius, radius_small, &
+                                 radius_large, angle)
+            end if
         end do
-100     close(unit)
-        
-        ! The implementation should now handle arbitrary sizes
-        ! So we just verify that we get the expected count
-        
-        if (count /= expected_count) then
-            write(*, '(A, I0, A, I0)') 'ERROR: Expected ', expected_count, ' points but found ', count
+        close(unit_full)
+        close(unit_trunc)
+
+        r_input = R0 + rho_probe * cos(angle_probe)
+        z_input = rho_probe * sin(angle_probe)
+
+        convexfile = truncated_file
+        call stretch_coords(r_input, z_input, rm_trunc, zm_trunc)
+
+        convexfile = full_file
+        call stretch_coords(r_input, z_input, rm_full, zm_full)
+
+        call cleanup_file(full_file)
+        call cleanup_file(truncated_file)
+
+        if (abs(rm_full - rm_trunc) <= tolerance .and. &
+            abs(zm_full - zm_trunc) <= tolerance) then
+            write(*, '(A)') &
+                'ERROR: stretch_coords results identical with truncated data.'
             call print_fail
             error stop
         end if
-    end subroutine verify_all_points_read
+
+        call print_ok
+    end subroutine test_stretch_coords_large_file
+
+    subroutine write_point(unit, major_radius, radius_small, radius_large, angle)
+        integer, intent(in) :: unit
+        real(dp), intent(in) :: major_radius, radius_small, radius_large, angle
+        real(dp) :: cos_angle, sin_angle, radius_profile
+
+        cos_angle = cos(angle)
+        sin_angle = sin(angle)
+        if (cos_angle > 0.0_dp) then
+            radius_profile = radius_large
+        else
+            radius_profile = radius_small
+        end if
+        write(unit, '(2es24.16)') major_radius + radius_profile * cos_angle, &
+                                   radius_profile * sin_angle
+    end subroutine write_point
+
+    subroutine cleanup_file(filename)
+        character(len=*), intent(in) :: filename
+        logical :: exists
+        integer :: unit
+
+        inquire(file=filename, exist=exists)
+        if (exists) then
+            open(newunit=unit, file=filename, status='old')
+            close(unit, status='delete')
+        end if
+    end subroutine cleanup_file
 
     subroutine test_stretch_coords_empty_file
-        use field_sub, only: stretch_coords
-        
-        character(len=256) :: temp_filename
+        use input_files, only: convexfile
+
+        character(len=*), parameter :: empty_file = "empty_convexwall.dat"
         integer :: unit
-        
+
         call print_test("test_stretch_coords_empty_file")
-        
-        temp_filename = "empty_convexwall.dat"
-        
-        ! Create an empty file
-        open(newunit=unit, file=temp_filename, status='replace', action='write')
+
+        open(newunit=unit, file=empty_file, status='replace', action='write')
         close(unit)
-        
-        call set_convexfile(temp_filename)
-        
-        ! This would trigger an error because the file has no data points
-        ! We expect this to fail with error stop, so we cannot directly test it
-        ! In a real scenario, we would need proper error handling instead of error stop
-        ! For now, we just verify the empty file was created
-        
-        call cleanup_test_file(temp_filename)
-        
+
+        convexfile = empty_file
+
+        call cleanup_file(empty_file)
+
         call print_ok
     end subroutine test_stretch_coords_empty_file
 

@@ -810,17 +810,41 @@ subroutine stretch_coords(r,z,rm,zm)
   real(dp), intent(in) :: r, z
   real(dp), intent(out) :: rm, zm
 
-  integer icall, i, j, nrz ! number of points "convex wall" in input file
+  integer, save :: icall = 0
+  integer :: i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrhotht=360
   integer :: iflag, unit_convex, ios
-  real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
-  real(dp), dimension(:), allocatable :: rad_w, zet_w ! points "convex wall"
-  real(dp), dimension(:), allocatable :: rho_w, tht_w
+  logical :: reload_needed
+  real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, dummy
+  real(dp), dimension(:), allocatable, save :: rad_w, zet_w ! points "convex wall"
+  real(dp), dimension(:), allocatable, save :: rho_w, tht_w
   real(dp), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
-  data icall /0/, delta/1./
-  save
+  character(:), allocatable, save :: cached_convexfile
+  character(:), allocatable :: filename_trim
+  real(dp), save :: delta = 1.0_dp
   !----------- 1st call --------------------------------------------------------
   !$omp critical
+  reload_needed = .false.
+  if(allocated(filename_trim)) deallocate(filename_trim)
+  allocate(character(len=len_trim(convexfile)) :: filename_trim)
+  filename_trim = trim(convexfile)
+  if(.not. allocated(cached_convexfile)) then
+    allocate(character(len=len(filename_trim)) :: cached_convexfile)
+    cached_convexfile = filename_trim
+    reload_needed = .true.
+  else if (len(cached_convexfile) /= len(filename_trim)) then
+    deallocate(cached_convexfile)
+    allocate(character(len=len(filename_trim)) :: cached_convexfile)
+    cached_convexfile = filename_trim
+    reload_needed = .true.
+  else if (cached_convexfile /= filename_trim) then
+    cached_convexfile = filename_trim
+    reload_needed = .true.
+  end if
+  if(reload_needed) then
+    icall = 0
+  end if
+  if(allocated(filename_trim)) deallocate(filename_trim)
   if(icall .eq. 0) then
     icall = 1
     nrz = count_data_points()
@@ -936,6 +960,10 @@ contains
   subroutine allocate_arrays(point_count)
     integer, intent(in) :: point_count
 
+    if(allocated(rad_w)) deallocate(rad_w)
+    if(allocated(zet_w)) deallocate(zet_w)
+    if(allocated(rho_w)) deallocate(rho_w)
+    if(allocated(tht_w)) deallocate(tht_w)
     allocate(rad_w(0:point_count+1), zet_w(0:point_count+1))
     allocate(rho_w(0:point_count+1), tht_w(0:point_count+1))
   end subroutine allocate_arrays
