@@ -443,9 +443,11 @@ def main() -> int:
             if n == 0:
                 continue
             Br, _, Bz = comps
+            A_R = 1j * R_eval_cm * Bz / n
+            A_Z = -1j * R_eval_cm * Br / n
             result[n] = (
-                np.real(-1j * R_eval_cm * Bz / n),
-                np.real(1j * R_eval_cm * Br / n),
+                np.real(A_R),
+                np.real(A_Z),
             )
         return result
 
@@ -716,56 +718,86 @@ def main() -> int:
             return 0.0
         return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
 
-    if MODE_MAX >= 1 and 1 in bvac_modes:
+    if MODE_MAX >= 1 and 1 in bvac_modes_B_real:
         print("\nRelative errors for n=1 harmonic (reference = Bvac grid):")
         for label, dataset in (
-            ("Fourier ungauged", fourier_modes_ungauged),
-            ("Fourier gauged", fourier_modes_gauged),
-            ("Fourier Bnvac", bnvac_modes),
+            ("Fourier ungauged", fourier_modes_ungauged_B_real),
+            ("Fourier gauged", fourier_modes_gauged_B_real),
+            ("Fourier Bnvac", bnvac_modes_B_real),
+            ("Bvac grid", bvac_modes_B_real),
         ):
             mode_data = dataset.get(1)
             if mode_data is None:
                 continue
             err = (
-                rel_error_complex(bvac_modes[1][0], mode_data[0]),
-                rel_error_complex(bvac_modes[1][1], mode_data[1]),
-                rel_error_complex(bvac_modes[1][2], mode_data[2]),
+                rel_error_complex(bvac_modes_B_real[1][0], mode_data[0]),
+                rel_error_complex(bvac_modes_B_real[1][1], mode_data[1]),
+                rel_error_complex(bvac_modes_B_real[1][2], mode_data[2]),
             )
             print("  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(*err, label=label))
 
-    if MODE_MAX >= 2 and 2 in bvac_modes:
+    if MODE_MAX >= 2 and 2 in bvac_modes_B_real:
         print("\nRelative errors for n=2 harmonic (reference = Bvac grid):")
         for label, dataset in (
-            ("Fourier ungauged", fourier_modes_ungauged),
-            ("Fourier gauged", fourier_modes_gauged),
-            ("Fourier Bnvac", bnvac_modes),
+            ("Fourier ungauged", fourier_modes_ungauged_B_real),
+            ("Fourier gauged", fourier_modes_gauged_B_real),
+            ("Fourier Bnvac", bnvac_modes_B_real),
+            ("Bvac grid", bvac_modes_B_real),
         ):
             mode_data = dataset.get(2)
             if mode_data is None:
                 continue
             err = (
-                rel_error_complex(bvac_modes[2][0], mode_data[0]),
-                rel_error_complex(bvac_modes[2][1], mode_data[1]),
-                rel_error_complex(bvac_modes[2][2], mode_data[2]),
+                rel_error_complex(bvac_modes_B_real[2][0], mode_data[0]),
+                rel_error_complex(bvac_modes_B_real[2][1], mode_data[1]),
+                rel_error_complex(bvac_modes_B_real[2][2], mode_data[2]),
             )
             print("  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(*err, label=label))
 
-    if 0 in bvac_modes:
+    if 0 in bvac_modes_B_real:
         print("\nRelative errors for n=0 harmonic (reference = Bvac grid):")
         for label, dataset in (
-            ("Fourier ungauged", fourier_modes_ungauged),
-            ("Fourier gauged", fourier_modes_gauged),
-            ("Fourier Bnvac", bnvac_modes),
+            ("Fourier ungauged", fourier_modes_ungauged_B_real),
+            ("Fourier gauged", fourier_modes_gauged_B_real),
+            ("Fourier Bnvac", bnvac_modes_B_real),
+            ("Bvac grid", bvac_modes_B_real),
         ):
             mode_data = dataset.get(0)
             if mode_data is None:
                 continue
             err = (
-                rel_error_complex(bvac_modes[0][0], mode_data[0]),
-                rel_error_complex(bvac_modes[0][1], mode_data[1]),
-                rel_error_complex(bvac_modes[0][2], mode_data[2]),
+                rel_error_complex(bvac_modes_B_real[0][0], mode_data[0]),
+                rel_error_complex(bvac_modes_B_real[0][1], mode_data[1]),
+                rel_error_complex(bvac_modes_B_real[0][2], mode_data[2]),
             )
             print("  {label:17s}-> BR: {0:.2f}%, Bphi: {1:.2f}%, BZ: {2:.2f}%".format(*err, label=label))
+
+    if MODE_MAX >= 1:
+        print("\nRelative errors for gauged An components (reference = Fourier gauged)")
+
+        def rel_error_real(ref, val):
+            mask = np.abs(ref) > 1e-6
+            if np.count_nonzero(mask) == 0:
+                return 0.0
+            return float(np.mean(np.abs(val[mask] - ref[mask]) / np.abs(ref[mask])) * 100.0)
+
+        for n in range(1, MODE_MAX + 1):
+            ref = fourier_modes_gauged_A_real.get(n)
+            if ref is None:
+                continue
+            entries = [f"  n={n}"]
+            for label, data_dict in (
+                ("An from B (Fourier)", An_from_B_fourier),
+                ("An from B (Bnvac)", An_from_B_bnvac),
+                ("An from B (Bvac)", An_from_B_bvac),
+            ):
+                if n not in data_dict:
+                    continue
+                comp_R, comp_Z = data_dict[n]
+                entries.append(
+                    f"{label}: AR {rel_error_real(ref[0], comp_R):.2f}%, AZ {rel_error_real(ref[2], comp_Z):.2f}%"
+                )
+            print("; ".join(entries))
 
     return 1
 
