@@ -241,6 +241,7 @@ def main() -> int:
         nmax = int(np.max(ntor_array))
 
     grid0, AnR0, Anphi0, AnZ0, dAnphi_dR0, dAnphi_dZ0 = read_Anvac_fourier(str(FOURIER_FILE), ntor=0)
+    nphi_fourier = getattr(grid0, "nphi", None)
 
     valid_mask = (
         (R_vals_cm >= grid0.R_min)
@@ -286,6 +287,17 @@ def main() -> int:
 
     cache = {0: (grid0, AnR0, Anphi0, AnZ0, dAnphi_dR0, dAnphi_dZ0)}
 
+    def reconstruction_weight(ntor: int) -> float:
+        """Return scaling so real reconstruction includes ±n harmonics."""
+        if ntor == 0:
+            return 1.0
+        if nphi_fourier is not None and nphi_fourier > 0:
+            if nphi_fourier % 2 == 0:
+                nyquist = nphi_fourier // 2
+                if ntor == nyquist and nyquist <= nmax:
+                    return 1.0
+        return 2.0
+
     for ntor in range(0, nmax + 1):
         if ntor in cache:
             grid, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ = cache[ntor]
@@ -311,30 +323,31 @@ def main() -> int:
         AnR_gauged, Anphi_gauged, AnZ_gauged = evaluate_vector_potential_spline(spl_gauged, R_eval_cm, Z_eval_cm)
 
         phase = np.exp(1j * ntor * phi_eval)
-        BR_fourier_ungauged += np.real(BnR_ungauged * phase)
-        Bphi_fourier_ungauged += np.real(Bnphi_ungauged * phase)
-        BZ_fourier_ungauged += np.real(BnZ_ungauged * phase)
-        An_total_ung[0, :] += np.real(AnR_ung * phase)
+        weight = reconstruction_weight(ntor)
+        BR_fourier_ungauged += weight * np.real(BnR_ungauged * phase)
+        Bphi_fourier_ungauged += weight * np.real(Bnphi_ungauged * phase)
+        BZ_fourier_ungauged += weight * np.real(BnZ_ungauged * phase)
+        An_total_ung[0, :] += weight * np.real(AnR_ung * phase)
         if Anphi_ung is not None:
-            An_total_ung[1, :] += np.real(Anphi_ung * phase)
-        An_total_ung[2, :] += np.real(AnZ_ung * phase)
+            An_total_ung[1, :] += weight * np.real(Anphi_ung * phase)
+        An_total_ung[2, :] += weight * np.real(AnZ_ung * phase)
 
         if ntor == 0:
-            BR_fourier_gauged += np.real(BnR_ungauged * phase)
-            Bphi_fourier_gauged += np.real(Bnphi_ungauged * phase)
-            BZ_fourier_gauged += np.real(BnZ_ungauged * phase)
-            An_total_gauged[0, :] += np.real(AnR_ung * phase)
+            BR_fourier_gauged += weight * np.real(BnR_ungauged * phase)
+            Bphi_fourier_gauged += weight * np.real(Bnphi_ungauged * phase)
+            BZ_fourier_gauged += weight * np.real(BnZ_ungauged * phase)
+            An_total_gauged[0, :] += weight * np.real(AnR_ung * phase)
             if Anphi_ung is not None:
-                An_total_gauged[1, :] += np.real(Anphi_ung * phase)
-            An_total_gauged[2, :] += np.real(AnZ_ung * phase)
+                An_total_gauged[1, :] += weight * np.real(Anphi_ung * phase)
+            An_total_gauged[2, :] += weight * np.real(AnZ_ung * phase)
         else:
-            BR_fourier_gauged += np.real(BnR_gauged * phase)
-            Bphi_fourier_gauged += np.real(Bnphi_gauged * phase)
-            BZ_fourier_gauged += np.real(BnZ_gauged * phase)
-            An_total_gauged[0, :] += np.real(AnR_gauged * phase)
+            BR_fourier_gauged += weight * np.real(BnR_gauged * phase)
+            Bphi_fourier_gauged += weight * np.real(Bnphi_gauged * phase)
+            BZ_fourier_gauged += weight * np.real(BnZ_gauged * phase)
+            An_total_gauged[0, :] += weight * np.real(AnR_gauged * phase)
             if Anphi_gauged is not None:
-                An_total_gauged[1, :] += np.real(Anphi_gauged * phase)
-            An_total_gauged[2, :] += np.real(AnZ_gauged * phase)
+                An_total_gauged[1, :] += weight * np.real(Anphi_gauged * phase)
+            An_total_gauged[2, :] += weight * np.real(AnZ_gauged * phase)
 
         if ntor <= MODE_MAX:
             fourier_modes_ungauged[ntor] = (BnR_ungauged.copy(), Bnphi_ungauged.copy(), BnZ_ungauged.copy())
@@ -357,9 +370,10 @@ def main() -> int:
                 total_phi += eval_complex_spline(grid_b.R, grid_b.Z, Bnphi[kcoil], R_eval_cm, Z_eval_cm)
                 total_Z += eval_complex_spline(grid_b.R, grid_b.Z, BnZ[kcoil], R_eval_cm, Z_eval_cm)
             phase = np.exp(1j * ntor * phi_eval)
-            BR_bnvac += np.real(total_R * phase)
-            Bphi_bnvac += np.real(total_phi * phase)
-            BZ_bnvac += np.real(total_Z * phase)
+            weight = reconstruction_weight(ntor)
+            BR_bnvac += weight * np.real(total_R * phase)
+            Bphi_bnvac += weight * np.real(total_phi * phase)
+            BZ_bnvac += weight * np.real(total_Z * phase)
             if ntor <= MODE_MAX:
                 bnvac_modes[ntor] = (total_R.copy(), total_phi.copy(), total_Z.copy())
 

@@ -10,6 +10,7 @@ class grid_t:
         self.Z_max = 0.0
         self.R = empty((0,))
         self.Z = empty((0,))
+        self.nphi = None
 
 
 def read_Bnvac_fourier(field_file='AUG_B_coils.h5', ntor=2):
@@ -61,6 +62,8 @@ def read_Anvac_fourier(field_file='AUG_B_coils.nc', ntor=2):
     grid.R_max = grid.R[-1]
     grid.Z_min = grid.Z[0]
     grid.Z_max = grid.Z[-1]
+    if 'nphi' in rootgrp.variables:
+        grid.nphi = int(rootgrp['nphi'][()])
     AnR = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
     Anphi = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
     AnZ = empty((ncoil, grid.nR, grid.nZ), dtype=complex)
