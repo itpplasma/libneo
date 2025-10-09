@@ -14,6 +14,8 @@ from .eqdsk_base import *
 from .convert_neo_in_to_fortran_namelist import *
 from .getHeaderDataVMEC import *
 from .flux_converter import *
+# from .interpolate import *  # TODO: issue #127 - not yet implemented
+from .biotsavart_fourier import *
 from .semi_periodic_fourier_spline import SemiPeriodicFourierSpline
 from .semi_periodic_fourier_spline import SemiPeriodicFourierSpline_ExceedingNyquistLimit
 from .fourier_utils import fourier_coefs_half, fourier_coefs_full
