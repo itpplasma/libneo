@@ -23,12 +23,18 @@ module analytical_tokamak_field
         real(dp) :: B0         !< Toroidal field on axis [T]
         real(dp) :: psimult    !< Flux scaling factor
         real(dp) :: coeffs(7) !< Boundary condition coefficients
+        integer :: Nripple = 0 !< Number of TF coils (0 = no ripple)
+        real(dp) :: a0         !< Minor radius for ripple [m]
+        real(dp) :: alpha0     !< Ripple radial dependency exponent
+        real(dp) :: delta0     !< Ripple amplitude
+        real(dp) :: z0         !< Midplane z coordinate for ripple [m]
         logical :: initialized = .false.
     contains
         procedure :: init => init_circular_equilibrium
         procedure :: eval_psi => evaluate_psi
         procedure :: eval_psi_derivatives
         procedure :: eval_bfield => evaluate_bfield
+        procedure :: eval_bfield_ripple
         procedure :: cleanup => destroy_equilibrium
     end type analytical_circular_eq_t
 
@@ -44,7 +50,13 @@ contains
     !>   A_in       - Shafranov parameter (controls q-profile)
     !>   B0_in      - Toroidal field on axis [T]
     !>   psimult_in - Flux scaling factor (optional, default=200)
-    subroutine init_circular_equilibrium(self, R0_in, epsilon_in, kappa_in, delta_in, A_in, B0_in, psimult_in)
+    !>   Nripple_in - Number of TF coils for ripple (optional, 0=no ripple)
+    !>   a0_in      - Minor radius for ripple calculation (optional)
+    !>   alpha0_in  - Ripple radial dependency exponent (optional, default=2.0)
+    !>   delta0_in  - Ripple amplitude (optional, default=0.0)
+    !>   z0_in      - Midplane z coordinate for ripple (optional, default=0.0)
+    subroutine init_circular_equilibrium(self, R0_in, epsilon_in, kappa_in, delta_in, A_in, B0_in, &
+                                         psimult_in, Nripple_in, a0_in, alpha0_in, delta0_in, z0_in)
         class(analytical_circular_eq_t), intent(inout) :: self
         real(dp), intent(in) :: R0_in
         real(dp), intent(in) :: epsilon_in
@@ -53,6 +65,11 @@ contains
         real(dp), intent(in) :: A_in
         real(dp), intent(in) :: B0_in
         real(dp), intent(in), optional :: psimult_in
+        integer, intent(in), optional :: Nripple_in
+        real(dp), intent(in), optional :: a0_in
+        real(dp), intent(in), optional :: alpha0_in
+        real(dp), intent(in), optional :: delta0_in
+        real(dp), intent(in), optional :: z0_in
 
         self%R0 = R0_in
         self%epsilon = epsilon_in
@@ -62,22 +79,51 @@ contains
         if (present(kappa_in)) then
             self%kappa = kappa_in
         else
-            self%kappa = 1.0_dp  ! Circular
+            self%kappa = 1.0_dp
         end if
 
         if (present(delta_in)) then
             self%delta = delta_in
         else
-            self%delta = 0.0_dp  ! Circular
+            self%delta = 0.0_dp
         end if
 
         if (present(psimult_in)) then
             self%psimult = psimult_in
         else
-            self%psimult = 200.0_dp  ! Standard normalization for ITER
+            self%psimult = 200.0_dp
         end if
 
-        ! Solve for coefficients with specified shape
+        if (present(Nripple_in)) then
+            self%Nripple = Nripple_in
+        else
+            self%Nripple = 0
+        end if
+
+        if (present(a0_in)) then
+            self%a0 = a0_in
+        else
+            self%a0 = R0_in * epsilon_in
+        end if
+
+        if (present(alpha0_in)) then
+            self%alpha0 = alpha0_in
+        else
+            self%alpha0 = 2.0_dp
+        end if
+
+        if (present(delta0_in)) then
+            self%delta0 = delta0_in
+        else
+            self%delta0 = 0.0_dp
+        end if
+
+        if (present(z0_in)) then
+            self%z0 = z0_in
+        else
+            self%z0 = 0.0_dp
+        end if
+
         call solve_coefficients(self%epsilon, self%kappa, self%delta, self%A_param, self%coeffs)
 
         self%initialized = .true.
@@ -234,6 +280,50 @@ contains
         ! Total field magnitude
         B_mod = sqrt(B_R**2 + B_Z**2 + B_phi**2)
     end subroutine evaluate_bfield
+
+    !> Evaluate magnetic field components with TF ripple
+    !>
+    !> Parameters:
+    !>   R   - Major radius coordinate [m]
+    !>   phi - Toroidal angle [rad]
+    !>   Z   - Vertical coordinate [m]
+    !>
+    !> Returns:
+    !>   B_R   - Radial field component [T]
+    !>   B_Z   - Vertical field component [T]
+    !>   B_phi - Toroidal field component with ripple [T]
+    !>   B_mod - Total field magnitude [T]
+    subroutine eval_bfield_ripple(self, R, phi, Z, B_R, B_Z, B_phi, B_mod)
+        class(analytical_circular_eq_t), intent(in) :: self
+        real(dp), intent(in) :: R, phi, Z
+        real(dp), intent(out) :: B_R, B_Z, B_phi, B_mod
+
+        real(dp) :: dpsi_dR, dpsi_dZ
+        real(dp) :: F_psi
+        real(dp) :: radius, theta, delta_ripple
+
+        if (.not. self%initialized) then
+            error stop "analytical_circular_eq_t not initialized"
+        end if
+
+        call self%eval_psi_derivatives(R, Z, dpsi_dR, dpsi_dZ)
+
+        B_R = -(1.0_dp / R) * dpsi_dZ
+        B_Z = (1.0_dp / R) * dpsi_dR
+
+        F_psi = self%B0 * self%R0
+        B_phi = F_psi / R
+
+        if (self%Nripple > 0) then
+            radius = sqrt((R - self%R0)**2 + (Z - self%z0)**2)
+            theta = atan2(Z - self%z0, R - self%R0)
+            delta_ripple = self%delta0 * exp(-0.5_dp * theta**2) &
+                         * (radius / self%a0)**self%alpha0
+            B_phi = B_phi * (1.0_dp + delta_ripple * cos(real(self%Nripple, dp) * phi))
+        end if
+
+        B_mod = sqrt(B_R**2 + B_Z**2 + B_phi**2)
+    end subroutine eval_bfield_ripple
 
     !> Cleanup
     subroutine destroy_equilibrium(self)

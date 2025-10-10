@@ -192,6 +192,9 @@ target_link_libraries(test_chartmap_validator.x neo)
 add_executable(test_analytical_circular.x source/test_analytical_circular.f90)
 target_link_libraries(test_analytical_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
 
+add_executable(test_ripple_field.x source/test_ripple_field.f90)
+target_link_libraries(test_ripple_field.x ${MAGFIE_LIB} ${COMMON_LIBS})
+
 add_executable(test_nctools_nc_get3.x source/test_nctools_nc_get3.f90)
 target_link_libraries(test_nctools_nc_get3.x
   ${COMMON_LIBS}
@@ -237,6 +240,20 @@ set_tests_properties(test_geqdsk_tools PROPERTIES
 
 # test_ascot5_compare is run separately in CI workflow (not in ctest)
 # because a5py requires libascot.so at import time, which the test builds
+
+add_test(
+  NAME test_ripple_field_data
+  COMMAND test_ripple_field.x
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test
+)
+
+add_test(
+  NAME test_ripple_field_plot
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_ripple_comparison.py
+          --data-dir ${CMAKE_BINARY_DIR}/test
+          --output-dir ${CMAKE_BINARY_DIR}/test
+)
+set_tests_properties(test_ripple_field_plot PROPERTIES DEPENDS test_ripple_field_data)
 
 if(LIBNEO_TESTING_ENABLED)
   add_test(
