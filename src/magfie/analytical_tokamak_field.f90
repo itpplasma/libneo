@@ -8,13 +8,15 @@ module analytical_tokamak_field
     !> Provides magnetic field components for circular tokamak equilibria
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use analytical_gs_solver
+    use neo_field_base, only: field_t
     implicit none
 
     private
     public :: analytical_circular_eq_t
+    public :: compute_analytical_field_cylindrical
 
     !> Analytical tokamak equilibrium (supports arbitrary shaping)
-    type :: analytical_circular_eq_t
+    type, extends(field_t) :: analytical_circular_eq_t
         real(dp) :: R0         !< Major radius [m]
         real(dp) :: epsilon    !< Inverse aspect ratio
         real(dp) :: kappa      !< Elongation
@@ -36,6 +38,9 @@ module analytical_tokamak_field
         procedure :: eval_bfield => evaluate_bfield
         procedure :: eval_bfield_ripple
         procedure :: cleanup => destroy_equilibrium
+        procedure :: compute_afield
+        procedure :: compute_bfield
+        procedure :: compute_abfield
     end type analytical_circular_eq_t
 
 contains
@@ -330,5 +335,66 @@ contains
         class(analytical_circular_eq_t), intent(inout) :: self
         self%initialized = .false.
     end subroutine destroy_equilibrium
+
+    !> Standalone interface function for external use (e.g., SIMPLE)
+    !>
+    !> Evaluates magnetic field in cylindrical coordinates with optional ripple.
+    !> This function provides a simple interface matching the pattern used by
+    !> other libneo field modules (e.g., neo_biotsavart).
+    !>
+    !> Parameters:
+    !>   eq    - Initialized analytical equilibrium
+    !>   R     - Major radius [m]
+    !>   phi   - Toroidal angle [rad]
+    !>   Z     - Vertical coordinate [m]
+    !>
+    !> Returns:
+    !>   B_R   - Radial field component [T]
+    !>   B_Z   - Vertical field component [T]
+    !>   B_phi - Toroidal field component (with ripple if enabled) [T]
+    !>   B_mod - Total field magnitude [T]
+    subroutine compute_analytical_field_cylindrical(eq, R, phi, Z, B_R, B_Z, B_phi, B_mod)
+        type(analytical_circular_eq_t), intent(in) :: eq
+        real(dp), intent(in) :: R, phi, Z
+        real(dp), intent(out) :: B_R, B_Z, B_phi, B_mod
+
+        call eq%eval_bfield_ripple(R, phi, Z, B_R, B_Z, B_phi, B_mod)
+    end subroutine compute_analytical_field_cylindrical
+
+    !> field_t interface: compute vector potential
+    !> x(3) = (R, phi, Z) in cylindrical coordinates
+    subroutine compute_afield(self, x, A)
+        class(analytical_circular_eq_t), intent(in) :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: A(3)
+
+        error stop 'analytical_circular_eq_t: compute_afield not implemented'
+    end subroutine compute_afield
+
+    !> field_t interface: compute magnetic field
+    !> x(3) = (R, phi, Z) in cylindrical coordinates
+    subroutine compute_bfield(self, x, B)
+        class(analytical_circular_eq_t), intent(in) :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: B(3)
+
+        real(dp) :: B_R, B_Z, B_phi, B_mod
+
+        call self%eval_bfield_ripple(x(1), x(2), x(3), B_R, B_Z, B_phi, B_mod)
+
+        B(1) = B_R
+        B(2) = B_phi
+        B(3) = B_Z
+    end subroutine compute_bfield
+
+    !> field_t interface: compute vector potential and field
+    subroutine compute_abfield(self, x, A, B)
+        class(analytical_circular_eq_t), intent(in) :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: A(3), B(3)
+
+        call self%compute_afield(x, A)
+        call self%compute_bfield(x, B)
+    end subroutine compute_abfield
 
 end module analytical_tokamak_field
