@@ -17,8 +17,18 @@ module geoflux_coordinates
     integer, parameter :: default_ns_cache = 65
     integer, parameter :: default_ntheta_cache = 128
 
+    abstract interface
+        function psi_evaluator_i(R, Z) result(psi)
+            import :: dp
+            real(dp), intent(in) :: R, Z
+            real(dp) :: psi
+        end function psi_evaluator_i
+    end interface
+
     type :: geoflux_context_t
         type(geqdsk_t) :: geqdsk
+        procedure(psi_evaluator_i), pointer, nopass :: psi_eval => null()
+        logical :: use_geqdsk = .true.
         real(dp) :: psi_axis = 0.0_dp
         real(dp) :: psi_sep = 0.0_dp
         real(dp) :: psi_tor_edge = 0.0_dp
@@ -67,6 +77,9 @@ contains
 
         call cleanup_context()
 
+        ctx%use_geqdsk = .true.
+        ctx%psi_eval => null()
+
         call geqdsk_read(ctx%geqdsk, filename)
         call geqdsk_standardise(ctx%geqdsk)
 
@@ -98,6 +111,66 @@ contains
 
         ctx%initialised = .true.
     end subroutine init_geoflux_coordinates
+
+    subroutine initialize_analytical_geoflux(psi_evaluator, R0, epsilon, kappa, delta, &
+                                            psi_axis, psi_sep, &
+                                            ns_cache_in, ntheta_cache_in, npsi_grid_in)
+        procedure(psi_evaluator_i) :: psi_evaluator
+        real(dp), intent(in) :: R0, epsilon, kappa, delta
+        real(dp), intent(in) :: psi_axis, psi_sep
+        integer, intent(in), optional :: ns_cache_in, ntheta_cache_in, npsi_grid_in
+        integer :: ns_val, ntheta_val, npsi_val
+        integer :: i
+        real(dp) :: a_minor
+
+        call cleanup_context()
+
+        ctx%use_geqdsk = .false.
+        ctx%psi_eval => psi_evaluator
+
+        a_minor = R0 * epsilon
+        ctx%R_axis = R0
+        ctx%Z_axis = 0.0_dp
+        ctx%psi_axis = psi_axis
+        ctx%psi_sep = psi_sep
+
+        ctx%R_min = R0 - 1.5_dp * a_minor * (1.0_dp + abs(delta))
+        ctx%R_max = R0 + 1.5_dp * a_minor * (1.0_dp + abs(delta))
+        ctx%Z_min = -1.5_dp * a_minor * kappa
+        ctx%Z_max = 1.5_dp * a_minor * kappa
+
+        ctx%max_radius = sqrt((ctx%R_max - ctx%R_axis)**2 + (ctx%Z_max - ctx%Z_axis)**2)
+        ctx%max_radius = ctx%max_radius + 1.0_dp
+        ctx%ray_step = max(ctx%max_radius/100.0_dp, 1.0d-3)
+
+        npsi_val = 129
+        if (present(npsi_grid_in)) npsi_val = max(10, npsi_grid_in)
+
+        allocate(ctx%psi_grid(npsi_val))
+        allocate(ctx%s_grid(npsi_val))
+
+        do i = 1, npsi_val
+            ctx%s_grid(i) = real(i - 1, dp) / real(npsi_val - 1, dp)
+            ctx%psi_grid(i) = ctx%psi_axis + ctx%s_grid(i) * (ctx%psi_sep - ctx%psi_axis)
+        end do
+
+        ctx%s_grid(1) = 0.0_dp
+        ctx%s_grid(npsi_val) = 1.0_dp
+        ctx%has_toroidal = .false.
+
+        call build_radial_splines()
+
+        ns_val = default_ns_cache
+        ntheta_val = default_ntheta_cache
+        if (present(ns_cache_in)) ns_val = max(3, ns_cache_in)
+        if (present(ntheta_cache_in)) ntheta_val = max(4, ntheta_cache_in)
+        ctx%ns_cache = ns_val
+        ctx%ntheta_cache = ntheta_val
+
+        call build_flux_surface_cache()
+
+        ctx%initialised = .true.
+    end subroutine initialize_analytical_geoflux
 
     subroutine geoflux_to_cyl(xfrom, xto, dxto_dxfrom)
         real(dp), intent(in) :: xfrom(3)
@@ -515,23 +588,30 @@ contains
         real(dp) :: t_R, t_Z
         real(dp) :: R_clamped, Z_clamped
 
-        R_clamped = clamp(R_val, ctx%R_min, ctx%R_max)
-        Z_clamped = clamp(Z_val, ctx%Z_min, ctx%Z_max)
+        if (ctx%use_geqdsk) then
+            R_clamped = clamp(R_val, ctx%R_min, ctx%R_max)
+            Z_clamped = clamp(Z_val, ctx%Z_min, ctx%Z_max)
 
-        call binsrc(ctx%geqdsk%R_eqd, 1, size(ctx%geqdsk%R_eqd), R_clamped, i_hi)
-        call binsrc(ctx%geqdsk%Z_eqd, 1, size(ctx%geqdsk%Z_eqd), Z_clamped, j_hi)
+            call binsrc(ctx%geqdsk%R_eqd, 1, size(ctx%geqdsk%R_eqd), R_clamped, i_hi)
+            call binsrc(ctx%geqdsk%Z_eqd, 1, size(ctx%geqdsk%Z_eqd), Z_clamped, j_hi)
 
-        i_lo = max(1, min(i_hi - 1, size(ctx%geqdsk%R_eqd) - 1))
-        i_hi = i_lo + 1
-        j_lo = max(1, min(j_hi - 1, size(ctx%geqdsk%Z_eqd) - 1))
-        j_hi = j_lo + 1
+            i_lo = max(1, min(i_hi - 1, size(ctx%geqdsk%R_eqd) - 1))
+            i_hi = i_lo + 1
+            j_lo = max(1, min(j_hi - 1, size(ctx%geqdsk%Z_eqd) - 1))
+            j_hi = j_lo + 1
 
-        t_R = (R_clamped - ctx%geqdsk%R_eqd(i_lo)) / &
-              max(ctx%geqdsk%R_eqd(i_hi) - ctx%geqdsk%R_eqd(i_lo), 1.0d-12)
-        t_Z = (Z_clamped - ctx%geqdsk%Z_eqd(j_lo)) / &
-              max(ctx%geqdsk%Z_eqd(j_hi) - ctx%geqdsk%Z_eqd(j_lo), 1.0d-12)
+            t_R = (R_clamped - ctx%geqdsk%R_eqd(i_lo)) / &
+                  max(ctx%geqdsk%R_eqd(i_hi) - ctx%geqdsk%R_eqd(i_lo), 1.0d-12)
+            t_Z = (Z_clamped - ctx%geqdsk%Z_eqd(j_lo)) / &
+                  max(ctx%geqdsk%Z_eqd(j_hi) - ctx%geqdsk%Z_eqd(j_lo), 1.0d-12)
 
-        psi_val = bilinear(ctx%geqdsk%psirz, i_lo, j_lo, t_R, t_Z)
+            psi_val = bilinear(ctx%geqdsk%psirz, i_lo, j_lo, t_R, t_Z)
+        else
+            if (.not. associated(ctx%psi_eval)) then
+                error stop 'geoflux_coordinates: psi evaluator not set'
+            end if
+            psi_val = ctx%psi_eval(R_val, Z_val)
+        end if
     end function psi_from_position
 
     function bilinear(psirz, i_lo, j_lo, t_R, t_Z) result(value)
