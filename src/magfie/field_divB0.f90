@@ -815,10 +815,11 @@ subroutine stretch_coords(r,z,rm,zm)
   integer, parameter :: nrhotht=360
   integer :: iflag, unit_convex, ios
   logical :: reload_needed
-  real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, dummy
+  real(dp) :: Rw, Zw, a, b, rho, tht, rho_c, dummy
+  real(dp), save :: R0 = 0.0_dp, htht = 0.0_dp
   real(dp), dimension(:), allocatable, save :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable, save :: rho_w, tht_w
-  real(dp), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
+  real(dp), dimension(nrhotht), save :: rho_wall, tht_wall ! polar coords of CW
   character(:), allocatable, save :: cached_convexfile
   character(:), allocatable :: filename_trim
   real(dp), save :: delta = 1.0_dp
@@ -941,7 +942,13 @@ contains
     end if
     do
       read(unit_convex,*,iostat=ios) dummy1, dummy2
-      if(ios /= 0) exit
+      if(ios < 0) exit
+      if(ios > 0) then
+        write(*,*) 'ERROR: stretch_coords failed reading convex wall file ', &
+          trim(convexfile)
+        close(unit_convex)
+        error stop 'stretch_coords: invalid convex wall file'
+      end if
       point_count = point_count + 1
     end do
     close(unit_convex)
@@ -984,6 +991,7 @@ contains
       if(ios /= 0) then
         write(*,*) 'ERROR: Failed to read data point', i, ' from convex wall file: ', &
           trim(convexfile)
+        close(unit_convex)
         error stop 'stretch_coords: invalid convex wall file'
       end if
     end do
