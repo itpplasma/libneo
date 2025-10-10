@@ -11,9 +11,16 @@ module analytical_geoflux_field
     real(dp), save :: axis_R = 0.0_dp
     real(dp), save :: axis_Z = 0.0_dp
     real(dp), save :: psi_axis_val = 0.0_dp
+    real(dp), save :: psi_sep_val = 0.0_dp
     logical, save :: initialized = .false.
 
 contains
+
+    function psi_eval_wrapper(R, Z) result(psi)
+        real(dp), intent(in) :: R, Z
+        real(dp) :: psi
+        psi = stored_eq%eval_psi(R, Z)
+    end function psi_eval_wrapper
 
     subroutine init_analytical_geoflux(R0, epsilon, kappa, delta, A_param, B0, &
                                       Nripple, a0, alpha0, delta0, z0, &
@@ -22,6 +29,7 @@ contains
         integer, intent(in) :: Nripple
         real(dp), intent(in) :: a0, alpha0, delta0, z0
         integer, intent(in), optional :: ns_cache, ntheta_cache
+        real(dp) :: a_minor
 
         if (initialized) then
             call stored_eq%cleanup()
@@ -31,12 +39,15 @@ contains
                            Nripple_in=Nripple, a0_in=a0, alpha0_in=alpha0, &
                            delta0_in=delta0, z0_in=z0)
 
-        call initialize_analytical_geoflux(R0, epsilon, kappa, delta, A_param, B0, &
-                                          Nripple, a0, alpha0, delta0, z0, &
-                                          ns_cache, ntheta_cache)
-
-        call geoflux_get_axis(axis_R, axis_Z)
+        a_minor = R0 * epsilon
+        axis_R = R0
+        axis_Z = 0.0_dp
         psi_axis_val = stored_eq%eval_psi(axis_R, axis_Z)
+        psi_sep_val = stored_eq%eval_psi(axis_R + a_minor, axis_Z)
+
+        call initialize_analytical_geoflux(psi_eval_wrapper, R0, epsilon, kappa, delta, &
+                                          psi_axis_val, psi_sep_val, &
+                                          ns_cache, ntheta_cache)
 
         initialized = .true.
     end subroutine init_analytical_geoflux
