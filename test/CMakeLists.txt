@@ -154,6 +154,9 @@ target_link_libraries(test_analytical_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
 add_executable(test_ripple_field.x source/test_ripple_field.f90)
 target_link_libraries(test_ripple_field.x ${MAGFIE_LIB} ${COMMON_LIBS})
 
+add_executable(test_analytical_geoflux.x source/test_analytical_geoflux.f90)
+target_link_libraries(test_analytical_geoflux.x ${MAGFIE_LIB} ${COMMON_LIBS})
+
 
 ## Standard tests according to standard libneo Fortran test convention.
 
@@ -177,6 +180,7 @@ add_fortran_test(test_vmec_modules)
 add_fortran_test(test_coordinate_systems)
 # add_fortran_test(test_analytical_gs_circular)  # TODO: update for new interface
 add_fortran_test(test_analytical_circular)
+add_fortran_test(test_analytical_geoflux)
 
 add_test(
   NAME test_ascot5_compare

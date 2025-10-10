@@ -99,6 +99,72 @@ contains
         ctx%initialised = .true.
     end subroutine init_geoflux_coordinates
 
+    subroutine initialize_analytical_geoflux(R0, epsilon, kappa, delta, A_param, B0, &
+                                            Nripple, a0, alpha0, delta0, z0, &
+                                            ns_cache_in, ntheta_cache_in, npsi_grid_in)
+        use analytical_tokamak_field, only: analytical_circular_eq_t
+        real(dp), intent(in) :: R0, epsilon, kappa, delta, A_param, B0
+        integer, intent(in) :: Nripple
+        real(dp), intent(in) :: a0, alpha0, delta0, z0
+        integer, intent(in), optional :: ns_cache_in, ntheta_cache_in, npsi_grid_in
+        type(analytical_circular_eq_t) :: eq
+        integer :: ns_val, ntheta_val, npsi_val
+        integer :: i, j
+        real(dp) :: a_minor, psi_val, psi_min, psi_max
+
+        call cleanup_context()
+
+        call eq%init(R0, epsilon, kappa, delta, A_param, B0, &
+                    Nripple_in=Nripple, a0_in=a0, alpha0_in=alpha0, &
+                    delta0_in=delta0, z0_in=z0)
+
+        a_minor = R0 * epsilon
+        ctx%R_axis = R0
+        ctx%Z_axis = 0.0_dp
+
+        ctx%R_min = R0 - 1.5_dp * a_minor * (1.0_dp + abs(delta))
+        ctx%R_max = R0 + 1.5_dp * a_minor * (1.0_dp + abs(delta))
+        ctx%Z_min = -1.5_dp * a_minor * kappa
+        ctx%Z_max = 1.5_dp * a_minor * kappa
+
+        ctx%max_radius = sqrt((ctx%R_max - ctx%R_axis)**2 + (ctx%Z_max - ctx%Z_axis)**2)
+        ctx%max_radius = ctx%max_radius + 1.0_dp
+        ctx%ray_step = max(ctx%max_radius/100.0_dp, 1.0d-3)
+
+        npsi_val = 129
+        if (present(npsi_grid_in)) npsi_val = max(10, npsi_grid_in)
+
+        allocate(ctx%psi_grid(npsi_val))
+        allocate(ctx%s_grid(npsi_val))
+
+        ctx%psi_axis = eq%eval_psi(ctx%R_axis, ctx%Z_axis)
+        ctx%psi_sep = eq%eval_psi(ctx%R_axis + a_minor, ctx%Z_axis)
+
+        do i = 1, npsi_val
+            ctx%s_grid(i) = real(i - 1, dp) / real(npsi_val - 1, dp)
+            ctx%psi_grid(i) = ctx%psi_axis + ctx%s_grid(i) * (ctx%psi_sep - ctx%psi_axis)
+        end do
+
+        ctx%s_grid(1) = 0.0_dp
+        ctx%s_grid(npsi_val) = 1.0_dp
+        ctx%has_toroidal = .false.
+
+        call build_radial_splines()
+
+        ns_val = default_ns_cache
+        ntheta_val = default_ntheta_cache
+        if (present(ns_cache_in)) ns_val = max(3, ns_cache_in)
+        if (present(ntheta_cache_in)) ntheta_val = max(4, ntheta_cache_in)
+        ctx%ns_cache = ns_val
+        ctx%ntheta_cache = ntheta_val
+
+        call build_flux_surface_cache()
+
+        ctx%initialised = .true.
+
+        call eq%cleanup()
+    end subroutine initialize_analytical_geoflux
+
     subroutine geoflux_to_cyl(xfrom, xto, dxto_dxfrom)
         real(dp), intent(in) :: xfrom(3)
         real(dp), intent(out) :: xto(3)
