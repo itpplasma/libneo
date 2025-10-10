@@ -1,6 +1,7 @@
 module vmec_coordinates
 
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use cylindrical_cartesian, only: cyl_to_cart
     use spline_vmec_sub, only: splint_vmec_data
 
     implicit none
@@ -69,28 +70,6 @@ contains
             call cyl_to_cart(xcyl, xto)
         end if
     end subroutine vmec_to_cart
-
-    subroutine cyl_to_cart(xfrom, xto, dxto_dxfrom)
-        real(dp), intent(in) :: xfrom(3)
-        real(dp), intent(out) :: xto(3)
-        real(dp), intent(out), optional :: dxto_dxfrom(3,3)
-
-        xto(1) = xfrom(1)*cos(xfrom(2))
-        xto(2) = xfrom(1)*sin(xfrom(2))
-        xto(3) = xfrom(3)
-
-        if (present(dxto_dxfrom)) then
-            dxto_dxfrom(1,1) = cos(xfrom(2))
-            dxto_dxfrom(1,2) = -xfrom(1)*sin(xfrom(2))
-            dxto_dxfrom(1,3) = 0.0_dp
-            dxto_dxfrom(2,1) = sin(xfrom(2))
-            dxto_dxfrom(2,2) = xfrom(1)*cos(xfrom(2))
-            dxto_dxfrom(2,3) = 0.0_dp
-            dxto_dxfrom(3,1) = 0.0_dp
-            dxto_dxfrom(3,2) = 0.0_dp
-            dxto_dxfrom(3,3) = 1.0_dp
-        end if
-    end subroutine cyl_to_cart
 
     function get_transform(from, to) result(func)
         procedure(transform_i), pointer :: func

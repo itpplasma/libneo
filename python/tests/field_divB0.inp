@@ -4,9 +4,9 @@
 72                                ntor         ! number of toroidal harmonics
 0.99                              cutoff       ! inner cutoff in psi/psi_a units
 4                                 icftype      ! type of coil file
-'test.geqdsk'                     gfile        ! equilibrium file
+'../../test/resources/input_efit_file.dat' gfile        ! equilibrium file
 'unused'                          pfile        ! coil        file
-'convexwall.dat'                  convexfile   ! convex file for stretchcoords
+'../../test/resources/convexwall.dat'          convexfile   ! convex file for stretchcoords
 'unused'                          fluxdatapath ! directory with data in flux coord.
 0                                 window size for filtering of psi array over R
 0                                 window size for filtering of psi array over Z

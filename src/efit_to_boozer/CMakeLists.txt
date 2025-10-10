@@ -75,20 +75,12 @@ target_link_libraries(efit_to_boozer
 )
 
 # Grab Python
-find_package(
-  Python
-  COMPONENTS Interpreter Development.Module NumPy
-  REQUIRED)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 
-if (Python_FOUND)
-    message(STATUS "Python found: ${Python_EXECUTABLE}")
-    message(STATUS "Python version: ${Python_VERSION}")
-    message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
-    message(STATUS "Python libraries: ${Python_LIBRARIES}")
-else()
-    message("Python with NumPy not found, skipping interface build.")
-    return()
-endif()
+message(STATUS "Python found: ${Python_EXECUTABLE}")
+message(STATUS "Python version: ${Python_VERSION}")
+message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
+message(STATUS "Python libraries: ${Python_LIBRARIES}")
 
 # F2PY headers
 execute_process(
@@ -140,12 +132,13 @@ add_custom_command(
   VERBATIM
   COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
   "${CMAKE_CURRENT_SOURCE_DIR}/f2py_interfaces/f2py_efit_to_boozer.f90"
-  ../../libneo/magfie/field_divB0.f90
+  "${CMAKE_SOURCE_DIR}/src/magfie/field_divB0.f90"
+  "${CMAKE_SOURCE_DIR}/src/magfie/field_eq_mod.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/efit_to_boozer_mod.f90"
-  ../../libneo/spl_three_to_five.f90
+  "${CMAKE_SOURCE_DIR}/src/spl_three_to_five.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/field_line_integration_for_Boozer.f90"
-  ../../libneo/plag_coeff.f90
-  ../../libneo/binsrc.f90
+  "${CMAKE_SOURCE_DIR}/src/plag_coeff.f90"
+  "${CMAKE_SOURCE_DIR}/src/binsrc.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/rhs.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/spline_and_interpolate_magdata.f90"
   -m _efit_to_boozer --lower skip: oddorderspline polleg binomial odeint_allroutines', alloc_odeint odeint rkck rkqs :
