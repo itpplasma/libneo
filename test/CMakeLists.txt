@@ -151,6 +151,9 @@ target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
 add_executable(test_analytical_circular.x source/test_analytical_circular.f90)
 target_link_libraries(test_analytical_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
 
+add_executable(test_ripple_field.x source/test_ripple_field.f90)
+target_link_libraries(test_ripple_field.x ${MAGFIE_LIB} ${COMMON_LIBS})
+
 
 ## Standard tests according to standard libneo Fortran test convention.
 
@@ -184,6 +187,20 @@ add_test(
 set_tests_properties(test_ascot5_compare PROPERTIES
   ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/test/scripts/ascot5/build:$ENV{LD_LIBRARY_PATH}"
 )
+
+add_test(
+  NAME test_ripple_field_data
+  COMMAND test_ripple_field.x
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test
+)
+
+add_test(
+  NAME test_ripple_field_plot
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_ripple_comparison.py
+          --data-dir ${CMAKE_BINARY_DIR}/test
+          --output-dir ${CMAKE_BINARY_DIR}/test
+)
+set_tests_properties(test_ripple_field_plot PROPERTIES DEPENDS test_ripple_field_data)
 
 if(LIBNEO_TESTING_ENABLED)
   add_test(
