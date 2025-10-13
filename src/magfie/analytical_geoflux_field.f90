@@ -7,6 +7,10 @@ module analytical_geoflux_field
 
     implicit none
 
+    real(dp), parameter :: length_si_to_cgs = 1.0d2      ! metres -> centimetres
+    real(dp), parameter :: b_si_to_cgs = 1.0d4           ! tesla  -> gauss
+    real(dp), parameter :: flux_si_to_cgs = 1.0d8        ! weber  -> maxwell
+
     type(analytical_circular_eq_t), save :: stored_eq
     real(dp), save :: axis_R = 0.0_dp
     real(dp), save :: axis_Z = 0.0_dp
@@ -61,11 +65,13 @@ contains
         real(dp) :: x_geo(3)
         real(dp) :: x_cyl(3)
         real(dp) :: jac(3, 3)
+        real(dp) :: jac_cgs(3, 3)
         real(dp) :: dRds, dRdt, dZds, dZdt
         real(dp) :: det_s_theta, sqrtg
         real(dp) :: Br, Bphi, Bz
         real(dp) :: Bcov_s, Bcov_theta, Bcov_phi
         real(dp) :: psi_local
+        real(dp) :: R_cgs, Z_cgs
 
         if (.not. initialized) then
             error stop "analytical_geoflux_field: call init_analytical_geoflux first"
@@ -78,17 +84,29 @@ contains
 
         psi_local = stored_eq%eval_psi(x_cyl(1), x_cyl(3))
 
-        dRds = jac(1, 1)
-        dRdt = jac(1, 2)
-        dZds = jac(3, 1)
-        dZdt = jac(3, 2)
+        jac_cgs = jac
+        jac_cgs(1,:) = jac(1,:) * length_si_to_cgs
+        jac_cgs(3,:) = jac(3,:) * length_si_to_cgs
+
+        dRds = jac_cgs(1, 1)
+        dRdt = jac_cgs(1, 2)
+        dZds = jac_cgs(3, 1)
+        dZdt = jac_cgs(3, 2)
+
+        R_cgs = x_cyl(1) * length_si_to_cgs
+        Z_cgs = x_cyl(3) * length_si_to_cgs
 
         det_s_theta = dRds*dZdt - dRdt*dZds
-        sqrtg = abs(x_cyl(1)*det_s_theta)
+        sqrtg = abs(R_cgs*det_s_theta)
+
+        Br = Br * b_si_to_cgs
+        Bz = Bz * b_si_to_cgs
+        Bphi = Bphi * b_si_to_cgs
+        Bmod = Bmod * b_si_to_cgs
 
         Bcov_s = Br*dRds + Bz*dZds
         Bcov_theta = Br*dRdt + Bz*dZdt
-        Bcov_phi = Bphi*x_cyl(1)
+        Bcov_phi = Bphi*R_cgs
 
         if (Bmod > 0.0_dp) then
             hcov(1) = Bcov_s/Bmod
@@ -100,7 +118,7 @@ contains
 
         Acov(1) = 0.0_dp
         Acov(2) = 0.0_dp
-        Acov(3) = psi_local - psi_axis_val
+        Acov(3) = (psi_local - psi_axis_val) * flux_si_to_cgs
 
         if (present(sqgBctr)) then
             sqgBctr = 0.0_dp
