@@ -810,55 +810,49 @@ subroutine stretch_coords(r,z,rm,zm)
   real(dp), intent(in) :: r, z
   real(dp), intent(out) :: rm, zm
 
-  integer icall, i, j, nrz ! number of points "convex wall" in input file
-  integer, parameter :: nrzmx=100 ! possible max. of nrz
+  integer, save :: icall = 0
+  integer :: i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrhotht=360
   integer :: iflag, unit_convex, ios
-  real(dp) R0,Rw, Zw, htht, a, b, rho, tht, rho_c, delta, dummy
-  real(dp), dimension(0:1000):: rad_w, zet_w ! points "convex wall"
-  real(dp), dimension(:), allocatable :: rho_w, tht_w
-  real(dp), dimension(nrhotht) :: rho_wall, tht_wall ! polar coords of CW
-  data icall /0/, delta/1./
-  save
+  logical :: reload_needed
+  real(dp) :: Rw, Zw, a, b, rho, tht, rho_c, dummy
+  real(dp), save :: R0 = 0.0_dp, htht = 0.0_dp
+  real(dp), dimension(:), allocatable, save :: rad_w, zet_w ! points "convex wall"
+  real(dp), dimension(:), allocatable, save :: rho_w, tht_w
+  real(dp), dimension(nrhotht), save :: rho_wall, tht_wall ! polar coords of CW
+  character(:), allocatable, save :: cached_convexfile
+  character(:), allocatable :: filename_trim
+  real(dp), save :: delta = 1.0_dp
   !----------- 1st call --------------------------------------------------------
   !$omp critical
+  reload_needed = .false.
+  if(allocated(filename_trim)) deallocate(filename_trim)
+  allocate(character(len=len_trim(convexfile)) :: filename_trim)
+  filename_trim = trim(convexfile)
+  if(.not. allocated(cached_convexfile)) then
+    allocate(character(len=len(filename_trim)) :: cached_convexfile)
+    cached_convexfile = filename_trim
+    reload_needed = .true.
+  else if (len(cached_convexfile) /= len(filename_trim)) then
+    deallocate(cached_convexfile)
+    allocate(character(len=len(filename_trim)) :: cached_convexfile)
+    cached_convexfile = filename_trim
+    reload_needed = .true.
+  else if (cached_convexfile /= filename_trim) then
+    cached_convexfile = filename_trim
+    reload_needed = .true.
+  end if
+  if(reload_needed) then
+    icall = 0
+  end if
+  if(allocated(filename_trim)) deallocate(filename_trim)
   if(icall .eq. 0) then
     icall = 1
-    nrz = 0
-    rad_w = 0.
-    zet_w = 0.
-    ios = 0
-    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
-         iostat=ios)
-    if (ios /= 0) then
-      write(*,*) 'ERROR: stretch_coords unable to open convex wall file ', &
-        trim(convexfile)
-      error stop 'stretch_coords: missing convex wall file'
-    end if
-    do i=1,nrzmx
-      read(unit_convex,*,iostat=ios)rad_w(i),zet_w(i)
-      if (ios /= 0) exit
-      nrz = nrz + 1
-    end do
-    close(unit_convex)
-    if (ios > 0) then
-      write(*,*) 'ERROR: stretch_coords failed reading convex wall file ', &
-        trim(convexfile)
-      error stop 'stretch_coords: invalid convex wall file'
-    end if
-    if (nrz == 0) then
-      write(*,*) 'ERROR: stretch_coords found zero points in convex wall file ', &
-        trim(convexfile)
-      error stop 'stretch_coords: empty convex wall file'
-    end if
-
-    allocate(rho_w(0:nrz+1), tht_w(0:nrz+1))
-    R0 = (maxval(rad_w(1:nrz)) +  minval(rad_w(1:nrz)))*0.5
-    do i=1,nrz
-      rho_w(i) = sqrt( (rad_w(i)-R0)**2 + zet_w(i)**2 )
-      tht_w(i) = atan2(zet_w(i),(rad_w(i)-R0))
-      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
-    end do
+    nrz = count_data_points()
+    call validate_data_count(nrz)
+    call allocate_arrays(nrz)
+    call read_data_points(nrz)
+    call compute_polar_coords(nrz, R0)
 
     ! make sure points are ordered according to tht_w.
     do
@@ -931,6 +925,91 @@ subroutine stretch_coords(r,z,rm,zm)
      rm = rho*cos(tht) + R0
      zm = rho*sin(tht)
   end if
+
+contains
+
+  function count_data_points() result(point_count)
+    integer :: point_count
+    real(dp) :: dummy1, dummy2
+
+    point_count = 0
+    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
+         iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: stretch_coords unable to open convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: missing convex wall file'
+    end if
+    do
+      read(unit_convex,*,iostat=ios) dummy1, dummy2
+      if(ios < 0) exit
+      if(ios > 0) then
+        write(*,*) 'ERROR: stretch_coords failed reading convex wall file ', &
+          trim(convexfile)
+        close(unit_convex)
+        error stop 'stretch_coords: invalid convex wall file'
+      end if
+      point_count = point_count + 1
+    end do
+    close(unit_convex)
+  end function count_data_points
+
+  subroutine validate_data_count(point_count)
+    integer, intent(in) :: point_count
+
+    if(point_count == 0) then
+      write(*,*) 'ERROR: stretch_coords found zero points in convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: empty convex wall file'
+    end if
+  end subroutine validate_data_count
+
+  subroutine allocate_arrays(point_count)
+    integer, intent(in) :: point_count
+
+    if(allocated(rad_w)) deallocate(rad_w)
+    if(allocated(zet_w)) deallocate(zet_w)
+    if(allocated(rho_w)) deallocate(rho_w)
+    if(allocated(tht_w)) deallocate(tht_w)
+    allocate(rad_w(0:point_count+1), zet_w(0:point_count+1))
+    allocate(rho_w(0:point_count+1), tht_w(0:point_count+1))
+  end subroutine allocate_arrays
+
+  subroutine read_data_points(point_count)
+    integer, intent(in) :: point_count
+    integer :: i
+
+    open(newunit=unit_convex, file=trim(convexfile), status='old', action='read', &
+         iostat=ios)
+    if (ios /= 0) then
+      write(*,*) 'ERROR: stretch_coords unable to reopen convex wall file ', &
+        trim(convexfile)
+      error stop 'stretch_coords: failed to reopen convex wall file'
+    end if
+    do i=1,point_count
+      read(unit_convex,*,iostat=ios) rad_w(i), zet_w(i)
+      if(ios /= 0) then
+        write(*,*) 'ERROR: Failed to read data point', i, ' from convex wall file: ', &
+          trim(convexfile)
+        close(unit_convex)
+        error stop 'stretch_coords: invalid convex wall file'
+      end if
+    end do
+    close(unit_convex)
+  end subroutine read_data_points
+
+  subroutine compute_polar_coords(point_count, center_r)
+    integer, intent(in) :: point_count
+    real(dp), intent(out) :: center_r
+    integer :: i
+
+    center_r = (maxval(rad_w(1:point_count)) + minval(rad_w(1:point_count)))*0.5
+    do i=1,point_count
+      rho_w(i) = sqrt( (rad_w(i)-center_r)**2 + zet_w(i)**2 )
+      tht_w(i) = atan2(zet_w(i),(rad_w(i)-center_r))
+      if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
+    end do
+  end subroutine compute_polar_coords
 
 end subroutine stretch_coords
 

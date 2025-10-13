@@ -9,9 +9,9 @@
 !>
 !> Achieves <20 cache misses per million data accesses
 module odeint_mod
-    implicit none
+    use, intrinsic :: iso_fortran_env, only: dp => real64
 
-    integer, parameter :: dp = kind(1.0d0)
+    implicit none
 
     ! Step control parameters
     integer, parameter :: max_steps = 1000000
@@ -124,9 +124,11 @@ end module odeint_mod
 !> - Vectorized error norm calculation
 !> - Minimal function call overhead
 module odeint_allroutines_sub
+    use, intrinsic :: iso_fortran_env, only: dp => real64
     use odeint_mod
 
     implicit none
+
     private
 
     abstract interface
@@ -198,7 +200,7 @@ contains
     !> Main integration loop with adaptive step control
     subroutine integrate_adaptive(y, n, x_start, x_end, tolerance, h_init, &
                                   derivative)
-        
+
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
         real(dp), intent(in) :: x_start, x_end, tolerance
@@ -232,7 +234,7 @@ contains
     !> Main integration loop with context
     subroutine integrate_adaptive_with_context(y, n, x_start, x_end, tolerance, &
                                                h_init, derivative, context)
-        
+
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
         real(dp), intent(in) :: x_start, x_end, tolerance
@@ -267,7 +269,7 @@ contains
 
     !> Fused error scale computation with k1 (eliminates separate loop)
     subroutine compute_error_scale_fused(h, n)
-        
+
         real(dp), intent(in) :: h
         integer, intent(in) :: n
         integer :: i
@@ -375,7 +377,7 @@ contains
 
     !> Common step adjustment logic (will be inlined)
     subroutine adjust_step_size(x, h, h_next, error_max, step_accepted)
-        
+
         real(dp), intent(inout) :: x, h
         real(dp), intent(out) :: h_next
         real(dp), intent(in) :: error_max
@@ -535,7 +537,7 @@ contains
 
     !> Compute final solution and error (fully fused and vectorized)
     subroutine compute_final_solution_fused(h, n)
-        
+
         real(dp), intent(in) :: h
         integer, intent(in) :: n
         integer :: i
