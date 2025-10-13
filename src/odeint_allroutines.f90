@@ -9,9 +9,9 @@
 !>
 !> Achieves <20 cache misses per million data accesses
 module odeint_mod
-    implicit none
+    use, intrinsic :: iso_fortran_env, only: dp => real64
 
-    integer, parameter :: dp = kind(1.0d0)
+    implicit none
 
     ! Step control parameters
     integer, parameter :: max_steps = 1000000
@@ -128,6 +128,7 @@ module odeint_allroutines_sub
     use odeint_mod
 
     implicit none
+
     private
 
     abstract interface
