@@ -53,3 +53,20 @@ def test_parse_stellopt_example_roundtrip():
         for a, b in zip(cf.filaments, cf2.filaments):
             assert np.allclose(a.coords, b.coords)
             assert np.allclose(a.current, b.current)
+
+        # Test write_simple format
+        simple_file = os.path.join(td, "coils.simple")
+        cf.write_simple(simple_file)
+
+        # Verify simple format structure
+        with open(simple_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            n_points = int(lines[0].strip())
+            assert n_points == sum(len(fil.coords) for fil in cf.filaments)
+            assert len(lines) == n_points + 1  # header + data lines
+
+            # Check first data line has 4 numbers
+            parts = lines[1].split()
+            assert len(parts) == 4
+            for part in parts:
+                float(part)  # should not raise

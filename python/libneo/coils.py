@@ -179,6 +179,26 @@ class CoilsFile:
                 for (x, y, z), I in zip(fil.coords, fil.current):
                     f.write(f"{x:.14E}   {y:.14E}   {z:.14E}   {I:.14E}\n")
 
+    def write_simple(self, filename: str) -> None:
+        """
+        Write coils to simple biotsavart format.
+
+        Format:
+            n_points
+            x y z current
+            x y z current
+            ...
+
+        This format is compatible with libneo's neo_biotsavart module
+        load_coils_from_file() function.
+        """
+        with open(filename, "w", encoding="utf-8") as f:
+            n_points = sum(len(fil.coords) for fil in self.filaments)
+            f.write(f"{n_points}\n")
+            for fil in self.filaments:
+                for (x, y, z), I in zip(fil.coords, fil.current):
+                    f.write(f"{x:.14E}   {y:.14E}   {z:.14E}   {I:.14E}\n")
+
     def plot(self, show_legend: bool = True, show: bool = False):
         import matplotlib.pyplot as plt
         fig = plt.figure()
