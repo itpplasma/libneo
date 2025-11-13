@@ -59,6 +59,13 @@ Classes and functions that have a general use for many application.
 ## python
 Python interface package and scripts/functions.
 
+### Coils format converter
+Convert STELLOPT coils format to simple biotsavart format:
+
+    python -m libneo.convert_coils_to_simple input.coils output.simple
+
+The simple format is compatible with libneo's `neo_biotsavart` module and SIMPLE code.
+
 ## src
 Fortran source files for the library.
 Subfolders contain source for additional tools, also compiled into
