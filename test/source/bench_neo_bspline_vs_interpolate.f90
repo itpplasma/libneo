@@ -17,7 +17,12 @@ program bench_neo_bspline_vs_interpolate
         integer(c_long) :: tv_nsec
     end type timespec
 
+!> clock id for clock_gettime; macOS uses 6 for CLOCK_MONOTONIC, Linux uses 1.
+#ifdef __APPLE__
+    integer(c_int), parameter :: CLOCK_MONOTONIC = 6_c_int
+#else
     integer(c_int), parameter :: CLOCK_MONOTONIC = 1_c_int
+#endif
 
     interface
         function c_clock_gettime(clock_id, tp) bind(C, name="clock_gettime")
@@ -40,11 +45,12 @@ contains
         integer(c_int) :: ierr
 
         ierr = c_clock_gettime(CLOCK_MONOTONIC, ts)
-        if (ierr /= 0_c_int) then
-            t = 0.0_dp_bench
-        else
+        if (ierr == 0_c_int) then
             t = real(ts%tv_sec, dp_bench) &
                 + real(ts%tv_nsec, dp_bench)*1.0e-9_dp_bench
+        else
+            ! Fallback for platforms where CLOCK_MONOTONIC is unavailable.
+            call cpu_time(t)
         end if
     end subroutine bench_time_now
 
