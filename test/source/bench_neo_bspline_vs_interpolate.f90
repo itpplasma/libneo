@@ -1,5 +1,6 @@
 program bench_neo_bspline_vs_interpolate
     use, intrinsic :: iso_fortran_env, only : dp_bench => real64
+    use, intrinsic :: iso_c_binding, only : c_int, c_long
     use interpolate
     use neo_bspline
     use neo_bspline_3d
@@ -12,17 +13,47 @@ program bench_neo_bspline_vs_interpolate
     real(dp_bench), parameter :: PI_BENCH = acos(-1.0_dp_bench)
     real(dp_bench), parameter :: TWOPI_BENCH = 2.0_dp_bench*PI_BENCH
 
+    type, bind(C) :: timespec
+        integer(c_long) :: tv_sec
+        integer(c_long) :: tv_nsec
+    end type timespec
+
+    integer(c_int), parameter :: CLOCK_MONOTONIC = 1_c_int
+
+    interface
+        function c_clock_gettime(clock_id, tp) bind(C, name="clock_gettime")
+            import :: c_int, timespec
+            integer(c_int), value :: clock_id
+            type(timespec) :: tp
+            integer(c_int) :: c_clock_gettime
+        end function c_clock_gettime
+    end interface
+
     call run_bench_1d()
     call run_bench_2d()
     call run_bench_3d()
 
 contains
 
+    subroutine bench_time_now(t)
+        real(dp_bench), intent(out) :: t
+        type(timespec) :: ts
+        integer(c_int) :: ierr
+
+        ierr = c_clock_gettime(CLOCK_MONOTONIC, ts)
+        if (ierr /= 0_c_int) then
+            t = 0.0_dp_bench
+        else
+            t = real(ts%tv_sec, dp_bench) &
+                + real(ts%tv_nsec, dp_bench)*1.0e-9_dp_bench
+        end if
+    end subroutine bench_time_now
+
     subroutine run_bench_1d()
         type(SplineData1D) :: spl_interp
         type(bspline_1d) :: spl_bs
         integer :: i, k, n, degree_bs, n_ctrl
-        integer :: c0, c1, rate, cmax
+        real(dp_bench) :: t0, t1
         real(dp_bench) :: t_create_interp, t_eval_interp
         real(dp_bench) :: t_create_bs, t_eval_bs
         real(dp_bench), allocatable :: x(:), f(:), coeff(:)
@@ -31,7 +62,6 @@ contains
 
         x_min = 1.23_dp_bench
         x_max = x_min + TWOPI_BENCH
-        call system_clock(count_rate=rate, count_max=cmax)
 
         open(newunit=unit, file="bench_neo_bspline_1d.dat", &
             status="replace", action="write", form="formatted")
@@ -49,18 +79,17 @@ contains
             end do
 
             ! Interpolate: construct + evaluate
-            call system_clock(c0)
+            call bench_time_now(t0)
             call construct_splines_1d(x_min, x_max, f, 5, .false., spl_interp)
-            call system_clock(c1)
-            t_create_interp = real(c1 - c0, dp_bench) &
-                /real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_create_interp = t1 - t0
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             do i = 1, n
                 call evaluate_splines_1d(spl_interp, x(i), y)
             end do
-            call system_clock(c1)
-            t_eval_interp = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_eval_interp = t1 - t0
 
             ! neo_bspline LSQ: construct + evaluate
             degree_bs = 5
@@ -69,20 +98,20 @@ contains
 
             allocate(coeff(n_ctrl))
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             call bspline_1d_init_uniform(spl_bs, degree_bs, n_ctrl, x_min, &
                 x_max)
             call bspline_1d_lsq_cgls(spl_bs, x, f, coeff, max_iter=400, &
                 tol=1.0d-10)
-            call system_clock(c1)
-            t_create_bs = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_create_bs = t1 - t0
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             do i = 1, n
                 call bspline_1d_eval(spl_bs, coeff, x(i), y)
             end do
-            call system_clock(c1)
-            t_eval_bs = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_eval_bs = t1 - t0
 
             write(unit,'(i10,4es16.8)') n, t_create_interp, t_eval_interp, &
                 t_create_bs, t_eval_bs
@@ -101,7 +130,7 @@ contains
         integer :: i1, i2, k
         integer :: n_total, n_side, n1, n2
         integer :: degree(2), n_ctrl(2)
-        integer :: c0, c1, rate, cmax
+        real(dp_bench) :: t0, t1
         real(dp_bench) :: t_create_interp, t_eval_interp
         real(dp_bench) :: t_create_bs, t_eval_bs
         real(dp_bench), allocatable :: x1(:), x2(:)
@@ -114,8 +143,6 @@ contains
 
         x_min = [1.23_dp_bench, 1.23_dp_bench]
         x_max = x_min + [TWOPI_BENCH, TWOPI_BENCH]
-
-        call system_clock(count_rate=rate, count_max=cmax)
 
         open(newunit=unit, file="bench_neo_bspline_2d.dat", &
             status="replace", action="write", form="formatted")
@@ -155,22 +182,21 @@ contains
             end do
 
             ! Interpolate: construct + evaluate
-            call system_clock(c0)
+            call bench_time_now(t0)
             call construct_splines_2d(x_min, x_max, f_grid, [5, 5], &
                 [.false., .false.], spl_interp)
-            call system_clock(c1)
-            t_create_interp = real(c1 - c0, dp_bench) &
-                /real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_create_interp = t1 - t0
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             do i2 = 1, n2
                 do i1 = 1, n1
                     x = [x1(i1), x2(i2)]
                     call evaluate_splines_2d(spl_interp, x, y)
                 end do
             end do
-            call system_clock(c1)
-            t_eval_interp = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_eval_interp = t1 - t0
 
             ! neo_bspline LSQ: construct + evaluate
             n_ctrl(1) = min(16, n1/2)
@@ -180,23 +206,23 @@ contains
 
             allocate(coeff_bs(n_ctrl(1), n_ctrl(2)))
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             call bspline_2d_init_uniform(spl_bs, degree, n_ctrl, x_min, &
                 x_max)
             call bspline_2d_lsq_cgls(spl_bs, x_data, y_data, f_vec, &
                 coeff_bs, max_iter=800, tol=1.0d-10)
-            call system_clock(c1)
-            t_create_bs = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_create_bs = t1 - t0
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             do i2 = 1, n2
                 do i1 = 1, n1
                     x = [x1(i1), x2(i2)]
                     call bspline_2d_eval(spl_bs, coeff_bs, x, y)
                 end do
             end do
-            call system_clock(c1)
-            t_eval_bs = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_eval_bs = t1 - t0
 
             write(unit,'(i10,4es16.8)') n_data, t_create_interp, &
                 t_eval_interp, t_create_bs, t_eval_bs
@@ -215,7 +241,7 @@ contains
         integer :: i1, i2, i3, k
         integer :: n_total, n_side, n1, n2, n3
         integer :: degree(3), n_ctrl(3)
-        integer :: c0, c1, rate, cmax
+        real(dp_bench) :: t0, t1
         real(dp_bench) :: t_create_interp, t_eval_interp
         real(dp_bench) :: t_create_bs, t_eval_bs
         real(dp_bench), allocatable :: x1(:), x2(:), x3(:)
@@ -229,8 +255,6 @@ contains
 
         x_min = [1.23_dp_bench, 1.23_dp_bench, 1.23_dp_bench]
         x_max = x_min + [TWOPI_BENCH, TWOPI_BENCH, TWOPI_BENCH]
-
-        call system_clock(count_rate=rate, count_max=cmax)
 
         open(newunit=unit, file="bench_neo_bspline_3d.dat", &
             status="replace", action="write", form="formatted")
@@ -281,14 +305,13 @@ contains
             end do
 
             ! Interpolate: construct + evaluate
-            call system_clock(c0)
+            call bench_time_now(t0)
             call construct_splines_3d(x_min, x_max, f3d, [5, 5, 5], &
                 [.false., .false., .false.], spl_interp)
-            call system_clock(c1)
-            t_create_interp = real(c1 - c0, dp_bench) &
-                /real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_create_interp = t1 - t0
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             do i3 = 1, n3
                 do i2 = 1, n2
                     do i1 = 1, n1
@@ -297,8 +320,8 @@ contains
                     end do
                 end do
             end do
-            call system_clock(c1)
-            t_eval_interp = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_eval_interp = t1 - t0
 
             ! neo_bspline LSQ: construct + evaluate
             n_ctrl(1) = min(16, n1/2)
@@ -310,15 +333,15 @@ contains
 
             allocate(coeff_bs(n_ctrl(1), n_ctrl(2), n_ctrl(3)))
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             call bspline_3d_init_uniform(spl_bs, degree, n_ctrl, x_min, &
                 x_max)
             call bspline_3d_lsq_cgls(spl_bs, x_data, y_data, z_data, f_vec, &
                 coeff_bs, max_iter=800, tol=1.0d-10)
-            call system_clock(c1)
-            t_create_bs = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_create_bs = t1 - t0
 
-            call system_clock(c0)
+            call bench_time_now(t0)
             do i3 = 1, n3
                 do i2 = 1, n2
                     do i1 = 1, n1
@@ -327,8 +350,8 @@ contains
                     end do
                 end do
             end do
-            call system_clock(c1)
-            t_eval_bs = real(c1 - c0, dp_bench)/real(rate, dp_bench)
+            call bench_time_now(t1)
+            t_eval_bs = t1 - t0
 
             write(unit,'(i10,4es16.8)') n_data, t_create_interp, &
                 t_eval_interp, t_create_bs, t_eval_bs
