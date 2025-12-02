@@ -16,13 +16,36 @@ def load_bench(path: pathlib.Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
     return n, t_create_interp, t_eval_interp, t_create_bs, t_eval_bs
 
 
-def plot_dim(path: pathlib.Path, title: str, output: pathlib.Path) -> None:
+def plot_dim_create(
+    path: pathlib.Path,
+    title: str,
+    output: pathlib.Path,
+) -> None:
     n, t_ci, t_ei, t_cb, t_eb = load_bench(path)
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.loglog(n, t_ci, "o-", label="interp create")
-    ax.loglog(n, t_ei, "o--", label="interp eval")
     ax.loglog(n, t_cb, "s-", label="neo_bspline create")
+
+    ax.set_xlabel("number of data points")
+    ax.set_ylabel("time [s]")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True, which="both", ls=":")
+
+    fig.tight_layout()
+    fig.savefig(output, dpi=150)
+
+
+def plot_dim_eval(
+    path: pathlib.Path,
+    title: str,
+    output: pathlib.Path,
+) -> None:
+    n, t_ci, t_ei, t_cb, t_eb = load_bench(path)
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.loglog(n, t_ei, "o--", label="interp eval")
     ax.loglog(n, t_eb, "s--", label="neo_bspline eval")
 
     ax.set_xlabel("number of data points")
@@ -55,23 +78,37 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    plot_dim(
+    plot_dim_create(
         args.data_dir / "bench_neo_bspline_1d.dat",
-        "1D: interpolate vs neo_bspline",
-        args.output_dir / "bench_neo_bspline_1d_runtime.png",
+        "1D create: interpolate vs neo_bspline",
+        args.output_dir / "bench_neo_bspline_1d_create.png",
     )
-    plot_dim(
+    plot_dim_eval(
+        args.data_dir / "bench_neo_bspline_1d.dat",
+        "1D eval: interpolate vs neo_bspline",
+        args.output_dir / "bench_neo_bspline_1d_eval.png",
+    )
+    plot_dim_create(
         args.data_dir / "bench_neo_bspline_2d.dat",
-        "2D: interpolate vs neo_bspline",
-        args.output_dir / "bench_neo_bspline_2d_runtime.png",
+        "2D create: interpolate vs neo_bspline",
+        args.output_dir / "bench_neo_bspline_2d_create.png",
     )
-    plot_dim(
+    plot_dim_eval(
+        args.data_dir / "bench_neo_bspline_2d.dat",
+        "2D eval: interpolate vs neo_bspline",
+        args.output_dir / "bench_neo_bspline_2d_eval.png",
+    )
+    plot_dim_create(
         args.data_dir / "bench_neo_bspline_3d.dat",
-        "3D: interpolate vs neo_bspline",
-        args.output_dir / "bench_neo_bspline_3d_runtime.png",
+        "3D create: interpolate vs neo_bspline",
+        args.output_dir / "bench_neo_bspline_3d_create.png",
+    )
+    plot_dim_eval(
+        args.data_dir / "bench_neo_bspline_3d.dat",
+        "3D eval: interpolate vs neo_bspline",
+        args.output_dir / "bench_neo_bspline_3d_eval.png",
     )
 
 
 if __name__ == "__main__":
     main()
-
