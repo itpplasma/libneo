@@ -1,6 +1,6 @@
 program bench_neo_bspline_vs_interpolate
-    use, intrinsic :: iso_fortran_env, only : dp_bench => real64
-    use, intrinsic :: iso_c_binding, only : c_int, c_long
+    use, intrinsic :: iso_fortran_env, only: dp_bench => real64
+    use, intrinsic :: iso_c_binding, only: c_int, c_long
     use interpolate
     use neo_bspline
 
@@ -50,14 +50,15 @@ contains
 
     subroutine run_bench_1d()
         type(SplineData1D) :: spl_interp
-        type(bspline_1d) :: spl_bs
-        integer :: i, k, n, degree_bs, n_ctrl
+        type(bspline_1d) :: spl_bs, spl_bs_dir
+        integer :: i, k, n, degree_bs
         real(dp_bench) :: t0, t1
         real(dp_bench) :: t_create_interp, t_eval_interp
-        real(dp_bench) :: t_create_bs, t_eval_bs
-        real(dp_bench), allocatable :: x(:), f(:), coeff(:)
+        real(dp_bench) :: t_create_lsq, t_eval_lsq
+        real(dp_bench) :: t_create_dir, t_eval_dir
+        real(dp_bench), allocatable :: x(:), f(:), coeff_lsq(:), coeff_dir(:)
         real(dp_bench) :: x_min, x_max, y
-        integer :: unit
+        integer :: unit, n_ctrl_lsq
 
         x_min = 1.23_dp_bench
         x_max = x_min + TWOPI_BENCH
@@ -71,13 +72,12 @@ contains
 
             allocate(x(n), f(n))
             do i = 1, n
-                x(i) = x_min + (x_max - x_min) * real(i - 1, dp_bench) &
-                    / real(n - 1, dp_bench)
-                f(i) = cos(2.0_dp_bench*x(i)) + 0.5_dp_bench* &
-                    sin(3.0_dp_bench*x(i))
+                x(i) = x_min + (x_max - x_min)*real(i - 1, dp_bench) &
+                    /real(n - 1, dp_bench)
+                f(i) = cos(2.0_dp_bench*x(i)) + 0.5_dp_bench*sin(3.0_dp_bench*x(i))
             end do
 
-            ! Interpolate: construct + evaluate
+            ! 1) interpolate module: construct + evaluate
             call bench_time_now(t0)
             call construct_splines_1d(x_min, x_max, f, 5, .false., spl_interp)
             call bench_time_now(t1)
@@ -90,32 +90,56 @@ contains
             call bench_time_now(t1)
             t_eval_interp = t1 - t0
 
-            ! neo_bspline LSQ: construct + evaluate
+            ! 2) neo_bspline LSQ: construct + evaluate
             degree_bs = 5
-            n_ctrl = min(40, n/2)
-            n_ctrl = max(degree_bs + 1, n_ctrl)
+            n_ctrl_lsq = min(40, n/2)
+            n_ctrl_lsq = max(degree_bs + 1, n_ctrl_lsq)
 
-            allocate(coeff(n_ctrl))
+            allocate(coeff_lsq(n_ctrl_lsq))
+            coeff_lsq = 0.0_dp_bench
 
             call bench_time_now(t0)
-            call bspline_1d_init_uniform(spl_bs, degree_bs, n_ctrl, x_min, &
+            call bspline_1d_init_uniform(spl_bs, degree_bs, n_ctrl_lsq, x_min, &
                 x_max)
-            call bspline_1d_lsq_cgls(spl_bs, x, f, coeff, max_iter=400, &
+            call bspline_1d_lsq_cgls(spl_bs, x, f, coeff_lsq, max_iter=400, &
                 tol=1.0d-10)
             call bench_time_now(t1)
-            t_create_bs = t1 - t0
+            t_create_lsq = t1 - t0
 
             call bench_time_now(t0)
             do i = 1, n
-                call bspline_1d_eval(spl_bs, coeff, x(i), y)
+                call bspline_1d_eval(spl_bs, coeff_lsq, x(i), y)
             end do
             call bench_time_now(t1)
-            t_eval_bs = t1 - t0
+            t_eval_lsq = t1 - t0
 
-            write(unit,'(i10,4es16.8)') n, t_create_interp, t_eval_interp, &
-                t_create_bs, t_eval_bs
+            ! 3) neo_bspline direct interp: construct + evaluate (skip large N)
+            if (n <= 3000) then
+                allocate(coeff_dir(n))
 
-            deallocate(x, f, coeff)
+                call bench_time_now(t0)
+                call bspline_1d_init_uniform(spl_bs_dir, degree_bs, n, x_min, x_max)
+                call bspline_1d_interp(spl_bs_dir, x, f, coeff_dir)
+                call bench_time_now(t1)
+                t_create_dir = t1 - t0
+
+                call bench_time_now(t0)
+                do i = 1, n
+                    call bspline_1d_eval(spl_bs_dir, coeff_dir, x(i), y)
+                end do
+                call bench_time_now(t1)
+                t_eval_dir = t1 - t0
+
+                deallocate(coeff_dir)
+            else
+                t_create_dir = -1.0_dp_bench
+                t_eval_dir = -1.0_dp_bench
+            end if
+
+            write(unit,'(i10,6es16.8)') n, t_create_interp, t_eval_interp, &
+                t_create_lsq, t_eval_lsq, t_create_dir, t_eval_dir
+
+            deallocate(x, f, coeff_lsq)
             call destroy_splines_1d(spl_interp)
         end do
 
@@ -125,16 +149,17 @@ contains
 
     subroutine run_bench_2d()
         type(SplineData2D) :: spl_interp
-        type(bspline_2d) :: spl_bs
+        type(bspline_2d) :: spl_bs, spl_bs_dir
         integer :: i1, i2, k
         integer :: n_total, n_side, n1, n2
-        integer :: degree(2), n_ctrl(2)
+        integer :: degree(2), n_ctrl_lsq(2)
         real(dp_bench) :: t0, t1
         real(dp_bench) :: t_create_interp, t_eval_interp
-        real(dp_bench) :: t_create_bs, t_eval_bs
+        real(dp_bench) :: t_create_lsq, t_eval_lsq
+        real(dp_bench) :: t_create_dir, t_eval_dir
         real(dp_bench), allocatable :: x1(:), x2(:)
         real(dp_bench), allocatable :: f_grid(:,:)
-        real(dp_bench), allocatable :: coeff_bs(:,:)
+        real(dp_bench), allocatable :: coeff_lsq(:,:), coeff_dir(:,:)
         real(dp_bench) :: x_min(2), x_max(2)
         real(dp_bench) :: x(2), y
         integer :: unit, n_data
@@ -173,7 +198,7 @@ contains
                 end do
             end do
 
-            ! Interpolate: construct + evaluate
+            ! 1) interpolate module: construct + evaluate
             call bench_time_now(t0)
             call construct_splines_2d(x_min, x_max, f_grid, [5, 5], &
                 [.false., .false.], spl_interp)
@@ -190,36 +215,63 @@ contains
             call bench_time_now(t1)
             t_eval_interp = t1 - t0
 
-            ! neo_bspline LSQ: construct + evaluate
-            n_ctrl(1) = min(16, n1/2)
-            n_ctrl(2) = min(16, n2/2)
-            n_ctrl(1) = max(degree(1) + 1, n_ctrl(1))
-            n_ctrl(2) = max(degree(2) + 1, n_ctrl(2))
+            ! 2) neo_bspline LSQ: construct + evaluate
+            n_ctrl_lsq(1) = min(16, n1/2)
+            n_ctrl_lsq(2) = min(16, n2/2)
+            n_ctrl_lsq(1) = max(degree(1) + 1, n_ctrl_lsq(1))
+            n_ctrl_lsq(2) = max(degree(2) + 1, n_ctrl_lsq(2))
 
-            allocate(coeff_bs(n_ctrl(1), n_ctrl(2)))
-            coeff_bs = 0.0_dp_bench
+            allocate(coeff_lsq(n_ctrl_lsq(1), n_ctrl_lsq(2)))
+            coeff_lsq = 0.0_dp_bench
 
             call bench_time_now(t0)
-            call bspline_2d_init_uniform(spl_bs, degree, n_ctrl, x_min, x_max)
-            call bspline_2d_lsq_cgls(spl_bs, x1, x2, f_grid, coeff_bs, &
+            call bspline_2d_init_uniform(spl_bs, degree, n_ctrl_lsq, x_min, x_max)
+            call bspline_2d_lsq_cgls(spl_bs, x1, x2, f_grid, coeff_lsq, &
                 max_iter=800, tol=1.0d-10)
             call bench_time_now(t1)
-            t_create_bs = t1 - t0
+            t_create_lsq = t1 - t0
 
             call bench_time_now(t0)
             do i2 = 1, n2
                 do i1 = 1, n1
                     x = [x1(i1), x2(i2)]
-                    call bspline_2d_eval(spl_bs, coeff_bs, x, y)
+                    call bspline_2d_eval(spl_bs, coeff_lsq, x, y)
                 end do
             end do
             call bench_time_now(t1)
-            t_eval_bs = t1 - t0
+            t_eval_lsq = t1 - t0
 
-            write(unit,'(i10,4es16.8)') n_data, t_create_interp, &
-                t_eval_interp, t_create_bs, t_eval_bs
+            ! 3) neo_bspline direct interp: construct + evaluate (skip large N)
+            if (n_data <= 10000) then
+                allocate(coeff_dir(n1, n2))
 
-            deallocate(x1, x2, f_grid, coeff_bs)
+                call bench_time_now(t0)
+                call bspline_2d_init_uniform(spl_bs_dir, degree, [n1, n2], x_min, &
+                    x_max)
+                call bspline_2d_interp(spl_bs_dir, x1, x2, f_grid, coeff_dir)
+                call bench_time_now(t1)
+                t_create_dir = t1 - t0
+
+                call bench_time_now(t0)
+                do i2 = 1, n2
+                    do i1 = 1, n1
+                        x = [x1(i1), x2(i2)]
+                        call bspline_2d_eval(spl_bs_dir, coeff_dir, x, y)
+                    end do
+                end do
+                call bench_time_now(t1)
+                t_eval_dir = t1 - t0
+
+                deallocate(coeff_dir)
+            else
+                t_create_dir = -1.0_dp_bench
+                t_eval_dir = -1.0_dp_bench
+            end if
+
+            write(unit,'(i10,6es16.8)') n_data, t_create_interp, t_eval_interp, &
+                t_create_lsq, t_eval_lsq, t_create_dir, t_eval_dir
+
+            deallocate(x1, x2, f_grid, coeff_lsq)
             call destroy_splines_2d(spl_interp)
         end do
 
@@ -229,16 +281,17 @@ contains
 
     subroutine run_bench_3d()
         type(SplineData3D) :: spl_interp
-        type(bspline_3d) :: spl_bs
+        type(bspline_3d) :: spl_bs, spl_bs_dir
         integer :: i1, i2, i3, k
         integer :: n_total, n_side, n1, n2, n3
-        integer :: degree(3), n_ctrl(3)
+        integer :: degree(3), n_ctrl_lsq(3)
         real(dp_bench) :: t0, t1
         real(dp_bench) :: t_create_interp, t_eval_interp
-        real(dp_bench) :: t_create_bs, t_eval_bs
+        real(dp_bench) :: t_create_lsq, t_eval_lsq
+        real(dp_bench) :: t_create_dir, t_eval_dir
         real(dp_bench), allocatable :: x1(:), x2(:), x3(:)
         real(dp_bench), allocatable :: f3d(:,:,:)
-        real(dp_bench), allocatable :: coeff_bs(:,:,:)
+        real(dp_bench), allocatable :: coeff_lsq(:,:,:), coeff_dir(:,:,:)
         real(dp_bench) :: x_min(3), x_max(3)
         real(dp_bench) :: x(3), y
         integer :: unit, n_data
@@ -286,7 +339,7 @@ contains
                 end do
             end do
 
-            ! Interpolate: construct + evaluate (skip for large N)
+            ! 1) interpolate module: construct + evaluate (skip for large N)
             if (n_data <= 10000) then
                 call bench_time_now(t0)
                 call construct_splines_3d(x_min, x_max, f3d, [5, 5, 5], &
@@ -310,40 +363,69 @@ contains
                 t_eval_interp = -1.0_dp_bench
             end if
 
-            ! neo_bspline LSQ: construct + evaluate
-            n_ctrl(1) = min(16, n1/2)
-            n_ctrl(2) = min(16, n2/2)
-            n_ctrl(3) = min(16, n3/2)
-            n_ctrl(1) = max(degree(1) + 1, n_ctrl(1))
-            n_ctrl(2) = max(degree(2) + 1, n_ctrl(2))
-            n_ctrl(3) = max(degree(3) + 1, n_ctrl(3))
+            ! 2) neo_bspline LSQ: construct + evaluate
+            n_ctrl_lsq(1) = min(16, n1/2)
+            n_ctrl_lsq(2) = min(16, n2/2)
+            n_ctrl_lsq(3) = min(16, n3/2)
+            n_ctrl_lsq(1) = max(degree(1) + 1, n_ctrl_lsq(1))
+            n_ctrl_lsq(2) = max(degree(2) + 1, n_ctrl_lsq(2))
+            n_ctrl_lsq(3) = max(degree(3) + 1, n_ctrl_lsq(3))
 
-            allocate(coeff_bs(n_ctrl(1), n_ctrl(2), n_ctrl(3)))
-            coeff_bs = 0.0_dp_bench
+            allocate(coeff_lsq(n_ctrl_lsq(1), n_ctrl_lsq(2), n_ctrl_lsq(3)))
+            coeff_lsq = 0.0_dp_bench
 
             call bench_time_now(t0)
-            call bspline_3d_init_uniform(spl_bs, degree, n_ctrl, x_min, x_max)
-            call bspline_3d_lsq_cgls(spl_bs, x1, x2, x3, f3d, coeff_bs, &
+            call bspline_3d_init_uniform(spl_bs, degree, n_ctrl_lsq, x_min, x_max)
+            call bspline_3d_lsq_cgls(spl_bs, x1, x2, x3, f3d, coeff_lsq, &
                 max_iter=800, tol=1.0d-10)
             call bench_time_now(t1)
-            t_create_bs = t1 - t0
+            t_create_lsq = t1 - t0
 
             call bench_time_now(t0)
             do i3 = 1, n3
                 do i2 = 1, n2
                     do i1 = 1, n1
                         x = [x1(i1), x2(i2), x3(i3)]
-                        call bspline_3d_eval(spl_bs, coeff_bs, x, y)
+                        call bspline_3d_eval(spl_bs, coeff_lsq, x, y)
                     end do
                 end do
             end do
             call bench_time_now(t1)
-            t_eval_bs = t1 - t0
+            t_eval_lsq = t1 - t0
 
-            write(unit,'(i10,4es16.8)') n_data, t_create_interp, &
-                t_eval_interp, t_create_bs, t_eval_bs
+            ! 3) neo_bspline direct interp: construct + evaluate (skip large N)
+            if (n_data <= 10000) then
+                allocate(coeff_dir(n1, n2, n3))
 
-            deallocate(x1, x2, x3, f3d, coeff_bs)
+                call bench_time_now(t0)
+                call bspline_3d_init_uniform(spl_bs_dir, degree, [n1, n2, n3], &
+                    x_min, x_max)
+                call bspline_3d_interp(spl_bs_dir, x1, x2, x3, f3d, coeff_dir)
+                call bench_time_now(t1)
+                t_create_dir = t1 - t0
+
+                call bench_time_now(t0)
+                do i3 = 1, n3
+                    do i2 = 1, n2
+                        do i1 = 1, n1
+                            x = [x1(i1), x2(i2), x3(i3)]
+                            call bspline_3d_eval(spl_bs_dir, coeff_dir, x, y)
+                        end do
+                    end do
+                end do
+                call bench_time_now(t1)
+                t_eval_dir = t1 - t0
+
+                deallocate(coeff_dir)
+            else
+                t_create_dir = -1.0_dp_bench
+                t_eval_dir = -1.0_dp_bench
+            end if
+
+            write(unit,'(i10,6es16.8)') n_data, t_create_interp, t_eval_interp, &
+                t_create_lsq, t_eval_lsq, t_create_dir, t_eval_dir
+
+            deallocate(x1, x2, x3, f3d, coeff_lsq)
             if (n_data <= 10000) call destroy_splines_3d(spl_interp)
         end do
 
