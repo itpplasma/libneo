@@ -203,6 +203,9 @@ target_link_libraries(test_nctools_nc_get3.x
   ${COMMON_LIBS}
 )
 
+add_executable(bench_neo_bspline_vs_interpolate.x
+  source/bench_neo_bspline_vs_interpolate.f90)
+target_link_libraries(bench_neo_bspline_vs_interpolate.x ${COMMON_LIBS})
 
 ## Standard tests according to standard libneo Fortran test convention.
 
