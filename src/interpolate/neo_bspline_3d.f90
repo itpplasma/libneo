@@ -261,8 +261,8 @@ contains
 
         f = 0.0_dp
 
-!$omp parallel default(shared) private(i, spanx, spany, spanz, a, b, c, ix, iy, iz, Nx_b, Ny_b, Nz_b) &
-!$omp if (n_data > 100)
+!$omp parallel default(shared) private(i, spanx, spany, spanz, a, b, c, ix, iy, iz) &
+!$omp& private(Nx_b, Ny_b, Nz_b) if (n_data > 100)
         allocate(Nx_b(0:px))
         allocate(Ny_b(0:py))
         allocate(Nz_b(0:pz))
@@ -327,8 +327,8 @@ contains
 
         g = 0.0_dp
 
-!$omp parallel default(shared) private(i, spanx, spany, spanz, a, b, c, ix, iy, iz, Nx_b, Ny_b, Nz_b, g_local) &
-!$omp if (n_data > 100)
+!$omp parallel default(shared) private(i, spanx, spany, spanz, a, b, c, ix, iy, iz) &
+!$omp& private(Nx_b, Ny_b, Nz_b, g_local) if (n_data > 100)
         allocate(Nx_b(0:px))
         allocate(Ny_b(0:py))
         allocate(Nz_b(0:pz))
