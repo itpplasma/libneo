@@ -259,11 +259,14 @@ contains
         py = spl%sy%degree
         pz = spl%sz%degree
 
+        f = 0.0_dp
+
+!$omp parallel default(shared) private(i, spanx, spany, spanz, a, b, c, ix, iy, iz, Nx_b, Ny_b, Nz_b) &
+!$omp if (n_data > 100)
         allocate(Nx_b(0:px))
         allocate(Ny_b(0:py))
         allocate(Nz_b(0:pz))
-
-        f = 0.0_dp
+!$omp do
         do i = 1, n_data
             call find_span(spl%sx, x_data(i), spanx)
             call basis_funs(spl%sx, spanx, x_data(i), Nx_b)
@@ -283,8 +286,9 @@ contains
                 end do
             end do
         end do
-
+!$omp end do
         deallocate(Nx_b, Ny_b, Nz_b)
+!$omp end parallel
     end subroutine apply_A3D
 
 
@@ -302,6 +306,7 @@ contains
         integer :: px, py, pz
         integer :: a, b, c, ix, iy, iz
         real(dp), allocatable :: Nx_b(:), Ny_b(:), Nz_b(:)
+        real(dp), allocatable :: g_local(:,:,:)
 
         n_data = size(x_data)
         if (n_data /= size(y_data) .or. n_data /= size(z_data) .or. &
@@ -320,11 +325,16 @@ contains
         py = spl%sy%degree
         pz = spl%sz%degree
 
+        g = 0.0_dp
+
+!$omp parallel default(shared) private(i, spanx, spany, spanz, a, b, c, ix, iy, iz, Nx_b, Ny_b, Nz_b, g_local) &
+!$omp if (n_data > 100)
         allocate(Nx_b(0:px))
         allocate(Ny_b(0:py))
         allocate(Nz_b(0:pz))
-
-        g = 0.0_dp
+        allocate(g_local(nx, ny, nz))
+        g_local = 0.0_dp
+!$omp do
         do i = 1, n_data
             call find_span(spl%sx, x_data(i), spanx)
             call basis_funs(spl%sx, spanx, x_data(i), Nx_b)
@@ -339,14 +349,19 @@ contains
                     iy = spany - py + b
                     do c = 0, pz
                         iz = spanz - pz + c
-                        g(ix, iy, iz) = g(ix, iy, iz) + Nx_b(a)*Ny_b(b)*Nz_b(c)*r(i)
+                        g_local(ix, iy, iz) = g_local(ix, iy, iz) + &
+                            Nx_b(a)*Ny_b(b)*Nz_b(c)*r(i)
                     end do
                 end do
             end do
         end do
-
+!$omp end do
+!$omp critical
+        g = g + g_local
+!$omp end critical
+        deallocate(g_local)
         deallocate(Nx_b, Ny_b, Nz_b)
+!$omp end parallel
     end subroutine apply_A3D_T
 
 end module neo_bspline_3d
-
