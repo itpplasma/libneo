@@ -157,6 +157,9 @@ target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
 add_executable(test_analytical_circular.x source/test_analytical_circular.f90)
 target_link_libraries(test_analytical_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
 
+add_executable(bench_neo_bspline_vs_interpolate.x
+  source/bench_neo_bspline_vs_interpolate.f90)
+target_link_libraries(bench_neo_bspline_vs_interpolate.x ${COMMON_LIBS})
 
 ## Standard tests according to standard libneo Fortran test convention.
 
