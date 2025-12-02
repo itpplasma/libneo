@@ -335,29 +335,24 @@ contains
                 end do
             end do
 
-            ! 1) interpolate module: construct + evaluate (skip for large N)
-            if (n_data <= 10000) then
-                call bench_time_now(t0)
-                call construct_splines_3d(x_min, x_max, f3d, [5, 5, 5], &
-                    [.false., .false., .false.], spl_interp)
-                call bench_time_now(t1)
-                t_create_interp = t1 - t0
+            ! 1) interpolate module: construct + evaluate
+            call bench_time_now(t0)
+            call construct_splines_3d(x_min, x_max, f3d, [5, 5, 5], &
+                [.false., .false., .false.], spl_interp)
+            call bench_time_now(t1)
+            t_create_interp = t1 - t0
 
-                call bench_time_now(t0)
-                do i3 = 1, n3
-                    do i2 = 1, n2
-                        do i1 = 1, n1
-                            x = [x1(i1), x2(i2), x3(i3)]
-                            call evaluate_splines_3d(spl_interp, x, y)
-                        end do
+            call bench_time_now(t0)
+            do i3 = 1, n3
+                do i2 = 1, n2
+                    do i1 = 1, n1
+                        x = [x1(i1), x2(i2), x3(i3)]
+                        call evaluate_splines_3d(spl_interp, x, y)
                     end do
                 end do
-                call bench_time_now(t1)
-                t_eval_interp = t1 - t0
-            else
-                t_create_interp = -1.0_dp_bench
-                t_eval_interp = -1.0_dp_bench
-            end if
+            end do
+            call bench_time_now(t1)
+            t_eval_interp = t1 - t0
 
             ! 2) neo_bspline LSQ: construct + evaluate
             n_ctrl_lsq(1) = min(16, n1/2)
