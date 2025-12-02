@@ -6,14 +6,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def load_bench(path: pathlib.Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def load_bench(
+    path: pathlib.Path,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     data = np.loadtxt(path)
     n = data[:, 0]
     t_create_interp = data[:, 1]
     t_eval_interp = data[:, 2]
     t_create_bs = data[:, 3]
     t_eval_bs = data[:, 4]
-    return n, t_create_interp, t_eval_interp, t_create_bs, t_eval_bs
+    t_create_dir = data[:, 5]
+    t_eval_dir = data[:, 6]
+    return n, t_create_interp, t_eval_interp, t_create_bs, t_eval_bs, t_create_dir, t_eval_dir
 
 
 def plot_dim_create(
@@ -21,11 +25,16 @@ def plot_dim_create(
     title: str,
     output: pathlib.Path,
 ) -> None:
-    n, t_ci, t_ei, t_cb, t_eb = load_bench(path)
+    n, t_ci, _, t_cb, _, t_cd, _ = load_bench(path)
+
+    # ignore skipped cases (-1) for direct interpolation
+    mask_dir = t_cd > 0
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.loglog(n, t_ci, "o-", label="interp create")
     ax.loglog(n, t_cb, "s-", label="neo_bspline create")
+    if np.any(mask_dir):
+        ax.loglog(n[mask_dir], t_cd[mask_dir], "^-", label="neo_bspline direct create")
 
     ax.set_xlabel("number of data points")
     ax.set_ylabel("time [s]")
@@ -42,11 +51,15 @@ def plot_dim_eval(
     title: str,
     output: pathlib.Path,
 ) -> None:
-    n, t_ci, t_ei, t_cb, t_eb = load_bench(path)
+    n, _, t_ei, _, t_eb, _, t_ed = load_bench(path)
+
+    mask_dir = t_ed > 0
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.loglog(n, t_ei, "o--", label="interp eval")
     ax.loglog(n, t_eb, "s--", label="neo_bspline eval")
+    if np.any(mask_dir):
+        ax.loglog(n[mask_dir], t_ed[mask_dir], "^--", label="neo_bspline direct eval")
 
     ax.set_xlabel("number of data points")
     ax.set_ylabel("time [s]")
