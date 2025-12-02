@@ -132,11 +132,20 @@ target_link_libraries(test_system_utility.x
 add_executable(test_util.x source/test_util.f90)
 target_link_libraries(test_util.x ${COMMON_LIBS})
 
+add_executable(test_cgls_dense.x source/test_cgls_dense.f90)
+target_link_libraries(test_cgls_dense.x ${COMMON_LIBS})
+
+add_executable(test_cgls_small.x source/test_cgls_small.f90)
+target_link_libraries(test_cgls_small.x ${COMMON_LIBS})
+
 add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
 add_executable(test_batch_interpolate.x source/test_batch_interpolate.f90)
 target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
+
+add_executable(test_spline_cgls_global.x source/test_spline_cgls_global.f90)
+target_link_libraries(test_spline_cgls_global.x ${COMMON_LIBS})
 
 add_executable(test_vmec_modules.x source/test_vmec_modules.f90)
 target_link_libraries(test_vmec_modules.x neo)
@@ -166,8 +175,11 @@ add_fortran_test(test_geqdsk_tools)
 add_fortran_test(test_simpson)
 add_fortran_test(test_hdf5_tools)
 add_fortran_test(test_util)
+add_fortran_test(test_cgls_dense)
+add_fortran_test(test_cgls_small)
 add_fortran_test(test_interpolate)
 add_fortran_test(test_batch_interpolate)
+add_fortran_test(test_spline_cgls_global)
 add_fortran_test(test_collision_freqs)
 add_fortran_test(test_transport)
 add_fortran_test(test_vmec_modules)
