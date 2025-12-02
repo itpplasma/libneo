@@ -120,27 +120,22 @@ contains
             t_eval_lsq = t1 - t0
 
             ! 3) neo_bspline direct interp: construct + evaluate (skip large N)
-            if (n <= 3000) then
-                allocate(coeff_dir(n))
+            allocate(coeff_dir(n))
 
-                call bench_time_now(t0)
-                call bspline_1d_init_uniform(spl_bs_dir, degree_bs, n, x_min, x_max)
-                call bspline_1d_interp(spl_bs_dir, x, f, coeff_dir)
-                call bench_time_now(t1)
-                t_create_dir = t1 - t0
+            call bench_time_now(t0)
+            call bspline_1d_init_uniform(spl_bs_dir, degree_bs, n, x_min, x_max)
+            call bspline_1d_interp(spl_bs_dir, x, f, coeff_dir)
+            call bench_time_now(t1)
+            t_create_dir = t1 - t0
 
-                call bench_time_now(t0)
-                do i = 1, n
-                    call bspline_1d_eval(spl_bs_dir, coeff_dir, x(i), y)
-                end do
-                call bench_time_now(t1)
-                t_eval_dir = t1 - t0
+            call bench_time_now(t0)
+            do i = 1, n
+                call bspline_1d_eval(spl_bs_dir, coeff_dir, x(i), y)
+            end do
+            call bench_time_now(t1)
+            t_eval_dir = t1 - t0
 
-                deallocate(coeff_dir)
-            else
-                t_create_dir = -1.0_dp_bench
-                t_eval_dir = -1.0_dp_bench
-            end if
+            deallocate(coeff_dir)
 
             write(unit,'(i10,6es16.8)') n, t_create_interp, t_eval_interp, &
                 t_create_lsq, t_eval_lsq, t_create_dir, t_eval_dir
@@ -248,31 +243,26 @@ contains
             t_eval_lsq = t1 - t0
 
             ! 3) neo_bspline direct interp: construct + evaluate (skip large N)
-            if (n_data <= 10000) then
-                allocate(coeff_dir(n1, n2))
+            allocate(coeff_dir(n1, n2))
 
-                call bench_time_now(t0)
-                call bspline_2d_init_uniform(spl_bs_dir, degree, [n1, n2], x_min, &
-                    x_max)
-                call bspline_2d_interp(spl_bs_dir, x1, x2, f_grid, coeff_dir)
-                call bench_time_now(t1)
-                t_create_dir = t1 - t0
+            call bench_time_now(t0)
+            call bspline_2d_init_uniform(spl_bs_dir, degree, [n1, n2], x_min, &
+                x_max)
+            call bspline_2d_interp(spl_bs_dir, x1, x2, f_grid, coeff_dir)
+            call bench_time_now(t1)
+            t_create_dir = t1 - t0
 
-                call bench_time_now(t0)
-                do i2 = 1, n2
-                    do i1 = 1, n1
-                        x = [x1(i1), x2(i2)]
-                        call bspline_2d_eval(spl_bs_dir, coeff_dir, x, y)
-                    end do
+            call bench_time_now(t0)
+            do i2 = 1, n2
+                do i1 = 1, n1
+                    x = [x1(i1), x2(i2)]
+                    call bspline_2d_eval(spl_bs_dir, coeff_dir, x, y)
                 end do
-                call bench_time_now(t1)
-                t_eval_dir = t1 - t0
+            end do
+            call bench_time_now(t1)
+            t_eval_dir = t1 - t0
 
-                deallocate(coeff_dir)
-            else
-                t_create_dir = -1.0_dp_bench
-                t_eval_dir = -1.0_dp_bench
-            end if
+            deallocate(coeff_dir)
 
             write(unit,'(i10,6es16.8)') n_data, t_create_interp, t_eval_interp, &
                 t_create_lsq, t_eval_lsq, t_create_dir, t_eval_dir
@@ -400,33 +390,28 @@ contains
             t_eval_lsq = t1 - t0
 
             ! 3) neo_bspline direct interp: construct + evaluate (skip large N)
-            if (n_data <= 10000) then
-                allocate(coeff_dir(n1, n2, n3))
+            allocate(coeff_dir(n1, n2, n3))
 
-                call bench_time_now(t0)
-                call bspline_3d_init_uniform(spl_bs_dir, degree, [n1, n2, n3], &
-                    x_min, x_max)
-                call bspline_3d_interp(spl_bs_dir, x1, x2, x3, f3d, coeff_dir)
-                call bench_time_now(t1)
-                t_create_dir = t1 - t0
+            call bench_time_now(t0)
+            call bspline_3d_init_uniform(spl_bs_dir, degree, [n1, n2, n3], &
+                x_min, x_max)
+            call bspline_3d_interp(spl_bs_dir, x1, x2, x3, f3d, coeff_dir)
+            call bench_time_now(t1)
+            t_create_dir = t1 - t0
 
-                call bench_time_now(t0)
-                do i3 = 1, n3
-                    do i2 = 1, n2
-                        do i1 = 1, n1
-                            x = [x1(i1), x2(i2), x3(i3)]
-                            call bspline_3d_eval(spl_bs_dir, coeff_dir, x, y)
-                        end do
+            call bench_time_now(t0)
+            do i3 = 1, n3
+                do i2 = 1, n2
+                    do i1 = 1, n1
+                        x = [x1(i1), x2(i2), x3(i3)]
+                        call bspline_3d_eval(spl_bs_dir, coeff_dir, x, y)
                     end do
                 end do
-                call bench_time_now(t1)
-                t_eval_dir = t1 - t0
+            end do
+            call bench_time_now(t1)
+            t_eval_dir = t1 - t0
 
-                deallocate(coeff_dir)
-            else
-                t_create_dir = -1.0_dp_bench
-                t_eval_dir = -1.0_dp_bench
-            end if
+            deallocate(coeff_dir)
 
             write(unit,'(i10,6es16.8)') n_data, t_create_interp, t_eval_interp, &
                 t_create_lsq, t_eval_lsq, t_create_dir, t_eval_dir
