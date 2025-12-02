@@ -524,9 +524,11 @@ contains
         end if
 
         p = spl%degree
-        allocate(N(0:p))
-
         y = 0.0_dp
+
+!$omp parallel default(shared) private(i, span, j, N) if (n_data > 100)
+        allocate(N(0:p))
+!$omp do
         do i = 1, n_data
             call find_span(spl, x_data(i), span)
             call basis_funs(spl, span, x_data(i), N)
@@ -534,8 +536,9 @@ contains
                 y(i) = y(i) + N(j)*coeff(span - p + j)
             end do
         end do
-
+!$omp end do
         deallocate(N)
+!$omp end parallel
     end subroutine apply_A
 
 
@@ -548,6 +551,7 @@ contains
 
         integer :: n_data, i, span, p, j
         real(dp), allocatable :: N(:)
+        real(dp), allocatable :: g_local(:)
 
         n_data = size(x_data)
         if (size(r) /= n_data) then
@@ -558,18 +562,27 @@ contains
         end if
 
         p = spl%degree
-        allocate(N(0:p))
-
         g = 0.0_dp
+
+!$omp parallel default(shared) private(i, span, j, N, g_local) if (n_data > 100)
+        allocate(N(0:p))
+        allocate(g_local(size(g)))
+        g_local = 0.0_dp
+!$omp do
         do i = 1, n_data
             call find_span(spl, x_data(i), span)
             call basis_funs(spl, span, x_data(i), N)
             do j = 0, p
-                g(span - p + j) = g(span - p + j) + N(j)*r(i)
+                g_local(span - p + j) = g_local(span - p + j) + N(j)*r(i)
             end do
         end do
-
+!$omp end do
+!$omp critical
+        g = g + g_local
+!$omp end critical
+        deallocate(g_local)
         deallocate(N)
+!$omp end parallel
     end subroutine apply_AT
 
 
@@ -598,10 +611,14 @@ contains
 
         px = spl%sx%degree
         py = spl%sy%degree
-        allocate(Nx_b(0:px))
-        allocate(Ny_b(0:py))
 
         f = 0.0_dp
+
+!$omp parallel default(shared) private(i, spanx, spany, a, b, ix, iy, Nx_b, Ny_b) &
+!$omp if (n_data > 100)
+        allocate(Nx_b(0:px))
+        allocate(Ny_b(0:py))
+!$omp do
         do i = 1, n_data
             call find_span(spl%sx, x_data(i), spanx)
             call basis_funs(spl%sx, spanx, x_data(i), Nx_b)
@@ -615,8 +632,9 @@ contains
                 end do
             end do
         end do
-
+!$omp end do
         deallocate(Nx_b, Ny_b)
+!$omp end parallel
     end subroutine apply_A2D
 
 
@@ -631,6 +649,7 @@ contains
         integer :: n_data, nx, ny
         integer :: i, spanx, spany, px, py, a, b, ix, iy
         real(dp), allocatable :: Nx_b(:), Ny_b(:)
+        real(dp), allocatable :: g_local(:,:)
 
         n_data = size(x_data)
         if (n_data /= size(y_data) .or. n_data /= size(r)) then
@@ -645,10 +664,16 @@ contains
 
         px = spl%sx%degree
         py = spl%sy%degree
-        allocate(Nx_b(0:px))
-        allocate(Ny_b(0:py))
 
         g = 0.0_dp
+
+!$omp parallel default(shared) private(i, spanx, spany, a, b, ix, iy, Nx_b, Ny_b, g_local) &
+!$omp if (n_data > 100)
+        allocate(Nx_b(0:px))
+        allocate(Ny_b(0:py))
+        allocate(g_local(nx, ny))
+        g_local = 0.0_dp
+!$omp do
         do i = 1, n_data
             call find_span(spl%sx, x_data(i), spanx)
             call basis_funs(spl%sx, spanx, x_data(i), Nx_b)
@@ -658,12 +683,17 @@ contains
                 ix = spanx - px + a
                 do b = 0, py
                     iy = spany - py + b
-                    g(ix, iy) = g(ix, iy) + Nx_b(a)*Ny_b(b)*r(i)
+                    g_local(ix, iy) = g_local(ix, iy) + Nx_b(a)*Ny_b(b)*r(i)
                 end do
             end do
         end do
-
+!$omp end do
+!$omp critical
+        g = g + g_local
+!$omp end critical
+        deallocate(g_local)
         deallocate(Nx_b, Ny_b)
+!$omp end parallel
     end subroutine apply_A2D_T
 
 
