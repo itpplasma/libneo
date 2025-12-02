@@ -1,7 +1,6 @@
 module interpolate
     use spl_three_to_five_sub
     use batch_interpolate
-    use cgls_small, only : cgls_solve_small
     use cgls_dense, only : cgls_dense_solve
     
     implicit none
