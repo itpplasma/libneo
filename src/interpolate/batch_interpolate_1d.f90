@@ -5,6 +5,7 @@ module batch_interpolate_1d
                                  spl_four_per_line, spl_four_reg_line, &
                                  spl_five_per_line, spl_five_reg_line
    use spl_three_to_five_sub, only: spl_per, spl_reg
+   use cgls_dense, only: cgls_dense_solve
 #ifdef _OPENACC
    use openacc, only: acc_is_present
 #endif
@@ -14,6 +15,7 @@ module batch_interpolate_1d
 
    ! Export batch spline construction/destruction routines
    public :: construct_batch_splines_1d
+   public :: construct_batch_splines_1d_lsq
    public :: construct_batch_splines_1d_lines
    public :: construct_batch_splines_1d_resident
    public :: construct_batch_splines_1d_resident_device
@@ -117,6 +119,119 @@ contains
 
       deallocate (splcoe_temp)
    end subroutine construct_batch_splines_1d_legacy
+
+   subroutine construct_batch_splines_1d_lsq(x_min, x_max, order, periodic, &
+                                             num_points, x_data, f_batch, spl, weights)
+      real(dp), intent(in) :: x_min, x_max
+      integer, intent(in) :: order
+      logical, intent(in) :: periodic
+      integer, intent(in) :: num_points
+      real(dp), intent(in) :: x_data(:)
+      real(dp), intent(in) :: f_batch(:, :)  ! (n_data, n_quantities)
+      type(BatchSplineData1D), intent(out) :: spl
+      real(dp), intent(in), optional :: weights(:)
+
+      integer :: n_data, n_quantities, n_keep
+      integer :: i, iq, col
+      real(dp), allocatable :: x_used(:), f_used(:, :), w_used(:)
+      real(dp), allocatable :: phi(:, :), y_vec(:), y_knots(:, :)
+      type(BatchSplineData1D) :: spl_unit
+      real(dp) :: val(1)
+
+      n_data = size(x_data)
+      if (n_data /= size(f_batch, 1)) then
+         error stop "construct_batch_splines_1d_lsq: data size mismatch"
+      end if
+      n_quantities = size(f_batch, 2)
+      if (n_quantities < 1) then
+         error stop "construct_batch_splines_1d_lsq: need at least 1 quantity"
+      end if
+      if (num_points < 2) then
+         error stop "construct_batch_splines_1d_lsq: need at least 2 grid points"
+      end if
+
+      if (present(weights)) then
+         if (size(weights) /= n_data) then
+            error stop "construct_batch_splines_1d_lsq: weights size mismatch"
+         end if
+      end if
+
+      n_keep = 0
+      do i = 1, n_data
+         if (.not. periodic) then
+            if (x_data(i) < x_min .or. x_data(i) > x_max) cycle
+         end if
+         if (present(weights)) then
+            if (weights(i) == 0.0_dp) cycle
+         end if
+         n_keep = n_keep + 1
+      end do
+
+      if (n_keep == 0) then
+         error stop "construct_batch_splines_1d_lsq: no usable data"
+      end if
+
+      allocate (x_used(n_keep), f_used(n_keep, n_quantities))
+      if (present(weights)) allocate (w_used(n_keep))
+
+      n_keep = 0
+      do i = 1, n_data
+         if (.not. periodic) then
+            if (x_data(i) < x_min .or. x_data(i) > x_max) cycle
+         end if
+         if (present(weights)) then
+            if (weights(i) == 0.0_dp) cycle
+            w_used(n_keep + 1) = weights(i)
+         end if
+         n_keep = n_keep + 1
+         x_used(n_keep) = x_data(i)
+         f_used(n_keep, :) = f_batch(i, :)
+      end do
+
+      allocate (phi(n_keep, num_points))
+      allocate (y_vec(num_points))
+      allocate (y_knots(num_points, n_quantities))
+
+      do col = 1, num_points
+         call allocate_batch_unit(order, num_points, periodic, col, spl_unit, x_min, x_max)
+         do i = 1, n_keep
+            call evaluate_batch_splines_1d(spl_unit, x_used(i), val)
+            phi(i, col) = val(1)
+         end do
+         call destroy_batch_splines_1d(spl_unit)
+      end do
+
+      do iq = 1, n_quantities
+         if (present(weights)) then
+            call cgls_dense_solve(phi, f_used(:, iq), y_vec, w_used, &
+                                  max_iter=4*num_points, tol=1.0d-14)
+         else
+            call cgls_dense_solve(phi, f_used(:, iq), y_vec, &
+                                  max_iter=4*num_points, tol=1.0d-14)
+         end if
+         y_knots(:, iq) = y_vec
+      end do
+
+      call construct_batch_splines_1d(x_min, x_max, y_knots, order, periodic, spl)
+
+      deallocate (phi, y_vec, y_knots, x_used, f_used)
+      if (present(weights)) deallocate (w_used)
+   end subroutine construct_batch_splines_1d_lsq
+
+   subroutine allocate_batch_unit(order, num_points, periodic, idx, spl, x_min, x_max)
+      integer, intent(in) :: order, num_points, idx
+      logical, intent(in) :: periodic
+      real(dp), intent(in) :: x_min, x_max
+      type(BatchSplineData1D), intent(out) :: spl
+
+      real(dp), allocatable :: y_basis(:, :)
+
+      allocate (y_basis(num_points, 1))
+      y_basis = 0.0_dp
+      y_basis(idx, 1) = 1.0_dp
+      call construct_batch_splines_1d(x_min, x_max, y_basis, order, periodic, spl)
+      deallocate (y_basis)
+   end subroutine allocate_batch_unit
 
    subroutine construct_batch_splines_1d_lines(x_min, x_max, y_batch, order, periodic, spl)
       real(dp), intent(in) :: x_min, x_max
