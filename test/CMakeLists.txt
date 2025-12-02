@@ -132,6 +132,8 @@ target_link_libraries(test_system_utility.x
 add_executable(test_util.x source/test_util.f90)
 target_link_libraries(test_util.x ${COMMON_LIBS})
 
+add_executable(test_neo_bspline_1d.x source/test_neo_bspline_1d.f90)
+target_link_libraries(test_neo_bspline_1d.x ${COMMON_LIBS})
 add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
@@ -166,6 +168,7 @@ add_fortran_test(test_geqdsk_tools)
 add_fortran_test(test_simpson)
 add_fortran_test(test_hdf5_tools)
 add_fortran_test(test_util)
+add_fortran_test(test_neo_bspline_1d)
 add_fortran_test(test_interpolate)
 add_fortran_test(test_batch_interpolate)
 add_fortran_test(test_collision_freqs)
