@@ -1,251 +1,80 @@
 module neo_bspline
-    !! Simple 1D B-spline basis and matrix-free LSQ via CGLS.
-    !!
-    !! Uses textbook Cox–de Boor recursion (Piegl & Tiller) for basis
-    !! evaluation and a standard CGLS algorithm for least-squares fitting.
-    use, intrinsic :: iso_fortran_env, only : dp => real64
+    !! High-performance B-spline module for 1D/2D/3D tensor-product splines.
+    !! Optimized for regular grids with OpenMP SIMD and parallel construction.
+    use, intrinsic :: iso_fortran_env, only: dp => real64
     implicit none
     private
 
     type :: bspline_1d
-        integer :: degree        !! Polynomial degree p
-        integer :: n_ctrl        !! Number of basis functions / control points
-        real(dp), allocatable :: knots(:)  !! Knot vector, size = n_ctrl+degree+1
+        integer :: degree
+        integer :: n_ctrl
+        real(dp), allocatable :: knots(:)
         real(dp) :: x_min, x_max
     end type bspline_1d
 
     type :: bspline_2d
-        type(bspline_1d) :: sx
-        type(bspline_1d) :: sy
+        type(bspline_1d) :: sx, sy
     end type bspline_2d
 
-    public :: bspline_1d
-    public :: bspline_1d_init_uniform
-    public :: bspline_1d_eval
-    public :: bspline_1d_lsq_cgls
-    public :: bspline_1d_lsq_cgls_batch
+    type :: bspline_3d
+        type(bspline_1d) :: sx, sy, sz
+    end type bspline_3d
 
-    public :: bspline_2d
-    public :: bspline_2d_init_uniform
-    public :: bspline_2d_eval
-    public :: bspline_2d_lsq_cgls
-    public :: bspline_2d_lsq_cgls_batch
+    type :: grid_cache_1d
+        integer :: ng1, px
+        integer, allocatable :: span1(:)
+        real(dp), allocatable :: B1(:,:)
+    end type grid_cache_1d
 
-    public :: apply_A
-    public :: apply_AT
-    public :: apply_A2D
-    public :: apply_A2D_T
-    public :: find_span
-    public :: basis_funs
+    type :: grid_cache_2d
+        integer :: ng1, ng2, px, py
+        integer, allocatable :: span1(:), span2(:)
+        real(dp), allocatable :: B1(:,:), B2(:,:)
+    end type grid_cache_2d
+
+    type :: grid_cache_3d
+        integer :: ng1, ng2, ng3, px, py, pz
+        integer, allocatable :: span1(:), span2(:), span3(:)
+        real(dp), allocatable :: B1(:,:), B2(:,:), B3(:,:)
+    end type grid_cache_3d
+
+    public :: bspline_1d, bspline_2d, bspline_3d
+    public :: bspline_1d_init_uniform, bspline_2d_init_uniform, bspline_3d_init_uniform
+    public :: bspline_1d_eval, bspline_2d_eval, bspline_3d_eval
+    public :: bspline_1d_lsq_cgls, bspline_2d_lsq_cgls, bspline_3d_lsq_cgls
+    public :: find_span, basis_funs
 
 contains
 
     subroutine bspline_1d_init_uniform(spl, degree, n_ctrl, x_min, x_max)
-        !! Initialise open-uniform 1D B-spline on [x_min, x_max].
         type(bspline_1d), intent(out) :: spl
         integer, intent(in) :: degree, n_ctrl
         real(dp), intent(in) :: x_min, x_max
-
         integer :: p, n, m, i
-        real(dp) :: h, left, right
-
-        if (degree < 1) error stop "bspline_1d_init_uniform: degree must be >= 1"
-        if (n_ctrl < degree + 1) then
-            error stop "bspline_1d_init_uniform: need at least degree+1 control points"
-        end if
-        if (x_max <= x_min) error stop "bspline_1d_init_uniform: x_max <= x_min"
+        real(dp) :: h
 
         p = degree
         n = n_ctrl
         m = n + p + 1
-
         spl%degree = p
         spl%n_ctrl = n
         spl%x_min = x_min
         spl%x_max = x_max
-
-        if (allocated(spl%knots)) deallocate(spl%knots)
         allocate(spl%knots(m))
-
-        ! Open-uniform knot vector:
-        ! First p+1 knots at x_min, last p+1 knots at x_max, interior equally spaced.
-        h = (x_max - x_min) / real(n - p, dp)
+        h = (x_max - x_min)/real(n - p, dp)
         do i = 1, m
             if (i <= p + 1) then
                 spl%knots(i) = x_min
             else if (i >= m - p) then
                 spl%knots(i) = x_max
             else
-                left = real(i - (p + 1), dp)
-                spl%knots(i) = x_min + left*h
+                spl%knots(i) = x_min + real(i - (p + 1), dp)*h
             end if
         end do
     end subroutine bspline_1d_init_uniform
 
 
-    subroutine bspline_1d_eval(spl, coeff, x, y)
-        !! Evaluate spline sum_j coeff(j) * N_j(x).
-        type(bspline_1d), intent(in) :: spl
-        real(dp), intent(in) :: coeff(:)
-        real(dp), intent(in) :: x
-        real(dp), intent(out) :: y
-
-        integer :: span, j, p
-        real(dp), dimension(:), allocatable :: N
-
-        if (size(coeff) /= spl%n_ctrl) then
-            error stop "bspline_1d_eval: coeff size mismatch"
-        end if
-
-        p = spl%degree
-        allocate(N(0:p))
-
-        call find_span(spl, x, span)
-        call basis_funs(spl, span, x, N)
-
-        y = 0.0_dp
-        do j = 0, p
-            y = y + N(j) * coeff(span - p + j)
-        end do
-
-        deallocate(N)
-    end subroutine bspline_1d_eval
-
-
-    subroutine bspline_1d_lsq_cgls(spl, x_data, f_data, coeff, max_iter, tol)
-        !! Matrix-free CGLS for 1D B-spline LSQ:
-        !!   min_c sum_i (S_c(x_i) - f_i)^2
-        !!
-        !! where S_c(x) is the spline with control points coeff(:).
-        type(bspline_1d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
-        real(dp), intent(in) :: f_data(:)
-        real(dp), intent(inout) :: coeff(:)
-        integer, intent(in), optional :: max_iter
-        real(dp), intent(in), optional :: tol
-
-        integer :: n_data, n_ctrl
-        integer :: k, kmax
-        real(dp) :: atol, gamma, gamma_new, alpha, beta, denom
-        real(dp) :: rhs_norm
-        real(dp), allocatable :: r(:), s(:), p(:), q(:)
-
-        n_data = size(x_data)
-        if (n_data /= size(f_data)) then
-            error stop "bspline_1d_lsq_cgls: x_data and f_data size mismatch"
-        end if
-
-        n_ctrl = spl%n_ctrl
-        if (size(coeff) /= n_ctrl) then
-            error stop "bspline_1d_lsq_cgls: coeff size mismatch"
-        end if
-
-        if (present(max_iter)) then
-            kmax = max_iter
-        else
-            kmax = 200
-        end if
-        if (present(tol)) then
-            atol = tol
-        else
-            atol = 1.0d-10
-        end if
-
-        allocate(r(n_data))
-        allocate(q(n_data))
-        allocate(s(n_ctrl))
-        allocate(p(n_ctrl))
-
-        ! Initial guess: coeff = 0
-        coeff = 0.0_dp
-
-        ! r = f - A*coeff  (A*coeff = 0 initially)
-        r = f_data
-
-        call apply_AT(spl, x_data, r, s)
-        p = s
-        gamma = dot_product(s, s)
-        rhs_norm = sqrt(dot_product(f_data, f_data))
-
-        if (rhs_norm == 0.0_dp) then
-            coeff = 0.0_dp
-            deallocate(r, q, s, p)
-            return
-        end if
-
-        do k = 1, kmax
-            call apply_A(spl, x_data, p, q)
-            denom = dot_product(q, q)
-            if (denom <= 0.0_dp) exit
-
-            alpha = gamma/denom
-            coeff = coeff + alpha*p
-            r = r - alpha*q
-
-            call apply_AT(spl, x_data, r, s)
-            gamma_new = dot_product(s, s)
-
-            if (gamma_new <= (atol*rhs_norm)**2) exit
-
-            beta = gamma_new/gamma
-            gamma = gamma_new
-            p = s + beta*p
-        end do
-
-        deallocate(r, q, s, p)
-    end subroutine bspline_1d_lsq_cgls
-
-
-    subroutine bspline_1d_lsq_cgls_batch(spl, x_data, f_data, coeff, max_iter, tol)
-        !! Batched matrix-free CGLS for 1D B-splines.
-        !! Solves independent LSQ problems for multiple right-hand sides:
-        !!   min_{c(:,k)} sum_i (S_{c(:,k)}(x_i) - f_i(k))^2
-        !! for k = 1..n_rhs.
-        type(bspline_1d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
-        real(dp), intent(in) :: f_data(:,:)
-        real(dp), intent(inout) :: coeff(:,:)
-        integer, intent(in), optional :: max_iter
-        real(dp), intent(in), optional :: tol
-
-        integer :: n_data, n_rhs, n_ctrl, k
-
-        n_data = size(x_data)
-        if (n_data /= size(f_data, 1)) then
-            error stop "bspline_1d_lsq_cgls_batch: x_data and f_data size mismatch"
-        end if
-
-        n_rhs = size(f_data, 2)
-        n_ctrl = spl%n_ctrl
-
-        if (size(coeff, 1) /= n_ctrl .or. size(coeff, 2) /= n_rhs) then
-            error stop "bspline_1d_lsq_cgls_batch: coeff shape mismatch"
-        end if
-
-        do k = 1, n_rhs
-            if (present(max_iter) .and. present(tol)) then
-                call bspline_1d_lsq_cgls(spl, x_data, f_data(:, k), coeff(:, k), &
-                    max_iter=max_iter, tol=tol)
-            elseif (present(max_iter)) then
-                call bspline_1d_lsq_cgls(spl, x_data, f_data(:, k), coeff(:, k), &
-                    max_iter=max_iter)
-            elseif (present(tol)) then
-                call bspline_1d_lsq_cgls(spl, x_data, f_data(:, k), coeff(:, k), &
-                    tol=tol)
-            else
-                call bspline_1d_lsq_cgls(spl, x_data, f_data(:, k), coeff(:, k))
-            end if
-        end do
-    end subroutine bspline_1d_lsq_cgls_batch
-
-
-    !-----------------------------------------------------------------
-    ! 2D tensor-product B-splines
-    !-----------------------------------------------------------------
-
     subroutine bspline_2d_init_uniform(spl, degree, n_ctrl, x_min, x_max)
-        !! Initialise 2D tensor-product B-spline with open-uniform knots
-        !! in each dimension on [x_min(j), x_max(j)].
         type(bspline_2d), intent(out) :: spl
         integer, intent(in) :: degree(2), n_ctrl(2)
         real(dp), intent(in) :: x_min(2), x_max(2)
@@ -255,211 +84,39 @@ contains
     end subroutine bspline_2d_init_uniform
 
 
-    subroutine bspline_2d_eval(spl, coeff, x, y)
-        !! Evaluate 2D spline S(x,y) = sum_{i,j} coeff(i,j) N_i(x) M_j(y).
-        type(bspline_2d), intent(in) :: spl
-        real(dp), intent(in) :: coeff(:,:)
-        real(dp), intent(in) :: x(2)
-        real(dp), intent(out) :: y
+    subroutine bspline_3d_init_uniform(spl, degree, n_ctrl, x_min, x_max)
+        type(bspline_3d), intent(out) :: spl
+        integer, intent(in) :: degree(3), n_ctrl(3)
+        real(dp), intent(in) :: x_min(3), x_max(3)
 
-        integer :: nx, ny, spanx, spany, px, py
-        integer :: a, b, ix, iy
-        real(dp), allocatable :: Nx_b(:), Ny_b(:)
+        call bspline_1d_init_uniform(spl%sx, degree(1), n_ctrl(1), x_min(1), x_max(1))
+        call bspline_1d_init_uniform(spl%sy, degree(2), n_ctrl(2), x_min(2), x_max(2))
+        call bspline_1d_init_uniform(spl%sz, degree(3), n_ctrl(3), x_min(3), x_max(3))
+    end subroutine bspline_3d_init_uniform
 
-        nx = spl%sx%n_ctrl
-        ny = spl%sy%n_ctrl
-        if (size(coeff, 1) /= nx .or. size(coeff, 2) /= ny) then
-            error stop "bspline_2d_eval: coeff shape mismatch"
-        end if
-
-        px = spl%sx%degree
-        py = spl%sy%degree
-        allocate(Nx_b(0:px))
-        allocate(Ny_b(0:py))
-
-        call find_span(spl%sx, x(1), spanx)
-        call basis_funs(spl%sx, spanx, x(1), Nx_b)
-        call find_span(spl%sy, x(2), spany)
-        call basis_funs(spl%sy, spany, x(2), Ny_b)
-
-        y = 0.0_dp
-        do a = 0, px
-            ix = spanx - px + a
-            do b = 0, py
-                iy = spany - py + b
-                y = y + Nx_b(a)*Ny_b(b)*coeff(ix, iy)
-            end do
-        end do
-
-        deallocate(Nx_b, Ny_b)
-    end subroutine bspline_2d_eval
-
-
-    subroutine bspline_2d_lsq_cgls(spl, x_data, y_data, f_data, coeff, max_iter, tol)
-        !! Matrix-free CGLS for 2D tensor-product B-spline LSQ:
-        !!   min_C sum_i (S_C(x_i,y_i) - f_i)^2
-        !!
-        !! where C is coeff(nx,ny) and S_C is the spline.
-        type(bspline_2d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
-        real(dp), intent(in) :: y_data(:)
-        real(dp), intent(in) :: f_data(:)
-        real(dp), intent(inout) :: coeff(:,:)
-        integer, intent(in), optional :: max_iter
-        real(dp), intent(in), optional :: tol
-
-        integer :: n_data, nx, ny
-        integer :: k, kmax
-        real(dp) :: atol, gamma, gamma_new, alpha, beta, denom
-        real(dp) :: rhs_norm
-        real(dp), allocatable :: r(:), q(:)
-        real(dp), allocatable :: s(:,:), p(:,:)
-
-        n_data = size(x_data)
-        if (n_data /= size(y_data) .or. n_data /= size(f_data)) then
-            error stop "bspline_2d_lsq_cgls: data size mismatch"
-        end if
-
-        nx = spl%sx%n_ctrl
-        ny = spl%sy%n_ctrl
-        if (size(coeff, 1) /= nx .or. size(coeff, 2) /= ny) then
-            error stop "bspline_2d_lsq_cgls: coeff shape mismatch"
-        end if
-
-        if (present(max_iter)) then
-            kmax = max_iter
-        else
-            kmax = 400
-        end if
-        if (present(tol)) then
-            atol = tol
-        else
-            atol = 1.0d-10
-        end if
-
-        allocate(r(n_data))
-        allocate(q(n_data))
-        allocate(s(nx, ny))
-        allocate(p(nx, ny))
-
-        coeff = 0.0_dp
-        r = f_data
-
-        call apply_A2D_T(spl, x_data, y_data, r, s)
-        p = s
-        gamma = sum(s*s)
-        rhs_norm = sqrt(sum(f_data*f_data))
-
-        if (rhs_norm == 0.0_dp) then
-            coeff = 0.0_dp
-            deallocate(r, q, s, p)
-            return
-        end if
-
-        do k = 1, kmax
-            call apply_A2D(spl, x_data, y_data, p, q)
-            denom = sum(q*q)
-            if (denom <= 0.0_dp) exit
-
-            alpha = gamma/denom
-            coeff = coeff + alpha*p
-            r = r - alpha*q
-
-            call apply_A2D_T(spl, x_data, y_data, r, s)
-            gamma_new = sum(s*s)
-
-            if (gamma_new <= (atol*rhs_norm)**2) exit
-
-            beta = gamma_new/gamma
-            gamma = gamma_new
-            p = s + beta*p
-        end do
-
-        deallocate(r, q, s, p)
-    end subroutine bspline_2d_lsq_cgls
-
-
-    subroutine bspline_2d_lsq_cgls_batch(spl, x_data, y_data, f_data, coeff, &
-        max_iter, tol)
-        !! Batched matrix-free CGLS for 2D tensor-product B-splines.
-        !! Solves independent LSQ problems for multiple right-hand sides:
-        !!   min_{C(:,:,k)} sum_i (S_{C(:,:,k)}(x_i,y_i) - f_i(k))^2
-        type(bspline_2d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
-        real(dp), intent(in) :: y_data(:)
-        real(dp), intent(in) :: f_data(:,:)
-        real(dp), intent(inout) :: coeff(:,:,:)
-        integer, intent(in), optional :: max_iter
-        real(dp), intent(in), optional :: tol
-
-        integer :: n_data, n_rhs, nx, ny, k
-
-        n_data = size(x_data)
-        if (n_data /= size(y_data) .or. n_data /= size(f_data, 1)) then
-            error stop "bspline_2d_lsq_cgls_batch: data size mismatch"
-        end if
-
-        n_rhs = size(f_data, 2)
-        nx = spl%sx%n_ctrl
-        ny = spl%sy%n_ctrl
-
-        if (size(coeff, 1) /= nx .or. size(coeff, 2) /= ny .or. &
-                size(coeff, 3) /= n_rhs) then
-            error stop "bspline_2d_lsq_cgls_batch: coeff shape mismatch"
-        end if
-
-        do k = 1, n_rhs
-            if (present(max_iter) .and. present(tol)) then
-                call bspline_2d_lsq_cgls(spl, x_data, y_data, f_data(:, k), &
-                    coeff(:, :, k), max_iter=max_iter, tol=tol)
-            elseif (present(max_iter)) then
-                call bspline_2d_lsq_cgls(spl, x_data, y_data, f_data(:, k), &
-                    coeff(:, :, k), max_iter=max_iter)
-            elseif (present(tol)) then
-                call bspline_2d_lsq_cgls(spl, x_data, y_data, f_data(:, k), &
-                    coeff(:, :, k), tol=tol)
-            else
-                call bspline_2d_lsq_cgls(spl, x_data, y_data, f_data(:, k), &
-                    coeff(:, :, k))
-            end if
-        end do
-    end subroutine bspline_2d_lsq_cgls_batch
-
-
-    !-----------------------------------------------------------------
-    ! Internal helpers
-    !-----------------------------------------------------------------
 
     subroutine find_span(spl, x, span)
-        !! Find knot span index for x (0-based basis index will be span-degree...span).
         type(bspline_1d), intent(in) :: spl
         real(dp), intent(in) :: x
         integer, intent(out) :: span
-
         integer :: low, high, mid, p, n, m
         real(dp) :: xx
 
         p = spl%degree
         n = spl%n_ctrl
         m = n + p + 1
-
-        ! Clamp x to [x_min, x_max]
         xx = min(max(x, spl%x_min), spl%x_max)
-
-        ! Special cases at the ends
-        if (xx >= spl%knots(m-p)) then
+        if (xx >= spl%knots(m - p)) then
             span = n
             return
         end if
-
         low = p + 1
         high = n + 1
-
         do
             mid = (low + high)/2
             if (xx < spl%knots(mid)) then
                 high = mid
-            else if (xx >= spl%knots(mid+1)) then
+            else if (xx >= spl%knots(mid + 1)) then
                 low = mid
             else
                 span = mid
@@ -470,231 +127,586 @@ contains
 
 
     subroutine basis_funs(spl, span, x, N)
-        !! Compute non-zero B-spline basis functions N(0:p) at x.
         type(bspline_1d), intent(in) :: spl
         integer, intent(in) :: span
         real(dp), intent(in) :: x
         real(dp), intent(out) :: N(0:)
-
         integer :: p, j, r
-        real(dp), allocatable :: left(:), right(:)
-        real(dp) :: saved, temp
+        real(dp) :: left(0:spl%degree), right(0:spl%degree), saved, temp
 
         p = spl%degree
-        if (size(N) < p+1) then
-            error stop "basis_funs: N has wrong size"
-        end if
-
-        allocate(left(0:p))
-        allocate(right(0:p))
-
         N(0) = 1.0_dp
         do j = 1, p
-            left(j) = x - spl%knots(span+1-j)
-            right(j) = spl%knots(span+j) - x
+            left(j) = x - spl%knots(span + 1 - j)
+            right(j) = spl%knots(span + j) - x
             saved = 0.0_dp
-            do r = 0, j-1
-                temp = N(r)/(right(r+1) + left(j-r))
-                N(r) = saved + right(r+1)*temp
-                saved = left(j-r)*temp
+            do r = 0, j - 1
+                temp = N(r)/(right(r + 1) + left(j - r))
+                N(r) = saved + right(r + 1)*temp
+                saved = left(j - r)*temp
             end do
             N(j) = saved
         end do
-
-        deallocate(left, right)
     end subroutine basis_funs
 
 
-    subroutine apply_A(spl, x_data, coeff, y)
-        !! y = A * coeff  (spline evaluation at all x_data)
+    subroutine bspline_1d_eval(spl, coeff, x, y)
         type(bspline_1d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
         real(dp), intent(in) :: coeff(:)
-        real(dp), intent(out) :: y(:)
-
-        integer :: n_data, i, span, p, j
-        real(dp), allocatable :: N(:)
-
-        n_data = size(x_data)
-        if (size(y) /= n_data) then
-            error stop "apply_A: y size mismatch"
-        end if
-        if (size(coeff) /= spl%n_ctrl) then
-            error stop "apply_A: coeff size mismatch"
-        end if
+        real(dp), intent(in) :: x
+        real(dp), intent(out) :: y
+        integer :: span, j, p
+        real(dp) :: N(0:spl%degree)
 
         p = spl%degree
+        call find_span(spl, x, span)
+        call basis_funs(spl, span, x, N)
         y = 0.0_dp
+        !$omp simd reduction(+:y)
+        do j = 0, p
+            y = y + N(j)*coeff(span - p + j)
+        end do
+    end subroutine bspline_1d_eval
 
-!$omp parallel default(shared) private(i, span, j, N) if (n_data > 100)
-        allocate(N(0:p))
-!$omp do
-        do i = 1, n_data
-            call find_span(spl, x_data(i), span)
-            call basis_funs(spl, span, x_data(i), N)
-            do j = 0, p
-                y(i) = y(i) + N(j)*coeff(span - p + j)
+
+    subroutine bspline_2d_eval(spl, coeff, x, y)
+        type(bspline_2d), intent(in) :: spl
+        real(dp), intent(in) :: coeff(:,:)
+        real(dp), intent(in) :: x(2)
+        real(dp), intent(out) :: y
+        integer :: spanx, spany, px, py, a, b, ix, iy
+        real(dp) :: Nx(0:spl%sx%degree), Ny(0:spl%sy%degree)
+
+        px = spl%sx%degree
+        py = spl%sy%degree
+        call find_span(spl%sx, x(1), spanx)
+        call basis_funs(spl%sx, spanx, x(1), Nx)
+        call find_span(spl%sy, x(2), spany)
+        call basis_funs(spl%sy, spany, x(2), Ny)
+        y = 0.0_dp
+        do a = 0, px
+            ix = spanx - px + a
+            do b = 0, py
+                iy = spany - py + b
+                y = y + Nx(a)*Ny(b)*coeff(ix, iy)
             end do
         end do
-!$omp end do
-        deallocate(N)
-!$omp end parallel
-    end subroutine apply_A
+    end subroutine bspline_2d_eval
 
 
-    subroutine apply_AT(spl, x_data, r, g)
-        !! g = A^T * r  (adjoint action, accumulating into control points)
+    subroutine bspline_3d_eval(spl, coeff, x, y)
+        type(bspline_3d), intent(in) :: spl
+        real(dp), intent(in) :: coeff(:,:,:)
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        integer :: spanx, spany, spanz, px, py, pz, a, b, c, ix, iy, iz
+        real(dp) :: Nx(0:spl%sx%degree), Ny(0:spl%sy%degree), Nz(0:spl%sz%degree)
+
+        px = spl%sx%degree
+        py = spl%sy%degree
+        pz = spl%sz%degree
+        call find_span(spl%sx, x(1), spanx)
+        call basis_funs(spl%sx, spanx, x(1), Nx)
+        call find_span(spl%sy, x(2), spany)
+        call basis_funs(spl%sy, spany, x(2), Ny)
+        call find_span(spl%sz, x(3), spanz)
+        call basis_funs(spl%sz, spanz, x(3), Nz)
+        y = 0.0_dp
+        do a = 0, px
+            ix = spanx - px + a
+            do b = 0, py
+                iy = spany - py + b
+                do c = 0, pz
+                    iz = spanz - pz + c
+                    y = y + Nx(a)*Ny(b)*Nz(c)*coeff(ix, iy, iz)
+                end do
+            end do
+        end do
+    end subroutine bspline_3d_eval
+
+
+    subroutine precompute_grid_1d(spl, x1, cache)
         type(bspline_1d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
+        real(dp), intent(in) :: x1(:)
+        type(grid_cache_1d), intent(out) :: cache
+        integer :: i, n1, px
+
+        n1 = size(x1)
+        px = spl%degree
+        cache%ng1 = n1
+        cache%px = px
+        allocate(cache%span1(n1), cache%B1(0:px, n1))
+
+        !$omp parallel do simd private(i) schedule(simd:static)
+        do i = 1, n1
+            call find_span(spl, x1(i), cache%span1(i))
+        end do
+
+        !$omp parallel do private(i) schedule(static)
+        do i = 1, n1
+            call basis_funs(spl, cache%span1(i), x1(i), cache%B1(:, i))
+        end do
+    end subroutine precompute_grid_1d
+
+
+    subroutine precompute_grid_2d(spl, x1, x2, cache)
+        type(bspline_2d), intent(in) :: spl
+        real(dp), intent(in) :: x1(:), x2(:)
+        type(grid_cache_2d), intent(out) :: cache
+        integer :: i, n1, n2, px, py
+
+        n1 = size(x1)
+        n2 = size(x2)
+        px = spl%sx%degree
+        py = spl%sy%degree
+        cache%ng1 = n1
+        cache%ng2 = n2
+        cache%px = px
+        cache%py = py
+        allocate(cache%span1(n1), cache%span2(n2))
+        allocate(cache%B1(0:px, n1), cache%B2(0:py, n2))
+
+        !$omp parallel do simd private(i) schedule(simd:static)
+        do i = 1, n1
+            call find_span(spl%sx, x1(i), cache%span1(i))
+        end do
+        !$omp parallel do private(i) schedule(static)
+        do i = 1, n1
+            call basis_funs(spl%sx, cache%span1(i), x1(i), cache%B1(:, i))
+        end do
+
+        !$omp parallel do simd private(i) schedule(simd:static)
+        do i = 1, n2
+            call find_span(spl%sy, x2(i), cache%span2(i))
+        end do
+        !$omp parallel do private(i) schedule(static)
+        do i = 1, n2
+            call basis_funs(spl%sy, cache%span2(i), x2(i), cache%B2(:, i))
+        end do
+    end subroutine precompute_grid_2d
+
+
+    subroutine precompute_grid_3d(spl, x1, x2, x3, cache)
+        type(bspline_3d), intent(in) :: spl
+        real(dp), intent(in) :: x1(:), x2(:), x3(:)
+        type(grid_cache_3d), intent(out) :: cache
+        integer :: i, n1, n2, n3, px, py, pz
+
+        n1 = size(x1)
+        n2 = size(x2)
+        n3 = size(x3)
+        px = spl%sx%degree
+        py = spl%sy%degree
+        pz = spl%sz%degree
+        cache%ng1 = n1
+        cache%ng2 = n2
+        cache%ng3 = n3
+        cache%px = px
+        cache%py = py
+        cache%pz = pz
+        allocate(cache%span1(n1), cache%span2(n2), cache%span3(n3))
+        allocate(cache%B1(0:px, n1), cache%B2(0:py, n2), cache%B3(0:pz, n3))
+
+        !$omp parallel do simd private(i) schedule(simd:static)
+        do i = 1, n1
+            call find_span(spl%sx, x1(i), cache%span1(i))
+        end do
+        !$omp parallel do private(i) schedule(static)
+        do i = 1, n1
+            call basis_funs(spl%sx, cache%span1(i), x1(i), cache%B1(:, i))
+        end do
+
+        !$omp parallel do simd private(i) schedule(simd:static)
+        do i = 1, n2
+            call find_span(spl%sy, x2(i), cache%span2(i))
+        end do
+        !$omp parallel do private(i) schedule(static)
+        do i = 1, n2
+            call basis_funs(spl%sy, cache%span2(i), x2(i), cache%B2(:, i))
+        end do
+
+        !$omp parallel do simd private(i) schedule(simd:static)
+        do i = 1, n3
+            call find_span(spl%sz, x3(i), cache%span3(i))
+        end do
+        !$omp parallel do private(i) schedule(static)
+        do i = 1, n3
+            call basis_funs(spl%sz, cache%span3(i), x3(i), cache%B3(:, i))
+        end do
+    end subroutine precompute_grid_3d
+
+
+    subroutine apply_A_1d_grid(cache, coeff, f)
+        type(grid_cache_1d), intent(in) :: cache
+        real(dp), intent(in) :: coeff(:)
+        real(dp), intent(out) :: f(:)
+        integer :: i, a, ix, n1, px, s1
+
+        n1 = cache%ng1
+        px = cache%px
+        !$omp parallel do simd private(i, a, ix, s1) schedule(simd:static)
+        do i = 1, n1
+            s1 = cache%span1(i)
+            f(i) = 0.0_dp
+            do a = 0, px
+                ix = s1 - px + a
+                f(i) = f(i) + cache%B1(a, i)*coeff(ix)
+            end do
+        end do
+    end subroutine apply_A_1d_grid
+
+
+    subroutine apply_AT_1d_grid(cache, r, g, n_ctrl)
+        type(grid_cache_1d), intent(in) :: cache
         real(dp), intent(in) :: r(:)
         real(dp), intent(out) :: g(:)
-
-        integer :: n_data, i, span, p, j
-        real(dp), allocatable :: N(:)
+        integer, intent(in) :: n_ctrl
+        integer :: i, a, ix, n1, px, s1
         real(dp), allocatable :: g_local(:)
 
-        n_data = size(x_data)
-        if (size(r) /= n_data) then
-            error stop "apply_AT: r size mismatch"
-        end if
-        if (size(g) /= spl%n_ctrl) then
-            error stop "apply_AT: g size mismatch"
-        end if
-
-        p = spl%degree
+        n1 = cache%ng1
+        px = cache%px
         g = 0.0_dp
 
-!$omp parallel default(shared) private(i, span, j, N, g_local) if (n_data > 100)
-        allocate(N(0:p))
-        allocate(g_local(size(g)))
+        !$omp parallel private(g_local, i, a, ix, s1) default(shared)
+        allocate(g_local(n_ctrl))
         g_local = 0.0_dp
-!$omp do
-        do i = 1, n_data
-            call find_span(spl, x_data(i), span)
-            call basis_funs(spl, span, x_data(i), N)
-            do j = 0, p
-                g_local(span - p + j) = g_local(span - p + j) + N(j)*r(i)
-            end do
-        end do
-!$omp end do
-!$omp critical
-        g = g + g_local
-!$omp end critical
-        deallocate(g_local)
-        deallocate(N)
-!$omp end parallel
-    end subroutine apply_AT
-
-
-    subroutine apply_A2D(spl, x_data, y_data, coeff, f)
-        !! f = A * coeff  (2D spline evaluation at all data points)
-        type(bspline_2d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
-        real(dp), intent(in) :: y_data(:)
-        real(dp), intent(in) :: coeff(:,:)
-        real(dp), intent(out) :: f(:)
-
-        integer :: n_data, nx, ny
-        integer :: i, spanx, spany, px, py, a, b, ix, iy
-        real(dp), allocatable :: Nx_b(:), Ny_b(:)
-
-        n_data = size(x_data)
-        if (n_data /= size(y_data) .or. n_data /= size(f)) then
-            error stop "apply_A2D: data size mismatch"
-        end if
-
-        nx = spl%sx%n_ctrl
-        ny = spl%sy%n_ctrl
-        if (size(coeff, 1) /= nx .or. size(coeff, 2) /= ny) then
-            error stop "apply_A2D: coeff shape mismatch"
-        end if
-
-        px = spl%sx%degree
-        py = spl%sy%degree
-
-        f = 0.0_dp
-
-!$omp parallel default(shared) private(i, spanx, spany, a, b, ix, iy, Nx_b, Ny_b) &
-!$omp if (n_data > 100)
-        allocate(Nx_b(0:px))
-        allocate(Ny_b(0:py))
-!$omp do
-        do i = 1, n_data
-            call find_span(spl%sx, x_data(i), spanx)
-            call basis_funs(spl%sx, spanx, x_data(i), Nx_b)
-            call find_span(spl%sy, y_data(i), spany)
-            call basis_funs(spl%sy, spany, y_data(i), Ny_b)
+        !$omp do schedule(static)
+        do i = 1, n1
+            s1 = cache%span1(i)
             do a = 0, px
-                ix = spanx - px + a
-                do b = 0, py
-                    iy = spany - py + b
-                    f(i) = f(i) + Nx_b(a)*Ny_b(b)*coeff(ix, iy)
-                end do
+                ix = s1 - px + a
+                g_local(ix) = g_local(ix) + cache%B1(a, i)*r(i)
             end do
         end do
-!$omp end do
-        deallocate(Nx_b, Ny_b)
-!$omp end parallel
-    end subroutine apply_A2D
+        !$omp end do
+        !$omp critical
+        g = g + g_local
+        !$omp end critical
+        deallocate(g_local)
+        !$omp end parallel
+    end subroutine apply_AT_1d_grid
 
 
-    subroutine apply_A2D_T(spl, x_data, y_data, r, g)
-        !! g = A^T * r  (adjoint action in 2D coefficient space)
-        type(bspline_2d), intent(in) :: spl
-        real(dp), intent(in) :: x_data(:)
-        real(dp), intent(in) :: y_data(:)
-        real(dp), intent(in) :: r(:)
+    subroutine apply_A_2d_grid(cache, coeff, f)
+        type(grid_cache_2d), intent(in) :: cache
+        real(dp), intent(in) :: coeff(:,:)
+        real(dp), intent(out) :: f(:,:)
+        integer :: i1, i2, a, b, ix, iy, n1, n2, px, py, s1, s2
+        real(dp) :: val
+
+        n1 = cache%ng1
+        n2 = cache%ng2
+        px = cache%px
+        py = cache%py
+
+        !$omp parallel do collapse(2) private(i1, i2, a, b, ix, iy, s1, s2, val) &
+        !$omp& schedule(static)
+        do i2 = 1, n2
+            do i1 = 1, n1
+                s1 = cache%span1(i1)
+                s2 = cache%span2(i2)
+                val = 0.0_dp
+                do a = 0, px
+                    ix = s1 - px + a
+                    do b = 0, py
+                        iy = s2 - py + b
+                        val = val + cache%B1(a, i1)*cache%B2(b, i2)*coeff(ix, iy)
+                    end do
+                end do
+                f(i1, i2) = val
+            end do
+        end do
+    end subroutine apply_A_2d_grid
+
+
+    subroutine apply_AT_2d_grid(cache, r, g, nx, ny)
+        type(grid_cache_2d), intent(in) :: cache
+        real(dp), intent(in) :: r(:,:)
         real(dp), intent(out) :: g(:,:)
-
-        integer :: n_data, nx, ny
-        integer :: i, spanx, spany, px, py, a, b, ix, iy
-        real(dp), allocatable :: Nx_b(:), Ny_b(:)
+        integer, intent(in) :: nx, ny
+        integer :: i1, i2, a, b, ix, iy, n1, n2, px, py, s1, s2
         real(dp), allocatable :: g_local(:,:)
 
-        n_data = size(x_data)
-        if (n_data /= size(y_data) .or. n_data /= size(r)) then
-            error stop "apply_A2D_T: data size mismatch"
-        end if
-
-        nx = spl%sx%n_ctrl
-        ny = spl%sy%n_ctrl
-        if (size(g, 1) /= nx .or. size(g, 2) /= ny) then
-            error stop "apply_A2D_T: g shape mismatch"
-        end if
-
-        px = spl%sx%degree
-        py = spl%sy%degree
-
+        n1 = cache%ng1
+        n2 = cache%ng2
+        px = cache%px
+        py = cache%py
         g = 0.0_dp
 
-!$omp parallel default(shared) private(i, spanx, spany, a, b, ix, iy) &
-!$omp& private(Nx_b, Ny_b, g_local) if (n_data > 100)
-        allocate(Nx_b(0:px))
-        allocate(Ny_b(0:py))
+        !$omp parallel private(g_local, i1, i2, a, b, ix, iy, s1, s2) default(shared)
         allocate(g_local(nx, ny))
         g_local = 0.0_dp
-!$omp do
-        do i = 1, n_data
-            call find_span(spl%sx, x_data(i), spanx)
-            call basis_funs(spl%sx, spanx, x_data(i), Nx_b)
-            call find_span(spl%sy, y_data(i), spany)
-            call basis_funs(spl%sy, spany, y_data(i), Ny_b)
-            do a = 0, px
-                ix = spanx - px + a
-                do b = 0, py
-                    iy = spany - py + b
-                    g_local(ix, iy) = g_local(ix, iy) + Nx_b(a)*Ny_b(b)*r(i)
+        !$omp do collapse(2) schedule(static)
+        do i2 = 1, n2
+            do i1 = 1, n1
+                s1 = cache%span1(i1)
+                s2 = cache%span2(i2)
+                do a = 0, px
+                    ix = s1 - px + a
+                    do b = 0, py
+                        iy = s2 - py + b
+                        g_local(ix, iy) = g_local(ix, iy) + &
+                            cache%B1(a, i1)*cache%B2(b, i2)*r(i1, i2)
+                    end do
                 end do
             end do
         end do
-!$omp end do
-!$omp critical
+        !$omp end do
+        !$omp critical
         g = g + g_local
-!$omp end critical
+        !$omp end critical
         deallocate(g_local)
-        deallocate(Nx_b, Ny_b)
-!$omp end parallel
-    end subroutine apply_A2D_T
+        !$omp end parallel
+    end subroutine apply_AT_2d_grid
+
+
+    subroutine apply_A_3d_grid(cache, coeff, f)
+        type(grid_cache_3d), intent(in) :: cache
+        real(dp), intent(in) :: coeff(:,:,:)
+        real(dp), intent(out) :: f(:,:,:)
+        integer :: i1, i2, i3, a, b, c, ix, iy, iz
+        integer :: n1, n2, n3, px, py, pz, s1, s2, s3
+        real(dp) :: val, Nab
+
+        n1 = cache%ng1
+        n2 = cache%ng2
+        n3 = cache%ng3
+        px = cache%px
+        py = cache%py
+        pz = cache%pz
+
+        !$omp parallel do collapse(3) &
+        !$omp& private(i1, i2, i3, a, b, c, ix, iy, iz, s1, s2, s3, val, Nab) &
+        !$omp& schedule(static)
+        do i3 = 1, n3
+            do i2 = 1, n2
+                do i1 = 1, n1
+                    s1 = cache%span1(i1)
+                    s2 = cache%span2(i2)
+                    s3 = cache%span3(i3)
+                    val = 0.0_dp
+                    do a = 0, px
+                        ix = s1 - px + a
+                        do b = 0, py
+                            iy = s2 - py + b
+                            Nab = cache%B1(a, i1)*cache%B2(b, i2)
+                            !$omp simd reduction(+:val)
+                            do c = 0, pz
+                                iz = s3 - pz + c
+                                val = val + Nab*cache%B3(c, i3)*coeff(ix, iy, iz)
+                            end do
+                        end do
+                    end do
+                    f(i1, i2, i3) = val
+                end do
+            end do
+        end do
+    end subroutine apply_A_3d_grid
+
+
+    subroutine apply_AT_3d_grid(cache, r, g, nx, ny, nz)
+        type(grid_cache_3d), intent(in) :: cache
+        real(dp), intent(in) :: r(:,:,:)
+        real(dp), intent(out) :: g(:,:,:)
+        integer, intent(in) :: nx, ny, nz
+        integer :: i1, i2, i3, a, b, c, ix, iy, iz
+        integer :: n1, n2, n3, px, py, pz, s1, s2, s3
+        real(dp) :: ri, Nab
+        real(dp), allocatable :: g_local(:,:,:)
+
+        n1 = cache%ng1
+        n2 = cache%ng2
+        n3 = cache%ng3
+        px = cache%px
+        py = cache%py
+        pz = cache%pz
+        g = 0.0_dp
+
+        !$omp parallel private(g_local, i1, i2, i3, a, b, c, ix, iy, iz, s1, s2, s3, ri, Nab) &
+        !$omp& default(shared)
+        allocate(g_local(nx, ny, nz))
+        g_local = 0.0_dp
+        !$omp do collapse(3) schedule(static)
+        do i3 = 1, n3
+            do i2 = 1, n2
+                do i1 = 1, n1
+                    s1 = cache%span1(i1)
+                    s2 = cache%span2(i2)
+                    s3 = cache%span3(i3)
+                    ri = r(i1, i2, i3)
+                    do a = 0, px
+                        ix = s1 - px + a
+                        do b = 0, py
+                            iy = s2 - py + b
+                            Nab = cache%B1(a, i1)*cache%B2(b, i2)*ri
+                            do c = 0, pz
+                                iz = s3 - pz + c
+                                g_local(ix, iy, iz) = g_local(ix, iy, iz) + &
+                                    Nab*cache%B3(c, i3)
+                            end do
+                        end do
+                    end do
+                end do
+            end do
+        end do
+        !$omp end do
+        !$omp critical
+        g = g + g_local
+        !$omp end critical
+        deallocate(g_local)
+        !$omp end parallel
+    end subroutine apply_AT_3d_grid
+
+
+    subroutine bspline_1d_lsq_cgls(spl, x_data, f_data, coeff, max_iter, tol)
+        type(bspline_1d), intent(in) :: spl
+        real(dp), intent(in) :: x_data(:)
+        real(dp), intent(in) :: f_data(:)
+        real(dp), intent(inout) :: coeff(:)
+        integer, intent(in), optional :: max_iter
+        real(dp), intent(in), optional :: tol
+
+        type(grid_cache_1d) :: cache
+        integer :: n_data, n_ctrl, k, kmax
+        real(dp) :: atol, gamma, gamma_new, alpha, beta, denom, rhs_norm
+        real(dp), allocatable :: r(:), q(:), s(:), p(:)
+
+        n_data = size(x_data)
+        n_ctrl = spl%n_ctrl
+        kmax = 200
+        atol = 1.0d-10
+        if (present(max_iter)) kmax = max_iter
+        if (present(tol)) atol = tol
+
+        call precompute_grid_1d(spl, x_data, cache)
+
+        allocate(r(n_data), q(n_data), s(n_ctrl), p(n_ctrl))
+        coeff = 0.0_dp
+        r = f_data
+        call apply_AT_1d_grid(cache, r, s, n_ctrl)
+        p = s
+        gamma = dot_product(s, s)
+        rhs_norm = sqrt(dot_product(f_data, f_data))
+        if (rhs_norm == 0.0_dp) return
+
+        do k = 1, kmax
+            call apply_A_1d_grid(cache, p, q)
+            denom = dot_product(q, q)
+            if (denom <= 0.0_dp) exit
+            alpha = gamma/denom
+            coeff = coeff + alpha*p
+            r = r - alpha*q
+            call apply_AT_1d_grid(cache, r, s, n_ctrl)
+            gamma_new = dot_product(s, s)
+            if (gamma_new <= (atol*rhs_norm)**2) exit
+            beta = gamma_new/gamma
+            gamma = gamma_new
+            p = s + beta*p
+        end do
+    end subroutine bspline_1d_lsq_cgls
+
+
+    subroutine bspline_2d_lsq_cgls(spl, x1, x2, f_grid, coeff, max_iter, tol)
+        type(bspline_2d), intent(in) :: spl
+        real(dp), intent(in) :: x1(:), x2(:)
+        real(dp), intent(in) :: f_grid(:,:)
+        real(dp), intent(inout) :: coeff(:,:)
+        integer, intent(in), optional :: max_iter
+        real(dp), intent(in), optional :: tol
+
+        type(grid_cache_2d) :: cache
+        integer :: n1, n2, nx, ny, k, kmax
+        real(dp) :: atol, gamma, gamma_new, alpha, beta, denom, rhs_norm
+        real(dp), allocatable :: r(:,:), q(:,:), s(:,:), p(:,:)
+
+        n1 = size(x1)
+        n2 = size(x2)
+        nx = spl%sx%n_ctrl
+        ny = spl%sy%n_ctrl
+        kmax = 400
+        atol = 1.0d-10
+        if (present(max_iter)) kmax = max_iter
+        if (present(tol)) atol = tol
+
+        call precompute_grid_2d(spl, x1, x2, cache)
+
+        allocate(r(n1, n2), q(n1, n2), s(nx, ny), p(nx, ny))
+        coeff = 0.0_dp
+        r = f_grid
+        call apply_AT_2d_grid(cache, r, s, nx, ny)
+        p = s
+        gamma = sum(s*s)
+        rhs_norm = sqrt(sum(f_grid*f_grid))
+        if (rhs_norm == 0.0_dp) return
+
+        do k = 1, kmax
+            call apply_A_2d_grid(cache, p, q)
+            denom = sum(q*q)
+            if (denom <= 0.0_dp) exit
+            alpha = gamma/denom
+            coeff = coeff + alpha*p
+            r = r - alpha*q
+            call apply_AT_2d_grid(cache, r, s, nx, ny)
+            gamma_new = sum(s*s)
+            if (gamma_new <= (atol*rhs_norm)**2) exit
+            beta = gamma_new/gamma
+            gamma = gamma_new
+            p = s + beta*p
+        end do
+    end subroutine bspline_2d_lsq_cgls
+
+
+    subroutine bspline_3d_lsq_cgls(spl, x1, x2, x3, f_grid, coeff, max_iter, tol)
+        type(bspline_3d), intent(in) :: spl
+        real(dp), intent(in) :: x1(:), x2(:), x3(:)
+        real(dp), intent(in) :: f_grid(:,:,:)
+        real(dp), intent(inout) :: coeff(:,:,:)
+        integer, intent(in), optional :: max_iter
+        real(dp), intent(in), optional :: tol
+
+        type(grid_cache_3d) :: cache
+        integer :: n1, n2, n3, nx, ny, nz, k, kmax
+        real(dp) :: atol, gamma, gamma_new, alpha, beta, denom, rhs_norm
+        real(dp), allocatable :: r(:,:,:), q(:,:,:), s(:,:,:), p(:,:,:)
+
+        n1 = size(x1)
+        n2 = size(x2)
+        n3 = size(x3)
+        nx = spl%sx%n_ctrl
+        ny = spl%sy%n_ctrl
+        nz = spl%sz%n_ctrl
+        kmax = 400
+        atol = 1.0d-10
+        if (present(max_iter)) kmax = max_iter
+        if (present(tol)) atol = tol
+
+        call precompute_grid_3d(spl, x1, x2, x3, cache)
+
+        allocate(r(n1, n2, n3), q(n1, n2, n3), s(nx, ny, nz), p(nx, ny, nz))
+        coeff = 0.0_dp
+        r = f_grid
+        call apply_AT_3d_grid(cache, r, s, nx, ny, nz)
+        p = s
+        gamma = sum(s*s)
+        rhs_norm = sqrt(sum(f_grid*f_grid))
+        if (rhs_norm == 0.0_dp) return
+
+        do k = 1, kmax
+            call apply_A_3d_grid(cache, p, q)
+            denom = sum(q*q)
+            if (denom <= 0.0_dp) exit
+            alpha = gamma/denom
+            coeff = coeff + alpha*p
+            r = r - alpha*q
+            call apply_AT_3d_grid(cache, r, s, nx, ny, nz)
+            gamma_new = sum(s*s)
+            if (gamma_new <= (atol*rhs_norm)**2) exit
+            beta = gamma_new/gamma
+            gamma = gamma_new
+            p = s + beta*p
+        end do
+    end subroutine bspline_3d_lsq_cgls
 
 
 end module neo_bspline
