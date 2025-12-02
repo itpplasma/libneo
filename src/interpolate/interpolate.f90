@@ -1,9 +1,17 @@
 module interpolate
-    use spl_three_to_five_sub
-    use batch_interpolate
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use spl_three_to_five_sub, only: spl_reg, spl_per
+    use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, &
+        BatchSplineData3D, construct_batch_splines_1d, &
+        construct_batch_splines_2d, construct_batch_splines_3d, &
+        destroy_batch_splines_1d, destroy_batch_splines_2d, &
+        destroy_batch_splines_3d, evaluate_batch_splines_1d, &
+        evaluate_batch_splines_1d_single, evaluate_batch_splines_1d_der, &
+        evaluate_batch_splines_1d_der2, evaluate_batch_splines_2d, &
+        evaluate_batch_splines_2d_der, evaluate_batch_splines_3d, &
+        evaluate_batch_splines_3d_der, evaluate_batch_splines_3d_der2
     
     implicit none
-    integer, parameter :: dp = kind(1.0d0)
     
     ! Re-export batch interpolate types and procedures
     public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
@@ -18,9 +26,11 @@ module interpolate
         integer :: order
         integer :: num_points
         logical :: periodic
+        logical :: has_mask = .false.
         real(dp) :: x_min
         real(dp) :: h_step
         real(dp), dimension(:,:), allocatable :: coeff
+        logical, dimension(:), allocatable :: valid_interval
     end type SplineData1D
 
     type :: SplineData2D
@@ -30,6 +40,8 @@ module interpolate
         real(dp) :: h_step(2)
         real(dp) :: x_min(2)
         real(dp), dimension(:,:,:,:), allocatable :: coeff
+        logical :: has_mask = .false.
+        logical, dimension(:,:), allocatable :: valid_cell
     end type SplineData2D
 
     type :: SplineData3D
@@ -39,6 +51,8 @@ module interpolate
         real(dp) :: h_step(3)
         real(dp) :: x_min(3)
         real(dp), dimension(:,:,:,:,:,:), allocatable :: coeff
+        logical :: has_mask = .false.
+        logical, dimension(:,:,:), allocatable :: valid_cell
     end type SplineData3D
 
 
@@ -73,10 +87,38 @@ contains
     end subroutine construct_splines_1d
 
 
+    subroutine construct_splines_1d_masked(x_min, x_max, y, order, periodic, &
+                                           mask_nodes, spl)
+        real(dp), intent(in) :: x_min, x_max, y(:)
+        integer, intent(in) :: order
+        logical, intent(in) :: periodic
+        logical, intent(in) :: mask_nodes(:)
+        type(SplineData1D), intent(out) :: spl
+
+        integer :: i
+
+        call construct_splines_1d(x_min, x_max, y, order, periodic, spl)
+
+        if (size(mask_nodes) /= spl%num_points) then
+            error stop "construct_splines_1d_masked: mask size mismatch"
+        end if
+
+        if (allocated(spl%valid_interval)) deallocate(spl%valid_interval)
+        allocate(spl%valid_interval(spl%num_points - 1))
+
+        do i = 1, spl%num_points - 1
+            spl%valid_interval(i) = mask_nodes(i) .and. mask_nodes(i + 1)
+        end do
+        spl%has_mask = .true.
+    end subroutine construct_splines_1d_masked
+
+
     subroutine destroy_splines_1d(spl)
         type(SplineData1D), intent(inout) :: spl
 
         if(allocated(spl%coeff)) deallocate(spl%coeff)
+        if(allocated(spl%valid_interval)) deallocate(spl%valid_interval)
+        spl%has_mask = .false.
     end subroutine destroy_splines_1d
 
 
@@ -105,6 +147,42 @@ contains
             y = coeff_local(k_power) + x_local*y
         enddo
     end subroutine evaluate_splines_1d
+
+
+    subroutine evaluate_splines_1d_masked(spl, x, y, is_valid)
+        type(SplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
+        real(dp), intent(out) :: y
+        logical, intent(out), optional :: is_valid
+
+        real(dp) :: x_norm, xj
+        integer :: interval_index, cell_index
+
+        if (.not. spl%has_mask) then
+            call evaluate_splines_1d(spl, x, y)
+            if (present(is_valid)) is_valid = .true.
+            return
+        end if
+
+        if (spl%periodic) then
+            xj = modulo(x, spl%h_step*(spl%num_points - 1))
+        else
+            xj = x
+        end if
+        x_norm = (xj - spl%x_min)/spl%h_step
+        interval_index = max(0, min(spl%num_points - 1, int(x_norm)))
+
+        cell_index = max(1, min(spl%num_points - 1, interval_index + 1))
+
+        if (.not. spl%valid_interval(cell_index)) then
+            y = 0.0_dp
+            if (present(is_valid)) is_valid = .false.
+            return
+        end if
+
+        call evaluate_splines_1d(spl, x, y)
+        if (present(is_valid)) is_valid = .true.
+    end subroutine evaluate_splines_1d_masked
 
 
     subroutine evaluate_splines_1d_der(spl, x, y, dy)
@@ -214,6 +292,43 @@ contains
     end subroutine construct_splines_2d
 
 
+    subroutine construct_splines_2d_masked(x_min, x_max, y, order, periodic, &
+                                           mask_nodes, spl)
+        real(dp), intent(in) :: x_min(:), x_max(:), y(:,:)
+        integer, intent(in) :: order(:)
+        logical, intent(in) :: periodic(:)
+        logical, intent(in) :: mask_nodes(:,:)
+        type(SplineData2D), intent(out) :: spl
+
+        integer :: n1, n2, i1, i2
+
+        call construct_splines_2d(x_min, x_max, y, order, periodic, spl)
+
+        if (any(shape(mask_nodes) /= spl%num_points)) then
+            error stop "construct_splines_2d_masked: mask size mismatch"
+        end if
+
+        n1 = spl%num_points(1)
+        n2 = spl%num_points(2)
+
+        if (allocated(spl%valid_cell)) deallocate(spl%valid_cell)
+        if (n1 > 1 .and. n2 > 1) then
+            allocate(spl%valid_cell(n1 - 1, n2 - 1))
+            do i2 = 1, n2 - 1
+                do i1 = 1, n1 - 1
+                    spl%valid_cell(i1, i2) = mask_nodes(i1, i2) .and. &
+                        mask_nodes(i1 + 1, i2) .and. &
+                        mask_nodes(i1, i2 + 1) .and. &
+                        mask_nodes(i1 + 1, i2 + 1)
+                end do
+            end do
+            spl%has_mask = .true.
+        else
+            spl%has_mask = .false.
+        end if
+    end subroutine construct_splines_2d_masked
+
+
     subroutine evaluate_splines_2d(spl, x, y)
         type(SplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(2)
@@ -248,6 +363,45 @@ contains
             y = coeff_2(k2) + x_local(2)*y
         enddo
     end subroutine evaluate_splines_2d
+
+
+    subroutine evaluate_splines_2d_masked(spl, x, y, is_valid)
+        type(SplineData2D), intent(in) :: spl
+        real(dp), intent(in) :: x(2)
+        real(dp), intent(out) :: y
+        logical, intent(out), optional :: is_valid
+
+        real(dp) :: x_norm(2), xj
+        integer :: interval_index(2), cell_index(2), j
+
+        if (.not. spl%has_mask) then
+            call evaluate_splines_2d(spl, x, y)
+            if (present(is_valid)) is_valid = .true.
+            return
+        end if
+
+        do j = 1, 2
+            if (spl%periodic(j)) then
+                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j) - 1))
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 1, &
+                int(x_norm(j))))
+            cell_index(j) = max(1, min(spl%num_points(j) - 1, &
+                interval_index(j) + 1))
+        end do
+
+        if (.not. spl%valid_cell(cell_index(1), cell_index(2))) then
+            y = 0.0_dp
+            if (present(is_valid)) is_valid = .false.
+            return
+        end if
+
+        call evaluate_splines_2d(spl, x, y)
+        if (present(is_valid)) is_valid = .true.
+    end subroutine evaluate_splines_2d_masked
 
 
     subroutine evaluate_splines_2d_der(spl, x, y, dy)
@@ -313,6 +467,8 @@ contains
         type(SplineData2D), intent(inout) :: spl
 
         if(allocated(spl%coeff)) deallocate(spl%coeff)
+        if(allocated(spl%valid_cell)) deallocate(spl%valid_cell)
+        spl%has_mask = .false.
     end subroutine destroy_splines_2d
 
 
@@ -395,6 +551,51 @@ contains
     end subroutine construct_splines_3d
 
 
+    subroutine construct_splines_3d_masked(x_min, x_max, y, order, periodic, &
+                                           mask_nodes, spl)
+        real(dp), intent(in) :: x_min(:), x_max(:), y(:,:,:)
+        integer, intent(in) :: order(3)
+        logical, intent(in) :: periodic(3)
+        logical, intent(in) :: mask_nodes(:,:,:)
+        type(SplineData3D), intent(out) :: spl
+
+        integer :: n1, n2, n3, i1, i2, i3
+
+        call construct_splines_3d(x_min, x_max, y, order, periodic, spl)
+
+        if (any(shape(mask_nodes) /= spl%num_points)) then
+            error stop "construct_splines_3d_masked: mask size mismatch"
+        end if
+
+        n1 = spl%num_points(1)
+        n2 = spl%num_points(2)
+        n3 = spl%num_points(3)
+
+        if (allocated(spl%valid_cell)) deallocate(spl%valid_cell)
+        if (n1 > 1 .and. n2 > 1 .and. n3 > 1) then
+            allocate(spl%valid_cell(n1 - 1, n2 - 1, n3 - 1))
+            do i3 = 1, n3 - 1
+                do i2 = 1, n2 - 1
+                    do i1 = 1, n1 - 1
+                        spl%valid_cell(i1, i2, i3) = &
+                            mask_nodes(i1, i2, i3) .and. &
+                            mask_nodes(i1 + 1, i2, i3) .and. &
+                            mask_nodes(i1, i2 + 1, i3) .and. &
+                            mask_nodes(i1 + 1, i2 + 1, i3) .and. &
+                            mask_nodes(i1, i2, i3 + 1) .and. &
+                            mask_nodes(i1 + 1, i2, i3 + 1) .and. &
+                            mask_nodes(i1, i2 + 1, i3 + 1) .and. &
+                            mask_nodes(i1 + 1, i2 + 1, i3 + 1)
+                    end do
+                end do
+            end do
+            spl%has_mask = .true.
+        else
+            spl%has_mask = .false.
+        end if
+    end subroutine construct_splines_3d_masked
+
+
     subroutine evaluate_splines_3d(spl, x, y)
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
@@ -439,6 +640,46 @@ contains
         enddo
 
     end subroutine evaluate_splines_3d
+
+
+    subroutine evaluate_splines_3d_masked(spl, x, y, is_valid)
+        type(SplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        logical, intent(out), optional :: is_valid
+
+        real(dp) :: x_norm(3), xj
+        integer :: interval_index(3), cell_index(3), j
+
+        if (.not. spl%has_mask) then
+            call evaluate_splines_3d(spl, x, y)
+            if (present(is_valid)) is_valid = .true.
+            return
+        end if
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j) - 1))
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 1, &
+                int(x_norm(j))))
+            cell_index(j) = max(1, min(spl%num_points(j) - 1, &
+                interval_index(j) + 1))
+        end do
+
+        if (.not. spl%valid_cell(cell_index(1), cell_index(2), &
+            cell_index(3))) then
+            y = 0.0_dp
+            if (present(is_valid)) is_valid = .false.
+            return
+        end if
+
+        call evaluate_splines_3d(spl, x, y)
+        if (present(is_valid)) is_valid = .true.
+    end subroutine evaluate_splines_3d_masked
 
 
     subroutine evaluate_splines_3d_der(spl, x, y, dy)
@@ -676,6 +917,8 @@ contains
         type(SplineData3D), intent(inout) :: spl
 
         if(allocated(spl%coeff)) deallocate(spl%coeff)
+        if(allocated(spl%valid_cell)) deallocate(spl%valid_cell)
+        spl%has_mask = .false.
     end subroutine destroy_splines_3d
 
 
