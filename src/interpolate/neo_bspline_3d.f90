@@ -1,5 +1,6 @@
 module neo_bspline_3d
     !! 3D tensor-product B-splines and matrix-free LSQ via CGLS.
+    !! Includes block-wise basis caching for high-performance LSQ.
     use, intrinsic :: iso_fortran_env, only : dp => real64
     use neo_bspline, only : bspline_1d, bspline_1d_init_uniform, find_span, basis_funs
     implicit none
@@ -10,6 +11,13 @@ module neo_bspline_3d
         type(bspline_1d) :: sy
         type(bspline_1d) :: sz
     end type bspline_3d
+
+    type :: basis_cache_3d
+        integer :: n_pts
+        integer :: px, py, pz
+        integer, allocatable :: spanx(:), spany(:), spanz(:)
+        real(dp), allocatable :: Nx_tab(:,:), Ny_tab(:,:), Nz_tab(:,:)
+    end type basis_cache_3d
 
     public :: bspline_3d
     public :: bspline_3d_init_uniform
@@ -93,7 +101,8 @@ contains
         !! Matrix-free CGLS for 3D tensor-product B-spline LSQ:
         !!   min_C sum_i (S_C(x_i,y_i,z_i) - f_i)^2
         !!
-        !! where C is coeff(nx,ny,nz) and S_C is the spline.
+        !! Uses basis caching: spans and basis functions are precomputed
+        !! once before the CG iterations, then reused via cached operators.
         type(bspline_3d), intent(in) :: spl
         real(dp), intent(in) :: x_data(:)
         real(dp), intent(in) :: y_data(:)
@@ -109,6 +118,7 @@ contains
         real(dp) :: rhs_norm
         real(dp), allocatable :: r(:), q(:)
         real(dp), allocatable :: s(:,:,:), p(:,:,:)
+        type(basis_cache_3d) :: cache
 
         n_data = size(x_data)
         if (n_data /= size(y_data) .or. n_data /= size(z_data) .or. &
@@ -135,6 +145,8 @@ contains
             atol = 1.0d-10
         end if
 
+        call precompute_basis_3d(spl, x_data, y_data, z_data, cache)
+
         allocate(r(n_data))
         allocate(q(n_data))
         allocate(s(nx, ny, nz))
@@ -143,7 +155,7 @@ contains
         coeff = 0.0_dp
         r = f_data
 
-        call apply_A3D_T(spl, x_data, y_data, z_data, r, s)
+        call apply_A3D_T_cached(spl, cache, r, s)
         p = s
         gamma = sum(s*s)
         rhs_norm = sqrt(sum(f_data*f_data))
@@ -155,7 +167,7 @@ contains
         end if
 
         do k = 1, kmax
-            call apply_A3D(spl, x_data, y_data, z_data, p, q)
+            call apply_A3D_cached(spl, cache, p, q)
             denom = sum(q*q)
             if (denom <= 0.0_dp) exit
 
@@ -163,7 +175,7 @@ contains
             coeff = coeff + alpha*p
             r = r - alpha*q
 
-            call apply_A3D_T(spl, x_data, y_data, z_data, r, s)
+            call apply_A3D_T_cached(spl, cache, r, s)
             gamma_new = sum(s*s)
 
             if (gamma_new <= (atol*rhs_norm)**2) exit
@@ -363,6 +375,152 @@ contains
         deallocate(Nx_b, Ny_b, Nz_b)
 !$omp end parallel
     end subroutine apply_A3D_T
+
+
+    subroutine precompute_basis_3d(spl, x_data, y_data, z_data, cache)
+        !! Precompute spans and basis values for all data points.
+        type(bspline_3d), intent(in) :: spl
+        real(dp), intent(in) :: x_data(:)
+        real(dp), intent(in) :: y_data(:)
+        real(dp), intent(in) :: z_data(:)
+        type(basis_cache_3d), intent(out) :: cache
+
+        integer :: n_data, i, spanx_loc, spany_loc, spanz_loc
+        integer :: px, py, pz
+        real(dp), allocatable :: Nx_loc(:), Ny_loc(:), Nz_loc(:)
+
+        n_data = size(x_data)
+        px = spl%sx%degree
+        py = spl%sy%degree
+        pz = spl%sz%degree
+
+        cache%n_pts = n_data
+        cache%px = px
+        cache%py = py
+        cache%pz = pz
+
+        allocate(cache%spanx(n_data), cache%spany(n_data), cache%spanz(n_data))
+        allocate(cache%Nx_tab(0:px, n_data))
+        allocate(cache%Ny_tab(0:py, n_data))
+        allocate(cache%Nz_tab(0:pz, n_data))
+
+!$omp parallel default(shared) &
+!$omp& private(i, spanx_loc, spany_loc, spanz_loc, Nx_loc, Ny_loc, Nz_loc) &
+!$omp& if (n_data > 100)
+        allocate(Nx_loc(0:px), Ny_loc(0:py), Nz_loc(0:pz))
+!$omp do
+        do i = 1, n_data
+            call find_span(spl%sx, x_data(i), spanx_loc)
+            call basis_funs(spl%sx, spanx_loc, x_data(i), Nx_loc)
+            call find_span(spl%sy, y_data(i), spany_loc)
+            call basis_funs(spl%sy, spany_loc, y_data(i), Ny_loc)
+            call find_span(spl%sz, z_data(i), spanz_loc)
+            call basis_funs(spl%sz, spanz_loc, z_data(i), Nz_loc)
+
+            cache%spanx(i) = spanx_loc
+            cache%spany(i) = spany_loc
+            cache%spanz(i) = spanz_loc
+            cache%Nx_tab(:, i) = Nx_loc
+            cache%Ny_tab(:, i) = Ny_loc
+            cache%Nz_tab(:, i) = Nz_loc
+        end do
+!$omp end do
+        deallocate(Nx_loc, Ny_loc, Nz_loc)
+!$omp end parallel
+    end subroutine precompute_basis_3d
+
+
+    subroutine apply_A3D_cached(spl, cache, coeff, f)
+        !! f = A * coeff using precomputed basis (cached).
+        type(bspline_3d), intent(in) :: spl
+        type(basis_cache_3d), intent(in) :: cache
+        real(dp), intent(in) :: coeff(:,:,:)
+        real(dp), intent(out) :: f(:)
+
+        integer :: n_data, px, py, pz
+        integer :: i, a, b, c, ix, iy, iz, spanx, spany, spanz
+
+        n_data = cache%n_pts
+        px = cache%px
+        py = cache%py
+        pz = cache%pz
+
+        f = 0.0_dp
+
+!$omp parallel default(shared) private(i, a, b, c, ix, iy, iz, spanx, spany, spanz) &
+!$omp& if (n_data > 100)
+!$omp do
+        do i = 1, n_data
+            spanx = cache%spanx(i)
+            spany = cache%spany(i)
+            spanz = cache%spanz(i)
+            do a = 0, px
+                ix = spanx - px + a
+                do b = 0, py
+                    iy = spany - py + b
+                    do c = 0, pz
+                        iz = spanz - pz + c
+                        f(i) = f(i) + cache%Nx_tab(a, i)*cache%Ny_tab(b, i) &
+                            *cache%Nz_tab(c, i)*coeff(ix, iy, iz)
+                    end do
+                end do
+            end do
+        end do
+!$omp end do
+!$omp end parallel
+    end subroutine apply_A3D_cached
+
+
+    subroutine apply_A3D_T_cached(spl, cache, r, g)
+        !! g = A^T * r using precomputed basis (cached).
+        type(bspline_3d), intent(in) :: spl
+        type(basis_cache_3d), intent(in) :: cache
+        real(dp), intent(in) :: r(:)
+        real(dp), intent(out) :: g(:,:,:)
+
+        integer :: n_data, nx, ny, nz, px, py, pz
+        integer :: i, a, b, c, ix, iy, iz, spanx, spany, spanz
+        real(dp), allocatable :: g_local(:,:,:)
+
+        n_data = cache%n_pts
+        nx = spl%sx%n_ctrl
+        ny = spl%sy%n_ctrl
+        nz = spl%sz%n_ctrl
+        px = cache%px
+        py = cache%py
+        pz = cache%pz
+
+        g = 0.0_dp
+
+!$omp parallel default(shared) &
+!$omp& private(i, a, b, c, ix, iy, iz, spanx, spany, spanz, g_local) if (n_data > 100)
+        allocate(g_local(nx, ny, nz))
+        g_local = 0.0_dp
+!$omp do
+        do i = 1, n_data
+            spanx = cache%spanx(i)
+            spany = cache%spany(i)
+            spanz = cache%spanz(i)
+            do a = 0, px
+                ix = spanx - px + a
+                do b = 0, py
+                    iy = spany - py + b
+                    do c = 0, pz
+                        iz = spanz - pz + c
+                        g_local(ix, iy, iz) = g_local(ix, iy, iz) + &
+                            cache%Nx_tab(a, i)*cache%Ny_tab(b, i) &
+                            *cache%Nz_tab(c, i)*r(i)
+                    end do
+                end do
+            end do
+        end do
+!$omp end do
+!$omp critical
+        g = g + g_local
+!$omp end critical
+        deallocate(g_local)
+!$omp end parallel
+    end subroutine apply_A3D_T_cached
 
 
 end module neo_bspline_3d
