@@ -8,6 +8,15 @@ module neo_bspline_interp
     implicit none
     private
 
+    interface
+        subroutine dgbsv(n, kl, ku, nrhs, ab, ldab, ipiv, b, ldb, info)
+            import :: dp
+            integer :: n, kl, ku, nrhs, ldab, ldb, info
+            integer :: ipiv(*)
+            real(dp) :: ab(ldab, *), b(ldb, *)
+        end subroutine dgbsv
+    end interface
+
     public :: bspline_1d_interp, bspline_2d_interp, bspline_3d_interp
 
 contains
@@ -19,25 +28,28 @@ contains
         real(dp), intent(in) :: f_data(:)
         real(dp), intent(out) :: coeff(:)
 
-        integer :: n, p, i, j, span, info
-        real(dp), allocatable :: A(:,:), work_f(:), Nvals(:)
+        integer :: n, p, i, j, span, info, kl, ku, ldab
+        real(dp), allocatable :: ab(:,:), work_f(:), Nvals(:)
         integer, allocatable :: ipiv(:)
 
         n = size(x_data)
         p = spl%degree
-        allocate(A(n, n), work_f(n), ipiv(n), Nvals(0:p))
-        A = 0.0_dp
+        kl = p
+        ku = p
+        ldab = 2*kl + ku + 1
+        allocate(ab(ldab, n), work_f(n), ipiv(n), Nvals(0:p))
+        ab = 0.0_dp
 
         do i = 1, n
             call find_span(spl, x_data(i), span)
             call basis_funs(spl, span, x_data(i), Nvals)
             do j = 0, p
-                A(i, span - p + j) = Nvals(j)
+                ab(kl + ku + 1 + j, span - p + j) = Nvals(j)
             end do
         end do
 
         work_f = f_data
-        call dgesv(n, 1, A, n, ipiv, work_f, n, info)
+        call dgbsv(n, kl, ku, 1, ab, ldab, ipiv, work_f, n, info)
         if (info /= 0) then
             coeff = 0.0_dp
             return
