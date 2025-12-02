@@ -6,12 +6,14 @@ program test_neo_bspline_1d
 
     implicit none
 
-    real(dp), parameter :: TOL_L2 = 1.0d-5
+    real(dp), parameter :: TOL_L2 = 5.0d-7
     real(dp), parameter :: X_MIN = 1.23d0
     real(dp), parameter :: X_MAX = TWOPI + 1.23d0
 
     call test_bspline_1d_partition_unity()
+    call test_bspline_1d_adjoint()
     call test_bspline_1d_lsq_cos()
+    call test_bspline_1d_lsq_batch()
 
 contains
 
@@ -54,10 +56,53 @@ contains
     end subroutine test_bspline_1d_partition_unity
 
 
+    subroutine test_bspline_1d_adjoint()
+        type(bspline_1d) :: spl
+        integer, parameter :: DEGREE = 4
+        integer, parameter :: N_CTRL = 30
+        integer, parameter :: N_DATA = 200
+
+        real(dp) :: x_data(N_DATA)
+        real(dp) :: coeff(N_CTRL)
+        real(dp) :: r(N_DATA)
+        real(dp) :: y(N_DATA)
+        real(dp) :: g(N_CTRL)
+        real(dp) :: lhs, rhs, rel_err, denom
+        integer :: i
+
+        print *, "Testing neo_bspline 1D adjoint consistency"
+
+        call bspline_1d_init_uniform(spl, DEGREE, N_CTRL, X_MIN, X_MAX)
+        call linspace(X_MIN, X_MAX, N_DATA, x_data)
+
+        do i = 1, N_CTRL
+            coeff(i) = sin(0.37d0*real(i, dp))
+        end do
+        do i = 1, N_DATA
+            r(i) = cos(0.53d0*real(i, dp))
+        end do
+
+        call apply_A(spl, x_data, coeff, y)
+        call apply_AT(spl, x_data, r, g)
+
+        lhs = sum(y*r)
+        rhs = sum(coeff*g)
+        denom = max(abs(lhs), abs(rhs), 1.0d0)
+        rel_err = abs(lhs - rhs)/denom
+
+        print *, "  1D adjoint rel error =", rel_err
+
+        if (rel_err > 1.0d-12) then
+            error stop "neo_bspline 1D adjoint inconsistency"
+        end if
+
+    end subroutine test_bspline_1d_adjoint
+
+
     subroutine test_bspline_1d_lsq_cos()
         type(bspline_1d) :: spl
         integer, parameter :: DEGREE = 5
-        integer, parameter :: N_CTRL = 40
+        integer, parameter :: N_CTRL = 60
         integer, parameter :: N_DATA = 400
         integer, parameter :: N_PLOT = 201
 
@@ -101,13 +146,70 @@ contains
     end subroutine test_bspline_1d_lsq_cos
 
 
+    subroutine test_bspline_1d_lsq_batch()
+        type(bspline_1d) :: spl
+        integer, parameter :: DEGREE = 5
+        integer, parameter :: N_CTRL = 60
+        integer, parameter :: N_DATA = 400
+        integer, parameter :: N_PLOT = 201
+        integer, parameter :: N_RHS = 2
+
+        real(dp) :: x_data(N_DATA)
+        real(dp) :: f_data(N_DATA, N_RHS)
+        real(dp) :: coeff(N_CTRL, N_RHS)
+        real(dp) :: x_plot(N_PLOT)
+        real(dp) :: f_true(N_PLOT, N_RHS)
+        real(dp) :: f_fit(N_PLOT, N_RHS)
+        real(dp) :: err2(N_RHS)
+        integer :: i, k
+
+        print *, "Testing neo_bspline 1D LSQ CGLS (batched)"
+
+        call bspline_1d_init_uniform(spl, DEGREE, N_CTRL, X_MIN, X_MAX)
+
+        do i = 1, N_DATA
+            x_data(i) = X_MIN + (X_MAX - X_MIN) * real(i, dp) / real(N_DATA + 1, dp)
+            x_data(i) = x_data(i) + 0.1d0 * sin(3.0d0*real(i, dp))
+            if (x_data(i) < X_MIN) x_data(i) = X_MIN
+            if (x_data(i) > X_MAX) x_data(i) = X_MAX
+
+            f_data(i, 1) = cos(2.0d0*x_data(i)) + 0.5d0*sin(3.0d0*x_data(i))
+            f_data(i, 2) = sin(1.5d0*x_data(i)) + 0.3d0*cos(4.0d0*x_data(i))
+        end do
+
+        coeff = 0.0_dp
+        call bspline_1d_lsq_cgls_batch(spl, x_data, f_data, coeff, &
+            max_iter=400, tol=1.0d-10)
+
+        call linspace(X_MIN, X_MAX, N_PLOT, x_plot)
+        do i = 1, N_PLOT
+            f_true(i, 1) = cos(2.0d0*x_plot(i)) + 0.5d0*sin(3.0d0*x_plot(i))
+            f_true(i, 2) = sin(1.5d0*x_plot(i)) + 0.3d0*cos(4.0d0*x_plot(i))
+
+            do k = 1, N_RHS
+                call bspline_1d_eval(spl, coeff(:, k), x_plot(i), f_fit(i, k))
+            end do
+        end do
+
+        do k = 1, N_RHS
+            err2(k) = sum((f_fit(:, k) - f_true(:, k))**2)/real(N_PLOT, dp)
+            print *, "  LSQ L2 error (rhs =", k, ") =", sqrt(err2(k))
+            if (sqrt(err2(k)) > TOL_L2) then
+                error stop "neo_bspline 1D batched LSQ error too large"
+            end if
+        end do
+
+    end subroutine test_bspline_1d_lsq_batch
+
+
     subroutine write_plot_data(fname, n, x, f_true, f_fit)
         character(*), intent(in) :: fname
         integer, intent(in) :: n
         real(dp), intent(in) :: x(n), f_true(n), f_fit(n)
         integer :: iunit, i
 
-        open(newunit=iunit, file=fname, status="replace", action="write", form="formatted")
+        open(newunit=iunit, file=fname, status="replace", action="write", &
+            form="formatted")
         do i = 1, n
             write(iunit,'(3es24.16)') x(i), f_true(i), f_fit(i)
         end do
