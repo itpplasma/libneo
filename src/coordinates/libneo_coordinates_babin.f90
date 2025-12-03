@@ -1,17 +1,17 @@
-submodule (libneo_coordinates) libneo_coordinates_gframe
-    use gframe_boundary, only: gframe_boundary_t
+submodule (libneo_coordinates) libneo_coordinates_babin
+    use babin_boundary, only: babin_boundary_t
     use interpolate, only: SplineData3D, construct_splines_3d, &
         evaluate_splines_3d, evaluate_splines_3d_der, destroy_splines_3d
     implicit none
 
 contains
 
-    module subroutine make_gframe_coordinate_system(cs, boundary, nrho)
+    module subroutine make_babin_coordinate_system(cs, boundary, nrho)
         class(coordinate_system_t), allocatable, intent(out) :: cs
-        type(gframe_boundary_t), intent(in) :: boundary
+        type(babin_boundary_t), intent(in) :: boundary
         integer, intent(in), optional :: nrho
 
-        type(gframe_coordinate_system_t), pointer :: gcs
+        type(babin_coordinate_system_t), pointer :: bcs
         integer :: nrho_eff
 
         if (present(nrho)) then
@@ -19,19 +19,19 @@ contains
         else
             nrho_eff = 33
         end if
-        allocate(gframe_coordinate_system_t :: cs)
+        allocate(babin_coordinate_system_t :: cs)
 
-        select type (gcs => cs)
-        type is (gframe_coordinate_system_t)
-            call initialize_gframe(gcs, boundary, nrho_eff)
+        select type (bcs => cs)
+        type is (babin_coordinate_system_t)
+            call initialize_babin(bcs, boundary, nrho_eff)
         class default
-            error stop "make_gframe_coordinate_system: allocation failed"
+            error stop "make_babin_coordinate_system: allocation failed"
         end select
-    end subroutine make_gframe_coordinate_system
+    end subroutine make_babin_coordinate_system
 
-    subroutine initialize_gframe(gcs, boundary, nrho)
-        type(gframe_coordinate_system_t), intent(inout) :: gcs
-        type(gframe_boundary_t), intent(in) :: boundary
+    subroutine initialize_babin(bcs, boundary, nrho)
+        type(babin_coordinate_system_t), intent(inout) :: bcs
+        type(babin_boundary_t), intent(in) :: boundary
         integer, intent(in) :: nrho
 
         real(dp), allocatable :: rgrid(:, :, :)
@@ -50,19 +50,19 @@ contains
         call build_harmonic_volume(boundary, nrho, rgrid, zgrid)
 
         call construct_splines_3d(x_min, x_max, rgrid, order, periodic, &
-            gcs%spl_r)
+            bcs%spl_r)
         call construct_splines_3d(x_min, x_max, zgrid, order, periodic, &
-            gcs%spl_z)
+            bcs%spl_z)
 
-        gcs%nrho = size(rgrid, 1)
-        gcs%ntheta = size(rgrid, 2)
-        gcs%nzeta = size(rgrid, 3)
+        bcs%nrho = size(rgrid, 1)
+        bcs%ntheta = size(rgrid, 2)
+        bcs%nzeta = size(rgrid, 3)
 
         call destroy_volume(rgrid, zgrid)
-    end subroutine initialize_gframe
+    end subroutine initialize_babin
 
     subroutine build_harmonic_volume(boundary, nrho, rgrid, zgrid)
-        type(gframe_boundary_t), intent(in) :: boundary
+        type(babin_boundary_t), intent(in) :: boundary
         integer, intent(in) :: nrho
         real(dp), allocatable, intent(out) :: rgrid(:, :, :)
         real(dp), allocatable, intent(out) :: zgrid(:, :, :)
@@ -127,7 +127,7 @@ contains
     end subroutine reconstruct_point
 
     subroutine fourier_project(boundary, mmax, rcos, rsin, zcos, zsin)
-        type(gframe_boundary_t), intent(in) :: boundary
+        type(babin_boundary_t), intent(in) :: boundary
         integer, intent(in) :: mmax
         real(dp), intent(out) :: rcos(:, :), rsin(:, :)
         real(dp), intent(out) :: zcos(:, :), zsin(:, :)
@@ -174,8 +174,8 @@ contains
         end do
     end subroutine fourier_project
 
-    subroutine gframe_evaluate_point(self, u, x)
-        class(gframe_coordinate_system_t), intent(in) :: self
+    subroutine babin_evaluate_point(self, u, x)
+        class(babin_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: x(3)
 
@@ -187,10 +187,10 @@ contains
         x(1) = R
         x(2) = u(3)
         x(3) = Z
-    end subroutine gframe_evaluate_point
+    end subroutine babin_evaluate_point
 
-    subroutine gframe_covariant_basis(self, u, e_cov)
-        class(gframe_coordinate_system_t), intent(in) :: self
+    subroutine babin_covariant_basis(self, u, e_cov)
+        class(babin_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: e_cov(3, 3)
 
@@ -215,10 +215,10 @@ contains
         e_cov(1, 3) = dR(3) * cos_phi - R * sin_phi
         e_cov(2, 3) = dR(3) * sin_phi + R * cos_phi
         e_cov(3, 3) = dZ(3)
-    end subroutine gframe_covariant_basis
+    end subroutine babin_covariant_basis
 
-    subroutine gframe_metric_tensor(self, u, g, ginv, sqrtg)
-        class(gframe_coordinate_system_t), intent(in) :: self
+    subroutine babin_metric_tensor(self, u, g, ginv, sqrtg)
+        class(babin_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: g(3, 3), ginv(3, 3), sqrtg
 
@@ -249,10 +249,10 @@ contains
         ginv(3, 1) = (g(2, 1) * g(3, 2) - g(2, 2) * g(3, 1)) / det
         ginv(3, 2) = (g(1, 2) * g(3, 1) - g(1, 1) * g(3, 2)) / det
         ginv(3, 3) = (g(1, 1) * g(2, 2) - g(1, 2) * g(2, 1)) / det
-    end subroutine gframe_metric_tensor
+    end subroutine babin_metric_tensor
 
-    subroutine gframe_from_cyl(self, xcyl, u, ierr)
-        class(gframe_coordinate_system_t), intent(in) :: self
+    subroutine babin_from_cyl(self, xcyl, u, ierr)
+        class(babin_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: xcyl(3)
         real(dp), intent(out) :: u(3)
         integer, intent(out) :: ierr
@@ -263,10 +263,10 @@ contains
         u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
         u(2) = modulo(rho_theta(2), two_pi())
         u(3) = modulo(xcyl(2), two_pi())
-    end subroutine gframe_from_cyl
+    end subroutine babin_from_cyl
 
     subroutine newton_slice(self, R_target, Z_target, zeta, rho_theta, ierr)
-        class(gframe_coordinate_system_t), intent(in) :: self
+        class(babin_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: R_target, Z_target, zeta
         real(dp), intent(out) :: rho_theta(2)
         integer, intent(out) :: ierr
@@ -339,4 +339,4 @@ contains
         two_pi = 2.0_dp * acos(-1.0_dp)
     end function two_pi
 
-end submodule libneo_coordinates_gframe
+end submodule libneo_coordinates_babin

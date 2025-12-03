@@ -1,26 +1,26 @@
-module gframe_boundary
+module babin_boundary
     use, intrinsic :: iso_fortran_env, only: dp => real64
     implicit none
     private
 
-    public :: gframe_boundary_t
+    public :: babin_boundary_t
     public :: make_circular_boundary
     public :: boundary_from_modes
     public :: allocate_boundary
 
-    type :: gframe_boundary_t
+    type :: babin_boundary_t
         integer :: ntheta = 0
         integer :: nzeta = 0
         real(dp), allocatable :: theta(:)
         real(dp), allocatable :: zeta(:)
         real(dp), allocatable :: Rb(:, :)
         real(dp), allocatable :: Zb(:, :)
-    end type gframe_boundary_t
+    end type babin_boundary_t
 
 contains
 
     subroutine make_circular_boundary(boundary, ntheta, nzeta, r0, a)
-        type(gframe_boundary_t), intent(out) :: boundary
+        type(babin_boundary_t), intent(out) :: boundary
         integer, intent(in) :: ntheta, nzeta
         real(dp), intent(in) :: r0, a
 
@@ -50,7 +50,7 @@ contains
         integer, intent(in) :: m(:), n(:)
         real(dp), intent(in) :: rcos(:), rsin(:), zcos(:), zsin(:)
         integer, intent(in) :: nfp, ntheta, nzeta
-        type(gframe_boundary_t), intent(out) :: boundary
+        type(babin_boundary_t), intent(out) :: boundary
 
         integer :: nmodes
         integer :: jt, jz, idx
@@ -91,7 +91,7 @@ contains
     end subroutine boundary_from_modes
 
     subroutine allocate_boundary(boundary, ntheta, nzeta)
-        type(gframe_boundary_t), intent(inout) :: boundary
+        type(babin_boundary_t), intent(inout) :: boundary
         integer, intent(in) :: ntheta, nzeta
 
         if (allocated(boundary%theta)) deallocate(boundary%theta)
@@ -112,4 +112,4 @@ contains
         two_pi = 2.0_dp * acos(-1.0_dp)
     end function two_pi
 
-end module gframe_boundary
+end module babin_boundary

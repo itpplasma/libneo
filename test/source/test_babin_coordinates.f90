@@ -1,62 +1,62 @@
-program test_gframe_coordinates
+program test_babin_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_coordinates, only: coordinate_system_t, &
-        make_gframe_coordinate_system, gframe_coordinate_system_t
-    use gframe_boundary, only: gframe_boundary_t, make_circular_boundary
+        make_babin_coordinate_system, babin_coordinate_system_t
+    use babin_boundary, only: babin_boundary_t, make_circular_boundary
     implicit none
 
     integer :: nerrors
     logical :: all_passed
     class(coordinate_system_t), allocatable :: cs
-    type(gframe_boundary_t) :: boundary
-    type(gframe_coordinate_system_t), pointer :: gcs
+    type(babin_boundary_t) :: boundary
+    type(babin_coordinate_system_t), pointer :: bcs
     real(dp) :: u(3), x(3), u_back(3)
     integer :: ierr
 
     nerrors = 0
     all_passed = .true.
 
-    print *, "Testing Babin/G-frame coordinate system..."
+    print *, "Testing Babin coordinate system..."
     call make_circular_boundary(boundary, ntheta = 64, nzeta = 8, r0 = 1.7_dp, &
         a = 0.35_dp)
 
-    call make_gframe_coordinate_system(cs, boundary)
+    call make_babin_coordinate_system(cs, boundary)
 
     if (.not. allocated(cs)) then
-        print *, "  FAIL: make_gframe_coordinate_system did not allocate cs"
+        print *, "  FAIL: make_babin_coordinate_system did not allocate cs"
         nerrors = nerrors + 1
     end if
 
-    select type (gcs => cs)
-    type is (gframe_coordinate_system_t)
-        call run_roundtrip_check(gcs, nerrors)
-        call run_boundary_check(gcs, nerrors)
-        call run_metric_check(gcs, nerrors)
+    select type (bcs => cs)
+    type is (babin_coordinate_system_t)
+        call run_roundtrip_check(bcs, nerrors)
+        call run_boundary_check(bcs, nerrors)
+        call run_metric_check(bcs, nerrors)
     class default
-        print *, "  FAIL: coordinate system is not gframe type"
+        print *, "  FAIL: coordinate system is not Babin type"
         nerrors = nerrors + 1
     end select
 
     if (nerrors > 0) then
         all_passed = .false.
-        print *, "FAILED: ", nerrors, " error(s) detected in G-frame tests"
+        print *, "FAILED: ", nerrors, " error(s) detected in Babin coordinate tests"
     else
-        print *, "All G-frame coordinate tests passed!"
+        print *, "All Babin coordinate tests passed!"
     end if
 
     if (.not. all_passed) error stop 1
 
 contains
 
-    subroutine run_roundtrip_check(gcs, nerrors)
-        type(gframe_coordinate_system_t), intent(in) :: gcs
+    subroutine run_roundtrip_check(bcs, nerrors)
+        type(babin_coordinate_system_t), intent(in) :: bcs
         integer, intent(inout) :: nerrors
         real(dp) :: u(3), x(3), u_back(3)
         integer :: ierr
 
         u = [0.35_dp, 1.1_dp, 0.6_dp]
-        call gcs%evaluate_point(u, x)
-        call gcs%from_cyl(x, u_back, ierr)
+        call bcs%evaluate_point(u, x)
+        call bcs%from_cyl(x, u_back, ierr)
 
         if (ierr /= 0) then
             print *, "  FAIL: inverse mapping reported error code ", ierr
@@ -72,8 +72,8 @@ contains
         call verify_against_analytic(u, x, nerrors)
     end subroutine run_roundtrip_check
 
-    subroutine run_boundary_check(gcs, nerrors)
-        type(gframe_coordinate_system_t), intent(in) :: gcs
+    subroutine run_boundary_check(bcs, nerrors)
+        type(babin_coordinate_system_t), intent(in) :: bcs
         integer, intent(inout) :: nerrors
         real(dp) :: u(3), x(3), expected(3)
         real(dp), parameter :: tol = 1.0e-7_dp
@@ -82,7 +82,7 @@ contains
 
         do k = 0, 3
             u = [1.0_dp, 0.5_dp*pi_dp()*k, 1.1_dp]
-            call gcs%evaluate_point(u, x)
+            call bcs%evaluate_point(u, x)
             call analytic_map(u, expected)
             err = maxval(abs(x - expected))
             if (err > tol) then
@@ -94,13 +94,13 @@ contains
         if (k == 4) print *, "  PASS: boundary recovery matches analytic curve"
     end subroutine run_boundary_check
 
-    subroutine run_metric_check(gcs, nerrors)
-        type(gframe_coordinate_system_t), intent(in) :: gcs
+    subroutine run_metric_check(bcs, nerrors)
+        type(babin_coordinate_system_t), intent(in) :: bcs
         integer, intent(inout) :: nerrors
         real(dp) :: u(3), g(3,3), ginv(3,3), sqrtg
 
         u = [0.2_dp, 0.7_dp, 0.9_dp]
-        call gcs%metric_tensor(u, g, ginv, sqrtg)
+        call bcs%metric_tensor(u, g, ginv, sqrtg)
         if (sqrtg <= 0.0_dp) then
             print *, "  FAIL: Jacobian determinant not positive"
             nerrors = nerrors + 1
@@ -140,4 +140,4 @@ contains
         pi_dp = acos(-1.0_dp)
     end function pi_dp
 
-end program test_gframe_coordinates
+end program test_babin_coordinates

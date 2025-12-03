@@ -102,12 +102,6 @@ if(LIBNEO_TESTING_ENABLED)
     ${COMMON_LIBS}
     ${MAGFIE_LIB}
   )
-
-  add_executable(gframe_from_geoflux_dump.x source/gframe_from_geoflux_dump.f90)
-  target_link_libraries(gframe_from_geoflux_dump.x
-    ${COMMON_LIBS}
-    ${MAGFIE_LIB}
-  )
 endif()
 
 add_executable(test_simpson.x source/test_simpson.f90)
@@ -150,8 +144,8 @@ target_link_libraries(test_vmec_modules.x neo)
 add_executable(test_coordinate_systems.x source/test_coordinate_systems.f90)
 target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
 
-add_executable(test_gframe_coordinates.x source/test_gframe_coordinates.f90)
-target_link_libraries(test_gframe_coordinates.x neo ${MAGFIE_LIB})
+add_executable(test_babin_coordinates.x source/test_babin_coordinates.f90)
+target_link_libraries(test_babin_coordinates.x neo ${MAGFIE_LIB})
 
 # TODO: Update test for new psi_1..psi_7 interface
 # add_executable(test_analytical_gs_circular.x source/test_analytical_gs_circular.f90)
@@ -181,7 +175,7 @@ add_fortran_test(test_collision_freqs)
 add_fortran_test(test_transport)
 add_fortran_test(test_vmec_modules)
 add_fortran_test(test_coordinate_systems)
-add_fortran_test(test_gframe_coordinates)
+add_fortran_test(test_babin_coordinates)
 # add_fortran_test(test_analytical_gs_circular)  # TODO: update for new interface
 add_fortran_test(test_analytical_circular)
 
