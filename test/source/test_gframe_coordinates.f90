@@ -76,15 +76,18 @@ contains
         type(gframe_coordinate_system_t), intent(in) :: gcs
         integer, intent(inout) :: nerrors
         real(dp) :: u(3), x(3), expected(3)
-        real(dp), parameter :: tol = 5.0e-13_dp
+        real(dp), parameter :: tol = 1.0e-7_dp
+        real(dp) :: err
         integer :: k
 
         do k = 0, 3
             u = [1.0_dp, 0.5_dp*pi_dp()*k, 1.1_dp]
             call gcs%evaluate_point(u, x)
             call analytic_map(u, expected)
-            if (maxval(abs(x - expected)) > tol) then
-                print *, "  FAIL: boundary point mismatch at k=", k
+            err = maxval(abs(x - expected))
+            if (err > tol) then
+                print *, "  FAIL: boundary point mismatch at k=", k, &
+                    ", err=", err
                 nerrors = nerrors + 1
             end if
         end do
@@ -111,7 +114,7 @@ contains
         real(dp), intent(in) :: x(3)
         integer, intent(inout) :: nerrors
         real(dp) :: expected(3)
-        real(dp), parameter :: tol = 5.0e-13_dp
+        real(dp), parameter :: tol = 1.0e-9_dp
 
         call analytic_map(u, expected)
         if (maxval(abs(expected - x)) > tol) then

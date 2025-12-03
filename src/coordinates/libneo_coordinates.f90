@@ -57,12 +57,6 @@ module libneo_coordinates
         integer :: ntheta = 0
         integer :: nzeta = 0
         real(dp) :: tol_newton = 1.0e-12_dp
-        real(dp), allocatable :: rcos(:, :)
-        real(dp), allocatable :: rsin(:, :)
-        real(dp), allocatable :: zcos(:, :)
-        real(dp), allocatable :: zsin(:, :)
-        logical :: axisymmetric = .false.
-        integer :: mmax = 0
     contains
         procedure :: evaluate_point => gframe_evaluate_point
         procedure :: covariant_basis => gframe_covariant_basis

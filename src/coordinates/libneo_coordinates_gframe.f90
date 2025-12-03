@@ -36,20 +36,18 @@ contains
 
         real(dp), allocatable :: rgrid(:, :, :)
         real(dp), allocatable :: zgrid(:, :, :)
-        real(dp), allocatable :: rcos(:, :), rsin(:, :)
-        real(dp), allocatable :: zcos(:, :), zsin(:, :)
         real(dp) :: x_min(3), x_max(3)
         logical :: periodic(3)
         integer :: order(3)
-        logical :: axisymmetric
 
         order = [3, 3, 3]
-        periodic = [.false., .true., .true.]
+        periodic(1) = .false.
+        periodic(2) = .true.
+        periodic(3) = (boundary%nzeta > 1)
         x_min = [0.0_dp, 0.0_dp, 0.0_dp]
         x_max = [1.0_dp, two_pi(), two_pi()]
 
-        call build_harmonic_volume(boundary, nrho, rgrid, zgrid, rcos, rsin, &
-            zcos, zsin, axisymmetric)
+        call build_harmonic_volume(boundary, nrho, rgrid, zgrid)
 
         call construct_splines_3d(x_min, x_max, rgrid, order, periodic, &
             gcs%spl_r)
@@ -59,54 +57,34 @@ contains
         gcs%nrho = size(rgrid, 1)
         gcs%ntheta = size(rgrid, 2)
         gcs%nzeta = size(rgrid, 3)
-        gcs%axisymmetric = axisymmetric
-        gcs%mmax = size(rcos, 1) - 1
-
-        call move_alloc(rcos, gcs%rcos)
-        call move_alloc(rsin, gcs%rsin)
-        call move_alloc(zcos, gcs%zcos)
-        call move_alloc(zsin, gcs%zsin)
 
         call destroy_volume(rgrid, zgrid)
     end subroutine initialize_gframe
 
-    subroutine build_harmonic_volume(boundary, nrho, rgrid, zgrid, rcos, rsin, &
-        zcos, zsin, axisymmetric)
+    subroutine build_harmonic_volume(boundary, nrho, rgrid, zgrid)
         type(gframe_boundary_t), intent(in) :: boundary
         integer, intent(in) :: nrho
         real(dp), allocatable, intent(out) :: rgrid(:, :, :)
         real(dp), allocatable, intent(out) :: zgrid(:, :, :)
-        real(dp), allocatable, intent(out) :: rcos(:, :)
-        real(dp), allocatable, intent(out) :: rsin(:, :)
-        real(dp), allocatable, intent(out) :: zcos(:, :)
-        real(dp), allocatable, intent(out) :: zsin(:, :)
-        logical, intent(out) :: axisymmetric
 
         integer :: mmax
         integer :: jt, jz, ir, m
         real(dp) :: theta_val, rho_val
         real(dp) :: r_acc, z_acc
-        real(dp) :: rb_first, zb_first
+        real(dp), allocatable :: rcos(:, :)
+        real(dp), allocatable :: rsin(:, :)
+        real(dp), allocatable :: zcos(:, :)
+        real(dp), allocatable :: zsin(:, :)
 
         mmax = (boundary%ntheta - 1)/2
+        allocate(rgrid(nrho, boundary%ntheta, boundary%nzeta))
+        allocate(zgrid(nrho, boundary%ntheta, boundary%nzeta))
+
         allocate(rcos(mmax + 1, boundary%nzeta))
         allocate(rsin(mmax + 1, boundary%nzeta))
         allocate(zcos(mmax + 1, boundary%nzeta))
         allocate(zsin(mmax + 1, boundary%nzeta))
         call fourier_project(boundary, mmax, rcos, rsin, zcos, zsin)
-
-        allocate(rgrid(nrho, boundary%ntheta, boundary%nzeta))
-        allocate(zgrid(nrho, boundary%ntheta, boundary%nzeta))
-
-        axisymmetric = .true.
-        do jz = 2, boundary%nzeta
-            rb_first = maxval(abs(boundary%Rb(:, jz) - boundary%Rb(:, 1)))
-            zb_first = maxval(abs(boundary%Zb(:, jz) - boundary%Zb(:, 1)))
-            if (rb_first > 1.0e-12_dp .or. zb_first > 1.0e-12_dp) then
-                axisymmetric = .false.
-                exit
-            end if
-        end do
 
         do jz = 1, boundary%nzeta
             do jt = 1, boundary%ntheta
@@ -120,6 +98,7 @@ contains
                 end do
             end do
         end do
+        deallocate(rcos, rsin, zcos, zsin)
     end subroutine build_harmonic_volume
 
     subroutine reconstruct_point(theta, rho, iz, mmax, rcos, rsin, zcos, zsin, &
@@ -195,67 +174,6 @@ contains
         end do
     end subroutine fourier_project
 
-    subroutine evaluate_fourier_map(self, u, R, Z, dR, dZ)
-        class(gframe_coordinate_system_t), intent(in) :: self
-        real(dp), intent(in) :: u(3)
-        real(dp), intent(out) :: R, Z
-        real(dp), intent(out), optional :: dR(3), dZ(3)
-
-        integer :: m
-        real(dp) :: rho, theta
-        real(dp) :: rho_pow, rho_der
-        real(dp) :: cos_m, sin_m
-
-        rho = u(1)
-        theta = u(2)
-
-        R = self%rcos(1, 1)
-        Z = self%zcos(1, 1)
-        if (present(dR)) then
-            dR = 0.0_dp
-            dZ = 0.0_dp
-        end if
-
-        rho_pow = 1.0_dp
-        do m = 1, self%mmax
-            rho_pow = rho_pow * rho
-            cos_m = cos(real(m, dp) * theta)
-            sin_m = sin(real(m, dp) * theta)
-
-            R = R + rho_pow * (self%rcos(m + 1, 1) * cos_m + &
-                self%rsin(m + 1, 1) * sin_m)
-            Z = Z + rho_pow * (self%zcos(m + 1, 1) * cos_m + &
-                self%zsin(m + 1, 1) * sin_m)
-
-            if (present(dR)) then
-                if (rho == 0.0_dp) then
-                    if (m == 1) then
-                        rho_der = 1.0_dp
-                    else
-                        rho_der = 0.0_dp
-                    end if
-                else
-                    rho_der = real(m, dp) * rho_pow / rho
-                end if
-
-                dR(1) = dR(1) + rho_der * (self%rcos(m + 1, 1) * cos_m &
-                    + self%rsin(m + 1, 1) * sin_m)
-                dZ(1) = dZ(1) + rho_der * (self%zcos(m + 1, 1) * cos_m &
-                    + self%zsin(m + 1, 1) * sin_m)
-
-                dR(2) = dR(2) + rho_pow * real(m, dp) * (-self%rcos(m + 1, 1) &
-                    * sin_m + self%rsin(m + 1, 1) * cos_m)
-                dZ(2) = dZ(2) + rho_pow * real(m, dp) * (-self%zcos(m + 1, 1) &
-                    * sin_m + self%zsin(m + 1, 1) * cos_m)
-            end if
-        end do
-
-        if (present(dR)) then
-            dR(3) = 0.0_dp
-            dZ(3) = 0.0_dp
-        end if
-    end subroutine evaluate_fourier_map
-
     subroutine gframe_evaluate_point(self, u, x)
         class(gframe_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
@@ -263,12 +181,8 @@ contains
 
         real(dp) :: R, Z
 
-        if (self%axisymmetric) then
-            call evaluate_fourier_map(self, u, R, Z)
-        else
-            call evaluate_splines_3d(self%spl_r, u, R)
-            call evaluate_splines_3d(self%spl_z, u, Z)
-        end if
+        call evaluate_splines_3d(self%spl_r, u, R)
+        call evaluate_splines_3d(self%spl_z, u, Z)
 
         x(1) = R
         x(2) = u(3)
@@ -284,12 +198,8 @@ contains
         real(dp) :: dR(3), dZ(3)
         real(dp) :: cos_phi, sin_phi
 
-        if (self%axisymmetric) then
-            call evaluate_fourier_map(self, u, R, Z, dR, dZ)
-        else
-            call evaluate_splines_3d_der(self%spl_r, u, R, dR)
-            call evaluate_splines_3d_der(self%spl_z, u, Z, dZ)
-        end if
+        call evaluate_splines_3d_der(self%spl_r, u, R, dR)
+        call evaluate_splines_3d_der(self%spl_z, u, Z, dZ)
 
         cos_phi = cos(u(3))
         sin_phi = sin(u(3))
@@ -373,32 +283,20 @@ contains
 
         ierr = 0
         uvec = [0.0_dp, 0.0_dp, zeta]
-        if (self%axisymmetric) then
-            call evaluate_fourier_map(self, uvec, axis_R, axis_Z)
-        else
-            call evaluate_splines_3d(self%spl_r, uvec, axis_R)
-            call evaluate_splines_3d(self%spl_z, uvec, axis_Z)
-        end if
+        call evaluate_splines_3d(self%spl_r, uvec, axis_R)
+        call evaluate_splines_3d(self%spl_z, uvec, axis_Z)
         theta = atan2(Z_target - axis_Z, R_target - axis_R)
         uvec = [1.0_dp, theta, zeta]
-        if (self%axisymmetric) then
-            call evaluate_fourier_map(self, uvec, bound_R, bound_Z)
-        else
-            call evaluate_splines_3d(self%spl_r, uvec, bound_R)
-            call evaluate_splines_3d(self%spl_z, uvec, bound_Z)
-        end if
+        call evaluate_splines_3d(self%spl_r, uvec, bound_R)
+        call evaluate_splines_3d(self%spl_z, uvec, bound_Z)
         rho = sqrt((R_target - axis_R) ** 2 + (Z_target - axis_Z) ** 2) &
             / max(1.0e-12_dp, sqrt((bound_R - axis_R) ** 2 + (bound_Z - axis_Z) ** 2))
         rho = min(max(rho, 0.0_dp), 1.0_dp)
 
         do iter = 1, 30
             uvec = [rho, theta, zeta]
-            if (self%axisymmetric) then
-                call evaluate_fourier_map(self, uvec, R_val, Z_val, dR, dZ)
-            else
-                call evaluate_splines_3d_der(self%spl_r, uvec, R_val, dR)
-                call evaluate_splines_3d_der(self%spl_z, uvec, Z_val, dZ)
-            end if
+            call evaluate_splines_3d_der(self%spl_r, uvec, R_val, dR)
+            call evaluate_splines_3d_der(self%spl_z, uvec, Z_val, dZ)
 
             det = dR(1) * dZ(2) - dR(2) * dZ(1)
             if (abs(det) < 1.0e-18_dp) then

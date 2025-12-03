@@ -6,6 +6,7 @@ module gframe_boundary
     public :: gframe_boundary_t
     public :: make_circular_boundary
     public :: boundary_from_modes
+    public :: allocate_boundary
 
     type :: gframe_boundary_t
         integer :: ntheta = 0

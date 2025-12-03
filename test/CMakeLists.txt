@@ -102,6 +102,12 @@ if(LIBNEO_TESTING_ENABLED)
     ${COMMON_LIBS}
     ${MAGFIE_LIB}
   )
+
+  add_executable(gframe_from_geoflux_dump.x source/gframe_from_geoflux_dump.f90)
+  target_link_libraries(gframe_from_geoflux_dump.x
+    ${COMMON_LIBS}
+    ${MAGFIE_LIB}
+  )
 endif()
 
 add_executable(test_simpson.x source/test_simpson.f90)
