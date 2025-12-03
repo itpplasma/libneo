@@ -102,7 +102,7 @@ def make_curve_from_discrete_boundary(boundary: np.ndarray) -> callable:
         raise ValueError("need at least 8 boundary points for Fourier fit")
     theta_nodes = np.linspace(0.0, 2.0 * np.pi, npts, endpoint=False)
 
-    mmax = min(npts // 2, 32)
+    mmax = min(npts // 2, 64)
     m_vals = np.arange(0, mmax + 1, dtype=int)
 
     aR = np.zeros(mmax + 1)
@@ -143,10 +143,10 @@ def make_curve_from_discrete_boundary(boundary: np.ndarray) -> callable:
     return curve
 
 
-def build_babin_mapping(boundary: np.ndarray, M: int = 10) -> m2d.BoundaryConformingMapping:
+def build_babin_mapping(boundary: np.ndarray, M: int = 16) -> m2d.BoundaryConformingMapping:
     """Construct a Babin (map2disc) mapping for a given RZ boundary."""
     curve = make_curve_from_discrete_boundary(boundary)
-    bcm = m2d.BoundaryConformingMapping(curve=curve, M=M, Nt=256, Ng=(128, 128))
+    bcm = m2d.BoundaryConformingMapping(curve=curve, M=M, Nt=512, Ng=(256, 256))
     bcm.solve_domain2disk()
     bcm.solve_disk2domain()
     return bcm
