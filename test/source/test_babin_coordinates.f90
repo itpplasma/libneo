@@ -2,6 +2,7 @@ program test_babin_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_coordinates, only: coordinate_system_t, &
         make_babin_coordinate_system, babin_coordinate_system_t
+    use math_constants, only: TWOPI
     use nctools_module, only: nc_open, nc_close, nc_get
     implicit none
 
@@ -68,8 +69,7 @@ contains
         i_rho = 12
         i_theta = 17
         rho_val = real(i_rho - 1, dp) / real(nrho - 1, dp)
-        theta_val = 2.0_dp * acos(-1.0_dp) * real(i_theta - 1, dp) &
-            / real(ntheta, dp)
+        theta_val = TWOPI * real(i_theta - 1, dp) / real(ntheta, dp)
 
         u = [rho_val, theta_val, 0.0_dp]
         call bcs%evaluate_point(u, x)
@@ -86,7 +86,7 @@ contains
             print *, "  FAIL: inverse mapping reported error code ", ierr
             nerrors = nerrors + 1
         else if (abs(u_back(1) - rho_val) > tol_u .or. &
-                 abs(modulo(u_back(2) - theta_val, 2.0_dp*acos(-1.0_dp))) > tol_u) then
+                 abs(modulo(u_back(2) - theta_val, TWOPI)) > tol_u) then
             print *, "  FAIL: roundtrip mismatch in Babin coordinates"
             nerrors = nerrors + 1
         else
@@ -114,7 +114,7 @@ contains
 
         do i_theta = 1, 4
             u(1) = 1.0_dp
-            u(2) = 2.0_dp * acos(-1.0_dp) * real(i_theta - 1, dp) / real(ntheta, dp)
+            u(2) = TWOPI * real(i_theta - 1, dp) / real(ntheta, dp)
             u(3) = 0.0_dp
 
             call bcs%evaluate_point(u, x)
@@ -136,14 +136,60 @@ contains
         type(babin_coordinate_system_t), intent(in) :: bcs
         integer, intent(inout) :: nerrors
         real(dp) :: u(3), g(3,3), ginv(3,3), sqrtg
+        real(dp) :: identity(3,3), prod(3,3)
+        real(dp), parameter :: tol = 1.0e-10_dp
+        integer :: i, j, k
+        logical :: sym_ok, id_ok
 
         u = [0.2_dp, 0.7_dp, 0.9_dp]
         call bcs%metric_tensor(u, g, ginv, sqrtg)
+
         if (sqrtg <= 0.0_dp) then
             print *, "  FAIL: Jacobian determinant not positive"
             nerrors = nerrors + 1
         else
             print *, "  PASS: Jacobian determinant positive"
+        end if
+
+        sym_ok = .true.
+        do i = 1, 3
+            do j = i + 1, 3
+                if (abs(g(i, j) - g(j, i)) > tol) sym_ok = .false.
+                if (abs(ginv(i, j) - ginv(j, i)) > tol) sym_ok = .false.
+            end do
+        end do
+        if (.not. sym_ok) then
+            print *, "  FAIL: metric tensor not symmetric"
+            nerrors = nerrors + 1
+        else
+            print *, "  PASS: metric tensor symmetry"
+        end if
+
+        identity = 0.0_dp
+        do i = 1, 3
+            identity(i, i) = 1.0_dp
+        end do
+
+        prod = 0.0_dp
+        do i = 1, 3
+            do j = 1, 3
+                do k = 1, 3
+                    prod(i, j) = prod(i, j) + g(i, k) * ginv(k, j)
+                end do
+            end do
+        end do
+
+        id_ok = .true.
+        do i = 1, 3
+            do j = 1, 3
+                if (abs(prod(i, j) - identity(i, j)) > tol) id_ok = .false.
+            end do
+        end do
+        if (.not. id_ok) then
+            print *, "  FAIL: g * ginv /= identity"
+            nerrors = nerrors + 1
+        else
+            print *, "  PASS: g * ginv = identity"
         end if
     end subroutine run_metric_check
 

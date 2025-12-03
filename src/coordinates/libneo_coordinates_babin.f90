@@ -1,5 +1,6 @@
 submodule (libneo_coordinates) libneo_coordinates_babin
     use nctools_module, only: nc_open, nc_close, nc_inq_dim, nc_get
+    use math_constants, only: TWOPI
     use interpolate, only: SplineData3D, construct_splines_3d, &
         evaluate_splines_3d, evaluate_splines_3d_der, destroy_splines_3d
     implicit none
@@ -162,8 +163,8 @@ contains
 
         call newton_slice(self, xcyl(1), xcyl(3), xcyl(2), rho_theta, ierr)
         u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
-        u(2) = modulo(rho_theta(2), 2.0_dp*acos(-1.0_dp))
-        u(3) = modulo(xcyl(2), 2.0_dp*acos(-1.0_dp))
+        u(2) = modulo(rho_theta(2), TWOPI)
+        u(3) = modulo(xcyl(2), TWOPI)
     end subroutine babin_from_cyl
 
     subroutine newton_slice(self, R_target, Z_target, zeta, rho_theta, ierr)
@@ -211,7 +212,7 @@ contains
                 * (R_target - R_val)) / det
 
             rho = rho + delta_rho
-            theta = modulo(theta + delta_theta, 2.0_dp*acos(-1.0_dp))
+            theta = modulo(theta + delta_theta, TWOPI)
 
             if (abs(delta_rho) < self%tol_newton .and. abs(delta_theta) &
                 < self%tol_newton) exit
