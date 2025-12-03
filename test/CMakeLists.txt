@@ -154,6 +154,11 @@ target_link_libraries(test_babin_coordinates.x neo ${MAGFIE_LIB})
 add_executable(test_analytical_circular.x source/test_analytical_circular.f90)
 target_link_libraries(test_analytical_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
 
+add_executable(test_nctools_nc_get3.x source/test_nctools_nc_get3.f90)
+target_link_libraries(test_nctools_nc_get3.x
+  ${COMMON_LIBS}
+)
+
 
 ## Standard tests according to standard libneo Fortran test convention.
 
@@ -175,9 +180,9 @@ add_fortran_test(test_collision_freqs)
 add_fortran_test(test_transport)
 add_fortran_test(test_vmec_modules)
 add_fortran_test(test_coordinate_systems)
-add_fortran_test(test_babin_coordinates)
 # add_fortran_test(test_analytical_gs_circular)  # TODO: update for new interface
 add_fortran_test(test_analytical_circular)
+add_fortran_test(test_nctools_nc_get3)
 
 add_test(
   NAME test_ascot5_compare
@@ -240,6 +245,18 @@ set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived 
 add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
+
+add_test(
+  NAME setup_babin_volume
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_babin_volume.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_babin_coordinates
+  COMMAND test_babin_coordinates.x)
+set_tests_properties(test_babin_coordinates PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  DEPENDS setup_babin_volume)
 
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)

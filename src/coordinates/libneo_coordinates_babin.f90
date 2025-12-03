@@ -1,178 +1,79 @@
 submodule (libneo_coordinates) libneo_coordinates_babin
-    use babin_boundary, only: babin_boundary_t
+    use nctools_module, only: nc_open, nc_close, nc_inq_dim, nc_get
     use interpolate, only: SplineData3D, construct_splines_3d, &
         evaluate_splines_3d, evaluate_splines_3d_der, destroy_splines_3d
     implicit none
 
 contains
 
-    module subroutine make_babin_coordinate_system(cs, boundary, nrho)
+    module subroutine make_babin_coordinate_system(cs, filename)
         class(coordinate_system_t), allocatable, intent(out) :: cs
-        type(babin_boundary_t), intent(in) :: boundary
-        integer, intent(in), optional :: nrho
+        character(len=*), intent(in) :: filename
 
         type(babin_coordinate_system_t), pointer :: bcs
-        integer :: nrho_eff
 
-        if (present(nrho)) then
-            nrho_eff = nrho
-        else
-            nrho_eff = 33
-        end if
         allocate(babin_coordinate_system_t :: cs)
 
         select type (bcs => cs)
         type is (babin_coordinate_system_t)
-            call initialize_babin(bcs, boundary, nrho_eff)
+            call initialize_babin(bcs, filename)
         class default
             error stop "make_babin_coordinate_system: allocation failed"
         end select
     end subroutine make_babin_coordinate_system
 
-    subroutine initialize_babin(bcs, boundary, nrho)
+    subroutine initialize_babin(bcs, filename)
         type(babin_coordinate_system_t), intent(inout) :: bcs
-        type(babin_boundary_t), intent(in) :: boundary
-        integer, intent(in) :: nrho
+        character(len=*), intent(in) :: filename
 
+        integer :: ncid
+        integer :: len_r, len_theta, len_z
+        integer :: nrho, ntheta, nzeta
+        real(dp), allocatable :: rho(:), theta(:), zeta(:)
         real(dp), allocatable :: rgrid(:, :, :)
         real(dp), allocatable :: zgrid(:, :, :)
         real(dp) :: x_min(3), x_max(3)
         logical :: periodic(3)
         integer :: order(3)
 
+        call nc_open(trim(filename), ncid)
+
+        call nc_inq_dim(ncid, 'rho',  len_r)
+        call nc_inq_dim(ncid, 'theta', len_theta)
+        call nc_inq_dim(ncid, 'zeta', len_z)
+
+        nrho   = len_r
+        ntheta = len_theta
+        nzeta  = len_z
+
+        allocate(rho(nrho), theta(ntheta), zeta(nzeta))
+        call nc_get(ncid, 'rho',   rho)
+        call nc_get(ncid, 'theta', theta)
+        call nc_get(ncid, 'zeta',  zeta)
+
+        allocate(rgrid(nrho, ntheta, nzeta))
+        allocate(zgrid(nrho, ntheta, nzeta))
+        call nc_get(ncid, 'R', rgrid)
+        call nc_get(ncid, 'Z', zgrid)
+        call nc_close(ncid)
+
         order = [3, 3, 3]
+        x_min = [rho(1), theta(1), zeta(1)]
+        x_max = [rho(nrho), theta(ntheta), zeta(nzeta)]
+
         periodic(1) = .false.
         periodic(2) = .true.
-        periodic(3) = (boundary%nzeta > 1)
-        x_min = [0.0_dp, 0.0_dp, 0.0_dp]
-        x_max = [1.0_dp, two_pi(), two_pi()]
-
-        call build_harmonic_volume(boundary, nrho, rgrid, zgrid)
+        periodic(3) = (nzeta > 1)
 
         call construct_splines_3d(x_min, x_max, rgrid, order, periodic, &
             bcs%spl_r)
         call construct_splines_3d(x_min, x_max, zgrid, order, periodic, &
             bcs%spl_z)
 
-        bcs%nrho = size(rgrid, 1)
-        bcs%ntheta = size(rgrid, 2)
-        bcs%nzeta = size(rgrid, 3)
-
-        call destroy_volume(rgrid, zgrid)
+        bcs%nrho = nrho
+        bcs%ntheta = ntheta
+        bcs%nzeta = nzeta
     end subroutine initialize_babin
-
-    subroutine build_harmonic_volume(boundary, nrho, rgrid, zgrid)
-        type(babin_boundary_t), intent(in) :: boundary
-        integer, intent(in) :: nrho
-        real(dp), allocatable, intent(out) :: rgrid(:, :, :)
-        real(dp), allocatable, intent(out) :: zgrid(:, :, :)
-
-        integer :: mmax
-        integer :: jt, jz, ir, m
-        real(dp) :: theta_val, rho_val
-        real(dp) :: r_acc, z_acc
-        real(dp), allocatable :: rcos(:, :)
-        real(dp), allocatable :: rsin(:, :)
-        real(dp), allocatable :: zcos(:, :)
-        real(dp), allocatable :: zsin(:, :)
-
-        mmax = (boundary%ntheta - 1)/2
-        allocate(rgrid(nrho, boundary%ntheta, boundary%nzeta))
-        allocate(zgrid(nrho, boundary%ntheta, boundary%nzeta))
-
-        allocate(rcos(mmax + 1, boundary%nzeta))
-        allocate(rsin(mmax + 1, boundary%nzeta))
-        allocate(zcos(mmax + 1, boundary%nzeta))
-        allocate(zsin(mmax + 1, boundary%nzeta))
-        call fourier_project(boundary, mmax, rcos, rsin, zcos, zsin)
-
-        do jz = 1, boundary%nzeta
-            do jt = 1, boundary%ntheta
-                theta_val = boundary%theta(jt)
-                do ir = 1, nrho
-                    rho_val = real(ir - 1, dp) / real(nrho - 1, dp)
-                    call reconstruct_point(theta_val, rho_val, jz, mmax, rcos, &
-                        rsin, zcos, zsin, r_acc, z_acc)
-                    rgrid(ir, jt, jz) = r_acc
-                    zgrid(ir, jt, jz) = z_acc
-                end do
-            end do
-        end do
-        deallocate(rcos, rsin, zcos, zsin)
-    end subroutine build_harmonic_volume
-
-    subroutine reconstruct_point(theta, rho, iz, mmax, rcos, rsin, zcos, zsin, &
-        rout, zout)
-        real(dp), intent(in) :: theta, rho
-        integer, intent(in) :: iz, mmax
-        real(dp), intent(in) :: rcos(:, :), rsin(:, :)
-        real(dp), intent(in) :: zcos(:, :), zsin(:, :)
-        real(dp), intent(out) :: rout, zout
-
-        integer :: m, m_idx
-        real(dp) :: rho_pow
-
-        rout = rcos(1, iz)
-        zout = zcos(1, iz)
-        rho_pow = rho
-
-        do m = 1, mmax
-            m_idx = m + 1
-            rout = rout + rho_pow * (rcos(m_idx, iz) * cos(real(m, dp) * theta) &
-                + rsin(m_idx, iz) * sin(real(m, dp) * theta))
-            zout = zout + rho_pow * (zcos(m_idx, iz) * cos(real(m, dp) * theta) &
-                + zsin(m_idx, iz) * sin(real(m, dp) * theta))
-            rho_pow = rho_pow * rho
-        end do
-    end subroutine reconstruct_point
-
-    subroutine fourier_project(boundary, mmax, rcos, rsin, zcos, zsin)
-        type(babin_boundary_t), intent(in) :: boundary
-        integer, intent(in) :: mmax
-        real(dp), intent(out) :: rcos(:, :), rsin(:, :)
-        real(dp), intent(out) :: zcos(:, :), zsin(:, :)
-
-        integer :: jz, jt, m, m_idx, ntheta_eff
-        real(dp) :: theta_val, scale
-
-        rcos = 0.0_dp
-        rsin = 0.0_dp
-        zcos = 0.0_dp
-        zsin = 0.0_dp
-        ntheta_eff = boundary%ntheta - 1
-        scale = 2.0_dp / real(ntheta_eff, dp)
-
-        do jz = 1, boundary%nzeta
-            do m = 0, mmax
-                m_idx = m + 1
-                do jt = 1, ntheta_eff
-                    theta_val = boundary%theta(jt)
-                    if (m == 0) then
-                        rcos(m_idx, jz) = rcos(m_idx, jz) + boundary%Rb(jt, jz)
-                        zcos(m_idx, jz) = zcos(m_idx, jz) + boundary%Zb(jt, jz)
-                    else
-                        rcos(m_idx, jz) = rcos(m_idx, jz) + boundary%Rb(jt, jz) &
-                            * cos(real(m, dp) * theta_val)
-                        rsin(m_idx, jz) = rsin(m_idx, jz) + boundary%Rb(jt, jz) &
-                            * sin(real(m, dp) * theta_val)
-                        zcos(m_idx, jz) = zcos(m_idx, jz) + boundary%Zb(jt, jz) &
-                            * cos(real(m, dp) * theta_val)
-                        zsin(m_idx, jz) = zsin(m_idx, jz) + boundary%Zb(jt, jz) &
-                            * sin(real(m, dp) * theta_val)
-                    end if
-                end do
-                if (m == 0) then
-                    rcos(m_idx, jz) = rcos(m_idx, jz) / real(ntheta_eff, dp)
-                    zcos(m_idx, jz) = zcos(m_idx, jz) / real(ntheta_eff, dp)
-                else
-                    rcos(m_idx, jz) = scale * rcos(m_idx, jz)
-                    rsin(m_idx, jz) = scale * rsin(m_idx, jz)
-                    zcos(m_idx, jz) = scale * zcos(m_idx, jz)
-                    zsin(m_idx, jz) = scale * zsin(m_idx, jz)
-                end if
-            end do
-        end do
-    end subroutine fourier_project
 
     subroutine babin_evaluate_point(self, u, x)
         class(babin_coordinate_system_t), intent(in) :: self
@@ -261,8 +162,8 @@ contains
 
         call newton_slice(self, xcyl(1), xcyl(3), xcyl(2), rho_theta, ierr)
         u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
-        u(2) = modulo(rho_theta(2), two_pi())
-        u(3) = modulo(xcyl(2), two_pi())
+        u(2) = modulo(rho_theta(2), 2.0_dp*acos(-1.0_dp))
+        u(3) = modulo(xcyl(2), 2.0_dp*acos(-1.0_dp))
     end subroutine babin_from_cyl
 
     subroutine newton_slice(self, R_target, Z_target, zeta, rho_theta, ierr)
@@ -310,7 +211,7 @@ contains
                 * (R_target - R_val)) / det
 
             rho = rho + delta_rho
-            theta = modulo(theta + delta_theta, two_pi())
+            theta = modulo(theta + delta_theta, 2.0_dp*acos(-1.0_dp))
 
             if (abs(delta_rho) < self%tol_newton .and. abs(delta_theta) &
                 < self%tol_newton) exit
@@ -326,17 +227,5 @@ contains
 
         rho_theta = [rho, theta]
     end subroutine newton_slice
-
-    subroutine destroy_volume(rgrid, zgrid)
-        real(dp), allocatable, intent(inout) :: rgrid(:, :, :)
-        real(dp), allocatable, intent(inout) :: zgrid(:, :, :)
-
-        if (allocated(rgrid)) deallocate(rgrid)
-        if (allocated(zgrid)) deallocate(zgrid)
-    end subroutine destroy_volume
-
-    pure real(dp) function two_pi()
-        two_pi = 2.0_dp * acos(-1.0_dp)
-    end function two_pi
 
 end submodule libneo_coordinates_babin

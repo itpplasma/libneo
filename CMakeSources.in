@@ -22,7 +22,6 @@ add_library(neo STATIC
     src/coordinates/cylindrical_cartesian.f90
     src/coordinates/vmec_coordinates.f90
     src/coordinates/geoflux_coordinates.f90
-    src/coordinates/babin_boundary.f90
     src/coordinates/libneo_coordinates.f90
     src/coordinates/libneo_coordinates_vmec.f90
     src/coordinates/libneo_coordinates_geoflux.f90

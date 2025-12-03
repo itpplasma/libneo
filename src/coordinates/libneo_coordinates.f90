@@ -1,6 +1,5 @@
 module libneo_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use babin_boundary, only: babin_boundary_t
     use interpolate, only: SplineData3D
     implicit none
 
@@ -43,10 +42,9 @@ module libneo_coordinates
             class(coordinate_system_t), allocatable, intent(out) :: cs
         end subroutine
 
-        module subroutine make_babin_coordinate_system(cs, boundary, nrho)
+        module subroutine make_babin_coordinate_system(cs, filename)
             class(coordinate_system_t), allocatable, intent(out) :: cs
-            type(babin_boundary_t), intent(in) :: boundary
-            integer, intent(in), optional :: nrho
+            character(len=*), intent(in) :: filename
         end subroutine
     end interface
 

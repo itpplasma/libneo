@@ -160,21 +160,27 @@ def sample_babin_grid(
     n_radial_samples: int = 120,
 ) -> dict[str, list[np.ndarray]]:
     """Sample Babin coordinate lines from a map2disc mapping."""
-    rho_vals = np.linspace(0.1, 0.9, n_surface)
+    if n_surface < 2:
+        n_surface = 2
+    rho_inner = np.linspace(0.1, 0.9, n_surface - 1)
+    rho_vals = np.concatenate([rho_inner, [1.0]])
     theta = np.linspace(0.0, 2.0 * np.pi, n_surface_samples + 1)
     surfaces: list[np.ndarray] = []
     thetas: list[np.ndarray] = []
 
-    for rho in rho_vals:
-        r_arr = np.full_like(theta, rho)
-        xy = bcm.eval_xy(r_arr, theta)
-        surfaces.append(np.vstack((xy[0], xy[1])))
+    # Precompute full tensor grid via polar evaluation
+    xy_full = bcm.eval_rt_1d(rho_vals, theta)
+    R_full = xy_full[0]
+    Z_full = xy_full[1]
+
+    for i, _rho in enumerate(rho_vals):
+        surfaces.append(np.vstack((R_full[i, :], Z_full[i, :])))
 
     theta_lines = np.linspace(0.0, 2.0 * np.pi, n_theta_lines, endpoint=False)
-    radial = np.linspace(0.0, 0.95, n_radial_samples)
+    radial = np.linspace(0.0, 1.0, n_radial_samples)
     for ang in theta_lines:
         t_arr = np.full_like(radial, ang)
-        xy = bcm.eval_xy(radial, t_arr)
+        xy = bcm.eval_rt(radial, t_arr)
         thetas.append(np.vstack((xy[0], xy[1])))
 
     return {"surfaces": surfaces, "thetas": thetas}

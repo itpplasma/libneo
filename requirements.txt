@@ -2,3 +2,4 @@ numpy
 scipy
 matplotlib
 netCDF4
+map2disc

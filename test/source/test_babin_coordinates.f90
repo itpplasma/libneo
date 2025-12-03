@@ -2,25 +2,23 @@ program test_babin_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_coordinates, only: coordinate_system_t, &
         make_babin_coordinate_system, babin_coordinate_system_t
-    use babin_boundary, only: babin_boundary_t, make_circular_boundary
+    use nctools_module, only: nc_open, nc_close, nc_get
     implicit none
 
     integer :: nerrors
     logical :: all_passed
     class(coordinate_system_t), allocatable :: cs
-    type(babin_boundary_t) :: boundary
     type(babin_coordinate_system_t), pointer :: bcs
     real(dp) :: u(3), x(3), u_back(3)
     integer :: ierr
+    character(len=*), parameter :: volume_file = "babin_circular.nc"
 
     nerrors = 0
     all_passed = .true.
 
-    print *, "Testing Babin coordinate system..."
-    call make_circular_boundary(boundary, ntheta = 64, nzeta = 8, r0 = 1.7_dp, &
-        a = 0.35_dp)
+    print *, "Testing Babin coordinate system (map2disc volume)..."
 
-    call make_babin_coordinate_system(cs, boundary)
+    call make_babin_coordinate_system(cs, volume_file)
 
     if (.not. allocated(cs)) then
         print *, "  FAIL: make_babin_coordinate_system did not allocate cs"
@@ -51,47 +49,87 @@ contains
     subroutine run_roundtrip_check(bcs, nerrors)
         type(babin_coordinate_system_t), intent(in) :: bcs
         integer, intent(inout) :: nerrors
+        real(dp), allocatable :: R_ref(:, :, :), Z_ref(:, :, :)
+        real(dp) :: rho_val, theta_val
         real(dp) :: u(3), x(3), u_back(3)
-        integer :: ierr
+        integer :: ierr, ncid
+        integer :: i_rho, i_theta
+        integer, parameter :: nrho = 33, ntheta = 64, nzeta = 4
+        real(dp), parameter :: tol_u = 1.0e-8_dp
+        real(dp), parameter :: tol_x = 1.0e-10_dp
 
-        u = [0.35_dp, 1.1_dp, 0.6_dp]
+        call nc_open(volume_file, ncid)
+        allocate(R_ref(nrho, ntheta, nzeta))
+        allocate(Z_ref(nrho, ntheta, nzeta))
+        call nc_get(ncid, "R", R_ref)
+        call nc_get(ncid, "Z", Z_ref)
+        call nc_close(ncid)
+
+        i_rho = 12
+        i_theta = 17
+        rho_val = real(i_rho - 1, dp) / real(nrho - 1, dp)
+        theta_val = 2.0_dp * acos(-1.0_dp) * real(i_theta - 1, dp) &
+            / real(ntheta, dp)
+
+        u = [rho_val, theta_val, 0.0_dp]
         call bcs%evaluate_point(u, x)
-        call bcs%from_cyl(x, u_back, ierr)
+
+        if (abs(x(1) - R_ref(i_rho, i_theta, 1)) > tol_x .or. &
+            abs(x(3) - Z_ref(i_rho, i_theta, 1)) > tol_x) then
+            print *, "  FAIL: forward map does not reproduce reference R,Z"
+            nerrors = nerrors + 1
+        end if
+
+        call bcs%from_cyl([x(1), u(3), x(3)], u_back, ierr)
 
         if (ierr /= 0) then
             print *, "  FAIL: inverse mapping reported error code ", ierr
             nerrors = nerrors + 1
-        else if (maxval(abs(u_back - u)) > 1.0e-10_dp) then
-            print *, "  FAIL: roundtrip mismatch: |u_back - u| = ", &
-                maxval(abs(u_back - u))
+        else if (abs(u_back(1) - rho_val) > tol_u .or. &
+                 abs(modulo(u_back(2) - theta_val, 2.0_dp*acos(-1.0_dp))) > tol_u) then
+            print *, "  FAIL: roundtrip mismatch in Babin coordinates"
             nerrors = nerrors + 1
         else
-            print *, "  PASS: forward/inverse roundtrip within tolerance"
+            print *, "  PASS: forward/inverse roundtrip against map2disc volume"
         end if
 
-        call verify_against_analytic(u, x, nerrors)
     end subroutine run_roundtrip_check
 
     subroutine run_boundary_check(bcs, nerrors)
         type(babin_coordinate_system_t), intent(in) :: bcs
         integer, intent(inout) :: nerrors
-        real(dp) :: u(3), x(3), expected(3)
-        real(dp), parameter :: tol = 1.0e-7_dp
-        real(dp) :: err
-        integer :: k
+        real(dp), allocatable :: R_ref(:, :, :), Z_ref(:, :, :)
+        real(dp) :: u(3), x(3)
+        integer :: ncid
+        integer :: i_theta
+        integer, parameter :: nrho = 33, ntheta = 64, nzeta = 4
+        real(dp), parameter :: tol = 1.0e-8_dp
 
-        do k = 0, 3
-            u = [1.0_dp, 0.5_dp*pi_dp()*k, 1.1_dp]
+        call nc_open(volume_file, ncid)
+        allocate(R_ref(nrho, ntheta, nzeta))
+        allocate(Z_ref(nrho, ntheta, nzeta))
+        call nc_get(ncid, "R", R_ref)
+        call nc_get(ncid, "Z", Z_ref)
+        call nc_close(ncid)
+
+        do i_theta = 1, 4
+            u(1) = 1.0_dp
+            u(2) = 2.0_dp * acos(-1.0_dp) * real(i_theta - 1, dp) / real(ntheta, dp)
+            u(3) = 0.0_dp
+
             call bcs%evaluate_point(u, x)
-            call analytic_map(u, expected)
-            err = maxval(abs(x - expected))
-            if (err > tol) then
-                print *, "  FAIL: boundary point mismatch at k=", k, &
-                    ", err=", err
+
+            if (abs(x(1) - R_ref(nrho, i_theta, 1)) > tol .or. &
+                abs(x(3) - Z_ref(nrho, i_theta, 1)) > tol) then
+                print *, "  FAIL: boundary point mismatch at theta index=", &
+                    i_theta
                 nerrors = nerrors + 1
             end if
         end do
-        if (k == 4) print *, "  PASS: boundary recovery matches analytic curve"
+
+        if (nerrors == 0) then
+            print *, "  PASS: boundary recovery matches map2disc volume"
+        end if
     end subroutine run_boundary_check
 
     subroutine run_metric_check(bcs, nerrors)
@@ -108,36 +146,5 @@ contains
             print *, "  PASS: Jacobian determinant positive"
         end if
     end subroutine run_metric_check
-
-    subroutine verify_against_analytic(u, x, nerrors)
-        real(dp), intent(in) :: u(3)
-        real(dp), intent(in) :: x(3)
-        integer, intent(inout) :: nerrors
-        real(dp) :: expected(3)
-        real(dp), parameter :: tol = 1.0e-9_dp
-
-        call analytic_map(u, expected)
-        if (maxval(abs(expected - x)) > tol) then
-            print *, "  FAIL: forward map differs from analytic by ", &
-                maxval(abs(expected - x))
-            nerrors = nerrors + 1
-        else
-            print *, "  PASS: forward map matches analytic reference"
-        end if
-    end subroutine verify_against_analytic
-
-    subroutine analytic_map(u, x)
-        real(dp), intent(in) :: u(3)
-        real(dp), intent(out) :: x(3)
-        real(dp), parameter :: r0 = 1.7_dp, a = 0.35_dp
-
-        x(1) = r0 + a*u(1)*cos(u(2))
-        x(2) = u(3)
-        x(3) = a*u(1)*sin(u(2))
-    end subroutine analytic_map
-
-    pure real(dp) function pi_dp()
-        pi_dp = acos(-1.0_dp)
-    end function pi_dp
 
 end program test_babin_coordinates
