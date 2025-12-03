@@ -298,8 +298,8 @@ contains
         e_cov(2, 1) = dR(1) * sin_phi
         e_cov(3, 1) = dZ(1)
 
-        e_cov(1, 2) = dR(2) * cos_phi - R * sin_phi
-        e_cov(2, 2) = dR(2) * sin_phi + R * cos_phi
+        e_cov(1, 2) = dR(2) * cos_phi
+        e_cov(2, 2) = dR(2) * sin_phi
         e_cov(3, 2) = dZ(2)
 
         e_cov(1, 3) = dR(3) * cos_phi - R * sin_phi
