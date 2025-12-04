@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Generate Babin (map2disc-based) coordinate overlays for visual inspection.
+Generate chartmap (map2disc-based) coordinate overlays for visual inspection.
 
-- GeoFlux vs Babin in the RZ plane from an EQDSK file
-- VMEC vs Babin in the RZ plane from a sample VMEC equilibrium
+- GeoFlux vs chartmap in the RZ plane from an EQDSK file
+- VMEC vs chartmap in the RZ plane from a sample VMEC equilibrium
 """
 
 from __future__ import annotations
@@ -143,8 +143,8 @@ def make_curve_from_discrete_boundary(boundary: np.ndarray) -> callable:
     return curve
 
 
-def build_babin_mapping(boundary: np.ndarray, M: int = 16) -> m2d.BoundaryConformingMapping:
-    """Construct a Babin (map2disc) mapping for a given RZ boundary."""
+def build_chartmap_mapping(boundary: np.ndarray, M: int = 16) -> m2d.BoundaryConformingMapping:
+    """Construct a chartmap (map2disc) mapping for a given RZ boundary."""
     curve = make_curve_from_discrete_boundary(boundary)
     bcm = m2d.BoundaryConformingMapping(curve=curve, M=M, Nt=512, Ng=(256, 256))
     bcm.solve_domain2disk()
@@ -152,14 +152,14 @@ def build_babin_mapping(boundary: np.ndarray, M: int = 16) -> m2d.BoundaryConfor
     return bcm
 
 
-def sample_babin_grid(
+def sample_chartmap_grid(
     bcm: m2d.BoundaryConformingMapping,
     n_surface: int = 5,
     n_surface_samples: int = 180,
     n_theta_lines: int = 6,
     n_radial_samples: int = 120,
 ) -> dict[str, list[np.ndarray]]:
-    """Sample Babin coordinate lines from a map2disc mapping."""
+    """Sample chartmap coordinate lines from a map2disc mapping."""
     if n_surface < 2:
         n_surface = 2
     rho_inner = np.linspace(0.1, 0.9, n_surface - 1)
@@ -211,7 +211,7 @@ def plot_overlay(base, other, labels, title, outfile: Path) -> None:
 
 
 def make_geoflux_overlay(build_dir: Path, out_root: Path) -> Path:
-    """GeoFlux vs Babin overlay using EQDSK_I."""
+    """GeoFlux vs chartmap overlay using EQDSK_I."""
     out_dir = out_root / "geoflux"
     out_dir.mkdir(parents=True, exist_ok=True)
     geqdsk = ensure_geqdsk(out_dir)
@@ -221,24 +221,24 @@ def make_geoflux_overlay(build_dir: Path, out_root: Path) -> Path:
     subprocess.run([str(geo_exec), str(geqdsk), str(geoflux_dump)], check=True)
 
     geo = load_geoflux_dump(geoflux_dump)
-    # Use outermost surface as boundary for Babin mapping
+    # Use outermost surface as boundary for chartmap mapping
     boundary = geo["surfaces"][-1]
-    bcm = build_babin_mapping(boundary)
-    babin = sample_babin_grid(bcm)
+    bcm = build_chartmap_mapping(boundary)
+    chartmap = sample_chartmap_grid(bcm)
 
-    outfile = out_dir / "geoflux_vs_babin.png"
+    outfile = out_dir / "geoflux_vs_chartmap.png"
     plot_overlay(
         geo,
-        babin,
-        ("GeoFlux", "Babin"),
-        "GeoFlux vs Babin coordinates (EQDSK_I)",
+        chartmap,
+        ("GeoFlux", "chartmap"),
+        "GeoFlux vs chartmap coordinates (EQDSK_I)",
         outfile,
     )
     return outfile
 
 
 def make_vmec_overlay(out_root: Path) -> Path:
-    """VMEC vs Babin overlay using an NCSX reference equilibrium."""
+    """VMEC vs chartmap overlay using an NCSX reference equilibrium."""
     out_dir = out_root / "vmec"
     out_dir.mkdir(parents=True, exist_ok=True)
     wout_path = ensure_vmec_wout(out_dir)
@@ -273,18 +273,18 @@ def make_vmec_overlay(out_root: Path) -> Path:
 
     vmec = {"surfaces": vmec_surfaces, "thetas": vmec_thetas}
 
-    # Babin mapping based on the outer VMEC surface
+    # chartmap mapping based on the outer VMEC surface
     Rb, Zb, _ = geom.coords(s_boundary, theta, zeta0, use_asym=True)
     boundary = np.vstack((Rb, Zb))
-    bcm = build_babin_mapping(boundary)
-    babin = sample_babin_grid(bcm)
+    bcm = build_chartmap_mapping(boundary)
+    chartmap = sample_chartmap_grid(bcm)
 
-    outfile = out_dir / "vmec_vs_babin.png"
+    outfile = out_dir / "vmec_vs_chartmap.png"
     plot_overlay(
         vmec,
-        babin,
-        ("VMEC", "Babin"),
-        "VMEC vs Babin coordinates (NCSX)",
+        chartmap,
+        ("VMEC", "chartmap"),
+        "VMEC vs chartmap coordinates (NCSX)",
         outfile,
     )
     return outfile
@@ -294,7 +294,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", default="build", help="Path to CMake build directory")
     parser.add_argument(
-        "--output-dir", default="build/test/babin", help="Root directory for Babin plots"
+        "--output-dir", default="build/test/chartmap", help="Root directory for chartmap plots"
     )
     args = parser.parse_args()
 

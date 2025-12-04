@@ -1,7 +1,7 @@
-program test_babin_coordinates
+program test_chartmap_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_coordinates, only: coordinate_system_t, &
-        make_babin_coordinate_system, babin_coordinate_system_t
+        make_chartmap_coordinate_system, chartmap_coordinate_system_t
     use math_constants, only: TWOPI
     use nctools_module, only: nc_open, nc_close, nc_get
     implicit none
@@ -9,50 +9,47 @@ program test_babin_coordinates
     integer :: nerrors
     logical :: all_passed
     class(coordinate_system_t), allocatable :: cs
-    type(babin_coordinate_system_t), pointer :: bcs
-    real(dp) :: u(3), x(3), u_back(3)
-    integer :: ierr
-    character(len=*), parameter :: volume_file = "babin_circular.nc"
+    character(len=*), parameter :: volume_file = "chartmap.nc"
 
     nerrors = 0
     all_passed = .true.
 
-    print *, "Testing Babin coordinate system (map2disc volume)..."
+    print *, "Testing chartmap coordinate system..."
 
-    call make_babin_coordinate_system(cs, volume_file)
+    call make_chartmap_coordinate_system(cs, volume_file)
 
     if (.not. allocated(cs)) then
-        print *, "  FAIL: make_babin_coordinate_system did not allocate cs"
+        print *, "  FAIL: make_chartmap_coordinate_system did not allocate cs"
         nerrors = nerrors + 1
     end if
 
-    select type (bcs => cs)
-    type is (babin_coordinate_system_t)
-        call run_roundtrip_check(bcs, nerrors)
-        call run_boundary_check(bcs, nerrors)
-        call run_metric_check(bcs, nerrors)
+    select type (ccs => cs)
+    type is (chartmap_coordinate_system_t)
+        call run_roundtrip_check(ccs, nerrors)
+        call run_boundary_check(ccs, nerrors)
+        call run_metric_check(ccs, nerrors)
     class default
-        print *, "  FAIL: coordinate system is not Babin type"
+        print *, "  FAIL: coordinate system is not chartmap type"
         nerrors = nerrors + 1
     end select
 
     if (nerrors > 0) then
         all_passed = .false.
-        print *, "FAILED: ", nerrors, " error(s) detected in Babin coordinate tests"
+        print *, "FAILED: ", nerrors, " error(s) detected in chartmap tests"
     else
-        print *, "All Babin coordinate tests passed!"
+        print *, "All chartmap coordinate tests passed!"
     end if
 
     if (.not. all_passed) error stop 1
 
 contains
 
-    subroutine run_roundtrip_check(bcs, nerrors)
-        type(babin_coordinate_system_t), intent(in) :: bcs
+    subroutine run_roundtrip_check(ccs, nerrors)
+        type(chartmap_coordinate_system_t), intent(in) :: ccs
         integer, intent(inout) :: nerrors
-        real(dp), allocatable :: R_ref(:, :, :), Z_ref(:, :, :)
+        real(dp), allocatable :: pos_ref(:, :, :, :)
         real(dp) :: rho_val, theta_val
-        real(dp) :: u(3), x(3), u_back(3)
+        real(dp) :: u(3), x(3), u_back(3), xcyl(3)
         integer :: ierr, ncid
         integer :: i_rho, i_theta
         integer, parameter :: nrho = 63, ntheta = 64, nzeta = 65
@@ -60,10 +57,8 @@ contains
         real(dp), parameter :: tol_x = 1.0e-10_dp
 
         call nc_open(volume_file, ncid)
-        allocate(R_ref(nrho, ntheta, nzeta))
-        allocate(Z_ref(nrho, ntheta, nzeta))
-        call nc_get(ncid, "R", R_ref)
-        call nc_get(ncid, "Z", Z_ref)
+        allocate(pos_ref(3, nrho, ntheta, nzeta))
+        call nc_get(ncid, "pos", pos_ref)
         call nc_close(ncid)
 
         i_rho = 12
@@ -72,33 +67,38 @@ contains
         theta_val = TWOPI * real(i_theta - 1, dp) / real(ntheta, dp)
 
         u = [rho_val, theta_val, 0.0_dp]
-        call bcs%evaluate_point(u, x)
+        call ccs%evaluate_point(u, x)
 
-        if (abs(x(1) - R_ref(i_rho, i_theta, 1)) > tol_x .or. &
-            abs(x(3) - Z_ref(i_rho, i_theta, 1)) > tol_x) then
-            print *, "  FAIL: forward map does not reproduce reference R,Z"
+        if (abs(x(1) - pos_ref(1, i_rho, i_theta, 1)) > tol_x .or. &
+            abs(x(2) - pos_ref(2, i_rho, i_theta, 1)) > tol_x .or. &
+            abs(x(3) - pos_ref(3, i_rho, i_theta, 1)) > tol_x) then
+            print *, "  FAIL: forward map does not reproduce reference X,Y,Z"
             nerrors = nerrors + 1
         end if
 
-        call bcs%from_cyl([x(1), u(3), x(3)], u_back, ierr)
+        xcyl(1) = sqrt(x(1)**2 + x(2)**2)
+        xcyl(2) = atan2(x(2), x(1))
+        xcyl(3) = x(3)
+
+        call ccs%from_cyl(xcyl, u_back, ierr)
 
         if (ierr /= 0) then
             print *, "  FAIL: inverse mapping reported error code ", ierr
             nerrors = nerrors + 1
         else if (abs(u_back(1) - rho_val) > tol_u .or. &
                  abs(modulo(u_back(2) - theta_val, TWOPI)) > tol_u) then
-            print *, "  FAIL: roundtrip mismatch in Babin coordinates"
+            print *, "  FAIL: roundtrip mismatch in chartmap coordinates"
             nerrors = nerrors + 1
         else
-            print *, "  PASS: forward/inverse roundtrip against map2disc volume"
+            print *, "  PASS: forward/inverse roundtrip against chartmap volume"
         end if
 
     end subroutine run_roundtrip_check
 
-    subroutine run_boundary_check(bcs, nerrors)
-        type(babin_coordinate_system_t), intent(in) :: bcs
+    subroutine run_boundary_check(ccs, nerrors)
+        type(chartmap_coordinate_system_t), intent(in) :: ccs
         integer, intent(inout) :: nerrors
-        real(dp), allocatable :: R_ref(:, :, :), Z_ref(:, :, :)
+        real(dp), allocatable :: pos_ref(:, :, :, :)
         real(dp) :: u(3), x(3)
         integer :: ncid
         integer :: i_theta
@@ -109,10 +109,8 @@ contains
         nerrors_local = 0
 
         call nc_open(volume_file, ncid)
-        allocate(R_ref(nrho, ntheta, nzeta))
-        allocate(Z_ref(nrho, ntheta, nzeta))
-        call nc_get(ncid, "R", R_ref)
-        call nc_get(ncid, "Z", Z_ref)
+        allocate(pos_ref(3, nrho, ntheta, nzeta))
+        call nc_get(ncid, "pos", pos_ref)
         call nc_close(ncid)
 
         do i_theta = 1, 4
@@ -120,10 +118,11 @@ contains
             u(2) = TWOPI * real(i_theta - 1, dp) / real(ntheta, dp)
             u(3) = 0.0_dp
 
-            call bcs%evaluate_point(u, x)
+            call ccs%evaluate_point(u, x)
 
-            if (abs(x(1) - R_ref(nrho, i_theta, 1)) > tol .or. &
-                abs(x(3) - Z_ref(nrho, i_theta, 1)) > tol) then
+            if (abs(x(1) - pos_ref(1, nrho, i_theta, 1)) > tol .or. &
+                abs(x(2) - pos_ref(2, nrho, i_theta, 1)) > tol .or. &
+                abs(x(3) - pos_ref(3, nrho, i_theta, 1)) > tol) then
                 print *, "  FAIL: boundary point mismatch at theta index=", &
                     i_theta
                 nerrors_local = nerrors_local + 1
@@ -132,12 +131,12 @@ contains
 
         nerrors = nerrors + nerrors_local
         if (nerrors_local == 0) then
-            print *, "  PASS: boundary recovery matches map2disc volume"
+            print *, "  PASS: boundary recovery matches chartmap volume"
         end if
     end subroutine run_boundary_check
 
-    subroutine run_metric_check(bcs, nerrors)
-        type(babin_coordinate_system_t), intent(in) :: bcs
+    subroutine run_metric_check(ccs, nerrors)
+        type(chartmap_coordinate_system_t), intent(in) :: ccs
         integer, intent(inout) :: nerrors
         real(dp) :: u(3), g(3,3), ginv(3,3), sqrtg
         real(dp) :: identity(3,3), prod(3,3)
@@ -146,7 +145,7 @@ contains
         logical :: sym_ok, id_ok
 
         u = [0.2_dp, 0.7_dp, 0.9_dp]
-        call bcs%metric_tensor(u, g, ginv, sqrtg)
+        call ccs%metric_tensor(u, g, ginv, sqrtg)
 
         if (sqrtg <= 0.0_dp) then
             print *, "  FAIL: Jacobian determinant not positive"
@@ -197,4 +196,4 @@ contains
         end if
     end subroutine run_metric_check
 
-end program test_babin_coordinates
+end program test_chartmap_coordinates
