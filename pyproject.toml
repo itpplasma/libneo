@@ -1,5 +1,9 @@
 [build-system]
-requires = ["scikit-build-core", "numpy", "f90wrap"]
+requires = [
+    "scikit-build-core",
+    "numpy",
+    "f90wrap @ git+https://github.com/jameskermode/f90wrap.git",
+]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -23,3 +27,7 @@ build-dir = "build"
 build.verbose = true
 cmake.define.CMAKE_CACHE_DIR = "build"
 cmake.define.CMAKE_PRESET = "default"
+
+[tool.scikit-build.wheel.packages]
+libneo = "python/libneo"
+efit_to_boozer = "python/efit_to_boozer"

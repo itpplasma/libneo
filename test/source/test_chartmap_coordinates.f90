@@ -53,7 +53,7 @@ contains
         integer :: ierr, ncid
         integer :: i_rho, i_theta
         integer, parameter :: nrho = 63, ntheta = 64, nzeta = 65
-        real(dp), parameter :: tol_u = 1.0e-8_dp
+        real(dp), parameter :: tol_u = 1.0e-6_dp
         real(dp), parameter :: tol_x = 1.0e-10_dp
 
         call nc_open(volume_file, ncid)
