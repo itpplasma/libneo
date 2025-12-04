@@ -1,5 +1,0 @@
-numpy
-scipy
-matplotlib
-netCDF4
-map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git

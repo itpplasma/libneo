@@ -10,6 +10,14 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "scipy",
+    "matplotlib",
+    "netCDF4",
+    "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
+]
+
 [tool.scikit-build]
 build-dir = "build"
 build.verbose = true

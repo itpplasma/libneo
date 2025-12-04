@@ -32,7 +32,7 @@ jobs:
 
       - name: Install Python dependencies for tests
         run: |
-          pip install --break-system-packages -r requirements.txt
+          pip install --break-system-packages ".[dev]"
 
       - name: Test
         run: |
