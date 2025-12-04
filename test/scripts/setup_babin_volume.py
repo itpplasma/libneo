@@ -26,9 +26,9 @@ from netCDF4 import Dataset
 def generate_babin_circular(outfile: Path) -> None:
     R0 = 1.7
     a = 0.35
-    nrho = 33
+    nrho = 63
     ntheta = 64
-    nzeta = 4
+    nzeta = 65
 
     def curve(t: np.ndarray) -> np.ndarray:
         return np.array([R0 + a * np.cos(t), a * np.sin(t)])

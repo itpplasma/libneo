@@ -55,7 +55,7 @@ contains
         real(dp) :: u(3), x(3), u_back(3)
         integer :: ierr, ncid
         integer :: i_rho, i_theta
-        integer, parameter :: nrho = 33, ntheta = 64, nzeta = 4
+        integer, parameter :: nrho = 63, ntheta = 64, nzeta = 65
         real(dp), parameter :: tol_u = 1.0e-8_dp
         real(dp), parameter :: tol_x = 1.0e-10_dp
 
@@ -102,7 +102,7 @@ contains
         real(dp) :: u(3), x(3)
         integer :: ncid
         integer :: i_theta
-        integer, parameter :: nrho = 33, ntheta = 64, nzeta = 4
+        integer, parameter :: nrho = 63, ntheta = 64, nzeta = 65
         real(dp), parameter :: tol = 1.0e-8_dp
 
         call nc_open(volume_file, ncid)
