@@ -9,7 +9,7 @@
   end module parmot_mod
 !
   module new_vmec_stuff_mod
-    character*1000   :: netcdffile = 'wout.nc'
+    character*1000   :: netcdffile = ''  ! Empty = unset, apply 'wout.nc' default at usage
     integer          :: nsurfm,nstrm,nper=1,kpar
     integer          :: multharm=5,n_theta,n_phi
     integer          :: ns_A=5  !<- spline order for vector potential
