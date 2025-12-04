@@ -9,7 +9,10 @@ with the following variables:
 - rho(nrho)
 - theta(ntheta)
 - zeta(nzeta)
-- pos(xyz, nrho, ntheta, nzeta) - Cartesian X,Y,Z positions
+- x(rho, theta, zeta) - Cartesian X positions
+- y(rho, theta, zeta) - Cartesian Y positions
+- z(rho, theta, zeta) - Cartesian Z positions
+- nfp - number of field periods (here: 1)
 """
 
 from __future__ import annotations
@@ -60,7 +63,6 @@ def generate_chartmap_circular(outfile: Path) -> None:
 
     outfile.parent.mkdir(parents=True, exist_ok=True)
     with Dataset(outfile, "w") as ds:
-        ds.createDimension("xyz", 3)
         ds.createDimension("rho", nrho)
         ds.createDimension("theta", ntheta)
         ds.createDimension("zeta", nzeta)
@@ -68,17 +70,21 @@ def generate_chartmap_circular(outfile: Path) -> None:
         v_rho = ds.createVariable("rho", "f8", ("rho",))
         v_theta = ds.createVariable("theta", "f8", ("theta",))
         v_zeta = ds.createVariable("zeta", "f8", ("zeta",))
-
-        # NetCDF (C-based) uses row-major order; Fortran uses column-major.
-        # For Fortran array pos(3, nrho, ntheta, nzeta), NetCDF dims are reversed.
-        v_pos = ds.createVariable("pos", "f8", ("zeta", "theta", "rho", "xyz"))
+        # Fortran uses column-major layout, NetCDF/C uses row-major.
+        # Store x,y,z with dimensions (zeta, theta, rho) so that a
+        # Fortran array x(rho, theta, zeta) sees the correct ordering.
+        v_x = ds.createVariable("x", "f8", ("zeta", "theta", "rho"))
+        v_y = ds.createVariable("y", "f8", ("zeta", "theta", "rho"))
+        v_z = ds.createVariable("z", "f8", ("zeta", "theta", "rho"))
+        v_nfp = ds.createVariable("nfp", "i4")
 
         v_rho[:] = rho
         v_theta[:] = theta
         v_zeta[:] = zeta
-
-        # Transpose from (3, nrho, ntheta, nzeta) to (nzeta, ntheta, nrho, 3)
-        v_pos[:, :, :, :] = np.transpose(pos, (3, 2, 1, 0))
+        v_x[:, :, :] = np.transpose(pos[0, :, :, :], (2, 1, 0))
+        v_y[:, :, :] = np.transpose(pos[1, :, :, :], (2, 1, 0))
+        v_z[:, :, :] = np.transpose(pos[2, :, :, :], (2, 1, 0))
+        v_nfp.assignValue(1)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -92,9 +98,6 @@ def main(argv: list[str] | None = None) -> int:
 
     out_dir = Path(args.output_dir).resolve()
     outfile = out_dir / "chartmap.nc"
-
-    if outfile.exists() and outfile.stat().st_size > 0:
-        return 0
 
     generate_chartmap_circular(outfile)
     if not outfile.exists() or outfile.stat().st_size == 0:

@@ -1,8 +1,8 @@
 submodule (libneo_coordinates) libneo_coordinates_chartmap
     use nctools_module, only: nc_open, nc_close, nc_inq_dim, nc_get
     use math_constants, only: TWOPI
-    use interpolate, only: SplineData3D, construct_splines_3d, &
-        evaluate_splines_3d, evaluate_splines_3d_der, destroy_splines_3d
+    use interpolate, only: construct_batch_splines_3d, &
+        evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
     implicit none
 
 contains
@@ -29,7 +29,8 @@ contains
         integer :: len_rho, len_theta, len_zeta
         integer :: nrho, ntheta, nzeta
         real(dp), allocatable :: rho(:), theta(:), zeta(:)
-        real(dp), allocatable :: pos(:, :, :, :)
+        real(dp), allocatable :: x(:, :, :), y(:, :, :), z(:, :, :)
+        real(dp), allocatable :: pos_batch(:, :, :, :)
         real(dp) :: x_min(3), x_max(3)
         logical :: periodic(3)
         integer :: order(3)
@@ -49,8 +50,12 @@ contains
         call nc_get(ncid, 'theta', theta)
         call nc_get(ncid, 'zeta', zeta)
 
-        allocate(pos(3, nrho, ntheta, nzeta))
-        call nc_get(ncid, 'pos', pos)
+        allocate(x(nrho, ntheta, nzeta))
+        allocate(y(nrho, ntheta, nzeta))
+        allocate(z(nrho, ntheta, nzeta))
+        call nc_get(ncid, 'x', x)
+        call nc_get(ncid, 'y', y)
+        call nc_get(ncid, 'z', z)
         call nc_close(ncid)
 
         order = [3, 3, 3]
@@ -61,12 +66,12 @@ contains
         periodic(2) = .true.
         periodic(3) = (nzeta > 1)
 
-        call construct_splines_3d(x_min, x_max, pos(1, :, :, :), order, &
-            periodic, ccs%spl_x)
-        call construct_splines_3d(x_min, x_max, pos(2, :, :, :), order, &
-            periodic, ccs%spl_y)
-        call construct_splines_3d(x_min, x_max, pos(3, :, :, :), order, &
-            periodic, ccs%spl_z)
+        allocate(pos_batch(nrho, ntheta, nzeta, 3))
+        pos_batch(:, :, :, 1) = x
+        pos_batch(:, :, :, 2) = y
+        pos_batch(:, :, :, 3) = z
+
+        call construct_batch_splines_3d(x_min, x_max, pos_batch, order, periodic, ccs%spl_xyz)
 
         ccs%nrho = nrho
         ccs%ntheta = ntheta
@@ -78,9 +83,10 @@ contains
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: x(3)
 
-        call evaluate_splines_3d(self%spl_x, u, x(1))
-        call evaluate_splines_3d(self%spl_y, u, x(2))
-        call evaluate_splines_3d(self%spl_z, u, x(3))
+        real(dp) :: vals(3)
+
+        call evaluate_batch_splines_3d(self%spl_xyz, u, vals)
+        x = vals
     end subroutine chartmap_evaluate_point
 
     subroutine chartmap_covariant_basis(self, u, e_cov)
@@ -88,22 +94,22 @@ contains
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: e_cov(3, 3)
 
-        real(dp) :: val, der(3)
+        real(dp) :: vals(3)
+        real(dp) :: dvals(3, 3)
 
-        call evaluate_splines_3d_der(self%spl_x, u, val, der)
-        e_cov(1, 1) = der(1)
-        e_cov(1, 2) = der(2)
-        e_cov(1, 3) = der(3)
+        call evaluate_batch_splines_3d_der(self%spl_xyz, u, vals, dvals)
 
-        call evaluate_splines_3d_der(self%spl_y, u, val, der)
-        e_cov(2, 1) = der(1)
-        e_cov(2, 2) = der(2)
-        e_cov(2, 3) = der(3)
+        e_cov(1, 1) = dvals(1, 1)
+        e_cov(1, 2) = dvals(2, 1)
+        e_cov(1, 3) = dvals(3, 1)
 
-        call evaluate_splines_3d_der(self%spl_z, u, val, der)
-        e_cov(3, 1) = der(1)
-        e_cov(3, 2) = der(2)
-        e_cov(3, 3) = der(3)
+        e_cov(2, 1) = dvals(1, 2)
+        e_cov(2, 2) = dvals(2, 2)
+        e_cov(2, 3) = dvals(3, 2)
+
+        e_cov(3, 1) = dvals(1, 3)
+        e_cov(3, 2) = dvals(2, 3)
+        e_cov(3, 3) = dvals(3, 3)
     end subroutine chartmap_covariant_basis
 
     subroutine chartmap_metric_tensor(self, u, g, ginv, sqrtg)
@@ -171,21 +177,20 @@ contains
         real(dp) :: det, delta(2)
         real(dp) :: axis_x(3), bound_x(3)
         real(dp) :: rho, theta
-        real(dp) :: val, der(3)
+        real(dp) :: vals(3)
+        real(dp) :: dvals(3, 3)
 
         ierr = 0
 
         uvec = [0.0_dp, 0.0_dp, zeta]
-        call evaluate_splines_3d(self%spl_x, uvec, axis_x(1))
-        call evaluate_splines_3d(self%spl_y, uvec, axis_x(2))
-        call evaluate_splines_3d(self%spl_z, uvec, axis_x(3))
+        call evaluate_batch_splines_3d(self%spl_xyz, uvec, vals)
+        axis_x = vals
 
         theta = atan2(x_target(2) - axis_x(2), x_target(1) - axis_x(1))
 
         uvec = [1.0_dp, theta, zeta]
-        call evaluate_splines_3d(self%spl_x, uvec, bound_x(1))
-        call evaluate_splines_3d(self%spl_y, uvec, bound_x(2))
-        call evaluate_splines_3d(self%spl_z, uvec, bound_x(3))
+        call evaluate_batch_splines_3d(self%spl_xyz, uvec, vals)
+        bound_x = vals
 
         rho = sqrt(sum((x_target - axis_x)**2)) &
             / max(1.0e-12_dp, sqrt(sum((bound_x - axis_x)**2)))
@@ -194,17 +199,16 @@ contains
         do iter = 1, 30
             uvec = [rho, theta, zeta]
 
-            call evaluate_splines_3d_der(self%spl_x, uvec, x_val(1), der)
-            dx_drho(1) = der(1)
-            dx_dtheta(1) = der(2)
+            call evaluate_batch_splines_3d_der(self%spl_xyz, uvec, vals, dvals)
 
-            call evaluate_splines_3d_der(self%spl_y, uvec, x_val(2), der)
-            dx_drho(2) = der(1)
-            dx_dtheta(2) = der(2)
+            x_val = vals
+            dx_drho(1) = dvals(1, 1)
+            dx_drho(2) = dvals(1, 2)
+            dx_drho(3) = dvals(1, 3)
 
-            call evaluate_splines_3d_der(self%spl_z, uvec, x_val(3), der)
-            dx_drho(3) = der(1)
-            dx_dtheta(3) = der(2)
+            dx_dtheta(1) = dvals(2, 1)
+            dx_dtheta(2) = dvals(2, 2)
+            dx_dtheta(3) = dvals(2, 3)
 
             residual = x_target - x_val
             jac(:, 1) = dx_drho

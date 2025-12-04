@@ -1,6 +1,6 @@
 module libneo_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use interpolate, only: SplineData3D
+    use interpolate, only: BatchSplineData3D
     implicit none
 
     type, abstract :: coordinate_system_t
@@ -58,9 +58,7 @@ module libneo_coordinates
     end interface
 
     type, extends(coordinate_system_t) :: chartmap_coordinate_system_t
-        type(SplineData3D) :: spl_x
-        type(SplineData3D) :: spl_y
-        type(SplineData3D) :: spl_z
+        type(BatchSplineData3D) :: spl_xyz
         integer :: nrho = 0
         integer :: ntheta = 0
         integer :: nzeta = 0

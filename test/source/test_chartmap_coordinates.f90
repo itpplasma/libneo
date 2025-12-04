@@ -47,7 +47,7 @@ contains
     subroutine run_roundtrip_check(ccs, nerrors)
         type(chartmap_coordinate_system_t), intent(in) :: ccs
         integer, intent(inout) :: nerrors
-        real(dp), allocatable :: pos_ref(:, :, :, :)
+        real(dp), allocatable :: x_ref(:, :, :), y_ref(:, :, :), z_ref(:, :, :)
         real(dp) :: rho_val, theta_val
         real(dp) :: u(3), x(3), u_back(3), xcyl(3)
         integer :: ierr, ncid
@@ -57,8 +57,12 @@ contains
         real(dp), parameter :: tol_x = 1.0e-10_dp
 
         call nc_open(volume_file, ncid)
-        allocate(pos_ref(3, nrho, ntheta, nzeta))
-        call nc_get(ncid, "pos", pos_ref)
+        allocate(x_ref(nrho, ntheta, nzeta))
+        allocate(y_ref(nrho, ntheta, nzeta))
+        allocate(z_ref(nrho, ntheta, nzeta))
+        call nc_get(ncid, "x", x_ref)
+        call nc_get(ncid, "y", y_ref)
+        call nc_get(ncid, "z", z_ref)
         call nc_close(ncid)
 
         i_rho = 12
@@ -69,9 +73,9 @@ contains
         u = [rho_val, theta_val, 0.0_dp]
         call ccs%evaluate_point(u, x)
 
-        if (abs(x(1) - pos_ref(1, i_rho, i_theta, 1)) > tol_x .or. &
-            abs(x(2) - pos_ref(2, i_rho, i_theta, 1)) > tol_x .or. &
-            abs(x(3) - pos_ref(3, i_rho, i_theta, 1)) > tol_x) then
+        if (abs(x(1) - x_ref(i_rho, i_theta, 1)) > tol_x .or. &
+            abs(x(2) - y_ref(i_rho, i_theta, 1)) > tol_x .or. &
+            abs(x(3) - z_ref(i_rho, i_theta, 1)) > tol_x) then
             print *, "  FAIL: forward map does not reproduce reference X,Y,Z"
             nerrors = nerrors + 1
         end if
@@ -98,7 +102,7 @@ contains
     subroutine run_boundary_check(ccs, nerrors)
         type(chartmap_coordinate_system_t), intent(in) :: ccs
         integer, intent(inout) :: nerrors
-        real(dp), allocatable :: pos_ref(:, :, :, :)
+        real(dp), allocatable :: x_ref(:, :, :), y_ref(:, :, :), z_ref(:, :, :)
         real(dp) :: u(3), x(3)
         integer :: ncid
         integer :: i_theta
@@ -109,8 +113,12 @@ contains
         nerrors_local = 0
 
         call nc_open(volume_file, ncid)
-        allocate(pos_ref(3, nrho, ntheta, nzeta))
-        call nc_get(ncid, "pos", pos_ref)
+        allocate(x_ref(nrho, ntheta, nzeta))
+        allocate(y_ref(nrho, ntheta, nzeta))
+        allocate(z_ref(nrho, ntheta, nzeta))
+        call nc_get(ncid, "x", x_ref)
+        call nc_get(ncid, "y", y_ref)
+        call nc_get(ncid, "z", z_ref)
         call nc_close(ncid)
 
         do i_theta = 1, 4
@@ -120,9 +128,9 @@ contains
 
             call ccs%evaluate_point(u, x)
 
-            if (abs(x(1) - pos_ref(1, nrho, i_theta, 1)) > tol .or. &
-                abs(x(2) - pos_ref(2, nrho, i_theta, 1)) > tol .or. &
-                abs(x(3) - pos_ref(3, nrho, i_theta, 1)) > tol) then
+            if (abs(x(1) - x_ref(nrho, i_theta, 1)) > tol .or. &
+                abs(x(2) - y_ref(nrho, i_theta, 1)) > tol .or. &
+                abs(x(3) - z_ref(nrho, i_theta, 1)) > tol) then
                 print *, "  FAIL: boundary point mismatch at theta index=", &
                     i_theta
                 nerrors_local = nerrors_local + 1
