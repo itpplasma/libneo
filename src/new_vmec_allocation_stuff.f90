@@ -9,12 +9,15 @@ contains
 !
   integer :: ncid, status
   integer, dimension(2) :: lens
+  character(len=1000) :: filename
 !
-  status = nf90_open(netcdffile, NF90_NOWRITE, ncid)
+  filename = netcdffile
+  if (len_trim(filename) == 0) filename = 'wout.nc'
+  status = nf90_open(trim(filename), NF90_NOWRITE, ncid)
   if(status /= nf90_noerr) then
     print *, "new_allocate_vmec_stuff: could not find VMEC NetCDF file"
     print *, trim(nf90_strerror(status))
-    print *, trim(netcdffile)
+    print *, trim(filename)
     error stop
   end if
 !

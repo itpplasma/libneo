@@ -53,6 +53,7 @@ contains
         real(dp), dimension(nstrb, 0:kparb) :: rmns, zmns, almns, lmns
         integer :: lasym_int
         logical :: lasym
+        character(len=1000) :: filename
 
         associate (dummy => nsurfb)
         end associate
@@ -64,7 +65,9 @@ contains
             sps(i) = dble(i)
         end do
 
-        call nc_open(netcdffile, ncid)
+        filename = netcdffile
+        if (len_trim(filename) == 0) filename = 'wout.nc'
+        call nc_open(trim(filename), ncid)
 
         call nc_get(ncid, 'lasym__logical__', lasym_int)
         lasym = (lasym_int == 1)
