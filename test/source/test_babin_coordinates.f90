@@ -104,6 +104,9 @@ contains
         integer :: i_theta
         integer, parameter :: nrho = 63, ntheta = 64, nzeta = 65
         real(dp), parameter :: tol = 1.0e-8_dp
+        integer :: nerrors_local
+
+        nerrors_local = 0
 
         call nc_open(volume_file, ncid)
         allocate(R_ref(nrho, ntheta, nzeta))
@@ -123,11 +126,12 @@ contains
                 abs(x(3) - Z_ref(nrho, i_theta, 1)) > tol) then
                 print *, "  FAIL: boundary point mismatch at theta index=", &
                     i_theta
-                nerrors = nerrors + 1
+                nerrors_local = nerrors_local + 1
             end if
         end do
 
-        if (nerrors == 0) then
+        nerrors = nerrors + nerrors_local
+        if (nerrors_local == 0) then
             print *, "  PASS: boundary recovery matches map2disc volume"
         end if
     end subroutine run_boundary_check

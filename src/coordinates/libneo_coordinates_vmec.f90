@@ -7,6 +7,7 @@ submodule (libneo_coordinates) libneo_coordinates_vmec
         procedure :: evaluate_point => vmec_evaluate_point
         procedure :: covariant_basis => vmec_covariant_basis
         procedure :: metric_tensor => vmec_metric_tensor
+        procedure :: from_cyl => vmec_from_cyl
     end type vmec_coordinate_system_t
 
 contains
@@ -105,5 +106,14 @@ contains
         ginv(3,2) = (g(1,2)*g(3,1) - g(1,1)*g(3,2))/det
         ginv(3,3) = (g(1,1)*g(2,2) - g(1,2)*g(2,1))/det
     end subroutine vmec_metric_tensor
+
+    subroutine vmec_from_cyl(self, xcyl, u, ierr)
+        class(vmec_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: xcyl(3)
+        real(dp), intent(out) :: u(3)
+        integer, intent(out) :: ierr
+
+        error stop "vmec_from_cyl: not implemented"
+    end subroutine vmec_from_cyl
 
 end submodule libneo_coordinates_vmec

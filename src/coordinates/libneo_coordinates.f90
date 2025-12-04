@@ -8,6 +8,7 @@ module libneo_coordinates
         procedure(evaluate_point_if), deferred :: evaluate_point
         procedure(covariant_basis_if), deferred :: covariant_basis
         procedure(metric_tensor_if), deferred :: metric_tensor
+        procedure(from_cyl_if), deferred :: from_cyl
     end type coordinate_system_t
 
     abstract interface
@@ -30,6 +31,14 @@ module libneo_coordinates
             class(coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
             real(dp), intent(out) :: g(3,3), ginv(3,3), sqrtg
+        end subroutine
+
+        subroutine from_cyl_if(self, xcyl, u, ierr)
+            import :: coordinate_system_t, dp
+            class(coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: xcyl(3)
+            real(dp), intent(out) :: u(3)
+            integer, intent(out) :: ierr
         end subroutine
     end interface
 

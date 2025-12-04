@@ -11,8 +11,6 @@ contains
         class(coordinate_system_t), allocatable, intent(out) :: cs
         character(len=*), intent(in) :: filename
 
-        type(babin_coordinate_system_t), pointer :: bcs
-
         allocate(babin_coordinate_system_t :: cs)
 
         select type (bcs => cs)

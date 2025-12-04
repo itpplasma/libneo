@@ -7,6 +7,7 @@ submodule (libneo_coordinates) libneo_coordinates_geoflux
         procedure :: evaluate_point => geoflux_evaluate_point
         procedure :: covariant_basis => geoflux_covariant_basis
         procedure :: metric_tensor => geoflux_metric_tensor
+        procedure :: from_cyl => geoflux_from_cyl
     end type geoflux_coordinate_system_t
 
 contains
@@ -105,5 +106,14 @@ contains
         ginv(3,2) = (g(1,2)*g(3,1) - g(1,1)*g(3,2))/det
         ginv(3,3) = (g(1,1)*g(2,2) - g(1,2)*g(2,1))/det
     end subroutine geoflux_metric_tensor
+
+    subroutine geoflux_from_cyl(self, xcyl, u, ierr)
+        class(geoflux_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: xcyl(3)
+        real(dp), intent(out) :: u(3)
+        integer, intent(out) :: ierr
+
+        error stop "geoflux_from_cyl: not implemented"
+    end subroutine geoflux_from_cyl
 
 end submodule libneo_coordinates_geoflux
