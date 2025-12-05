@@ -112,6 +112,7 @@ module nctools_module
      module procedure nc_get_double_1
      module procedure nc_get_double_2
      module procedure nc_get_double_3
+     module procedure nc_get_double_4
   end interface nc_get
 
 contains
@@ -564,6 +565,16 @@ contains
     call nf90_check(nf90_inq_varid(ncid, name, varid))
     call nf90_check(nf90_get_var(ncid, varid, var))
   end subroutine nc_get_double_3
+
+  subroutine nc_get_double_4(ncid, name, var)
+    integer :: ncid
+    character(len=*) :: name
+    double precision, dimension(:,:,:,:), intent(out) :: var
+    integer :: varid
+
+    call nf90_check(nf90_inq_varid(ncid, name, varid))
+    call nf90_check(nf90_get_var(ncid, varid, var))
+  end subroutine nc_get_double_4
 
 
   !> \brief Check if a group exists already in the netcdf file.
