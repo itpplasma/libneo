@@ -49,11 +49,11 @@ contains
         integer, intent(inout) :: nerrors
         real(dp), allocatable :: x_ref(:, :, :), y_ref(:, :, :), z_ref(:, :, :)
         real(dp) :: rho_val, theta_val
-        real(dp) :: u(3), x(3), u_back(3), xcyl(3)
+        real(dp) :: u(3), x(3), u_back(3), xcyl(3), x_round(3)
+        real(dp) :: diff_x
         integer :: ierr, ncid
         integer :: i_rho, i_theta
         integer, parameter :: nrho = 63, ntheta = 64, nzeta = 65
-        real(dp), parameter :: tol_u = 1.0e-6_dp
         real(dp), parameter :: tol_x = 1.0e-10_dp
 
         call nc_open(volume_file, ncid)
@@ -89,12 +89,16 @@ contains
         if (ierr /= 0) then
             print *, "  FAIL: inverse mapping reported error code ", ierr
             nerrors = nerrors + 1
-        else if (abs(u_back(1) - rho_val) > tol_u .or. &
-                 abs(modulo(u_back(2) - theta_val, TWOPI)) > tol_u) then
-            print *, "  FAIL: roundtrip mismatch in chartmap coordinates"
-            nerrors = nerrors + 1
         else
-            print *, "  PASS: forward/inverse roundtrip against chartmap volume"
+            call ccs%evaluate_point(u_back, x_round)
+            diff_x = maxval(abs(x_round - x))
+
+            if (diff_x > tol_x) then
+                print *, "  FAIL: roundtrip mismatch in Cartesian coordinates, max |x_round - x| = ", diff_x
+                nerrors = nerrors + 1
+            else
+                print *, "  PASS: forward/inverse roundtrip against chartmap volume"
+            end if
         end if
 
     end subroutine run_roundtrip_check
