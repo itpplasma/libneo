@@ -5,6 +5,8 @@ add_library(interpolate STATIC
     batch_interpolate_2d.f90
     batch_interpolate_3d.f90
     batch_interpolate.f90
+    cgls_small.f90
+    cgls_dense.f90
     interpolate.f90)
 
 set_property(TARGET interpolate PROPERTY
