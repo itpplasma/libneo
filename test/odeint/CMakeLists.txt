@@ -41,13 +41,8 @@ else()
 endif()
 
 # Register tests
-function (add_fortran_test name)
-  add_test(NAME ${name} COMMAND ${name}.x)
-  set_tests_properties(${name} PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-endfunction()
-
-add_fortran_test(test_odeint_allroutines_context)
-add_fortran_test(test_odeint_thread_safety)
+add_test(NAME test_odeint_allroutines_context COMMAND test_odeint_allroutines_context.x)
+add_test(NAME test_odeint_thread_safety COMMAND test_odeint_thread_safety.x)
 
 if(LIBNEO_ENABLE_GOLDEN_TESTS)
     add_test(NAME build_test_golden_record_odeint
@@ -59,7 +54,7 @@ if(LIBNEO_ENABLE_GOLDEN_TESTS)
         LABELS build-helper
     )
 
-    add_fortran_test(test_golden_record_odeint)
+    add_test(NAME test_golden_record_odeint COMMAND test_golden_record_odeint.x)
     set_tests_properties(test_golden_record_odeint PROPERTIES
         FIXTURES_REQUIRED odeint_golden_fixture
     )

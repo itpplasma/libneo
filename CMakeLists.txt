@@ -23,7 +23,18 @@ endif()
 # Basic project settings.
 project(libneo)
 
-option(LIBNEO_ENABLE_TESTS "Build libneo tests" ON)
+# Detect if libneo is standalone or a subproject
+set(LIBNEO_IS_STANDALONE OFF)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    set(LIBNEO_IS_STANDALONE ON)
+endif()
+
+option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
+
+# Allow BUILD_TESTING to override (for subproject compatibility)
+if(DEFINED BUILD_TESTING)
+    set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
+endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
@@ -59,8 +70,8 @@ set(libneo_VERSION_MINOR 08)
 set(libneo_VERSION_PATCH 20)
 
 enable_language(C Fortran)
-if(LIBNEO_ENABLE_TESTS)
-    enable_testing()
+if(LIBNEO_BUILD_TESTING)
+    include(CTest)
 endif()
 
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
@@ -210,7 +221,7 @@ add_executable(hamada_to_boozer.x
 target_link_libraries(hamada_to_boozer.x efit_to_boozer)
 
 
-if(LIBNEO_ENABLE_TESTS)
+if(LIBNEO_BUILD_TESTING)
     add_subdirectory(test)
 endif()
 

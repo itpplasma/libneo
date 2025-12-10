@@ -162,27 +162,22 @@ target_link_libraries(test_nctools_nc_get3.x
 
 ## Standard tests according to standard libneo Fortran test convention.
 
-function (add_fortran_test name)
-  add_test(NAME ${name} COMMAND ${name}.x)
-  set_tests_properties(${name} PROPERTIES  FAIL_REGULAR_EXPRESSION "STOP")
-endfunction()
-
-add_fortran_test(test_binsrc)
-add_fortran_test(test_boozer_class)
-add_fortran_test(test_efit_class)
-add_fortran_test(test_geqdsk_tools)
-add_fortran_test(test_simpson)
-add_fortran_test(test_hdf5_tools)
-add_fortran_test(test_util)
-add_fortran_test(test_interpolate)
-add_fortran_test(test_batch_interpolate)
-add_fortran_test(test_collision_freqs)
-add_fortran_test(test_transport)
-add_fortran_test(test_vmec_modules)
-add_fortran_test(test_coordinate_systems)
-# add_fortran_test(test_analytical_gs_circular)  # TODO: update for new interface
-add_fortran_test(test_analytical_circular)
-add_fortran_test(test_nctools_nc_get3)
+add_test(NAME test_binsrc COMMAND test_binsrc.x)
+add_test(NAME test_boozer_class COMMAND test_boozer_class.x)
+add_test(NAME test_efit_class COMMAND test_efit_class.x)
+add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
+add_test(NAME test_simpson COMMAND test_simpson.x)
+add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
+add_test(NAME test_util COMMAND test_util.x)
+add_test(NAME test_interpolate COMMAND test_interpolate.x)
+add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
+add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
+add_test(NAME test_transport COMMAND test_transport.x)
+add_test(NAME test_vmec_modules COMMAND test_vmec_modules.x)
+add_test(NAME test_coordinate_systems COMMAND test_coordinate_systems.x)
+# add_test(NAME test_analytical_gs_circular COMMAND test_analytical_gs_circular.x)  # TODO: update for new interface
+add_test(NAME test_analytical_circular COMMAND test_analytical_circular.x)
+add_test(NAME test_nctools_nc_get3 COMMAND test_nctools_nc_get3.x)
 
 add_test(
   NAME test_ascot5_compare
