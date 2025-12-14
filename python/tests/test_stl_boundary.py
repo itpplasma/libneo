@@ -174,5 +174,10 @@ def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
         plot_rz_slices(slices, out_dir / "stl_boundary_public_vmec_rz.png")
         plot_grid(slices[0], out_dir / "stl_boundary_public_vmec_grid.png")
         plot_mesh_3d(
-            slices, stl_path, out_dir / "stl_boundary_public_vmec_mesh_3d.png"
+            slices,
+            stl_path,
+            out_dir / "stl_boundary_public_vmec_mesh_3d.png",
+            max_faces=None,
+            face_alpha=0.98,
+            edge_width=0.25,
         )

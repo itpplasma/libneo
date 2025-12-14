@@ -531,6 +531,11 @@ def plot_mesh_3d(
     out_path: Path,
     *,
     max_faces: int | None = 8000,
+    face_alpha: float = 0.85,
+    edge_alpha: float = 1.0,
+    edge_width: float = 0.15,
+    face_color: tuple[float, float, float] = (0.65, 0.65, 0.75),
+    edge_color: tuple[float, float, float] = (0.10, 0.10, 0.10),
 ) -> None:
     import matplotlib.pyplot as plt
     import trimesh
@@ -549,8 +554,9 @@ def plot_mesh_3d(
 
     fig = plt.figure(figsize=(8.0, 6.0))
     ax = fig.add_subplot(111, projection="3d")
-    col = Poly3DCollection(tri, alpha=0.15, linewidths=0.0)
-    col.set_facecolor((0.3, 0.3, 0.7))
+    col = Poly3DCollection(tri, linewidths=edge_width)
+    col.set_facecolor((*face_color, float(face_alpha)))
+    col.set_edgecolor((*edge_color, float(edge_alpha)))
     ax.add_collection3d(col)
 
     for s in slices[:: max(1, len(slices) // 8)]:
@@ -558,12 +564,13 @@ def plot_mesh_3d(
         zz = s.outer_filled[:-1, 1]
         xx = s.axis_xy[0] + rr * np.cos(s.phi)
         yy = s.axis_xy[1] + rr * np.sin(s.phi)
-        ax.plot(xx, yy, zz, linewidth=1.0)
+        ax.plot(xx, yy, zz, linewidth=0.8, color="C3")
 
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.set_zlabel("Z")
     ax.autoscale_view()
+    ax.view_init(elev=18.0, azim=45.0)
     fig.tight_layout()
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -585,6 +592,18 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         type=int,
         default=8000,
         help="Max triangles to draw in --plot-3d; 0 means draw all",
+    )
+    p.add_argument(
+        "--plot-3d-alpha",
+        type=float,
+        default=0.85,
+        help="Face alpha for --plot-3d (0..1)",
+    )
+    p.add_argument(
+        "--plot-3d-edge-width",
+        type=float,
+        default=0.15,
+        help="Edge linewidth for --plot-3d",
     )
     p.add_argument("--plot-rz", type=Path)
     p.add_argument("--plot-grid", type=Path)
@@ -621,6 +640,8 @@ def main(argv: list[str] | None = None) -> int:
             args.stl,
             args.plot_3d,
             max_faces=None if max_faces == 0 else max_faces,
+            face_alpha=float(args.plot_3d_alpha),
+            edge_width=float(args.plot_3d_edge_width),
         )
     if args.plot_summary is not None:
         plot_rz_slices(slices, args.plot_summary)
