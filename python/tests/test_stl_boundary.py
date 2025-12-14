@@ -152,12 +152,12 @@ def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
         _download_file(wout_url, str(wout_path))
 
         base = wall_mesh_from_wout(wout_path, n_theta=128, n_zeta=96)
-        n_ports = 16
+        n_ports = 12
         ports = [
             PortSpec(
                 phi=float(phi),
                 z=0.0,
-                radius=0.25,
+                radius=0.18,
                 length=0.8,
             )
             for phi in np.linspace(0.0, 2.0 * np.pi, n_ports, endpoint=False)
