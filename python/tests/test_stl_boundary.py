@@ -117,3 +117,47 @@ def test_write_boundaries_netcdf_format(tmp_path) -> None:
         assert int(ds.variables["n_holes"][0]) == 1
         assert int(ds.variables["hole_start"][0, 0]) == 2
         assert int(ds.variables["hole_end"][0, 0]) == 2
+
+
+import pytest
+
+
+@pytest.mark.network
+def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
+    import tempfile
+    from urllib.request import urlopen
+
+    from libneo.stl_boundary import extract_boundary_slices
+    from libneo.vmec_wall import PortSpec, cut_cylindrical_ports, wall_mesh_from_wout
+
+    pytest.importorskip("trimesh")
+
+    wout_url = (
+        "https://princetonuniversity.github.io/STELLOPT/examples/wout_ncsx_c09r00_fixed.nc"
+    )
+
+    def _download_file(url: str, dst: str) -> None:
+        with urlopen(url, timeout=30) as resp, open(dst, "wb") as f:
+            f.write(resp.read())
+
+    with tempfile.TemporaryDirectory():
+        wout_path = tmp_path / "wout.nc"
+        _download_file(wout_url, str(wout_path))
+
+        base = wall_mesh_from_wout(wout_path, n_theta=128, n_zeta=96)
+        ports = [
+            PortSpec(phi=0.0, z=0.0, radius=0.30, length=2.0),
+            PortSpec(phi=np.pi / 4.0, z=0.0, radius=0.30, length=2.0),
+            PortSpec(phi=np.pi / 2.0, z=0.0, radius=0.30, length=2.0),
+            PortSpec(phi=3.0 * np.pi / 4.0, z=0.0, radius=0.30, length=2.0),
+        ]
+        cut = cut_cylindrical_ports(base, ports)
+        assert base.faces.shape[0] - cut.faces.shape[0] > 50
+        assert cut.is_watertight is False
+
+        stl_path = tmp_path / "wall_ports.stl"
+        cut.export(stl_path)
+
+        slices = extract_boundary_slices(stl_path, n_phi=8, n_boundary_points=256)
+        assert len(slices) == 8
+        assert all(_is_closed(s.outer_filled, tol=1.0e-6) for s in slices)

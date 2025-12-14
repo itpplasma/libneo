@@ -328,9 +328,13 @@ def extract_boundary_slices(
     phi_vals = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
     slices: list[BoundarySlice] = []
     for phi in phi_vals:
-        contours = slice_mesh_rz(
-            mesh, float(phi), axis_xy=axis_xy, stitch_tol=stitch_tol
-        )
+        phi_used = float(phi)
+        contours = slice_mesh_rz(mesh, phi_used, axis_xy=axis_xy, stitch_tol=stitch_tol)
+        if not contours:
+            phi_used = float((phi_used + np.pi) % (2.0 * np.pi))
+            contours = slice_mesh_rz(
+                mesh, phi_used, axis_xy=axis_xy, stitch_tol=stitch_tol
+            )
         if not contours:
             raise RuntimeError(f"no section contours found at phi={phi}")
 
@@ -347,7 +351,7 @@ def extract_boundary_slices(
         slices.append(
             BoundarySlice(
                 axis_xy=axis_xy,
-                phi=float(phi),
+                phi=phi_used,
                 outer_filled=outer_filled,
                 outer_original_on_filled=outer_on_filled,
                 hole_spans=hole_spans,
