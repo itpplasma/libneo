@@ -536,6 +536,8 @@ def plot_mesh_3d(
     edge_width: float = 0.15,
     face_color: tuple[float, float, float] = (0.65, 0.65, 0.75),
     edge_color: tuple[float, float, float] = (0.10, 0.10, 0.10),
+    padding: float = 0.12,
+    camera_dist: float | None = 14.0,
 ) -> None:
     import matplotlib.pyplot as plt
     import trimesh
@@ -569,8 +571,21 @@ def plot_mesh_3d(
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.set_zlabel("Z")
-    ax.autoscale_view()
+
+    vmin = mesh.vertices.min(axis=0)
+    vmax = mesh.vertices.max(axis=0)
+    center = 0.5 * (vmin + vmax)
+    span = float(np.max(vmax - vmin))
+    span = max(span, 1.0e-12)
+    half = 0.5 * span * (1.0 + 2.0 * float(padding))
+
+    ax.set_xlim(center[0] - half, center[0] + half)
+    ax.set_ylim(center[1] - half, center[1] + half)
+    ax.set_zlim(center[2] - half, center[2] + half)
+    ax.set_box_aspect((1.0, 1.0, 1.0))
     ax.view_init(elev=18.0, azim=45.0)
+    if camera_dist is not None and hasattr(ax, "dist"):
+        ax.dist = float(camera_dist)
     fig.tight_layout()
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -605,6 +620,18 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=0.15,
         help="Edge linewidth for --plot-3d",
     )
+    p.add_argument(
+        "--plot-3d-padding",
+        type=float,
+        default=0.12,
+        help="Padding for 3D axis limits as fraction of max span",
+    )
+    p.add_argument(
+        "--plot-3d-camera-dist",
+        type=float,
+        default=14.0,
+        help="Matplotlib 3D camera distance; larger shows more (set <=0 to ignore)",
+    )
     p.add_argument("--plot-rz", type=Path)
     p.add_argument("--plot-grid", type=Path)
     p.add_argument("--plot-summary", type=Path)
@@ -635,6 +662,7 @@ def main(argv: list[str] | None = None) -> int:
         plot_grid(slices[0], args.plot_grid)
     if args.plot_3d is not None:
         max_faces = int(args.plot_3d_max_faces)
+        cam = float(args.plot_3d_camera_dist)
         plot_mesh_3d(
             slices,
             args.stl,
@@ -642,6 +670,8 @@ def main(argv: list[str] | None = None) -> int:
             max_faces=None if max_faces == 0 else max_faces,
             face_alpha=float(args.plot_3d_alpha),
             edge_width=float(args.plot_3d_edge_width),
+            padding=float(args.plot_3d_padding),
+            camera_dist=None if cam <= 0.0 else cam,
         )
     if args.plot_summary is not None:
         plot_rz_slices(slices, args.plot_summary)

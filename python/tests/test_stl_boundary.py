@@ -184,4 +184,6 @@ def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
             max_faces=None,
             face_alpha=0.98,
             edge_width=0.25,
+            padding=0.25,
+            camera_dist=18.0,
         )
