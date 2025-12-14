@@ -499,11 +499,17 @@ def plot_grid(slice_: BoundarySlice, out_path: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(6.0, 6.0))
     for i in range(rr.shape[0]):
-        ax.plot(rr[i, :], zz[i, :], color="C0", linewidth=0.6, alpha=0.8)
+        ax.plot(
+            np.r_[rr[i, :], rr[i, 0]],
+            np.r_[zz[i, :], zz[i, 0]],
+            color="C0",
+            linewidth=0.6,
+            alpha=0.8,
+        )
     for j in range(rr.shape[1]):
         ax.plot(rr[:, j], zz[:, j], color="C1", linewidth=0.6, alpha=0.8)
 
-    ax.plot(slice_.outer_filled[:-1, 0], slice_.outer_filled[:-1, 1], color="k", linewidth=1.3)
+    ax.plot(slice_.outer_filled[:, 0], slice_.outer_filled[:, 1], color="k", linewidth=1.3)
     ax.set_aspect("equal", adjustable="box")
     ax.set_title(f"map2disc grid at phi={slice_.phi:.3f}")
     ax.set_xlabel("R")
@@ -515,7 +521,13 @@ def plot_grid(slice_: BoundarySlice, out_path: Path) -> None:
     plt.close(fig)
 
 
-def plot_mesh_3d(slices: list[BoundarySlice], stl_path: Path, out_path: Path) -> None:
+def plot_mesh_3d(
+    slices: list[BoundarySlice],
+    stl_path: Path,
+    out_path: Path,
+    *,
+    max_faces: int | None = 8000,
+) -> None:
     import matplotlib.pyplot as plt
     import trimesh
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -525,8 +537,8 @@ def plot_mesh_3d(slices: list[BoundarySlice], stl_path: Path, out_path: Path) ->
         raise TypeError("expected a single STL mesh")
 
     faces = mesh.faces
-    if faces.shape[0] > 8000:
-        idx = np.linspace(0, faces.shape[0] - 1, 8000).astype(int)
+    if max_faces is not None and faces.shape[0] > max_faces:
+        idx = np.linspace(0, faces.shape[0] - 1, max_faces).astype(int)
         faces = faces[idx]
 
     tri = mesh.vertices[faces]
@@ -564,6 +576,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--axis-y", type=float)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--plot-3d", type=Path)
+    p.add_argument(
+        "--plot-3d-max-faces",
+        type=int,
+        default=8000,
+        help="Max triangles to draw in --plot-3d; 0 means draw all",
+    )
     p.add_argument("--plot-rz", type=Path)
     p.add_argument("--plot-grid", type=Path)
     p.add_argument("--plot-summary", type=Path)
@@ -593,7 +611,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.plot_grid is not None:
         plot_grid(slices[0], args.plot_grid)
     if args.plot_3d is not None:
-        plot_mesh_3d(slices, args.stl, args.plot_3d)
+        max_faces = int(args.plot_3d_max_faces)
+        plot_mesh_3d(
+            slices,
+            args.stl,
+            args.plot_3d,
+            max_faces=None if max_faces == 0 else max_faces,
+        )
     if args.plot_summary is not None:
         plot_rz_slices(slices, args.plot_summary)
 
