@@ -2,14 +2,6 @@ submodule (libneo_coordinates) libneo_coordinates_vmec
     use spline_vmec_sub, only: splint_vmec_data
     implicit none
 
-    type, extends(coordinate_system_t) :: vmec_coordinate_system_t
-    contains
-        procedure :: evaluate_point => vmec_evaluate_point
-        procedure :: covariant_basis => vmec_covariant_basis
-        procedure :: metric_tensor => vmec_metric_tensor
-        procedure :: from_cyl => vmec_from_cyl
-    end type vmec_coordinate_system_t
-
 contains
 
     module subroutine make_vmec_coordinate_system(cs)

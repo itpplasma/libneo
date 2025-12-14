@@ -57,6 +57,14 @@ module libneo_coordinates
         end subroutine
     end interface
 
+    type, extends(coordinate_system_t) :: vmec_coordinate_system_t
+    contains
+        procedure :: evaluate_point => vmec_evaluate_point
+        procedure :: covariant_basis => vmec_covariant_basis
+        procedure :: metric_tensor => vmec_metric_tensor
+        procedure :: from_cyl => vmec_from_cyl
+    end type vmec_coordinate_system_t
+
     type, extends(coordinate_system_t) :: chartmap_coordinate_system_t
         type(BatchSplineData3D) :: spl_xyz
         integer :: nrho = 0
@@ -71,6 +79,31 @@ module libneo_coordinates
     end type chartmap_coordinate_system_t
 
     interface
+        module subroutine vmec_evaluate_point(self, u, x)
+            class(vmec_coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: u(3)
+            real(dp), intent(out) :: x(3)
+        end subroutine vmec_evaluate_point
+
+        module subroutine vmec_covariant_basis(self, u, e_cov)
+            class(vmec_coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: u(3)
+            real(dp), intent(out) :: e_cov(3,3)
+        end subroutine vmec_covariant_basis
+
+        module subroutine vmec_metric_tensor(self, u, g, ginv, sqrtg)
+            class(vmec_coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: u(3)
+            real(dp), intent(out) :: g(3,3), ginv(3,3), sqrtg
+        end subroutine vmec_metric_tensor
+
+        module subroutine vmec_from_cyl(self, xcyl, u, ierr)
+            class(vmec_coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: xcyl(3)
+            real(dp), intent(out) :: u(3)
+            integer, intent(out) :: ierr
+        end subroutine vmec_from_cyl
+
         module subroutine chartmap_evaluate_point(self, u, x)
             class(chartmap_coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
