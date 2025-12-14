@@ -127,7 +127,9 @@ def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
     import tempfile
     from urllib.request import urlopen
 
-    from libneo.stl_boundary import extract_boundary_slices
+    from pathlib import Path
+
+    from libneo.stl_boundary import extract_boundary_slices, plot_grid, plot_rz_slices
     from libneo.vmec_wall import PortSpec, cut_cylindrical_ports, wall_mesh_from_wout
 
     pytest.importorskip("trimesh")
@@ -161,3 +163,8 @@ def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
         slices = extract_boundary_slices(stl_path, n_phi=8, n_boundary_points=256)
         assert len(slices) == 8
         assert all(_is_closed(s.outer_filled, tol=1.0e-6) for s in slices)
+
+        out_dir = Path("build/test/python")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        plot_rz_slices(slices, out_dir / "stl_boundary_public_vmec_rz.png")
+        plot_grid(slices[0], out_dir / "stl_boundary_public_vmec_grid.png")
