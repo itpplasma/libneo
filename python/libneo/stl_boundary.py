@@ -134,7 +134,13 @@ def slice_mesh_rz(
         return []
 
     segments_rz: list[np.ndarray] = []
-    polylines_3d = list(section.discrete)
+    polylines_3d: list[np.ndarray] = []
+    try:
+        polylines_3d = list(section.discrete)
+    except ModuleNotFoundError:
+        polylines_3d = []
+    except Exception:
+        polylines_3d = []
     if not polylines_3d:
         for ent in section.entities:
             pts = getattr(ent, "points", None)
