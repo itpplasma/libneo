@@ -19,14 +19,13 @@ dev = [
     "scipy",
     "matplotlib",
     "netCDF4",
+    "trimesh",
     "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
 ]
 
 [tool.scikit-build]
-build-dir = "build"
+build-dir = "build/skbuild"
 build.verbose = true
-cmake.define.CMAKE_CACHE_DIR = "build"
-cmake.define.CMAKE_PRESET = "default"
 
 [tool.scikit-build.wheel.packages]
 libneo = "python/libneo"
