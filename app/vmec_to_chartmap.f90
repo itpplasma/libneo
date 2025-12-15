@@ -18,9 +18,9 @@ program vmec_to_chartmap
         error stop 1
     end if
 
-    nrho = 33
-    ntheta = 32
-    nzeta = 33
+    nrho = 32
+    ntheta = 33
+    nzeta = 34
 
     call get_command_argument(3, arg)
     if (len_trim(arg) > 0) read (arg, *) nrho

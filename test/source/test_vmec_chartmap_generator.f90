@@ -15,7 +15,7 @@ program test_vmec_chartmap_generator
 
     nerrors = 0
 
-    call write_chartmap_from_vmec(wout_file, chartmap_file, 33, 64, 33, ierr, message)
+    call write_chartmap_from_vmec(wout_file, chartmap_file, 32, 33, 34, ierr, message)
     if (ierr /= 0) then
         print *, "  FAIL: write_chartmap_from_vmec: ", trim(message)
         nerrors = nerrors + 1
