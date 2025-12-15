@@ -3,6 +3,26 @@ module libneo_coordinates
     use interpolate, only: BatchSplineData3D
     implicit none
 
+    character(len=*), parameter :: chartmap_netcdf_spec = &
+                                   "Chartmap NetCDF conventions:"//new_line('a')// &
+                                   "- Dimensions: rho, theta, zeta"//new_line('a')// &
+                                   "- Variables (required):"//new_line('a')// &
+                                   "  rho(rho), theta(theta)"//new_line('a')// &
+                                   "  zeta(zeta)"//new_line('a')// &
+                                   "  x(zeta,theta,rho)"//new_line('a')// &
+                                   "  y(zeta,theta,rho)"//new_line('a')// &
+                                   "  z(zeta,theta,rho)"//new_line('a')// &
+                                   "- Optional: nfp (integer >= 1)"//new_line('a')// &
+                                   "- Ranges:"//new_line('a')// &
+                                   "  rho in [0,1]"//new_line('a')// &
+                                   "  theta in [0,2pi)"//new_line('a')// &
+                                   "  zeta in [0,2pi/nfp)"//new_line('a')// &
+                                   "periodic dims exclude endpoint"//new_line('a')// &
+                                   "- Storage order:"//new_line('a')// &
+                                   "  file dims (zeta,theta,rho)"//new_line('a')// &
+                                   "Fortran reads x(rho,theta,zeta)"//new_line('a')// &
+                                   "- Units: x,y,z in cm"
+
     type, abstract :: coordinate_system_t
     contains
         procedure(evaluate_point_if), deferred :: evaluate_point
@@ -23,14 +43,14 @@ module libneo_coordinates
             import :: coordinate_system_t, dp
             class(coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
-            real(dp), intent(out) :: e_cov(3,3)
+            real(dp), intent(out) :: e_cov(3, 3)
         end subroutine
 
         subroutine metric_tensor_if(self, u, g, ginv, sqrtg)
             import :: coordinate_system_t, dp
             class(coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
-            real(dp), intent(out) :: g(3,3), ginv(3,3), sqrtg
+            real(dp), intent(out) :: g(3, 3), ginv(3, 3), sqrtg
         end subroutine
 
         subroutine from_cyl_if(self, xcyl, u, ierr)
@@ -55,6 +75,12 @@ module libneo_coordinates
             class(coordinate_system_t), allocatable, intent(out) :: cs
             character(len=*), intent(in) :: filename
         end subroutine
+
+        module subroutine validate_chartmap_file(filename, ierr, message)
+            character(len=*), intent(in) :: filename
+            integer, intent(out) :: ierr
+            character(len=*), intent(out) :: message
+        end subroutine validate_chartmap_file
     end interface
 
     type, extends(coordinate_system_t) :: vmec_coordinate_system_t
@@ -88,13 +114,13 @@ module libneo_coordinates
         module subroutine vmec_covariant_basis(self, u, e_cov)
             class(vmec_coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
-            real(dp), intent(out) :: e_cov(3,3)
+            real(dp), intent(out) :: e_cov(3, 3)
         end subroutine vmec_covariant_basis
 
         module subroutine vmec_metric_tensor(self, u, g, ginv, sqrtg)
             class(vmec_coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
-            real(dp), intent(out) :: g(3,3), ginv(3,3), sqrtg
+            real(dp), intent(out) :: g(3, 3), ginv(3, 3), sqrtg
         end subroutine vmec_metric_tensor
 
         module subroutine vmec_from_cyl(self, xcyl, u, ierr)
@@ -113,13 +139,13 @@ module libneo_coordinates
         module subroutine chartmap_covariant_basis(self, u, e_cov)
             class(chartmap_coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
-            real(dp), intent(out) :: e_cov(3,3)
+            real(dp), intent(out) :: e_cov(3, 3)
         end subroutine chartmap_covariant_basis
 
         module subroutine chartmap_metric_tensor(self, u, g, ginv, sqrtg)
             class(chartmap_coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
-            real(dp), intent(out) :: g(3,3), ginv(3,3), sqrtg
+            real(dp), intent(out) :: g(3, 3), ginv(3, 3), sqrtg
         end subroutine chartmap_metric_tensor
 
         module subroutine chartmap_from_cyl(self, xcyl, u, ierr)

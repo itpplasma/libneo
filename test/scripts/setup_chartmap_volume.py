@@ -78,6 +78,10 @@ def generate_chartmap_circular(outfile: Path) -> None:
         v_z = ds.createVariable("z", "f8", ("zeta", "theta", "rho"))
         v_nfp = ds.createVariable("nfp", "i4")
 
+        v_x.units = "cm"
+        v_y.units = "cm"
+        v_z.units = "cm"
+
         v_rho[:] = rho
         v_theta[:] = theta
         v_zeta[:] = zeta

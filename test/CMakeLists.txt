@@ -147,6 +147,9 @@ target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
 add_executable(test_chartmap_coordinates.x source/test_chartmap_coordinates.f90)
 target_link_libraries(test_chartmap_coordinates.x neo ${MAGFIE_LIB})
 
+add_executable(test_chartmap_validator.x source/test_chartmap_validator.f90)
+target_link_libraries(test_chartmap_validator.x neo)
+
 # TODO: Update test for new psi_1..psi_7 interface
 # add_executable(test_analytical_gs_circular.x source/test_analytical_gs_circular.f90)
 # target_link_libraries(test_analytical_gs_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
@@ -252,6 +255,12 @@ add_test(NAME test_chartmap_coordinates
 set_tests_properties(test_chartmap_coordinates PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   DEPENDS setup_chartmap_volume)
+
+add_test(NAME test_chartmap_validator
+  COMMAND test_chartmap_validator.x)
+set_tests_properties(test_chartmap_validator PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)
