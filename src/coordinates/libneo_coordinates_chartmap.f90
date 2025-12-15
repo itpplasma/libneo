@@ -1,8 +1,8 @@
-submodule (libneo_coordinates) libneo_coordinates_chartmap
+submodule(libneo_coordinates) libneo_coordinates_chartmap
     use nctools_module, only: nc_open, nc_close, nc_inq_dim, nc_get
     use math_constants, only: TWOPI
     use interpolate, only: construct_batch_splines_3d, &
-        evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
+                           evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
     implicit none
 
 contains
@@ -11,7 +11,7 @@ contains
         class(coordinate_system_t), allocatable, intent(out) :: cs
         character(len=*), intent(in) :: filename
 
-        allocate(chartmap_coordinate_system_t :: cs)
+        allocate (chartmap_coordinate_system_t :: cs)
 
         select type (ccs => cs)
         type is (chartmap_coordinate_system_t)
@@ -26,14 +26,23 @@ contains
         character(len=*), intent(in) :: filename
 
         integer :: ncid
+        integer :: ierr
         integer :: len_rho, len_theta, len_zeta
         integer :: nrho, ntheta, nzeta
+        character(len=2048) :: message
         real(dp), allocatable :: rho(:), theta(:), zeta(:)
         real(dp), allocatable :: x(:, :, :), y(:, :, :), z(:, :, :)
         real(dp), allocatable :: pos_batch(:, :, :, :)
         real(dp) :: x_min(3), x_max(3)
         logical :: periodic(3)
         integer :: order(3)
+
+        call validate_chartmap_file(trim(filename), ierr, message)
+        if (ierr /= 0) then
+            print *, "initialize_chartmap: invalid chartmap file"
+            print *, trim(message)
+            error stop
+        end if
 
         call nc_open(trim(filename), ncid)
 
@@ -45,14 +54,14 @@ contains
         ntheta = len_theta
         nzeta = len_zeta
 
-        allocate(rho(nrho), theta(ntheta), zeta(nzeta))
+        allocate (rho(nrho), theta(ntheta), zeta(nzeta))
         call nc_get(ncid, 'rho', rho)
         call nc_get(ncid, 'theta', theta)
         call nc_get(ncid, 'zeta', zeta)
 
-        allocate(x(nrho, ntheta, nzeta))
-        allocate(y(nrho, ntheta, nzeta))
-        allocate(z(nrho, ntheta, nzeta))
+        allocate (x(nrho, ntheta, nzeta))
+        allocate (y(nrho, ntheta, nzeta))
+        allocate (z(nrho, ntheta, nzeta))
         call nc_get(ncid, 'x', x)
         call nc_get(ncid, 'y', y)
         call nc_get(ncid, 'z', z)
@@ -66,12 +75,13 @@ contains
         periodic(2) = .true.
         periodic(3) = (nzeta > 1)
 
-        allocate(pos_batch(nrho, ntheta, nzeta, 3))
+        allocate (pos_batch(nrho, ntheta, nzeta, 3))
         pos_batch(:, :, :, 1) = x
         pos_batch(:, :, :, 2) = y
         pos_batch(:, :, :, 3) = z
 
-        call construct_batch_splines_3d(x_min, x_max, pos_batch, order, periodic, ccs%spl_xyz)
+        call construct_batch_splines_3d(x_min, x_max, pos_batch, order, periodic, &
+                                        ccs%spl_xyz)
 
         ccs%nrho = nrho
         ccs%ntheta = ntheta
@@ -129,21 +139,21 @@ contains
             end do
         end do
 
-        det = g(1, 1) * (g(2, 2) * g(3, 3) - g(2, 3) * g(3, 2)) &
-            - g(1, 2) * (g(2, 1) * g(3, 3) - g(2, 3) * g(3, 1)) &
-            + g(1, 3) * (g(2, 1) * g(3, 2) - g(2, 2) * g(3, 1))
+        det = g(1, 1)*(g(2, 2)*g(3, 3) - g(2, 3)*g(3, 2)) &
+              - g(1, 2)*(g(2, 1)*g(3, 3) - g(2, 3)*g(3, 1)) &
+              + g(1, 3)*(g(2, 1)*g(3, 2) - g(2, 2)*g(3, 1))
 
         sqrtg = sqrt(abs(det))
 
-        ginv(1, 1) = (g(2, 2) * g(3, 3) - g(2, 3) * g(3, 2)) / det
-        ginv(1, 2) = (g(1, 3) * g(3, 2) - g(1, 2) * g(3, 3)) / det
-        ginv(1, 3) = (g(1, 2) * g(2, 3) - g(1, 3) * g(2, 2)) / det
-        ginv(2, 1) = (g(2, 3) * g(3, 1) - g(2, 1) * g(3, 3)) / det
-        ginv(2, 2) = (g(1, 1) * g(3, 3) - g(1, 3) * g(3, 1)) / det
-        ginv(2, 3) = (g(1, 3) * g(2, 1) - g(1, 1) * g(2, 3)) / det
-        ginv(3, 1) = (g(2, 1) * g(3, 2) - g(2, 2) * g(3, 1)) / det
-        ginv(3, 2) = (g(1, 2) * g(3, 1) - g(1, 1) * g(3, 2)) / det
-        ginv(3, 3) = (g(1, 1) * g(2, 2) - g(1, 2) * g(2, 1)) / det
+        ginv(1, 1) = (g(2, 2)*g(3, 3) - g(2, 3)*g(3, 2))/det
+        ginv(1, 2) = (g(1, 3)*g(3, 2) - g(1, 2)*g(3, 3))/det
+        ginv(1, 3) = (g(1, 2)*g(2, 3) - g(1, 3)*g(2, 2))/det
+        ginv(2, 1) = (g(2, 3)*g(3, 1) - g(2, 1)*g(3, 3))/det
+        ginv(2, 2) = (g(1, 1)*g(3, 3) - g(1, 3)*g(3, 1))/det
+        ginv(2, 3) = (g(1, 3)*g(2, 1) - g(1, 1)*g(2, 3))/det
+        ginv(3, 1) = (g(2, 1)*g(3, 2) - g(2, 2)*g(3, 1))/det
+        ginv(3, 2) = (g(1, 2)*g(3, 1) - g(1, 1)*g(3, 2))/det
+        ginv(3, 3) = (g(1, 1)*g(2, 2) - g(1, 2)*g(2, 1))/det
     end subroutine chartmap_metric_tensor
 
     subroutine chartmap_from_cyl(self, xcyl, u, ierr)
@@ -154,8 +164,8 @@ contains
 
         real(dp) :: x_target(3), rho_theta(2)
 
-        x_target(1) = xcyl(1) * cos(xcyl(2))
-        x_target(2) = xcyl(1) * sin(xcyl(2))
+        x_target(1) = xcyl(1)*cos(xcyl(2))
+        x_target(2) = xcyl(1)*sin(xcyl(2))
         x_target(3) = xcyl(3)
 
         call newton_slice(self, x_target, xcyl(2), rho_theta, ierr)
@@ -193,7 +203,7 @@ contains
         bound_x = vals
 
         rho = sqrt(sum((x_target - axis_x)**2)) &
-            / max(1.0e-12_dp, sqrt(sum((bound_x - axis_x)**2)))
+              /max(1.0e-12_dp, sqrt(sum((bound_x - axis_x)**2)))
         rho = min(max(rho, 0.0_dp), 1.0_dp)
 
         do iter = 1, 30
@@ -222,14 +232,14 @@ contains
             jtr(1) = dot_product(jac(:, 1), residual)
             jtr(2) = dot_product(jac(:, 2), residual)
 
-            det = jtj(1, 1) * jtj(2, 2) - jtj(1, 2) * jtj(2, 1)
+            det = jtj(1, 1)*jtj(2, 2) - jtj(1, 2)*jtj(2, 1)
             if (abs(det) < 1.0e-18_dp) then
                 ierr = 2
                 exit
             end if
 
-            delta(1) = (jtj(2, 2) * jtr(1) - jtj(1, 2) * jtr(2)) / det
-            delta(2) = (jtj(1, 1) * jtr(2) - jtj(2, 1) * jtr(1)) / det
+            delta(1) = (jtj(2, 2)*jtr(1) - jtj(1, 2)*jtr(2))/det
+            delta(2) = (jtj(1, 1)*jtr(2) - jtj(2, 1)*jtr(1))/det
 
             rho = rho + delta(1)
             theta = modulo(theta + delta(2), TWOPI)
