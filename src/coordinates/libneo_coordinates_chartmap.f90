@@ -3,7 +3,8 @@ submodule(libneo_coordinates) libneo_coordinates_chartmap
     use math_constants, only: TWOPI
     use interpolate, only: construct_batch_splines_3d, &
                            evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
-    use netcdf, only: NF90_NOERR, nf90_get_var, nf90_inq_varid
+    use netcdf, only: NF90_CHAR, NF90_GLOBAL, NF90_NOERR, nf90_get_att, nf90_get_var, &
+                      nf90_inq_varid, nf90_inquire_attribute
     implicit none
 
 contains
@@ -43,6 +44,38 @@ contains
         end if
         if (num_field_periods < 1) num_field_periods = 1
     end subroutine chartmap_read_num_field_periods
+
+    subroutine chartmap_read_zeta_convention(ncid, zeta_convention)
+        integer, intent(in) :: ncid
+        integer, intent(out) :: zeta_convention
+
+        integer :: status
+        integer :: att_type
+        integer :: att_len
+        character(len=:), allocatable :: value
+
+        zeta_convention = chartmap_zeta_conv_unknown
+
+        status = nf90_inquire_attribute(ncid, NF90_GLOBAL, 'zeta_convention', &
+                                        xtype=att_type, len=att_len)
+        if (status /= NF90_NOERR) return
+        if (att_type /= NF90_CHAR .or. att_len < 1) return
+
+        allocate (character(len=att_len) :: value)
+        status = nf90_get_att(ncid, NF90_GLOBAL, 'zeta_convention', value)
+        if (status /= NF90_NOERR) return
+
+        select case (trim(value))
+        case ('cyl')
+            zeta_convention = chartmap_zeta_conv_cyl
+        case ('vmec')
+            zeta_convention = chartmap_zeta_conv_vmec
+        case ('boozer')
+            zeta_convention = chartmap_zeta_conv_boozer
+        case default
+            zeta_convention = chartmap_zeta_conv_unknown
+        end select
+    end subroutine chartmap_read_zeta_convention
 
     subroutine chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
                                      x2, y2, z2)
@@ -128,6 +161,7 @@ contains
         logical :: periodic(3)
         integer :: order(3)
         integer :: num_field_periods
+        integer :: zeta_convention
 
         call validate_chartmap_file(trim(filename), ierr, message)
         if (ierr /= 0) then
@@ -158,6 +192,7 @@ contains
         call nc_get(ncid, 'y', y)
         call nc_get(ncid, 'z', z)
         call chartmap_read_num_field_periods(ncid, num_field_periods)
+        call chartmap_read_zeta_convention(ncid, zeta_convention)
         call nc_close(ncid)
 
         order = [3, 3, 3]
@@ -167,6 +202,7 @@ contains
         periodic(3) = (nzeta > 1)
 
         ccs%num_field_periods = num_field_periods
+        ccs%zeta_convention = zeta_convention
         zeta_period = TWOPI/real(num_field_periods, dp)
 
         call chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
@@ -284,12 +320,351 @@ contains
         x_target(3) = xcyl(3)
 
         zeta_period = TWOPI/real(self%num_field_periods, dp)
-        zeta = modulo(xcyl(2), zeta_period)
-        call newton_slice(self, x_target, zeta, rho_theta, ierr)
-        u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
-        u(2) = modulo(rho_theta(2), TWOPI)
-        u(3) = zeta
+        if (self%zeta_convention == chartmap_zeta_conv_cyl) then
+            zeta = modulo(xcyl(2), zeta_period)
+            call newton_slice(self, x_target, zeta, rho_theta, ierr)
+            u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
+            u(2) = modulo(rho_theta(2), TWOPI)
+            u(3) = zeta
+            return
+        end if
+
+        call self%from_cart(x_target, u, ierr)
     end subroutine chartmap_from_cyl
+
+    subroutine chartmap_from_cart(self, x, u, ierr)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: u(3)
+        integer, intent(out) :: ierr
+
+        call chartmap_invert_cart(self, x, u, ierr)
+    end subroutine chartmap_from_cart
+
+    subroutine chartmap_invert_cart(self, x_target, u, ierr)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x_target(3)
+        real(dp), intent(out) :: u(3)
+        integer, intent(out) :: ierr
+
+        real(dp) :: u_try(3)
+        real(dp) :: res_norm, best_res
+        real(dp) :: zeta_period
+        real(dp) :: phi
+        real(dp) :: zeta_seed(5)
+        logical :: trace
+        integer :: k
+        integer :: ierr_try
+
+        ierr = chartmap_from_cyl_err_max_iter
+        best_res = huge(1.0_dp)
+        u = 0.0_dp
+
+        zeta_period = TWOPI/real(self%num_field_periods, dp)
+        phi = atan2(x_target(2), x_target(1))
+        zeta_seed = [modulo(phi, zeta_period), 0.0_dp, 0.25_dp*zeta_period, &
+                     0.50_dp*zeta_period, 0.75_dp*zeta_period]
+
+        trace = chartmap_trace_once_enabled()
+
+        do k = 1, size(zeta_seed)
+            call chartmap_try_cart_seed(self, x_target, zeta_seed(k), u_try, res_norm, &
+                                        ierr_try, trace .and. k == 1)
+            if (ierr_try /= chartmap_from_cyl_ok) cycle
+            if (res_norm < best_res) then
+                best_res = res_norm
+                u = u_try
+                ierr = chartmap_from_cyl_ok
+            end if
+        end do
+
+        if (ierr /= chartmap_from_cyl_ok) return
+        u(1) = min(max(u(1), 0.0_dp), 1.0_dp)
+        u(2) = modulo(u(2), TWOPI)
+        u(3) = modulo(u(3), zeta_period)
+    end subroutine chartmap_invert_cart
+
+    subroutine chartmap_try_cart_seed(self, x_target, zeta_seed, u, res_norm, ierr, &
+                                      trace)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x_target(3)
+        real(dp), intent(in) :: zeta_seed
+        real(dp), intent(out) :: u(3)
+        real(dp), intent(out) :: res_norm
+        integer, intent(out) :: ierr
+        logical, intent(in) :: trace
+
+        real(dp) :: rho, theta, zeta
+        real(dp) :: x_round(3)
+
+        zeta = zeta_seed
+        call chartmap_initial_guess(self, x_target, zeta, rho, theta, ierr)
+        if (ierr /= chartmap_from_cyl_ok) then
+            res_norm = huge(1.0_dp)
+            u = 0.0_dp
+            return
+        end if
+
+        call chartmap_solve_cart(self, x_target, rho, theta, zeta, ierr, trace)
+        u = [rho, theta, zeta]
+        if (ierr /= chartmap_from_cyl_ok) then
+            res_norm = huge(1.0_dp)
+            return
+        end if
+
+        call evaluate_batch_splines_3d(self%spl_xyz, u, x_round)
+        res_norm = sqrt(sum((x_target - x_round)**2))
+    end subroutine chartmap_try_cart_seed
+
+    subroutine chartmap_solve_cart(self, x_target, rho, theta, zeta, ierr, trace)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x_target(3)
+        real(dp), intent(inout) :: rho
+        real(dp), intent(inout) :: theta
+        real(dp), intent(inout) :: zeta
+        integer, intent(out) :: ierr
+        logical, intent(in) :: trace
+
+        real(dp) :: delta(3)
+        real(dp) :: rho_new, theta_new, zeta_new
+        real(dp) :: res_norm, res_norm_new
+        real(dp) :: tol_res, tol_step
+        real(dp) :: step_norm
+        real(dp) :: zeta_period
+        integer :: iter
+        logical :: success
+
+        ierr = chartmap_from_cyl_ok
+        zeta_period = TWOPI/real(self%num_field_periods, dp)
+        zeta = modulo(zeta, zeta_period)
+        tol_res = max(1.0e-10_dp, self%tol_newton)
+        tol_step = max(1.0e-10_dp, self%tol_newton)
+        do iter = 1, 60
+            call chartmap_newton_delta_cart(self, x_target, rho, theta, zeta, delta, &
+                                            res_norm, ierr)
+            if (ierr /= chartmap_from_cyl_ok) return
+            if (res_norm < tol_res) return
+            step_norm = sqrt(sum(delta**2))
+            if (step_norm < tol_step) return
+            call chartmap_line_search_cart(self, x_target, rho, theta, zeta, &
+                                           zeta_period, &
+                                           delta, res_norm, rho_new, theta_new, &
+                                           zeta_new, &
+                                           res_norm_new, success)
+            if (.not. success) then
+                ierr = chartmap_from_cyl_err_max_iter
+                return
+            end if
+            if (trace) print *, "chartmap_from_cart iter=", iter, " res=", res_norm, &
+                " step=", step_norm
+            rho = rho_new
+            theta = theta_new
+            zeta = zeta_new
+        end do
+        ierr = chartmap_from_cyl_err_max_iter
+    end subroutine chartmap_solve_cart
+
+    subroutine chartmap_newton_delta_cart(self, x_target, rho, theta, zeta, delta, &
+                                          res_norm, ierr)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x_target(3)
+        real(dp), intent(in) :: rho
+        real(dp), intent(in) :: theta
+        real(dp), intent(in) :: zeta
+        real(dp), intent(out) :: delta(3)
+        real(dp), intent(out) :: res_norm
+        integer, intent(out) :: ierr
+
+        real(dp) :: residual(3)
+        real(dp) :: dx_drho(3), dx_dtheta(3), dx_dzeta(3)
+        real(dp) :: jtj(3, 3), jtr(3)
+
+        ierr = chartmap_from_cyl_ok
+        delta = 0.0_dp
+
+        call chartmap_eval_residual_and_partials_cart(self, x_target, rho, &
+                                                      theta, zeta, &
+                                                      residual, res_norm, dx_drho, &
+                                                      dx_dtheta, dx_dzeta)
+
+        jtj(1, 1) = dot_product(dx_drho, dx_drho)
+        jtj(1, 2) = dot_product(dx_drho, dx_dtheta)
+        jtj(1, 3) = dot_product(dx_drho, dx_dzeta)
+        jtj(2, 1) = jtj(1, 2)
+        jtj(2, 2) = dot_product(dx_dtheta, dx_dtheta)
+        jtj(2, 3) = dot_product(dx_dtheta, dx_dzeta)
+        jtj(3, 1) = jtj(1, 3)
+        jtj(3, 2) = jtj(2, 3)
+        jtj(3, 3) = dot_product(dx_dzeta, dx_dzeta)
+
+        jtr(1) = dot_product(dx_drho, residual)
+        jtr(2) = dot_product(dx_dtheta, residual)
+        jtr(3) = dot_product(dx_dzeta, residual)
+
+        call chartmap_solve_normal_eq3(jtj, jtr, delta, ierr)
+    end subroutine chartmap_newton_delta_cart
+
+    subroutine chartmap_eval_residual_and_partials_cart(self, x_target, rho, &
+                                                        theta, zeta, &
+                                                        residual, res_norm, dx_drho, &
+                                                        dx_dtheta, dx_dzeta)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x_target(3)
+        real(dp), intent(in) :: rho
+        real(dp), intent(in) :: theta
+        real(dp), intent(in) :: zeta
+        real(dp), intent(out) :: residual(3)
+        real(dp), intent(out) :: res_norm
+        real(dp), intent(out) :: dx_drho(3)
+        real(dp), intent(out) :: dx_dtheta(3)
+        real(dp), intent(out) :: dx_dzeta(3)
+
+        real(dp) :: uvec(3)
+        real(dp) :: vals(3)
+        real(dp) :: dvals(3, 3)
+
+        uvec = [rho, theta, zeta]
+        call evaluate_batch_splines_3d_der(self%spl_xyz, uvec, vals, dvals)
+
+        residual = x_target - vals
+        res_norm = sqrt(sum(residual**2))
+        dx_drho = dvals(1, :)
+        dx_dtheta = dvals(2, :)
+        dx_dzeta = dvals(3, :)
+    end subroutine chartmap_eval_residual_and_partials_cart
+
+    subroutine chartmap_solve_normal_eq3(jtj, jtr, delta, ierr)
+        real(dp), intent(in) :: jtj(3, 3)
+        real(dp), intent(in) :: jtr(3)
+        real(dp), intent(out) :: delta(3)
+        integer, intent(out) :: ierr
+
+        real(dp) :: a(3, 3), b(3)
+        real(dp) :: lambda
+        integer :: k
+        logical :: ok
+
+        ierr = chartmap_from_cyl_ok
+        delta = 0.0_dp
+
+        lambda = 0.0_dp
+        do k = 1, 10
+            a = jtj
+            a(1, 1) = a(1, 1) + lambda
+            a(2, 2) = a(2, 2) + lambda
+            a(3, 3) = a(3, 3) + lambda
+            b = jtr
+
+            call chartmap_solve_3x3(a, b, delta, ok)
+            if (ok) return
+
+            if (lambda == 0.0_dp) then
+                lambda = 1.0e-12_dp*max(1.0_dp, jtj(1, 1) + jtj(2, 2) + jtj(3, 3))
+            else
+                lambda = 10.0_dp*lambda
+            end if
+        end do
+
+        ierr = chartmap_from_cyl_err_singular
+    end subroutine chartmap_solve_normal_eq3
+
+    subroutine chartmap_solve_3x3(a, b, x, ok)
+        real(dp), intent(inout) :: a(3, 3)
+        real(dp), intent(inout) :: b(3)
+        real(dp), intent(out) :: x(3)
+        logical, intent(out) :: ok
+        real(dp), parameter :: pivtol = 1.0e-18_dp
+        real(dp) :: pivot
+        real(dp) :: factor
+        real(dp) :: tmp_row(3)
+        real(dp) :: tmp_b
+        integer :: i, k, piv
+
+        ok = .true.; x = 0.0_dp
+        do i = 1, 3
+            piv = i
+            pivot = abs(a(i, i))
+            do k = i + 1, 3
+                if (abs(a(k, i)) > pivot) then
+                    piv = k
+                    pivot = abs(a(k, i))
+                end if
+            end do
+            if (pivot < pivtol) then
+                ok = .false.
+                return
+            end if
+            if (piv /= i) then
+                tmp_row = a(i, :)
+                a(i, :) = a(piv, :)
+                a(piv, :) = tmp_row
+                tmp_b = b(i)
+                b(i) = b(piv)
+                b(piv) = tmp_b
+            end if
+            pivot = a(i, i)
+            a(i, :) = a(i, :)/pivot
+            b(i) = b(i)/pivot
+            do k = 1, 3
+                if (k == i) cycle
+                factor = a(k, i)
+                a(k, :) = a(k, :) - factor*a(i, :)
+                b(k) = b(k) - factor*b(i)
+            end do
+        end do
+        x = b
+    end subroutine chartmap_solve_3x3
+
+    subroutine chartmap_line_search_cart(self, x_target, rho, theta, zeta, &
+                                         zeta_period, &
+                                         delta, res_norm, rho_new, theta_new, &
+                                         zeta_new, &
+                                         res_norm_new, success)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x_target(3)
+        real(dp), intent(in) :: rho
+        real(dp), intent(in) :: theta
+        real(dp), intent(in) :: zeta
+        real(dp), intent(in) :: zeta_period
+        real(dp), intent(in) :: delta(3)
+        real(dp), intent(in) :: res_norm
+        real(dp), intent(out) :: rho_new
+        real(dp), intent(out) :: theta_new
+        real(dp), intent(out) :: zeta_new
+        real(dp), intent(out) :: res_norm_new
+        logical, intent(out) :: success
+
+        real(dp) :: alpha
+        real(dp) :: uvec(3)
+        real(dp) :: x_trial(3)
+        real(dp) :: residual(3)
+        integer :: k
+
+        success = .false.; rho_new = rho; theta_new = theta; zeta_new = zeta
+        res_norm_new = res_norm
+        alpha = 1.0_dp
+        do k = 1, 12
+            rho_new = rho + alpha*delta(1)
+            if (rho_new < -0.02_dp .or. rho_new > 1.02_dp) then
+                alpha = 0.5_dp*alpha
+                cycle
+            end if
+
+            theta_new = modulo(theta + alpha*delta(2), TWOPI)
+            zeta_new = modulo(zeta + alpha*delta(3), zeta_period)
+            uvec = [rho_new, theta_new, zeta_new]
+            call evaluate_batch_splines_3d(self%spl_xyz, uvec, x_trial)
+            residual = x_target - x_trial
+            res_norm_new = sqrt(sum(residual**2))
+
+            if (res_norm_new < res_norm) then
+                success = .true.
+                return
+            end if
+
+            alpha = 0.5_dp*alpha
+        end do
+    end subroutine chartmap_line_search_cart
 
     subroutine chartmap_initial_guess(self, x_target, zeta, rho, theta, ierr)
         class(chartmap_coordinate_system_t), intent(in) :: self

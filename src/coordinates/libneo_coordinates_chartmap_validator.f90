@@ -1,7 +1,8 @@
 submodule(libneo_coordinates) libneo_coordinates_chartmap_validator
     use math_constants, only: TWOPI
-    use netcdf, only: NF90_BYTE, NF90_CHAR, NF90_DOUBLE, NF90_INT, NF90_INT64, &
-                      NF90_MAX_VAR_DIMS, NF90_NOERR, NF90_NOWRITE, NF90_SHORT, &
+    use netcdf, only: NF90_BYTE, NF90_CHAR, NF90_DOUBLE, NF90_GLOBAL, NF90_INT, &
+                      NF90_INT64, NF90_MAX_VAR_DIMS, NF90_NOERR, NF90_NOWRITE, &
+                      NF90_SHORT, &
                       nf90_close, &
                       nf90_get_att, nf90_get_var, nf90_inq_dimid, nf90_inq_varid, &
                       nf90_inquire_attribute, nf90_inquire_dimension, &
@@ -83,6 +84,9 @@ contains
             call require_units_cm(ncid, "z", var_z, ierr, message)
             if (ierr /= ok) exit
 
+            call check_optional_zeta_convention(ncid, ierr, message)
+            if (ierr /= ok) exit
+
             call read_optional_num_field_periods(ncid, num_field_periods, ierr, message)
             if (ierr /= ok) exit
 
@@ -109,6 +113,44 @@ contains
 
         status = nf90_close(ncid)
     end subroutine validate_chartmap_file
+
+    subroutine check_optional_zeta_convention(ncid, ierr, message)
+        integer, intent(in) :: ncid
+        integer, intent(out) :: ierr
+        character(len=*), intent(out) :: message
+
+        integer :: status
+        integer :: att_type
+        integer :: att_len
+        character(len=:), allocatable :: value
+
+        ierr = 0
+        message = ""
+
+        status = nf90_inquire_attribute(ncid, NF90_GLOBAL, "zeta_convention", &
+                                        xtype=att_type, len=att_len)
+        if (status /= NF90_NOERR) return
+        if (att_type /= NF90_CHAR .or. att_len < 1) then
+            ierr = 5
+            message = "zeta_convention must be a global string attribute"
+            return
+        end if
+
+        allocate (character(len=att_len) :: value)
+        status = nf90_get_att(ncid, NF90_GLOBAL, "zeta_convention", value)
+        if (status /= NF90_NOERR) then
+            ierr = 5
+            message = "could not read zeta_convention"
+            return
+        end if
+
+        select case (trim(value))
+        case ("cyl", "vmec", "boozer", "unknown")
+        case default
+            ierr = 5
+            message = "invalid zeta_convention"
+        end select
+    end subroutine check_optional_zeta_convention
 
     subroutine require_dim(ncid, name, dimid, dimlen, ierr, message)
         integer, intent(in) :: ncid

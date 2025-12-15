@@ -63,6 +63,7 @@ def generate_chartmap_circular(outfile: Path) -> None:
 
     outfile.parent.mkdir(parents=True, exist_ok=True)
     with Dataset(outfile, "w") as ds:
+        ds.setncattr("zeta_convention", "cyl")
         ds.createDimension("rho", nrho)
         ds.createDimension("theta", ntheta)
         ds.createDimension("zeta", nzeta)
