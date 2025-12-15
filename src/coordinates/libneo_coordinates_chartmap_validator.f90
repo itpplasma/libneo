@@ -2,10 +2,10 @@ submodule(libneo_coordinates) libneo_coordinates_chartmap_validator
     use math_constants, only: TWOPI
     use netcdf, only: NF90_BYTE, NF90_CHAR, NF90_DOUBLE, NF90_INT, NF90_INT64, &
                       NF90_MAX_VAR_DIMS, NF90_NOERR, NF90_NOWRITE, NF90_SHORT, &
-                          nf90_close, &
+                      nf90_close, &
                       nf90_get_att, nf90_get_var, nf90_inq_dimid, nf90_inq_varid, &
                       nf90_inquire_attribute, nf90_inquire_dimension, &
-                          nf90_inquire_variable, &
+                      nf90_inquire_variable, &
                       nf90_open, nf90_strerror
     implicit none
 
@@ -31,7 +31,7 @@ contains
         integer :: dim_rho, dim_theta, dim_zeta
         integer :: len_rho, len_theta, len_zeta
         integer :: var_rho, var_theta, var_zeta, var_x, var_y, var_z
-        integer :: nfp
+        integer :: num_field_periods
         real(dp), allocatable :: rho(:), theta(:), zeta(:)
         real(dp) :: period
 
@@ -83,7 +83,7 @@ contains
             call require_units_cm(ncid, "z", var_z, ierr, message)
             if (ierr /= ok) exit
 
-            call read_optional_nfp(ncid, nfp, ierr, message)
+            call read_optional_num_field_periods(ncid, num_field_periods, ierr, message)
             if (ierr /= ok) exit
 
             allocate (rho(len_rho), theta(len_theta), zeta(len_zeta))
@@ -100,7 +100,7 @@ contains
             call check_periodic_grid("theta", theta, TWOPI, ierr, message)
             if (ierr /= ok) exit
 
-            period = TWOPI/real(nfp, dp)
+            period = TWOPI/real(num_field_periods, dp)
             call check_periodic_grid("zeta", zeta, period, ierr, message)
             if (ierr /= ok) exit
 
@@ -261,47 +261,52 @@ contains
         end if
     end subroutine require_units_cm
 
-    subroutine read_optional_nfp(ncid, nfp, ierr, message)
+    subroutine read_optional_num_field_periods(ncid, num_field_periods, ierr, message)
         integer, intent(in) :: ncid
-        integer, intent(out) :: nfp
+        integer, intent(out) :: num_field_periods
         integer, intent(out) :: ierr
         character(len=*), intent(out) :: message
 
         integer :: status, varid, xtype, ndims
+        character(len=*), parameter :: var_primary = "num_field_periods"
+        character(len=*), parameter :: var_legacy = "nfp"
 
         ierr = 0
         message = ""
-        nfp = 1
+        num_field_periods = 1
 
-        status = nf90_inq_varid(ncid, "nfp", varid)
-        if (status /= NF90_NOERR) return
+        status = nf90_inq_varid(ncid, var_primary, varid)
+        if (status /= NF90_NOERR) then
+            status = nf90_inq_varid(ncid, var_legacy, varid)
+            if (status /= NF90_NOERR) return
+        end if
 
         status = nf90_inquire_variable(ncid, varid, xtype=xtype, ndims=ndims)
         if (status /= NF90_NOERR) then
             ierr = 5
-            message = "could not inquire variable nfp"
+            message = "could not inquire variable num_field_periods"
             return
         end if
 
         if (ndims /= 0 .or. .not. is_integer_xtype(xtype)) then
             ierr = 5
-            message = "nfp must be a scalar integer variable"
+            message = "num_field_periods must be a scalar integer variable"
             return
         end if
 
-        status = nf90_get_var(ncid, varid, nfp)
+        status = nf90_get_var(ncid, varid, num_field_periods)
         if (status /= NF90_NOERR) then
             ierr = 5
-            message = "could not read nfp"
+            message = "could not read num_field_periods"
             return
         end if
 
-        if (nfp < 1) then
+        if (num_field_periods < 1) then
             ierr = 5
-            message = "nfp must be >= 1"
+            message = "num_field_periods must be >= 1"
             return
         end if
-    end subroutine read_optional_nfp
+    end subroutine read_optional_num_field_periods
 
     subroutine read_grid(ncid, varid, name, x, ierr, message)
         integer, intent(in) :: ncid

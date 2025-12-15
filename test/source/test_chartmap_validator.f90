@@ -96,7 +96,7 @@ contains
         character(len=*), intent(in) :: filename
         integer :: ncid
         integer :: dim_rho, dim_theta, dim_zeta
-        integer :: var_rho, var_theta, var_zeta, var_y, var_z, var_nfp
+        integer :: var_rho, var_theta, var_zeta, var_y, var_z, var_num_field_periods
         integer, parameter :: nrho = 3, ntheta = 4, nzeta = 5
         real(dp) :: rho(nrho), theta(ntheta), zeta(nzeta)
         real(dp) :: y(nrho, ntheta, nzeta), z(nrho, ntheta, nzeta)
@@ -116,7 +116,8 @@ contains
                                    [dim_rho, dim_theta, dim_zeta], var_y))
         call nc_check(nf90_def_var(ncid, "z", NF90_DOUBLE, &
                                    [dim_rho, dim_theta, dim_zeta], var_z))
-        call nc_check(nf90_def_var(ncid, "nfp", NF90_INT, var_nfp))
+        call nc_check(nf90_def_var(ncid, "num_field_periods", NF90_INT, &
+                                   var_num_field_periods))
         call nc_check(nf90_put_att(ncid, var_y, "units", "cm"))
         call nc_check(nf90_put_att(ncid, var_z, "units", "cm"))
         call nc_check(nf90_enddef(ncid))
@@ -126,7 +127,7 @@ contains
         call nc_check(nf90_put_var(ncid, var_zeta, zeta))
         call nc_check(nf90_put_var(ncid, var_y, y))
         call nc_check(nf90_put_var(ncid, var_z, z))
-        call nc_check(nf90_put_var(ncid, var_nfp, 1))
+        call nc_check(nf90_put_var(ncid, var_num_field_periods, 1))
         call nc_check(nf90_close(ncid))
     end subroutine write_missing_x_file
 
@@ -134,7 +135,8 @@ contains
         character(len=*), intent(in) :: filename
         integer :: ncid
         integer :: dim_rho, dim_theta, dim_zeta
-        integer :: var_rho, var_theta, var_zeta, var_x, var_y, var_z, var_nfp
+        integer :: var_rho, var_theta, var_zeta, var_x, var_y, var_z, &
+                   var_num_field_periods
         integer, parameter :: nrho = 3, ntheta = 4, nzeta = 5
         real(dp) :: rho(nrho), theta(ntheta), zeta(nzeta)
         real(dp) :: x(nrho, ntheta, nzeta), y(nrho, ntheta, nzeta), z(nrho, &
@@ -158,7 +160,8 @@ contains
                                    [dim_rho, dim_theta, dim_zeta], var_y))
         call nc_check(nf90_def_var(ncid, "z", NF90_DOUBLE, &
                                    [dim_rho, dim_theta, dim_zeta], var_z))
-        call nc_check(nf90_def_var(ncid, "nfp", NF90_INT, var_nfp))
+        call nc_check(nf90_def_var(ncid, "num_field_periods", NF90_INT, &
+                                   var_num_field_periods))
         call nc_check(nf90_put_att(ncid, var_x, "units", "cm"))
         call nc_check(nf90_put_att(ncid, var_y, "units", "cm"))
         call nc_check(nf90_put_att(ncid, var_z, "units", "cm"))
@@ -170,7 +173,7 @@ contains
         call nc_check(nf90_put_var(ncid, var_x, x))
         call nc_check(nf90_put_var(ncid, var_y, y))
         call nc_check(nf90_put_var(ncid, var_z, z))
-        call nc_check(nf90_put_var(ncid, var_nfp, 1))
+        call nc_check(nf90_put_var(ncid, var_num_field_periods, 1))
         call nc_check(nf90_close(ncid))
     end subroutine write_good_file
 
@@ -259,7 +262,8 @@ contains
         character(len=*), intent(in) :: filename
         integer :: ncid
         integer :: dim_rho, dim_theta, dim_zeta
-        integer :: var_rho, var_theta, var_zeta, var_x, var_y, var_z, var_nfp
+        integer :: var_rho, var_theta, var_zeta, var_x, var_y, var_z, &
+                   var_num_field_periods
         integer, parameter :: nrho = 3, ntheta = 4, nzeta = 3
         real(dp) :: rho(nrho), theta(ntheta), zeta(nzeta)
         real(dp) :: x(nrho, ntheta, nzeta), y(nrho, ntheta, nzeta), z(nrho, &
@@ -284,7 +288,8 @@ contains
                                    [dim_rho, dim_theta, dim_zeta], var_y))
         call nc_check(nf90_def_var(ncid, "z", NF90_DOUBLE, &
                                    [dim_rho, dim_theta, dim_zeta], var_z))
-        call nc_check(nf90_def_var(ncid, "nfp", NF90_INT, var_nfp))
+        call nc_check(nf90_def_var(ncid, "num_field_periods", NF90_INT, &
+                                   var_num_field_periods))
         call nc_check(nf90_put_att(ncid, var_x, "units", "cm"))
         call nc_check(nf90_put_att(ncid, var_y, "units", "cm"))
         call nc_check(nf90_put_att(ncid, var_z, "units", "cm"))
@@ -296,7 +301,7 @@ contains
         call nc_check(nf90_put_var(ncid, var_x, x))
         call nc_check(nf90_put_var(ncid, var_y, y))
         call nc_check(nf90_put_var(ncid, var_z, z))
-        call nc_check(nf90_put_var(ncid, var_nfp, 1))
+        call nc_check(nf90_put_var(ncid, var_num_field_periods, 1))
         call nc_check(nf90_close(ncid))
     end subroutine write_zeta_endpoint_file
 

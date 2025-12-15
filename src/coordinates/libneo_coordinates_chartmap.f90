@@ -25,18 +25,24 @@ contains
         chartmap_trace_once_enabled = .true.
     end function chartmap_trace_once_enabled
 
-    subroutine chartmap_read_nfp(ncid, nfp)
+    subroutine chartmap_read_num_field_periods(ncid, num_field_periods)
         integer, intent(in) :: ncid
-        integer, intent(out) :: nfp
+        integer, intent(out) :: num_field_periods
 
+        integer :: var_num_field_periods
         integer :: var_nfp
 
-        nfp = 1
-        if (nf90_inq_varid(ncid, 'nfp', var_nfp) == NF90_NOERR) then
-            if (nf90_get_var(ncid, var_nfp, nfp) /= NF90_NOERR) nfp = 1
+        num_field_periods = 1
+        if (nf90_inq_varid(ncid, 'num_field_periods', var_num_field_periods) == &
+            NF90_NOERR) then
+            if (nf90_get_var(ncid, var_num_field_periods, num_field_periods) /= &
+                NF90_NOERR) num_field_periods = 1
+        else if (nf90_inq_varid(ncid, 'nfp', var_nfp) == NF90_NOERR) then
+            if (nf90_get_var(ncid, var_nfp, num_field_periods) /= NF90_NOERR) &
+                num_field_periods = 1
         end if
-        if (nfp < 1) nfp = 1
-    end subroutine chartmap_read_nfp
+        if (num_field_periods < 1) num_field_periods = 1
+    end subroutine chartmap_read_num_field_periods
 
     subroutine chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
                                      x2, y2, z2)
@@ -121,7 +127,7 @@ contains
         real(dp) :: zeta_period
         logical :: periodic(3)
         integer :: order(3)
-        integer :: nfp
+        integer :: num_field_periods
 
         call validate_chartmap_file(trim(filename), ierr, message)
         if (ierr /= 0) then
@@ -151,7 +157,7 @@ contains
         call nc_get(ncid, 'x', x)
         call nc_get(ncid, 'y', y)
         call nc_get(ncid, 'z', z)
-        call chartmap_read_nfp(ncid, nfp)
+        call chartmap_read_num_field_periods(ncid, num_field_periods)
         call nc_close(ncid)
 
         order = [3, 3, 3]
@@ -160,9 +166,8 @@ contains
         periodic(2) = .true.
         periodic(3) = (nzeta > 1)
 
-        zeta_period = TWOPI/real(nfp, dp)
-        ccs%nfp = nfp
-        ccs%zeta_period = zeta_period
+        ccs%num_field_periods = num_field_periods
+        zeta_period = TWOPI/real(num_field_periods, dp)
 
         call chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
                                    x_th, y_th, &
@@ -272,12 +277,14 @@ contains
 
         real(dp) :: x_target(3), rho_theta(2)
         real(dp) :: zeta
+        real(dp) :: zeta_period
 
         x_target(1) = xcyl(1)*cos(xcyl(2))
         x_target(2) = xcyl(1)*sin(xcyl(2))
         x_target(3) = xcyl(3)
 
-        zeta = modulo(xcyl(2), self%zeta_period)
+        zeta_period = TWOPI/real(self%num_field_periods, dp)
+        zeta = modulo(xcyl(2), zeta_period)
         call newton_slice(self, x_target, zeta, rho_theta, ierr)
         u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
         u(2) = modulo(rho_theta(2), TWOPI)

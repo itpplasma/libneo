@@ -12,11 +12,13 @@ module libneo_coordinates
                                    "  x(zeta,theta,rho)"//new_line('a')// &
                                    "  y(zeta,theta,rho)"//new_line('a')// &
                                    "  z(zeta,theta,rho)"//new_line('a')// &
-                                   "- Optional: nfp (integer >= 1)"//new_line('a')// &
+                                   "- Optional: num_field_periods (integer >= 1)"// &
+                                   new_line('a')// &
                                    "- Ranges:"//new_line('a')// &
                                    "  rho in [0,1]"//new_line('a')// &
                                    "  theta in [0,2pi)"//new_line('a')// &
-                                   "  zeta in [0,2pi/nfp)"//new_line('a')// &
+                                   "  zeta in [0,2pi/num_field_periods)"// &
+                                   new_line('a')// &
                                    "periodic dims exclude endpoint"//new_line('a')// &
                                    "- Storage order:"//new_line('a')// &
                                    "  file dims (zeta,theta,rho)"//new_line('a')// &
@@ -110,8 +112,7 @@ module libneo_coordinates
         integer :: nrho = 0
         integer :: ntheta = 0
         integer :: nzeta = 0
-        integer :: nfp = 1
-        real(dp) :: zeta_period = 0.0_dp
+        integer :: num_field_periods = 1
         real(dp) :: tol_newton = 1.0e-12_dp
     contains
         procedure :: evaluate_point => chartmap_evaluate_point

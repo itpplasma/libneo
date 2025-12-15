@@ -12,7 +12,7 @@ with the following variables:
 - x(rho, theta, zeta) - Cartesian X positions
 - y(rho, theta, zeta) - Cartesian Y positions
 - z(rho, theta, zeta) - Cartesian Z positions
-- nfp - number of field periods (here: 1)
+- num_field_periods - number of field periods (here: 1)
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def generate_chartmap_circular(outfile: Path) -> None:
         v_x = ds.createVariable("x", "f8", ("zeta", "theta", "rho"))
         v_y = ds.createVariable("y", "f8", ("zeta", "theta", "rho"))
         v_z = ds.createVariable("z", "f8", ("zeta", "theta", "rho"))
-        v_nfp = ds.createVariable("nfp", "i4")
+        v_num_field_periods = ds.createVariable("num_field_periods", "i4")
 
         v_x.units = "cm"
         v_y.units = "cm"
@@ -88,7 +88,7 @@ def generate_chartmap_circular(outfile: Path) -> None:
         v_x[:, :, :] = np.transpose(pos[0, :, :, :], (2, 1, 0))
         v_y[:, :, :] = np.transpose(pos[1, :, :, :], (2, 1, 0))
         v_z[:, :, :] = np.transpose(pos[2, :, :, :], (2, 1, 0))
-        v_nfp.assignValue(1)
+        v_num_field_periods.assignValue(1)
 
 
 def main(argv: list[str] | None = None) -> int:
