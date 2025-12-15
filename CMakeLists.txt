@@ -220,6 +220,11 @@ add_executable(hamada_to_boozer.x
 )
 target_link_libraries(hamada_to_boozer.x efit_to_boozer)
 
+add_executable(vmec_to_chartmap.x
+    app/vmec_to_chartmap.f90
+)
+target_link_libraries(vmec_to_chartmap.x neo)
+
 
 if(LIBNEO_BUILD_TESTING)
     add_subdirectory(test)

@@ -445,7 +445,10 @@ contains
             if (ierr /= chartmap_from_cyl_ok) return
             if (res_norm < tol_res) return
             step_norm = sqrt(sum(delta**2))
-            if (step_norm < tol_step) return
+            if (step_norm < tol_step) then
+                ierr = chartmap_from_cyl_err_max_iter
+                return
+            end if
             call chartmap_line_search_cart(self, x_target, rho, theta, zeta, &
                                            zeta_period, &
                                            delta, res_norm, rho_new, theta_new, &

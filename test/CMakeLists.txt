@@ -250,6 +250,12 @@ add_test(
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(
+  NAME setup_vmec_wout
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_chartmap_coordinates
   COMMAND test_chartmap_coordinates.x)
 set_tests_properties(test_chartmap_coordinates PROPERTIES
@@ -261,6 +267,24 @@ add_test(NAME test_chartmap_validator
 set_tests_properties(test_chartmap_validator PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_vmec_chartmap_generator.x source/test_vmec_chartmap_generator.f90)
+target_link_libraries(test_vmec_chartmap_generator.x neo)
+add_test(NAME test_vmec_chartmap_generator
+  COMMAND test_vmec_chartmap_generator.x)
+set_tests_properties(test_vmec_chartmap_generator PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_vmec_coordinate_system.x source/test_vmec_coordinate_system.f90)
+target_link_libraries(test_vmec_coordinate_system.x neo)
+add_test(NAME test_vmec_coordinate_system
+  COMMAND test_vmec_coordinate_system.x)
+set_tests_properties(test_vmec_coordinate_system PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
 
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)
