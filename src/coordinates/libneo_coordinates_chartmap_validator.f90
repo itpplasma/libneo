@@ -109,7 +109,8 @@ contains
             call check_periodic_grid("zeta", zeta, period, ierr, message)
             if (ierr /= ok) exit
 
-            if (trim(zeta_convention) == "cyl") then
+            if (trim(zeta_convention) == "cyl" .or. trim(zeta_convention) == &
+                "vmec") then
                 call check_cyl_phi_contract(ncid, var_x, var_y, len_rho, &
                                             len_theta, zeta, &
                                             period, ierr, message)
@@ -208,11 +209,15 @@ contains
 
         ierr = 0
         message = ""
-        value_out = "unknown"
+        value_out = ""
 
         status = nf90_inquire_attribute(ncid, NF90_GLOBAL, "zeta_convention", &
                                         xtype=att_type, len=att_len)
-        if (status /= NF90_NOERR) return
+        if (status /= NF90_NOERR) then
+            ierr = 5
+            message = "missing zeta_convention global attribute"
+            return
+        end if
         if (att_type /= NF90_CHAR .or. att_len < 1) then
             ierr = 5
             message = "zeta_convention must be a global string attribute"
@@ -228,11 +233,11 @@ contains
         end if
 
         select case (trim(value))
-        case ("cyl", "vmec", "boozer", "unknown")
+        case ("cyl", "vmec")
             value_out = trim(value)
         case default
             ierr = 5
-            message = "invalid zeta_convention"
+            message = "unsupported zeta_convention (must be cyl or vmec)"
         end select
     end subroutine check_optional_zeta_convention
 

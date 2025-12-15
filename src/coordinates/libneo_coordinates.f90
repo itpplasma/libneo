@@ -14,9 +14,9 @@ module libneo_coordinates
                                    "  z(zeta,theta,rho)"//new_line('a')// &
                                    "- Optional: num_field_periods (integer >= 1)"// &
                                    new_line('a')// &
-                                   "- Optional: zeta_convention (global attribute)"// &
+                                   "- Required: zeta_convention (global attribute)"// &
                                    new_line('a')// &
-                                   "  allowed: cyl, vmec, boozer, unknown"// &
+                                   "  allowed: cyl, vmec"// &
                                    new_line('a')// &
                                    "- Ranges:"//new_line('a')// &
                                    "  rho in [0,1]"//new_line('a')// &
@@ -39,6 +39,10 @@ module libneo_coordinates
     integer, parameter :: VMEC = 1
     integer, parameter :: BOOZER = 2
     integer, parameter :: UNKNOWN = 3
+
+    integer, parameter :: refcoords_file_unknown = 0
+    integer, parameter :: refcoords_file_chartmap = 1
+    integer, parameter :: refcoords_file_vmec_wout = 2
 
     character(len=*), parameter :: chartmap_from_cyl_ierr_spec = &
                                    "chartmap_from_cyl ierr codes:"//new_line('a')// &
@@ -106,6 +110,13 @@ module libneo_coordinates
             integer, intent(out) :: ierr
             character(len=*), intent(out) :: message
         end subroutine validate_chartmap_file
+
+        module subroutine detect_refcoords_file_type(filename, file_type, ierr, message)
+            character(len=*), intent(in) :: filename
+            integer, intent(out) :: file_type
+            integer, intent(out) :: ierr
+            character(len=*), intent(out) :: message
+        end subroutine detect_refcoords_file_type
     end interface
 
     type, extends(coordinate_system_t) :: vmec_coordinate_system_t

@@ -28,6 +28,8 @@ add_library(neo STATIC
     src/coordinates/libneo_coordinates_chartmap.f90
     src/coordinates/libneo_coordinates_chartmap_validator.f90
     src/coordinates/libneo_chartmap_vmec_generator.f90
+    src/coordinates/libneo_coordinates_mapping.f90
+    src/coordinates/libneo_coordinates_file_detection.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
     src/vmec/vmec_field_tools.f90
