@@ -106,6 +106,7 @@ contains
         z = 0.0_dp
 
         call nc_check(nf90_create(trim(filename), NF90_NETCDF4, ncid))
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "zeta_convention", "unknown"))
         call nc_check(nf90_def_dim(ncid, "rho", nrho, dim_rho))
         call nc_check(nf90_def_dim(ncid, "theta", ntheta, dim_theta))
         call nc_check(nf90_def_dim(ncid, "zeta", nzeta, dim_zeta))
@@ -148,6 +149,7 @@ contains
         z = 0.0_dp
 
         call nc_check(nf90_create(trim(filename), NF90_NETCDF4, ncid))
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "zeta_convention", "unknown"))
         call nc_check(nf90_def_dim(ncid, "rho", nrho, dim_rho))
         call nc_check(nf90_def_dim(ncid, "theta", ntheta, dim_theta))
         call nc_check(nf90_def_dim(ncid, "zeta", nzeta, dim_zeta))
@@ -193,6 +195,7 @@ contains
         z = 0.0_dp
 
         call nc_check(nf90_create(trim(filename), NF90_NETCDF4, ncid))
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "zeta_convention", "unknown"))
         call nc_check(nf90_def_dim(ncid, "rho", nrho, dim_rho))
         call nc_check(nf90_def_dim(ncid, "theta", ntheta, dim_theta))
         call nc_check(nf90_def_dim(ncid, "zeta", nzeta, dim_zeta))
@@ -232,6 +235,7 @@ contains
         z = 0.0_dp
 
         call nc_check(nf90_create(trim(filename), NF90_NETCDF4, ncid))
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "zeta_convention", "unknown"))
         call nc_check(nf90_def_dim(ncid, "rho", nrho, dim_rho))
         call nc_check(nf90_def_dim(ncid, "theta", ntheta, dim_theta))
         call nc_check(nf90_def_dim(ncid, "zeta", nzeta, dim_zeta))
@@ -276,6 +280,7 @@ contains
         z = 0.0_dp
 
         call nc_check(nf90_create(trim(filename), NF90_NETCDF4, ncid))
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "zeta_convention", "unknown"))
         call nc_check(nf90_def_dim(ncid, "rho", nrho, dim_rho))
         call nc_check(nf90_def_dim(ncid, "theta", ntheta, dim_theta))
         call nc_check(nf90_def_dim(ncid, "zeta", nzeta, dim_zeta))
