@@ -12,16 +12,41 @@ module libneo_coordinates
                                    "  x(zeta,theta,rho)"//new_line('a')// &
                                    "  y(zeta,theta,rho)"//new_line('a')// &
                                    "  z(zeta,theta,rho)"//new_line('a')// &
-                                   "- Optional: nfp (integer >= 1)"//new_line('a')// &
+                                   "- Optional: num_field_periods (integer >= 1)"// &
+                                   new_line('a')// &
+                                   "- Optional: zeta_convention (global attribute)"// &
+                                   new_line('a')// &
+                                   "  allowed: cyl, vmec, boozer, unknown"// &
+                                   new_line('a')// &
                                    "- Ranges:"//new_line('a')// &
                                    "  rho in [0,1]"//new_line('a')// &
                                    "  theta in [0,2pi)"//new_line('a')// &
-                                   "  zeta in [0,2pi/nfp)"//new_line('a')// &
+                                   "  zeta in [0,2pi/num_field_periods)"// &
+                                   new_line('a')// &
                                    "periodic dims exclude endpoint"//new_line('a')// &
                                    "- Storage order:"//new_line('a')// &
                                    "  file dims (zeta,theta,rho)"//new_line('a')// &
                                    "Fortran reads x(rho,theta,zeta)"//new_line('a')// &
                                    "- Units: x,y,z in cm"
+
+    integer, parameter :: chartmap_from_cyl_ok = 0
+    integer, parameter :: chartmap_from_cyl_err_max_iter = 1
+    integer, parameter :: chartmap_from_cyl_err_singular = 2
+    integer, parameter :: chartmap_from_cyl_err_out_of_bounds = 3
+    integer, parameter :: chartmap_from_cyl_err_invalid = 4
+
+    integer, parameter :: CYL = 0
+    integer, parameter :: VMEC = 1
+    integer, parameter :: BOOZER = 2
+    integer, parameter :: UNKNOWN = 3
+
+    character(len=*), parameter :: chartmap_from_cyl_ierr_spec = &
+                                   "chartmap_from_cyl ierr codes:"//new_line('a')// &
+                                   "0 ok"//new_line('a')// &
+                                   "1 max iterations or no progress"//new_line('a')// &
+                                   "2 singular normal equations"//new_line('a')// &
+                                   "3 step out of bounds for rho"//new_line('a')// &
+                                   "4 invalid mapping slice"
 
     type, abstract :: coordinate_system_t
     contains
@@ -96,12 +121,15 @@ module libneo_coordinates
         integer :: nrho = 0
         integer :: ntheta = 0
         integer :: nzeta = 0
+        integer :: num_field_periods = 1
+        integer :: zeta_convention = UNKNOWN
         real(dp) :: tol_newton = 1.0e-12_dp
     contains
         procedure :: evaluate_point => chartmap_evaluate_point
         procedure :: covariant_basis => chartmap_covariant_basis
         procedure :: metric_tensor => chartmap_metric_tensor
         procedure :: from_cyl => chartmap_from_cyl
+        procedure :: from_cart => chartmap_from_cart
     end type chartmap_coordinate_system_t
 
     interface
@@ -154,6 +182,13 @@ module libneo_coordinates
             real(dp), intent(out) :: u(3)
             integer, intent(out) :: ierr
         end subroutine chartmap_from_cyl
+
+        module subroutine chartmap_from_cart(self, x, u, ierr)
+            class(chartmap_coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: x(3)
+            real(dp), intent(out) :: u(3)
+            integer, intent(out) :: ierr
+        end subroutine chartmap_from_cart
     end interface
 
 end module libneo_coordinates
