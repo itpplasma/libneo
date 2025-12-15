@@ -118,6 +118,8 @@ module libneo_coordinates
 
     type, extends(coordinate_system_t) :: chartmap_coordinate_system_t
         type(BatchSplineData3D) :: spl_xyz
+        type(BatchSplineData3D) :: spl_rz
+        logical :: has_spl_rz = .false.
         integer :: nrho = 0
         integer :: ntheta = 0
         integer :: nzeta = 0

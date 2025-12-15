@@ -127,6 +127,72 @@ contains
         z2(:, :, nzeta + 1) = z(:, :, 1)
     end subroutine chartmap_extend_zeta
 
+    subroutine chartmap_eval_xyz(self, u, vals)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: vals(3)
+
+        real(dp) :: rz(2)
+        real(dp) :: phi
+        real(dp) :: phi_mod
+        real(dp) :: zeta_period
+
+        if (self%has_spl_rz) then
+            phi = u(3)
+            zeta_period = TWOPI/real(self%num_field_periods, dp)
+            phi_mod = modulo(phi - self%spl_rz%x_min(3), zeta_period) + &
+                      self%spl_rz%x_min(3)
+            call evaluate_batch_splines_3d(self%spl_rz, u, rz)
+            vals(1) = rz(1)*cos(phi_mod)
+            vals(2) = rz(1)*sin(phi_mod)
+            vals(3) = rz(2)
+        else
+            call evaluate_batch_splines_3d(self%spl_xyz, u, vals)
+        end if
+    end subroutine chartmap_eval_xyz
+
+    subroutine chartmap_eval_xyz_der(self, u, vals, dvals)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: vals(3)
+        real(dp), intent(out) :: dvals(3, 3)
+
+        real(dp) :: rz(2)
+        real(dp) :: drz(3, 2)
+        real(dp) :: phi
+        real(dp) :: phi_mod
+        real(dp) :: cph, sph
+        real(dp) :: zeta_period
+
+        if (self%has_spl_rz) then
+            phi = u(3)
+            zeta_period = TWOPI/real(self%num_field_periods, dp)
+            phi_mod = modulo(phi - self%spl_rz%x_min(3), zeta_period) + &
+                      self%spl_rz%x_min(3)
+            cph = cos(phi_mod)
+            sph = sin(phi_mod)
+            call evaluate_batch_splines_3d_der(self%spl_rz, u, rz, drz)
+
+            vals(1) = rz(1)*cph
+            vals(2) = rz(1)*sph
+            vals(3) = rz(2)
+
+            dvals(1, 1) = drz(1, 1)*cph
+            dvals(2, 1) = drz(2, 1)*cph
+            dvals(3, 1) = drz(3, 1)*cph - rz(1)*sph
+
+            dvals(1, 2) = drz(1, 1)*sph
+            dvals(2, 2) = drz(2, 1)*sph
+            dvals(3, 2) = drz(3, 1)*sph + rz(1)*cph
+
+            dvals(1, 3) = drz(1, 2)
+            dvals(2, 3) = drz(2, 2)
+            dvals(3, 3) = drz(3, 2)
+        else
+            call evaluate_batch_splines_3d_der(self%spl_xyz, u, vals, dvals)
+        end if
+    end subroutine chartmap_eval_xyz_der
+
     module subroutine make_chartmap_coordinate_system(cs, filename)
         class(coordinate_system_t), allocatable, intent(out) :: cs
         character(len=*), intent(in) :: filename
@@ -153,12 +219,17 @@ contains
         real(dp), allocatable :: rho(:), theta(:), zeta(:)
         real(dp), allocatable :: x(:, :, :), y(:, :, :), z(:, :, :)
         real(dp), allocatable :: pos_batch(:, :, :, :)
+        real(dp), allocatable :: pos_rz(:, :, :, :)
         real(dp), allocatable :: theta_spl(:), zeta_spl(:)
+        real(dp), allocatable :: zeta_spl_per(:)
         real(dp), allocatable :: x_th(:, :, :), y_th(:, :, :), z_th(:, :, :)
         real(dp), allocatable :: x_spl(:, :, :), y_spl(:, :, :), z_spl(:, :, :)
+        real(dp), allocatable :: x_per(:, :, :), y_per(:, :, :), z_per(:, :, :)
         real(dp) :: x_min(3), x_max(3)
+        real(dp) :: x_min_rz(3), x_max_rz(3)
         real(dp) :: zeta_period
-        logical :: periodic(3)
+        logical :: periodic_xyz(3)
+        logical :: periodic_rz(3)
         integer :: order(3)
         integer :: num_field_periods
         integer :: zeta_convention
@@ -197,9 +268,14 @@ contains
 
         order = [3, 3, 3]
 
-        periodic(1) = .false.
-        periodic(2) = .true.
-        periodic(3) = (nzeta > 1)
+        periodic_xyz(1) = .false.
+        periodic_xyz(2) = .true.
+        periodic_xyz(3) = (nzeta > 1 .and. zeta_convention == CYL .and. &
+                           num_field_periods == 1)
+
+        periodic_rz(1) = .false.
+        periodic_rz(2) = .true.
+        periodic_rz(3) = (nzeta > 1 .and. zeta_convention == CYL)
 
         ccs%num_field_periods = num_field_periods
         ccs%zeta_convention = zeta_convention
@@ -209,7 +285,7 @@ contains
                                    x_th, y_th, &
                                    z_th)
 
-        if (periodic(3)) then
+        if (periodic_xyz(3)) then
             call chartmap_extend_zeta(nrho, ntheta + 1, nzeta, zeta, zeta_period, &
                                       x_th, y_th, &
                                       z_th, zeta_spl, x_spl, y_spl, z_spl)
@@ -229,8 +305,29 @@ contains
         pos_batch(:, :, :, 2) = y_spl
         pos_batch(:, :, :, 3) = z_spl
 
-        call construct_batch_splines_3d(x_min, x_max, pos_batch, order, periodic, &
+        call construct_batch_splines_3d(x_min, x_max, pos_batch, order, periodic_xyz, &
                                         ccs%spl_xyz)
+
+        ccs%has_spl_rz = .false.
+        if (periodic_rz(3)) then
+            call chartmap_extend_zeta(nrho, ntheta + 1, nzeta, zeta, zeta_period, &
+                                      x_spl(:, :, 1:nzeta), y_spl(:, :, 1:nzeta), &
+                                      z_spl(:, :, 1:nzeta), zeta_spl_per, x_per, &
+                                      y_per, z_per)
+
+            x_min_rz = [rho(1), theta_spl(1), zeta_spl_per(1)]
+            x_max_rz = [rho(nrho), theta_spl(size(theta_spl)), &
+                        zeta_spl_per(size(zeta_spl_per))]
+
+            allocate (pos_rz(nrho, size(theta_spl), size(zeta_spl_per), 2))
+            pos_rz(:, :, :, 1) = sqrt(x_per**2 + y_per**2)
+            pos_rz(:, :, :, 2) = z_per
+
+            call construct_batch_splines_3d(x_min_rz, x_max_rz, pos_rz, order, &
+                                            periodic_rz, &
+                                            ccs%spl_rz)
+            ccs%has_spl_rz = .true.
+        end if
 
         ccs%nrho = nrho
         ccs%ntheta = ntheta
@@ -242,10 +339,7 @@ contains
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: x(3)
 
-        real(dp) :: vals(3)
-
-        call evaluate_batch_splines_3d(self%spl_xyz, u, vals)
-        x = vals
+        call chartmap_eval_xyz(self, u, x)
     end subroutine chartmap_evaluate_point
 
     subroutine chartmap_covariant_basis(self, u, e_cov)
@@ -256,7 +350,7 @@ contains
         real(dp) :: vals(3)
         real(dp) :: dvals(3, 3)
 
-        call evaluate_batch_splines_3d_der(self%spl_xyz, u, vals, dvals)
+        call chartmap_eval_xyz_der(self, u, vals, dvals)
 
         e_cov(1, 1) = dvals(1, 1)
         e_cov(1, 2) = dvals(2, 1)
@@ -527,7 +621,7 @@ contains
         real(dp) :: dvals(3, 3)
 
         uvec = [rho, theta, zeta]
-        call evaluate_batch_splines_3d_der(self%spl_xyz, uvec, vals, dvals)
+        call chartmap_eval_xyz_der(self, uvec, vals, dvals)
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
@@ -800,7 +894,7 @@ contains
         real(dp) :: dvals(3, 3)
 
         uvec = [rho, theta, zeta]
-        call evaluate_batch_splines_3d_der(self%spl_xyz, uvec, vals, dvals)
+        call chartmap_eval_xyz_der(self, uvec, vals, dvals)
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
@@ -843,7 +937,7 @@ contains
 
             theta_new = modulo(theta + alpha*delta(2), TWOPI)
             uvec = [rho_new, theta_new, zeta]
-            call evaluate_batch_splines_3d(self%spl_xyz, uvec, x_trial)
+            call chartmap_eval_xyz(self, uvec, x_trial)
             residual = x_target - x_trial
             res_norm_new = sqrt(sum(residual**2))
 
