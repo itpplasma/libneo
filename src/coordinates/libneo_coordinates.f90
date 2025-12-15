@@ -35,10 +35,10 @@ module libneo_coordinates
     integer, parameter :: chartmap_from_cyl_err_out_of_bounds = 3
     integer, parameter :: chartmap_from_cyl_err_invalid = 4
 
-    integer, parameter :: chartmap_zeta_conv_cyl = 0
-    integer, parameter :: chartmap_zeta_conv_vmec = 1
-    integer, parameter :: chartmap_zeta_conv_boozer = 2
-    integer, parameter :: chartmap_zeta_conv_unknown = 3
+    integer, parameter :: CYL = 0
+    integer, parameter :: VMEC = 1
+    integer, parameter :: BOOZER = 2
+    integer, parameter :: UNKNOWN = 3
 
     character(len=*), parameter :: chartmap_from_cyl_ierr_spec = &
                                    "chartmap_from_cyl ierr codes:"//new_line('a')// &
@@ -122,7 +122,7 @@ module libneo_coordinates
         integer :: ntheta = 0
         integer :: nzeta = 0
         integer :: num_field_periods = 1
-        integer :: zeta_convention = chartmap_zeta_conv_unknown
+        integer :: zeta_convention = UNKNOWN
         real(dp) :: tol_newton = 1.0e-12_dp
     contains
         procedure :: evaluate_point => chartmap_evaluate_point

@@ -54,7 +54,7 @@ contains
         integer :: att_len
         character(len=:), allocatable :: value
 
-        zeta_convention = chartmap_zeta_conv_unknown
+        zeta_convention = UNKNOWN
 
         status = nf90_inquire_attribute(ncid, NF90_GLOBAL, 'zeta_convention', &
                                         xtype=att_type, len=att_len)
@@ -67,13 +67,13 @@ contains
 
         select case (trim(value))
         case ('cyl')
-            zeta_convention = chartmap_zeta_conv_cyl
+            zeta_convention = CYL
         case ('vmec')
-            zeta_convention = chartmap_zeta_conv_vmec
+            zeta_convention = VMEC
         case ('boozer')
-            zeta_convention = chartmap_zeta_conv_boozer
+            zeta_convention = BOOZER
         case default
-            zeta_convention = chartmap_zeta_conv_unknown
+            zeta_convention = UNKNOWN
         end select
     end subroutine chartmap_read_zeta_convention
 
@@ -320,7 +320,7 @@ contains
         x_target(3) = xcyl(3)
 
         zeta_period = TWOPI/real(self%num_field_periods, dp)
-        if (self%zeta_convention == chartmap_zeta_conv_cyl) then
+        if (self%zeta_convention == CYL) then
             zeta = modulo(xcyl(2), zeta_period)
             call newton_slice(self, x_target, zeta, rho_theta, ierr)
             u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
