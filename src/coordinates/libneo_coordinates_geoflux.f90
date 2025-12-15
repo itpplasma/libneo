@@ -1,10 +1,12 @@
 submodule (libneo_coordinates) libneo_coordinates_geoflux
     use geoflux_coordinates, only: geoflux_to_cyl, assign_geoflux_to_cyl_jacobian
+    use cylindrical_cartesian, only: cyl_to_cart
     implicit none
 
     type, extends(coordinate_system_t) :: geoflux_coordinate_system_t
     contains
-        procedure :: evaluate_point => geoflux_evaluate_point
+        procedure :: evaluate_cart => geoflux_evaluate_cart
+        procedure :: evaluate_cyl => geoflux_evaluate_cyl
         procedure :: covariant_basis => geoflux_covariant_basis
         procedure :: metric_tensor => geoflux_metric_tensor
         procedure :: from_cyl => geoflux_from_cyl
@@ -17,23 +19,24 @@ contains
         allocate(geoflux_coordinate_system_t :: cs)
     end subroutine make_geoflux_coordinate_system
 
-    subroutine geoflux_evaluate_point(self, u, x)
+    subroutine geoflux_evaluate_cyl(self, u, x)
         class(geoflux_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: x(3)
 
-        real(dp) :: xgeo(3), xcyl(3)
+        call geoflux_to_cyl(u, x)
+    end subroutine geoflux_evaluate_cyl
 
-        xgeo(1) = u(1)
-        xgeo(2) = u(2)
-        xgeo(3) = u(3)
+    subroutine geoflux_evaluate_cart(self, u, x)
+        class(geoflux_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3)
 
-        call geoflux_to_cyl(xgeo, xcyl)
+        real(dp) :: xcyl(3)
 
-        x(1) = xcyl(1)
-        x(2) = xcyl(2)
-        x(3) = xcyl(3)
-    end subroutine geoflux_evaluate_point
+        call self%evaluate_cyl(u, xcyl)
+        call cyl_to_cart(xcyl, x)
+    end subroutine geoflux_evaluate_cart
 
     subroutine geoflux_covariant_basis(self, u, e_cov)
         class(geoflux_coordinate_system_t), intent(in) :: self

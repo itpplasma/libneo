@@ -54,14 +54,22 @@ module libneo_coordinates
 
     type, abstract :: coordinate_system_t
     contains
-        procedure(evaluate_point_if), deferred :: evaluate_point
+        procedure(evaluate_cart_if), deferred :: evaluate_cart
+        procedure(evaluate_cyl_if), deferred :: evaluate_cyl
         procedure(covariant_basis_if), deferred :: covariant_basis
         procedure(metric_tensor_if), deferred :: metric_tensor
         procedure(from_cyl_if), deferred :: from_cyl
     end type coordinate_system_t
 
     abstract interface
-        subroutine evaluate_point_if(self, u, x)
+        subroutine evaluate_cart_if(self, u, x)
+            import :: coordinate_system_t, dp
+            class(coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: u(3)
+            real(dp), intent(out) :: x(3)
+        end subroutine
+
+        subroutine evaluate_cyl_if(self, u, x)
             import :: coordinate_system_t, dp
             class(coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
@@ -121,14 +129,15 @@ module libneo_coordinates
 
     type, extends(coordinate_system_t) :: vmec_coordinate_system_t
     contains
-        procedure :: evaluate_point => vmec_evaluate_point
+        procedure :: evaluate_cart => vmec_evaluate_cart
+        procedure :: evaluate_cyl => vmec_evaluate_cyl
         procedure :: covariant_basis => vmec_covariant_basis
         procedure :: metric_tensor => vmec_metric_tensor
         procedure :: from_cyl => vmec_from_cyl
     end type vmec_coordinate_system_t
 
     type, extends(coordinate_system_t) :: chartmap_coordinate_system_t
-        type(BatchSplineData3D) :: spl_xyz
+        type(BatchSplineData3D) :: spl_cart
         type(BatchSplineData3D) :: spl_rz
         logical :: has_spl_rz = .false.
         integer :: nrho = 0
@@ -138,7 +147,8 @@ module libneo_coordinates
         integer :: zeta_convention = UNKNOWN
         real(dp) :: tol_newton = 1.0e-12_dp
     contains
-        procedure :: evaluate_point => chartmap_evaluate_point
+        procedure :: evaluate_cart => chartmap_evaluate_cart
+        procedure :: evaluate_cyl => chartmap_evaluate_cyl
         procedure :: covariant_basis => chartmap_covariant_basis
         procedure :: metric_tensor => chartmap_metric_tensor
         procedure :: from_cyl => chartmap_from_cyl
@@ -146,11 +156,17 @@ module libneo_coordinates
     end type chartmap_coordinate_system_t
 
     interface
-        module subroutine vmec_evaluate_point(self, u, x)
+        module subroutine vmec_evaluate_cart(self, u, x)
             class(vmec_coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
             real(dp), intent(out) :: x(3)
-        end subroutine vmec_evaluate_point
+        end subroutine vmec_evaluate_cart
+
+        module subroutine vmec_evaluate_cyl(self, u, x)
+            class(vmec_coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: u(3)
+            real(dp), intent(out) :: x(3)
+        end subroutine vmec_evaluate_cyl
 
         module subroutine vmec_covariant_basis(self, u, e_cov)
             class(vmec_coordinate_system_t), intent(in) :: self
@@ -171,11 +187,17 @@ module libneo_coordinates
             integer, intent(out) :: ierr
         end subroutine vmec_from_cyl
 
-        module subroutine chartmap_evaluate_point(self, u, x)
+        module subroutine chartmap_evaluate_cart(self, u, x)
             class(chartmap_coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
             real(dp), intent(out) :: x(3)
-        end subroutine chartmap_evaluate_point
+        end subroutine chartmap_evaluate_cart
+
+        module subroutine chartmap_evaluate_cyl(self, u, x)
+            class(chartmap_coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: u(3)
+            real(dp), intent(out) :: x(3)
+        end subroutine chartmap_evaluate_cyl
 
         module subroutine chartmap_covariant_basis(self, u, e_cov)
             class(chartmap_coordinate_system_t), intent(in) :: self

@@ -98,7 +98,7 @@ contains
                 do ir = 1, size(rho)
                     u(1) = rho(ir)**2
                     u(3) = ph
-                    call vmec%evaluate_point(u, xcyl)
+                    call vmec%evaluate_cyl(u, xcyl)
                     R = xcyl(1)
                     Zc = xcyl(3)
                     x(ir, it, iz) = R*cos(ph)

@@ -24,7 +24,7 @@ contains
         message = ""
         u_chart = 0.0_dp
 
-        call vmec_cs%evaluate_point(u_vmec, xcyl)
+        call vmec_cs%evaluate_cyl(u_vmec, xcyl)
 
         if (ccs%zeta_convention == CYL .or. ccs%zeta_convention == VMEC) then
             call ccs%from_cyl(xcyl, u_chart, ierr)

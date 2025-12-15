@@ -55,9 +55,9 @@ program test_chartmap_matches_vmec
             u(1) = rho(1 + 3*i)
             u(2) = theta(1 + 2*i)
             u(3) = zeta(1 + i)
-            call ccs%evaluate_point(u, x_chart)
+            call ccs%evaluate_cart(u, x_chart)
             u_vmec = [u(1)**2, u(2), u(3)]
-            call vmec%evaluate_point(u_vmec, x_vmec_cyl)
+            call vmec%evaluate_cyl(u_vmec, x_vmec_cyl)
             x_vmec_cart(1) = x_vmec_cyl(1)*cos(x_vmec_cyl(2))
             x_vmec_cart(2) = x_vmec_cyl(1)*sin(x_vmec_cyl(2))
             x_vmec_cart(3) = x_vmec_cyl(3)
@@ -69,10 +69,10 @@ program test_chartmap_matches_vmec
             u(2) = modulo(real(37*i, dp)*0.017_dp*TWOPI, TWOPI)
             u(3) = modulo(real(29*i, dp)*0.013_dp*zeta_period, zeta_period)
 
-            call ccs%evaluate_point(u, x_chart)
+            call ccs%evaluate_cart(u, x_chart)
 
             u_vmec = [u(1)**2, u(2), u(3)]
-            call vmec%evaluate_point(u_vmec, x_vmec_cyl)
+            call vmec%evaluate_cyl(u_vmec, x_vmec_cyl)
             x_vmec_cart(1) = x_vmec_cyl(1)*cos(x_vmec_cyl(2))
             x_vmec_cart(2) = x_vmec_cyl(1)*sin(x_vmec_cyl(2))
             x_vmec_cart(3) = x_vmec_cyl(3)
@@ -81,12 +81,12 @@ program test_chartmap_matches_vmec
             max_dx = max(max_dx, maxval(abs(dx)))
 
             u_shift = [u(1), u(2) + TWOPI, u(3)]
-            call ccs%evaluate_point(u_shift, x_vmec_cart)
+            call ccs%evaluate_cart(u_shift, x_vmec_cart)
             dx = x_chart - x_vmec_cart
             max_dx = max(max_dx, maxval(abs(dx)))
 
             u_shift = [u(1), u(2), u(3) + zeta_period]
-            call ccs%evaluate_point(u_shift, x_vmec_cart)
+            call ccs%evaluate_cart(u_shift, x_vmec_cart)
             dx = x_chart - x_vmec_cart
             max_dx = max(max_dx, maxval(abs(dx)))
         end do

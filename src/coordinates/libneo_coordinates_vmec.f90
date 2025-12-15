@@ -1,5 +1,6 @@
 submodule (libneo_coordinates) libneo_coordinates_vmec
     use spline_vmec_sub, only: splint_vmec_data
+    use cylindrical_cartesian, only: cyl_to_cart
     implicit none
 
 contains
@@ -9,7 +10,7 @@ contains
         allocate(vmec_coordinate_system_t :: cs)
     end subroutine make_vmec_coordinate_system
 
-    subroutine vmec_evaluate_point(self, u, x)
+    subroutine vmec_evaluate_cyl(self, u, x)
         class(vmec_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: x(3)
@@ -23,13 +24,25 @@ contains
         theta = u(2)
         varphi = u(3)
 
-        call splint_vmec_data(s, theta, varphi, A_phi, A_theta, dA_phi_ds, dA_theta_ds, aiota, &
-                              R, Z, alam, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
+        call splint_vmec_data(s, theta, varphi, A_phi, A_theta, dA_phi_ds, &
+                              dA_theta_ds, aiota, R, Z, alam, dR_ds, dR_dt, &
+                              dR_dp, dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
 
         x(1) = R
         x(2) = varphi
         x(3) = Z
-    end subroutine vmec_evaluate_point
+    end subroutine vmec_evaluate_cyl
+
+    subroutine vmec_evaluate_cart(self, u, x)
+        class(vmec_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3)
+
+        real(dp) :: xcyl(3)
+
+        call self%evaluate_cyl(u, xcyl)
+        call cyl_to_cart(xcyl, x)
+    end subroutine vmec_evaluate_cart
 
     subroutine vmec_covariant_basis(self, u, e_cov)
         class(vmec_coordinate_system_t), intent(in) :: self
@@ -46,8 +59,9 @@ contains
         theta = u(2)
         varphi = u(3)
 
-        call splint_vmec_data(s, theta, varphi, A_phi, A_theta, dA_phi_ds, dA_theta_ds, aiota, &
-                              R, Z, alam, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
+        call splint_vmec_data(s, theta, varphi, A_phi, A_theta, dA_phi_ds, &
+                              dA_theta_ds, aiota, R, Z, alam, dR_ds, dR_dt, &
+                              dR_dp, dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
 
         cos_phi = cos(varphi)
         sin_phi = sin(varphi)

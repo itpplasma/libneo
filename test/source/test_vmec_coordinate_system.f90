@@ -24,7 +24,7 @@ program test_vmec_coordinate_system
 
     zeta_period = TWOPI/real(max(1, nper), dp)
     u = [0.25_dp, 0.13_dp*TWOPI, 0.2_dp*zeta_period]
-    call vmec%evaluate_point(u, xcyl)
+    call vmec%evaluate_cyl(u, xcyl)
 
     if (.not. (xcyl(1) > 100.0_dp .and. xcyl(1) < 2.0e5_dp)) then
         print *, "  FAIL: VMEC R not in cm range, R=", xcyl(1)
