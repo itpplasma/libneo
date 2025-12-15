@@ -35,6 +35,7 @@ contains
         integer :: num_field_periods
         real(dp), allocatable :: rho(:), theta(:), zeta(:)
         real(dp) :: period
+        character(len=16) :: zeta_convention
 
         ierr = ok
         message = ""
@@ -54,7 +55,7 @@ contains
             call require_dim(ncid, "zeta", dim_zeta, len_zeta, ierr, message)
             if (ierr /= ok) exit
 
-            if (len_rho < 2 .or. len_theta < 2 .or. len_zeta < 1) then
+            if (len_rho < 2 .or. len_theta < 2 .or. len_zeta < 2) then
                 ierr = err_invalid_dim
                 message = "invalid dimension length(s)"
                 exit
@@ -84,7 +85,7 @@ contains
             call require_units_cm(ncid, "z", var_z, ierr, message)
             if (ierr /= ok) exit
 
-            call check_optional_zeta_convention(ncid, ierr, message)
+            call check_optional_zeta_convention(ncid, zeta_convention, ierr, message)
             if (ierr /= ok) exit
 
             call read_optional_num_field_periods(ncid, num_field_periods, ierr, message)
@@ -108,14 +109,95 @@ contains
             call check_periodic_grid("zeta", zeta, period, ierr, message)
             if (ierr /= ok) exit
 
+            if (trim(zeta_convention) == "cyl") then
+                call check_cyl_phi_contract(ncid, var_x, var_y, len_rho, &
+                                            len_theta, zeta, &
+                                            period, ierr, message)
+                if (ierr /= ok) exit
+            end if
+
             exit
         end do
 
         status = nf90_close(ncid)
     end subroutine validate_chartmap_file
 
-    subroutine check_optional_zeta_convention(ncid, ierr, message)
+    subroutine check_cyl_phi_contract(ncid, var_x, var_y, len_rho, len_theta, zeta, &
+                                      period, ierr, message)
         integer, intent(in) :: ncid
+        integer, intent(in) :: var_x, var_y
+        integer, intent(in) :: len_rho, len_theta
+        real(dp), intent(in) :: zeta(:)
+        real(dp), intent(in) :: period
+        integer, intent(out) :: ierr
+        character(len=*), intent(out) :: message
+
+        integer, parameter :: err_bad_grid = 8
+        real(dp), parameter :: tol_phi = 1.0e-10_dp
+        integer :: ir, it, iz
+        integer :: i
+        integer, dimension(2) :: ir_list
+        integer, dimension(3) :: it_list
+        integer, dimension(4) :: iz_list
+        real(dp) :: xbuf(1, 1, 1), ybuf(1, 1, 1)
+        real(dp) :: phi, dphi, r_xy
+        integer :: status
+
+        ierr = 0
+        message = ""
+
+        if (size(zeta) < 2) then
+            ierr = err_bad_grid
+            message = "zeta_convention=cyl requires at least 2 zeta points"
+            return
+        end if
+
+        ir_list = [max(1, 1 + len_rho/2), len_rho]
+        it_list = [1, 1 + len_theta/3, 1 + (2*len_theta)/3]
+        iz_list = [1, 2, 1 + size(zeta)/2, size(zeta)]
+
+        do ir = 1, size(ir_list)
+            do i = 1, size(iz_list)
+                iz = max(1, min(size(zeta), iz_list(i)))
+                do it = 1, size(it_list)
+                    status = nf90_get_var(ncid, var_x, xbuf, &
+                                          start=[ir_list(ir), it_list(it), iz], &
+                                          count=[1, 1, 1])
+                    if (status /= NF90_NOERR) then
+                        ierr = err_bad_grid
+                        message = "could not read x for cyl contract check"
+                        return
+                    end if
+                    status = nf90_get_var(ncid, var_y, ybuf, &
+                                          start=[ir_list(ir), it_list(it), iz], &
+                                          count=[1, 1, 1])
+                    if (status /= NF90_NOERR) then
+                        ierr = err_bad_grid
+                        message = "could not read y for cyl contract check"
+                        return
+                    end if
+
+                    r_xy = sqrt(xbuf(1, 1, 1)**2 + ybuf(1, 1, 1)**2)
+                    if (r_xy < 1.0e-12_dp) cycle
+
+                    phi = atan2(ybuf(1, 1, 1), xbuf(1, 1, 1))
+                    dphi = abs(modulo(phi - zeta(iz) + 0.5_dp*period, period) - &
+                               0.5_dp*period)
+
+                    if (dphi > tol_phi) then
+                        ierr = err_bad_grid
+                        write (message, '(a,1x,es12.4)') &
+                            "cyl requires atan2(y,x)=zeta; dphi=", dphi
+                        return
+                    end if
+                end do
+            end do
+        end do
+    end subroutine check_cyl_phi_contract
+
+    subroutine check_optional_zeta_convention(ncid, value_out, ierr, message)
+        integer, intent(in) :: ncid
+        character(len=*), intent(out) :: value_out
         integer, intent(out) :: ierr
         character(len=*), intent(out) :: message
 
@@ -126,6 +208,7 @@ contains
 
         ierr = 0
         message = ""
+        value_out = "unknown"
 
         status = nf90_inquire_attribute(ncid, NF90_GLOBAL, "zeta_convention", &
                                         xtype=att_type, len=att_len)
@@ -146,6 +229,7 @@ contains
 
         select case (trim(value))
         case ("cyl", "vmec", "boozer", "unknown")
+            value_out = trim(value)
         case default
             ierr = 5
             message = "invalid zeta_convention"
