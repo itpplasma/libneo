@@ -127,6 +127,48 @@ contains
         z2(:, :, nzeta + 1) = z(:, :, 1)
     end subroutine chartmap_extend_zeta
 
+    subroutine chartmap_extend_theta_rz(nrho, ntheta, nzeta, theta, r, zc, theta_spl, &
+                                        r2, z2)
+        integer, intent(in) :: nrho, ntheta, nzeta
+        real(dp), intent(in) :: theta(ntheta)
+        real(dp), intent(in) :: r(nrho, ntheta, nzeta), zc(nrho, ntheta, nzeta)
+        real(dp), allocatable, intent(out) :: theta_spl(:)
+        real(dp), allocatable, intent(out) :: r2(:, :, :), z2(:, :, :)
+
+        allocate (theta_spl(ntheta + 1))
+        theta_spl(1:ntheta) = theta
+        theta_spl(ntheta + 1) = theta(1) + TWOPI
+
+        allocate (r2(nrho, ntheta + 1, nzeta))
+        allocate (z2(nrho, ntheta + 1, nzeta))
+        r2(:, 1:ntheta, :) = r
+        z2(:, 1:ntheta, :) = zc
+        r2(:, ntheta + 1, :) = r(:, 1, :)
+        z2(:, ntheta + 1, :) = zc(:, 1, :)
+    end subroutine chartmap_extend_theta_rz
+
+    subroutine chartmap_extend_zeta_rz(nrho, ntheta, nzeta, zeta, zeta_period, r, zc, &
+                                       zeta_spl, &
+                                       r2, z2)
+        integer, intent(in) :: nrho, ntheta, nzeta
+        real(dp), intent(in) :: zeta(nzeta)
+        real(dp), intent(in) :: zeta_period
+        real(dp), intent(in) :: r(nrho, ntheta, nzeta), zc(nrho, ntheta, nzeta)
+        real(dp), allocatable, intent(out) :: zeta_spl(:)
+        real(dp), allocatable, intent(out) :: r2(:, :, :), z2(:, :, :)
+
+        allocate (zeta_spl(nzeta + 1))
+        zeta_spl(1:nzeta) = zeta
+        zeta_spl(nzeta + 1) = zeta(1) + zeta_period
+
+        allocate (r2(nrho, ntheta, nzeta + 1))
+        allocate (z2(nrho, ntheta, nzeta + 1))
+        r2(:, :, 1:nzeta) = r
+        z2(:, :, 1:nzeta) = zc
+        r2(:, :, nzeta + 1) = r(:, :, 1)
+        z2(:, :, nzeta + 1) = zc(:, :, 1)
+    end subroutine chartmap_extend_zeta_rz
+
     subroutine chartmap_eval_xyz(self, u, vals)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
@@ -220,11 +262,12 @@ contains
         real(dp), allocatable :: x(:, :, :), y(:, :, :), z(:, :, :)
         real(dp), allocatable :: pos_batch(:, :, :, :)
         real(dp), allocatable :: pos_rz(:, :, :, :)
+        real(dp), allocatable :: r(:, :, :), zc(:, :, :)
         real(dp), allocatable :: theta_spl(:), zeta_spl(:)
-        real(dp), allocatable :: zeta_spl_per(:)
         real(dp), allocatable :: x_th(:, :, :), y_th(:, :, :), z_th(:, :, :)
         real(dp), allocatable :: x_spl(:, :, :), y_spl(:, :, :), z_spl(:, :, :)
-        real(dp), allocatable :: x_per(:, :, :), y_per(:, :, :), z_per(:, :, :)
+        real(dp), allocatable :: r_th(:, :, :), z_th_rz(:, :, :)
+        real(dp), allocatable :: r_spl(:, :, :), z_spl_rz(:, :, :)
         real(dp) :: x_min(3), x_max(3)
         real(dp) :: x_min_rz(3), x_max_rz(3)
         real(dp) :: zeta_period
@@ -268,65 +311,70 @@ contains
 
         order = [3, 3, 3]
 
-        periodic_xyz(1) = .false.
-        periodic_xyz(2) = .true.
-        periodic_xyz(3) = (nzeta > 1 .and. zeta_convention == CYL .and. &
-                           num_field_periods == 1)
-
-        periodic_rz(1) = .false.
-        periodic_rz(2) = .true.
-        periodic_rz(3) = (nzeta > 1 .and. zeta_convention == CYL)
+        periodic_xyz = [.false., .true., .false.]
+        periodic_rz = [.false., .true., .false.]
 
         ccs%num_field_periods = num_field_periods
         ccs%zeta_convention = zeta_convention
         zeta_period = TWOPI/real(num_field_periods, dp)
 
-        call chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
-                                   x_th, y_th, &
-                                   z_th)
+        if (zeta_convention == CYL) then
+            if (nzeta < 2) then
+                print *, "initialize_chartmap: nzeta must be >= 2 for cyl convention"
+                error stop
+            end if
 
-        if (periodic_xyz(3)) then
-            call chartmap_extend_zeta(nrho, ntheta + 1, nzeta, zeta, zeta_period, &
-                                      x_th, y_th, &
-                                      z_th, zeta_spl, x_spl, y_spl, z_spl)
-        else
-            allocate (zeta_spl(nzeta))
-            zeta_spl = zeta
-            call move_alloc(x_th, x_spl)
-            call move_alloc(y_th, y_spl)
-            call move_alloc(z_th, z_spl)
-        end if
+            allocate (r(nrho, ntheta, nzeta))
+            allocate (zc(nrho, ntheta, nzeta))
+            r = sqrt(x**2 + y**2)
+            zc = z
 
-        x_min = [rho(1), theta_spl(1), zeta_spl(1)]
-        x_max = [rho(nrho), theta_spl(size(theta_spl)), zeta_spl(size(zeta_spl))]
+            call chartmap_extend_theta_rz(nrho, ntheta, nzeta, theta, r, zc, &
+                                          theta_spl, &
+                                          r_th, z_th_rz)
 
-        allocate (pos_batch(nrho, size(theta_spl), size(zeta_spl), 3))
-        pos_batch(:, :, :, 1) = x_spl
-        pos_batch(:, :, :, 2) = y_spl
-        pos_batch(:, :, :, 3) = z_spl
+            periodic_rz(3) = .true.
+            call chartmap_extend_zeta_rz(nrho, ntheta + 1, nzeta, zeta, zeta_period, &
+                                         r_th, z_th_rz, zeta_spl, r_spl, z_spl_rz)
 
-        call construct_batch_splines_3d(x_min, x_max, pos_batch, order, periodic_xyz, &
-                                        ccs%spl_xyz)
+            x_min_rz = [rho(1), theta_spl(1), zeta_spl(1)]
+            x_max_rz = [rho(nrho), theta_spl(size(theta_spl)), zeta_spl(size(zeta_spl))]
 
-        ccs%has_spl_rz = .false.
-        if (periodic_rz(3)) then
-            call chartmap_extend_zeta(nrho, ntheta + 1, nzeta, zeta, zeta_period, &
-                                      x_spl(:, :, 1:nzeta), y_spl(:, :, 1:nzeta), &
-                                      z_spl(:, :, 1:nzeta), zeta_spl_per, x_per, &
-                                      y_per, z_per)
-
-            x_min_rz = [rho(1), theta_spl(1), zeta_spl_per(1)]
-            x_max_rz = [rho(nrho), theta_spl(size(theta_spl)), &
-                        zeta_spl_per(size(zeta_spl_per))]
-
-            allocate (pos_rz(nrho, size(theta_spl), size(zeta_spl_per), 2))
-            pos_rz(:, :, :, 1) = sqrt(x_per**2 + y_per**2)
-            pos_rz(:, :, :, 2) = z_per
+            allocate (pos_rz(nrho, size(theta_spl), size(zeta_spl), 2))
+            pos_rz(:, :, :, 1) = r_spl
+            pos_rz(:, :, :, 2) = z_spl_rz
 
             call construct_batch_splines_3d(x_min_rz, x_max_rz, pos_rz, order, &
                                             periodic_rz, &
                                             ccs%spl_rz)
             ccs%has_spl_rz = .true.
+        else
+            if (nzeta < 2) then
+                print *, "initialize_chartmap: nzeta must be >= 2"
+                error stop
+            end if
+
+            call chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
+                                       x_th, y_th, z_th)
+
+            allocate (zeta_spl(nzeta))
+            zeta_spl = zeta
+            call move_alloc(x_th, x_spl)
+            call move_alloc(y_th, y_spl)
+            call move_alloc(z_th, z_spl)
+
+            x_min = [rho(1), theta_spl(1), zeta_spl(1)]
+            x_max = [rho(nrho), theta_spl(size(theta_spl)), zeta_spl(size(zeta_spl))]
+
+            allocate (pos_batch(nrho, size(theta_spl), size(zeta_spl), 3))
+            pos_batch(:, :, :, 1) = x_spl
+            pos_batch(:, :, :, 2) = y_spl
+            pos_batch(:, :, :, 3) = z_spl
+
+            call construct_batch_splines_3d(x_min, x_max, pos_batch, order, &
+                                            periodic_xyz, &
+                                            ccs%spl_xyz)
+            ccs%has_spl_rz = .false.
         end if
 
         ccs%nrho = nrho
@@ -506,7 +554,7 @@ contains
             return
         end if
 
-        call evaluate_batch_splines_3d(self%spl_xyz, u, x_round)
+        call chartmap_eval_xyz(self, u, x_round)
         res_norm = sqrt(sum((x_target - x_round)**2))
     end subroutine chartmap_try_cart_seed
 
@@ -750,7 +798,7 @@ contains
             theta_new = modulo(theta + alpha*delta(2), TWOPI)
             zeta_new = modulo(zeta + alpha*delta(3), zeta_period)
             uvec = [rho_new, theta_new, zeta_new]
-            call evaluate_batch_splines_3d(self%spl_xyz, uvec, x_trial)
+            call chartmap_eval_xyz(self, uvec, x_trial)
             residual = x_target - x_trial
             res_norm_new = sqrt(sum(residual**2))
 
@@ -782,7 +830,7 @@ contains
         ierr = chartmap_from_cyl_ok
 
         uvec = [0.0_dp, 0.0_dp, zeta]
-        call evaluate_batch_splines_3d(self%spl_xyz, uvec, vals)
+        call chartmap_eval_xyz(self, uvec, vals)
         axis_x = vals
 
         e_r(1) = cos(zeta)
@@ -792,7 +840,7 @@ contains
         theta = atan2(z_rel, r_rel)
 
         uvec = [1.0_dp, theta, zeta]
-        call evaluate_batch_splines_3d(self%spl_xyz, uvec, vals)
+        call chartmap_eval_xyz(self, uvec, vals)
         bound_x = vals
 
         denom = sqrt(sum((bound_x - axis_x)**2))
