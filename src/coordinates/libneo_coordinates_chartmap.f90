@@ -318,7 +318,13 @@ contains
         ccs%zeta_convention = zeta_convention
         zeta_period = TWOPI/real(num_field_periods, dp)
 
-        if (zeta_convention == CYL) then
+        if (zeta_convention /= CYL .and. zeta_convention /= VMEC) then
+            print *, "initialize_chartmap: unsupported zeta_convention"
+            print *, "  must be cyl or vmec"
+            error stop
+        end if
+
+        if (zeta_convention == CYL .or. zeta_convention == VMEC) then
             if (nzeta < 2) then
                 print *, "initialize_chartmap: nzeta must be >= 2 for cyl convention"
                 error stop
@@ -462,7 +468,7 @@ contains
         x_target(3) = xcyl(3)
 
         zeta_period = TWOPI/real(self%num_field_periods, dp)
-        if (self%zeta_convention == CYL) then
+        if (self%zeta_convention == CYL .or. self%zeta_convention == VMEC) then
             zeta = modulo(xcyl(2), zeta_period)
             call newton_slice(self, x_target, zeta, rho_theta, ierr)
             u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)

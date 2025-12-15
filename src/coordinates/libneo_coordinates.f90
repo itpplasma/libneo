@@ -14,9 +14,9 @@ module libneo_coordinates
                                    "  z(zeta,theta,rho)"//new_line('a')// &
                                    "- Optional: num_field_periods (integer >= 1)"// &
                                    new_line('a')// &
-                                   "- Optional: zeta_convention (global attribute)"// &
+                                   "- Required: zeta_convention (global attribute)"// &
                                    new_line('a')// &
-                                   "  allowed: cyl, vmec, boozer, unknown"// &
+                                   "  allowed: cyl, vmec"// &
                                    new_line('a')// &
                                    "- Ranges:"//new_line('a')// &
                                    "  rho in [0,1]"//new_line('a')// &
