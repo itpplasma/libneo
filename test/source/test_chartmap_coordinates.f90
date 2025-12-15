@@ -1,7 +1,8 @@
 program test_chartmap_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_coordinates, only: coordinate_system_t, &
-        make_chartmap_coordinate_system, chartmap_coordinate_system_t
+                                  make_chartmap_coordinate_system, &
+                                  chartmap_coordinate_system_t
     use math_constants, only: TWOPI
     use nctools_module, only: nc_open, nc_close, nc_get
     implicit none
@@ -25,6 +26,7 @@ program test_chartmap_coordinates
 
     select type (ccs => cs)
     type is (chartmap_coordinate_system_t)
+        call run_roundtrip_u_check(ccs, nerrors)
         call run_roundtrip_check(ccs, nerrors)
         call run_boundary_check(ccs, nerrors)
         call run_metric_check(ccs, nerrors)
@@ -57,9 +59,9 @@ contains
         real(dp), parameter :: tol_x = 1.0e-10_dp
 
         call nc_open(volume_file, ncid)
-        allocate(x_ref(nrho, ntheta, nzeta))
-        allocate(y_ref(nrho, ntheta, nzeta))
-        allocate(z_ref(nrho, ntheta, nzeta))
+        allocate (x_ref(nrho, ntheta, nzeta))
+        allocate (y_ref(nrho, ntheta, nzeta))
+        allocate (z_ref(nrho, ntheta, nzeta))
         call nc_get(ncid, "x", x_ref)
         call nc_get(ncid, "y", y_ref)
         call nc_get(ncid, "z", z_ref)
@@ -67,8 +69,8 @@ contains
 
         i_rho = 12
         i_theta = 17
-        rho_val = real(i_rho - 1, dp) / real(nrho - 1, dp)
-        theta_val = TWOPI * real(i_theta - 1, dp) / real(ntheta, dp)
+        rho_val = real(i_rho - 1, dp)/real(nrho - 1, dp)
+        theta_val = TWOPI*real(i_theta - 1, dp)/real(ntheta, dp)
 
         u = [rho_val, theta_val, 0.0_dp]
         call ccs%evaluate_point(u, x)
@@ -94,7 +96,8 @@ contains
             diff_x = maxval(abs(x_round - x))
 
             if (diff_x > tol_x) then
-                print *, "  FAIL: roundtrip mismatch in Cartesian coordinates, max |x_round - x| = ", diff_x
+                print *, "  FAIL: roundtrip mismatch in Cartesian coordinates, "// &
+                    "max |x_round - x| = ", diff_x
                 nerrors = nerrors + 1
             else
                 print *, "  PASS: forward/inverse roundtrip against chartmap volume"
@@ -102,6 +105,74 @@ contains
         end if
 
     end subroutine run_roundtrip_check
+
+    subroutine run_roundtrip_u_check(ccs, nerrors)
+        type(chartmap_coordinate_system_t), intent(in) :: ccs
+        integer, intent(inout) :: nerrors
+
+        real(dp) :: u(3), x(3), u_back(3), xcyl(3), x_round(3)
+        real(dp) :: dtheta, dzeta
+        integer :: ierr
+        integer :: ir, it, iz
+        real(dp), parameter :: rho_vals(3) = [0.05_dp, 0.55_dp, 0.95_dp]
+        real(dp), parameter :: theta_vals(4) = &
+                               [0.0_dp, TWOPI*0.5_dp, TWOPI*0.25_dp, TWOPI*0.75_dp]
+        real(dp), parameter :: zeta_vals(4) = &
+                               [TWOPI*0.5_dp, 0.0_dp, TWOPI*0.25_dp, TWOPI*0.75_dp]
+        real(dp), parameter :: tol_u = 1.0e-8_dp
+        real(dp), parameter :: tol_x = 2.0e-8_dp
+        integer :: nerrors_start
+
+        nerrors_start = nerrors
+
+        do iz = 1, 4
+            do it = 1, 4
+                do ir = 0, 2
+                    u(1) = rho_vals(ir + 1)
+                    u(2) = theta_vals(it)
+                    u(3) = zeta_vals(iz)
+
+                    call ccs%evaluate_point(u, x)
+
+                    xcyl(1) = sqrt(x(1)**2 + x(2)**2)
+                    xcyl(2) = atan2(x(2), x(1))
+                    xcyl(3) = x(3)
+
+                    call ccs%from_cyl(xcyl, u_back, ierr)
+                    if (ierr /= 0) then
+                        print *, "  FAIL: from_cyl ierr=", ierr, " for u=", u
+                        nerrors = nerrors + 1
+                        cycle
+                    end if
+
+                    dtheta = abs(modulo(u_back(2) - u(2) + 0.5_dp*TWOPI, TWOPI) - &
+                                 0.5_dp*TWOPI)
+                    dzeta = abs(modulo(u_back(3) - u(3) + 0.5_dp*TWOPI, TWOPI) - &
+                                0.5_dp*TWOPI)
+
+                    if (abs(u_back(1) - u(1)) > tol_u .or. dtheta > tol_u .or. &
+                        dzeta > tol_u) then
+                        print *, "  FAIL: u roundtrip mismatch u_back-u=", u_back - u
+                        nerrors = nerrors + 1
+                        cycle
+                    end if
+
+                    call ccs%evaluate_point(u_back, x_round)
+                    if (maxval(abs(x_round - x)) > tol_x) then
+                        print *, "  FAIL: x(u_back) mismatch max|dx|=", &
+                            maxval(abs(x_round - x))
+                        nerrors = nerrors + 1
+                        cycle
+                    end if
+                end do
+            end do
+        end do
+
+        if (nerrors == nerrors_start) then
+            print *, &
+                "  PASS: u->x->u_back roundtrip across zeta slices and near-axis points"
+        end if
+    end subroutine run_roundtrip_u_check
 
     subroutine run_boundary_check(ccs, nerrors)
         type(chartmap_coordinate_system_t), intent(in) :: ccs
@@ -117,9 +188,9 @@ contains
         nerrors_local = 0
 
         call nc_open(volume_file, ncid)
-        allocate(x_ref(nrho, ntheta, nzeta))
-        allocate(y_ref(nrho, ntheta, nzeta))
-        allocate(z_ref(nrho, ntheta, nzeta))
+        allocate (x_ref(nrho, ntheta, nzeta))
+        allocate (y_ref(nrho, ntheta, nzeta))
+        allocate (z_ref(nrho, ntheta, nzeta))
         call nc_get(ncid, "x", x_ref)
         call nc_get(ncid, "y", y_ref)
         call nc_get(ncid, "z", z_ref)
@@ -127,7 +198,7 @@ contains
 
         do i_theta = 1, 4
             u(1) = 1.0_dp
-            u(2) = TWOPI * real(i_theta - 1, dp) / real(ntheta, dp)
+            u(2) = TWOPI*real(i_theta - 1, dp)/real(ntheta, dp)
             u(3) = 0.0_dp
 
             call ccs%evaluate_point(u, x)
@@ -150,8 +221,8 @@ contains
     subroutine run_metric_check(ccs, nerrors)
         type(chartmap_coordinate_system_t), intent(in) :: ccs
         integer, intent(inout) :: nerrors
-        real(dp) :: u(3), g(3,3), ginv(3,3), sqrtg
-        real(dp) :: identity(3,3), prod(3,3)
+        real(dp) :: u(3), g(3, 3), ginv(3, 3), sqrtg
+        real(dp) :: identity(3, 3), prod(3, 3)
         real(dp), parameter :: tol = 1.0e-10_dp
         integer :: i, j, k
         logical :: sym_ok, id_ok
@@ -189,7 +260,7 @@ contains
         do i = 1, 3
             do j = 1, 3
                 do k = 1, 3
-                    prod(i, j) = prod(i, j) + g(i, k) * ginv(k, j)
+                    prod(i, j) = prod(i, j) + g(i, k)*ginv(k, j)
                 end do
             end do
         end do

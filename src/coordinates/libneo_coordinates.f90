@@ -23,6 +23,20 @@ module libneo_coordinates
                                    "Fortran reads x(rho,theta,zeta)"//new_line('a')// &
                                    "- Units: x,y,z in cm"
 
+    integer, parameter :: chartmap_from_cyl_ok = 0
+    integer, parameter :: chartmap_from_cyl_err_max_iter = 1
+    integer, parameter :: chartmap_from_cyl_err_singular = 2
+    integer, parameter :: chartmap_from_cyl_err_out_of_bounds = 3
+    integer, parameter :: chartmap_from_cyl_err_invalid = 4
+
+    character(len=*), parameter :: chartmap_from_cyl_ierr_spec = &
+                                   "chartmap_from_cyl ierr codes:"//new_line('a')// &
+                                   "0 ok"//new_line('a')// &
+                                   "1 max iterations or no progress"//new_line('a')// &
+                                   "2 singular normal equations"//new_line('a')// &
+                                   "3 step out of bounds for rho"//new_line('a')// &
+                                   "4 invalid mapping slice"
+
     type, abstract :: coordinate_system_t
     contains
         procedure(evaluate_point_if), deferred :: evaluate_point
@@ -96,6 +110,8 @@ module libneo_coordinates
         integer :: nrho = 0
         integer :: ntheta = 0
         integer :: nzeta = 0
+        integer :: nfp = 1
+        real(dp) :: zeta_period = 0.0_dp
         real(dp) :: tol_newton = 1.0e-12_dp
     contains
         procedure :: evaluate_point => chartmap_evaluate_point
