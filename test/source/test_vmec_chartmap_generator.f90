@@ -53,7 +53,7 @@ contains
         type is (chartmap_coordinate_system_t)
             zeta_period = TWOPI/real(ccs%num_field_periods, dp)
             u = [0.55_dp, 0.25_dp*TWOPI, 0.4_dp*zeta_period]
-            call ccs%evaluate_point(u, x)
+            call ccs%evaluate_cart(u, x)
             xcyl(1) = sqrt(x(1)**2 + x(2)**2)
             xcyl(2) = atan2(x(2), x(1))
             xcyl(3) = x(3)
@@ -65,7 +65,7 @@ contains
                 return
             end if
 
-            call ccs%evaluate_point(u_back, x_round)
+            call ccs%evaluate_cart(u_back, x_round)
             if (maxval(abs(x_round - x)) > tol_x) then
                 print *, "  FAIL: x roundtrip mismatch max|dx|=", &
                     maxval(abs(x_round - x))

@@ -169,7 +169,7 @@ contains
         z2(:, :, nzeta + 1) = zc(:, :, 1)
     end subroutine chartmap_extend_zeta_rz
 
-    subroutine chartmap_eval_xyz(self, u, vals)
+    subroutine chartmap_eval_cart(self, u, vals)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: vals(3)
@@ -189,11 +189,11 @@ contains
             vals(2) = rz(1)*sin(phi_mod)
             vals(3) = rz(2)
         else
-            call evaluate_batch_splines_3d(self%spl_xyz, u, vals)
+            call evaluate_batch_splines_3d(self%spl_cart, u, vals)
         end if
-    end subroutine chartmap_eval_xyz
+    end subroutine chartmap_eval_cart
 
-    subroutine chartmap_eval_xyz_der(self, u, vals, dvals)
+    subroutine chartmap_eval_cart_der(self, u, vals, dvals)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: vals(3)
@@ -231,9 +231,9 @@ contains
             dvals(2, 3) = drz(2, 2)
             dvals(3, 3) = drz(3, 2)
         else
-            call evaluate_batch_splines_3d_der(self%spl_xyz, u, vals, dvals)
+            call evaluate_batch_splines_3d_der(self%spl_cart, u, vals, dvals)
         end if
-    end subroutine chartmap_eval_xyz_der
+    end subroutine chartmap_eval_cart_der
 
     module subroutine make_chartmap_coordinate_system(cs, filename)
         class(coordinate_system_t), allocatable, intent(out) :: cs
@@ -271,7 +271,7 @@ contains
         real(dp) :: x_min(3), x_max(3)
         real(dp) :: x_min_rz(3), x_max_rz(3)
         real(dp) :: zeta_period
-        logical :: periodic_xyz(3)
+        logical :: periodic_cart(3)
         logical :: periodic_rz(3)
         integer :: order(3)
         integer :: num_field_periods
@@ -311,7 +311,7 @@ contains
 
         order = [3, 3, 3]
 
-        periodic_xyz = [.false., .true., .false.]
+        periodic_cart = [.false., .true., .false.]
         periodic_rz = [.false., .true., .false.]
 
         ccs%num_field_periods = num_field_periods
@@ -378,8 +378,8 @@ contains
             pos_batch(:, :, :, 3) = z_spl
 
             call construct_batch_splines_3d(x_min, x_max, pos_batch, order, &
-                                            periodic_xyz, &
-                                            ccs%spl_xyz)
+                                            periodic_cart, &
+                                            ccs%spl_cart)
             ccs%has_spl_rz = .false.
         end if
 
@@ -388,13 +388,35 @@ contains
         ccs%nzeta = nzeta
     end subroutine initialize_chartmap
 
-    subroutine chartmap_evaluate_point(self, u, x)
+    subroutine chartmap_evaluate_cart(self, u, x)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: x(3)
 
-        call chartmap_eval_xyz(self, u, x)
-    end subroutine chartmap_evaluate_point
+        call chartmap_eval_cart(self, u, x)
+    end subroutine chartmap_evaluate_cart
+
+    subroutine chartmap_evaluate_cyl(self, u, x)
+        use cylindrical_cartesian, only: cart_to_cyl
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3)
+
+        real(dp) :: xcart(3)
+        real(dp) :: rz(2)
+        real(dp) :: zeta_period
+
+        if (self%has_spl_rz) then
+            zeta_period = TWOPI/real(self%num_field_periods, dp)
+            call evaluate_batch_splines_3d(self%spl_rz, u, rz)
+            x(1) = rz(1)
+            x(2) = modulo(u(3), zeta_period)
+            x(3) = rz(2)
+        else
+            call chartmap_eval_cart(self, u, xcart)
+            call cart_to_cyl(xcart, x)
+        end if
+    end subroutine chartmap_evaluate_cyl
 
     subroutine chartmap_covariant_basis(self, u, e_cov)
         class(chartmap_coordinate_system_t), intent(in) :: self
@@ -404,7 +426,7 @@ contains
         real(dp) :: vals(3)
         real(dp) :: dvals(3, 3)
 
-        call chartmap_eval_xyz_der(self, u, vals, dvals)
+        call chartmap_eval_cart_der(self, u, vals, dvals)
 
         e_cov(1, 1) = dvals(1, 1)
         e_cov(1, 2) = dvals(2, 1)
@@ -560,7 +582,7 @@ contains
             return
         end if
 
-        call chartmap_eval_xyz(self, u, x_round)
+        call chartmap_eval_cart(self, u, x_round)
         res_norm = sqrt(sum((x_target - x_round)**2))
     end subroutine chartmap_try_cart_seed
 
@@ -675,7 +697,7 @@ contains
         real(dp) :: dvals(3, 3)
 
         uvec = [rho, theta, zeta]
-        call chartmap_eval_xyz_der(self, uvec, vals, dvals)
+        call chartmap_eval_cart_der(self, uvec, vals, dvals)
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
@@ -804,7 +826,7 @@ contains
             theta_new = modulo(theta + alpha*delta(2), TWOPI)
             zeta_new = modulo(zeta + alpha*delta(3), zeta_period)
             uvec = [rho_new, theta_new, zeta_new]
-            call chartmap_eval_xyz(self, uvec, x_trial)
+            call chartmap_eval_cart(self, uvec, x_trial)
             residual = x_target - x_trial
             res_norm_new = sqrt(sum(residual**2))
 
@@ -836,7 +858,7 @@ contains
         ierr = chartmap_from_cyl_ok
 
         uvec = [0.0_dp, 0.0_dp, zeta]
-        call chartmap_eval_xyz(self, uvec, vals)
+        call chartmap_eval_cart(self, uvec, vals)
         axis_x = vals
 
         e_r(1) = cos(zeta)
@@ -846,7 +868,7 @@ contains
         theta = atan2(z_rel, r_rel)
 
         uvec = [1.0_dp, theta, zeta]
-        call chartmap_eval_xyz(self, uvec, vals)
+        call chartmap_eval_cart(self, uvec, vals)
         bound_x = vals
 
         denom = sqrt(sum((bound_x - axis_x)**2))
@@ -948,7 +970,7 @@ contains
         real(dp) :: dvals(3, 3)
 
         uvec = [rho, theta, zeta]
-        call chartmap_eval_xyz_der(self, uvec, vals, dvals)
+        call chartmap_eval_cart_der(self, uvec, vals, dvals)
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
@@ -991,7 +1013,7 @@ contains
 
             theta_new = modulo(theta + alpha*delta(2), TWOPI)
             uvec = [rho_new, theta_new, zeta]
-            call chartmap_eval_xyz(self, uvec, x_trial)
+            call chartmap_eval_cart(self, uvec, x_trial)
             residual = x_target - x_trial
             res_norm_new = sqrt(sum(residual**2))
 

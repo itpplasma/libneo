@@ -44,7 +44,7 @@ program test_chartmap_vmec_mapping
         do i = 1, ntest
             call build_test_u_vmec(i, ntest, zeta_period, u_vmec)
 
-            call vmec%evaluate_point(u_vmec, x_vmec_cyl)
+            call vmec%evaluate_cyl(u_vmec, x_vmec_cyl)
             call cyl_to_cart(x_vmec_cyl, x_vmec_cart)
 
             call map_vmec_u_to_chartmap_u(vmec, ccs, u_vmec, u_chart, ierr, message)
@@ -53,7 +53,7 @@ program test_chartmap_vmec_mapping
                 error stop 1
             end if
 
-            call ccs%evaluate_point(u_chart, x_chart)
+            call ccs%evaluate_cart(u_chart, x_chart)
             max_dx = max(max_dx, maxval(abs(x_chart - x_vmec_cart)))
         end do
     class default

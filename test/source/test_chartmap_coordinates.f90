@@ -82,7 +82,7 @@ contains
         theta_val = TWOPI*real(i_theta - 1, dp)/real(ntheta, dp)
 
         u = [rho_val, theta_val, 0.0_dp]
-        call ccs%evaluate_point(u, x)
+        call ccs%evaluate_cart(u, x)
 
         if (abs(x(1) - x_ref(i_rho, i_theta, 1)) > tol_x .or. &
             abs(x(2) - y_ref(i_rho, i_theta, 1)) > tol_x .or. &
@@ -101,7 +101,7 @@ contains
             print *, "  FAIL: inverse mapping reported error code ", ierr
             nerrors = nerrors + 1
         else
-            call ccs%evaluate_point(u_back, x_round)
+            call ccs%evaluate_cart(u_back, x_round)
             diff_x = maxval(abs(x_round - x))
 
             if (diff_x > tol_x) then
@@ -141,7 +141,7 @@ contains
                     u(2) = theta_vals(it)
                     u(3) = zeta_vals(iz)
 
-                    call ccs%evaluate_point(u, x)
+                    call ccs%evaluate_cart(u, x)
 
                     xcyl(1) = sqrt(x(1)**2 + x(2)**2)
                     xcyl(2) = atan2(x(2), x(1))
@@ -166,7 +166,7 @@ contains
                         cycle
                     end if
 
-                    call ccs%evaluate_point(u_back, x_round)
+                    call ccs%evaluate_cart(u_back, x_round)
                     if (maxval(abs(x_round - x)) > tol_x) then
                         print *, "  FAIL: x(u_back) mismatch max|dx|=", &
                             maxval(abs(x_round - x))
@@ -210,7 +210,7 @@ contains
             u(2) = TWOPI*real(i_theta - 1, dp)/real(ntheta, dp)
             u(3) = 0.0_dp
 
-            call ccs%evaluate_point(u, x)
+            call ccs%evaluate_cart(u, x)
 
             if (abs(x(1) - x_ref(nrho, i_theta, 1)) > tol .or. &
                 abs(x(2) - y_ref(nrho, i_theta, 1)) > tol .or. &
