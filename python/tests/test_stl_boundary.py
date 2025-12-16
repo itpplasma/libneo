@@ -187,3 +187,58 @@ def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
             padding=0.25,
             camera_dist=18.0,
         )
+
+
+def test_write_chartmap_from_stl_torus(tmp_path) -> None:
+    """Test chartmap generation from a simple torus mesh."""
+    import trimesh
+    from netCDF4 import Dataset
+
+    from libneo.stl_boundary import (
+        BoundarySlice,
+        extract_boundary_slices,
+        write_chartmap_from_stl,
+    )
+
+    r0 = 1.7
+    a = 0.35
+
+    mesh = trimesh.creation.torus(
+        major_radius=r0,
+        minor_radius=a,
+        major_sections=64,
+        minor_sections=48,
+    )
+
+    stl_path = tmp_path / "torus.stl"
+    mesh.export(stl_path)
+
+    slices = extract_boundary_slices(stl_path, n_phi=4, n_boundary_points=64)
+    assert len(slices) == 4
+
+    chartmap_path = tmp_path / "torus.chartmap.nc"
+    write_chartmap_from_stl(slices, chartmap_path, nrho=9, ntheta=17)
+
+    with Dataset(chartmap_path, "r") as ds:
+        assert ds.getncattr("zeta_convention") == "cyl"
+        assert ds.getncattr("rho_convention") == "unknown"
+
+        assert set(ds.dimensions) == {"rho", "theta", "zeta"}
+        assert ds.dimensions["rho"].size == 9
+        assert ds.dimensions["theta"].size == 17
+        assert ds.dimensions["zeta"].size == 4
+
+        for name in ["rho", "theta", "zeta", "x", "y", "z", "num_field_periods"]:
+            assert name in ds.variables
+
+        assert ds.variables["x"].units == "cm"
+        assert ds.variables["y"].units == "cm"
+        assert ds.variables["z"].units == "cm"
+
+        x = ds.variables["x"][:]
+        y = ds.variables["y"][:]
+        z = ds.variables["z"][:]
+
+        R = np.sqrt(x**2 + y**2)
+        assert R.min() > 0.0
+        assert np.abs(z).max() < (a + 0.1) * 100.0
