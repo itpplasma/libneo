@@ -368,6 +368,87 @@ def extract_boundary_slices(
     return slices
 
 
+def write_chartmap_from_stl(
+    slices: list[BoundarySlice],
+    out_path: Path,
+    *,
+    nrho: int = 33,
+    ntheta: int = 65,
+    num_field_periods: int = 1,
+    M: int = 16,
+) -> None:
+    """Write a chartmap NetCDF file from STL boundary slices.
+
+    Uses map2disc conformal mapping at each toroidal slice.
+    Metadata conventions:
+      - zeta_convention: cyl (cylindrical toroidal angle)
+      - rho_convention: unknown (geometric radial, not flux-based)
+    """
+    from map2disc import map as m2d
+    from netCDF4 import Dataset
+
+    n_zeta = len(slices)
+    if n_zeta == 0:
+        raise ValueError("no slices to write")
+
+    rho = np.linspace(0.0, 1.0, nrho)
+    theta = np.linspace(0.0, 2.0 * np.pi, ntheta, endpoint=False)
+    zeta = np.array([s.phi for s in slices])
+
+    x = np.zeros((nrho, ntheta, n_zeta), dtype=np.float64)
+    y = np.zeros((nrho, ntheta, n_zeta), dtype=np.float64)
+    z = np.zeros((nrho, ntheta, n_zeta), dtype=np.float64)
+
+    for iz, s in enumerate(slices):
+        curve = _curve_from_contour(s.outer_filled)
+        bcm = m2d.BoundaryConformingMapping(curve=curve, M=M, Nt=256, Ng=(256, 256))
+        bcm.solve_domain2disk()
+        bcm.solve_disk2domain()
+
+        xy = bcm.eval_rt_1d(rho, theta)
+        R_grid = xy[0]
+        Z_grid = xy[1]
+
+        phi = s.phi
+        ax_x, ax_y = s.axis_xy
+        for ir in range(nrho):
+            for it in range(ntheta):
+                R_val = R_grid[ir, it]
+                Z_val = Z_grid[ir, it]
+                x[ir, it, iz] = (ax_x + R_val * np.cos(phi)) * 100.0
+                y[ir, it, iz] = (ax_y + R_val * np.sin(phi)) * 100.0
+                z[ir, it, iz] = Z_val * 100.0
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with Dataset(out_path, "w", format="NETCDF4") as ds:
+        ds.setncattr("zeta_convention", "cyl")
+        ds.setncattr("rho_convention", "unknown")
+
+        ds.createDimension("rho", nrho)
+        ds.createDimension("theta", ntheta)
+        ds.createDimension("zeta", n_zeta)
+
+        v_rho = ds.createVariable("rho", "f8", ("rho",))
+        v_theta = ds.createVariable("theta", "f8", ("theta",))
+        v_zeta = ds.createVariable("zeta", "f8", ("zeta",))
+        v_x = ds.createVariable("x", "f8", ("rho", "theta", "zeta"))
+        v_y = ds.createVariable("y", "f8", ("rho", "theta", "zeta"))
+        v_z = ds.createVariable("z", "f8", ("rho", "theta", "zeta"))
+        v_nfp = ds.createVariable("num_field_periods", "i4")
+
+        v_x.units = "cm"
+        v_y.units = "cm"
+        v_z.units = "cm"
+
+        v_rho[:] = rho
+        v_theta[:] = theta
+        v_zeta[:] = zeta
+        v_x[:, :, :] = x
+        v_y[:, :, :] = y
+        v_z[:, :, :] = z
+        v_nfp.assignValue(num_field_periods)
+
+
 def write_boundaries_netcdf(slices: list[BoundarySlice], out_path: Path) -> None:
     from netCDF4 import Dataset
 
