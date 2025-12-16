@@ -59,6 +59,8 @@ module libneo_coordinates
         procedure(covariant_basis_if), deferred :: covariant_basis
         procedure(metric_tensor_if), deferred :: metric_tensor
         procedure(from_cyl_if), deferred :: from_cyl
+        procedure :: cov_to_cart => coordinate_system_cov_to_cart
+        procedure :: ctr_to_cart => coordinate_system_ctr_to_cart
     end type coordinate_system_t
 
     abstract interface
@@ -225,5 +227,38 @@ module libneo_coordinates
             integer, intent(out) :: ierr
         end subroutine chartmap_from_cart
     end interface
+
+contains
+
+    subroutine coordinate_system_cov_to_cart(self, u, v_cov, v_cart)
+        !> Convert covariant vector components to Cartesian.
+        !> v_cart_i = e_cov(i,j) * ginv(j,k) * v_cov(k)
+        class(coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(in) :: v_cov(3)
+        real(dp), intent(out) :: v_cart(3)
+
+        real(dp) :: e_cov(3, 3), g(3, 3), ginv(3, 3), sqrtg
+        real(dp) :: v_ctr(3)
+
+        call self%metric_tensor(u, g, ginv, sqrtg)
+        call self%covariant_basis(u, e_cov)
+        v_ctr = matmul(ginv, v_cov)
+        v_cart = matmul(e_cov, v_ctr)
+    end subroutine coordinate_system_cov_to_cart
+
+    subroutine coordinate_system_ctr_to_cart(self, u, v_ctr, v_cart)
+        !> Convert contravariant vector components to Cartesian.
+        !> v_cart_i = e_cov(i,j) * v_ctr(j)
+        class(coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(in) :: v_ctr(3)
+        real(dp), intent(out) :: v_cart(3)
+
+        real(dp) :: e_cov(3, 3)
+
+        call self%covariant_basis(u, e_cov)
+        v_cart = matmul(e_cov, v_ctr)
+    end subroutine coordinate_system_ctr_to_cart
 
 end module libneo_coordinates
