@@ -138,6 +138,10 @@ contains
                       ierr, message)
         if (ierr /= 0) return
 
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "rho_convention", "rho_tor"), &
+                      ierr, message)
+        if (ierr /= 0) return
+
         call nc_check(nf90_def_dim(ncid, "rho", size(rho), dim_rho), ierr, message)
         if (ierr /= 0) return
         call nc_check(nf90_def_dim(ncid, "theta", size(theta), dim_theta), &
