@@ -253,17 +253,24 @@ contains
             vals(2) = rz(1)*sph
             vals(3) = rz(2)
 
-            dvals(1, 1) = drz(1, 1)*cph
-            dvals(2, 1) = drz(2, 1)*cph
-            dvals(3, 1) = drz(3, 1)*cph - rz(1)*sph
+            ! dvals(cart_component, coord_index) = d(x_cart)/d(u_coord)
+            ! drz(derivative_dim, quantity) where quantity 1=R, 2=Z
+            ! X = R*cos(phi), Y = R*sin(phi), Z = Z
 
-            dvals(1, 2) = drz(1, 1)*sph
-            dvals(2, 2) = drz(2, 1)*sph
-            dvals(3, 2) = drz(3, 1)*sph + rz(1)*cph
+            ! d/drho derivatives:
+            dvals(1, 1) = drz(1, 1)*cph        ! dX/drho = dR/drho * cos
+            dvals(2, 1) = drz(1, 1)*sph        ! dY/drho = dR/drho * sin
+            dvals(3, 1) = drz(1, 2)            ! dZ/drho = dZ/drho
 
-            dvals(1, 3) = drz(1, 2)
-            dvals(2, 3) = drz(2, 2)
-            dvals(3, 3) = drz(3, 2)
+            ! d/dtheta derivatives:
+            dvals(1, 2) = drz(2, 1)*cph        ! dX/dtheta = dR/dtheta * cos
+            dvals(2, 2) = drz(2, 1)*sph        ! dY/dtheta = dR/dtheta * sin
+            dvals(3, 2) = drz(2, 2)            ! dZ/dtheta = dZ/dtheta
+
+            ! d/dphi derivatives:
+            dvals(1, 3) = drz(3, 1)*cph - rz(1)*sph  ! dX/dphi = dR/dphi*cos - R*sin
+            dvals(2, 3) = drz(3, 1)*sph + rz(1)*cph  ! dY/dphi = dR/dphi*sin + R*cos
+            dvals(3, 3) = drz(3, 2)            ! dZ/dphi = dZ/dphi
         else
             call evaluate_batch_splines_3d_der(self%spl_cart, u, vals, dvals)
         end if
@@ -465,17 +472,9 @@ contains
 
         call chartmap_eval_cart_der(self, u, vals, dvals)
 
-        e_cov(1, 1) = dvals(1, 1)
-        e_cov(1, 2) = dvals(2, 1)
-        e_cov(1, 3) = dvals(3, 1)
-
-        e_cov(2, 1) = dvals(1, 2)
-        e_cov(2, 2) = dvals(2, 2)
-        e_cov(2, 3) = dvals(3, 2)
-
-        e_cov(3, 1) = dvals(1, 3)
-        e_cov(3, 2) = dvals(2, 3)
-        e_cov(3, 3) = dvals(3, 3)
+        ! e_cov(cart_component, coord_index) = d(x_cart)/d(u_coord)
+        ! dvals has the same indexing: dvals(cart_component, coord_index)
+        e_cov = dvals
     end subroutine chartmap_covariant_basis
 
     subroutine chartmap_metric_tensor(self, u, g, ginv, sqrtg)
