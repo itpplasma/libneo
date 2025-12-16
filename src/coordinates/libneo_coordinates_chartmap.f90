@@ -737,9 +737,11 @@ contains
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
-        dx_drho = dvals(1, :)
-        dx_dtheta = dvals(2, :)
-        dx_dzeta = dvals(3, :)
+        ! dvals(cart_component, coord_index) = d(x_cart)/d(u_coord)
+        ! Extract columns: dx_drho = [dX/drho, dY/drho, dZ/drho] = dvals(:, 1)
+        dx_drho = dvals(:, 1)
+        dx_dtheta = dvals(:, 2)
+        dx_dzeta = dvals(:, 3)
     end subroutine chartmap_eval_residual_and_partials_cart
 
     subroutine chartmap_solve_normal_eq3(jtj, jtr, delta, ierr)
@@ -1010,8 +1012,9 @@ contains
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
-        dx_drho = dvals(1, :)
-        dx_dtheta = dvals(2, :)
+        ! dvals(cart_component, coord_index) = d(x_cart)/d(u_coord)
+        dx_drho = dvals(:, 1)
+        dx_dtheta = dvals(:, 2)
     end subroutine chartmap_eval_residual_and_partials
 
     subroutine chartmap_line_search(self, x_target, rho, theta, zeta, delta, res_norm, &
