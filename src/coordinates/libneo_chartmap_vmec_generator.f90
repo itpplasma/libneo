@@ -1,6 +1,6 @@
 module libneo_chartmap_vmec_generator
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use libneo_coordinates, only: vmec_coordinate_system_t, RHO_TOR
+    use libneo_coordinates, only: vmec_coordinate_system_t
     use math_constants, only: TWOPI
     use netcdf
     use new_vmec_stuff_mod, only: netcdffile, nper

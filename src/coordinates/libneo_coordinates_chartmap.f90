@@ -77,7 +77,6 @@ contains
         end select
     end subroutine chartmap_read_zeta_convention
 
-
     subroutine chartmap_read_rho_convention(ncid, rho_convention)
         integer, intent(in) :: ncid
         integer, intent(out) :: rho_convention
