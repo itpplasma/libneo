@@ -1,7 +1,12 @@
 module libneo_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use interpolate, only: BatchSplineData3D
+    use libneo_coordinate_conventions
     implicit none
+
+    public :: UNKNOWN
+    public :: CYL, VMEC, BOOZER
+    public :: RHO_TOR, RHO_POL, PSI_TOR_NORM, PSI_POL_NORM
 
     character(len=*), parameter :: chartmap_netcdf_spec = &
                                    "Chartmap NetCDF conventions:"//new_line('a')// &
@@ -34,11 +39,6 @@ module libneo_coordinates
     integer, parameter :: chartmap_from_cyl_err_singular = 2
     integer, parameter :: chartmap_from_cyl_err_out_of_bounds = 3
     integer, parameter :: chartmap_from_cyl_err_invalid = 4
-
-    integer, parameter :: CYL = 0
-    integer, parameter :: VMEC = 1
-    integer, parameter :: BOOZER = 2
-    integer, parameter :: UNKNOWN = 3
 
     integer, parameter :: refcoords_file_unknown = 0
     integer, parameter :: refcoords_file_chartmap = 1
@@ -147,6 +147,7 @@ module libneo_coordinates
         integer :: nzeta = 0
         integer :: num_field_periods = 1
         integer :: zeta_convention = UNKNOWN
+        integer :: rho_convention = UNKNOWN
         real(dp) :: tol_newton = 1.0e-12_dp
     contains
         procedure :: evaluate_cart => chartmap_evaluate_cart

@@ -77,6 +77,41 @@ contains
         end select
     end subroutine chartmap_read_zeta_convention
 
+
+    subroutine chartmap_read_rho_convention(ncid, rho_convention)
+        integer, intent(in) :: ncid
+        integer, intent(out) :: rho_convention
+
+        integer :: status
+        integer :: att_type
+        integer :: att_len
+        character(len=:), allocatable :: value
+
+        rho_convention = UNKNOWN
+
+        status = nf90_inquire_attribute(ncid, NF90_GLOBAL, 'rho_convention', &
+                                        xtype=att_type, len=att_len)
+        if (status /= NF90_NOERR) return
+        if (att_type /= NF90_CHAR .or. att_len < 1) return
+
+        allocate (character(len=att_len) :: value)
+        status = nf90_get_att(ncid, NF90_GLOBAL, 'rho_convention', value)
+        if (status /= NF90_NOERR) return
+
+        select case (trim(value))
+        case ('rho_tor')
+            rho_convention = RHO_TOR
+        case ('rho_pol')
+            rho_convention = RHO_POL
+        case ('psi_tor_norm', 's')
+            rho_convention = PSI_TOR_NORM
+        case ('psi_pol_norm')
+            rho_convention = PSI_POL_NORM
+        case default
+            rho_convention = UNKNOWN
+        end select
+    end subroutine chartmap_read_rho_convention
+
     subroutine chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
                                      x2, y2, z2)
         integer, intent(in) :: nrho, ntheta, nzeta
@@ -276,6 +311,7 @@ contains
         integer :: order(3)
         integer :: num_field_periods
         integer :: zeta_convention
+        integer :: rho_convention
 
         call validate_chartmap_file(trim(filename), ierr, message)
         if (ierr /= 0) then
@@ -307,6 +343,7 @@ contains
         call nc_get(ncid, 'z', z)
         call chartmap_read_num_field_periods(ncid, num_field_periods)
         call chartmap_read_zeta_convention(ncid, zeta_convention)
+        call chartmap_read_rho_convention(ncid, rho_convention)
         call nc_close(ncid)
 
         order = [3, 3, 3]
@@ -316,6 +353,7 @@ contains
 
         ccs%num_field_periods = num_field_periods
         ccs%zeta_convention = zeta_convention
+        ccs%rho_convention = rho_convention
         zeta_period = TWOPI/real(num_field_periods, dp)
 
         if (zeta_convention /= CYL .and. zeta_convention /= VMEC) then

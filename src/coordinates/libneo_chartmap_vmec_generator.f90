@@ -1,6 +1,6 @@
 module libneo_chartmap_vmec_generator
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use libneo_coordinates, only: vmec_coordinate_system_t
+    use libneo_coordinates, only: vmec_coordinate_system_t, RHO_TOR
     use math_constants, only: TWOPI
     use netcdf
     use new_vmec_stuff_mod, only: netcdffile, nper
@@ -135,6 +135,10 @@ contains
         if (ierr /= 0) return
 
         call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "zeta_convention", "cyl"), &
+                      ierr, message)
+        if (ierr /= 0) return
+
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "rho_convention", "rho_tor"), &
                       ierr, message)
         if (ierr /= 0) return
 
