@@ -304,6 +304,15 @@ set_tests_properties(test_chartmap_vmec_mapping PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_chartmap_derivatives.x source/test_chartmap_derivatives.f90)
+target_link_libraries(test_chartmap_derivatives.x neo)
+add_test(NAME test_chartmap_derivatives
+  COMMAND test_chartmap_derivatives.x)
+set_tests_properties(test_chartmap_derivatives PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_refcoords_file_detection.x source/test_refcoords_file_detection.f90)
 target_link_libraries(test_refcoords_file_detection.x neo)
 add_test(NAME test_refcoords_file_detection
