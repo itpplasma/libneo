@@ -112,11 +112,12 @@ def _parse_coils(path: str) -> Coils:
                 if cur == 0.0:
                     # Many STELLOPT/MAKEGRID coil files use current=0 points as
                     # per-filament separators within a single filament block.
-                    coords = np.column_stack(
-                        [np.array(xs), np.array(ys), np.array(zs)]
-                    )
                     cur_arr = np.array(Is)
-                    filaments.append(Filament(coords=coords, current=cur_arr))
+                    if np.any(cur_arr != 0.0):
+                        coords = np.column_stack(
+                            [np.array(xs), np.array(ys), np.array(zs)]
+                        )
+                        filaments.append(Filament(coords=coords, current=cur_arr))
                     xs.clear()
                     ys.clear()
                     zs.clear()

@@ -79,7 +79,7 @@ def _write_stellarator_like_coils_simple(
 
 
 def _plot_coils_and_surface(
-    out_dir: Path, coils_xyz: np.ndarray, mesh: object, basename: str
+    out_dir: Path, coils_xyz: list[np.ndarray], mesh: object, basename: str
 ) -> None:
     import matplotlib.pyplot as plt
     import trimesh
@@ -89,7 +89,8 @@ def _plot_coils_and_surface(
 
     fig = plt.figure(figsize=(7.0, 6.0))
     ax = fig.add_subplot(111, projection="3d")
-    ax.plot(coils_xyz[:, 0], coils_xyz[:, 1], coils_xyz[:, 2], color="C3", linewidth=1.2)
+    for xyz in coils_xyz:
+        ax.plot(xyz[:, 0], xyz[:, 1], xyz[:, 2], color="C3", linewidth=1.2)
 
     faces = mesh.faces
     if faces.shape[0] > 8000:
@@ -107,8 +108,9 @@ def _plot_coils_and_surface(
     ax.set_ylabel("Y [m]")
     ax.set_zlabel("Z [m]")
 
-    mins = np.minimum(mesh.vertices.min(axis=0), coils_xyz.min(axis=0))
-    maxs = np.maximum(mesh.vertices.max(axis=0), coils_xyz.max(axis=0))
+    coils_stacked = np.vstack(coils_xyz) if len(coils_xyz) else np.zeros((0, 3))
+    mins = np.minimum(mesh.vertices.min(axis=0), coils_stacked.min(axis=0))
+    maxs = np.maximum(mesh.vertices.max(axis=0), coils_stacked.max(axis=0))
     center = 0.5 * (mins + maxs)
     span = float(np.max(maxs - mins))
     span = max(span, 1.0e-12)
@@ -174,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--offset-cm", type=float, default=10.0)
     parser.add_argument("--smooth-window", type=int, default=11)
     parser.add_argument("--padding-m", type=float, default=0.20)
+    parser.add_argument("--window-r-quantiles", default="0.0,1.0")
+    parser.add_argument("--window-z-quantiles", default="0.0,1.0")
     parser.add_argument("--axis-x", type=float)
     parser.add_argument("--axis-y", type=float)
     args = parser.parse_args(argv)
@@ -231,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
     seed = np.array([float(np.mean(rr_raw)), 0.0, float(np.mean(pts_raw[:, 2]))], dtype=float)
 
     offset_m = float(args.offset_cm) / 100.0
+    r_q = tuple(float(x) for x in str(args.window_r_quantiles).split(","))
+    z_q = tuple(float(x) for x in str(args.window_z_quantiles).split(","))
 
     surf = build_inner_offset_surface_from_segments(
         a,
@@ -239,6 +245,8 @@ def main(argv: list[str] | None = None) -> int:
         seed=seed,
         grid_shape=(72, 72, 72),
         padding_m=float(args.padding_m),
+        window_r_quantiles=r_q,  # type: ignore[arg-type]
+        window_z_quantiles=z_q,  # type: ignore[arg-type]
     )
 
     import trimesh
@@ -252,9 +260,12 @@ def main(argv: list[str] | None = None) -> int:
     if not mesh.is_watertight:
         raise RuntimeError("offset surface mesh is not watertight")
 
-    coils_xyz = np.vstack(coils.coils).copy()
-    coils_xyz[:, 0] -= axis_xy[0]
-    coils_xyz[:, 1] -= axis_xy[1]
+    coils_xyz = []
+    for coil in coils.coils:
+        xyz = np.asarray(coil, dtype=float).copy()
+        xyz[:, 0] -= axis_xy[0]
+        xyz[:, 1] -= axis_xy[1]
+        coils_xyz.append(xyz)
     _plot_coils_and_surface(out_dir, coils_xyz, mesh, basename)
 
     slices = extract_boundary_slices_from_mesh(
@@ -277,6 +288,8 @@ def main(argv: list[str] | None = None) -> int:
         padding_cm=100.0 * float(args.padding_m),
         axis_xy=axis_xy,
         seed_rz=(float(seed[0]), float(seed[2])),
+        window_r_quantiles=r_q,  # type: ignore[arg-type]
+        window_z_quantiles=z_q,  # type: ignore[arg-type]
         smooth_window=int(args.smooth_window),
         M=12,
         Nt=128,

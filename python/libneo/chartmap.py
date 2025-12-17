@@ -187,6 +187,8 @@ def write_chartmap_from_coils_offset_surface(
     sample_step_cm: float | None = None,
     axis_xy: tuple[float, float] | None = None,
     seed_rz: tuple[float, float] | None = None,
+    window_r_quantiles: tuple[float, float] = (0.0, 1.0),
+    window_z_quantiles: tuple[float, float] = (0.0, 1.0),
     smooth_window: int = 11,
     n_boundary_points: int = 512,
     stitch_tol: float = 1.0e-6,
@@ -250,6 +252,8 @@ def write_chartmap_from_coils_offset_surface(
         grid_shape=grid_shape,
         padding_m=padding_m,
         sample_step_m=sample_step_m,
+        window_r_quantiles=window_r_quantiles,
+        window_z_quantiles=window_z_quantiles,
     )
 
     mesh = trimesh.Trimesh(vertices=surf.vertices, faces=surf.faces, process=True)

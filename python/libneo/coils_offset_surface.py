@@ -40,6 +40,8 @@ def build_inner_offset_surface_from_segments(
     grid_shape: tuple[int, int, int] = (64, 64, 64),
     padding_m: float = 0.20,
     sample_step_m: float | None = None,
+    window_r_quantiles: tuple[float, float] = (0.0, 1.0),
+    window_z_quantiles: tuple[float, float] = (0.0, 1.0),
 ) -> OffsetSurfaceResult:
     """
     Build a closed surface inside coils as the boundary of the region
@@ -60,6 +62,11 @@ def build_inner_offset_surface_from_segments(
         raise ValueError("padding_m must be >= 0")
     if len(grid_shape) != 3 or min(grid_shape) < 16:
         raise ValueError("grid_shape must be 3 ints, each >= 16")
+    if (
+        len(window_r_quantiles) != 2
+        or len(window_z_quantiles) != 2
+    ):
+        raise ValueError("window quantiles must be (lo, hi)")
 
     a = np.asarray(a, dtype=float)
     b = np.asarray(b, dtype=float)
@@ -106,10 +113,35 @@ def build_inner_offset_surface_from_segments(
     rr_coil = np.sqrt(np.r_[a[:, 0], b[:, 0]] ** 2 + np.r_[a[:, 1], b[:, 1]] ** 2)
     zz_coil = np.r_[a[:, 2], b[:, 2]]
 
-    r_min = max(0.0, float(np.min(rr_coil)) + float(offset_m))
-    r_max = float(np.max(rr_coil)) - float(offset_m)
-    z_min = float(np.min(zz_coil)) + float(offset_m)
-    z_max = float(np.max(zz_coil)) - float(offset_m)
+    r_lo, r_hi = (float(window_r_quantiles[0]), float(window_r_quantiles[1]))
+    z_lo, z_hi = (float(window_z_quantiles[0]), float(window_z_quantiles[1]))
+    if not (0.0 <= r_lo < r_hi <= 1.0):
+        raise ValueError("window_r_quantiles must satisfy 0 <= lo < hi <= 1")
+    if not (0.0 <= z_lo < z_hi <= 1.0):
+        raise ValueError("window_z_quantiles must satisfy 0 <= lo < hi <= 1")
+
+    if r_lo == 0.0:
+        r_min_base = float(np.min(rr_coil))
+    else:
+        r_min_base = float(np.quantile(rr_coil, r_lo))
+    if r_hi == 1.0:
+        r_max_base = float(np.max(rr_coil))
+    else:
+        r_max_base = float(np.quantile(rr_coil, r_hi))
+
+    if z_lo == 0.0:
+        z_min_base = float(np.min(zz_coil))
+    else:
+        z_min_base = float(np.quantile(zz_coil, z_lo))
+    if z_hi == 1.0:
+        z_max_base = float(np.max(zz_coil))
+    else:
+        z_max_base = float(np.quantile(zz_coil, z_hi))
+
+    r_min = max(0.0, r_min_base + float(offset_m))
+    r_max = r_max_base - float(offset_m)
+    z_min = z_min_base + float(offset_m)
+    z_max = z_max_base - float(offset_m)
 
     if r_max <= r_min or z_max <= z_min:
         raise RuntimeError("could not form interior window for requested offset")
