@@ -171,3 +171,120 @@ def write_chartmap_from_stl(
         Nt=int(Nt),
         Ng=Ng,
     )
+
+
+def write_chartmap_from_coils_offset_surface(
+    coils_path: str | Path,
+    out_path: str | Path,
+    *,
+    offset_cm: float,
+    nrho: int = 33,
+    ntheta: int = 65,
+    nphi: int = 32,
+    num_field_periods: int = 1,
+    grid_shape: tuple[int, int, int] = (72, 72, 72),
+    padding_cm: float = 20.0,
+    sample_step_cm: float | None = None,
+    axis_xy: tuple[float, float] | None = None,
+    seed_rz: tuple[float, float] | None = None,
+    window_r_quantiles: tuple[float, float] = (0.0, 1.0),
+    window_z_quantiles: tuple[float, float] = (0.0, 1.0),
+    smooth_window: int = 11,
+    n_boundary_points: int = 512,
+    stitch_tol: float = 1.0e-6,
+    M: int = 16,
+    Nt: int = 256,
+    Ng: tuple[int, int] = (256, 256),
+) -> None:
+    """
+    Generate a chartmap NetCDF from a coils file by building an offset surface.
+
+    The coils file must be in SIMPLE format (see neo_biotsavart).
+    """
+    import trimesh
+
+    from .coils_simple import read_simple_coils, coils_to_segments
+    from .coils_offset_surface import build_inner_offset_surface_from_segments
+    from .stl_boundary import extract_boundary_slices_from_mesh, write_chartmap_from_stl as _write_from_slices
+
+    coils_file = _as_path(coils_path)
+    out = _as_path(out_path)
+
+    if offset_cm <= 0.0:
+        raise ValueError("offset_cm must be > 0")
+    if num_field_periods < 1:
+        raise ValueError("num_field_periods must be >= 1")
+    if nphi < 2:
+        raise ValueError("nphi must be >= 2")
+
+    coils = read_simple_coils(coils_file)
+    a, b = coils_to_segments(coils)
+
+    if axis_xy is None:
+        pts = np.vstack(coils.coils)
+        axis_xy = (float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1])))
+
+    a = a.copy()
+    b = b.copy()
+    a[:, 0] -= float(axis_xy[0])
+    a[:, 1] -= float(axis_xy[1])
+    b[:, 0] -= float(axis_xy[0])
+    b[:, 1] -= float(axis_xy[1])
+
+    if seed_rz is None:
+        pts0 = np.vstack(coils.coils)
+        rr = np.sqrt((pts0[:, 0] - float(axis_xy[0])) ** 2 + (pts0[:, 1] - float(axis_xy[1])) ** 2)
+        R0 = float(np.mean(rr))
+        z0 = float(np.mean(pts0[:, 2]))
+        seed_rz = (R0, z0)
+
+    seed = np.array([float(seed_rz[0]), 0.0, float(seed_rz[1])], dtype=float)
+
+    offset_m = float(offset_cm) / 100.0
+    padding_m = float(padding_cm) / 100.0
+    sample_step_m = None if sample_step_cm is None else float(sample_step_cm) / 100.0
+
+    surf = build_inner_offset_surface_from_segments(
+        a,
+        b,
+        offset_m=offset_m,
+        seed=seed,
+        grid_shape=grid_shape,
+        padding_m=padding_m,
+        sample_step_m=sample_step_m,
+        window_r_quantiles=window_r_quantiles,
+        window_z_quantiles=window_z_quantiles,
+    )
+
+    mesh = trimesh.Trimesh(vertices=surf.vertices, faces=surf.faces, process=True)
+    mesh.merge_vertices()
+    mesh.remove_unreferenced_vertices()
+    trimesh.repair.fix_normals(mesh)
+    trimesh.repair.fill_holes(mesh)
+    trimesh.smoothing.filter_taubin(mesh, lamb=0.5, nu=-0.53, iterations=12)
+
+    if not mesh.is_watertight:
+        raise RuntimeError("offset surface mesh is not watertight; cannot form closed surface")
+
+    period = _zeta_period(int(num_field_periods))
+    phi_vals = np.linspace(0.0, period, int(nphi), endpoint=False, dtype=float)
+
+    slices = extract_boundary_slices_from_mesh(
+        mesh,
+        n_phi=int(nphi),
+        n_boundary_points=int(n_boundary_points),
+        axis_xy=(0.0, 0.0),
+        stitch_tol=float(stitch_tol),
+        phi_vals=phi_vals,
+    )
+    _write_from_slices(
+        slices,
+        out,
+        nrho=int(nrho),
+        ntheta=int(ntheta),
+        num_field_periods=int(num_field_periods),
+        M=int(M),
+        Nt=int(Nt),
+        Ng=Ng,
+        smooth_window=int(smooth_window),
+    )
