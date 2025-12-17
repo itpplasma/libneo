@@ -433,12 +433,12 @@ def cfunct(theta, zeta, coeff, xm, xn):
     nmode, ns = coeff.shape
     result = np.zeros((ns, len(theta)))
     for m in range(nmode):
-        result += coeff[m, :].reshape(ns, 1) * np.cos(xm[m] * theta + xn[m] * zeta)
+        result += coeff[m, :].reshape(ns, 1) * np.cos(xm[m] * theta - xn[m] * zeta)
     return result
 
 def sfunct(theta, zeta, coeff, xm, xn):
     nmode, ns = coeff.shape
     result = np.zeros((ns, len(theta)))
     for m in range(nmode):
-        result += coeff[m, :].reshape(ns, 1) * np.sin(xm[m] * theta + xn[m] * zeta)
+        result += coeff[m, :].reshape(ns, 1) * np.sin(xm[m] * theta - xn[m] * zeta)
     return result

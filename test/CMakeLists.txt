@@ -333,6 +333,15 @@ set_tests_properties(test_vmec_coordinate_system PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_vmec_from_cyl.x source/test_vmec_from_cyl.f90)
+target_link_libraries(test_vmec_from_cyl.x neo)
+add_test(NAME test_vmec_from_cyl
+  COMMAND test_vmec_from_cyl.x)
+set_tests_properties(test_vmec_from_cyl PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_chartmap_matches_vmec.x source/test_chartmap_matches_vmec.f90)
 target_link_libraries(test_chartmap_matches_vmec.x neo)
 add_test(NAME test_chartmap_matches_vmec
