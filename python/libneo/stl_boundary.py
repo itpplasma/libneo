@@ -321,6 +321,7 @@ def extract_boundary_slices(
     n_boundary_points: int = 512,
     axis_xy: tuple[float, float] | None = None,
     stitch_tol: float = 1.0e-6,
+    phi_vals: np.ndarray | None = None,
 ) -> list[BoundarySlice]:
     import trimesh
 
@@ -331,7 +332,13 @@ def extract_boundary_slices(
     if axis_xy is None:
         axis_xy = (float(np.mean(mesh.vertices[:, 0])), float(np.mean(mesh.vertices[:, 1])))
 
-    phi_vals = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
+    if phi_vals is None:
+        phi_vals = np.linspace(0.0, 2.0 * np.pi, n_phi, endpoint=False)
+    else:
+        phi_vals = np.asarray(phi_vals, dtype=float)
+        if phi_vals.ndim != 1 or phi_vals.size < 2:
+            raise ValueError("phi_vals must be a 1D array with at least 2 values")
+        n_phi = int(phi_vals.size)
     slices: list[BoundarySlice] = []
     for phi in phi_vals:
         phi_used = float(phi)

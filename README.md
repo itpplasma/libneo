@@ -59,6 +59,22 @@ Classes and functions that have a general use for many application.
 ## python
 Python interface package and scripts/functions.
 
+### Chartmap generators
+Generate `*.chartmap.nc` volumes compatible with `libneo_coordinates`.
+
+Install dependencies:
+
+    pip install -e ".[chartmap]"
+
+Python API:
+
+    from libneo.chartmap import write_chartmap_from_vmec_boundary
+    write_chartmap_from_vmec_boundary("wout.nc", "wout.chartmap.nc", nrho=33, ntheta=65, nzeta=33)
+
+CLI:
+
+    libneo-write-chartmap from-vmec wout.nc wout.chartmap.nc --nrho 33 --ntheta 65 --nzeta 33
+
 ### Coils format converter
 Convert STELLOPT coils format to simple biotsavart format:
 
