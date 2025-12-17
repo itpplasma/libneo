@@ -1,17 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from dataclasses import dataclass
 
 import numpy as np
 
-
-@dataclass(frozen=True)
-class ChartmapGrid:
-    rho: np.ndarray
-    theta: np.ndarray
-    zeta: np.ndarray
-    num_field_periods: int
+from .chartmap_io import ChartmapGrid, build_chartmap_grid, write_chartmap_netcdf
 
 
 def _as_path(path: str | Path) -> Path:
@@ -34,64 +27,16 @@ def _build_grid(
     nzeta: int,
     num_field_periods: int,
 ) -> ChartmapGrid:
-    if nrho < 2 or ntheta < 2 or nzeta < 2:
-        raise ValueError("nrho, ntheta, nzeta must be >= 2")
-
-    rho = np.linspace(0.0, 1.0, int(nrho), dtype=float)
-    theta = np.linspace(0.0, 2.0 * np.pi, int(ntheta), endpoint=False, dtype=float)
+    if nzeta < 2:
+        raise ValueError("nzeta must be >= 2")
     period = _zeta_period(int(num_field_periods))
     zeta = np.linspace(0.0, period, int(nzeta), endpoint=False, dtype=float)
-    return ChartmapGrid(rho=rho, theta=theta, zeta=zeta, num_field_periods=int(num_field_periods))
-
-
-def _write_chartmap_netcdf(
-    out_path: Path,
-    *,
-    grid: ChartmapGrid,
-    x_rtz: np.ndarray,
-    y_rtz: np.ndarray,
-    z_rtz: np.ndarray,
-    zeta_convention: str,
-    rho_convention: str,
-) -> None:
-    from netCDF4 import Dataset
-
-    if x_rtz.shape != y_rtz.shape or x_rtz.shape != z_rtz.shape:
-        raise ValueError("x, y, z arrays must have the same shape")
-    if x_rtz.shape != (grid.rho.size, grid.theta.size, grid.zeta.size):
-        raise ValueError("x, y, z must have shape (nrho, ntheta, nzeta)")
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with Dataset(out_path, "w", format="NETCDF4") as ds:
-        ds.setncattr("zeta_convention", str(zeta_convention))
-        ds.setncattr("rho_convention", str(rho_convention))
-
-        ds.createDimension("rho", grid.rho.size)
-        ds.createDimension("theta", grid.theta.size)
-        ds.createDimension("zeta", grid.zeta.size)
-
-        v_rho = ds.createVariable("rho", "f8", ("rho",))
-        v_theta = ds.createVariable("theta", "f8", ("theta",))
-        v_zeta = ds.createVariable("zeta", "f8", ("zeta",))
-
-        v_x = ds.createVariable("x", "f8", ("zeta", "theta", "rho"))
-        v_y = ds.createVariable("y", "f8", ("zeta", "theta", "rho"))
-        v_z = ds.createVariable("z", "f8", ("zeta", "theta", "rho"))
-        v_nfp = ds.createVariable("num_field_periods", "i4")
-
-        v_x.units = "cm"
-        v_y.units = "cm"
-        v_z.units = "cm"
-
-        v_rho[:] = grid.rho
-        v_theta[:] = grid.theta
-        v_zeta[:] = grid.zeta
-
-        v_x[:, :, :] = np.transpose(x_rtz, (2, 1, 0))
-        v_y[:, :, :] = np.transpose(y_rtz, (2, 1, 0))
-        v_z[:, :, :] = np.transpose(z_rtz, (2, 1, 0))
-
-        v_nfp.assignValue(int(grid.num_field_periods))
+    return build_chartmap_grid(
+        nrho=int(nrho),
+        ntheta=int(ntheta),
+        zeta=zeta,
+        num_field_periods=int(num_field_periods),
+    )
 
 
 def write_chartmap_from_vmec_boundary(
@@ -165,7 +110,7 @@ def write_chartmap_from_vmec_boundary(
         y[:, :, iz] = R_grid * np.sin(phi_val) * 100.0
         z[:, :, iz] = Z_grid * 100.0
 
-    _write_chartmap_netcdf(
+    write_chartmap_netcdf(
         out,
         grid=grid,
         x_rtz=x,
@@ -194,9 +139,7 @@ def write_chartmap_from_stl(
     """
     Generate a chartmap NetCDF using map2disc from an STL boundary.
     """
-    from map2disc import map as m2d
-
-    from .stl_boundary import extract_boundary_slices, _curve_from_contour
+    from .stl_boundary import extract_boundary_slices, write_chartmap_from_stl as _write_from_slices
 
     stl = _as_path(stl_path)
     out = _as_path(out_path)
@@ -217,37 +160,13 @@ def write_chartmap_from_stl(
         stitch_tol=float(stitch_tol),
         phi_vals=phi_vals,
     )
-
-    grid = _build_grid(
-        nrho=nrho, ntheta=ntheta, nzeta=len(slices), num_field_periods=int(num_field_periods)
-    )
-
-    x = np.zeros((grid.rho.size, grid.theta.size, grid.zeta.size), dtype=np.float64)
-    y = np.zeros_like(x)
-    z = np.zeros_like(x)
-
-    for iz, s in enumerate(slices):
-        curve = _curve_from_contour(s.outer_filled)
-        bcm = m2d.BoundaryConformingMapping(curve=curve, M=int(M), Nt=int(Nt), Ng=Ng)
-        bcm.solve_domain2disk()
-        bcm.solve_disk2domain()
-
-        rz = bcm.eval_rt_1d(grid.rho, grid.theta)
-        R_grid = rz[0]
-        Z_grid = rz[1]
-
-        phi = float(s.phi)
-        ax_x, ax_y = s.axis_xy
-        x[:, :, iz] = (ax_x + R_grid * np.cos(phi)) * 100.0
-        y[:, :, iz] = (ax_y + R_grid * np.sin(phi)) * 100.0
-        z[:, :, iz] = Z_grid * 100.0
-
-    _write_chartmap_netcdf(
+    _write_from_slices(
+        slices,
         out,
-        grid=grid,
-        x_rtz=x,
-        y_rtz=y,
-        z_rtz=z,
-        zeta_convention="cyl",
-        rho_convention="unknown",
+        nrho=int(nrho),
+        ntheta=int(ntheta),
+        num_field_periods=int(num_field_periods),
+        M=int(M),
+        Nt=int(Nt),
+        Ng=Ng,
     )
