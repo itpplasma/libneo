@@ -186,6 +186,7 @@ def write_chartmap_from_coils_offset_surface(
     padding_cm: float = 20.0,
     sample_step_cm: float | None = None,
     axis_xy: tuple[float, float] | None = None,
+    seed_rz: tuple[float, float] | None = None,
     n_boundary_points: int = 512,
     stitch_tol: float = 1.0e-6,
     M: int = 16,
@@ -200,7 +201,7 @@ def write_chartmap_from_coils_offset_surface(
     import trimesh
 
     from .coils_simple import read_simple_coils, coils_to_segments
-    from .coils_offset_surface import build_offset_surface_from_segments
+    from .coils_offset_surface import build_inner_offset_surface_from_segments
     from .stl_boundary import extract_boundary_slices_from_mesh, write_chartmap_from_stl as _write_from_slices
 
     coils_file = _as_path(coils_path)
@@ -227,14 +228,24 @@ def write_chartmap_from_coils_offset_surface(
     b[:, 0] -= float(axis_xy[0])
     b[:, 1] -= float(axis_xy[1])
 
+    if seed_rz is None:
+        pts0 = np.vstack(coils.coils)
+        rr = np.sqrt((pts0[:, 0] - float(axis_xy[0])) ** 2 + (pts0[:, 1] - float(axis_xy[1])) ** 2)
+        R0 = float(np.mean(rr))
+        z0 = float(np.mean(pts0[:, 2]))
+        seed_rz = (R0, z0)
+
+    seed = np.array([float(seed_rz[0]), 0.0, float(seed_rz[1])], dtype=float)
+
     offset_m = float(offset_cm) / 100.0
     padding_m = float(padding_cm) / 100.0
     sample_step_m = None if sample_step_cm is None else float(sample_step_cm) / 100.0
 
-    surf = build_offset_surface_from_segments(
+    surf = build_inner_offset_surface_from_segments(
         a,
         b,
         offset_m=offset_m,
+        seed=seed,
         grid_shape=grid_shape,
         padding_m=padding_m,
         sample_step_m=sample_step_m,

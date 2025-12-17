@@ -56,6 +56,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p_coils.add_argument("--sample-step-cm", type=float)
     p_coils.add_argument("--axis-x", type=float)
     p_coils.add_argument("--axis-y", type=float)
+    p_coils.add_argument("--seed-R", type=float)
+    p_coils.add_argument("--seed-Z", type=float)
     p_coils.add_argument("--n-boundary-points", type=int, default=512)
     p_coils.add_argument("--stitch-tol", type=float, default=1.0e-6)
     p_coils.add_argument("--M", type=int, default=16)
@@ -112,6 +114,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.axis_x is None or args.axis_y is None:
                 raise SystemExit("--axis-x and --axis-y must be provided together")
             axis_xy = (float(args.axis_x), float(args.axis_y))
+        seed_rz = None
+        if args.seed_R is not None or args.seed_Z is not None:
+            if args.seed_R is None or args.seed_Z is None:
+                raise SystemExit("--seed-R and --seed-Z must be provided together")
+            seed_rz = (float(args.seed_R), float(args.seed_Z))
         write_chartmap_from_coils_offset_surface(
             args.coils,
             args.out,
@@ -124,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
             padding_cm=float(args.padding_cm),
             sample_step_cm=None if args.sample_step_cm is None else float(args.sample_step_cm),
             axis_xy=axis_xy,
+            seed_rz=seed_rz,
             n_boundary_points=int(args.n_boundary_points),
             stitch_tol=float(args.stitch_tol),
             M=int(args.M),

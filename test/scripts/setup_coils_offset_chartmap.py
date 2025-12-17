@@ -41,6 +41,43 @@ def _write_circular_coil_simple(path: Path, *, R0: float, z0: float, n: int) -> 
             handle.write(f"{xi:.14E} {yi:.14E} {zi:.14E} {ii:.14E}\n")
 
 
+def _write_stellarator_like_coils_simple(
+    path: Path,
+    *,
+    n_coils: int,
+    n_points_per_coil: int,
+    R0: float,
+    a: float,
+    n_waves: int,
+    z_scale: float,
+) -> None:
+    t = np.linspace(0.0, 2.0 * np.pi, int(n_points_per_coil), endpoint=True)
+    coils_xyz: list[np.ndarray] = []
+    currents: list[np.ndarray] = []
+
+    for k in range(int(n_coils)):
+        phi = 2.0 * np.pi * float(k) / float(n_coils)
+        R = R0 + a * np.cos(t)
+        Z = z_scale * a * np.sin(t)
+        xx = R * np.cos(phi)
+        yy = R * np.sin(phi)
+        zz = Z
+        xyz = np.column_stack((xx, yy, zz))
+        coils_xyz.append(xyz)
+
+        cur = np.ones((t.size,), dtype=float)
+        cur[-1] = 0.0
+        currents.append(cur)
+
+    n_total = sum(arr.shape[0] for arr in coils_xyz)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write(f"{n_total}\n")
+        for xyz, cur in zip(coils_xyz, currents):
+            for (xi, yi, zi), ii in zip(xyz, cur):
+                handle.write(f"{xi:.14E} {yi:.14E} {zi:.14E} {ii:.14E}\n")
+
+
 def _plot_coils_and_surface(out_dir: Path, coils_xyz: np.ndarray, mesh: object) -> None:
     import matplotlib.pyplot as plt
     import trimesh
@@ -136,13 +173,21 @@ def main(argv: list[str] | None = None) -> int:
     coils_file = out_dir / "coils.simple"
     chartmap_file = out_dir / "coils_offset.chartmap.nc"
 
-    _write_circular_coil_simple(coils_file, R0=1.7, z0=0.0, n=721)
+    _write_stellarator_like_coils_simple(
+        coils_file,
+        n_coils=64,
+        n_points_per_coil=181,
+        R0=1.7,
+        a=0.45,
+        n_waves=1,
+        z_scale=1.0,
+    )
 
     _import_libneo_from_repo()
     from libneo.chartmap import write_chartmap_from_coils_offset_surface
     from libneo.coils_simple import read_simple_coils
     from libneo.coils_simple import coils_to_segments
-    from libneo.coils_offset_surface import build_offset_surface_from_segments
+    from libneo.coils_offset_surface import build_inner_offset_surface_from_segments
     from libneo.stl_boundary import extract_boundary_slices_from_mesh
 
     coils = read_simple_coils(coils_file)
@@ -157,10 +202,15 @@ def main(argv: list[str] | None = None) -> int:
     b[:, 0] -= axis_xy[0]
     b[:, 1] -= axis_xy[1]
 
-    surf = build_offset_surface_from_segments(
+    pts_raw = np.vstack(coils.coils)
+    rr_raw = np.sqrt((pts_raw[:, 0] - axis_xy[0]) ** 2 + (pts_raw[:, 1] - axis_xy[1]) ** 2)
+    seed = np.array([float(np.mean(rr_raw)), 0.0, float(np.mean(pts_raw[:, 2]))], dtype=float)
+
+    surf = build_inner_offset_surface_from_segments(
         a,
         b,
-        offset_m=0.20,
+        offset_m=0.10,
+        seed=seed,
         grid_shape=(72, 72, 72),
         padding_m=0.20,
     )
@@ -191,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     write_chartmap_from_coils_offset_surface(
         coils_file,
         chartmap_file,
-        offset_cm=20.0,
+        offset_cm=10.0,
         nrho=33,
         ntheta=65,
         nphi=32,
@@ -199,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         grid_shape=(72, 72, 72),
         padding_cm=20.0,
         axis_xy=axis_xy,
+        seed_rz=(float(seed[0]), float(seed[2])),
         M=12,
         Nt=128,
         Ng=(128, 128),

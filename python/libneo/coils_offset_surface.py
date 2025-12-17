@@ -12,6 +12,7 @@ class OffsetSurfaceResult:
     origin: np.ndarray
     spacing: np.ndarray
     grid_shape: tuple[int, int, int]
+    seed: np.ndarray
 
 
 def _sample_segments(a: np.ndarray, b: np.ndarray, step: float) -> np.ndarray:
@@ -30,21 +31,27 @@ def _sample_segments(a: np.ndarray, b: np.ndarray, step: float) -> np.ndarray:
     return np.vstack(points)
 
 
-def build_offset_surface_from_segments(
+def build_inner_offset_surface_from_segments(
     a: np.ndarray,
     b: np.ndarray,
     *,
     offset_m: float,
+    seed: np.ndarray,
     grid_shape: tuple[int, int, int] = (64, 64, 64),
     padding_m: float = 0.20,
     sample_step_m: float | None = None,
 ) -> OffsetSurfaceResult:
     """
-    Build an offset surface dist(x) = offset_m around polyline segments.
+    Build a closed surface inside coils as the boundary of the region
+    that is at least offset_m away from the coil filaments.
+
+    The surface corresponds to dist(x) = offset_m on the connected component
+    of the set {dist(x) >= offset_m} that contains the provided seed point.
 
     Uses a sampled point cloud + KDTree to approximate distance to the polyline.
     """
     from scipy.spatial import cKDTree
+    from scipy import ndimage
     from skimage.measure import marching_cubes
 
     if offset_m <= 0.0:
@@ -60,6 +67,10 @@ def build_offset_surface_from_segments(
         raise ValueError("a and b must be arrays with shape (nseg, 3)")
     if a.shape[0] < 4:
         raise ValueError("need at least 4 segments")
+
+    seed = np.asarray(seed, dtype=float)
+    if seed.shape != (3,):
+        raise ValueError("seed must have shape (3,)")
 
     mins = np.minimum(a.min(axis=0), b.min(axis=0))
     maxs = np.maximum(a.max(axis=0), b.max(axis=0))
@@ -88,8 +99,72 @@ def build_offset_surface_from_segments(
     dist, _ = tree.query(pts, k=1, workers=-1)
     field = dist.reshape((nx, ny, nz))
 
+    seed_idx = np.rint((seed - origin) / spacing).astype(int)
+    if np.any(seed_idx < 0) or seed_idx[0] >= nx or seed_idx[1] >= ny or seed_idx[2] >= nz:
+        raise RuntimeError("seed point outside distance grid bounds")
+
+    rr_coil = np.sqrt(np.r_[a[:, 0], b[:, 0]] ** 2 + np.r_[a[:, 1], b[:, 1]] ** 2)
+    zz_coil = np.r_[a[:, 2], b[:, 2]]
+
+    r_min = max(0.0, float(np.min(rr_coil)) + float(offset_m))
+    r_max = float(np.max(rr_coil)) - float(offset_m)
+    z_min = float(np.min(zz_coil)) + float(offset_m)
+    z_max = float(np.max(zz_coil)) - float(offset_m)
+
+    if r_max <= r_min or z_max <= z_min:
+        raise RuntimeError("could not form interior window for requested offset")
+
+    R = np.sqrt(X**2 + Y**2)
+    window = (R >= r_min) & (R <= r_max) & (Z >= z_min) & (Z <= z_max)
+    mask = (field >= float(offset_m)) & window
+    labels, nlab = ndimage.label(mask)
+    if nlab < 1:
+        raise RuntimeError("could not form any interior region at requested offset")
+
+    lab = int(labels[int(seed_idx[0]), int(seed_idx[1]), int(seed_idx[2])])
+    if lab == 0:
+        r = 8
+        i0, j0, k0 = int(seed_idx[0]), int(seed_idx[1]), int(seed_idx[2])
+        i1 = max(0, i0 - r)
+        i2 = min(nx, i0 + r + 1)
+        j1 = max(0, j0 - r)
+        j2 = min(ny, j0 + r + 1)
+        k1 = max(0, k0 - r)
+        k2 = min(nz, k0 + r + 1)
+
+        sub_mask = mask[i1:i2, j1:j2, k1:k2]
+        if not np.any(sub_mask):
+            raise RuntimeError(
+                "seed point is not inside the interior region at requested offset"
+            )
+        sub_field = field[i1:i2, j1:j2, k1:k2]
+        flat = int(np.argmax(np.where(sub_mask, sub_field, -np.inf)))
+        di, dj, dk = np.unravel_index(flat, sub_mask.shape)
+        seed_idx = np.array([i1 + di, j1 + dj, k1 + dk], dtype=int)
+        lab = int(labels[int(seed_idx[0]), int(seed_idx[1]), int(seed_idx[2])])
+        if lab == 0:
+            raise RuntimeError(
+                "seed point is not inside the interior region at requested offset"
+            )
+
+    keep = labels == lab
+    if (
+        np.any(keep[0, :, :])
+        or np.any(keep[-1, :, :])
+        or np.any(keep[:, 0, :])
+        or np.any(keep[:, -1, :])
+        or np.any(keep[:, :, 0])
+        or np.any(keep[:, :, -1])
+    ):
+        raise RuntimeError(
+            "interior region is not enclosed (touches grid boundary); "
+            "increase offset/padding or adjust seed"
+        )
+    field2 = field.copy()
+    field2[~keep] = 0.0
+
     verts_zyx, faces, _, _ = marching_cubes(
-        field.astype(np.float32),
+        field2.astype(np.float32),
         level=float(offset_m),
         spacing=(float(spacing[0]), float(spacing[1]), float(spacing[2])),
     )
@@ -101,5 +176,5 @@ def build_offset_surface_from_segments(
         origin=np.asarray(origin, dtype=float),
         spacing=np.asarray(spacing, dtype=float),
         grid_shape=(nx, ny, nz),
+        seed=np.asarray(seed, dtype=float),
     )
-

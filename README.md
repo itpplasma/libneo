@@ -82,6 +82,9 @@ Generate a chartmap from SIMPLE coils by building an offset surface:
 
     libneo-write-chartmap from-coils-offset coils.simple coils.chartmap.nc --offset-cm 20
 
+This constructs a closed surface inside the coils as the boundary of the region that is at
+least `offset_cm` away from the coil filaments.
+
 ### Coils format converter
 Convert STELLOPT coils format to simple biotsavart format:
 
