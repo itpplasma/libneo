@@ -147,6 +147,9 @@ target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
 add_executable(test_chartmap_coordinates.x source/test_chartmap_coordinates.f90)
 target_link_libraries(test_chartmap_coordinates.x neo ${MAGFIE_LIB})
 
+add_executable(test_chartmap_basis_debug.x source/test_chartmap_basis_debug.f90)
+target_link_libraries(test_chartmap_basis_debug.x neo ${MAGFIE_LIB})
+
 add_executable(test_chartmap_validator.x source/test_chartmap_validator.f90)
 target_link_libraries(test_chartmap_validator.x neo)
 

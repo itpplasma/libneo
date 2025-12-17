@@ -31,6 +31,7 @@ program test_chartmap_coordinates
         call run_roundtrip_check(ccs, nerrors)
         call run_boundary_check(ccs, nerrors)
         call run_metric_check(ccs, nerrors)
+        call run_covariant_basis_fd_check(ccs, nerrors)
     class default
         print *, "  FAIL: coordinate system is not chartmap type"
         nerrors = nerrors + 1
@@ -287,5 +288,73 @@ contains
             print *, "  PASS: g * ginv = identity"
         end if
     end subroutine run_metric_check
+
+    subroutine run_covariant_basis_fd_check(ccs, nerrors)
+        type(chartmap_coordinate_system_t), intent(in) :: ccs
+        integer, intent(inout) :: nerrors
+
+        real(dp) :: u(3), e_cov(3, 3), e_cov_fd(3, 3)
+        real(dp) :: u_plus(3), u_minus(3), x_plus(3), x_minus(3)
+        real(dp) :: rel_err, max_err
+        real(dp), parameter :: h = 1.0e-6_dp
+        real(dp), parameter :: tol = 1.0e-3_dp
+        integer :: k
+        integer :: n_tests, n_passed
+        real(dp) :: rho_vals(3), theta_vals(3), zeta_vals(2)
+        integer :: ir, it, iz
+
+        rho_vals = [0.3_dp, 0.5_dp, 0.8_dp]
+        theta_vals = [0.5_dp, 2.0_dp, 4.5_dp]
+        zeta_vals = [0.3_dp, 1.5_dp]
+
+        n_tests = 0
+        n_passed = 0
+        max_err = 0.0_dp
+
+        do iz = 1, 2
+            do it = 1, 3
+                do ir = 1, 3
+                    u = [rho_vals(ir), theta_vals(it), zeta_vals(iz)]
+                    n_tests = n_tests + 1
+
+                    call ccs%covariant_basis(u, e_cov)
+
+                    do k = 1, 3
+                        u_plus = u
+                        u_minus = u
+                        u_plus(k) = u(k) + h
+                        u_minus(k) = u(k) - h
+                        call ccs%evaluate_cart(u_plus, x_plus)
+                        call ccs%evaluate_cart(u_minus, x_minus)
+                        e_cov_fd(:, k) = (x_plus - x_minus) / (2.0_dp * h)
+                    end do
+
+                    rel_err = maxval(abs(e_cov - e_cov_fd)) / &
+                              max(maxval(abs(e_cov_fd)), 1.0e-10_dp)
+
+                    if (rel_err > max_err) max_err = rel_err
+
+                    if (rel_err < tol) then
+                        n_passed = n_passed + 1
+                    else
+                        print *, "  covariant_basis FD mismatch at u=", u
+                        print *, "    rel_err=", rel_err
+                        print *, "    e_cov(1,:)=", e_cov(1, :)
+                        print *, "    e_cov_fd(1,:)=", e_cov_fd(1, :)
+                    end if
+                end do
+            end do
+        end do
+
+        if (n_passed == n_tests) then
+            print *, "  PASS: covariant_basis matches FD (", n_tests, &
+                " points, max_err=", max_err, ")"
+        else
+            print *, "  FAIL: covariant_basis FD check failed ", &
+                n_tests - n_passed, " of ", n_tests, " points"
+            print *, "    max relative error: ", max_err
+            nerrors = nerrors + 1
+        end if
+    end subroutine run_covariant_basis_fd_check
 
 end program test_chartmap_coordinates
