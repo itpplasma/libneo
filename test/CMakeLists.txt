@@ -291,6 +291,15 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_cli PROPERTIES
   DEPENDS setup_vmec_chartmap_python
 )
 
+add_test(
+  NAME setup_coils_offset_chartmap
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_coils_offset_chartmap.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(setup_coils_offset_chartmap PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_chartmap_coordinates
   COMMAND test_chartmap_coordinates.x)
 set_tests_properties(test_chartmap_coordinates PROPERTIES
@@ -323,6 +332,15 @@ set_tests_properties(test_python_chartmap_generator PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python)
+
+add_executable(test_coils_chartmap_generator.x source/test_coils_chartmap_generator.f90)
+target_link_libraries(test_coils_chartmap_generator.x chartmap_test_utils)
+add_test(NAME test_coils_chartmap_generator
+  COMMAND test_coils_chartmap_generator.x)
+set_tests_properties(test_coils_chartmap_generator PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_coils_offset_chartmap)
 
 add_executable(test_vmec_coordinate_system.x source/test_vmec_coordinate_system.f90)
 target_link_libraries(test_vmec_coordinate_system.x neo)

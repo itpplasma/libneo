@@ -329,6 +329,30 @@ def extract_boundary_slices(
     if not isinstance(mesh, trimesh.Trimesh):
         raise TypeError("expected a single STL mesh")
 
+    return extract_boundary_slices_from_mesh(
+        mesh,
+        n_phi=n_phi,
+        n_boundary_points=n_boundary_points,
+        axis_xy=axis_xy,
+        stitch_tol=stitch_tol,
+        phi_vals=phi_vals,
+    )
+
+
+def extract_boundary_slices_from_mesh(
+    mesh: object,
+    *,
+    n_phi: int = 32,
+    n_boundary_points: int = 512,
+    axis_xy: tuple[float, float] | None = None,
+    stitch_tol: float = 1.0e-6,
+    phi_vals: np.ndarray | None = None,
+) -> list[BoundarySlice]:
+    import trimesh
+
+    if not isinstance(mesh, trimesh.Trimesh):
+        raise TypeError("mesh must be a trimesh.Trimesh")
+
     if axis_xy is None:
         axis_xy = (float(np.mean(mesh.vertices[:, 0])), float(np.mean(mesh.vertices[:, 1])))
 

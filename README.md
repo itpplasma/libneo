@@ -78,6 +78,10 @@ CLI:
 
     libneo-write-chartmap from-vmec wout.nc wout.chartmap.nc --nrho 33 --ntheta 65 --nzeta 33
 
+Generate a chartmap from SIMPLE coils by building an offset surface:
+
+    libneo-write-chartmap from-coils-offset coils.simple coils.chartmap.nc --offset-cm 20
+
 ### Coils format converter
 Convert STELLOPT coils format to simple biotsavart format:
 

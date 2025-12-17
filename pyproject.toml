@@ -19,6 +19,8 @@ chartmap = [
     "netCDF4",
     "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
     "scipy",
+    "scikit-image",
+    "matplotlib",
     "trimesh",
 ]
 dev = [
@@ -26,6 +28,7 @@ dev = [
     "matplotlib",
     "netCDF4",
     "trimesh",
+    "scikit-image",
     "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
 ]
 
