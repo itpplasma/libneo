@@ -62,6 +62,9 @@ Python interface package and scripts/functions.
 ### Chartmap generators
 Generate `*.chartmap.nc` volumes compatible with `libneo_coordinates`.
 
+For map2disc-generated chartmaps, `zeta` is the cylindrical toroidal angle
+(`zeta_convention=cyl`) and `rho` is a geometric disk radius (`rho_convention=unknown`).
+
 Install dependencies:
 
     pip install -e ".[chartmap]"

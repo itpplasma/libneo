@@ -61,6 +61,7 @@ def write_chartmap_from_vmec_boundary(
     - Variables: rho, theta, zeta, x, y, z, num_field_periods
     - x/y/z stored with file dims (zeta, theta, rho)
     - Units: cm
+    - Conventions: zeta_convention=cyl, rho_convention=unknown (geometric disk radius)
     """
     from map2disc import map as m2d
     from netCDF4 import Dataset
