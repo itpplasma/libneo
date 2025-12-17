@@ -18,6 +18,7 @@ import urllib.request
 
 COILS_URL = "https://princetonuniversity.github.io/STELLOPT/examples/coils.c09r00"
 COILS_SHA256 = "3c429da06f4c062887a497a16e2d2bd10f0ecb0b8858c252698631f3853da428"
+MIN_ABS_CURRENT_MODULAR_A = 5.0e5
 
 
 def _import_libneo_from_repo() -> None:
@@ -68,6 +69,11 @@ def main(argv: list[str] | None = None) -> int:
             from libneo.coils import CoilsFile
 
             cf = CoilsFile.from_file(str(coils_src))
+            cf = cf.select_by_min_abs_current(MIN_ABS_CURRENT_MODULAR_A)
+            if len(cf.filaments) != 18:
+                raise RuntimeError(
+                    f"expected 18 modular filaments, got {len(cf.filaments)}"
+                )
             cf.write_simple(str(coils_simple))
             if not coils_simple.exists() or coils_simple.stat().st_size == 0:
                 raise RuntimeError("failed to write SIMPLE coils file")
@@ -78,6 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     from libneo.coils import CoilsFile
 
     cf = CoilsFile.from_file(str(coils_src))
+    cf = cf.select_by_min_abs_current(MIN_ABS_CURRENT_MODULAR_A)
+    if len(cf.filaments) != 18:
+        raise RuntimeError(f"expected 18 modular filaments, got {len(cf.filaments)}")
     cf.write_simple(str(coils_simple))
     if not coils_simple.exists() or coils_simple.stat().st_size == 0:
         raise RuntimeError("failed to write SIMPLE coils file")
@@ -86,4 +95,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

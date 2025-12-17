@@ -78,19 +78,18 @@ def _parse_coils(path: str) -> Coils:
                     cur = np.array(Is)
                     filaments.append(Filament(coords=coords, current=cur))
                     xs.clear(); ys.clear(); zs.clear(); Is.clear()
-                elif in_filament and len(xs) == 0:
-                    raise ValueError(f"Empty filament at {path}:{lineno}")
                 in_filament = True
                 continue
             if low.startswith("end filament") or low == "end":
                 # Explicit filament terminator
                 if not in_filament:
                     continue
-                if len(xs) == 0:
-                    raise ValueError(f"Empty filament at {path}:{lineno}")
-                coords = np.column_stack([np.array(xs), np.array(ys), np.array(zs)])
-                cur = np.array(Is)
-                filaments.append(Filament(coords=coords, current=cur))
+                if len(xs) > 0:
+                    coords = np.column_stack(
+                        [np.array(xs), np.array(ys), np.array(zs)]
+                    )
+                    cur = np.array(Is)
+                    filaments.append(Filament(coords=coords, current=cur))
                 xs.clear(); ys.clear(); zs.clear(); Is.clear()
                 in_filament = False
                 continue
@@ -110,6 +109,18 @@ def _parse_coils(path: str) -> Coils:
                 ys.append(y)
                 zs.append(z)
                 Is.append(cur)
+                if cur == 0.0:
+                    # Many STELLOPT/MAKEGRID coil files use current=0 points as
+                    # per-filament separators within a single filament block.
+                    coords = np.column_stack(
+                        [np.array(xs), np.array(ys), np.array(zs)]
+                    )
+                    cur_arr = np.array(Is)
+                    filaments.append(Filament(coords=coords, current=cur_arr))
+                    xs.clear()
+                    ys.clear()
+                    zs.clear()
+                    Is.clear()
                 continue
 
             # Lines outside known blocks are ignored in this minimal parser
@@ -118,10 +129,11 @@ def _parse_coils(path: str) -> Coils:
     # Close last filament if file ended while in one
     if in_filament:
         if len(xs) == 0:
-            raise ValueError(f"Empty filament at end of file: {path}")
-        coords = np.column_stack([np.array(xs), np.array(ys), np.array(zs)])
-        cur = np.array(Is)
-        filaments.append(Filament(coords=coords, current=cur))
+            pass
+        else:
+            coords = np.column_stack([np.array(xs), np.array(ys), np.array(zs)])
+            cur = np.array(Is)
+            filaments.append(Filament(coords=coords, current=cur))
 
     # Attempt to parse periods if present (may have been set above)
     if periods is None:
@@ -158,10 +170,28 @@ class CoilsFile:
         for fil in self.filaments:
             if fil.current.size == 0:
                 continue
-            cur = float(fil.current.mean())
+            nz = fil.current[fil.current != 0.0]
+            if nz.size == 0:
+                continue
+            cur = float(np.median(nz))
             groups.append("filament")
             currents.append(cur)
         return groups, currents
+
+    def select_by_min_abs_current(self, min_abs_current: float) -> "CoilsFile":
+        if min_abs_current < 0.0:
+            raise ValueError("min_abs_current must be >= 0")
+        selected: List[Filament] = []
+        for fil in self.filaments:
+            if fil.current.size == 0:
+                continue
+            nz = fil.current[fil.current != 0.0]
+            if nz.size == 0:
+                continue
+            cur = float(np.median(nz))
+            if abs(cur) >= float(min_abs_current):
+                selected.append(fil)
+        return CoilsFile(periods=self.periods, mirror=self.mirror, filaments=selected)
 
     @classmethod
     def from_file(cls, filename: str) -> "CoilsFile":

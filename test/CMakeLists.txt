@@ -316,6 +316,7 @@ add_test(
           --coils-simple ${CMAKE_CURRENT_BINARY_DIR}/ncsx_coils.simple
           --basename ncsx_coils_offset
           --offset-cm 10
+          --padding-m 0.50
           --smooth-window 31
           --axis-x 0
           --axis-y 0

@@ -173,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--basename", default="coils_offset")
     parser.add_argument("--offset-cm", type=float, default=10.0)
     parser.add_argument("--smooth-window", type=int, default=11)
+    parser.add_argument("--padding-m", type=float, default=0.20)
     parser.add_argument("--axis-x", type=float)
     parser.add_argument("--axis-y", type=float)
     args = parser.parse_args(argv)
@@ -237,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
         offset_m=offset_m,
         seed=seed,
         grid_shape=(72, 72, 72),
-        padding_m=0.20,
+        padding_m=float(args.padding_m),
     )
 
     import trimesh
@@ -273,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
         nphi=32,
         num_field_periods=1,
         grid_shape=(72, 72, 72),
-        padding_cm=20.0,
+        padding_cm=100.0 * float(args.padding_m),
         axis_xy=axis_xy,
         seed_rz=(float(seed[0]), float(seed[2])),
         smooth_window=int(args.smooth_window),
