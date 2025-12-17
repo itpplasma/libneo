@@ -34,17 +34,17 @@ def _to_mode_ns_from_var(var) -> np.ndarray:
 
 
 def _cfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, xn: np.ndarray) -> np.ndarray:
-    """Cosine series evaluation: sum_k coeff_k(s) * cos(xm_k*theta + xn_k*zeta)."""
+    """Cosine series evaluation: sum_k coeff_k(s) * cos(xm_k*theta - xn_k*zeta)."""
     theta = np.asarray(theta, dtype=float)
-    angle = np.outer(xm, theta) + np.outer(xn, np.atleast_1d(float(zeta)))
+    angle = np.outer(xm, theta) - np.outer(xn, np.atleast_1d(float(zeta)))
     cos_terms = np.cos(angle)
     return coeff.T @ cos_terms
 
 
 def _sfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, xn: np.ndarray) -> np.ndarray:
-    """Sine series evaluation: sum_k coeff_k(s) * sin(xm_k*theta + xn_k*zeta)."""
+    """Sine series evaluation: sum_k coeff_k(s) * sin(xm_k*theta - xn_k*zeta)."""
     theta = np.asarray(theta, dtype=float)
-    angle = np.outer(xm, theta) + np.outer(xn, np.atleast_1d(float(zeta)))
+    angle = np.outer(xm, theta) - np.outer(xn, np.atleast_1d(float(zeta)))
     sin_terms = np.sin(angle)
     return coeff.T @ sin_terms
 

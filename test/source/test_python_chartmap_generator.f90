@@ -1,12 +1,13 @@
 program test_python_chartmap_generator
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use chartmap_test_utils, only: chartmap_roundtrip_check
+    use chartmap_test_utils, only: chartmap_roundtrip_check, chartmap_boundary_matches_vmec_check
     use libneo_coordinates, only: validate_chartmap_file
     implicit none
 
     integer :: ierr
     integer :: nerrors
     character(len=2048) :: message
+    character(len=*), parameter :: wout_file = "wout.nc"
     character(len=*), parameter :: chartmap_file = "wout_vmec_python.chartmap.nc"
 
     nerrors = 0
@@ -20,6 +21,7 @@ program test_python_chartmap_generator
     end if
 
     call chartmap_roundtrip_check(chartmap_file, 5.0e-2_dp, nerrors)
+    call chartmap_boundary_matches_vmec_check(wout_file, chartmap_file, 1.0e-3_dp, 1.0e-3_dp, nerrors)
 
     if (nerrors > 0) then
         print *, "FAILED: ", nerrors, " error(s) in python chartmap generator test"
