@@ -222,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     mesh.remove_unreferenced_vertices()
     trimesh.repair.fix_normals(mesh)
     trimesh.repair.fill_holes(mesh)
+    trimesh.smoothing.filter_taubin(mesh, lamb=0.5, nu=-0.53, iterations=12)
     if not mesh.is_watertight:
         raise RuntimeError("offset surface mesh is not watertight")
 
@@ -272,10 +273,14 @@ def main(argv: list[str] | None = None) -> int:
     def rz_at(iz: int, ir: int) -> tuple[np.ndarray, np.ndarray]:
         rr = np.sqrt(x[iz, :, ir] ** 2 + y[iz, :, ir] ** 2) / 100.0
         zz = z[iz, :, ir] / 100.0
-        return rr, zz
+        return np.r_[rr, rr[0]], np.r_[zz, zz[0]]
 
     # Match slices to nearest zeta index in chartmap
-    rho_idx = [int(0.25 * (rho.size - 1)), int(0.5 * (rho.size - 1)), int(0.75 * (rho.size - 1))]
+    rho_idx = [
+        int(0.25 * (rho.size - 1)),
+        int(0.5 * (rho.size - 1)),
+        int(0.75 * (rho.size - 1)),
+    ]
     rho_curves: list[np.ndarray] = []
     for s in slices:
         iz = int(np.argmin(np.abs(zeta - float(s.phi))))

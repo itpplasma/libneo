@@ -256,6 +256,7 @@ def write_chartmap_from_coils_offset_surface(
     mesh.remove_unreferenced_vertices()
     trimesh.repair.fix_normals(mesh)
     trimesh.repair.fill_holes(mesh)
+    trimesh.smoothing.filter_taubin(mesh, lamb=0.5, nu=-0.53, iterations=12)
 
     if not mesh.is_watertight:
         raise RuntimeError("offset surface mesh is not watertight; cannot form closed surface")

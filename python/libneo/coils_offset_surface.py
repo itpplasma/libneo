@@ -82,7 +82,7 @@ def build_inner_offset_surface_from_segments(
     spacing = span / np.array([nx - 1, ny - 1, nz - 1], dtype=float)
 
     if sample_step_m is None:
-        sample_step_m = 0.5 * float(np.min(spacing))
+        sample_step_m = 0.35 * float(np.min(spacing))
     sample_step_m = float(sample_step_m)
 
     sample_points = _sample_segments(a, b, step=sample_step_m)
@@ -160,12 +160,15 @@ def build_inner_offset_surface_from_segments(
             "interior region is not enclosed (touches grid boundary); "
             "increase offset/padding or adjust seed"
         )
-    field2 = field.copy()
-    field2[~keep] = 0.0
+    signed = field - float(offset_m)
+    signed[~keep] = -np.abs(signed[~keep])
+
+    sigma = 0.75
+    signed = ndimage.gaussian_filter(signed, sigma=float(sigma), mode="nearest")
 
     verts_zyx, faces, _, _ = marching_cubes(
-        field2.astype(np.float32),
-        level=float(offset_m),
+        signed.astype(np.float32),
+        level=0.0,
         spacing=(float(spacing[0]), float(spacing[1]), float(spacing[2])),
     )
     verts = verts_zyx + origin[None, :]
