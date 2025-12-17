@@ -15,6 +15,12 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+chartmap = [
+    "netCDF4",
+    "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
+    "scipy",
+    "trimesh",
+]
 dev = [
     "scipy",
     "matplotlib",
@@ -22,6 +28,9 @@ dev = [
     "trimesh",
     "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
 ]
+
+[project.scripts]
+libneo-write-chartmap = "libneo.chartmap_cli:main"
 
 [tool.scikit-build]
 build-dir = "build/skbuild"
