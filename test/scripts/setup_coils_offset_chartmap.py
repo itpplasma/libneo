@@ -78,7 +78,9 @@ def _write_stellarator_like_coils_simple(
                 handle.write(f"{xi:.14E} {yi:.14E} {zi:.14E} {ii:.14E}\n")
 
 
-def _plot_coils_and_surface(out_dir: Path, coils_xyz: np.ndarray, mesh: object) -> None:
+def _plot_coils_and_surface(
+    out_dir: Path, coils_xyz: np.ndarray, mesh: object, basename: str
+) -> None:
     import matplotlib.pyplot as plt
     import trimesh
 
@@ -117,11 +119,13 @@ def _plot_coils_and_surface(out_dir: Path, coils_xyz: np.ndarray, mesh: object) 
     ax.set_box_aspect((1.0, 1.0, 1.0))
     ax.view_init(elev=18.0, azim=35.0)
     fig.tight_layout()
-    fig.savefig(out_dir / "coils_offset_3d.png", dpi=160)
+    fig.savefig(out_dir / f"{basename}_3d.png", dpi=160)
     plt.close(fig)
 
 
-def _plot_rz_slices(out_dir: Path, slices: list[object], rho_curves: list[np.ndarray]) -> None:
+def _plot_rz_slices(
+    out_dir: Path, slices: list[object], rho_curves: list[np.ndarray], basename: str
+) -> None:
     import matplotlib.pyplot as plt
 
     n_phi = len(slices)
@@ -142,7 +146,7 @@ def _plot_rz_slices(out_dir: Path, slices: list[object], rho_curves: list[np.nda
     for j in range(n_phi, nrows * ncols):
         axes_arr[j // ncols, j % ncols].axis("off")
     fig.tight_layout()
-    fig.savefig(out_dir / "coils_offset_slices.png", dpi=160)
+    fig.savefig(out_dir / f"{basename}_slices.png", dpi=160)
     plt.close(fig)
 
     fig, axes_arr = make_fig()
@@ -158,30 +162,44 @@ def _plot_rz_slices(out_dir: Path, slices: list[object], rho_curves: list[np.nda
     for j in range(n_phi, nrows * ncols):
         axes_arr[j // ncols, j % ncols].axis("off")
     fig.tight_layout()
-    fig.savefig(out_dir / "coils_offset_rho_contours.png", dpi=160)
+    fig.savefig(out_dir / f"{basename}_rho_contours.png", dpi=160)
     plt.close(fig)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="setup_coils_offset_chartmap")
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--coils-simple", type=Path)
+    parser.add_argument("--basename", default="coils_offset")
+    parser.add_argument("--offset-cm", type=float, default=10.0)
+    parser.add_argument("--smooth-window", type=int, default=11)
+    parser.add_argument("--axis-x", type=float)
+    parser.add_argument("--axis-y", type=float)
     args = parser.parse_args(argv)
 
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    coils_file = out_dir / "coils.simple"
-    chartmap_file = out_dir / "coils_offset.chartmap.nc"
+    basename = str(args.basename)
+    coils_file = out_dir / f"{basename}.simple"
+    chartmap_file = out_dir / f"{basename}.chartmap.nc"
 
-    _write_stellarator_like_coils_simple(
-        coils_file,
-        n_coils=64,
-        n_points_per_coil=181,
-        R0=1.7,
-        a=0.45,
-        n_waves=1,
-        z_scale=1.0,
-    )
+    if args.coils_simple is None:
+        _write_stellarator_like_coils_simple(
+            coils_file,
+            n_coils=64,
+            n_points_per_coil=181,
+            R0=1.7,
+            a=0.45,
+            n_waves=1,
+            z_scale=1.0,
+        )
+    else:
+        src = args.coils_simple.resolve()
+        if not src.exists() or src.stat().st_size == 0:
+            raise RuntimeError(f"missing coils file: {src}")
+        if src != coils_file:
+            coils_file.write_bytes(src.read_bytes())
 
     _import_libneo_from_repo()
     from libneo.chartmap import write_chartmap_from_coils_offset_surface
@@ -193,7 +211,12 @@ def main(argv: list[str] | None = None) -> int:
     coils = read_simple_coils(coils_file)
     a, b = coils_to_segments(coils)
     pts = np.vstack(coils.coils)
-    axis_xy = (float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1])))
+    if args.axis_x is None and args.axis_y is None:
+        axis_xy = (float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1])))
+    else:
+        if args.axis_x is None or args.axis_y is None:
+            raise RuntimeError("--axis-x and --axis-y must be provided together")
+        axis_xy = (float(args.axis_x), float(args.axis_y))
 
     a = a.copy()
     b = b.copy()
@@ -206,10 +229,12 @@ def main(argv: list[str] | None = None) -> int:
     rr_raw = np.sqrt((pts_raw[:, 0] - axis_xy[0]) ** 2 + (pts_raw[:, 1] - axis_xy[1]) ** 2)
     seed = np.array([float(np.mean(rr_raw)), 0.0, float(np.mean(pts_raw[:, 2]))], dtype=float)
 
+    offset_m = float(args.offset_cm) / 100.0
+
     surf = build_inner_offset_surface_from_segments(
         a,
         b,
-        offset_m=0.10,
+        offset_m=offset_m,
         seed=seed,
         grid_shape=(72, 72, 72),
         padding_m=0.20,
@@ -229,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     coils_xyz = np.vstack(coils.coils).copy()
     coils_xyz[:, 0] -= axis_xy[0]
     coils_xyz[:, 1] -= axis_xy[1]
-    _plot_coils_and_surface(out_dir, coils_xyz, mesh)
+    _plot_coils_and_surface(out_dir, coils_xyz, mesh, basename)
 
     slices = extract_boundary_slices_from_mesh(
         mesh,
@@ -242,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
     write_chartmap_from_coils_offset_surface(
         coils_file,
         chartmap_file,
-        offset_cm=10.0,
+        offset_cm=float(args.offset_cm),
         nrho=33,
         ntheta=65,
         nphi=32,
@@ -251,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         padding_cm=20.0,
         axis_xy=axis_xy,
         seed_rz=(float(seed[0]), float(seed[2])),
+        smooth_window=int(args.smooth_window),
         M=12,
         Nt=128,
         Ng=(128, 128),
@@ -289,12 +315,12 @@ def main(argv: list[str] | None = None) -> int:
             curves.append(rz_at(iz, ir))
         rho_curves.append(np.array(curves, dtype=object))
 
-    _plot_rz_slices(out_dir, slices, rho_curves)
+    _plot_rz_slices(out_dir, slices, rho_curves, basename)
 
     for name in (
-        "coils_offset_3d.png",
-        "coils_offset_slices.png",
-        "coils_offset_rho_contours.png",
+        f"{basename}_3d.png",
+        f"{basename}_slices.png",
+        f"{basename}_rho_contours.png",
     ):
         p = out_dir / name
         if not p.exists() or p.stat().st_size == 0:

@@ -300,6 +300,31 @@ set_tests_properties(setup_coils_offset_chartmap PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(
+  NAME setup_ncsx_coils_simple
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_ncsx_coils_simple.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(setup_ncsx_coils_simple PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(
+  NAME setup_ncsx_coils_offset_chartmap
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_coils_offset_chartmap.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+          --coils-simple ${CMAKE_CURRENT_BINARY_DIR}/ncsx_coils.simple
+          --basename ncsx_coils_offset
+          --offset-cm 10
+          --smooth-window 31
+          --axis-x 0
+          --axis-y 0
+)
+set_tests_properties(setup_ncsx_coils_offset_chartmap PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_ncsx_coils_simple
+)
+
 add_test(NAME test_chartmap_coordinates
   COMMAND test_chartmap_coordinates.x)
 set_tests_properties(test_chartmap_coordinates PROPERTIES
@@ -341,6 +366,15 @@ set_tests_properties(test_coils_chartmap_generator PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_coils_offset_chartmap)
+
+add_executable(test_ncsx_coils_chartmap_generator.x source/test_ncsx_coils_chartmap_generator.f90)
+target_link_libraries(test_ncsx_coils_chartmap_generator.x chartmap_test_utils)
+add_test(NAME test_ncsx_coils_chartmap_generator
+  COMMAND test_ncsx_coils_chartmap_generator.x)
+set_tests_properties(test_ncsx_coils_chartmap_generator PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_ncsx_coils_offset_chartmap)
 
 add_executable(test_vmec_coordinate_system.x source/test_vmec_coordinate_system.f90)
 target_link_libraries(test_vmec_coordinate_system.x neo)

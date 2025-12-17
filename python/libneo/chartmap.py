@@ -187,6 +187,7 @@ def write_chartmap_from_coils_offset_surface(
     sample_step_cm: float | None = None,
     axis_xy: tuple[float, float] | None = None,
     seed_rz: tuple[float, float] | None = None,
+    smooth_window: int = 11,
     n_boundary_points: int = 512,
     stitch_tol: float = 1.0e-6,
     M: int = 16,
@@ -281,4 +282,5 @@ def write_chartmap_from_coils_offset_surface(
         M=int(M),
         Nt=int(Nt),
         Ng=Ng,
+        smooth_window=int(smooth_window),
     )

@@ -409,6 +409,7 @@ def write_chartmap_from_stl(
     M: int = 16,
     Nt: int = 256,
     Ng: tuple[int, int] = (256, 256),
+    smooth_window: int = 0,
 ) -> None:
     """Write a chartmap NetCDF file from STL boundary slices.
 
@@ -439,11 +440,45 @@ def write_chartmap_from_stl(
     y = np.zeros_like(x)
     z = np.zeros_like(x)
 
+    if smooth_window < 0:
+        raise ValueError("smooth_window must be >= 0")
+
     for iz, s in enumerate(slices):
-        curve = _curve_from_contour(s.outer_filled)
-        bcm = m2d.BoundaryConformingMapping(curve=curve, M=int(M), Nt=int(Nt), Ng=Ng)
-        bcm.solve_domain2disk()
-        bcm.solve_disk2domain()
+        contour = s.outer_filled
+        if smooth_window >= 3:
+            contour = _smooth_closed_polyline(contour, window=int(smooth_window))
+        curve = _curve_from_contour(contour)
+        last_exc: Exception | None = None
+        settings = [
+            (int(M), int(Nt), (int(Ng[0]), int(Ng[1]))),
+            (
+                max(int(M), 24),
+                max(int(Nt), 256),
+                (max(int(Ng[0]), 256), max(int(Ng[1]), 256)),
+            ),
+            (
+                max(int(M), 32),
+                max(int(Nt), 384),
+                (max(int(Ng[0]), 384), max(int(Ng[1]), 384)),
+            ),
+        ]
+        bcm = None
+        for mm, ntt, ngg in settings:
+            try:
+                bcm = m2d.BoundaryConformingMapping(curve=curve, M=mm, Nt=ntt, Ng=ngg)
+                bcm.solve_domain2disk()
+                bcm.solve_disk2domain()
+                last_exc = None
+                break
+            except np.linalg.LinAlgError as exc:
+                last_exc = exc
+            except Exception as exc:
+                last_exc = exc
+
+        if last_exc is not None or bcm is None:
+            raise RuntimeError(
+                f"map2disc failed at slice iz={iz} phi={s.phi}: {last_exc}"
+            ) from last_exc
 
         xy = bcm.eval_rt_1d(grid.rho, grid.theta)
         R_grid = xy[0]
@@ -464,6 +499,31 @@ def write_chartmap_from_stl(
         zeta_convention="cyl",
         rho_convention="unknown",
     )
+
+
+def _smooth_closed_polyline(points: np.ndarray, *, window: int) -> np.ndarray:
+    if window < 3 or window % 2 == 0:
+        raise ValueError("window must be an odd integer >= 3")
+    if points.ndim != 2 or points.shape[1] != 2:
+        raise ValueError("points must have shape (n, 2)")
+    if not _is_closed(points, tol=1.0e-8):
+        raise ValueError("points must be closed")
+
+    pts = points
+    if float(np.linalg.norm(pts[0] - pts[-1])) == 0.0:
+        pts = pts[:-1]
+    n = pts.shape[0]
+    if n < window:
+        return points
+
+    k = window // 2
+    kernel = np.ones((window,), dtype=float) / float(window)
+    out = np.empty_like(pts)
+    for j in range(2):
+        arr = pts[:, j]
+        padded = np.r_[arr[-k:], arr, arr[:k]]
+        out[:, j] = np.convolve(padded, kernel, mode="valid")
+    return np.vstack((out, out[0]))
 
 
 def write_boundaries_netcdf(slices: list[BoundarySlice], out_path: Path) -> None:
