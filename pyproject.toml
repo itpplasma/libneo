@@ -18,11 +18,13 @@ classifiers = [
 chartmap = [
     "netCDF4",
     "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
+    "shapely",
     "scipy",
     "trimesh",
 ]
 dev = [
     "scipy",
+    "shapely",
     "matplotlib",
     "netCDF4",
     "trimesh",

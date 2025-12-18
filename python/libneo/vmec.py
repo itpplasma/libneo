@@ -167,45 +167,74 @@ class VMECGeometry:
         theta: np.ndarray,
         zeta: float,
         *,
-        boundary_scale: float = 1.0,
-        boundary_padding: float = 0.0,
-        axis_rz: tuple[float, float] | None = None,
+        boundary_offset: float = 0.0,
         use_asym: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray, float]:
         """
-        Evaluate a VMEC (R,Z) boundary curve with an optional outward adjustment.
+        Evaluate a VMEC (R,Z) boundary curve with an optional normal offset.
 
-        The adjustment is applied relative to the magnetic axis point at the same zeta:
-          - `boundary_scale` scales the axis-to-boundary vector (dimensionless).
-          - `boundary_padding` adds a fixed outward offset in meters along that direction.
+        - `boundary_offset` adds a fixed outward offset in meters along the local
+          outward curve normal in the R-Z plane at fixed zeta.
         """
-        boundary_scale = float(boundary_scale)
-        boundary_padding = float(boundary_padding)
-        if boundary_scale <= 0.0:
-            raise ValueError("boundary_scale must be > 0")
-        if boundary_padding < 0.0:
-            raise ValueError("boundary_padding must be >= 0")
+        boundary_offset = float(boundary_offset)
+        if boundary_offset < 0.0:
+            raise ValueError("boundary_offset must be >= 0")
 
-        R, Z, _ = self.coords_s(float(s), theta, float(zeta), use_asym=use_asym)
-        if boundary_scale == 1.0 and boundary_padding == 0.0:
+        if boundary_offset == 0.0:
+            R, Z, _ = self.coords_s(float(s), theta, float(zeta), use_asym=use_asym)
             return R, Z, float(zeta)
 
-        if axis_rz is None:
-            R_axis, Z_axis, _ = self.coords_s(0.0, np.array([0.0]), float(zeta), use_asym=use_asym)
-            R0 = float(R_axis[0])
-            Z0 = float(Z_axis[0])
-        else:
-            R0 = float(axis_rz[0])
-            Z0 = float(axis_rz[1])
+        try:
+            from shapely.geometry import Polygon
+        except Exception as exc:  # pragma: no cover
+            raise ImportError(
+                "boundary_offset requires shapely; install libneo with the 'chartmap' extra"
+            ) from exc
 
-        dR = R - R0
-        dZ = Z - Z0
-        norm = np.sqrt(dR * dR + dZ * dZ)
-        if np.any(norm == 0.0):
-            raise ValueError("boundary curve coincides with axis at some theta")
-        R_adj = R0 + boundary_scale * dR + boundary_padding * (dR / norm)
-        Z_adj = Z0 + boundary_scale * dZ + boundary_padding * (dZ / norm)
-        return R_adj, Z_adj, float(zeta)
+        th = np.asarray(theta, dtype=float)
+        if th.ndim == 0:
+            th = th.reshape((1,))
+        if th.ndim != 1:
+            raise ValueError("theta must be a scalar or 1D array")
+
+        n_base = 4096
+        th_base = np.linspace(0.0, 2.0 * np.pi, n_base, endpoint=False, dtype=float)
+        R_base, Z_base, _ = self.coords_s(float(s), th_base, float(zeta), use_asym=use_asym)
+        poly = Polygon(np.column_stack([R_base, Z_base]))
+        if not poly.is_valid:
+            poly = poly.buffer(0.0)
+        if poly.is_empty:
+            raise ValueError("invalid VMEC boundary polygon for buffering")
+
+        off = poly.buffer(boundary_offset, join_style=1)
+        if off.is_empty:
+            raise ValueError("boundary_offset produced empty geometry")
+        if off.geom_type != "Polygon":
+            off = max(list(off.geoms), key=lambda g: g.area)
+
+        coords = np.asarray(off.exterior.coords, dtype=float)
+        if coords.ndim != 2 or coords.shape[0] < 4:
+            raise ValueError("unexpected buffered boundary geometry")
+
+        # Canonicalize startpoint and orientation so theta=0 is deterministic.
+        coords_open = coords[:-1, :]
+        i0 = int(np.argmax(coords_open[:, 0]))
+        coords_open = np.vstack([coords_open[i0:, :], coords_open[:i0, :]])
+        if coords_open.shape[0] >= 2 and coords_open[1, 1] - coords_open[0, 1] < 0.0:
+            coords_open = coords_open[::-1, :]
+        coords = np.vstack([coords_open, coords_open[0, :]])
+
+        seg = np.sqrt(np.sum((coords[1:] - coords[:-1]) ** 2, axis=1))
+        s_coords = np.concatenate(([0.0], np.cumsum(seg)))
+        length = float(s_coords[-1])
+        if length == 0.0:
+            raise ValueError("buffered boundary has zero length")
+
+        u = (th % (2.0 * np.pi)) / (2.0 * np.pi)
+        s_query = u * length
+        R_out = np.interp(s_query, s_coords, coords[:, 0])
+        Z_out = np.interp(s_query, s_coords, coords[:, 1])
+        return R_out, Z_out, float(zeta)
 
 
 def vmec_to_cylindrical(nc_path: str, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
