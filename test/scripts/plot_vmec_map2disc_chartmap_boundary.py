@@ -128,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     if nrows == 1:
         axes = [axes]
 
+    dist_min = None
+    dist_max = None
     for ax, iz in zip(axes, iz_list):
         zeta_val = float(zeta[iz])
         R_vmec, Z_vmec, _ = geom.coords_s(s_boundary, theta, zeta_val, use_asym=True)
@@ -146,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
         R_chart = rz_chart[iz, :, 0]
         Z_chart = rz_chart[iz, :, 1]
 
+        ax.plot(R_vmec, Z_vmec, ":", lw=1.0, label="VMEC boundary (unpadded)")
         ax.plot(R_vmec_adj, Z_vmec_adj, "-", lw=1.5, label="VMEC boundary (used)")
         ax.plot(R_chart, Z_chart, "--", lw=1.0, label="chartmap rho=1")
         ax.plot([R0], [Z0], "o", ms=3, label="axis")
@@ -157,16 +160,27 @@ def main(argv: list[str] | None = None) -> int:
         ax.axis("equal")
         ax.legend(loc="best")
 
+        dist = np.sqrt((R_vmec_adj - R_vmec) ** 2 + (Z_vmec_adj - Z_vmec) ** 2)
+        dmin = float(np.min(dist))
+        dmax = float(np.max(dist))
+        dist_min = dmin if dist_min is None else min(dist_min, dmin)
+        dist_max = dmax if dist_max is None else max(dist_max, dmax)
+
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=150)
     plt.close(fig)
 
     if not out.exists() or out.stat().st_size == 0:
         raise RuntimeError(f"failed to write plot: {out}")
+
+    if dist_min is not None and dist_max is not None:
+        print(
+            f"INFO: boundary adjustment |d| range over plotted slices: "
+            f"[{dist_min:.6g}, {dist_max:.6g}] m"
+        )
     print(f"PASS: wrote {out}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
