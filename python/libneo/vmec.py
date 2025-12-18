@@ -132,7 +132,14 @@ class VMECGeometry:
             i1 = max(1, min(ns - 1, i1))
             i0 = i1 - 1
             denom = float(self.phi[i1] - self.phi[i0])
-            alpha = 0.0 if denom == 0.0 else float((phi_target - self.phi[i0]) / denom)
+            if denom == 0.0:
+                alpha = 0.0
+            else:
+                num = float(phi_target - self.phi[i0])
+                if num == 0.0 and phi_target > float(self.phi[i0]):
+                    num = float(np.nextafter(0.0, 1.0))
+                alpha = float(num / denom)
+                alpha = min(1.0, max(0.0, alpha))
         else:
             x = s_val * float(ns - 1)
             i0 = int(np.floor(x))
@@ -153,6 +160,52 @@ class VMECGeometry:
             R = R + _sfunct(theta, zeta, rmns_s, self.xm, self.xn)[0, :]
             Z = Z + _cfunct(theta, zeta, zmnc_s, self.xm, self.xn)[0, :]
         return R, Z, float(zeta)
+
+    def boundary_rz(
+        self,
+        s: float,
+        theta: np.ndarray,
+        zeta: float,
+        *,
+        boundary_scale: float = 1.0,
+        boundary_padding: float = 0.0,
+        axis_rz: tuple[float, float] | None = None,
+        use_asym: bool = True,
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """
+        Evaluate a VMEC (R,Z) boundary curve with an optional outward adjustment.
+
+        The adjustment is applied relative to the magnetic axis point at the same zeta:
+          - `boundary_scale` scales the axis-to-boundary vector (dimensionless).
+          - `boundary_padding` adds a fixed outward offset in meters along that direction.
+        """
+        boundary_scale = float(boundary_scale)
+        boundary_padding = float(boundary_padding)
+        if boundary_scale <= 0.0:
+            raise ValueError("boundary_scale must be > 0")
+        if boundary_padding < 0.0:
+            raise ValueError("boundary_padding must be >= 0")
+
+        R, Z, _ = self.coords_s(float(s), theta, float(zeta), use_asym=use_asym)
+        if boundary_scale == 1.0 and boundary_padding == 0.0:
+            return R, Z, float(zeta)
+
+        if axis_rz is None:
+            R_axis, Z_axis, _ = self.coords_s(0.0, np.array([0.0]), float(zeta), use_asym=use_asym)
+            R0 = float(R_axis[0])
+            Z0 = float(Z_axis[0])
+        else:
+            R0 = float(axis_rz[0])
+            Z0 = float(axis_rz[1])
+
+        dR = R - R0
+        dZ = Z - Z0
+        norm = np.sqrt(dR * dR + dZ * dZ)
+        if np.any(norm == 0.0):
+            raise ValueError("boundary curve coincides with axis at some theta")
+        R_adj = R0 + boundary_scale * dR + boundary_padding * (dR / norm)
+        Z_adj = Z0 + boundary_scale * dZ + boundary_padding * (dZ / norm)
+        return R_adj, Z_adj, float(zeta)
 
 
 def vmec_to_cylindrical(nc_path: str, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:

@@ -61,27 +61,6 @@ def _select_zeta_indices(nzeta: int) -> list[int]:
     return out
 
 
-def _apply_boundary_adjustment(
-    *,
-    R: np.ndarray,
-    Z: np.ndarray,
-    R0: float,
-    Z0: float,
-    boundary_scale: float,
-    boundary_padding: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    if boundary_scale == 1.0 and boundary_padding == 0.0:
-        return R, Z
-    dR = R - float(R0)
-    dZ = Z - float(Z0)
-    norm = np.sqrt(dR * dR + dZ * dZ)
-    if np.any(norm == 0.0):
-        raise ValueError("boundary curve coincides with axis at some theta")
-    Rout = float(R0) + boundary_scale * dR + boundary_padding * (dR / norm)
-    Zout = float(Z0) + boundary_scale * dZ + boundary_padding * (dZ / norm)
-    return Rout, Zout
-
-
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="plot_vmec_map2disc_chartmap_boundary")
     p.add_argument("--wout", type=Path, required=True)
@@ -132,18 +111,18 @@ def main(argv: list[str] | None = None) -> int:
     dist_max = None
     for ax, iz in zip(axes, iz_list):
         zeta_val = float(zeta[iz])
-        R_vmec, Z_vmec, _ = geom.coords_s(s_boundary, theta, zeta_val, use_asym=True)
+        R_vmec, Z_vmec, _ = geom.boundary_rz(s_boundary, theta, zeta_val, use_asym=True)
+        R_vmec_adj, Z_vmec_adj, _ = geom.boundary_rz(
+            s_boundary,
+            theta,
+            zeta_val,
+            boundary_scale=boundary_scale,
+            boundary_padding=boundary_padding,
+            use_asym=True,
+        )
         R_axis, Z_axis, _ = geom.coords_s(0.0, np.array([0.0]), zeta_val, use_asym=True)
         R0 = float(R_axis[0])
         Z0 = float(Z_axis[0])
-        R_vmec_adj, Z_vmec_adj = _apply_boundary_adjustment(
-            R=R_vmec,
-            Z=Z_vmec,
-            R0=R0,
-            Z0=Z0,
-            boundary_scale=boundary_scale,
-            boundary_padding=boundary_padding,
-        )
 
         R_chart = rz_chart[iz, :, 0]
         Z_chart = rz_chart[iz, :, 1]

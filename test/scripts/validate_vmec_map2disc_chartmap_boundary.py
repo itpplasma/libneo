@@ -104,18 +104,14 @@ def main(argv: list[str] | None = None) -> int:
     max_dZ = 0.0
     for iz in iz_list:
         zeta_val = float(zeta[iz])
-        R_vmec, Z_vmec, _ = geom.coords_s(s_boundary, theta, zeta_val, use_asym=True)
-        if boundary_scale != 1.0 or boundary_padding != 0.0:
-            R_axis, Z_axis, _ = geom.coords_s(0.0, np.array([0.0]), zeta_val, use_asym=True)
-            R0 = float(R_axis[0])
-            Z0 = float(Z_axis[0])
-            dR = R_vmec - R0
-            dZ = Z_vmec - Z0
-            norm = np.sqrt(dR * dR + dZ * dZ)
-            if np.any(norm == 0.0):
-                raise ValueError("boundary curve coincides with axis at some theta")
-            R_vmec = R0 + boundary_scale * dR + boundary_padding * (dR / norm)
-            Z_vmec = Z0 + boundary_scale * dZ + boundary_padding * (dZ / norm)
+        R_vmec, Z_vmec, _ = geom.boundary_rz(
+            s_boundary,
+            theta,
+            zeta_val,
+            boundary_scale=boundary_scale,
+            boundary_padding=boundary_padding,
+            use_asym=True,
+        )
         R_chart = rz_chart[iz, :, 0]
         Z_chart = rz_chart[iz, :, 1]
 

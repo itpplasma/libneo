@@ -80,11 +80,14 @@ def write_chartmap_from_vmec_boundary(
     wout = _as_path(wout_path)
     out = _as_path(out_path)
 
+    boundary_scale = float(boundary_scale)
+    boundary_padding = float(boundary_padding)
+
     if not (0.0 < float(s_boundary) <= 1.0):
         raise ValueError("s_boundary must be in (0, 1]")
-    if float(boundary_scale) <= 0.0:
+    if boundary_scale <= 0.0:
         raise ValueError("boundary_scale must be > 0")
-    if float(boundary_padding) < 0.0:
+    if boundary_padding < 0.0:
         raise ValueError("boundary_padding must be >= 0")
 
     geom = VMECGeometry.from_file(str(wout))
@@ -105,7 +108,7 @@ def write_chartmap_from_vmec_boundary(
 
     for iz, phi in enumerate(grid.zeta):
         phi_val = float(phi)
-        if float(boundary_scale) != 1.0 or float(boundary_padding) != 0.0:
+        if boundary_scale != 1.0 or boundary_padding != 0.0:
             R_axis, Z_axis, _ = geom.coords_s(0.0, np.array([0.0]), phi_val, use_asym=use_asym)
             axis_rz = (float(R_axis[0]), float(Z_axis[0]))
         else:
@@ -113,16 +116,15 @@ def write_chartmap_from_vmec_boundary(
 
         def curve(t: np.ndarray) -> np.ndarray:
             th = np.asarray(t, dtype=float)
-            R, Zc, _ = geom.coords_s(float(s_boundary), th, phi_val, use_asym=use_asym)
-            if axis_rz is not None:
-                R0, Z0 = axis_rz
-                dR = R - float(R0)
-                dZ = Zc - float(Z0)
-                norm = np.sqrt(dR * dR + dZ * dZ)
-                if np.any(norm == 0.0):
-                    raise ValueError("boundary curve coincides with axis at some theta")
-                R = float(R0) + float(boundary_scale) * dR + float(boundary_padding) * (dR / norm)
-                Zc = float(Z0) + float(boundary_scale) * dZ + float(boundary_padding) * (dZ / norm)
+            R, Zc, _ = geom.boundary_rz(
+                float(s_boundary),
+                th,
+                phi_val,
+                boundary_scale=boundary_scale,
+                boundary_padding=boundary_padding,
+                axis_rz=axis_rz,
+                use_asym=use_asym,
+            )
             return np.array([R, Zc])
 
         bcm = m2d.BoundaryConformingMapping(curve=curve, M=int(M), Nt=int(Nt), Ng=Ng)
