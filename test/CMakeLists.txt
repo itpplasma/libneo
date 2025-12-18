@@ -320,7 +320,7 @@ add_test(
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap.nc
-          --boundary-padding 0.5
+          --boundary-offset 0.5
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -333,7 +333,7 @@ add_test(
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap.nc
           --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap_boundary.png
-          --boundary-padding 0.5
+          --boundary-offset 0.5
 )
 set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

@@ -67,8 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--chartmap", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--s-boundary", type=float, default=1.0)
-    p.add_argument("--boundary-scale", type=float, default=1.0)
-    p.add_argument("--boundary-padding", type=float, default=0.0)
+    p.add_argument("--boundary-offset", type=float, default=0.0)
     args = p.parse_args(argv)
 
     wout = args.wout.resolve()
@@ -78,12 +77,9 @@ def main(argv: list[str] | None = None) -> int:
     s_boundary = float(args.s_boundary)
     if not (0.0 < s_boundary <= 1.0):
         raise ValueError("s_boundary must be in (0, 1]")
-    boundary_scale = float(args.boundary_scale)
-    if boundary_scale <= 0.0:
-        raise ValueError("boundary_scale must be > 0")
-    boundary_padding = float(args.boundary_padding)
-    if boundary_padding < 0.0:
-        raise ValueError("boundary_padding must be >= 0")
+    boundary_offset = float(args.boundary_offset)
+    if boundary_offset < 0.0:
+        raise ValueError("boundary_offset must be >= 0")
 
     if not wout.exists() or wout.stat().st_size == 0:
         raise RuntimeError(f"missing wout file: {wout}")
@@ -92,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
 
     _import_libneo_from_repo()
     from libneo.vmec import VMECGeometry
+    from shapely.geometry import LineString, Point
 
     theta, zeta, rz_chart = _load_chartmap_boundary(chartmap)
     geom = VMECGeometry.from_file(str(wout))
@@ -109,15 +106,16 @@ def main(argv: list[str] | None = None) -> int:
 
     dist_min = None
     dist_max = None
+    max_chart_vs_vmec = None
     for ax, iz in zip(axes, iz_list):
         zeta_val = float(zeta[iz])
-        R_vmec, Z_vmec, _ = geom.boundary_rz(s_boundary, theta, zeta_val, use_asym=True)
+        theta_ref = np.linspace(0.0, 2.0 * np.pi, 4096, endpoint=False, dtype=float)
+        R_vmec, Z_vmec, _ = geom.coords_s(s_boundary, theta_ref, zeta_val, use_asym=True)
         R_vmec_adj, Z_vmec_adj, _ = geom.boundary_rz(
             s_boundary,
             theta,
             zeta_val,
-            boundary_scale=boundary_scale,
-            boundary_padding=boundary_padding,
+            boundary_offset=boundary_offset,
             use_asym=True,
         )
         R_axis, Z_axis, _ = geom.coords_s(0.0, np.array([0.0]), zeta_val, use_asym=True)
@@ -127,23 +125,28 @@ def main(argv: list[str] | None = None) -> int:
         R_chart = rz_chart[iz, :, 0]
         Z_chart = rz_chart[iz, :, 1]
 
-        ax.plot(R_vmec, Z_vmec, ":", lw=1.0, label="VMEC boundary (unpadded)")
-        ax.plot(R_vmec_adj, Z_vmec_adj, "-", lw=1.5, label="VMEC boundary (used)")
+        ax.plot(R_vmec, Z_vmec, ":", lw=1.0, label="VMEC boundary (LCFS)")
+        ax.plot(R_vmec_adj, Z_vmec_adj, "-", lw=1.5, label="VMEC boundary (offset used)")
         ax.plot(R_chart, Z_chart, "--", lw=1.0, label="chartmap rho=1")
         ax.plot([R0], [Z0], "o", ms=3, label="axis")
         ax.set_title(
-            f"zeta={zeta_val:.6g} rad  s={s_boundary:.6g}  scale={boundary_scale:.6g}  pad={boundary_padding:.6g} m"
+            f"zeta={zeta_val:.6g} rad  s={s_boundary:.6g}  normal_offset={boundary_offset:.6g} m"
         )
         ax.set_xlabel("R [m]")
         ax.set_ylabel("Z [m]")
         ax.axis("equal")
         ax.legend(loc="best")
 
-        dist = np.sqrt((R_vmec_adj - R_vmec) ** 2 + (Z_vmec_adj - Z_vmec) ** 2)
+        base = LineString(np.column_stack([R_vmec, Z_vmec]))
+        dist = np.array([base.distance(Point(float(r), float(z))) for r, z in zip(R_vmec_adj, Z_vmec_adj)])
         dmin = float(np.min(dist))
         dmax = float(np.max(dist))
         dist_min = dmin if dist_min is None else min(dist_min, dmin)
         dist_max = dmax if dist_max is None else max(dist_max, dmax)
+
+        d_chart = np.sqrt((R_chart - R_vmec_adj) ** 2 + (Z_chart - Z_vmec_adj) ** 2)
+        dmax_chart = float(np.max(d_chart))
+        max_chart_vs_vmec = dmax_chart if max_chart_vs_vmec is None else max(max_chart_vs_vmec, dmax_chart)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=150)
@@ -157,6 +160,8 @@ def main(argv: list[str] | None = None) -> int:
             f"INFO: boundary adjustment |d| range over plotted slices: "
             f"[{dist_min:.6g}, {dist_max:.6g}] m"
         )
+    if max_chart_vs_vmec is not None:
+        print(f"INFO: chartmap rho=1 vs VMEC offset boundary max|d|={max_chart_vs_vmec:.3e} m")
     print(f"PASS: wrote {out}")
     return 0
 

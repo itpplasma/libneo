@@ -17,8 +17,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p_vmec.add_argument("--ntheta", type=int, default=65)
     p_vmec.add_argument("--nzeta", type=int, default=33)
     p_vmec.add_argument("--s-boundary", type=float, default=1.0)
-    p_vmec.add_argument("--boundary-scale", type=float, default=1.0)
-    p_vmec.add_argument("--boundary-padding", type=float, default=0.0)
+    p_vmec.add_argument("--boundary-offset", type=float, default=0.0)
     p_vmec.add_argument("--num-field-periods", type=int)
     p_vmec.add_argument("--M", type=int, default=16)
     p_vmec.add_argument("--Nt", type=int, default=256)
@@ -53,8 +52,7 @@ def main(argv: list[str] | None = None) -> int:
             ntheta=int(args.ntheta),
             nzeta=int(args.nzeta),
             s_boundary=float(args.s_boundary),
-            boundary_scale=float(args.boundary_scale),
-            boundary_padding=float(args.boundary_padding),
+            boundary_offset=float(args.boundary_offset),
             num_field_periods=None if args.num_field_periods is None else int(args.num_field_periods),
             M=int(args.M),
             Nt=int(args.Nt),

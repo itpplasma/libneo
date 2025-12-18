@@ -70,8 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--wout", type=Path, required=True)
     p.add_argument("--chartmap", type=Path, required=True)
     p.add_argument("--s-boundary", type=float, default=1.0)
-    p.add_argument("--boundary-scale", type=float, default=1.0)
-    p.add_argument("--boundary-padding", type=float, default=0.0)
+    p.add_argument("--boundary-offset", type=float, default=0.0)
     p.add_argument("--tol-R", type=float, default=1.0e-10)
     p.add_argument("--tol-Z", type=float, default=1.0e-10)
     args = p.parse_args(argv)
@@ -92,12 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     s_boundary = float(args.s_boundary)
     if not (0.0 < s_boundary <= 1.0):
         raise ValueError("s_boundary must be in (0, 1]")
-    boundary_scale = float(args.boundary_scale)
-    if boundary_scale <= 0.0:
-        raise ValueError("boundary_scale must be > 0")
-    boundary_padding = float(args.boundary_padding)
-    if boundary_padding < 0.0:
-        raise ValueError("boundary_padding must be >= 0")
+    boundary_offset = float(args.boundary_offset)
+    if boundary_offset < 0.0:
+        raise ValueError("boundary_offset must be >= 0")
 
     iz_list = _select_zeta_indices(int(zeta.size))
     max_dR = 0.0
@@ -108,8 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             s_boundary,
             theta,
             zeta_val,
-            boundary_scale=boundary_scale,
-            boundary_padding=boundary_padding,
+            boundary_offset=boundary_offset,
             use_asym=True,
         )
         R_chart = rz_chart[iz, :, 0]
@@ -122,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"PASS: {chartmap.name} rho=1 vs VMEC s={s_boundary:.6g} "
-        f"scale={boundary_scale:.6g} pad={boundary_padding:.6g} m "
+        f"normal_offset={boundary_offset:.6g} m "
         f"max|dR|={max_dR:.3e} m max|dZ|={max_dZ:.3e} m"
     )
 
