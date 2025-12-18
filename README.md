@@ -65,6 +65,24 @@ Generate `*.chartmap.nc` volumes compatible with `libneo_coordinates`.
 For map2disc-generated chartmaps, `zeta` is the cylindrical toroidal angle
 (`zeta_convention=cyl`) and `rho` is a geometric disk radius (`rho_convention=unknown`).
 
+#### VMEC angle conventions (`phi`, `zeta`, `nfp`)
+VMEC documentation commonly writes Fourier factors as `exp(i*(m*theta - n*zeta))`.
+In VMEC `wout_*.nc` files:
+
+- `xm` stores poloidal mode numbers `m`.
+- `xn` stores signed toroidal mode numbers including field periods: `xn = n*nfp`.
+- `zeta`/`varphi` is the geometric toroidal angle in radians (often `atan2(y,x)`); some
+  tools reduce it modulo one field period (`2*pi/nfp`), but this does not change the
+  Fourier phase because `xn` already contains `nfp`.
+
+So the consistent real-space evaluation with `wout` coefficients is:
+
+- `cos(m*theta - xn*zeta)` and `sin(m*theta - xn*zeta)` (i.e. keep the minus inside).
+
+For the magnetic axis, VMEC stores `zaxis_cs` but uses the same phase convention, so:
+
+- `Z_axis(zeta) = sum_n zaxis_cs(n) * sin(-n*nfp*zeta)` (using `sin(-x) = -sin(x)`).
+
 Install dependencies:
 
     pip install -e ".[chartmap]"
