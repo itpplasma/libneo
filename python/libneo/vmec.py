@@ -84,8 +84,14 @@ class VMECGeometry:
 
         - s_index: integer surface index in [0, ns-1]
         - theta: array of poloidal angles (radians)
-        - zeta: toroidal/geometric angle (radians)
+        - zeta: toroidal/geometric angle (radians, full-torus cylindrical angle)
         - use_asym: include asymmetric terms if available
+
+        Notes
+        -----
+        VMEC `wout_*.nc` files store `xn = n*nfp` (signed), so the Fourier phase is
+        evaluated as `m*theta - xn*zeta`. No additional `nfp` factor should be
+        applied to `zeta` here.
         """
         R = _cfunct(theta, zeta, self.rmnc, self.xm, self.xn)[s_index, :]
         Z = _sfunct(theta, zeta, self.zmns, self.xm, self.xn)[s_index, :]
