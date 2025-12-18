@@ -281,12 +281,61 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python PROPERTIES
 )
 
 add_test(
+  NAME plot_vmec_map2disc_chartmap_boundary_python
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
+          --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
+          --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python.chartmap.nc
+          --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python.chartmap_boundary.png
+)
+set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_chartmap_python
+)
+
+add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_cli
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap.nc
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_cli PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_chartmap_python
+)
+
+add_test(
+  NAME plot_vmec_map2disc_chartmap_boundary_cli
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
+          --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
+          --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap.nc
+          --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap_boundary.png
+)
+set_tests_properties(plot_vmec_map2disc_chartmap_boundary_cli PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_chartmap_python
+)
+
+add_test(
+  NAME validate_vmec_map2disc_chartmap_boundary_python_padded
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
+          --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
+          --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap.nc
+          --boundary-padding 0.5
+)
+set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_chartmap_python
+)
+
+add_test(
+  NAME plot_vmec_map2disc_chartmap_boundary_python_padded
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
+          --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
+          --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap.nc
+          --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap_boundary.png
+          --boundary-padding 0.5
+)
+set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python
 )

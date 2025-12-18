@@ -47,6 +47,8 @@ def write_chartmap_from_vmec_boundary(
     ntheta: int = 65,
     nzeta: int = 33,
     s_boundary: float = 1.0,
+    boundary_scale: float = 1.0,
+    boundary_padding: float = 0.0,
     num_field_periods: int | None = None,
     M: int = 16,
     Nt: int = 256,
@@ -54,7 +56,14 @@ def write_chartmap_from_vmec_boundary(
     use_asym: bool = True,
 ) -> None:
     """
-    Generate a chartmap NetCDF using map2disc from the VMEC last closed surface.
+    Generate a chartmap NetCDF using map2disc from a VMEC flux-surface boundary.
+
+    - `s_boundary` selects the VMEC surface by normalized toroidal flux in (0, 1].
+      (`s_boundary=1.0` corresponds to the LCFS.)
+    - `boundary_scale` and `boundary_padding` optionally enlarge the boundary curve
+      outward relative to the magnetic axis at each zeta slice:
+        - `boundary_scale` scales the axis-to-boundary vector (dimensionless).
+        - `boundary_padding` adds a fixed outward offset in meters.
 
     The output matches libneo_coordinates chartmap conventions:
     - Dimensions: rho, theta, zeta
@@ -71,11 +80,17 @@ def write_chartmap_from_vmec_boundary(
     wout = _as_path(wout_path)
     out = _as_path(out_path)
 
+    boundary_scale = float(boundary_scale)
+    boundary_padding = float(boundary_padding)
+
     if not (0.0 < float(s_boundary) <= 1.0):
         raise ValueError("s_boundary must be in (0, 1]")
+    if boundary_scale <= 0.0:
+        raise ValueError("boundary_scale must be > 0")
+    if boundary_padding < 0.0:
+        raise ValueError("boundary_padding must be >= 0")
 
     geom = VMECGeometry.from_file(str(wout))
-    s_index = geom.rmnc.shape[1] - 1
 
     if num_field_periods is None:
         with Dataset(wout, "r") as ds:
@@ -93,10 +108,23 @@ def write_chartmap_from_vmec_boundary(
 
     for iz, phi in enumerate(grid.zeta):
         phi_val = float(phi)
+        if boundary_scale != 1.0 or boundary_padding != 0.0:
+            R_axis, Z_axis, _ = geom.coords_s(0.0, np.array([0.0]), phi_val, use_asym=use_asym)
+            axis_rz = (float(R_axis[0]), float(Z_axis[0]))
+        else:
+            axis_rz = None
 
         def curve(t: np.ndarray) -> np.ndarray:
             th = np.asarray(t, dtype=float)
-            R, Zc, _ = geom.coords(s_index, th, phi_val, use_asym=use_asym)
+            R, Zc, _ = geom.boundary_rz(
+                float(s_boundary),
+                th,
+                phi_val,
+                boundary_scale=boundary_scale,
+                boundary_padding=boundary_padding,
+                axis_rz=axis_rz,
+                use_asym=use_asym,
+            )
             return np.array([R, Zc])
 
         bcm = m2d.BoundaryConformingMapping(curve=curve, M=int(M), Nt=int(Nt), Ng=Ng)

@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     wout = out_dir / "wout.nc"
     outfile_api = out_dir / "wout_vmec_python.chartmap.nc"
     outfile_cli = out_dir / "wout_vmec_cli.chartmap.nc"
+    outfile_api_padded = out_dir / "wout_vmec_python_padded.chartmap.nc"
 
     if not wout.exists() or wout.stat().st_size == 0:
         raise RuntimeError(f"missing wout fixture: {wout}")
@@ -48,6 +49,18 @@ def main(argv: list[str] | None = None) -> int:
         M=12,
         Nt=128,
         Ng=(128, 128),
+    )
+
+    write_chartmap_from_vmec_boundary(
+        wout,
+        outfile_api_padded,
+        nrho=9,
+        ntheta=17,
+        nzeta=9,
+        boundary_padding=0.5,
+        M=8,
+        Nt=64,
+        Ng=(64, 64),
     )
 
     chartmap_cli_main(
@@ -71,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
         ]
     )
 
-    for path in (outfile_api, outfile_cli):
+    for path in (outfile_api, outfile_cli, outfile_api_padded):
         if not path.exists() or path.stat().st_size == 0:
             raise RuntimeError(f"failed to create {path}")
         with Dataset(path, "r") as ds:
