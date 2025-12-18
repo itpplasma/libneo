@@ -20,6 +20,40 @@ def _download_file(url: str, dst: str) -> None:
 
 
 @pytest.mark.network
+def test_vmec_axis_matches_wout_axis_coeffs():
+    """
+    Validate VMEC (R,Z) reconstruction against the explicit magnetic axis
+    coefficients stored in the wout file.
+
+    VMEC stores zaxis_cs but uses Z_axis(phi) = -sum_n zaxis_cs(n)*sin(n*nfp*phi).
+    """
+    from netCDF4 import Dataset
+
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "wout.nc")
+        _download_file(STELLOPT_WOUT_URL, path)
+
+        geom = VMECGeometry.from_file(path)
+
+        with Dataset(path) as nc:
+            raxis_cc = np.array(nc.variables["raxis_cc"][:], dtype=float)
+            zaxis_cs = np.array(nc.variables["zaxis_cs"][:], dtype=float)
+            nfp = int(np.array(nc.variables["nfp"][:]))
+
+        n = np.arange(raxis_cc.size, dtype=float)
+        phis = np.array([0.2, 0.7, 1.1], dtype=float)
+        for phi in phis:
+            R_axis = np.sum(raxis_cc * np.cos(n * nfp * phi))
+            Z_axis = -np.sum(zaxis_cs * np.sin(n * nfp * phi))
+
+            R, Z, phi_out = geom.coords(s_index=0, theta=np.array([0.0]), zeta=float(phi), use_asym=True)
+            assert phi_out == pytest.approx(phi)
+            assert R.shape == Z.shape == (1,)
+            assert np.allclose(R[0], R_axis, rtol=0.0, atol=1e-10)
+            assert np.allclose(Z[0], Z_axis, rtol=0.0, atol=1e-10)
+
+
+@pytest.mark.network
 def test_vmec_to_cylindrical_matches_reference():
     with tempfile.TemporaryDirectory() as td:
         path = os.path.join(td, "wout.nc")
