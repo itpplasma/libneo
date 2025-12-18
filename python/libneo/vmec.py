@@ -53,6 +53,7 @@ def _sfunct(theta: np.ndarray, zeta: float, coeff: np.ndarray, xm: np.ndarray, x
 class VMECGeometry:
     xm: np.ndarray
     xn: np.ndarray
+    phi: np.ndarray | None  # (ns,) toroidal flux coordinate, if present
     rmnc: np.ndarray  # (nmode, ns)
     zmns: np.ndarray  # (nmode, ns)
     rmns: np.ndarray | None = None  # optional asymmetry
@@ -63,6 +64,9 @@ class VMECGeometry:
         with Dataset(nc_path, mode="r") as ds:
             xm = np.array(ds.variables["xm"][:])
             xn = np.array(ds.variables["xn"][:])
+            phi = None
+            if "phi" in ds.variables:
+                phi = np.array(ds.variables["phi"][:], dtype=float)
             rmnc = _to_mode_ns_from_var(ds.variables["rmnc"])
             zmns = _to_mode_ns_from_var(ds.variables["zmns"])
 
@@ -76,7 +80,7 @@ class VMECGeometry:
                 if "rmns" in ds.variables and "zmnc" in ds.variables:
                     rmns = _to_mode_ns_from_var(ds.variables["rmns"])
                     zmnc = _to_mode_ns_from_var(ds.variables["zmnc"])
-        return cls(xm=xm, xn=xn, rmnc=rmnc, zmns=zmns, rmns=rmns, zmnc=zmnc)
+        return cls(xm=xm, xn=xn, phi=phi, rmnc=rmnc, zmns=zmns, rmns=rmns, zmnc=zmnc)
 
     def coords(self, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
         """
@@ -98,6 +102,56 @@ class VMECGeometry:
         if use_asym and self.rmns is not None and self.zmnc is not None:
             R = R + _sfunct(theta, zeta, self.rmns, self.xm, self.xn)[s_index, :]
             Z = Z + _cfunct(theta, zeta, self.zmnc, self.xm, self.xn)[s_index, :]
+        return R, Z, float(zeta)
+
+    def coords_s(self, s: float, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
+        """
+        Evaluate cylindrical coordinates (R, Z, phi) on a fractional surface coordinate s in [0, 1].
+
+        If the wout file provides the `phi` radial coordinate array, s is interpreted as
+        normalized toroidal flux: s = phi / phi_edge. Otherwise, s is mapped linearly
+        to the discrete surface index range [0, ns-1].
+        """
+        s_val = float(s)
+        if not (0.0 <= s_val <= 1.0):
+            raise ValueError("s must be in [0, 1]")
+
+        ns = int(self.rmnc.shape[1])
+        if ns < 1:
+            raise ValueError("invalid VMEC coefficient arrays: ns must be >= 1")
+
+        if ns == 1 or s_val == 0.0:
+            return self.coords(0, theta, zeta, use_asym=use_asym)
+        if s_val == 1.0:
+            return self.coords(ns - 1, theta, zeta, use_asym=use_asym)
+
+        if self.phi is not None and self.phi.size == ns and float(self.phi[-1]) > 0.0:
+            phi_edge = float(self.phi[-1])
+            phi_target = s_val * phi_edge
+            i1 = int(np.searchsorted(self.phi, phi_target, side="right"))
+            i1 = max(1, min(ns - 1, i1))
+            i0 = i1 - 1
+            denom = float(self.phi[i1] - self.phi[i0])
+            alpha = 0.0 if denom == 0.0 else float((phi_target - self.phi[i0]) / denom)
+        else:
+            x = s_val * float(ns - 1)
+            i0 = int(np.floor(x))
+            i0 = max(0, min(ns - 2, i0))
+            i1 = i0 + 1
+            alpha = float(x - float(i0))
+
+        w0 = 1.0 - alpha
+        w1 = alpha
+        rmnc_s = (w0 * self.rmnc[:, i0] + w1 * self.rmnc[:, i1])[:, None]
+        zmns_s = (w0 * self.zmns[:, i0] + w1 * self.zmns[:, i1])[:, None]
+
+        R = _cfunct(theta, zeta, rmnc_s, self.xm, self.xn)[0, :]
+        Z = _sfunct(theta, zeta, zmns_s, self.xm, self.xn)[0, :]
+        if use_asym and self.rmns is not None and self.zmnc is not None:
+            rmns_s = (w0 * self.rmns[:, i0] + w1 * self.rmns[:, i1])[:, None]
+            zmnc_s = (w0 * self.zmnc[:, i0] + w1 * self.zmnc[:, i1])[:, None]
+            R = R + _sfunct(theta, zeta, rmns_s, self.xm, self.xn)[0, :]
+            Z = Z + _cfunct(theta, zeta, zmnc_s, self.xm, self.xn)[0, :]
         return R, Z, float(zeta)
 
 

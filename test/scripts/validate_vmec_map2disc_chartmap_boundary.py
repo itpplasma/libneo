@@ -69,6 +69,9 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="validate_vmec_map2disc_chartmap_boundary")
     p.add_argument("--wout", type=Path, required=True)
     p.add_argument("--chartmap", type=Path, required=True)
+    p.add_argument("--s-boundary", type=float, default=1.0)
+    p.add_argument("--boundary-scale", type=float, default=1.0)
+    p.add_argument("--boundary-padding", type=float, default=0.0)
     p.add_argument("--tol-R", type=float, default=1.0e-10)
     p.add_argument("--tol-Z", type=float, default=1.0e-10)
     args = p.parse_args(argv)
@@ -86,13 +89,33 @@ def main(argv: list[str] | None = None) -> int:
     theta, zeta, rz_chart = _load_chartmap_boundary(chartmap)
 
     geom = VMECGeometry.from_file(str(wout))
-    s_index = int(geom.rmnc.shape[1] - 1)
+    s_boundary = float(args.s_boundary)
+    if not (0.0 < s_boundary <= 1.0):
+        raise ValueError("s_boundary must be in (0, 1]")
+    boundary_scale = float(args.boundary_scale)
+    if boundary_scale <= 0.0:
+        raise ValueError("boundary_scale must be > 0")
+    boundary_padding = float(args.boundary_padding)
+    if boundary_padding < 0.0:
+        raise ValueError("boundary_padding must be >= 0")
 
     iz_list = _select_zeta_indices(int(zeta.size))
     max_dR = 0.0
     max_dZ = 0.0
     for iz in iz_list:
-        R_vmec, Z_vmec, _ = geom.coords(s_index, theta, float(zeta[iz]), use_asym=True)
+        zeta_val = float(zeta[iz])
+        R_vmec, Z_vmec, _ = geom.coords_s(s_boundary, theta, zeta_val, use_asym=True)
+        if boundary_scale != 1.0 or boundary_padding != 0.0:
+            R_axis, Z_axis, _ = geom.coords_s(0.0, np.array([0.0]), zeta_val, use_asym=True)
+            R0 = float(R_axis[0])
+            Z0 = float(Z_axis[0])
+            dR = R_vmec - R0
+            dZ = Z_vmec - Z0
+            norm = np.sqrt(dR * dR + dZ * dZ)
+            if np.any(norm == 0.0):
+                raise ValueError("boundary curve coincides with axis at some theta")
+            R_vmec = R0 + boundary_scale * dR + boundary_padding * (dR / norm)
+            Z_vmec = Z0 + boundary_scale * dZ + boundary_padding * (dZ / norm)
         R_chart = rz_chart[iz, :, 0]
         Z_chart = rz_chart[iz, :, 1]
 
@@ -101,7 +124,11 @@ def main(argv: list[str] | None = None) -> int:
         max_dR = max(max_dR, float(dR))
         max_dZ = max(max_dZ, float(dZ))
 
-    print(f"PASS: {chartmap.name} rho=1 vs VMEC s=1 max|dR|={max_dR:.3e} m max|dZ|={max_dZ:.3e} m")
+    print(
+        f"PASS: {chartmap.name} rho=1 vs VMEC s={s_boundary:.6g} "
+        f"scale={boundary_scale:.6g} pad={boundary_padding:.6g} m "
+        f"max|dR|={max_dR:.3e} m max|dZ|={max_dZ:.3e} m"
+    )
 
     if max_dR > float(args.tol_R) or max_dZ > float(args.tol_Z):
         raise SystemExit(

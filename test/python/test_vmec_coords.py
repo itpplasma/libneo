@@ -86,6 +86,44 @@ def test_vmec_to_cylindrical_matches_reference():
 
 
 @pytest.mark.network
+def test_vmec_coords_s_matches_linear_phi_interpolation():
+    from netCDF4 import Dataset
+
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "wout.nc")
+        _download_file(STELLOPT_WOUT_URL, path)
+
+        geom = VMECGeometry.from_file(path)
+        ns = int(geom.rmnc.shape[1])
+        assert ns >= 2
+
+        with Dataset(path) as nc:
+            phi = np.array(nc.variables["phi"][:], dtype=float)
+        phi_edge = float(phi[-1])
+
+        theta = np.linspace(0.0, 2.0 * np.pi, 16, endpoint=False)
+        zeta = 0.31
+
+        s = 0.43
+        phi_target = float(s) * phi_edge
+        i1 = int(np.searchsorted(phi, phi_target, side="right"))
+        i1 = max(1, min(ns - 1, i1))
+        i0 = i1 - 1
+        denom = float(phi[i1] - phi[i0])
+        alpha = 0.0 if denom == 0.0 else float((phi_target - phi[i0]) / denom)
+
+        R0, Z0, _ = geom.coords(i0, theta, zeta, use_asym=True)
+        R1, Z1, _ = geom.coords(i1, theta, zeta, use_asym=True)
+        R_ref = (1.0 - alpha) * R0 + alpha * R1
+        Z_ref = (1.0 - alpha) * Z0 + alpha * Z1
+
+        R_s, Z_s, zeta_out = geom.coords_s(s, theta, zeta, use_asym=True)
+        assert zeta_out == pytest.approx(zeta)
+        assert np.allclose(R_s, R_ref, rtol=0.0, atol=1e-10)
+        assert np.allclose(Z_s, Z_ref, rtol=0.0, atol=1e-10)
+
+
+@pytest.mark.network
 def test_vmec_plot_surfaces_visual_check(tmp_path):
     """
     Visual check: plot several nested flux surface cross-sections at
