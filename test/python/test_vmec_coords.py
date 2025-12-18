@@ -25,7 +25,13 @@ def test_vmec_axis_matches_wout_axis_coeffs():
     Validate VMEC (R,Z) reconstruction against the explicit magnetic axis
     coefficients stored in the wout file.
 
-    VMEC stores zaxis_cs but uses Z_axis(phi) = -sum_n zaxis_cs(n)*sin(n*nfp*phi).
+    VMEC stores `zaxis_cs`, but the physical axis uses the VMEC phase convention.
+    To keep the sign convention explicit and consistent with `sin(m*theta - n*zeta)`,
+    write the axis as:
+
+      Z_axis(phi) = sum_n zaxis_cs(n) * sin(-n*nfp*phi)
+
+    (using sin(-x) = -sin(x)).
     """
     from netCDF4 import Dataset
 
@@ -44,7 +50,7 @@ def test_vmec_axis_matches_wout_axis_coeffs():
         phis = np.array([0.2, 0.7, 1.1], dtype=float)
         for phi in phis:
             R_axis = np.sum(raxis_cc * np.cos(n * nfp * phi))
-            Z_axis = -np.sum(zaxis_cs * np.sin(n * nfp * phi))
+            Z_axis = np.sum(zaxis_cs * np.sin(-n * nfp * phi))
 
             R, Z, phi_out = geom.coords(s_index=0, theta=np.array([0.0]), zeta=float(phi), use_asym=True)
             assert phi_out == pytest.approx(phi)
