@@ -5,6 +5,6 @@ The \texttt{odeint\_allroutines} interface supports optional root detection.
 Provide an \texttt{ode\_event\_t} instance with an event function
 $g(x, y)$ and the number of events. Events trigger on sign changes of
 $g$ over an accepted step. Direction filtering is controlled with
-\texttt{rootdir} values of $-1$ falling, $0$ both, or $+1$ rising. If
+\texttt{direction} values of $-1$ falling, $0$ both, or $+1$ rising. If
 \texttt{terminal(i)} is set, the integrator returns at the root and the
 solution is provided at the event location.

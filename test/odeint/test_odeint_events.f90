@@ -33,9 +33,9 @@ contains
 
       ev%f => event_y_minus_half
       ev%n = 1
-      allocate (ev%rootdir(1))
+      allocate (ev%direction(1))
       allocate (ev%terminal(1))
-      ev%rootdir(1) = 0
+      ev%direction(1) = 0
       ev%terminal(1) = .true.
 
       y(1) = 0.0_dp
@@ -64,9 +64,9 @@ contains
 
       ev%f => event_y_minus_half
       ev%n = 1
-      allocate (ev%rootdir(1))
+      allocate (ev%direction(1))
       allocate (ev%terminal(1))
-      ev%rootdir(1) = -1
+      ev%direction(1) = -1
       ev%terminal(1) = .true.
 
       y(1) = 0.0_dp
@@ -91,9 +91,9 @@ contains
 
       ev%f => event_y_minus_half
       ev%n = 1
-      allocate (ev%rootdir(1))
+      allocate (ev%direction(1))
       allocate (ev%terminal(1))
-      ev%rootdir(1) = 0
+      ev%direction(1) = 0
       ev%terminal(1) = .false.
 
       y(1) = 0.0_dp
@@ -120,9 +120,9 @@ contains
       ctx%value = 0.25_dp
       ev%f => event_with_context
       ev%n = 1
-      allocate (ev%rootdir(1))
+      allocate (ev%direction(1))
       allocate (ev%terminal(1))
-      ev%rootdir(1) = 0
+      ev%direction(1) = 0
       ev%terminal(1) = .true.
 
       y(1) = 0.0_dp
