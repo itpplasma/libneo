@@ -159,11 +159,10 @@ module odeint_allroutines_sub
    type :: ode_event_t
       procedure(event_function), pointer, nopass :: f => null()
       integer :: n = 0
-      integer, allocatable :: rootdir(:)
+      integer, allocatable :: direction(:)
       logical, allocatable :: terminal(:)
       logical :: found = .false.
       integer :: id = 0
-      integer :: dir = 0
       real(dp) :: x = 0.0_dp
    end type ode_event_t
 
@@ -231,11 +230,11 @@ contains
 
       real(dp) :: x, h, h_next
       real(dp) :: x_step_start, x_root
-      integer :: step, n_events, event_id, event_dir
+      integer :: step, n_events, event_id
       logical :: events_active, event_found
       real(dp), allocatable :: g_old(:), g_new(:), g_tmp(:)
       real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
-      integer, allocatable :: rootdir(:)
+      integer, allocatable :: direction(:)
       logical, allocatable :: terminal(:)
 
       call allocate_state(n)
@@ -248,16 +247,16 @@ contains
       if (events_active) then
          n_events = events%n
          allocate (g_old(n_events), g_new(n_events), g_tmp(n_events))
-         allocate (rootdir(n_events))
+         allocate (direction(n_events))
          allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
-         rootdir = 0
+         direction = 0
          terminal = .false.
-         if (allocated(events%rootdir)) then
-            if (size(events%rootdir) /= n_events) then
-               error stop 'Event rootdir size mismatch'
+         if (allocated(events%direction)) then
+            if (size(events%direction) /= n_events) then
+               error stop 'Event direction size mismatch'
             end if
-            rootdir = events%rootdir
+            direction = events%direction
          end if
          if (allocated(events%terminal)) then
             if (size(events%terminal) /= n_events) then
@@ -267,7 +266,6 @@ contains
          end if
          events%found = .false.
          events%id = 0
-         events%dir = 0
          events%x = x_start
          call call_event(events%f, x, y_work, g_old)
       end if
@@ -290,14 +288,13 @@ contains
             y_end = y_work
             call derivative(x, y_end, f_end)
             call call_event(events%f, x, y_end, g_new)
-            call find_event_in_step(events%f, n_events, rootdir, x_step_start, x, &
+            call find_event_in_step(events%f, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
-                                    g_tmp, event_found, event_id, event_dir, x_root, &
+                                    g_tmp, event_found, event_id, x_root, &
                                     y_root)
             if (event_found) then
                events%found = .true.
                events%id = event_id
-               events%dir = event_dir
                events%x = x_root
                y_work = y_root
                y = y_root
@@ -336,11 +333,11 @@ contains
 
       real(dp) :: x, h, h_next
       real(dp) :: x_step_start, x_root
-      integer :: step, n_events, event_id, event_dir
+      integer :: step, n_events, event_id
       logical :: events_active, event_found
       real(dp), allocatable :: g_old(:), g_new(:), g_tmp(:)
       real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
-      integer, allocatable :: rootdir(:)
+      integer, allocatable :: direction(:)
       logical, allocatable :: terminal(:)
 
       call allocate_state(n)
@@ -353,16 +350,16 @@ contains
       if (events_active) then
          n_events = events%n
          allocate (g_old(n_events), g_new(n_events), g_tmp(n_events))
-         allocate (rootdir(n_events))
+         allocate (direction(n_events))
          allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
-         rootdir = 0
+         direction = 0
          terminal = .false.
-         if (allocated(events%rootdir)) then
-            if (size(events%rootdir) /= n_events) then
-               error stop 'Event rootdir size mismatch'
+         if (allocated(events%direction)) then
+            if (size(events%direction) /= n_events) then
+               error stop 'Event direction size mismatch'
             end if
-            rootdir = events%rootdir
+            direction = events%direction
          end if
          if (allocated(events%terminal)) then
             if (size(events%terminal) /= n_events) then
@@ -372,7 +369,6 @@ contains
          end if
          events%found = .false.
          events%id = 0
-         events%dir = 0
          events%x = x_start
          call call_event(events%f, x, y_work, g_old, context)
       end if
@@ -396,14 +392,13 @@ contains
             y_end = y_work
             call derivative(x, y_end, f_end, context)
             call call_event(events%f, x, y_end, g_new, context)
-            call find_event_in_step(events%f, n_events, rootdir, x_step_start, x, &
+            call find_event_in_step(events%f, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
-                                    g_tmp, event_found, event_id, event_dir, x_root, &
+                                    g_tmp, event_found, event_id, x_root, &
                                     y_root, context)
             if (event_found) then
                events%found = .true.
                events%id = event_id
-               events%dir = event_dir
                events%x = x_root
                y_work = y_root
                y = y_root
@@ -526,18 +521,18 @@ contains
       end do
    end subroutine hermite_interpolate
 
-   subroutine find_event_in_step(event_fn, n_events, rootdir, x0, x1, y0, y1, &
+   subroutine find_event_in_step(event_fn, n_events, direction, x0, x1, y0, y1, &
                                  f0, f1, g0, g1, g_tmp, event_found, event_id, &
-                                 event_dir, x_root, y_root, context)
+                                 x_root, y_root, context)
       procedure(event_function) :: event_fn
       integer, intent(in) :: n_events
-      integer, intent(in) :: rootdir(:)
+      integer, intent(in) :: direction(:)
       real(dp), intent(in) :: x0, x1
       real(dp), intent(in) :: y0(:), y1(:), f0(:), f1(:)
       real(dp), intent(in) :: g0(:), g1(:)
       real(dp), intent(inout) :: g_tmp(:)
       logical, intent(out) :: event_found
-      integer, intent(out) :: event_id, event_dir
+      integer, intent(out) :: event_id
       real(dp), intent(out) :: x_root
       real(dp), intent(out) :: y_root(:)
       class(*), intent(in), optional :: context
@@ -549,7 +544,6 @@ contains
 
       event_found = .false.
       event_id = 0
-      event_dir = 0
       x_root = x1
       y_root = y1
 
@@ -557,7 +551,7 @@ contains
       best_s = 2.0_dp
 
       do i = 1, n_events
-         if (.not. event_crossing(g0(i), g1(i), rootdir(i))) cycle
+         if (.not. event_crossing(g0(i), g1(i), direction(i))) cycle
          if (g1(i) == g0(i)) cycle
          s_est = g0(i)/(g0(i) - g1(i))
          if (s_est < best_s) then
@@ -569,12 +563,6 @@ contains
       if (event_id == 0) return
 
       event_found = .true.
-      if (g1(event_id) > g0(event_id)) then
-         event_dir = 1
-      else
-         event_dir = -1
-      end if
-
       if (g1(event_id) == 0.0_dp) then
          x_root = x1
          y_root = y1
@@ -617,14 +605,14 @@ contains
       call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
    end subroutine find_event_in_step
 
-   pure logical function event_crossing(g0, g1, rootdir)
+   pure logical function event_crossing(g0, g1, direction)
       real(dp), intent(in) :: g0, g1
-      integer, intent(in) :: rootdir
+      integer, intent(in) :: direction
 
       if (g1 == 0.0_dp .and. g0 /= 0.0_dp) then
-         event_crossing = rootdir == 0 .or. &
-                          (rootdir == 1 .and. g0 < 0.0_dp) .or. &
-                          (rootdir == -1 .and. g0 > 0.0_dp)
+         event_crossing = direction == 0 .or. &
+                          (direction == 1 .and. g0 < 0.0_dp) .or. &
+                          (direction == -1 .and. g0 > 0.0_dp)
          return
       end if
 
@@ -633,7 +621,7 @@ contains
          return
       end if
 
-      select case (rootdir)
+      select case (direction)
       case (0)
          event_crossing = g0*g1 < 0.0_dp
       case (1)
