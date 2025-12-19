@@ -294,7 +294,9 @@ contains
                   return
                end if
                x = x_root
-               call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
+               do event_id = 1, n_events
+                  call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
+               end do
                h = h_next
                cycle
             end if
@@ -392,7 +394,9 @@ contains
                   return
                end if
                x = x_root
-               call eval_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
+               do event_id = 1, n_events
+                  call eval_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
+               end do
                h = h_next
                cycle
             end if
