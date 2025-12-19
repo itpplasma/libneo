@@ -258,7 +258,7 @@ contains
             terminal(event_id) = events(event_id)%terminal
             events(event_id)%triggered = .false.
             events(event_id)%t_event = x_start
-            call call_event(events(event_id)%condition, x, y_work, g_old(event_id))
+            call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
          end do
       end if
 
@@ -280,7 +280,7 @@ contains
             y_end = y_work
             call derivative(x, y_end, f_end)
             do event_id = 1, n_events
-               call call_event(events(event_id)%condition, x, y_end, g_new(event_id))
+               call eval_event(events(event_id)%condition, x, y_end, g_new(event_id))
             end do
             call find_event_in_step(events, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
@@ -294,7 +294,7 @@ contains
                   return
                end if
                x = x_root
-               call call_event(events(event_id)%condition, x, y_work, g_old(event_id))
+               call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
                h = h_next
                cycle
             end if
@@ -355,7 +355,7 @@ contains
             terminal(event_id) = events(event_id)%terminal
             events(event_id)%triggered = .false.
             events(event_id)%t_event = x_start
-            call call_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
+            call eval_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
          end do
       end if
 
@@ -378,7 +378,7 @@ contains
             y_end = y_work
             call derivative(x, y_end, f_end, context)
             do event_id = 1, n_events
-               call call_event(events(event_id)%condition, x, y_end, g_new(event_id), context)
+               call eval_event(events(event_id)%condition, x, y_end, g_new(event_id), context)
             end do
             call find_event_in_step(events, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
@@ -392,7 +392,7 @@ contains
                   return
                end if
                x = x_root
-               call call_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
+               call eval_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
                h = h_next
                cycle
             end if
@@ -473,7 +473,7 @@ contains
       end do
    end subroutine step_with_error_control_context
 
-   subroutine call_event(event_fn, x, y, g, context)
+   subroutine eval_event(event_fn, x, y, g, context)
       procedure(event_function) :: event_fn
       real(dp), intent(in) :: x
       real(dp), intent(in) :: y(:)
@@ -485,7 +485,7 @@ contains
       else
          call event_fn(x, y, g)
       end if
-   end subroutine call_event
+   end subroutine eval_event
 
    pure subroutine hermite_interpolate(y0, y1, f0, f1, h, s, y_out)
       real(dp), intent(in) :: y0(:), y1(:), f0(:), f1(:)
@@ -574,7 +574,7 @@ contains
          end if
          s_try = (x_try - x0)/h
          call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
-         call call_event(events(event_id)%condition, x_try, y_root, g_try, context)
+         call eval_event(events(event_id)%condition, x_try, y_root, g_try, context)
          if (g_left*g_try <= 0.0_dp) then
             x_right = x_try
             g_right = g_try
