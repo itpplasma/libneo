@@ -151,18 +151,16 @@ module odeint_allroutines_sub
          import :: dp
          real(dp), intent(in) :: x
          real(dp), intent(in) :: y(:)
-         real(dp), intent(out) :: g(:)
+         real(dp), intent(out) :: g
          class(*), intent(in), optional :: context
       end subroutine event_function
    end interface
 
    type :: ode_event_t
       procedure(event_function), pointer, nopass :: f => null()
-      integer :: n = 0
-      integer, allocatable :: direction(:)
-      logical, allocatable :: terminal(:)
+      integer :: direction = 0
+      logical :: terminal = .false.
       logical :: found = .false.
-      integer :: id = 0
       real(dp) :: x = 0.0_dp
    end type ode_event_t
 
@@ -183,7 +181,7 @@ contains
       real(dp), intent(in) :: x1, x2, eps
       procedure(derivative_function) :: derivs
       real(dp), intent(in), optional :: initial_stepsize
-      type(ode_event_t), intent(inout), optional :: events
+      type(ode_event_t), intent(inout), optional :: events(:)
 
       real(dp) :: h_init
 
@@ -204,7 +202,7 @@ contains
       real(dp), intent(in) :: x1, x2, eps
       procedure(derivative_function_with_context) :: derivs
       real(dp), intent(in), optional :: initial_stepsize
-      type(ode_event_t), intent(inout), optional :: events
+      type(ode_event_t), intent(inout), optional :: events(:)
 
       real(dp) :: h_init
 
@@ -226,13 +224,13 @@ contains
       real(dp), intent(in) :: x_start, x_end, tolerance
       real(dp), intent(in) :: h_init
       procedure(derivative_function) :: derivative
-      type(ode_event_t), intent(inout), optional :: events
+      type(ode_event_t), intent(inout), optional :: events(:)
 
       real(dp) :: x, h, h_next
       real(dp) :: x_step_start, x_root
       integer :: step, n_events, event_id
       logical :: events_active, event_found
-      real(dp), allocatable :: g_old(:), g_new(:), g_tmp(:)
+      real(dp), allocatable :: g_old(:), g_new(:)
       real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
       integer, allocatable :: direction(:)
       logical, allocatable :: terminal(:)
@@ -242,32 +240,26 @@ contains
       h = h_init
       y_work = y
 
-      events_active = present(events) .and. associated(events%f) .and. &
-                      events%n > 0
+      events_active = present(events)
       if (events_active) then
-         n_events = events%n
-         allocate (g_old(n_events), g_new(n_events), g_tmp(n_events))
+         n_events = size(events)
+         if (n_events < 1) then
+            error stop 'Event array must be non-empty'
+         end if
+         allocate (g_old(n_events), g_new(n_events))
          allocate (direction(n_events))
          allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
-         direction = 0
-         terminal = .false.
-         if (allocated(events%direction)) then
-            if (size(events%direction) /= n_events) then
-               error stop 'Event direction size mismatch'
+         do event_id = 1, n_events
+            if (.not. associated(events(event_id)%f)) then
+               error stop 'Event function not associated'
             end if
-            direction = events%direction
-         end if
-         if (allocated(events%terminal)) then
-            if (size(events%terminal) /= n_events) then
-               error stop 'Event terminal size mismatch'
-            end if
-            terminal = events%terminal
-         end if
-         events%found = .false.
-         events%id = 0
-         events%x = x_start
-         call call_event(events%f, x, y_work, g_old)
+            direction(event_id) = events(event_id)%direction
+            terminal(event_id) = events(event_id)%terminal
+            events(event_id)%found = .false.
+            events(event_id)%x = x_start
+            call call_event(events(event_id)%f, x, y_work, g_old(event_id))
+         end do
       end if
 
       do step = 1, max_steps
@@ -287,22 +279,22 @@ contains
          if (events_active) then
             y_end = y_work
             call derivative(x, y_end, f_end)
-            call call_event(events%f, x, y_end, g_new)
-            call find_event_in_step(events%f, n_events, direction, x_step_start, x, &
+            do event_id = 1, n_events
+               call call_event(events(event_id)%f, x, y_end, g_new(event_id))
+            end do
+            call find_event_in_step(events, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
-                                    g_tmp, event_found, event_id, x_root, &
-                                    y_root)
+                                    event_found, event_id, x_root, y_root)
             if (event_found) then
-               events%found = .true.
-               events%id = event_id
-               events%x = x_root
+               events(event_id)%found = .true.
+               events(event_id)%x = x_root
                y_work = y_root
                y = y_root
                if (terminal(event_id)) then
                   return
                end if
                x = x_root
-               call call_event(events%f, x, y_work, g_old)
+               call call_event(events(event_id)%f, x, y_work, g_old(event_id))
                h = h_next
                cycle
             end if
@@ -329,13 +321,13 @@ contains
       real(dp), intent(in) :: h_init
       procedure(derivative_function_with_context) :: derivative
       class(*), intent(in) :: context
-      type(ode_event_t), intent(inout), optional :: events
+      type(ode_event_t), intent(inout), optional :: events(:)
 
       real(dp) :: x, h, h_next
       real(dp) :: x_step_start, x_root
       integer :: step, n_events, event_id
       logical :: events_active, event_found
-      real(dp), allocatable :: g_old(:), g_new(:), g_tmp(:)
+      real(dp), allocatable :: g_old(:), g_new(:)
       real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
       integer, allocatable :: direction(:)
       logical, allocatable :: terminal(:)
@@ -345,32 +337,26 @@ contains
       h = h_init
       y_work = y
 
-      events_active = present(events) .and. associated(events%f) .and. &
-                      events%n > 0
+      events_active = present(events)
       if (events_active) then
-         n_events = events%n
-         allocate (g_old(n_events), g_new(n_events), g_tmp(n_events))
+         n_events = size(events)
+         if (n_events < 1) then
+            error stop 'Event array must be non-empty'
+         end if
+         allocate (g_old(n_events), g_new(n_events))
          allocate (direction(n_events))
          allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
-         direction = 0
-         terminal = .false.
-         if (allocated(events%direction)) then
-            if (size(events%direction) /= n_events) then
-               error stop 'Event direction size mismatch'
+         do event_id = 1, n_events
+            if (.not. associated(events(event_id)%f)) then
+               error stop 'Event function not associated'
             end if
-            direction = events%direction
-         end if
-         if (allocated(events%terminal)) then
-            if (size(events%terminal) /= n_events) then
-               error stop 'Event terminal size mismatch'
-            end if
-            terminal = events%terminal
-         end if
-         events%found = .false.
-         events%id = 0
-         events%x = x_start
-         call call_event(events%f, x, y_work, g_old, context)
+            direction(event_id) = events(event_id)%direction
+            terminal(event_id) = events(event_id)%terminal
+            events(event_id)%found = .false.
+            events(event_id)%x = x_start
+            call call_event(events(event_id)%f, x, y_work, g_old(event_id), context)
+         end do
       end if
 
       do step = 1, max_steps
@@ -391,22 +377,22 @@ contains
          if (events_active) then
             y_end = y_work
             call derivative(x, y_end, f_end, context)
-            call call_event(events%f, x, y_end, g_new, context)
-            call find_event_in_step(events%f, n_events, direction, x_step_start, x, &
+            do event_id = 1, n_events
+               call call_event(events(event_id)%f, x, y_end, g_new(event_id), context)
+            end do
+            call find_event_in_step(events, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
-                                    g_tmp, event_found, event_id, x_root, &
-                                    y_root, context)
+                                    event_found, event_id, x_root, y_root, context)
             if (event_found) then
-               events%found = .true.
-               events%id = event_id
-               events%x = x_root
+               events(event_id)%found = .true.
+               events(event_id)%x = x_root
                y_work = y_root
                y = y_root
                if (terminal(event_id)) then
                   return
                end if
                x = x_root
-               call call_event(events%f, x, y_work, g_old, context)
+               call call_event(events(event_id)%f, x, y_work, g_old(event_id), context)
                h = h_next
                cycle
             end if
@@ -491,7 +477,7 @@ contains
       procedure(event_function) :: event_fn
       real(dp), intent(in) :: x
       real(dp), intent(in) :: y(:)
-      real(dp), intent(out) :: g(:)
+      real(dp), intent(out) :: g
       class(*), intent(in), optional :: context
 
       if (present(context)) then
@@ -521,16 +507,15 @@ contains
       end do
    end subroutine hermite_interpolate
 
-   subroutine find_event_in_step(event_fn, n_events, direction, x0, x1, y0, y1, &
-                                 f0, f1, g0, g1, g_tmp, event_found, event_id, &
-                                 x_root, y_root, context)
-      procedure(event_function) :: event_fn
+   subroutine find_event_in_step(events, n_events, direction, x0, x1, y0, y1, &
+                                 f0, f1, g0, g1, event_found, event_id, x_root, &
+                                 y_root, context)
+      type(ode_event_t), intent(inout) :: events(:)
       integer, intent(in) :: n_events
       integer, intent(in) :: direction(:)
       real(dp), intent(in) :: x0, x1
       real(dp), intent(in) :: y0(:), y1(:), f0(:), f1(:)
       real(dp), intent(in) :: g0(:), g1(:)
-      real(dp), intent(inout) :: g_tmp(:)
       logical, intent(out) :: event_found
       integer, intent(out) :: event_id
       real(dp), intent(out) :: x_root
@@ -589,8 +574,7 @@ contains
          end if
          s_try = (x_try - x0)/h
          call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
-         call call_event(event_fn, x_try, y_root, g_tmp, context)
-         g_try = g_tmp(event_id)
+         call call_event(events(event_id)%f, x_try, y_root, g_try, context)
          if (g_left*g_try <= 0.0_dp) then
             x_right = x_try
             g_right = g_try
