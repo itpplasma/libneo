@@ -147,13 +147,12 @@ module odeint_allroutines_sub
          class(*), intent(in) :: context
       end subroutine derivative_function_with_context
 
-      subroutine event_function(x, y, g, context)
+      real(dp) function event_function(x, y, context)
          import :: dp
          real(dp), intent(in) :: x
          real(dp), intent(in) :: y(:)
-         real(dp), intent(out) :: g
          class(*), intent(in), optional :: context
-      end subroutine event_function
+      end function event_function
    end interface
 
    type :: ode_event_t
@@ -462,9 +461,9 @@ contains
       class(*), intent(in), optional :: context
 
       if (present(context)) then
-         call event_fn(x, y, g, context)
+         g = event_fn(x, y, context)
       else
-         call event_fn(x, y, g)
+         g = event_fn(x, y)
       end if
    end subroutine eval_event
 
