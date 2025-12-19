@@ -159,9 +159,8 @@ module odeint_allroutines_sub
    type :: ode_event_t
       procedure(event_function), pointer, nopass :: condition => null()
       integer :: direction = 0
-      logical :: terminal = .false.
       logical :: triggered = .false.
-      real(dp) :: t_event = 0.0_dp
+      real(dp) :: x_event = 0.0_dp
    end type ode_event_t
 
    public :: odeint_allroutines, ode_event_t
@@ -233,7 +232,6 @@ contains
       real(dp), allocatable :: g_old(:), g_new(:)
       real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
       integer, allocatable :: direction(:)
-      logical, allocatable :: terminal(:)
 
       call allocate_state(n)
       x = x_start
@@ -248,16 +246,14 @@ contains
          end if
          allocate (g_old(n_events), g_new(n_events))
          allocate (direction(n_events))
-         allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
          do event_id = 1, n_events
             if (.not. associated(events(event_id)%condition)) then
                error stop 'Event function not associated'
             end if
             direction(event_id) = events(event_id)%direction
-            terminal(event_id) = events(event_id)%terminal
             events(event_id)%triggered = .false.
-            events(event_id)%t_event = x_start
+            events(event_id)%x_event = x_start
             call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
          end do
       end if
@@ -287,18 +283,10 @@ contains
                                     event_found, event_id, x_root, y_root)
             if (event_found) then
                events(event_id)%triggered = .true.
-               events(event_id)%t_event = x_root
+               events(event_id)%x_event = x_root
                y_work = y_root
                y = y_root
-               if (terminal(event_id)) then
-                  return
-               end if
-               x = x_root
-               do event_id = 1, n_events
-                  call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
-               end do
-               h = h_next
-               cycle
+               return
             end if
             g_old = g_new
          end if
@@ -332,7 +320,6 @@ contains
       real(dp), allocatable :: g_old(:), g_new(:)
       real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
       integer, allocatable :: direction(:)
-      logical, allocatable :: terminal(:)
 
       call allocate_state(n)
       x = x_start
@@ -347,16 +334,14 @@ contains
          end if
          allocate (g_old(n_events), g_new(n_events))
          allocate (direction(n_events))
-         allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
          do event_id = 1, n_events
             if (.not. associated(events(event_id)%condition)) then
                error stop 'Event function not associated'
             end if
             direction(event_id) = events(event_id)%direction
-            terminal(event_id) = events(event_id)%terminal
             events(event_id)%triggered = .false.
-            events(event_id)%t_event = x_start
+            events(event_id)%x_event = x_start
             call eval_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
          end do
       end if
@@ -387,18 +372,10 @@ contains
                                     event_found, event_id, x_root, y_root, context)
             if (event_found) then
                events(event_id)%triggered = .true.
-               events(event_id)%t_event = x_root
+               events(event_id)%x_event = x_root
                y_work = y_root
                y = y_root
-               if (terminal(event_id)) then
-                  return
-               end if
-               x = x_root
-               do event_id = 1, n_events
-                  call eval_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
-               end do
-               h = h_next
-               cycle
+               return
             end if
             g_old = g_new
          end if
