@@ -125,10 +125,9 @@ contains
       end select
    end subroutine rhs_unit_ctx
 
-   subroutine event_y_minus_half(x, y, g, context)
+   real(dp) function event_y_minus_half(x, y, context)
       real(dp), intent(in) :: x
       real(dp), intent(in) :: y(:)
-      real(dp), intent(out) :: g
       class(*), intent(in), optional :: context
 
       associate (x_unused => x)
@@ -136,13 +135,12 @@ contains
       associate (context_unused => context)
       end associate
 
-      g = y(1) - 0.5_dp
-   end subroutine event_y_minus_half
+      event_y_minus_half = y(1) - 0.5_dp
+   end function event_y_minus_half
 
-   subroutine event_with_context(x, y, g, context)
+   real(dp) function event_with_context(x, y, context)
       real(dp), intent(in) :: x
       real(dp), intent(in) :: y(:)
-      real(dp), intent(out) :: g
       class(*), intent(in), optional :: context
 
       associate (x_unused => x)
@@ -150,10 +148,10 @@ contains
 
       select type (context)
       type is (threshold_t)
-         g = y(1) - context%value
+         event_with_context = y(1) - context%value
       class default
-         g = y(1)
+         event_with_context = y(1)
       end select
-   end subroutine event_with_context
+   end function event_with_context
 
 end program test_odeint_events
