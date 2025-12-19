@@ -157,11 +157,11 @@ module odeint_allroutines_sub
    end interface
 
    type :: ode_event_t
-      procedure(event_function), pointer, nopass :: f => null()
+      procedure(event_function), pointer, nopass :: condition => null()
       integer :: direction = 0
       logical :: terminal = .false.
-      logical :: found = .false.
-      real(dp) :: x = 0.0_dp
+      logical :: triggered = .false.
+      real(dp) :: t_event = 0.0_dp
    end type ode_event_t
 
    public :: odeint_allroutines, ode_event_t
@@ -251,14 +251,14 @@ contains
          allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
          do event_id = 1, n_events
-            if (.not. associated(events(event_id)%f)) then
+            if (.not. associated(events(event_id)%condition)) then
                error stop 'Event function not associated'
             end if
             direction(event_id) = events(event_id)%direction
             terminal(event_id) = events(event_id)%terminal
-            events(event_id)%found = .false.
-            events(event_id)%x = x_start
-            call call_event(events(event_id)%f, x, y_work, g_old(event_id))
+            events(event_id)%triggered = .false.
+            events(event_id)%t_event = x_start
+            call call_event(events(event_id)%condition, x, y_work, g_old(event_id))
          end do
       end if
 
@@ -280,21 +280,21 @@ contains
             y_end = y_work
             call derivative(x, y_end, f_end)
             do event_id = 1, n_events
-               call call_event(events(event_id)%f, x, y_end, g_new(event_id))
+               call call_event(events(event_id)%condition, x, y_end, g_new(event_id))
             end do
             call find_event_in_step(events, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
                                     event_found, event_id, x_root, y_root)
             if (event_found) then
-               events(event_id)%found = .true.
-               events(event_id)%x = x_root
+               events(event_id)%triggered = .true.
+               events(event_id)%t_event = x_root
                y_work = y_root
                y = y_root
                if (terminal(event_id)) then
                   return
                end if
                x = x_root
-               call call_event(events(event_id)%f, x, y_work, g_old(event_id))
+               call call_event(events(event_id)%condition, x, y_work, g_old(event_id))
                h = h_next
                cycle
             end if
@@ -348,14 +348,14 @@ contains
          allocate (terminal(n_events))
          allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
          do event_id = 1, n_events
-            if (.not. associated(events(event_id)%f)) then
+            if (.not. associated(events(event_id)%condition)) then
                error stop 'Event function not associated'
             end if
             direction(event_id) = events(event_id)%direction
             terminal(event_id) = events(event_id)%terminal
-            events(event_id)%found = .false.
-            events(event_id)%x = x_start
-            call call_event(events(event_id)%f, x, y_work, g_old(event_id), context)
+            events(event_id)%triggered = .false.
+            events(event_id)%t_event = x_start
+            call call_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
          end do
       end if
 
@@ -378,21 +378,21 @@ contains
             y_end = y_work
             call derivative(x, y_end, f_end, context)
             do event_id = 1, n_events
-               call call_event(events(event_id)%f, x, y_end, g_new(event_id), context)
+               call call_event(events(event_id)%condition, x, y_end, g_new(event_id), context)
             end do
             call find_event_in_step(events, n_events, direction, x_step_start, x, &
                                     y_start, y_end, f_start, f_end, g_old, g_new, &
                                     event_found, event_id, x_root, y_root, context)
             if (event_found) then
-               events(event_id)%found = .true.
-               events(event_id)%x = x_root
+               events(event_id)%triggered = .true.
+               events(event_id)%t_event = x_root
                y_work = y_root
                y = y_root
                if (terminal(event_id)) then
                   return
                end if
                x = x_root
-               call call_event(events(event_id)%f, x, y_work, g_old(event_id), context)
+               call call_event(events(event_id)%condition, x, y_work, g_old(event_id), context)
                h = h_next
                cycle
             end if
@@ -574,7 +574,7 @@ contains
          end if
          s_try = (x_try - x0)/h
          call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
-         call call_event(events(event_id)%f, x_try, y_root, g_try, context)
+         call call_event(events(event_id)%condition, x_try, y_root, g_try, context)
          if (g_left*g_try <= 0.0_dp) then
             x_right = x_try
             g_right = g_try

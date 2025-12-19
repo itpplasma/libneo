@@ -31,19 +31,19 @@ contains
       real(dp) :: y(1)
       type(ode_event_t) :: ev(1)
 
-      ev(1)%f => event_y_minus_half
+      ev(1)%condition => event_y_minus_half
       ev(1)%direction = 0
       ev(1)%terminal = .true.
 
       y(1) = 0.0_dp
       call odeint_allroutines(y, 1, x1, x2, eps, rhs_unit, events=ev)
 
-      if (.not. ev(1)%found) then
+      if (.not. ev(1)%triggered) then
          write (*, *) 'ERROR: terminal event not detected'
          test_failed = .true.
       end if
-      if (abs(ev(1)%x - 0.5_dp) > 1.0e-6_dp) then
-         write (*, *) 'ERROR: terminal event time incorrect', ev(1)%x
+      if (abs(ev(1)%t_event - 0.5_dp) > 1.0e-6_dp) then
+         write (*, *) 'ERROR: terminal event time incorrect', ev(1)%t_event
          test_failed = .true.
       end if
       if (abs(y(1) - 0.5_dp) > 1.0e-6_dp) then
@@ -59,14 +59,14 @@ contains
       real(dp) :: y(1)
       type(ode_event_t) :: ev(1)
 
-      ev(1)%f => event_y_minus_half
+      ev(1)%condition => event_y_minus_half
       ev(1)%direction = -1
       ev(1)%terminal = .true.
 
       y(1) = 0.0_dp
       call odeint_allroutines(y, 1, x1, x2, eps, rhs_unit, events=ev)
 
-      if (ev(1)%found) then
+      if (ev(1)%triggered) then
          write (*, *) 'ERROR: direction filter should block event'
          test_failed = .true.
       end if
@@ -83,14 +83,14 @@ contains
       real(dp) :: y(1)
       type(ode_event_t) :: ev(1)
 
-      ev(1)%f => event_y_minus_half
+      ev(1)%condition => event_y_minus_half
       ev(1)%direction = 0
       ev(1)%terminal = .false.
 
       y(1) = 0.0_dp
       call odeint_allroutines(y, 1, x1, x2, eps, rhs_unit, events=ev)
 
-      if (.not. ev(1)%found) then
+      if (.not. ev(1)%triggered) then
          write (*, *) 'ERROR: non-terminal event not detected'
          test_failed = .true.
       end if
@@ -109,19 +109,19 @@ contains
       type(threshold_t) :: ctx
 
       ctx%value = 0.25_dp
-      ev(1)%f => event_with_context
+      ev(1)%condition => event_with_context
       ev(1)%direction = 0
       ev(1)%terminal = .true.
 
       y(1) = 0.0_dp
       call odeint_allroutines(y, 1, ctx, x1, x2, eps, rhs_unit_ctx, events=ev)
 
-      if (.not. ev(1)%found) then
+      if (.not. ev(1)%triggered) then
          write (*, *) 'ERROR: context event not detected'
          test_failed = .true.
       end if
-      if (abs(ev(1)%x - 0.25_dp) > 1.0e-6_dp) then
-         write (*, *) 'ERROR: context event time incorrect', ev(1)%x
+      if (abs(ev(1)%t_event - 0.25_dp) > 1.0e-6_dp) then
+         write (*, *) 'ERROR: context event time incorrect', ev(1)%t_event
          test_failed = .true.
       end if
    end subroutine test_context_event

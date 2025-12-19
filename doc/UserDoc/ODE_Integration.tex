@@ -7,4 +7,5 @@ $g(x, y)$. Events trigger on sign changes of $g$ over an accepted step.
 Direction filtering is controlled with \texttt{direction} values of $-1$
 falling, $0$ both, or $+1$ rising. If \texttt{terminal} is set on an
 event, the integrator returns at the root and the solution is provided at
-the event location.
+the event location. Results are returned in \texttt{triggered} and
+\texttt{t\_event}.
