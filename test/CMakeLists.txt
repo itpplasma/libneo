@@ -138,6 +138,12 @@ target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate.x source/test_batch_interpolate.f90)
 target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_many.x source/test_batch_interpolate_many.f90)
+target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
+
+add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
+target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
+
 add_executable(test_vmec_modules.x source/test_vmec_modules.f90)
 target_link_libraries(test_vmec_modules.x neo)
 
@@ -177,6 +183,8 @@ add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
+add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
+add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
 add_test(NAME test_transport COMMAND test_transport.x)
 add_test(NAME test_vmec_modules COMMAND test_vmec_modules.x)
@@ -184,6 +192,19 @@ add_test(NAME test_coordinate_systems COMMAND test_coordinate_systems.x)
 # add_test(NAME test_analytical_gs_circular COMMAND test_analytical_gs_circular.x)  # TODO: update for new interface
 add_test(NAME test_analytical_circular COMMAND test_analytical_circular.x)
 add_test(NAME test_nctools_nc_get3 COMMAND test_nctools_nc_get3.x)
+
+# These tests use fixed relative paths ../../test/resources/... in the sources.
+# Run them from ${CMAKE_SOURCE_DIR}/test/source so those paths resolve to
+# ${CMAKE_SOURCE_DIR}/test/resources/...
+set_tests_properties(test_boozer_class PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
+)
+set_tests_properties(test_efit_class PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
+)
+set_tests_properties(test_geqdsk_tools PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
+)
 
 add_test(
   NAME test_ascot5_compare

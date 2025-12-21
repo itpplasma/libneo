@@ -27,6 +27,10 @@ program test_interpolate
     call test_spline_3d(spline_order=[3,5,3], periodic=[.False., .True.,.True.])
     call test_spline_3d(spline_order=[3,3,3], periodic=[.True., .True., .True.])
 
+    call test_periodic_wrap_1d()
+    call test_periodic_wrap_2d()
+    call test_periodic_wrap_3d()
+
     call bench_spline_1d
 
 contains
@@ -121,6 +125,39 @@ contains
         call destroy_splines_1d(spl)
 
     end subroutine test_spline_1d
+
+
+    subroutine test_periodic_wrap_1d()
+        use interpolate
+
+        integer, parameter :: N_POINTS = 100
+        integer, parameter :: spline_order = 5
+        logical, parameter :: periodic = .True.
+
+        real(dp), dimension(N_POINTS) :: x, y
+        real(dp) :: x_eval, x_wrap, period
+        real(dp) :: expected, actual
+
+        type(SplineData1D) :: spl
+
+        print *, "Testing 1D periodic wrap with nonzero x_min..."
+
+        call linspace(X_MIN, X_MAX, N_POINTS, x)
+        y = cos(x)
+
+        call construct_splines_1d(X_MIN, X_MAX, y, spline_order, periodic, spl)
+
+        period = X_MAX - X_MIN
+        x_wrap = x(37)
+        x_eval = x_wrap - period
+
+        expected = cos(x_wrap)
+
+        call evaluate_splines_1d(spl, x_eval, actual)
+        if (abs(expected - actual) > TOL_EXACT) error stop
+
+        call destroy_splines_1d(spl)
+    end subroutine test_periodic_wrap_1d
 
 
     subroutine test_spline_2d(spline_order, periodic)
@@ -244,5 +281,103 @@ contains
             call destroy_splines_3d(spl)
 
         end subroutine test_spline_3d
+
+
+    subroutine test_periodic_wrap_2d()
+        use interpolate
+
+        integer, parameter :: N_POINTS(2) = [80, 77]
+        integer, parameter :: spline_order(2) = [5, 5]
+        logical, parameter :: periodic(2) = [.True., .True.]
+
+        real(dp), allocatable :: x1(:), x2(:), y(:,:)
+        real(dp) :: x_eval(2), x_wrap(2), period(2)
+        real(dp) :: expected, actual
+        integer :: k1, k2, i1_wrap, i2_wrap
+
+        type(SplineData2D) :: spl
+
+        print *, "Testing 2D periodic wrap with nonzero x_min..."
+
+        allocate(x1(N_POINTS(1)), x2(N_POINTS(2)))
+        allocate(y(N_POINTS(1), N_POINTS(2)))
+
+        call linspace(X_MIN, X_MAX, N_POINTS(1), x1)
+        call linspace(X_MIN, X_MAX, N_POINTS(2), x2)
+
+        do k2 = 1, N_POINTS(2)
+            do k1 = 1, N_POINTS(1)
+                y(k1, k2) = cos(x1(k1))*cos(x2(k2))
+            end do
+        end do
+
+        call construct_splines_2d([X_MIN, X_MIN], [X_MAX, X_MAX], y, spline_order, periodic, spl)
+
+        period = [X_MAX - X_MIN, X_MAX - X_MIN]
+        i1_wrap = 23
+        i2_wrap = 19
+        x_wrap = [x1(i1_wrap), x2(i2_wrap)]
+        x_eval(1) = x_wrap(1) - period(1)
+        x_eval(2) = x_wrap(2) + 2.0d0*period(2)
+
+        expected = cos(x_wrap(1))*cos(x_wrap(2))
+        call evaluate_splines_2d(spl, x_eval, actual)
+        if (abs(expected - actual) > TOL_EXACT) error stop
+
+        call destroy_splines_2d(spl)
+        deallocate(x1, x2, y)
+    end subroutine test_periodic_wrap_2d
+
+
+    subroutine test_periodic_wrap_3d()
+        use interpolate
+
+        integer, parameter :: N_POINTS(3) = [41, 43, 39]
+        integer, parameter :: spline_order(3) = [5, 3, 3]
+        logical, parameter :: periodic(3) = [.True., .True., .True.]
+
+        real(dp), allocatable :: x1(:), x2(:), x3(:), y(:,:,:)
+        real(dp) :: x_eval(3), x_wrap(3), period(3)
+        real(dp) :: expected, actual
+        integer :: k1, k2, k3, i1_wrap, i2_wrap, i3_wrap
+
+        type(SplineData3D) :: spl
+
+        print *, "Testing 3D periodic wrap with nonzero x_min..."
+
+        allocate(x1(N_POINTS(1)), x2(N_POINTS(2)), x3(N_POINTS(3)))
+        allocate(y(N_POINTS(1), N_POINTS(2), N_POINTS(3)))
+
+        call linspace(X_MIN, X_MAX, N_POINTS(1), x1)
+        call linspace(X_MIN, X_MAX, N_POINTS(2), x2)
+        call linspace(X_MIN, X_MAX, N_POINTS(3), x3)
+
+        do k3 = 1, N_POINTS(3)
+            do k2 = 1, N_POINTS(2)
+                do k1 = 1, N_POINTS(1)
+                    y(k1, k2, k3) = cos(x1(k1))*cos(x2(k2))*cos(x3(k3))
+                end do
+            end do
+        end do
+
+        call construct_splines_3d([X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX], &
+            y, spline_order, periodic, spl)
+
+        period = [X_MAX - X_MIN, X_MAX - X_MIN, X_MAX - X_MIN]
+        i1_wrap = 11
+        i2_wrap = 13
+        i3_wrap = 17
+        x_wrap = [x1(i1_wrap), x2(i2_wrap), x3(i3_wrap)]
+        x_eval(1) = x_wrap(1) - period(1)
+        x_eval(2) = x_wrap(2) + period(2)
+        x_eval(3) = x_wrap(3) + 2.0d0*period(3)
+
+        expected = cos(x_wrap(1))*cos(x_wrap(2))*cos(x_wrap(3))
+        call evaluate_splines_3d(spl, x_eval, actual)
+        if (abs(expected - actual) > TOL_EXACT) error stop
+
+        call destroy_splines_3d(spl)
+        deallocate(x1, x2, x3, y)
+    end subroutine test_periodic_wrap_3d
 
 end program test_interpolate
