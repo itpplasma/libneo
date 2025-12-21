@@ -21,6 +21,8 @@ add_library(draft_interpolate STATIC
     ${LIBNEO_ROOT}/src/spl_three_to_five.f90
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_types.f90
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_1d.f90
+    ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_2d.f90
+    ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_3d.f90
 )
 target_include_directories(draft_interpolate PUBLIC ${CMAKE_Fortran_MODULE_DIRECTORY})
 target_compile_options(draft_interpolate PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-O3>)
@@ -95,4 +97,67 @@ endif()
 if(DRAFT_ENABLE_CUDA_C)
     target_link_libraries(bench_spline1d_many PRIVATE cudart stdc++)
     target_link_directories(bench_spline1d_many PRIVATE /opt/cuda/lib64 /opt/cuda/targets/x86_64-linux/lib)
+endif()
+
+add_library(draft_spline2d_many STATIC
+    src/spline2d_many_cpu.f90
+    src/spline2d_many_openacc.f90
+    src/spline2d_many_omp_target.f90
+    src/spline2d_many_cuda_fortran.cuf
+    src/spline2d_many_cuda_c_wrapper.f90
+)
+target_link_libraries(draft_spline2d_many PUBLIC draft_interpolate)
+target_compile_options(draft_spline2d_many PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-O3>)
+
+add_executable(bench_spline2d_many src/bench_spline2d_many.f90)
+target_link_libraries(bench_spline2d_many PRIVATE draft_spline2d_many draft_spline1d_many)
+target_compile_options(bench_spline2d_many PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-O3>)
+target_link_options(bench_spline2d_many PRIVATE -gpu=ccnative)
+
+if(DRAFT_ENABLE_OPENACC)
+    target_link_options(bench_spline2d_many PRIVATE -acc)
+endif()
+
+if(DRAFT_ENABLE_OMP_TARGET)
+    target_link_options(bench_spline2d_many PRIVATE -mp=gpu)
+endif()
+
+if(DRAFT_ENABLE_CUDA_FORTRAN)
+    target_link_options(bench_spline2d_many PRIVATE -cuda -cudaforlibs)
+endif()
+
+if(DRAFT_ENABLE_OPENACC)
+    set_source_files_properties(src/spline2d_many_openacc.f90 PROPERTIES
+        COMPILE_DEFINITIONS "SPLINE2D_BACKEND_OPENACC"
+        COMPILE_OPTIONS "-acc;-gpu=ccnative;-Minfo=accel"
+    )
+endif()
+
+if(DRAFT_ENABLE_OMP_TARGET)
+    set_source_files_properties(src/spline2d_many_omp_target.f90 PROPERTIES
+        COMPILE_DEFINITIONS "SPLINE2D_BACKEND_OMP_TARGET"
+        COMPILE_OPTIONS "-mp=gpu;-gpu=ccnative;-Minfo=mp"
+    )
+endif()
+
+if(DRAFT_ENABLE_CUDA_FORTRAN)
+    set_source_files_properties(src/spline2d_many_cuda_fortran.cuf PROPERTIES
+        COMPILE_OPTIONS "-cuda;-gpu=ccnative"
+    )
+endif()
+
+if(DRAFT_ENABLE_CUDA_C)
+    set(CUDA2D_C_OBJ ${CMAKE_CURRENT_BINARY_DIR}/spline2d_many_cuda.o)
+    add_custom_command(
+        OUTPUT ${CUDA2D_C_OBJ}
+        COMMAND ${NVCC_EXECUTABLE} -c -O3 -Xcompiler=-fPIC -arch=native
+                ${CMAKE_CURRENT_LIST_DIR}/src/spline2d_many_cuda.cu -o ${CUDA2D_C_OBJ}
+        DEPENDS ${CMAKE_CURRENT_LIST_DIR}/src/spline2d_many_cuda.cu
+        VERBATIM
+    )
+    add_library(draft_cuda2d_c_kernels STATIC ${CUDA2D_C_OBJ})
+    set_target_properties(draft_cuda2d_c_kernels PROPERTIES LINKER_LANGUAGE C)
+    target_link_libraries(draft_spline2d_many PUBLIC draft_cuda2d_c_kernels)
+    target_link_libraries(bench_spline2d_many PRIVATE cudart stdc++)
+    target_link_directories(bench_spline2d_many PRIVATE /opt/cuda/lib64 /opt/cuda/targets/x86_64-linux/lib)
 endif()
