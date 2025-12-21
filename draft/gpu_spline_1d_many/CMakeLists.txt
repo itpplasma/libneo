@@ -215,3 +215,13 @@ if(DRAFT_ENABLE_CUDA_C)
     target_link_libraries(bench_spline3d_many PRIVATE cudart stdc++)
     target_link_directories(bench_spline3d_many PRIVATE /opt/cuda/lib64 /opt/cuda/targets/x86_64-linux/lib)
 endif()
+
+add_library(draft_many_api STATIC
+    src/draft_batch_splines_many_api.f90
+)
+target_link_libraries(draft_many_api PUBLIC draft_spline1d_many draft_spline2d_many draft_spline3d_many)
+target_compile_options(draft_many_api PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-O3>)
+
+target_link_libraries(bench_spline1d_many PRIVATE draft_many_api)
+target_link_libraries(bench_spline2d_many PRIVATE draft_many_api)
+target_link_libraries(bench_spline3d_many PRIVATE draft_many_api)

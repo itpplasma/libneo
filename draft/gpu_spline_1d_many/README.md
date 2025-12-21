@@ -33,6 +33,9 @@ All implementations are in double precision (`real(dp)` / CUDA `double`).
 
 Sources live in `draft/gpu_spline_1d_many/src/`.
 
+Note: the CUDA Fortran sources (`*.cuf`) intentionally should not be run through `fprettify`,
+because it can break the CUDA kernel launch syntax (`<<< >>>`).
+
 ## Build and run
 
 This draft project expects NVHPC compilers and a CUDA toolkit available at `/opt/cuda`.

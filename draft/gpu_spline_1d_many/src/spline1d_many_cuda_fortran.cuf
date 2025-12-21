@@ -44,6 +44,7 @@ contains
         real(dp) :: period, xj, x_norm, x_local
         real(dp) :: t, w
         integer :: stride_k, stride_i
+        integer :: k_wrap
 
         ipt = (blockIdx%x - 1)*blockDim%x + threadIdx%x
         if (ipt > npts) return
@@ -51,7 +52,9 @@ contains
         period = h_step*real(num_points - 1, dp)
         if (periodic_int == 1) then
             t = x(ipt) - x_min
-            w = t - floor(t/period)*period
+            k_wrap = int(t/period)
+            w = t - real(k_wrap, dp)*period
+            if (w < 0.0d0) w = w + period
             xj = w + x_min
         else
             xj = x(ipt)
@@ -92,7 +95,6 @@ contains
         real(dp), intent(in) :: coeff(num_quantities, 0:order, num_points)
         real(dp), intent(in) :: x(:)
 
-        real(dp), allocatable :: coeff_flat(:)
         integer :: ncoeff
 
         if (order < 0) error stop
@@ -112,11 +114,8 @@ contains
         cached_h_step = h_step
 
         ncoeff = num_quantities*(order + 1)*num_points
-        allocate (coeff_flat(ncoeff))
-        coeff_flat = reshape(coeff, [ncoeff])
-
         allocate (coeff_dev(ncoeff))
-        coeff_dev = coeff_flat
+        coeff_dev = reshape(coeff, [ncoeff])
 
         allocate (x_dev(size(x)))
         x_dev = x
@@ -149,9 +148,10 @@ contains
         grid = dim3(grid_x, 1, 1)
 
         call spline1d_many_kernel<<<grid, block>>>( &
-            cached_order, cached_num_points, cached_num_quantities, cached_periodic_int, &
+            cached_order, cached_num_points, cached_num_quantities, &
+            cached_periodic_int, &
             cached_x_min, cached_h_step, coeff_dev, x_dev, y_dev, npts_local &
-        )
+            )
         ierr = cudaDeviceSynchronize()
         if (ierr /= 0) error stop
     end subroutine spline1d_many_cuda_fortran_eval_device

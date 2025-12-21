@@ -1,7 +1,9 @@
 program bench_spline1d_many
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
+    use, intrinsic :: iso_c_binding, only: c_ptr, c_loc, c_f_pointer
     use batch_interpolate_types, only: BatchSplineData1D
     use batch_interpolate_1d, only: construct_batch_splines_1d, destroy_batch_splines_1d
+    use draft_batch_splines_many_api, only: evaluate_batch_splines_1d_many
     use spline1d_many_cpu, only: spline1d_many_cpu_eval
     use spline1d_many_openacc, only: spline1d_many_openacc_setup, &
                                      spline1d_many_openacc_teardown, &
@@ -33,7 +35,9 @@ program bench_spline1d_many
     type(BatchSplineData1D) :: spl
     real(dp), allocatable :: y_batch(:)
     real(dp), allocatable :: x_eval(:)
-    real(dp), allocatable :: y_ref(:)
+    real(dp), allocatable, target :: y_ref(:)
+    real(dp), pointer :: y_ref2d(:, :)
+    type(c_ptr) :: y_ref_ptr
 
     real(dp), allocatable :: x_grid(:)
     real(dp), allocatable :: y_grid(:, :)
@@ -68,9 +72,9 @@ program bench_spline1d_many
         x_eval(ip) = x_min + (x_max - x_min)*lcg_uniform_0_1(rng)
     end do
 
-    call spline1d_many_cpu_eval(spl%order, spl%num_points, spl%num_quantities, &
-                                spl%periodic, &
-                                spl%x_min, spl%h_step, spl%coeff, x_eval, y_ref)
+    y_ref_ptr = c_loc(y_ref(1))
+    call c_f_pointer(y_ref_ptr, y_ref2d, [spl%num_quantities, npts])
+    call evaluate_batch_splines_1d_many(spl, x_eval, y_ref2d)
 
     print *, "Benchmark parameters"
     print *, "order         ", order

@@ -25,10 +25,13 @@ module spline2d_many_cuda_fortran
 
 contains
 
-    attributes(global) subroutine spline2d_many_kernel(order1, order2, n1, n2, nq, periodic1, &
-                                                       periodic2, x_min1, x_min2, h1, h2, &
+    attributes(global) subroutine spline2d_many_kernel(order1, order2, n1, n2, nq, &
+                                                       periodic1, &
+                                                       periodic2, x_min1, &
+                                                       x_min2, h1, h2, &
                                                        coeff, x, y, npts)
-        integer, value, intent(in) :: order1, order2, n1, n2, nq, periodic1, periodic2, npts
+        integer, value, intent(in) :: order1, order2, n1, n2, nq, periodic1, &
+                                      periodic2, npts
         real(dp), value, intent(in) :: x_min1, x_min2, h1, h2
         real(dp), device, intent(in) :: coeff(*)
         real(dp), device, intent(in) :: x(*)
@@ -38,62 +41,68 @@ contains
         integer :: stride_k1, stride_k2, stride_i1, stride_i2
         real(dp) :: period1, period2, xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
         real(dp) :: t, w, v, yq
+        integer :: k_wrap
 
-        ipt = (blockIdx%x - 1) * blockDim%x + threadIdx%x
+        ipt = (blockIdx%x - 1)*blockDim%x + threadIdx%x
         if (ipt > npts) return
 
-        period1 = h1 * real(n1 - 1, dp)
-        period2 = h2 * real(n2 - 1, dp)
+        period1 = h1*real(n1 - 1, dp)
+        period2 = h2*real(n2 - 1, dp)
 
-        xj1 = x(2 * ipt - 1)
-        xj2 = x(2 * ipt)
+        xj1 = x(2*ipt - 1)
+        xj2 = x(2*ipt)
         if (periodic1 == 1) then
             t = xj1 - x_min1
-            w = t - floor(t / period1) * period1
+            k_wrap = int(t/period1)
+            w = t - real(k_wrap, dp)*period1
+            if (w < 0.0d0) w = w + period1
             xj1 = w + x_min1
         end if
         if (periodic2 == 1) then
             t = xj2 - x_min2
-            w = t - floor(t / period2) * period2
+            k_wrap = int(t/period2)
+            w = t - real(k_wrap, dp)*period2
+            if (w < 0.0d0) w = w + period2
             xj2 = w + x_min2
         end if
 
-        x_norm1 = (xj1 - x_min1) / h1
-        x_norm2 = (xj2 - x_min2) / h2
+        x_norm1 = (xj1 - x_min1)/h1
+        x_norm2 = (xj2 - x_min2)/h2
         i1 = int(x_norm1)
         i2 = int(x_norm2)
         if (i1 < 0) i1 = 0
         if (i1 > n1 - 2) i1 = n1 - 2
         if (i2 < 0) i2 = 0
         if (i2 > n2 - 2) i2 = n2 - 2
-        x_local1 = (x_norm1 - real(i1, dp)) * h1
-        x_local2 = (x_norm2 - real(i2, dp)) * h2
+        x_local1 = (x_norm1 - real(i1, dp))*h1
+        x_local2 = (x_norm2 - real(i2, dp))*h2
 
         stride_k1 = nq
-        stride_k2 = nq * (order1 + 1)
-        stride_i1 = nq * (order1 + 1) * (order2 + 1)
-        stride_i2 = stride_i1 * n1
+        stride_k2 = nq*(order1 + 1)
+        stride_i1 = nq*(order1 + 1)*(order2 + 1)
+        stride_i2 = stride_i1*n1
 
-        base = i1 * stride_i1 + i2 * stride_i2
+        base = i1*stride_i1 + i2*stride_i2
 
         do iq = 1, nq
-            v = coeff(base + (order2 * stride_k2) + (order1 * stride_k1) + iq)
+            v = coeff(base + (order2*stride_k2) + (order1*stride_k1) + iq)
             do k1 = order1 - 1, 0, -1
-                v = coeff(base + (order2 * stride_k2) + (k1 * stride_k1) + iq) + x_local1 * v
+                v = coeff(base + (order2*stride_k2) + (k1*stride_k1) + iq) + x_local1*v
             end do
             yq = v
             do k2 = order2 - 1, 0, -1
-                v = coeff(base + (k2 * stride_k2) + (order1 * stride_k1) + iq)
+                v = coeff(base + (k2*stride_k2) + (order1*stride_k1) + iq)
                 do k1 = order1 - 1, 0, -1
-                    v = coeff(base + (k2 * stride_k2) + (k1 * stride_k1) + iq) + x_local1 * v
+                    v = coeff(base + (k2*stride_k2) + (k1*stride_k1) + iq) + x_local1*v
                 end do
-                yq = v + x_local2 * yq
+                yq = v + x_local2*yq
             end do
-            y((ipt - 1) * nq + iq) = yq
+            y((ipt - 1)*nq + iq) = yq
         end do
     end subroutine spline2d_many_kernel
 
-    subroutine spline2d_many_cuda_fortran_setup(order, num_points, nq, periodic, x_min, h_step, &
+    subroutine spline2d_many_cuda_fortran_setup(order, num_points, nq, periodic, &
+                                                x_min, h_step, &
                                                 coeff, x)
         integer, intent(in) :: order(2)
         integer, intent(in) :: num_points(2)
@@ -101,11 +110,11 @@ contains
         logical, intent(in) :: periodic(2)
         real(dp), intent(in) :: x_min(2)
         real(dp), intent(in) :: h_step(2)
-        real(dp), intent(in) :: coeff(nq, 0:order(1), 0:order(2), num_points(1), num_points(2))
+        real(dp), intent(in) :: coeff(nq, 0:order(1), 0:order(2), num_points(1), &
+                                      num_points(2))
         real(dp), intent(in) :: x(:, :)
 
         integer :: ncoeff
-        real(dp), allocatable :: coeff_flat(:)
 
         cached_order = order
         cached_num_points = num_points
@@ -113,27 +122,18 @@ contains
         cached_npts = size(x, 2)
         cached_x_min = x_min
         cached_h_step = h_step
-        if (periodic(1)) then
-            cached_periodic_int(1) = 1
-        else
-            cached_periodic_int(1) = 0
-        end if
-        if (periodic(2)) then
-            cached_periodic_int(2) = 1
-        else
-            cached_periodic_int(2) = 0
-        end if
+        cached_periodic_int = 0
+        if (periodic(1)) cached_periodic_int(1) = 1
+        if (periodic(2)) cached_periodic_int(2) = 1
 
-        ncoeff = nq * (order(1) + 1) * (order(2) + 1) * num_points(1) * num_points(2)
-        allocate (coeff_flat(ncoeff))
-        coeff_flat = reshape(coeff, [ncoeff])
+        ncoeff = nq*(order(1) + 1)*(order(2) + 1)*num_points(1)*num_points(2)
         allocate (coeff_dev(ncoeff))
-        coeff_dev = coeff_flat
+        coeff_dev = reshape(coeff, [ncoeff])
 
-        allocate (x_dev(2 * size(x, 2)))
-        x_dev = reshape(x, [2 * size(x, 2)])
+        allocate (x_dev(2*size(x, 2)))
+        x_dev = reshape(x, [2*size(x, 2)])
 
-        allocate (y_dev(nq * size(x, 2)))
+        allocate (y_dev(nq*size(x, 2)))
         y_dev = 0.0d0
 
         is_setup = .true.
@@ -154,14 +154,17 @@ contains
         if (.not. is_setup) error stop
 
         block_x = 256
-        grid_x = (cached_npts + block_x - 1) / block_x
+        grid_x = (cached_npts + block_x - 1)/block_x
         block = dim3(block_x, 1, 1)
         grid = dim3(grid_x, 1, 1)
 
         call spline2d_many_kernel<<<grid, block>>>(cached_order(1), cached_order(2), &
-            cached_num_points(1), cached_num_points(2), cached_num_quantities, &
-            cached_periodic_int(1), cached_periodic_int(2), cached_x_min(1), cached_x_min(2), &
-            cached_h_step(1), cached_h_step(2), coeff_dev, x_dev, y_dev, cached_npts)
+                                                   cached_num_points(1), cached_num_points(2), &
+                                                   cached_num_quantities, cached_periodic_int(1), &
+                                                   cached_periodic_int(2), cached_x_min(1), &
+                                                   cached_x_min(2), cached_h_step(1), &
+                                                   cached_h_step(2), coeff_dev, x_dev, y_dev, &
+                                                   cached_npts)
         ierr = cudaDeviceSynchronize()
         if (ierr /= 0) error stop
     end subroutine spline2d_many_cuda_fortran_eval_device
