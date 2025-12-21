@@ -1,44 +1,51 @@
-module spline3d_many_openacc
+module spline3d_many_offload
     use, intrinsic :: iso_fortran_env, only: dp => real64
     implicit none
     private
 
-    public :: spline3d_many_openacc_setup
-    public :: spline3d_many_openacc_teardown
-    public :: spline3d_many_openacc_eval_host
-    public :: spline3d_many_openacc_eval_resident
+    public :: spline3d_many_setup
+    public :: spline3d_many_teardown
+    public :: spline3d_many_eval_host
+    public :: spline3d_many_eval_resident
 
     logical :: is_setup = .false.
 
 contains
 
-    subroutine spline3d_many_openacc_setup(coeff, x, y)
+    subroutine spline3d_many_setup(coeff, x, y)
         real(dp), intent(in) :: coeff(:, :, :, :, :, :, :)
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(inout) :: y(:)
 
         if (is_setup) return
+#if defined(LIBNEO_ENABLE_OPENACC)
         !$acc enter data copyin(coeff)
         !$acc enter data copyin(x)
         !$acc enter data create(y)
+#elif defined(LIBNEO_ENABLE_OPENMP)
+        !$omp target enter data map(to: coeff, x) map(alloc: y)
+#endif
         is_setup = .true.
-    end subroutine spline3d_many_openacc_setup
+    end subroutine spline3d_many_setup
 
-    subroutine spline3d_many_openacc_teardown(coeff, x, y)
+    subroutine spline3d_many_teardown(coeff, x, y)
         real(dp), intent(in) :: coeff(:, :, :, :, :, :, :)
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(inout) :: y(:)
 
         if (.not. is_setup) return
+#if defined(LIBNEO_ENABLE_OPENACC)
         !$acc exit data delete(y)
         !$acc exit data delete(x)
         !$acc exit data delete(coeff)
+#elif defined(LIBNEO_ENABLE_OPENMP)
+        !$omp target exit data map(delete: y, x, coeff)
+#endif
         is_setup = .false.
-    end subroutine spline3d_many_openacc_teardown
+    end subroutine spline3d_many_teardown
 
-    pure subroutine spline3d_many_openacc_eval_host(order, num_points, num_quantities, &
-                                                    periodic, &
-                                                    x_min, h_step, coeff, x, y)
+    pure subroutine spline3d_many_eval_host(order, num_points, num_quantities, periodic, &
+                                            x_min, h_step, coeff, x, y)
         integer, intent(in) :: order(3)
         integer, intent(in) :: num_points(3)
         integer, intent(in) :: num_quantities
@@ -78,11 +85,10 @@ contains
         do ipt = 1, npts
             include "spline3d_many_point_body.inc"
         end do
-    end subroutine spline3d_many_openacc_eval_host
+    end subroutine spline3d_many_eval_host
 
-    subroutine spline3d_many_openacc_eval_resident(order, num_points, num_quantities, &
-                                                   periodic, &
-                                                   x_min, h_step, coeff, x, y)
+    subroutine spline3d_many_eval_resident(order, num_points, num_quantities, periodic, &
+                                           x_min, h_step, coeff, x, y)
         integer, intent(in) :: order(3)
         integer, intent(in) :: num_points(3)
         integer, intent(in) :: num_quantities
@@ -95,7 +101,9 @@ contains
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(inout) :: y(num_quantities*size(x, 2))
 
+        integer, parameter :: threads_per_team = 256
         integer :: ipt, iq, k1, k2, k3, i1, i2, i3, base, k_wrap
+        integer :: nteams
         integer :: periodic_int(3)
         integer :: npts, order1, order2, order3
         real(dp) :: xj1, xj2, xj3, x_norm1, x_norm2, x_norm3
@@ -118,6 +126,7 @@ contains
         period(2) = h_step(2)*real(num_points(2) - 1, dp)
         period(3) = h_step(3)*real(num_points(3) - 1, dp)
 
+#if defined(LIBNEO_ENABLE_OPENACC)
         !$acc parallel loop present(coeff, x, y) &
         !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, base, xj1, xj2, xj3) &
         !$acc& private(x_norm1, x_norm2, x_norm3, x_local1, x_local2, x_local3) &
@@ -126,6 +135,23 @@ contains
             include "spline3d_many_point_body.inc"
         end do
         !$acc end parallel loop
-    end subroutine spline3d_many_openacc_eval_resident
+#elif defined(LIBNEO_ENABLE_OPENMP)
+        nteams = (npts + threads_per_team - 1)/threads_per_team
+        !$omp target teams thread_limit(threads_per_team) num_teams(nteams)
+        !$omp distribute parallel do simd &
+        !$omp& private(iq, k1, k2, k3, i1, i2, i3, base, xj1, xj2, xj3) &
+        !$omp& private(x_norm1, x_norm2, x_norm3, x_local1, x_local2, x_local3) &
+        !$omp& private(t, w, v, w2, yq, k_wrap)
+        do ipt = 1, npts
+            include "spline3d_many_point_body.inc"
+        end do
+        !$omp end distribute parallel do simd
+        !$omp end target teams
+#else
+        do ipt = 1, npts
+            include "spline3d_many_point_body.inc"
+        end do
+#endif
+    end subroutine spline3d_many_eval_resident
 
-end module spline3d_many_openacc
+end module spline3d_many_offload

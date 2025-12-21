@@ -3,9 +3,9 @@ module draft_batch_splines_many_api
     use, intrinsic :: iso_c_binding, only: c_ptr, c_loc, c_f_pointer
     use batch_interpolate_types, only: BatchSplineData1D, BatchSplineData2D, &
                                        BatchSplineData3D
-    use spline1d_many_openacc, only: spline1d_many_openacc_eval_host
-    use spline2d_many_openacc, only: spline2d_many_openacc_eval_host
-    use spline3d_many_openacc, only: spline3d_many_openacc_eval_host
+    use spline1d_many_offload, only: spline1d_many_eval_host
+    use spline2d_many_offload, only: spline2d_many_eval_host
+    use spline3d_many_offload, only: spline3d_many_eval_host
     implicit none
     private
 
@@ -32,11 +32,9 @@ contains
         y_ptr = c_loc(y(1, 1))
         call c_f_pointer(y_ptr, y_flat, [nq*npts])
 
-        call spline1d_many_openacc_eval_host(spl%order, spl%num_points, &
-                                             spl%num_quantities, &
-                                             spl%periodic, spl%x_min, spl%h_step, &
-                                             spl%coeff, x, &
-                                             y_flat)
+        call spline1d_many_eval_host(spl%order, spl%num_points, spl%num_quantities, &
+                                     spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                     x, y_flat)
     end subroutine evaluate_batch_splines_1d_many
 
     subroutine evaluate_batch_splines_2d_many(spl, x, y)
@@ -57,11 +55,9 @@ contains
         y_ptr = c_loc(y(1, 1))
         call c_f_pointer(y_ptr, y_flat, [nq*npts])
 
-        call spline2d_many_openacc_eval_host(spl%order, spl%num_points, &
-                                             spl%num_quantities, &
-                                             spl%periodic, spl%x_min, spl%h_step, &
-                                             spl%coeff, x, &
-                                             y_flat)
+        call spline2d_many_eval_host(spl%order, spl%num_points, spl%num_quantities, &
+                                     spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                     x, y_flat)
     end subroutine evaluate_batch_splines_2d_many
 
     subroutine evaluate_batch_splines_3d_many(spl, x, y)
@@ -82,11 +78,9 @@ contains
         y_ptr = c_loc(y(1, 1))
         call c_f_pointer(y_ptr, y_flat, [nq*npts])
 
-        call spline3d_many_openacc_eval_host(spl%order, spl%num_points, &
-                                             spl%num_quantities, &
-                                             spl%periodic, spl%x_min, spl%h_step, &
-                                             spl%coeff, x, &
-                                             y_flat)
+        call spline3d_many_eval_host(spl%order, spl%num_points, spl%num_quantities, &
+                                     spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                     x, y_flat)
     end subroutine evaluate_batch_splines_3d_many
 
 end module draft_batch_splines_many_api

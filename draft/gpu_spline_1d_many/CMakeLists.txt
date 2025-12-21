@@ -8,6 +8,10 @@ option(DRAFT_ENABLE_OPENACC "Enable OpenACC directives" ON)
 set(DRAFT_OPENACC_OFFLOAD "none" CACHE STRING "OpenACC offload target for GNU (none|nvptx)")
 set_property(CACHE DRAFT_OPENACC_OFFLOAD PROPERTY STRINGS none nvptx)
 
+option(DRAFT_ENABLE_OPENMP "Enable OpenMP target offload directives" OFF)
+set(DRAFT_OPENMP_OFFLOAD "none" CACHE STRING "OpenMP offload target for GNU (none|nvptx)")
+set_property(CACHE DRAFT_OPENMP_OFFLOAD PROPERTY STRINGS none nvptx)
+
 set(DRAFT_ROOT ${CMAKE_CURRENT_LIST_DIR})
 set(LIBNEO_ROOT ${DRAFT_ROOT}/../..)
 
@@ -31,6 +35,9 @@ endif()
 set(DRAFT_OPENACC_FFLAGS "")
 set(DRAFT_OPENACC_LDFLAGS "")
 if(DRAFT_ENABLE_OPENACC)
+    if(DRAFT_ENABLE_OPENMP)
+        message(FATAL_ERROR "DRAFT_ENABLE_OPENACC and DRAFT_ENABLE_OPENMP are mutually exclusive")
+    endif()
     if(DRAFT_FORTRAN_IS_NVHPC)
         list(APPEND DRAFT_OPENACC_FFLAGS -acc -Minfo=accel)
         list(APPEND DRAFT_OPENACC_LDFLAGS -acc)
@@ -47,6 +54,25 @@ if(DRAFT_ENABLE_OPENACC)
     endif()
 endif()
 
+set(DRAFT_OPENMP_FFLAGS "")
+set(DRAFT_OPENMP_LDFLAGS "")
+if(DRAFT_ENABLE_OPENMP)
+    if(DRAFT_FORTRAN_IS_NVHPC)
+        list(APPEND DRAFT_OPENMP_FFLAGS -mp=gpu -Minfo=mp)
+        list(APPEND DRAFT_OPENMP_LDFLAGS -mp=gpu)
+        list(APPEND DRAFT_OPENMP_LDFLAGS -gpu=ccnative)
+    elseif(DRAFT_FORTRAN_IS_GNU)
+        list(APPEND DRAFT_OPENMP_FFLAGS -fopenmp)
+        list(APPEND DRAFT_OPENMP_LDFLAGS -fopenmp)
+        if(DRAFT_OPENMP_OFFLOAD STREQUAL "nvptx")
+            list(APPEND DRAFT_OPENMP_FFLAGS -foffload=nvptx-none)
+            list(APPEND DRAFT_OPENMP_LDFLAGS -foffload=nvptx-none)
+        elseif(NOT DRAFT_OPENMP_OFFLOAD STREQUAL "none")
+            message(FATAL_ERROR "Invalid DRAFT_OPENMP_OFFLOAD='${DRAFT_OPENMP_OFFLOAD}' (expected none|nvptx)")
+        endif()
+    endif()
+endif()
+
 add_library(draft_build_flags INTERFACE)
 target_compile_options(draft_build_flags INTERFACE
     $<$<COMPILE_LANGUAGE:Fortran>:${DRAFT_COMMON_FFLAGS}>
@@ -57,6 +83,12 @@ if(DRAFT_ENABLE_OPENACC)
     target_compile_definitions(draft_build_flags INTERFACE LIBNEO_ENABLE_OPENACC=1)
     target_compile_options(draft_build_flags INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${DRAFT_OPENACC_FFLAGS}>)
     target_link_options(draft_build_flags INTERFACE ${DRAFT_OPENACC_LDFLAGS})
+endif()
+
+if(DRAFT_ENABLE_OPENMP)
+    target_compile_definitions(draft_build_flags INTERFACE LIBNEO_ENABLE_OPENMP=1)
+    target_compile_options(draft_build_flags INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${DRAFT_OPENMP_FFLAGS}>)
+    target_link_options(draft_build_flags INTERFACE ${DRAFT_OPENMP_LDFLAGS})
 endif()
 
 add_library(draft_interpolate STATIC
@@ -70,7 +102,7 @@ target_include_directories(draft_interpolate PUBLIC ${CMAKE_Fortran_MODULE_DIREC
 target_link_libraries(draft_interpolate PUBLIC draft_build_flags)
 
 add_library(draft_spline1d_many STATIC
-    src/spline1d_many_openacc.f90
+    src/spline1d_many_offload.f90
     src/util_lcg_rng.f90
 )
 target_link_libraries(draft_spline1d_many PUBLIC draft_interpolate)
@@ -79,7 +111,7 @@ add_executable(bench_spline1d_many src/bench_spline1d_many.f90)
 target_link_libraries(bench_spline1d_many PRIVATE draft_spline1d_many)
 
 add_library(draft_spline2d_many STATIC
-    src/spline2d_many_openacc.f90
+    src/spline2d_many_offload.f90
 )
 target_link_libraries(draft_spline2d_many PUBLIC draft_interpolate)
 
@@ -87,7 +119,7 @@ add_executable(bench_spline2d_many src/bench_spline2d_many.f90)
 target_link_libraries(bench_spline2d_many PRIVATE draft_spline2d_many draft_spline1d_many)
 
 add_library(draft_spline3d_many STATIC
-    src/spline3d_many_openacc.f90
+    src/spline3d_many_offload.f90
 )
 target_link_libraries(draft_spline3d_many PUBLIC draft_interpolate)
 

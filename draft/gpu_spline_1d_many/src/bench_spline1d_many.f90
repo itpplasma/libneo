@@ -4,10 +4,10 @@ program bench_spline1d_many
     use batch_interpolate_types, only: BatchSplineData1D
     use batch_interpolate_1d, only: construct_batch_splines_1d, destroy_batch_splines_1d
     use draft_batch_splines_many_api, only: evaluate_batch_splines_1d_many
-    use spline1d_many_openacc, only: spline1d_many_openacc_setup, &
-                                     spline1d_many_openacc_teardown, &
-                                     spline1d_many_openacc_eval_host, &
-                                     spline1d_many_openacc_eval_resident
+    use spline1d_many_offload, only: spline1d_many_setup, &
+                                     spline1d_many_teardown, &
+                                     spline1d_many_eval_host, &
+                                     spline1d_many_eval_resident
     use util_lcg_rng, only: lcg_state_t, lcg_init, lcg_uniform_0_1
     implicit none
 
@@ -74,6 +74,8 @@ program bench_spline1d_many
     call bench_cpu(spl, x_eval, y_batch, y_ref)
 #if defined(LIBNEO_ENABLE_OPENACC)
     call bench_openacc(spl, x_eval, y_batch, y_ref)
+#elif defined(LIBNEO_ENABLE_OPENMP)
+    call bench_openmp(spl, x_eval, y_batch, y_ref)
 #endif
 
     call destroy_batch_splines_1d(spl)
@@ -98,12 +100,10 @@ contains
         best = huge(1.0d0)
         do it = 1, niter
             tstart = wall_time()
-            call spline1d_many_openacc_eval_host(spl_local%order, &
-                                                 spl_local%num_points, &
-                                                 spl_local%num_quantities, &
-                                                 spl_local%periodic, &
-                                                 spl_local%x_min, spl_local%h_step, &
-                                                 spl_local%coeff, x, y)
+            call spline1d_many_eval_host(spl_local%order, spl_local%num_points, &
+                                         spl_local%num_quantities, spl_local%periodic, &
+                                         spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                         x, y)
             tend = wall_time()
             dt = tend - tstart
             best = min(best, dt)
@@ -123,26 +123,20 @@ contains
         integer :: it
         real(dp) :: tstart, tend, dt
 
-        call spline1d_many_openacc_setup(spl_local%coeff, x, y)
-        call spline1d_many_openacc_eval_resident(spl_local%order, &
-                                                 spl_local%num_points, &
-                                                 spl_local%num_quantities, &
-                                                 spl_local%periodic, &
-                                                 spl_local%x_min, &
-                                                 spl_local%h_step, &
-                                                 spl_local%coeff, x, y)
+        call spline1d_many_setup(spl_local%coeff, x, y)
+        call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
+                                         spl_local%num_quantities, spl_local%periodic, &
+                                         spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                         x, y)
         !$acc wait
 
         best = huge(1.0d0)
         do it = 1, niter
             tstart = wall_time()
-            call spline1d_many_openacc_eval_resident(spl_local%order, &
-                                                     spl_local%num_points, &
-                                                     spl_local%num_quantities, &
-                                                     spl_local%periodic, &
-                                                     spl_local%x_min, &
-                                                     spl_local%h_step, &
-                                                     spl_local%coeff, x, y)
+            call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
+                                             spl_local%num_quantities, spl_local%periodic, &
+                                             spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                             x, y)
             !$acc wait
             tend = wall_time()
             dt = tend - tstart
@@ -154,7 +148,42 @@ contains
         print *, "openacc best_s ", best, " pts_per_s ", real(size(x), dp)/best, &
             " max_abs_diff ", diff_max
 
-        call spline1d_many_openacc_teardown(spl_local%coeff, x, y)
+        call spline1d_many_teardown(spl_local%coeff, x, y)
     end subroutine bench_openacc
+
+    subroutine bench_openmp(spl_local, x, y, y_expected)
+        type(BatchSplineData1D), intent(in) :: spl_local
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(inout) :: y(:)
+        real(dp), intent(in) :: y_expected(:)
+
+        integer :: it
+        real(dp) :: tstart, tend, dt
+
+        call spline1d_many_setup(spl_local%coeff, x, y)
+        call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
+                                         spl_local%num_quantities, spl_local%periodic, &
+                                         spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                         x, y)
+
+        best = huge(1.0d0)
+        do it = 1, niter
+            tstart = wall_time()
+            call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
+                                             spl_local%num_quantities, spl_local%periodic, &
+                                             spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                             x, y)
+            tend = wall_time()
+            dt = tend - tstart
+            best = min(best, dt)
+        end do
+
+        !$omp target update from(y)
+        diff_max = maxval(abs(y - y_expected))
+        print *, "openmp best_s ", best, " pts_per_s ", real(size(x), dp)/best, &
+            " max_abs_diff ", diff_max
+
+        call spline1d_many_teardown(spl_local%coeff, x, y)
+    end subroutine bench_openmp
 
 end program bench_spline1d_many

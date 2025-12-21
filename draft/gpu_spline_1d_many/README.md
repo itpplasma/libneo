@@ -3,7 +3,7 @@
 This folder is an isolated draft benchmark for the GPU-ready API work discussed in issue
 `itpplasma/libneo#199`. It does **not** modify libneo production code; it reuses the
 existing batch spline coefficient layouts (`BatchSplineData{1D,2D,3D}`) and benchmarks
-an OpenACC implementation for evaluating many points per call.
+one shared Fortran kernel compiled in different modes (CPU / OpenACC / OpenMP target).
 
 This is intentionally targeting the missing API shape in libneo today:
 - existing: batch-over-quantities at a single point (`evaluate_batch_splines_*`)
@@ -25,9 +25,10 @@ All implementations are in double precision (`real(dp)`).
 
 ## Implementations (alternatives)
 
-- One code path that runs on CPU and can be accelerated with OpenACC:
+- One shared Fortran kernel compiled in different modes:
   - CPU: plain Fortran loop (same routine)
   - OpenACC: offload via NVHPC `nvfortran -acc` or GNU `gfortran -fopenacc`
+  - OpenMP target: offload via NVHPC `nvfortran -mp=gpu` or GNU `gfortran -fopenmp`
 
 Sources live in `draft/gpu_spline_1d_many/src/`.
 
@@ -65,9 +66,16 @@ ACC_DEVICE_TYPE=host   /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
 ACC_DEVICE_TYPE=nvidia /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
 ```
 
+### OpenMP target device selection
+
+```bash
+OMP_TARGET_OFFLOAD=DISABLED  /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
+OMP_TARGET_OFFLOAD=MANDATORY /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
+```
+
 ## Automated benchmark matrix
 
-Run the full matrix (CPU vs OpenACC host vs OpenACC GPU; nvfortran vs gfortran; 1D/2D/3D):
+Run the full matrix (CPU, OpenACC host/GPU, OpenMP host/GPU; nvfortran vs gfortran; 1D/2D/3D):
 
 ```bash
 ./draft/gpu_spline_1d_many/run_benchmarks.sh
@@ -87,31 +95,43 @@ On this machine (RTX 5060 Ti, driver 590.48.01), running:
 
 produced the following best times (Fortran compiled with `-O3` in this draft CMake project):
 
-From `/tmp/libneo_gpu_spline_matrix_run_ert_2025-12-21_final.log` (matrix run; `pts_per_s`):
+From `/tmp/libneo_gpu_spline_matrix_with_openmp_2025-12-21_v6.log` (matrix run; `pts_per_s`):
 
 ```
-nvfortran cpu          1d 4.57e7    nvfortran openacc_host 1d 4.56e7    nvfortran openacc_gpu 1d 8.05e8
-nvfortran cpu          2d 8.08e6    nvfortran openacc_host 2d 8.12e6    nvfortran openacc_gpu 2d 5.41e8
-nvfortran cpu          3d 3.01e6    nvfortran openacc_host 3d 3.02e6    nvfortran openacc_gpu 3d 2.15e8
-
-gfortran  cpu          1d 4.55e7    gfortran  openacc_host 1d 4.35e7    gfortran  openacc_gpu 1d 1.00e9
-gfortran  cpu          2d 9.80e6    gfortran  openacc_host 2d 9.80e6    gfortran  openacc_gpu 2d 5.00e8
-gfortran  cpu          3d 4.00e6    gfortran  openacc_host 3d 4.00e6    gfortran  openacc_gpu 3d 2.00e8
+compiler   mode          dim  pts_per_s
+nvfortran  cpu           1d   48381634.33160761
+nvfortran  openacc_host  1d   47614512.90353308
+nvfortran  openacc_gpu   1d   807102502.0177627
+nvfortran  openmp_host   1d   179018976.0114579
+nvfortran  openmp_gpu    1d   803535556.4483846
+gfortran   cpu           1d   46511627.905371234
+gfortran   openacc_host  1d   44444444.446169116
+gfortran   openacc_gpu   1d   1000000001.6152626
+gfortran   openmp_host   1d   44444444.446169116
+gfortran   openmp_gpu    1d   400000000.20954758
+nvfortran  cpu           2d   8561790.441617154
+nvfortran  openacc_host  2d   8388558.006878630
+nvfortran  openacc_gpu   2d   538793103.4482527
+nvfortran  openmp_host   2d   75999392.00486395
+nvfortran  openmp_gpu    2d   531914893.6170547
+gfortran   cpu           2d   10000000.000145519
+gfortran   openacc_host  2d   10000000.000145519
+gfortran   openacc_gpu   2d   499999999.89813662
+gfortran   openmp_host   2d   33333333.334626839
+gfortran   openmp_gpu    2d   250000000.40381566
+nvfortran  cpu           3d   3123584.625716472
+nvfortran  openacc_host  3d   3158509.815069252
+nvfortran  openacc_gpu   3d   214592274.6781271
+nvfortran  openmp_host   3d   33200531.20849917
+nvfortran  openmp_gpu    3d   210526315.7894723
+gfortran   cpu           3d   4166666.6667651953
+gfortran   openacc_host  3d   4081632.6531388024
+gfortran   openacc_gpu   3d   199999999.95925465
+gfortran   openmp_host   3d   22222222.226677623
+gfortran   openmp_gpu    3d   199999999.95925465
 ```
 
-From `/tmp/libneo_gpu_spline_openacc_only_1d_2025-12-21.log`:
-- CPU: `best_s 0.041794` → `4.79e7 pts/s`
-- OpenACC: `best_s 0.002580` → `7.75e8 pts/s`
-
-From `/tmp/libneo_gpu_spline_openacc_only_2d_2025-12-21.log`:
-- CPU: `best_s 0.060554` → `8.26e6 pts/s`
-- OpenACC: `best_s 0.000974` → `5.13e8 pts/s`
-
-From `/tmp/libneo_gpu_spline_openacc_only_3d_2025-12-21.log`:
-- CPU: `best_s 0.063864` → `3.13e6 pts/s`
-- OpenACC: `best_s 0.000980` → `2.04e8 pts/s`
-
-All variants reported `max_abs_diff 0.0` versus the CPU reference in these runs.
+All variants reported `max_abs_diff` around machine epsilon versus the CPU reference.
 
 These are historical single runs; prefer `run_benchmarks.sh` for the current matrix and keep the
 `/tmp/libneo_gpu_spline_*_<date>.log` logs as the source of truth.

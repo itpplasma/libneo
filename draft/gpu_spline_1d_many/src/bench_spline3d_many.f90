@@ -4,10 +4,10 @@ program bench_spline3d_many
     use batch_interpolate_types, only: BatchSplineData3D
     use batch_interpolate_3d, only: construct_batch_splines_3d, destroy_batch_splines_3d
     use draft_batch_splines_many_api, only: evaluate_batch_splines_3d_many
-    use spline3d_many_openacc, only: spline3d_many_openacc_setup, &
-                                     spline3d_many_openacc_teardown, &
-                                     spline3d_many_openacc_eval_host, &
-                                     spline3d_many_openacc_eval_resident
+    use spline3d_many_offload, only: spline3d_many_setup, &
+                                     spline3d_many_teardown, &
+                                     spline3d_many_eval_host, &
+                                     spline3d_many_eval_resident
     use util_lcg_rng, only: lcg_state_t, lcg_init, lcg_uniform_0_1
     implicit none
 
@@ -80,6 +80,8 @@ program bench_spline3d_many
     call bench_cpu()
 #if defined(LIBNEO_ENABLE_OPENACC)
     call bench_openacc()
+#elif defined(LIBNEO_ENABLE_OPENMP)
+    call bench_openmp()
 #endif
 
     call destroy_batch_splines_3d(spl)
@@ -99,11 +101,9 @@ contains
         best = huge(1.0d0)
         do it = 1, niter
             t0 = wall_time()
-            call spline3d_many_openacc_eval_host(spl%order, spl%num_points, &
-                                                 spl%num_quantities, &
-                                                 spl%periodic, spl%x_min, spl%h_step, &
-                                                 spl%coeff, &
-                                                 x_eval, y_out)
+            call spline3d_many_eval_host(spl%order, spl%num_points, spl%num_quantities, &
+                                         spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                         x_eval, y_out)
             t1 = wall_time()
             dt = t1 - t0
             best = min(best, dt)
@@ -118,22 +118,18 @@ contains
         integer :: it
         real(dp) :: t0, t1, dt
 
-        call spline3d_many_openacc_setup(spl%coeff, x_eval, y_out)
-        call spline3d_many_openacc_eval_resident(spl%order, spl%num_points, &
-                                                 spl%num_quantities, &
-                                                 spl%periodic, spl%x_min, spl%h_step, &
-                                                 spl%coeff, &
-                                                 x_eval, y_out)
+        call spline3d_many_setup(spl%coeff, x_eval, y_out)
+        call spline3d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
+                                         spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                         x_eval, y_out)
         !$acc wait
 
         best = huge(1.0d0)
         do it = 1, niter
             t0 = wall_time()
-            call spline3d_many_openacc_eval_resident(spl%order, spl%num_points, &
-                                                     spl%num_quantities, spl%periodic, &
-                                                     spl%x_min, &
-                                                     spl%h_step, spl%coeff, &
-                                                     x_eval, y_out)
+            call spline3d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
+                                             spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                             x_eval, y_out)
             !$acc wait
             t1 = wall_time()
             dt = t1 - t0
@@ -143,7 +139,35 @@ contains
         diff_max = maxval(abs(y_out - y_ref))
         print *, "openacc best_s ", best, " pts_per_s ", real(npts, dp)/best, &
             " max_abs_diff ", diff_max
-        call spline3d_many_openacc_teardown(spl%coeff, x_eval, y_out)
+        call spline3d_many_teardown(spl%coeff, x_eval, y_out)
     end subroutine bench_openacc
+
+    subroutine bench_openmp()
+        integer :: it
+        real(dp) :: t0, t1, dt
+
+        call spline3d_many_setup(spl%coeff, x_eval, y_out)
+        call spline3d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
+                                         spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                         x_eval, y_out)
+
+        best = huge(1.0d0)
+        do it = 1, niter
+            t0 = wall_time()
+            call spline3d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
+                                             spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                             x_eval, y_out)
+            t1 = wall_time()
+            dt = t1 - t0
+            best = min(best, dt)
+        end do
+
+        !$omp target update from(y_out)
+        diff_max = maxval(abs(y_out - y_ref))
+        print *, "openmp best_s ", best, " pts_per_s ", real(npts, dp)/best, &
+            " max_abs_diff ", diff_max
+
+        call spline3d_many_teardown(spl%coeff, x_eval, y_out)
+    end subroutine bench_openmp
 
 end program bench_spline3d_many
