@@ -128,7 +128,7 @@ contains
         integer :: interval_index, k_power
 
         if (spl%periodic) then
-            xj = modulo(x, spl%h_step*(spl%num_points-1))
+            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points-1)) + spl%x_min
         else
             xj = x
         end if
@@ -151,10 +151,15 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy
 
-        real(dp) :: x_norm, x_local, coeff_local(0:spl%order)
+        real(dp) :: x_norm, x_local, coeff_local(0:spl%order), xj
         integer :: interval_index, k_power
 
-        x_norm = (x - spl%x_min) / spl%h_step
+        if (spl%periodic) then
+            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points-1)) + spl%x_min
+        else
+            xj = x
+        end if
+        x_norm = (xj - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
 
@@ -176,10 +181,15 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy, d2y
 
-        real(dp) :: x_norm, x_local, coeff_local(0:spl%order)
+        real(dp) :: x_norm, x_local, coeff_local(0:spl%order), xj
         integer :: interval_index, k_power
 
-        x_norm = (x - spl%x_min) / spl%h_step
+        if (spl%periodic) then
+            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points-1)) + spl%x_min
+        else
+            xj = x
+        end if
+        x_norm = (xj - spl%x_min) / spl%h_step
         interval_index = max(0, min(spl%num_points-1, int(x_norm)))
         x_local = (x_norm - dble(interval_index))*spl%h_step
 
@@ -265,7 +275,8 @@ contains
 
         do j=1,2
             if (spl%periodic(j)) then
-                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j)-1))
+                xj = modulo(x(j) - spl%x_min(j), &
+                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
             else
                 xj = x(j)
             end if
@@ -303,7 +314,8 @@ contains
         
         do j=1,2
             if (spl%periodic(j)) then
-                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j)-1))
+                xj = modulo(x(j) - spl%x_min(j), &
+                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
             else
                 xj = x(j)
             end if
@@ -447,7 +459,8 @@ contains
 
         do j=1,3
             if (spl%periodic(j)) then
-                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j)-1))
+                xj = modulo(x(j) - spl%x_min(j), &
+                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
             else
                 xj = x(j)
             end if
@@ -501,7 +514,8 @@ contains
 
         do j=1,3
             if (spl%periodic(j)) then
-                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j)-1))
+                xj = modulo(x(j) - spl%x_min(j), &
+                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
             else
                 xj = x(j)
             end if
@@ -603,7 +617,8 @@ contains
 
         do j=1,3
             if (spl%periodic(j)) then
-                xj = modulo(x(j), spl%h_step(j)*(spl%num_points(j)-1))
+                xj = modulo(x(j) - spl%x_min(j), &
+                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
             else
                 xj = x(j)
             end if

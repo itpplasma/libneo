@@ -17,8 +17,6 @@ if [[ -d /opt/cuda ]]; then
 fi
 
 gomp_debug="${LIBNEO_DRAFT_GOMP_DEBUG:-0}"
-run_openmp="${LIBNEO_DRAFT_RUN_OPENMP:-1}"
-run_openmp_host="${LIBNEO_DRAFT_RUN_OPENMP_HOST:-0}"
 
 build_dir_for() {
   local compiler_tag="$1"
@@ -50,7 +48,7 @@ cmake_configure_build() {
 
 extract_pts_per_s() {
   local log_path="$1"
-  local kind="$2" # cpu|openacc|openmp
+  local kind="$2" # cpu|openacc
   awk -v kind="${kind}" '
     {
       for (i = 1; i <= NF; i++) {
@@ -118,7 +116,7 @@ extract_build_device_grid_pts_per_s() {
 
 extract_setup_s() {
   local log_path="$1"
-  local kind="$2" # openacc|openmp
+  local kind="$2" # openacc
   awk -v kind="${kind}" '
     {
       for (i = 1; i <= NF; i++) {
@@ -181,34 +179,6 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     results["${nv_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" openacc)"
   done
 
-  if [[ "${run_openmp}" == "1" ]]; then
-    # OpenMP target build (same binary; runtime selects device)
-    nv_omp_build="$(build_dir_for "${nv_tag}" openmp)"
-    rm -rf "${nv_omp_build}"
-    cmake_configure_build "${nvfortran_bin}" "${nv_omp_build}" \
-      -DDRAFT_ENABLE_OPENACC=OFF \
-      -DDRAFT_ENABLE_OPENMP=ON
-
-    for dim in 1d 2d 3d; do
-      exe="${nv_omp_build}/bench_spline${dim}_many"
-
-      if [[ "${run_openmp_host}" == "1" ]]; then
-        log_host="${log_dir}/libneo_gpu_spline_${nv_tag}_openmp_host_${dim}_${date_tag}.log"
-        run_one "${exe}" "${log_host}" env OMP_TARGET_OFFLOAD=DISABLED OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
-        results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_host}")"
-        results["${nv_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log_host}")"
-        results["${nv_tag},openmp_setup_host,${dim}"]="$(extract_setup_s "${log_host}" openmp)"
-        results["${nv_tag},openmp_host,${dim}"]="$(extract_pts_per_s "${log_host}" openmp)"
-      fi
-
-      log_gpu="${log_dir}/libneo_gpu_spline_${nv_tag}_openmp_gpu_${dim}_${date_tag}.log"
-      run_one "${exe}" "${log_gpu}" env OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
-      results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_gpu}")"
-      results["${nv_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log_gpu}")"
-      results["${nv_tag},openmp_setup_gpu,${dim}"]="$(extract_setup_s "${log_gpu}" openmp)"
-      results["${nv_tag},openmp_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" openmp)"
-    done
-  fi
 else
   echo "nvfortran not found (set NVFORTRAN_BIN=... to override), skipping NVHPC runs." >&2
 fi
@@ -270,45 +240,6 @@ if [[ -x "${gfortran_bin}" ]]; then
     results["${g_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log}" openacc)"
   done
 
-  if [[ "${run_openmp}" == "1" ]]; then
-    if [[ "${run_openmp_host}" == "1" ]]; then
-      # OpenMP host (no offload flag)
-      g_omp_host_build="$(build_dir_for "${g_tag}" openmp_host)"
-      rm -rf "${g_omp_host_build}"
-      cmake_configure_build "${gfortran_bin}" "${g_omp_host_build}" \
-        -DDRAFT_ENABLE_OPENACC=OFF \
-        -DDRAFT_ENABLE_OPENMP=ON \
-        -DDRAFT_OPENMP_OFFLOAD=none
-
-      for dim in 1d 2d 3d; do
-        exe="${g_omp_host_build}/bench_spline${dim}_many"
-        log="${log_dir}/libneo_gpu_spline_${g_tag}_openmp_host_${dim}_${date_tag}.log"
-        run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=DISABLED OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
-        results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
-        results["${g_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
-        results["${g_tag},openmp_setup_host,${dim}"]="$(extract_setup_s "${log}" openmp)"
-        results["${g_tag},openmp_host,${dim}"]="$(extract_pts_per_s "${log}" openmp)"
-      done
-    fi
-
-    # OpenMP GPU (nvptx offload)
-    g_omp_gpu_build="$(build_dir_for "${g_tag}" openmp_gpu)"
-    rm -rf "${g_omp_gpu_build}"
-    cmake_configure_build "${gfortran_bin}" "${g_omp_gpu_build}" \
-      -DDRAFT_ENABLE_OPENACC=OFF \
-      -DDRAFT_ENABLE_OPENMP=ON \
-      -DDRAFT_OPENMP_OFFLOAD=nvptx
-
-    for dim in 1d 2d 3d; do
-      exe="${g_omp_gpu_build}/bench_spline${dim}_many"
-      log="${log_dir}/libneo_gpu_spline_${g_tag}_openmp_gpu_${dim}_${date_tag}.log"
-      run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 GOMP_DEBUG="${gomp_debug}" "${exe}"
-      results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
-      results["${g_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
-      results["${g_tag},openmp_setup_gpu,${dim}"]="$(extract_setup_s "${log}" openmp)"
-      results["${g_tag},openmp_gpu,${dim}"]="$(extract_pts_per_s "${log}" openmp)"
-    done
-  fi
 else
   echo "gfortran not found at ${gfortran_bin} (set GFORTRAN_BIN=... to override), skipping GNU runs." >&2
 fi
@@ -320,8 +251,7 @@ for dim in 1d 2d 3d; do
   for compiler in nvfortran gfortran; do
     for metric in build build_lines build_resident_host build_resident_gpu \
       build_device_host build_device_gpu cpu \
-      openacc_setup_host openacc_host openacc_setup_gpu openacc_gpu \
-      openmp_setup_host openmp_host openmp_setup_gpu openmp_gpu; do
+      openacc_setup_host openacc_host openacc_setup_gpu openacc_gpu; do
       key="${compiler},${metric},${dim}"
       if [[ -n "${results[$key]:-}" ]]; then
         printf "%-10s %-13s %-4s %s\n" "${compiler}" "${metric}" "${dim}" "${results[$key]}"

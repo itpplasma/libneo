@@ -141,6 +141,9 @@ target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate_many.x source/test_batch_interpolate_many.f90)
 target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
+target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
+
 add_executable(test_vmec_modules.x source/test_vmec_modules.f90)
 target_link_libraries(test_vmec_modules.x neo)
 
@@ -181,6 +184,7 @@ add_test(NAME test_util COMMAND test_util.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
+add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
 add_test(NAME test_transport COMMAND test_transport.x)
 add_test(NAME test_vmec_modules COMMAND test_vmec_modules.x)

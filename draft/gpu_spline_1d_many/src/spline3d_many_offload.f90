@@ -20,8 +20,6 @@ contains
 #if defined(LIBNEO_ENABLE_OPENACC)
         !$acc enter data copyin(x)
         !$acc enter data create(y)
-#elif defined(LIBNEO_ENABLE_OPENMP)
-        !$omp target enter data map(to: coeff, x) map(alloc: y)
 #endif
         is_setup = .true.
     end subroutine spline3d_many_setup
@@ -35,8 +33,6 @@ contains
 #if defined(LIBNEO_ENABLE_OPENACC)
         !$acc exit data delete(y)
         !$acc exit data delete(x)
-#elif defined(LIBNEO_ENABLE_OPENMP)
-        !$omp target exit data map(delete: y, x, coeff)
 #endif
         is_setup = .false.
     end subroutine spline3d_many_teardown
@@ -98,9 +94,7 @@ contains
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(inout) :: y(num_quantities*size(x, 2))
 
-        integer, parameter :: threads_per_team = 256
         integer :: ipt, iq, k1, k2, k3, i1, i2, i3, base, k_wrap
-        integer :: nteams
         integer :: periodic_int(3)
         integer :: npts, order1, order2, order3
         real(dp) :: xj1, xj2, xj3, x_norm1, x_norm2, x_norm3
@@ -132,18 +126,6 @@ contains
             include "spline3d_many_point_body.inc"
         end do
         !$acc end parallel loop
-#elif defined(LIBNEO_ENABLE_OPENMP)
-        nteams = (npts + threads_per_team - 1)/threads_per_team
-        !$omp target teams thread_limit(threads_per_team) num_teams(nteams)
-        !$omp distribute parallel do simd &
-        !$omp& private(iq, k1, k2, k3, i1, i2, i3, base, xj1, xj2, xj3) &
-        !$omp& private(x_norm1, x_norm2, x_norm3, x_local1, x_local2, x_local3) &
-        !$omp& private(t, w, v, w2, yq, k_wrap)
-        do ipt = 1, npts
-            include "spline3d_many_point_body.inc"
-        end do
-        !$omp end distribute parallel do simd
-        !$omp end target teams
 #else
         do ipt = 1, npts
             include "spline3d_many_point_body.inc"

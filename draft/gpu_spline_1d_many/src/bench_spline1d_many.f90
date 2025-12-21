@@ -93,8 +93,6 @@ program bench_spline1d_many
     call bench_cpu(spl, x_eval, y_batch, y_ref)
 #if defined(LIBNEO_ENABLE_OPENACC)
     call bench_openacc(spl, x_eval, y_batch, y_ref)
-#elif defined(LIBNEO_ENABLE_OPENMP)
-    call bench_openmp(spl, x_eval, y_batch, y_ref)
 #endif
 
     call destroy_batch_splines_1d(spl)
@@ -336,47 +334,5 @@ contains
 
         call spline1d_many_teardown(spl_local%coeff, x, y)
     end subroutine bench_openacc
-
-    subroutine bench_openmp(spl_local, x, y, y_expected)
-        type(BatchSplineData1D), intent(in) :: spl_local
-        real(dp), intent(in) :: x(:)
-        real(dp), intent(inout) :: y(:)
-        real(dp), intent(in) :: y_expected(:)
-
-        integer :: it
-        real(dp) :: tstart, tend, dt
-        real(dp) :: tsetup0, tsetup1
-
-        tsetup0 = wall_time()
-        call spline1d_many_setup(spl_local%coeff, x, y)
-        tsetup1 = wall_time()
-        print *, "openmp setup_s ", tsetup1 - tsetup0
-        call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
-                                         spl_local%num_quantities, spl_local%periodic, &
-                                         spl_local%x_min, spl_local%h_step, &
-                                         spl_local%coeff, &
-                                         x, y)
-
-        best = huge(1.0d0)
-        do it = 1, niter
-            tstart = wall_time()
-            call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
-                                             spl_local%num_quantities, &
-                                             spl_local%periodic, &
-                                             spl_local%x_min, spl_local%h_step, &
-                                             spl_local%coeff, &
-                                             x, y)
-            tend = wall_time()
-            dt = tend - tstart
-            best = min(best, dt)
-        end do
-
-        !$omp target update from(y)
-        diff_max = maxval(abs(y - y_expected))
-        print *, "openmp best_s ", best, " pts_per_s ", real(size(x), dp)/best, &
-            " max_abs_diff ", diff_max
-
-        call spline1d_many_teardown(spl_local%coeff, x, y)
-    end subroutine bench_openmp
 
 end program bench_spline1d_many

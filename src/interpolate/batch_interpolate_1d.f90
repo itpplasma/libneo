@@ -18,6 +18,10 @@ module batch_interpolate_1d
     public :: construct_batch_splines_1d_resident
     public :: construct_batch_splines_1d_resident_device
     public :: destroy_batch_splines_1d
+
+#ifdef LIBNEO_ENABLE_SPLINE_ORACLE
+    public :: construct_batch_splines_1d_legacy
+#endif
     
     ! Export batch spline evaluation routines
     public :: evaluate_batch_splines_1d
@@ -31,6 +35,20 @@ module batch_interpolate_1d
 contains
     
     subroutine construct_batch_splines_1d(x_min, x_max, y_batch, order, periodic, spl)
+        real(dp), intent(in) :: x_min, x_max
+        real(dp), intent(in) :: y_batch(:,:)  ! (n_points, n_quantities)
+        integer, intent(in) :: order
+        logical, intent(in) :: periodic
+        type(BatchSplineData1D), intent(out) :: spl
+
+        call construct_batch_splines_1d_legacy(x_min, x_max, y_batch, order, periodic, spl)
+
+#ifdef _OPENACC
+        !$acc enter data copyin(spl%coeff(1:spl%num_quantities, 0:spl%order, 1:spl%num_points))
+#endif
+    end subroutine construct_batch_splines_1d
+
+    subroutine construct_batch_splines_1d_legacy(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min, x_max
         real(dp), intent(in) :: y_batch(:,:)  ! (n_points, n_quantities)
         integer, intent(in) :: order
@@ -91,7 +109,7 @@ contains
         end do
         
         deallocate(splcoe_temp)
-    end subroutine construct_batch_splines_1d
+    end subroutine construct_batch_splines_1d_legacy
 
     subroutine construct_batch_splines_1d_lines(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min, x_max
@@ -210,9 +228,6 @@ contains
         type(BatchSplineData1D), intent(out) :: spl
 
         call construct_batch_splines_1d(x_min, x_max, y_batch, order, periodic, spl)
-#ifdef _OPENACC
-        !$acc enter data copyin(spl%coeff)
-#endif
     end subroutine construct_batch_splines_1d_resident
 
     subroutine construct_batch_splines_1d_resident_device(x_min, x_max, y_batch, &
@@ -513,6 +528,16 @@ contains
         if (size(y_batch, 2) /= size(x)) then
             error stop "evaluate_batch_splines_1d_many: y_batch second dim mismatch"
         end if
+
+#ifdef _OPENACC
+        if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order, 1:spl%num_points))) then
+            !$acc data copyin(x(1:size(x))) create(y_batch(1:spl%num_quantities, 1:size(x)))
+            call evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
+            !$acc update self(y_batch(1:spl%num_quantities, 1:size(x)))
+            !$acc end data
+            return
+        end if
+#endif
 
         order = spl%order
         num_points = spl%num_points

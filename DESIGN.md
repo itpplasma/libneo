@@ -122,6 +122,20 @@ The resident variants contain `!$acc` kernels and use `present(...)` so they can
 run without implicit transfers when the caller has already placed the arrays on
 device.
 
+### Construction and data residency
+The default `construct_batch_splines_{1,2,3}d(...)` entry points remain host-safe and
+produce coefficients that match the existing scalar spline construction used in the
+test suite. When built with OpenACC enabled, these constructors also place the
+coefficient arrays on the OpenACC device via `!$acc enter data copyin(...)` so the
+subsequent many-point evaluation wrappers can offload without additional setup.
+
+For build-on-device performance experiments and for downstream code that wants to
+keep construction on the GPU, the explicit device constructor entry points remain
+available:
+
+- `construct_batch_splines_2d_resident_device`
+- `construct_batch_splines_3d_resident_device`
+
 ### How downstream should use OpenACC with no copies
 Downstream must keep the data resident across the whole accelerated algorithm:
 

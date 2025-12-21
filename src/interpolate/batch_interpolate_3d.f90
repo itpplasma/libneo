@@ -19,6 +19,10 @@ module batch_interpolate_3d
     public :: construct_batch_splines_3d_resident
     public :: construct_batch_splines_3d_resident_device
     public :: destroy_batch_splines_3d
+
+#ifdef LIBNEO_ENABLE_SPLINE_ORACLE
+    public :: construct_batch_splines_3d_legacy
+#endif
     
     ! Export batch spline evaluation routines
     public :: evaluate_batch_splines_3d
@@ -30,6 +34,22 @@ module batch_interpolate_3d
 contains
     
     subroutine construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
+        real(dp), intent(in) :: x_min(:), x_max(:)
+        real(dp), intent(in) :: y_batch(:,:,:,:)  ! (n1, n2, n3, n_quantities)
+        integer, intent(in) :: order(3)
+        logical, intent(in) :: periodic(3)
+        type(BatchSplineData3D), intent(out) :: spl
+
+        call construct_batch_splines_3d_legacy(x_min, x_max, y_batch, order, periodic, spl)
+
+#ifdef _OPENACC
+        !$acc enter data copyin(spl%coeff(1:spl%num_quantities, 0:spl%order(1), 0:spl%order(2), &
+        !$acc&                         0:spl%order(3), 1:spl%num_points(1), 1:spl%num_points(2), &
+        !$acc&                         1:spl%num_points(3)))
+#endif
+    end subroutine construct_batch_splines_3d
+
+    subroutine construct_batch_splines_3d_legacy(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min(:), x_max(:)
         real(dp), intent(in) :: y_batch(:,:,:,:)  ! (n1, n2, n3, n_quantities)
         integer, intent(in) :: order(3)
@@ -159,7 +179,7 @@ contains
         end do
         
         deallocate(temp_coeff)
-    end subroutine construct_batch_splines_3d
+    end subroutine construct_batch_splines_3d_legacy
 
     subroutine construct_batch_splines_3d_lines(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min(3), x_max(3)
@@ -460,9 +480,6 @@ contains
         type(BatchSplineData3D), intent(out) :: spl
 
         call construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
-#ifdef _OPENACC
-        !$acc enter data copyin(spl%coeff)
-#endif
     end subroutine construct_batch_splines_3d_resident
 
     subroutine construct_batch_splines_3d_resident_device(x_min, x_max, y_batch, &
@@ -890,6 +907,19 @@ contains
         if (size(y_batch, 2) /= size(x, 2)) then
             error stop "evaluate_batch_splines_3d_many: y_batch second dim mismatch"
         end if
+
+#ifdef _OPENACC
+        if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order(1), 0:spl%order(2), &
+                                     0:spl%order(3), 1:spl%num_points(1), 1:spl%num_points(2), &
+                                     1:spl%num_points(3)))) then
+            !$acc data copyin(x(1:3, 1:size(x, 2))) &
+            !$acc& create(y_batch(1:spl%num_quantities, 1:size(x, 2)))
+            call evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
+            !$acc update self(y_batch(1:spl%num_quantities, 1:size(x, 2)))
+            !$acc end data
+            return
+        end if
+#endif
 
         nq = spl%num_quantities
         num_points = spl%num_points

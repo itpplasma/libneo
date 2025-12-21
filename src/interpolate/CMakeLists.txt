@@ -8,6 +8,10 @@ add_library(interpolate STATIC
     batch_interpolate.f90
     interpolate.f90)
 
+if(LIBNEO_BUILD_TESTING)
+    target_compile_definitions(interpolate PRIVATE LIBNEO_ENABLE_SPLINE_ORACLE=1)
+endif()
+
 set_property(TARGET interpolate PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::interpolate ALIAS interpolate)

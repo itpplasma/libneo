@@ -98,8 +98,6 @@ program bench_spline3d_many
     call bench_cpu()
 #if defined(LIBNEO_ENABLE_OPENACC)
     call bench_openacc()
-#elif defined(LIBNEO_ENABLE_OPENMP)
-    call bench_openmp()
 #endif
 
     call destroy_batch_splines_3d(spl)
@@ -316,41 +314,5 @@ contains
             " max_abs_diff ", diff_max
         call spline3d_many_teardown(spl%coeff, x_eval, y_out)
     end subroutine bench_openacc
-
-    subroutine bench_openmp()
-        integer :: it, rep
-        real(dp) :: t0, t1, dt
-        real(dp) :: tsetup0, tsetup1
-
-        tsetup0 = wall_time()
-        call spline3d_many_setup(spl%coeff, x_eval, y_out)
-        tsetup1 = wall_time()
-        print *, "openmp setup_s ", tsetup1 - tsetup0
-        call spline3d_many_eval_resident(spl%order, spl%num_points, &
-                                         spl%num_quantities, spl%periodic, &
-                                         spl%x_min, spl%h_step, spl%coeff, &
-                                         x_eval, y_out)
-
-        best = huge(1.0d0)
-        do it = 1, niter
-            t0 = wall_time()
-            do rep = 1, neval_repeat
-                call spline3d_many_eval_resident(spl%order, spl%num_points, &
-                                                 spl%num_quantities, spl%periodic, &
-                                                 spl%x_min, spl%h_step, spl%coeff, &
-                                                 x_eval, y_out)
-            end do
-            t1 = wall_time()
-            dt = (t1 - t0) / real(neval_repeat, dp)
-            best = min(best, dt)
-        end do
-
-        !$omp target update from(y_out)
-        diff_max = maxval(abs(y_out - y_ref))
-        print *, "openmp best_s ", best, " pts_per_s ", real(npts, dp)/best, &
-            " max_abs_diff ", diff_max
-
-        call spline3d_many_teardown(spl%coeff, x_eval, y_out)
-    end subroutine bench_openmp
 
 end program bench_spline3d_many
