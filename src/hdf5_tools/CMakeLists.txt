@@ -12,8 +12,10 @@ elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   set(CMAKE_Fortran_FLAGS "-O2 -cpp -mkl -stand f08")
 endif ()
 
-### Find HDF5
-find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL REQUIRED)
+### Find HDF5 (skip if already provided by parent via FetchContent)
+if(NOT TARGET hdf5::hdf5_fortran)
+    find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL REQUIRED)
+endif()
 
 add_library(hdf5_tools STATIC
   hdf5_tools.F90

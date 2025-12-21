@@ -81,6 +81,10 @@ set_property(CACHE OPENACC_OFFLOAD_TARGET PROPERTY STRINGS none nvptx)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
     "Enable fetching and running the ODEINT golden record regression test" ON)
 
+# Dependency fetching options
+option(PREFER_SYSTEM_LIBS "Try system libraries before building from source" ON)
+option(FORCE_FETCH_DEPS "Always build Fortran dependencies from source" OFF)
+
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
 endif()
@@ -184,31 +188,10 @@ endif()
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
 
-find_program(NF_CONFIG "nf-config")
-
-if(NF_CONFIG)
-    execute_process(COMMAND nf-config --includedir
-        OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
-    execute_process(COMMAND nc-config --libdir
-        OUTPUT_VARIABLE NETCDFLIB_DIR)
-    execute_process(COMMAND nf-config --flibs
-        OUTPUT_VARIABLE NETCDF_FLIBS)
-else()
-    message(SEND_ERROR "nf-config not found. Please install libnetcdff-dev")
-endif()
-
-string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
-string(STRIP ${NETCDFLIB_DIR} NETCDFLIB_DIR)
-string(STRIP ${NETCDF_FLIBS} NETCDF_FLIBS)
-
-message(STATUS "NetCDF include path: " ${NETCDFINCLUDE_DIR})
-message(STATUS "NetCDF lib path: " ${NETCDFLIB_DIR})
-message(STATUS "NetCDF Fortran libs: " ${NETCDF_FLIBS})
-string(REPLACE " " ";" NETCDF_FLIBS "${NETCDF_FLIBS}")
-
-include_directories(${NETCDFINCLUDE_DIR})
-link_directories(${NETCDFLIB_DIR})
-add_link_options(${NETCDF_FLIBS})
+# Detect and configure external dependencies (HDF5, NetCDF, FFTW)
+# Uses smoke tests to verify ABI compatibility with current compiler.
+# Falls back to building from source if system libraries are incompatible.
+include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
 # Libraries that libneo depends on
 add_subdirectory(src/contrib)
