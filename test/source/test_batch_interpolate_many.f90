@@ -5,8 +5,11 @@ program test_batch_interpolate_many
                                  construct_batch_splines_2d, &
                                  construct_batch_splines_3d
     use batch_interpolate, only: construct_batch_splines_1d_resident, &
+                                 construct_batch_splines_1d_resident_device, &
                                  construct_batch_splines_2d_resident, &
-                                 construct_batch_splines_3d_resident
+                                 construct_batch_splines_2d_resident_device, &
+                                 construct_batch_splines_3d_resident, &
+                                 construct_batch_splines_3d_resident_device
     use batch_interpolate, only: destroy_batch_splines_1d, destroy_batch_splines_2d, &
                                  destroy_batch_splines_3d
     use batch_interpolate, only: evaluate_batch_splines_1d, evaluate_batch_splines_2d, &
@@ -62,6 +65,7 @@ contains
 
     subroutine test_1d()
         integer, parameter :: order = 5
+        integer, parameter :: order3 = 3
         integer, parameter :: ngrid = 64
         integer, parameter :: nq = 7
         integer, parameter :: npts = 2000
@@ -71,10 +75,12 @@ contains
         real(dp), parameter :: x_max = x_min + 4.0d0
 
         type(BatchSplineData1D) :: spl
+        type(BatchSplineData1D) :: spl3
         real(dp), allocatable :: x_grid(:)
         real(dp), allocatable :: y_grid(:, :)
         real(dp), allocatable :: x_eval(:)
         real(dp), allocatable :: y_many(:, :)
+        real(dp), allocatable :: y_many3(:, :)
         real(dp), allocatable :: y_many_res(:, :)
         real(dp), allocatable :: y_one(:)
 
@@ -127,6 +133,44 @@ contains
                           reshape(y_many, [nq*npts]), tol)
 
         call destroy_batch_splines_1d(spl)
+        call construct_batch_splines_1d_resident_device(x_min, x_max, y_grid, &
+                                                        order, periodic, spl, &
+                                                        update_host=.true.)
+        y_many_res = 0.0d0
+        call evaluate_batch_splines_1d_many(spl, x_eval, y_many_res)
+        call assert_close("1d_device_host_coeff", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+
+        call destroy_batch_splines_1d(spl)
+        call construct_batch_splines_1d_resident_device(x_min, x_max, y_grid, &
+                                                        order, periodic, spl, &
+                                                        update_host=.false.)
+        y_many_res = 0.0d0
+        !$acc enter data copyin(x_eval) create(y_many_res)
+        call evaluate_batch_splines_1d_many_resident(spl, x_eval, y_many_res)
+        !$acc update self(y_many_res)
+        !$acc exit data delete(y_many_res, x_eval)
+        call assert_close("1d_device_resident_only", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+
+        call destroy_batch_splines_1d(spl)
+
+        call construct_batch_splines_1d(x_min, x_max, y_grid, order3, periodic, spl3)
+        allocate (y_many3(nq, npts))
+        call evaluate_batch_splines_1d_many(spl3, x_eval, y_many3)
+
+        call destroy_batch_splines_1d(spl3)
+        call construct_batch_splines_1d_resident_device(x_min, x_max, y_grid, order3, &
+                                                        periodic, spl3, update_host=.false.)
+        y_many_res = 0.0d0
+        !$acc enter data copyin(x_eval) create(y_many_res)
+        call evaluate_batch_splines_1d_many_resident(spl3, x_eval, y_many_res)
+        !$acc update self(y_many_res)
+        !$acc exit data delete(y_many_res, x_eval)
+        call assert_close("1d_device_resident_only_order3", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many3, [nq*npts]), tol)
+
+        call destroy_batch_splines_1d(spl3)
     end subroutine test_1d
 
     subroutine test_2d()
@@ -199,10 +243,32 @@ contains
                           reshape(y_many, [nq*npts]), tol)
 
         call destroy_batch_splines_2d(spl)
+        call construct_batch_splines_2d_resident_device(x_min, x_max, y_grid, &
+                                                        order, periodic, spl, &
+                                                        update_host=.true.)
+        y_many_res = 0.0d0
+        call evaluate_batch_splines_2d_many(spl, x_eval, y_many_res)
+        call assert_close("2d_device_host_coeff", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+
+        call destroy_batch_splines_2d(spl)
+        call construct_batch_splines_2d_resident_device(x_min, x_max, y_grid, &
+                                                        order, periodic, spl, &
+                                                        update_host=.false.)
+        y_many_res = 0.0d0
+        !$acc enter data copyin(x_eval) create(y_many_res)
+        call evaluate_batch_splines_2d_many_resident(spl, x_eval, y_many_res)
+        !$acc update self(y_many_res)
+        !$acc exit data delete(y_many_res, x_eval)
+        call assert_close("2d_device_resident_only", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+
+        call destroy_batch_splines_2d(spl)
     end subroutine test_2d
 
     subroutine test_3d()
         integer, parameter :: order(3) = [5, 3, 3]
+        integer, parameter :: order_dev(3) = [5, 5, 5]
         integer, parameter :: ngrid(3) = [16, 12, 10]
         integer, parameter :: nq = 4
         integer, parameter :: npts = 800
@@ -277,6 +343,32 @@ contains
         call assert_close("3d_resident", reshape(y_many_res, [nq*npts]), &
                           reshape(y_many, [nq*npts]), tol)
 
+        call destroy_batch_splines_3d(spl)
+
+        y_many_res = 0.0d0
+        call construct_batch_splines_3d(x_min, x_max, y_grid, order_dev, periodic, spl)
+        call evaluate_batch_splines_3d_many(spl, x_eval, y_many_res)
+        call destroy_batch_splines_3d(spl)
+
+        call construct_batch_splines_3d_resident_device(x_min, x_max, y_grid, &
+                                                        order_dev, periodic, spl, &
+                                                        update_host=.true.)
+        y_many = 0.0d0
+        call evaluate_batch_splines_3d_many(spl, x_eval, y_many)
+        call assert_close("3d_device_host_coeff", reshape(y_many, [nq*npts]), &
+                          reshape(y_many_res, [nq*npts]), tol)
+        call destroy_batch_splines_3d(spl)
+
+        call construct_batch_splines_3d_resident_device(x_min, x_max, y_grid, &
+                                                        order_dev, periodic, spl, &
+                                                        update_host=.false.)
+        y_many = 0.0d0
+        !$acc enter data copyin(x_eval) create(y_many)
+        call evaluate_batch_splines_3d_many_resident(spl, x_eval, y_many)
+        !$acc update self(y_many)
+        !$acc exit data delete(y_many, x_eval)
+        call assert_close("3d_device_resident_only", reshape(y_many, [nq*npts]), &
+                          reshape(y_many_res, [nq*npts]), tol)
         call destroy_batch_splines_3d(spl)
     end subroutine test_3d
 

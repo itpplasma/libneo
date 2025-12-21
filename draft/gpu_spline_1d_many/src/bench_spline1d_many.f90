@@ -4,6 +4,7 @@ program bench_spline1d_many
     use batch_interpolate_types, only: BatchSplineData1D
     use batch_interpolate_1d, only: construct_batch_splines_1d, &
                                     construct_batch_splines_1d_resident, &
+                                    construct_batch_splines_1d_resident_device, &
                                     destroy_batch_splines_1d
     use draft_batch_splines_many_api, only: evaluate_batch_splines_1d_many
     use spline1d_many_offload, only: spline1d_many_setup, &
@@ -13,7 +14,6 @@ program bench_spline1d_many
     use util_lcg_rng, only: lcg_state_t, lcg_init, lcg_uniform_0_1
     implicit none
 
-    integer, parameter :: order = 5
     integer, parameter :: num_points = 2048
     integer, parameter :: num_quantities = 8
     integer, parameter :: npts = 2000000
@@ -27,6 +27,7 @@ program bench_spline1d_many
     real(dp), parameter :: x_max = 40.0d0 + x_min
 
     type(BatchSplineData1D) :: spl
+    integer :: order
     real(dp), allocatable :: y_batch(:)
     real(dp), allocatable :: x_eval(:)
     real(dp), allocatable, target :: y_ref(:)
@@ -40,6 +41,9 @@ program bench_spline1d_many
     integer :: ip, iq
     real(dp) :: best
     real(dp) :: diff_max
+
+    order = 5
+    call parse_order_arg(order)
 
     allocate (x_grid(num_points))
     allocate (y_grid(num_points, num_quantities))
@@ -55,6 +59,7 @@ program bench_spline1d_many
 
     call bench_build_1d(x_min, x_max, y_grid, spl)
     call bench_build_resident_1d(x_min, x_max, y_grid, spl)
+    call bench_build_device_1d()
 
     allocate (x_eval(npts))
     allocate (y_ref(num_quantities*npts))
@@ -87,6 +92,24 @@ program bench_spline1d_many
     call destroy_batch_splines_1d(spl)
 
 contains
+
+    subroutine parse_order_arg(order_out)
+        integer, intent(inout) :: order_out
+
+        character(len=32) :: arg
+        integer :: stat
+
+        call get_command_argument(1, arg)
+        if (len_trim(arg) == 0) return
+
+        read (arg, *, iostat=stat) order_out
+        if (stat /= 0) then
+            error stop "bench_spline1d_many: failed to parse order argument"
+        end if
+        if (order_out < 3 .or. order_out > 5) then
+            error stop "bench_spline1d_many: order must be 3..5"
+        end if
+    end subroutine parse_order_arg
 
     subroutine bench_build_1d(x_min_local, x_max_local, y_grid_local, spl_out)
         real(dp), intent(in) :: x_min_local
@@ -158,6 +181,53 @@ contains
                                         order, periodic, spl_out)
 #endif
     end subroutine bench_build_resident_1d
+
+    subroutine bench_build_device_1d()
+        type(BatchSplineData1D) :: spl_dev
+        integer :: it, rep
+        real(dp) :: t0, t1, dt, best_build
+        real(dp) :: grid_pts_per_s
+
+#if defined(LIBNEO_ENABLE_OPENACC)
+        best_build = huge(1.0d0)
+        do it = 1, nbuild_resident
+            t0 = wall_time()
+            do rep = 1, nbuild_repeat
+                call construct_batch_splines_1d_resident_device(&
+                    x_min, x_max, y_grid, order, periodic, spl_dev, &
+                    update_host=.true., assume_y_present=.false.)
+                !$acc wait
+                call destroy_batch_splines_1d(spl_dev)
+            end do
+            t1 = wall_time()
+            dt = (t1 - t0) / real(nbuild_repeat, dp)
+            best_build = min(best_build, dt)
+        end do
+        grid_pts_per_s = real(num_points*num_quantities, dp) / best_build
+        print *, "build_device_host best_s ", best_build, " grid_pts_per_s ", &
+            grid_pts_per_s
+
+        !$acc enter data copyin(y_grid)
+        best_build = huge(1.0d0)
+        do it = 1, nbuild_resident
+            t0 = wall_time()
+            do rep = 1, nbuild_repeat
+                call construct_batch_splines_1d_resident_device(&
+                    x_min, x_max, y_grid, order, periodic, spl_dev, &
+                    update_host=.false., assume_y_present=.true.)
+                !$acc wait
+                call destroy_batch_splines_1d(spl_dev)
+            end do
+            t1 = wall_time()
+            dt = (t1 - t0) / real(nbuild_repeat, dp)
+            best_build = min(best_build, dt)
+        end do
+        !$acc exit data delete(y_grid)
+        grid_pts_per_s = real(num_points*num_quantities, dp) / best_build
+        print *, "build_device_gpu best_s ", best_build, " grid_pts_per_s ", &
+            grid_pts_per_s
+#endif
+    end subroutine bench_build_device_1d
 
     real(dp) function wall_time() result(t)
         integer :: count, rate, max_count

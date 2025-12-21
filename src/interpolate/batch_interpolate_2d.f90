@@ -1,6 +1,7 @@
 module batch_interpolate_2d
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use batch_interpolate_types, only: BatchSplineData2D
+    use acc_spline_build_order5, only: spl_five_per_line, spl_five_reg_line
     use spl_three_to_five_sub, only: spl_per, spl_reg
 #ifdef _OPENACC
     use openacc, only: acc_is_present
@@ -12,6 +13,7 @@ module batch_interpolate_2d
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_2d
     public :: construct_batch_splines_2d_resident
+    public :: construct_batch_splines_2d_resident_device
     public :: destroy_batch_splines_2d
     
     ! Export batch spline evaluation routines
@@ -133,6 +135,189 @@ contains
         !$acc enter data copyin(spl%coeff)
 #endif
     end subroutine construct_batch_splines_2d_resident
+
+    subroutine construct_batch_splines_2d_resident_device(x_min, x_max, y_batch, &
+                                                          order, periodic, spl, &
+                                                          update_host, &
+                                                          assume_y_present)
+        real(dp), intent(in) :: x_min(:), x_max(:)
+        real(dp), intent(in) :: y_batch(:, :, :)  ! (n1, n2, n_quantities)
+        integer, intent(in) :: order(:)
+        logical, intent(in) :: periodic(:)
+        type(BatchSplineData2D), intent(out) :: spl
+        logical, intent(in), optional :: update_host
+        logical, intent(in), optional :: assume_y_present
+
+        integer :: n1, n2, n_quantities
+        logical :: do_update
+        logical :: do_assume_present
+
+        do_update = .true.
+        if (present(update_host)) do_update = update_host
+        do_assume_present = .false.
+        if (present(assume_y_present)) do_assume_present = assume_y_present
+
+        n1 = size(y_batch, 1)
+        n2 = size(y_batch, 2)
+        n_quantities = size(y_batch, 3)
+
+#ifdef _OPENACC
+        call construct_batch_splines_2d_resident_device_impl(x_min, x_max, n1, n2, &
+                                                            n_quantities, y_batch, &
+                                                            order, periodic, spl, &
+                                                            do_update, &
+                                                            do_assume_present)
+#else
+        call construct_batch_splines_2d_resident(x_min, x_max, y_batch, order, &
+                                                 periodic, spl)
+#endif
+    end subroutine construct_batch_splines_2d_resident_device
+
+    subroutine construct_batch_splines_2d_resident_device_impl(x_min, x_max, n1, n2, &
+                                                               n_quantities, y_batch, &
+                                                               order, periodic, spl, &
+                                                               do_update, &
+                                                               do_assume_present)
+        real(dp), intent(in) :: x_min(2), x_max(2)
+        integer, intent(in) :: n1, n2, n_quantities
+        real(dp), intent(in) :: y_batch(n1, n2, n_quantities)
+        integer, intent(in) :: order(2)
+        logical, intent(in) :: periodic(2)
+        type(BatchSplineData2D), intent(out) :: spl
+        logical, intent(in) :: do_update
+        logical, intent(in) :: do_assume_present
+
+        integer :: istat
+        integer :: N1_order, N2_order
+        integer :: i1, i2, iq, k1, k2
+        integer :: line, line2
+        real(dp), allocatable :: work2(:, :, :)
+        real(dp), allocatable :: work1(:, :, :)
+
+        N1_order = order(1)
+        N2_order = order(2)
+
+        if (n1 < 2 .or. n2 < 2) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Need at least 2 points"
+        end if
+        if (n_quantities < 1) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Need at least 1 quantity"
+        end if
+        if (N1_order /= 5 .or. N2_order /= 5) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Only order=[5,5] supported"
+        end if
+
+        spl%order = order
+        spl%num_points = [n1, n2]
+        spl%periodic = periodic
+        spl%h_step = [(x_max(1) - x_min(1))/dble(n1 - 1), &
+                      (x_max(2) - x_min(2))/dble(n2 - 1)]
+        spl%x_min = x_min
+        spl%num_quantities = n_quantities
+
+        allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Allocation failed for coeff"
+        end if
+
+        if (.not. do_assume_present) then
+            !$acc enter data copyin(y_batch)
+        end if
+        !$acc enter data create(spl%coeff)
+
+        allocate(work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Allocation failed for work2"
+        end if
+        allocate(work1(n1, n2*n_quantities, 0:N1_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Allocation failed for work1"
+        end if
+
+        !$acc data present(y_batch, spl%coeff) create(work2, work1)
+        !$acc parallel loop collapse(3) gang
+        do iq = 1, n_quantities
+            do i1 = 1, n1
+                do i2 = 1, n2
+                    line = (iq - 1)*n1 + i1
+                    work2(i2, line, 0) = y_batch(i1, i2, iq)
+                end do
+            end do
+        end do
+
+        !$acc parallel loop gang
+        do line = 1, n1*n_quantities
+            if (periodic(2)) then
+                call spl_five_per_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                       work2(:, line, 1), work2(:, line, 2), &
+                                       work2(:, line, 3), work2(:, line, 4), &
+                                       work2(:, line, 5))
+            else
+                call spl_five_reg_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                       work2(:, line, 1), work2(:, line, 2), &
+                                       work2(:, line, 3), work2(:, line, 4), &
+                                       work2(:, line, 5))
+            end if
+        end do
+
+        do k2 = 0, N2_order
+            !$acc parallel loop collapse(2) gang
+            do iq = 1, n_quantities
+                do i2 = 1, n2
+                    line = (iq - 1)*n2 + i2
+                    !$acc loop vector
+                    do i1 = 1, n1
+                        line2 = (iq - 1)*n1 + i1
+                        work1(i1, line, 0) = work2(i2, line2, k2)
+                    end do
+                end do
+            end do
+
+            !$acc parallel loop gang
+            do line = 1, n2*n_quantities
+                if (periodic(1)) then
+                    call spl_five_per_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                           work1(:, line, 1), work1(:, line, 2), &
+                                           work1(:, line, 3), work1(:, line, 4), &
+                                           work1(:, line, 5))
+                else
+                    call spl_five_reg_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                           work1(:, line, 1), work1(:, line, 2), &
+                                           work1(:, line, 3), work1(:, line, 4), &
+                                           work1(:, line, 5))
+                end if
+            end do
+
+            !$acc parallel loop collapse(3) gang
+            do iq = 1, n_quantities
+                do i2 = 1, n2
+                    do i1 = 1, n1
+                        line = (iq - 1)*n2 + i2
+                        !$acc loop vector
+                        do k1 = 0, N1_order
+                            spl%coeff(iq, k1, k2, i1, i2) = work1(i1, line, k1)
+                        end do
+                    end do
+                end do
+            end do
+        end do
+        !$acc end data
+
+        deallocate(work1)
+        deallocate(work2)
+        if (.not. do_assume_present) then
+            !$acc exit data delete(y_batch)
+        end if
+        if (do_update) then
+            !$acc update self(spl%coeff)
+        end if
+    end subroutine construct_batch_splines_2d_resident_device_impl
     
     
     subroutine destroy_batch_splines_2d(spl)

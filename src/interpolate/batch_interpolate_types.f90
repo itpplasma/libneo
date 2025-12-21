@@ -46,7 +46,8 @@ module batch_interpolate_types
         
         ! Batch data
         integer :: num_quantities
-        ! Memory layout: (n_quantities, 0:order1, 0:order2, 0:order3, n1, n2, n3) for cache efficiency
+        ! Memory layout: (n_quantities, 0:order1, 0:order2, 0:order3, n1, n2, n3) for
+        ! cache efficiency
         real(dp), dimension(:, :, :, :, :, :, :), allocatable :: coeff
     end type BatchSplineData3D
     

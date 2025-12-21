@@ -4,6 +4,7 @@ program bench_spline3d_many
     use batch_interpolate_types, only: BatchSplineData3D
     use batch_interpolate_3d, only: construct_batch_splines_3d, &
                                     construct_batch_splines_3d_resident, &
+                                    construct_batch_splines_3d_resident_device, &
                                     destroy_batch_splines_3d
     use draft_batch_splines_many_api, only: evaluate_batch_splines_3d_many
     use spline3d_many_offload, only: spline3d_many_setup, &
@@ -13,7 +14,7 @@ program bench_spline3d_many
     use util_lcg_rng, only: lcg_state_t, lcg_init, lcg_uniform_0_1
     implicit none
 
-    integer, parameter :: order(3) = [5, 3, 3]
+    integer, parameter :: order(3) = [5, 5, 5]
     integer, parameter :: num_points(3) = [48, 32, 32]
     integer, parameter :: num_quantities = 8
     integer, parameter :: npts = 200000
@@ -61,6 +62,7 @@ program bench_spline3d_many
 
     call bench_build_3d(x_min, x_max, y_grid, spl)
     call bench_build_resident_3d(x_min, x_max, y_grid, spl)
+    call bench_build_device_3d()
 
     allocate (x_eval(3, npts))
     do ipt = 1, npts
@@ -167,6 +169,55 @@ contains
                                         order, periodic, spl_out)
 #endif
     end subroutine bench_build_resident_3d
+
+    subroutine bench_build_device_3d()
+        type(BatchSplineData3D) :: spl_dev
+        integer :: it, rep
+        real(dp) :: t0, t1, dt, best_build
+        real(dp) :: grid_pts_per_s
+
+#if defined(LIBNEO_ENABLE_OPENACC)
+        best_build = huge(1.0d0)
+        do it = 1, nbuild_resident
+            t0 = wall_time()
+            do rep = 1, nbuild_repeat
+                call construct_batch_splines_3d_resident_device(&
+                    x_min, x_max, y_grid, order, periodic, spl_dev, &
+                    update_host=.true., assume_y_present=.false.)
+                !$acc wait
+                call destroy_batch_splines_3d(spl_dev)
+            end do
+            t1 = wall_time()
+            dt = (t1 - t0) / real(nbuild_repeat, dp)
+            best_build = min(best_build, dt)
+        end do
+        grid_pts_per_s = real(num_points(1)*num_points(2)*num_points(3)* &
+                              num_quantities, dp) / best_build
+        print *, "build_device_host best_s ", best_build, " grid_pts_per_s ", &
+            grid_pts_per_s
+
+        !$acc enter data copyin(y_grid)
+        best_build = huge(1.0d0)
+        do it = 1, nbuild_resident
+            t0 = wall_time()
+            do rep = 1, nbuild_repeat
+                call construct_batch_splines_3d_resident_device(&
+                    x_min, x_max, y_grid, order, periodic, spl_dev, &
+                    update_host=.false., assume_y_present=.true.)
+                !$acc wait
+                call destroy_batch_splines_3d(spl_dev)
+            end do
+            t1 = wall_time()
+            dt = (t1 - t0) / real(nbuild_repeat, dp)
+            best_build = min(best_build, dt)
+        end do
+        !$acc exit data delete(y_grid)
+        grid_pts_per_s = real(num_points(1)*num_points(2)*num_points(3)* &
+                              num_quantities, dp) / best_build
+        print *, "build_device_gpu best_s ", best_build, " grid_pts_per_s ", &
+            grid_pts_per_s
+#endif
+    end subroutine bench_build_device_3d
 
     real(dp) function wall_time() result(t)
         integer :: count, rate, max_count

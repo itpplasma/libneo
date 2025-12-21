@@ -93,6 +93,8 @@ endif()
 
 add_library(draft_interpolate STATIC
     ${LIBNEO_ROOT}/src/spl_three_to_five.f90
+    ${LIBNEO_ROOT}/src/interpolate/acc_tridiag_pcr.f90
+    ${LIBNEO_ROOT}/src/interpolate/acc_spline_build_order5.f90
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_types.f90
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_1d.f90
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_2d.f90

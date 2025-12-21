@@ -88,6 +88,21 @@ extract_build_resident_grid_pts_per_s() {
   ' "${log_path}"
 }
 
+extract_build_device_grid_pts_per_s() {
+  local log_path="$1"
+  local tag="$2" # host|gpu
+  awk -v tag="${tag}" '
+    {
+      want = "build_device_" tag
+      for (i = 1; i <= NF; i++) {
+        if (state == 0 && $i == want) state = 1;
+        else if (state == 1 && $i == "grid_pts_per_s") state = 2;
+        else if (state == 2) { print $i; exit; }
+      }
+    }
+  ' "${log_path}"
+}
+
 extract_setup_s() {
   local log_path="$1"
   local kind="$2" # openacc|openmp
@@ -137,6 +152,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     run_one "${exe}" "${log_host}" env ACC_DEVICE_TYPE=host "${exe}"
     results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_host}")"
     results["${nv_tag},build_resident_host,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log_host}")"
+    results["${nv_tag},build_device_host,${dim}"]="$(extract_build_device_grid_pts_per_s "${log_host}" host)"
     results["${nv_tag},openacc_setup_host,${dim}"]="$(extract_setup_s "${log_host}" openacc)"
     results["${nv_tag},openacc_host,${dim}"]="$(extract_pts_per_s "${log_host}" openacc)"
 
@@ -144,6 +160,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     run_one "${exe}" "${log_gpu}" env ACC_DEVICE_TYPE=nvidia "${exe}"
     results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_gpu}")"
     results["${nv_tag},build_resident_gpu,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log_gpu}")"
+    results["${nv_tag},build_device_gpu,${dim}"]="$(extract_build_device_grid_pts_per_s "${log_gpu}" gpu)"
     results["${nv_tag},openacc_setup_gpu,${dim}"]="$(extract_setup_s "${log_gpu}" openacc)"
     results["${nv_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" openacc)"
   done
@@ -209,6 +226,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=host "${exe}"
     results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
     results["${g_tag},build_resident_host,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log}")"
+    results["${g_tag},build_device_host,${dim}"]="$(extract_build_device_grid_pts_per_s "${log}" host)"
     results["${g_tag},openacc_setup_host,${dim}"]="$(extract_setup_s "${log}" openacc)"
     results["${g_tag},openacc_host,${dim}"]="$(extract_pts_per_s "${log}" openacc)"
   done
@@ -226,6 +244,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=nvidia GOMP_DEBUG="${gomp_debug}" "${exe}"
     results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
     results["${g_tag},build_resident_gpu,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log}")"
+    results["${g_tag},build_device_gpu,${dim}"]="$(extract_build_device_grid_pts_per_s "${log}" gpu)"
     results["${g_tag},openacc_setup_gpu,${dim}"]="$(extract_setup_s "${log}" openacc)"
     results["${g_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log}" openacc)"
   done
@@ -276,7 +295,8 @@ echo "Summary (grid_pts_per_s, pts_per_s, setup_s)"
 printf "%-10s %-13s %-4s %s\n" "compiler" "metric" "dim" "value"
 for dim in 1d 2d 3d; do
   for compiler in nvfortran gfortran; do
-    for metric in build build_resident_host build_resident_gpu cpu \
+    for metric in build build_resident_host build_resident_gpu \
+      build_device_host build_device_gpu cpu \
       openacc_setup_host openacc_host openacc_setup_gpu openacc_gpu \
       openmp_setup_host openmp_host openmp_setup_gpu openmp_gpu; do
       key="${compiler},${metric},${dim}"

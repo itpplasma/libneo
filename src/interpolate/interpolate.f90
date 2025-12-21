@@ -6,8 +6,11 @@ module interpolate
                                  construct_batch_splines_2d, &
                                  construct_batch_splines_3d, &
                                  construct_batch_splines_1d_resident, &
+                                 construct_batch_splines_1d_resident_device, &
                                  construct_batch_splines_2d_resident, &
-                                 construct_batch_splines_3d_resident
+                                 construct_batch_splines_2d_resident_device, &
+                                 construct_batch_splines_3d_resident, &
+                                 construct_batch_splines_3d_resident_device
     use batch_interpolate, only: destroy_batch_splines_1d, destroy_batch_splines_2d, &
                                  destroy_batch_splines_3d
     use batch_interpolate, only: evaluate_batch_splines_1d, &
@@ -33,7 +36,10 @@ module interpolate
     public :: construct_batch_splines_1d, construct_batch_splines_2d, &
               construct_batch_splines_3d
     public :: construct_batch_splines_1d_resident, construct_batch_splines_2d_resident
+    public :: construct_batch_splines_1d_resident_device
+    public :: construct_batch_splines_2d_resident_device
     public :: construct_batch_splines_3d_resident
+    public :: construct_batch_splines_3d_resident_device
     public :: destroy_batch_splines_1d, destroy_batch_splines_2d, &
               destroy_batch_splines_3d
     public :: evaluate_batch_splines_1d, evaluate_batch_splines_1d_single
