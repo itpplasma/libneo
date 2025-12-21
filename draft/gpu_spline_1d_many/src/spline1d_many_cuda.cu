@@ -17,7 +17,9 @@ struct spline1d_handle {
 
 static __device__ __forceinline__ double wrap_periodic(double x, double x_min, double period) {
     double t = x - x_min;
-    double w = t - floor(t / period) * period;
+    int k_wrap = static_cast<int>(t / period);
+    double w = t - static_cast<double>(k_wrap) * period;
+    if (w < 0.0) w += period;
     return w + x_min;
 }
 

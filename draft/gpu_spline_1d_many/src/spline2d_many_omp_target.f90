@@ -35,16 +35,9 @@ contains
         order1 = order(1)
         order2 = order(2)
 
-        if (periodic(1)) then
-            periodic_int(1) = 1
-        else
-            periodic_int(1) = 0
-        end if
-        if (periodic(2)) then
-            periodic_int(2) = 1
-        else
-            periodic_int(2) = 0
-        end if
+        periodic_int = 0
+        if (periodic(1)) periodic_int(1) = 1
+        if (periodic(2)) periodic_int(2) = 1
 
         period(1) = h_step(1)*real(num_points(1) - 1, dp)
         period(2) = h_step(2)*real(num_points(2) - 1, dp)

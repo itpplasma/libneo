@@ -22,7 +22,9 @@ struct spline2d_handle {
 
 static __device__ __forceinline__ double wrap_periodic(double x, double x_min, double period) {
     double t = x - x_min;
-    double w = t - floor(t / period) * period;
+    int k_wrap = static_cast<int>(t / period);
+    double w = t - static_cast<double>(k_wrap) * period;
+    if (w < 0.0) w += period;
     return w + x_min;
 }
 
@@ -156,4 +158,3 @@ extern "C" void spline2d_many_cuda_c_get_y(void* handle, void* y, int npts) {
                    sizeof(double),
                cudaMemcpyDeviceToHost);
 }
-
