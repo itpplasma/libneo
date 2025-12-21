@@ -49,17 +49,21 @@ contains
 
         integer :: ipt, iq, k_power, idx, base
         real(dp) :: xj, x_norm, x_local, period
+        real(dp) :: t, w
         logical :: is_periodic
 
         is_periodic = periodic
         period = h_step*real(num_points - 1, dp)
 
         !$acc parallel loop present(coeff, x, y) &
-        !$acc& private(xj, x_norm, x_local, idx, base) gang
+        !$acc& private(xj, x_norm, x_local, idx, base, t, w) gang vector &
+        !$acc& vector_length(256)
         do ipt = 1, size(x)
             base = (ipt - 1)*num_quantities
             if (is_periodic) then
-                xj = modulo(x(ipt) - x_min, period) + x_min
+                t = x(ipt) - x_min
+                w = t - floor(t/period)*period
+                xj = w + x_min
             else
                 xj = x(ipt)
             end if
@@ -68,13 +72,11 @@ contains
             idx = max(0, min(num_points - 2, int(x_norm)))
             x_local = (x_norm - real(idx, dp))*h_step
 
-            !$acc loop vector
             do iq = 1, num_quantities
                 y(base + iq) = coeff(iq, order, idx + 1)
             end do
 
             do k_power = order - 1, 0, -1
-                !$acc loop vector
                 do iq = 1, num_quantities
                     y(base + iq) = coeff(iq, k_power, idx + 1) + x_local*y(base + iq)
                 end do

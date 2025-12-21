@@ -23,19 +23,22 @@ add_library(draft_interpolate STATIC
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_1d.f90
 )
 target_include_directories(draft_interpolate PUBLIC ${CMAKE_Fortran_MODULE_DIRECTORY})
+target_compile_options(draft_interpolate PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-O3>)
 
 add_library(draft_spline1d_many STATIC
     src/spline1d_many_cpu.f90
     src/spline1d_many_openacc.f90
     src/spline1d_many_omp_target.f90
-    src/spline1d_many_cuda_fortran.f90
+    src/spline1d_many_cuda_fortran.cuf
     src/spline1d_many_cuda_c_wrapper.f90
     src/util_lcg_rng.f90
 )
 target_link_libraries(draft_spline1d_many PUBLIC draft_interpolate)
+target_compile_options(draft_spline1d_many PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-O3>)
 
 add_executable(bench_spline1d_many src/bench_spline1d_many.f90)
 target_link_libraries(bench_spline1d_many PRIVATE draft_spline1d_many)
+target_compile_options(bench_spline1d_many PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-O3>)
 
 target_link_options(bench_spline1d_many PRIVATE
     -gpu=ccnative

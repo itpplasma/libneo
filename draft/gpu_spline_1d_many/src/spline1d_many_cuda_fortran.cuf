@@ -149,8 +149,7 @@ contains
         grid = dim3(grid_x, 1, 1)
 
         call spline1d_many_kernel<<<grid, block>>>( &
-            cached_order, cached_num_points, cached_num_quantities, &
-            cached_periodic_int, &
+            cached_order, cached_num_points, cached_num_quantities, cached_periodic_int, &
             cached_x_min, cached_h_step, coeff_dev, x_dev, y_dev, npts_local &
         )
         ierr = cudaDeviceSynchronize()

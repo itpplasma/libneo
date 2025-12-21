@@ -51,6 +51,7 @@ contains
 
         integer :: ipt, iq, k_power, idx, base
         real(dp) :: xj, x_norm, x_local, period
+        real(dp) :: t, w
         integer :: periodic_int
 
         period = h_step*real(num_points - 1, dp)
@@ -60,11 +61,13 @@ contains
             periodic_int = 0
         end if
 
-!$omp target teams distribute parallel do &
+!$omp target teams distribute parallel do thread_limit(256) &
 !$omp& private(xj, x_norm, x_local, idx, iq, k_power, base)
         do ipt = 1, size(x)
             if (periodic_int == 1) then
-                xj = modulo(x(ipt) - x_min, period) + x_min
+                t = x(ipt) - x_min
+                w = t - floor(t/period)*period
+                xj = w + x_min
             else
                 xj = x(ipt)
             end if

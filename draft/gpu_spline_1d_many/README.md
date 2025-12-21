@@ -57,12 +57,13 @@ On this machine (RTX 5060 Ti, driver 590.48.01, CUDA 13.1), running:
 - `order=5`, `num_points=2048`, `num_quantities=8`
 - `npts=2000000`, `niter=20`, `periodic=T`
 
-produced (from `/tmp/libneo_gpu_spline1d_many_bench_4.log`):
+produced (from `/tmp/libneo_gpu_spline1d_many_bench_opt2.log`), with Fortran compiled using
+`-O3` in this draft CMake project:
 
-- CPU: `best_s 0.226729` → `8.82e6 pts/s`
-- OpenACC: `best_s 0.012501` → `1.60e8 pts/s`
-- OpenMP target: `best_s 0.028722` → `6.96e7 pts/s`
-- CUDA Fortran: `best_s 0.002480` → `8.06e8 pts/s`
+- CPU: `best_s 0.043485` → `4.60e7 pts/s`
+- OpenACC: `best_s 0.002481` → `8.06e8 pts/s`
+- OpenMP target: `best_s 0.028762` → `6.95e7 pts/s`
+- CUDA Fortran: `best_s 0.002477` → `8.07e8 pts/s`
 - CUDA C: `best_s 0.002441` → `8.19e8 pts/s`
 
 All variants reported `max_abs_diff 0.0` versus the CPU reference for this run.
