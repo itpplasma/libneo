@@ -20,34 +20,18 @@ contains
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y(num_quantities*size(x))
 
-        integer :: ipt, iq, k_power, idx
-        real(dp) :: xj, x_norm, x_local, period
-        integer :: base
+        integer :: ipt, iq, k_power, idx, base
+        integer :: periodic_int
+        real(dp) :: xj, x_norm, x_local, period, t, w
 
         period = h_step*real(num_points - 1, dp)
+        if (periodic) then
+            periodic_int = 1
+        else
+            periodic_int = 0
+        end if
 
-        do ipt = 1, size(x)
-            if (periodic) then
-                xj = modulo(x(ipt) - x_min, period) + x_min
-            else
-                xj = x(ipt)
-            end if
-
-            x_norm = (xj - x_min)/h_step
-            idx = max(0, min(num_points - 2, int(x_norm)))
-            x_local = (x_norm - real(idx, dp))*h_step
-
-            base = (ipt - 1)*num_quantities
-            do iq = 1, num_quantities
-                y(base + iq) = coeff(iq, order, idx + 1)
-            end do
-
-            do k_power = order - 1, 0, -1
-                do iq = 1, num_quantities
-                    y(base + iq) = coeff(iq, k_power, idx + 1) + x_local*y(base + iq)
-                end do
-            end do
-        end do
+#include "spline1d_many_eval_body.inc"
     end subroutine spline1d_many_cpu_eval
 
 end module spline1d_many_cpu

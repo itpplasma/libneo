@@ -58,12 +58,14 @@ endif()
 
 if(DRAFT_ENABLE_OPENACC)
     set_source_files_properties(src/spline1d_many_openacc.f90 PROPERTIES
+        COMPILE_DEFINITIONS "SPLINE1D_BACKEND_OPENACC"
         COMPILE_OPTIONS "-acc;-gpu=ccnative;-Minfo=accel"
     )
 endif()
 
 if(DRAFT_ENABLE_OMP_TARGET)
     set_source_files_properties(src/spline1d_many_omp_target.f90 PROPERTIES
+        COMPILE_DEFINITIONS "SPLINE1D_BACKEND_OMP_TARGET"
         COMPILE_OPTIONS "-mp=gpu;-gpu=ccnative;-Minfo=mp"
     )
 endif()

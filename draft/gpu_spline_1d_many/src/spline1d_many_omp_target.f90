@@ -50,44 +50,17 @@ contains
         real(dp), intent(inout) :: y(num_quantities*size(x))
 
         integer :: ipt, iq, k_power, idx, base
-        real(dp) :: xj, x_norm, x_local, period
-        real(dp) :: t, w
         integer :: periodic_int
+        real(dp) :: xj, x_norm, x_local, period, t, w
 
-        period = h_step*real(num_points - 1, dp)
         if (periodic) then
             periodic_int = 1
         else
             periodic_int = 0
         end if
+        period = h_step*real(num_points - 1, dp)
 
-!$omp target teams distribute parallel do thread_limit(256) &
-!$omp& private(xj, x_norm, x_local, idx, iq, k_power, base)
-        do ipt = 1, size(x)
-            if (periodic_int == 1) then
-                t = x(ipt) - x_min
-                w = t - floor(t/period)*period
-                xj = w + x_min
-            else
-                xj = x(ipt)
-            end if
-
-            x_norm = (xj - x_min)/h_step
-            idx = max(0, min(num_points - 2, int(x_norm)))
-            x_local = (x_norm - real(idx, dp))*h_step
-
-            base = (ipt - 1)*num_quantities
-            do iq = 1, num_quantities
-                y(base + iq) = coeff(iq, order, idx + 1)
-            end do
-
-            do k_power = order - 1, 0, -1
-                do iq = 1, num_quantities
-                    y(base + iq) = coeff(iq, k_power, idx + 1) + x_local*y(base + iq)
-                end do
-            end do
-        end do
-!$omp end target teams distribute parallel do
+#include "spline1d_many_eval_body.inc"
     end subroutine spline1d_many_omp_target_eval_resident
 
 end module spline1d_many_omp_target

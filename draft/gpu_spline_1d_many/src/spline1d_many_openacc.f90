@@ -48,41 +48,17 @@ contains
         real(dp), intent(inout) :: y(num_quantities*size(x))
 
         integer :: ipt, iq, k_power, idx, base
-        real(dp) :: xj, x_norm, x_local, period
-        real(dp) :: t, w
-        logical :: is_periodic
+        integer :: periodic_int
+        real(dp) :: xj, x_norm, x_local, period, t, w
 
-        is_periodic = periodic
+        if (periodic) then
+            periodic_int = 1
+        else
+            periodic_int = 0
+        end if
         period = h_step*real(num_points - 1, dp)
 
-        !$acc parallel loop present(coeff, x, y) &
-        !$acc& private(xj, x_norm, x_local, idx, base, t, w) gang vector &
-        !$acc& vector_length(256)
-        do ipt = 1, size(x)
-            base = (ipt - 1)*num_quantities
-            if (is_periodic) then
-                t = x(ipt) - x_min
-                w = t - floor(t/period)*period
-                xj = w + x_min
-            else
-                xj = x(ipt)
-            end if
-
-            x_norm = (xj - x_min)/h_step
-            idx = max(0, min(num_points - 2, int(x_norm)))
-            x_local = (x_norm - real(idx, dp))*h_step
-
-            do iq = 1, num_quantities
-                y(base + iq) = coeff(iq, order, idx + 1)
-            end do
-
-            do k_power = order - 1, 0, -1
-                do iq = 1, num_quantities
-                    y(base + iq) = coeff(iq, k_power, idx + 1) + x_local*y(base + iq)
-                end do
-            end do
-        end do
-        !$acc end parallel loop
+#include "spline1d_many_eval_body.inc"
     end subroutine spline1d_many_openacc_eval_resident
 
 end module spline1d_many_openacc
