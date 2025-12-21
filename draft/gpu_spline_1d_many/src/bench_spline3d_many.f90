@@ -8,7 +8,6 @@ program bench_spline3d_many
     use spline3d_many_openacc, only: spline3d_many_openacc_setup, &
                                      spline3d_many_openacc_teardown, &
                                      spline3d_many_openacc_eval_resident
-    use spline3d_many_omp_target, only: spline3d_many_omp_target_eval_resident
     use spline3d_many_cuda_fortran, only: spline3d_many_cuda_fortran_setup, &
                                           spline3d_many_cuda_fortran_teardown, &
                                           spline3d_many_cuda_fortran_eval_device, &
@@ -93,7 +92,6 @@ program bench_spline3d_many
 
     call bench_cpu()
     call bench_openacc()
-    call bench_omp_target()
     call bench_cuda_fortran()
     call bench_cuda_c()
 
@@ -159,38 +157,6 @@ contains
             " max_abs_diff ", diff_max
         call spline3d_many_openacc_teardown(spl%coeff, x_eval, y_out)
     end subroutine bench_openacc
-
-    subroutine bench_omp_target()
-        integer :: it
-        real(dp) :: t0, t1, dt
-
-!$omp target data map(to: spl%coeff, x_eval) map(alloc: y_out)
-        call spline3d_many_omp_target_eval_resident(spl%order, spl%num_points, &
-                                                    spl%num_quantities, &
-                                                    spl%periodic, spl%x_min, &
-                                                    spl%h_step, &
-                                                    spl%coeff, x_eval, y_out)
-        call spline1d_many_cuda_sync()
-        best = huge(1.0d0)
-        do it = 1, niter
-            t0 = wall_time()
-            call spline3d_many_omp_target_eval_resident(spl%order, spl%num_points, &
-                                                        spl%num_quantities, &
-                                                        spl%periodic, &
-                                                        spl%x_min, spl%h_step, &
-                                                        spl%coeff, x_eval, &
-                                                        y_out)
-            call spline1d_many_cuda_sync()
-            t1 = wall_time()
-            dt = t1 - t0
-            best = min(best, dt)
-        end do
-!$omp target update from(y_out)
-!$omp end target data
-        diff_max = maxval(abs(y_out - y_ref))
-        print *, "omp_target best_s ", best, " pts_per_s ", real(npts, dp)/best, &
-            " max_abs_diff ", diff_max
-    end subroutine bench_omp_target
 
     subroutine bench_cuda_fortran()
         integer :: it

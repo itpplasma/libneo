@@ -8,7 +8,6 @@ program bench_spline1d_many
     use spline1d_many_openacc, only: spline1d_many_openacc_setup, &
                                      spline1d_many_openacc_teardown, &
                                      spline1d_many_openacc_eval_resident
-    use spline1d_many_omp_target, only: spline1d_many_omp_target_eval_resident
     use spline1d_many_cuda_fortran, only: spline1d_many_cuda_fortran_setup, &
                                           spline1d_many_cuda_fortran_teardown, &
                                           spline1d_many_cuda_fortran_eval_device, &
@@ -86,7 +85,6 @@ program bench_spline1d_many
 
     call bench_cpu(spl, x_eval, y_batch, y_ref)
     call bench_openacc(spl, x_eval, y_batch, y_ref)
-    call bench_omp_target(spl, x_eval, y_batch, y_ref)
     call bench_cuda_fortran(spl, x_eval, y_batch, y_ref)
     call bench_cuda_c(spl, x_eval, y_batch, y_ref, cuda_c)
 
@@ -168,49 +166,6 @@ contains
 
         call spline1d_many_openacc_teardown(spl_local%coeff, x, y)
     end subroutine bench_openacc
-
-    subroutine bench_omp_target(spl_local, x, y, y_expected)
-        type(BatchSplineData1D), intent(in) :: spl_local
-        real(dp), intent(in), target :: x(:)
-        real(dp), intent(inout), target :: y(:)
-        real(dp), intent(in) :: y_expected(:)
-
-        integer :: it
-        real(dp) :: tstart, tend, dt
-
-!$omp target data map(to: spl_local%coeff, x) map(alloc: y)
-        call spline1d_many_omp_target_eval_resident(spl_local%order, &
-                                                    spl_local%num_points, &
-                                                    spl_local%num_quantities, &
-                                                    spl_local%periodic, &
-                                                    spl_local%x_min, &
-                                                    spl_local%h_step, &
-                                                    spl_local%coeff, x, y)
-        call spline1d_many_cuda_sync()
-
-        best = huge(1.0d0)
-        do it = 1, niter
-            tstart = wall_time()
-            call spline1d_many_omp_target_eval_resident(spl_local%order, &
-                                                        spl_local%num_points, &
-                                                        spl_local%num_quantities, &
-                                                        spl_local%periodic, &
-                                                        spl_local%x_min, &
-                                                        spl_local%h_step, &
-                                                        spl_local%coeff, x, y)
-            call spline1d_many_cuda_sync()
-            tend = wall_time()
-            dt = tend - tstart
-            best = min(best, dt)
-        end do
-
-!$omp target update from(y)
-!$omp end target data
-
-        diff_max = maxval(abs(y - y_expected))
-        print *, "omp_target best_s ", best, " pts_per_s ", real(size(x), dp)/best, &
-            " max_abs_diff ", diff_max
-    end subroutine bench_omp_target
 
     subroutine bench_cuda_fortran(spl_local, x, y, y_expected)
         type(BatchSplineData1D), intent(in) :: spl_local

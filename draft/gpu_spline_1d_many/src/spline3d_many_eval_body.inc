@@ -3,10 +3,6 @@
         !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, base, xj1, xj2, xj3, x_norm1, &
         !$acc& x_norm2, x_norm3, x_local1, x_local2, x_local3, t, w, v, w2, yq, k_wrap) gang &
         !$acc& vector vector_length(256)
-#elif defined(SPLINE3D_BACKEND_OMP_TARGET)
-!$omp target teams distribute parallel do thread_limit(256) num_teams((npts + 255) / 256) &
-!$omp& private(ipt, iq, k1, k2, k3, i1, i2, i3, base, xj1, xj2, xj3, x_norm1, x_norm2, &
-!$omp& x_norm3, x_local1, x_local2, x_local3, t, w, v, w2, yq, k_wrap)
 #endif
 
         do ipt = 1, npts
@@ -87,6 +83,4 @@
 
 #if defined(SPLINE3D_BACKEND_OPENACC)
         !$acc end parallel loop
-#elif defined(SPLINE3D_BACKEND_OMP_TARGET)
-!$omp end target teams distribute parallel do
 #endif

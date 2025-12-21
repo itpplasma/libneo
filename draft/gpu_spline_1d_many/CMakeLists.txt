@@ -6,7 +6,6 @@ set(CMAKE_Fortran_STANDARD 2018)
 set(CMAKE_C_STANDARD 11)
 
 option(DRAFT_ENABLE_OPENACC "Build OpenACC variant (NVHPC)" ON)
-option(DRAFT_ENABLE_OMP_TARGET "Build OpenMP target offload variant (NVHPC)" ON)
 option(DRAFT_ENABLE_CUDA_FORTRAN "Build CUDA Fortran variant (NVHPC)" ON)
 option(DRAFT_ENABLE_CUDA_C "Build CUDA C kernel variant (NVCC + Fortran)" ON)
 
@@ -30,7 +29,6 @@ target_compile_options(draft_interpolate PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:-
 add_library(draft_spline1d_many STATIC
     src/spline1d_many_cpu.f90
     src/spline1d_many_openacc.f90
-    src/spline1d_many_omp_target.f90
     src/spline1d_many_cuda_fortran.cuf
     src/spline1d_many_cuda_c_wrapper.f90
     src/util_lcg_rng.f90
@@ -50,10 +48,6 @@ if(DRAFT_ENABLE_OPENACC)
     target_link_options(bench_spline1d_many PRIVATE -acc)
 endif()
 
-if(DRAFT_ENABLE_OMP_TARGET)
-    target_link_options(bench_spline1d_many PRIVATE -mp=gpu)
-endif()
-
 if(DRAFT_ENABLE_CUDA_FORTRAN)
     target_link_options(bench_spline1d_many PRIVATE -cuda -cudaforlibs)
 endif()
@@ -62,13 +56,6 @@ if(DRAFT_ENABLE_OPENACC)
     set_source_files_properties(src/spline1d_many_openacc.f90 PROPERTIES
         COMPILE_DEFINITIONS "SPLINE1D_BACKEND_OPENACC"
         COMPILE_OPTIONS "-acc;-gpu=ccnative;-Minfo=accel"
-    )
-endif()
-
-if(DRAFT_ENABLE_OMP_TARGET)
-    set_source_files_properties(src/spline1d_many_omp_target.f90 PROPERTIES
-        COMPILE_DEFINITIONS "SPLINE1D_BACKEND_OMP_TARGET"
-        COMPILE_OPTIONS "-mp=gpu;-gpu=ccnative;-Minfo=mp"
     )
 endif()
 
@@ -102,7 +89,6 @@ endif()
 add_library(draft_spline2d_many STATIC
     src/spline2d_many_cpu.f90
     src/spline2d_many_openacc.f90
-    src/spline2d_many_omp_target.f90
     src/spline2d_many_cuda_fortran.cuf
     src/spline2d_many_cuda_c_wrapper.f90
 )
@@ -118,10 +104,6 @@ if(DRAFT_ENABLE_OPENACC)
     target_link_options(bench_spline2d_many PRIVATE -acc)
 endif()
 
-if(DRAFT_ENABLE_OMP_TARGET)
-    target_link_options(bench_spline2d_many PRIVATE -mp=gpu)
-endif()
-
 if(DRAFT_ENABLE_CUDA_FORTRAN)
     target_link_options(bench_spline2d_many PRIVATE -cuda -cudaforlibs)
 endif()
@@ -130,13 +112,6 @@ if(DRAFT_ENABLE_OPENACC)
     set_source_files_properties(src/spline2d_many_openacc.f90 PROPERTIES
         COMPILE_DEFINITIONS "SPLINE2D_BACKEND_OPENACC"
         COMPILE_OPTIONS "-acc;-gpu=ccnative;-Minfo=accel"
-    )
-endif()
-
-if(DRAFT_ENABLE_OMP_TARGET)
-    set_source_files_properties(src/spline2d_many_omp_target.f90 PROPERTIES
-        COMPILE_DEFINITIONS "SPLINE2D_BACKEND_OMP_TARGET"
-        COMPILE_OPTIONS "-mp=gpu;-gpu=ccnative;-Minfo=mp"
     )
 endif()
 
@@ -165,7 +140,6 @@ endif()
 add_library(draft_spline3d_many STATIC
     src/spline3d_many_cpu.f90
     src/spline3d_many_openacc.f90
-    src/spline3d_many_omp_target.f90
     src/spline3d_many_cuda_fortran.cuf
     src/spline3d_many_cuda_c_wrapper.f90
 )
@@ -182,14 +156,6 @@ if(DRAFT_ENABLE_OPENACC)
     set_source_files_properties(src/spline3d_many_openacc.f90 PROPERTIES
         COMPILE_DEFINITIONS "SPLINE3D_BACKEND_OPENACC"
         COMPILE_OPTIONS "-acc;-gpu=ccnative;-Minfo=accel"
-    )
-endif()
-
-if(DRAFT_ENABLE_OMP_TARGET)
-    target_link_options(bench_spline3d_many PRIVATE -mp=gpu)
-    set_source_files_properties(src/spline3d_many_omp_target.f90 PROPERTIES
-        COMPILE_DEFINITIONS "SPLINE3D_BACKEND_OMP_TARGET"
-        COMPILE_OPTIONS "-mp=gpu;-gpu=ccnative;-Minfo=mp"
     )
 endif()
 

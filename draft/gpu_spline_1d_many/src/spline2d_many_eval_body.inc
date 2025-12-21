@@ -2,10 +2,6 @@
         !$acc parallel loop present(coeff, x, y) &
         !$acc& private(ipt, iq, k1, k2, i1, i2, base, xj1, xj2, x_norm1, x_norm2, &
         !$acc& x_local1, x_local2, t, w, v, yq, k_wrap) gang vector vector_length(256)
-#elif defined(SPLINE2D_BACKEND_OMP_TARGET)
-!$omp target teams distribute parallel do thread_limit(256) num_teams((npts + 255) / 256) &
-!$omp& private(ipt, iq, k1, k2, i1, i2, base, xj1, xj2, x_norm1, x_norm2, x_local1, &
-!$omp& x_local2, t, w, v, yq, k_wrap)
 #endif
 
         do ipt = 1, npts
@@ -58,6 +54,4 @@
 
 #if defined(SPLINE2D_BACKEND_OPENACC)
         !$acc end parallel loop
-#elif defined(SPLINE2D_BACKEND_OMP_TARGET)
-!$omp end target teams distribute parallel do
 #endif

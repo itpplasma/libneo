@@ -27,7 +27,6 @@ All implementations are in double precision (`real(dp)` / CUDA `double`).
 
 - CPU reference (Fortran)
 - OpenACC (NVHPC `nvfortran -acc`)
-- OpenMP target offload (NVHPC `nvfortran -mp=gpu`)
 - CUDA Fortran (NVHPC `nvfortran -cuda`)
 - CUDA C kernel (NVCC) + Fortran wrapper (`iso_c_binding`)
 
@@ -77,31 +76,19 @@ produced the following best times (Fortran compiled with `-O3` in this draft CMa
 From `/tmp/libneo_gpu_spline_many_bench_1d_omp_numteams_2025-12-21.log`:
 - CPU: `best_s 0.041226` → `4.85e7 pts/s`
 - OpenACC: `best_s 0.002578` → `7.76e8 pts/s`
-- OpenMP target: `best_s 0.028726` → `6.96e7 pts/s`
 - CUDA Fortran: `best_s 0.002572` → `7.78e8 pts/s`
 - CUDA C: `best_s 0.002542` → `7.87e8 pts/s`
 
 From `/tmp/libneo_gpu_spline_many_bench_2d_omp_numteams_2025-12-21.log`:
 - CPU: `best_s 0.056710` → `8.82e6 pts/s`
 - OpenACC: `best_s 0.000974` → `5.13e8 pts/s`
-- OpenMP target: `best_s 0.034965` → `1.43e7 pts/s`
 - CUDA Fortran: `best_s 0.000952` → `5.25e8 pts/s`
 - CUDA C: `best_s 0.000976` → `5.12e8 pts/s`
 
 From `/tmp/libneo_gpu_spline_many_bench_3d_omp_numteams_2025-12-21.log`:
 - CPU: `best_s 0.064090` → `3.12e6 pts/s`
 - OpenACC: `best_s 0.000979` → `2.04e8 pts/s`
-- OpenMP target: `best_s 0.058352` → `3.43e6 pts/s`
 - CUDA Fortran: `best_s 0.000960` → `2.08e8 pts/s`
 - CUDA C: `best_s 0.000967` → `2.07e8 pts/s`
 
 All variants reported `max_abs_diff 0.0` versus the CPU reference in these runs.
-
-## Notes on OpenMP target performance
-
-On this machine, OpenMP target offload via NVHPC (`-mp=gpu`) is consistently far slower than
-OpenACC / CUDA for these kernels, and is only slightly faster than the CPU for 3D.
-
-This draft includes a `num_teams(...)` hint in the OpenMP target kernel launch. It provides
-only marginal improvement here; the remaining gap appears to be dominated by NVHPC OpenMP
-GPU code generation/runtime overhead rather than simple launch configuration.
