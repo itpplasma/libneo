@@ -1,11 +1,10 @@
 module batch_interpolate_1d
-    use batch_interpolate_types
-    use spl_three_to_five_sub
-    
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use batch_interpolate_types, only: BatchSplineData1D
+    use spl_three_to_five_sub, only: spl_per, spl_reg
+
     implicit none
     private
-    
-    integer, parameter :: dp = kind(1.0d0)
     
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_1d
@@ -14,6 +13,8 @@ module batch_interpolate_1d
     ! Export batch spline evaluation routines
     public :: evaluate_batch_splines_1d
     public :: evaluate_batch_splines_1d_single
+    public :: evaluate_batch_splines_1d_many
+    public :: evaluate_batch_splines_1d_many_resident
     public :: evaluate_batch_splines_1d_der
     public :: evaluate_batch_splines_1d_der2
     
@@ -164,6 +165,66 @@ contains
             y = spl%coeff(iq, k_power, interval_index+1) + x_local * y
         end do
     end subroutine evaluate_batch_splines_1d_single
+
+    subroutine evaluate_batch_splines_1d_many(spl, x, y_batch)
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(out) :: y_batch(:, :)  ! (n_quantities, n_points)
+
+        integer :: ipt, iq, k_power, idx, k_wrap
+        integer :: num_points, nq, order
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period, t, w
+
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_1d_many: First dimension too small"
+        end if
+        if (size(y_batch, 2) /= size(x)) then
+            error stop "evaluate_batch_splines_1d_many: Second dimension must equal size(x)"
+        end if
+
+        order = spl%order
+        num_points = spl%num_points
+        nq = spl%num_quantities
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step*real(num_points - 1, dp)
+
+        do ipt = 1, size(x)
+            include "spline1d_many_point_body.inc"
+        end do
+    end subroutine evaluate_batch_splines_1d_many
+
+    subroutine evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(inout) :: y_batch(:, :)  ! (n_quantities, n_points)
+
+        integer :: ipt, iq, k_power, idx, k_wrap
+        integer :: num_points, nq, order
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period, t, w
+
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_1d_many_resident: First dimension too small"
+        end if
+        if (size(y_batch, 2) /= size(x)) then
+            error stop "evaluate_batch_splines_1d_many_resident: Second dimension must equal size(x)"
+        end if
+
+        order = spl%order
+        num_points = spl%num_points
+        nq = spl%num_quantities
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step*real(num_points - 1, dp)
+
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
+        !$acc& private(ipt, iq, k_power, idx, k_wrap, xj, x_norm, x_local, t, w) &
+        !$acc& gang vector vector_length(256)
+        do ipt = 1, size(x)
+            include "spline1d_many_point_body.inc"
+        end do
+        !$acc end parallel loop
+    end subroutine evaluate_batch_splines_1d_many_resident
     
     
     subroutine evaluate_batch_splines_1d_der(spl, x, y_batch, dy_batch)

@@ -1,8 +1,7 @@
 module batch_interpolate_types
+    use, intrinsic :: iso_fortran_env, only: dp => real64
     implicit none
     private
-    
-    integer, parameter :: dp = kind(1.0d0)
     
     ! Export batch spline types
     public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
@@ -20,7 +19,7 @@ module batch_interpolate_types
         ! Batch data
         integer :: num_quantities
         ! Memory layout: (n_quantities, 0:order, n_points) for cache efficiency
-        real(dp), dimension(:,:,:), allocatable :: coeff  
+        real(dp), dimension(:, :, :), allocatable :: coeff
     end type BatchSplineData1D
     
     type :: BatchSplineData2D
@@ -34,7 +33,7 @@ module batch_interpolate_types
         ! Batch data
         integer :: num_quantities
         ! Memory layout: (n_quantities, 0:order1, 0:order2, n1, n2) for cache efficiency
-        real(dp), dimension(:,:,:,:,:), allocatable :: coeff
+        real(dp), dimension(:, :, :, :, :), allocatable :: coeff
     end type BatchSplineData2D
     
     type :: BatchSplineData3D
@@ -48,7 +47,7 @@ module batch_interpolate_types
         ! Batch data
         integer :: num_quantities
         ! Memory layout: (n_quantities, 0:order1, 0:order2, 0:order3, n1, n2, n3) for cache efficiency
-        real(dp), dimension(:,:,:,:,:,:,:), allocatable :: coeff
+        real(dp), dimension(:, :, :, :, :, :, :), allocatable :: coeff
     end type BatchSplineData3D
     
 end module batch_interpolate_types

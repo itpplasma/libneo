@@ -1,18 +1,34 @@
 module interpolate
-    use spl_three_to_five_sub
-    use batch_interpolate
-    
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use spl_three_to_five_sub, only: spl_per, spl_reg
+    use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D, &
+                                 construct_batch_splines_1d, construct_batch_splines_2d, &
+                                 construct_batch_splines_3d, destroy_batch_splines_1d, &
+                                 destroy_batch_splines_2d, destroy_batch_splines_3d, &
+                                 evaluate_batch_splines_1d, evaluate_batch_splines_1d_single, &
+                                 evaluate_batch_splines_1d_many, &
+                                 evaluate_batch_splines_1d_many_resident, &
+                                 evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2, &
+                                 evaluate_batch_splines_2d, evaluate_batch_splines_2d_der, &
+                                 evaluate_batch_splines_2d_many, &
+                                 evaluate_batch_splines_2d_many_resident, &
+                                 evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &
+                                 evaluate_batch_splines_3d_der2, evaluate_batch_splines_3d_many, &
+                                 evaluate_batch_splines_3d_many_resident
+
     implicit none
-    integer, parameter :: dp = kind(1.0d0)
     
     ! Re-export batch interpolate types and procedures
     public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
     public :: construct_batch_splines_1d, construct_batch_splines_2d, construct_batch_splines_3d
     public :: destroy_batch_splines_1d, destroy_batch_splines_2d, destroy_batch_splines_3d
     public :: evaluate_batch_splines_1d, evaluate_batch_splines_1d_single
+    public :: evaluate_batch_splines_1d_many, evaluate_batch_splines_1d_many_resident
     public :: evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2
     public :: evaluate_batch_splines_2d, evaluate_batch_splines_2d_der
+    public :: evaluate_batch_splines_2d_many, evaluate_batch_splines_2d_many_resident
     public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, evaluate_batch_splines_3d_der2
+    public :: evaluate_batch_splines_3d_many, evaluate_batch_splines_3d_many_resident
 
     type :: SplineData1D
         integer :: order

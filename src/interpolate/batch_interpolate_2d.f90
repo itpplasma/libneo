@@ -1,11 +1,10 @@
 module batch_interpolate_2d
-    use batch_interpolate_types
-    use spl_three_to_five_sub
-    
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use batch_interpolate_types, only: BatchSplineData2D
+    use spl_three_to_five_sub, only: spl_per, spl_reg
+
     implicit none
     private
-    
-    integer, parameter :: dp = kind(1.0d0)
     
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_2d
@@ -14,6 +13,8 @@ module batch_interpolate_2d
     ! Export batch spline evaluation routines
     public :: evaluate_batch_splines_2d
     public :: evaluate_batch_splines_2d_der
+    public :: evaluate_batch_splines_2d_many
+    public :: evaluate_batch_splines_2d_many_resident
     
 contains
     
@@ -189,6 +190,83 @@ contains
             end do
         end do
     end subroutine evaluate_batch_splines_2d
+
+    subroutine evaluate_batch_splines_2d_many(spl, x, y_batch)
+        type(BatchSplineData2D), intent(in) :: spl
+        real(dp), intent(in) :: x(:, :)
+        real(dp), intent(out) :: y_batch(:, :)  ! (n_quantities, n_points)
+
+        integer :: ipt, iq, k1, k2, i1, i2, k_wrap
+        integer :: nq, order1, order2
+        integer :: num_points(2)
+        real(dp) :: xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
+        real(dp) :: x_min(2), h_step(2), period(2)
+        real(dp) :: t, w, v, yq
+
+        if (size(x, 1) /= 2) then
+            error stop "evaluate_batch_splines_2d_many: First dimension of x must be 2"
+        end if
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_2d_many: First dimension too small"
+        end if
+        if (size(y_batch, 2) /= size(x, 2)) then
+            error stop "evaluate_batch_splines_2d_many: Second dimension must equal size(x,2)"
+        end if
+
+        nq = spl%num_quantities
+        num_points = spl%num_points
+        order1 = spl%order(1)
+        order2 = spl%order(2)
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period(1) = h_step(1)*real(num_points(1) - 1, dp)
+        period(2) = h_step(2)*real(num_points(2) - 1, dp)
+
+        do ipt = 1, size(x, 2)
+            include "spline2d_many_point_body.inc"
+        end do
+    end subroutine evaluate_batch_splines_2d_many
+
+    subroutine evaluate_batch_splines_2d_many_resident(spl, x, y_batch)
+        type(BatchSplineData2D), intent(in) :: spl
+        real(dp), intent(in) :: x(:, :)
+        real(dp), intent(inout) :: y_batch(:, :)  ! (n_quantities, n_points)
+
+        integer :: ipt, iq, k1, k2, i1, i2, k_wrap
+        integer :: nq, order1, order2
+        integer :: num_points(2)
+        real(dp) :: xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
+        real(dp) :: x_min(2), h_step(2), period(2)
+        real(dp) :: t, w, v, yq
+
+        if (size(x, 1) /= 2) then
+            error stop "evaluate_batch_splines_2d_many_resident: First dimension of x must be 2"
+        end if
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_2d_many_resident: First dimension too small"
+        end if
+        if (size(y_batch, 2) /= size(x, 2)) then
+            error stop "evaluate_batch_splines_2d_many_resident: Second dimension must equal size(x,2)"
+        end if
+
+        nq = spl%num_quantities
+        num_points = spl%num_points
+        order1 = spl%order(1)
+        order2 = spl%order(2)
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period(1) = h_step(1)*real(num_points(1) - 1, dp)
+        period(2) = h_step(2)*real(num_points(2) - 1, dp)
+
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
+        !$acc& private(ipt, iq, k1, k2, i1, i2, k_wrap) &
+        !$acc& private(xj1, xj2, x_norm1, x_norm2, x_local1, x_local2) &
+        !$acc& private(t, w, v, yq) gang vector vector_length(256)
+        do ipt = 1, size(x, 2)
+            include "spline2d_many_point_body.inc"
+        end do
+        !$acc end parallel loop
+    end subroutine evaluate_batch_splines_2d_many_resident
     
     
     subroutine evaluate_batch_splines_2d_der(spl, x, y_batch, dy_batch)

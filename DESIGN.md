@@ -97,5 +97,56 @@ For ODE integration and similar callbacks, we use a context parameter pattern th
 - Secondary: fpm (Fortran Package Manager)
 - All changes must pass CI pipeline
 
+## GPU Offload (OpenACC / OpenMP target)
+
+### Goal
+Support GPU-ready inner loops without forcing a specific backend on downstream codes,
+and without accidental device-host copies inside tight iteration loops.
+
+### Current production shape
+The batch spline layer now includes many-point evaluation APIs alongside the existing
+single-point batch-over-quantities routines:
+
+- 1D: `evaluate_batch_splines_1d_many(spl, x(:), y(:, :))`
+- 2D: `evaluate_batch_splines_2d_many(spl, x(2, :), y(:, :))`
+- 3D: `evaluate_batch_splines_3d_many(spl, x(3, :), y(:, :))`
+
+For each dimension there is also a resident variant intended for use inside a
+downstream-managed device data region:
+
+- 1D: `evaluate_batch_splines_1d_many_resident`
+- 2D: `evaluate_batch_splines_2d_many_resident`
+- 3D: `evaluate_batch_splines_3d_many_resident`
+
+The resident variants contain `!$acc` kernels and use `present(...)` so they can
+run without implicit transfers when the caller has already placed the arrays on
+device.
+
+### How downstream should use OpenACC with no copies
+Downstream must keep the data resident across the whole accelerated algorithm:
+
+1. Enter a data region that places the coefficient arrays and inputs on the device.
+2. Call the resident routine inside the region.
+3. Only update back to host at the boundary where host-side code needs the results.
+
+The same compiler and OpenACC runtime must be used for both libneo and downstream.
+For Fortran, this effectively means compiling both projects with the same compiler
+because module files are not ABI compatible across compilers.
+
+### OpenACC directive pitfalls
+- If a kernel uses `present(...)`, calling it without an active device data region
+  will fail at runtime.
+- Prefer explicit resident variants and keep host-safe variants separate to avoid
+  silent per-call transfers.
+- Avoid implicit copies in hot loops: create persistent data regions in the
+  downstream algorithm and keep arrays present across iterations.
+
+### OpenMP target offload lessons
+OpenMP target offload can be competitive, but libgomp NVPTX may clamp launch geometry
+based on kernel metadata and resource usage, which can reduce occupancy and hurt
+performance versus OpenACC for the same math kernel. Control data lifetime with
+explicit `target enter data` / `target exit data` and avoid implicit maps inside
+tight loops.
+
 ## Code Standards
 See `CODING_STANDARD.md` for detailed coding standards.

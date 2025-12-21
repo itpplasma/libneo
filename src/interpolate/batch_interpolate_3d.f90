@@ -1,11 +1,10 @@
 module batch_interpolate_3d
-    use batch_interpolate_types
-    use spl_three_to_five_sub
-    
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use batch_interpolate_types, only: BatchSplineData3D
+    use spl_three_to_five_sub, only: spl_per, spl_reg
+
     implicit none
     private
-    
-    integer, parameter :: dp = kind(1.0d0)
     
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_3d
@@ -15,6 +14,8 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d
     public :: evaluate_batch_splines_3d_der
     public :: evaluate_batch_splines_3d_der2
+    public :: evaluate_batch_splines_3d_many
+    public :: evaluate_batch_splines_3d_many_resident
     
 contains
     
@@ -250,6 +251,91 @@ contains
             end do
         end do
     end subroutine evaluate_batch_splines_3d
+
+    subroutine evaluate_batch_splines_3d_many(spl, x, y_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(:, :)
+        real(dp), intent(out) :: y_batch(:, :)  ! (n_quantities, n_points)
+
+        integer :: ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap
+        integer :: nq, order1, order2, order3
+        integer :: num_points(3)
+        real(dp) :: xj1, xj2, xj3
+        real(dp) :: x_norm1, x_norm2, x_norm3
+        real(dp) :: x_local1, x_local2, x_local3
+        real(dp) :: x_min(3), h_step(3), period(3)
+        real(dp) :: t, w, v, w2, yq
+
+        if (size(x, 1) /= 3) then
+            error stop "evaluate_batch_splines_3d_many: First dimension of x must be 3"
+        end if
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_3d_many: First dimension too small"
+        end if
+        if (size(y_batch, 2) /= size(x, 2)) then
+            error stop "evaluate_batch_splines_3d_many: Second dimension must equal size(x,2)"
+        end if
+
+        nq = spl%num_quantities
+        num_points = spl%num_points
+        order1 = spl%order(1)
+        order2 = spl%order(2)
+        order3 = spl%order(3)
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period(1) = h_step(1)*real(num_points(1) - 1, dp)
+        period(2) = h_step(2)*real(num_points(2) - 1, dp)
+        period(3) = h_step(3)*real(num_points(3) - 1, dp)
+
+        do ipt = 1, size(x, 2)
+            include "spline3d_many_point_body.inc"
+        end do
+    end subroutine evaluate_batch_splines_3d_many
+
+    subroutine evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(:, :)
+        real(dp), intent(inout) :: y_batch(:, :)  ! (n_quantities, n_points)
+
+        integer :: ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap
+        integer :: nq, order1, order2, order3
+        integer :: num_points(3)
+        real(dp) :: xj1, xj2, xj3
+        real(dp) :: x_norm1, x_norm2, x_norm3
+        real(dp) :: x_local1, x_local2, x_local3
+        real(dp) :: x_min(3), h_step(3), period(3)
+        real(dp) :: t, w, v, w2, yq
+
+        if (size(x, 1) /= 3) then
+            error stop "evaluate_batch_splines_3d_many_resident: First dimension of x must be 3"
+        end if
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_3d_many_resident: First dimension too small"
+        end if
+        if (size(y_batch, 2) /= size(x, 2)) then
+            error stop "evaluate_batch_splines_3d_many_resident: Second dimension must equal size(x,2)"
+        end if
+
+        nq = spl%num_quantities
+        num_points = spl%num_points
+        order1 = spl%order(1)
+        order2 = spl%order(2)
+        order3 = spl%order(3)
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period(1) = h_step(1)*real(num_points(1) - 1, dp)
+        period(2) = h_step(2)*real(num_points(2) - 1, dp)
+        period(3) = h_step(3)*real(num_points(3) - 1, dp)
+
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
+        !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap) &
+        !$acc& private(xj1, xj2, xj3, x_norm1, x_norm2, x_norm3) &
+        !$acc& private(x_local1, x_local2, x_local3, t, w, v, w2, yq) gang vector vector_length(256)
+        do ipt = 1, size(x, 2)
+            include "spline3d_many_point_body.inc"
+        end do
+        !$acc end parallel loop
+    end subroutine evaluate_batch_splines_3d_many_resident
     
     
     subroutine evaluate_batch_splines_3d_der(spl, x, y_batch, dy_batch)

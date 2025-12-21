@@ -75,6 +75,9 @@ if(LIBNEO_BUILD_TESTING)
 endif()
 
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
+option(ENABLE_OPENACC "Enable OpenACC compiler flags." ON)
+set(OPENACC_OFFLOAD_TARGET "none" CACHE STRING "OpenACC offload target for GNU (none|nvptx)")
+set_property(CACHE OPENACC_OFFLOAD_TARGET PROPERTY STRINGS none nvptx)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
     "Enable fetching and running the ODEINT golden record regression test" ON)
 
@@ -94,6 +97,16 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fmax-errors=1>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fbacktrace>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffree-line-length-132>)
+    if(ENABLE_OPENACC)
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fopenacc>)
+        add_link_options($<$<LINK_LANGUAGE:Fortran>:-fopenacc>)
+        if(OPENACC_OFFLOAD_TARGET STREQUAL "nvptx")
+            add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-foffload=nvptx-none>)
+            add_link_options($<$<LINK_LANGUAGE:Fortran>:-foffload=nvptx-none>)
+        elseif(NOT OPENACC_OFFLOAD_TARGET STREQUAL "none")
+            message(FATAL_ERROR "Invalid OPENACC_OFFLOAD_TARGET='${OPENACC_OFFLOAD_TARGET}' (expected none|nvptx)")
+        endif()
+    endif()
 
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
@@ -137,6 +150,20 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
     # Base flags for all builds
     add_compile_options(-cpp)
+
+elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
+    # Base flags for all builds
+    add_compile_options(-Mpreprocess)
+    if(ENABLE_OPENACC)
+        if(EXISTS "/opt/cuda" AND NOT DEFINED ENV{NVHPC_CUDA_HOME})
+            set(ENV{NVHPC_CUDA_HOME} "/opt/cuda")
+            set(ENV{NVCOMPILER_CUDA_HOME} "/opt/cuda")
+        endif()
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-acc>)
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-gpu=ccnative>)
+        add_link_options($<$<LINK_LANGUAGE:Fortran>:-acc>)
+        add_link_options($<$<LINK_LANGUAGE:Fortran>:-gpu=ccnative>)
+    endif()
 
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
