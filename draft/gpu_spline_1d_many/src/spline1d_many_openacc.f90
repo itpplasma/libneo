@@ -47,7 +47,7 @@ contains
         real(dp), intent(in) :: x(:)
         real(dp), intent(inout) :: y(num_quantities*size(x))
 
-        integer :: ipt, iq, k_power, idx, base
+        integer :: ipt, iq, k_power, idx, base, k_wrap
         integer :: periodic_int
         real(dp) :: xj, x_norm, x_local, period, t, w
 

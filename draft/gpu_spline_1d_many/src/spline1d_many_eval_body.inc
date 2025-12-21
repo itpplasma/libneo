@@ -1,10 +1,10 @@
 #if defined(SPLINE1D_BACKEND_OPENACC)
         !$acc parallel loop present(coeff, x, y) &
-        !$acc& private(ipt, iq, k_power, idx, base, xj, x_norm, x_local, t, w) &
+        !$acc& private(ipt, iq, k_power, idx, base, xj, x_norm, x_local, t, w, k_wrap) &
         !$acc& gang vector vector_length(256)
 #elif defined(SPLINE1D_BACKEND_OMP_TARGET)
 !$omp target teams distribute parallel do thread_limit(256) &
-!$omp& private(ipt, iq, k_power, idx, base, xj, x_norm, x_local, t, w)
+!$omp& private(ipt, iq, k_power, idx, base, xj, x_norm, x_local, t, w, k_wrap)
 #endif
 
         do ipt = 1, size(x)
@@ -12,7 +12,9 @@
 
             if (periodic_int == 1) then
                 t = x(ipt) - x_min
-                w = t - floor(t / period) * period
+                k_wrap = int(t / period)
+                w = t - real(k_wrap, dp) * period
+                if (w < 0.0_dp) w = w + period
                 xj = w + x_min
             else
                 xj = x(ipt)
@@ -38,4 +40,3 @@
 #elif defined(SPLINE1D_BACKEND_OMP_TARGET)
 !$omp end target teams distribute parallel do
 #endif
-
