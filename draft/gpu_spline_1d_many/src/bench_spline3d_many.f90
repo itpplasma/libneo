@@ -6,8 +6,9 @@ program bench_spline3d_many
                                     construct_batch_splines_3d_lines, &
                                     construct_batch_splines_3d_resident, &
                                     construct_batch_splines_3d_resident_device, &
+                                    evaluate_batch_splines_3d, &
+                                    evaluate_batch_splines_3d_many, &
                                     destroy_batch_splines_3d
-    use draft_batch_splines_many_api, only: evaluate_batch_splines_3d_many
     use spline3d_many_offload, only: spline3d_many_setup, &
                                      spline3d_many_teardown, &
                                      spline3d_many_eval_host, &
@@ -18,13 +19,13 @@ program bench_spline3d_many
     implicit none
 
     integer, parameter :: order(3) = [5, 5, 5]
-    integer, parameter :: num_points(3) = [48, 32, 32]
-    integer, parameter :: npts = 200000
-    integer, parameter :: niter = 6
-    integer, parameter :: nbuild = 2
-    integer, parameter :: nbuild_resident = 2
-    integer, parameter :: nbuild_repeat = 3
-    integer, parameter :: neval_repeat = 5
+    integer :: num_points(3)
+    integer :: npts
+    integer :: niter
+    integer :: nbuild
+    integer :: nbuild_resident
+    integer :: nbuild_repeat
+    integer :: neval_repeat
     logical, parameter :: periodic(3) = [.true., .true., .true.]
 
     real(dp), parameter :: x_min(3) = [1.23d0, -0.7d0, 0.5d0]
@@ -33,16 +34,40 @@ program bench_spline3d_many
 
     type(BatchSplineData3D) :: spl
     real(dp), allocatable, target :: y_ref(:)
-    real(dp), allocatable :: y_out(:)
-    real(dp), pointer :: y_ref2d(:, :)
-    type(c_ptr) :: y_ref_ptr
+    real(dp), allocatable, target :: y_out(:)
+    real(dp), allocatable, target :: y_public(:)
+    type(c_ptr) :: y_ptr
     real(dp), allocatable :: x_eval(:, :)
     real(dp), allocatable :: y_grid(:, :, :, :)
 
     type(lcg_state_t) :: rng
     integer :: num_quantities
+    integer :: npts_old
     integer :: i1, i2, i3, iq, ipt
     real(dp) :: best, diff_max
+
+    num_points(1) = get_env_int("LIBNEO_BENCH_N1", 48)
+    num_points(2) = get_env_int("LIBNEO_BENCH_N2", 32)
+    num_points(3) = get_env_int("LIBNEO_BENCH_N3", 32)
+    if (any(num_points < 6)) error stop "bench_spline3d_many: LIBNEO_BENCH_N1/N2/N3 too small"
+
+    npts = get_env_int("LIBNEO_BENCH_NPTS", 200000)
+    if (npts < 1) error stop "bench_spline3d_many: LIBNEO_BENCH_NPTS < 1"
+
+    niter = get_env_int("LIBNEO_BENCH_NITER", 6)
+    if (niter < 1) error stop "bench_spline3d_many: LIBNEO_BENCH_NITER < 1"
+
+    nbuild = get_env_int("LIBNEO_BENCH_NBUILD", 2)
+    if (nbuild < 1) error stop "bench_spline3d_many: LIBNEO_BENCH_NBUILD < 1"
+
+    nbuild_resident = get_env_int("LIBNEO_BENCH_NBUILD_RESIDENT", nbuild)
+    if (nbuild_resident < 1) error stop "bench_spline3d_many: LIBNEO_BENCH_NBUILD_RESIDENT < 1"
+
+    nbuild_repeat = get_env_int("LIBNEO_BENCH_NBUILD_REPEAT", 3)
+    if (nbuild_repeat < 1) error stop "bench_spline3d_many: LIBNEO_BENCH_NBUILD_REPEAT < 1"
+
+    neval_repeat = get_env_int("LIBNEO_BENCH_NEVAL_REPEAT", 5)
+    if (neval_repeat < 1) error stop "bench_spline3d_many: LIBNEO_BENCH_NEVAL_REPEAT < 1"
 
     call lcg_init(rng, 97531_int64)
 
@@ -82,10 +107,11 @@ program bench_spline3d_many
 
     allocate (y_ref(num_quantities*npts))
     allocate (y_out(num_quantities*npts))
+    allocate (y_public(num_quantities*npts))
 
-    y_ref_ptr = c_loc(y_ref(1))
-    call c_f_pointer(y_ref_ptr, y_ref2d, [spl%num_quantities, npts])
-    call evaluate_batch_splines_3d_many(spl, x_eval, y_ref2d)
+    call spline3d_many_eval_host(spl%order, spl%num_points, spl%num_quantities, &
+                                 spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+                                 x_eval, y_ref)
 
     print *, "Benchmark 3D parameters"
     print *, "order         ", order
@@ -96,9 +122,13 @@ program bench_spline3d_many
     print *, "periodic      ", periodic
 
     call bench_cpu()
+    npts_old = min(npts, get_env_int("LIBNEO_BENCH_OLD_NPTS", 50000))
+    print *, "npts_old      ", npts_old
+    call bench_old_public(npts_old)
 #if defined(LIBNEO_ENABLE_OPENACC)
     call bench_openacc()
 #endif
+    call bench_public()
 
     call destroy_batch_splines_3d(spl)
 
@@ -277,6 +307,67 @@ contains
             " max_abs_diff ", &
             diff_max
     end subroutine bench_cpu
+
+    subroutine bench_old_public(npts_local)
+        integer, intent(in) :: npts_local
+
+        integer, parameter :: niter_old = 2
+        integer :: it, ipt_local
+        real(dp) :: t0, t1, dt, sum_y
+        real(dp), allocatable :: y_point(:)
+
+        if (npts_local < 1) error stop "bench_old_public: npts_local < 1"
+        allocate (y_point(spl%num_quantities))
+
+        sum_y = 0.0d0
+        best = huge(1.0d0)
+        do it = 1, niter_old
+            t0 = wall_time()
+            do ipt_local = 1, npts_local
+                call evaluate_batch_splines_3d(spl, x_eval(:, ipt_local), y_point)
+                sum_y = sum_y + y_point(1)
+            end do
+            t1 = wall_time()
+            dt = t1 - t0
+            best = min(best, dt)
+        end do
+
+        print *, "old_public best_s ", best, " pts_per_s ", real(npts_local, dp)/best, &
+            " sum_y ", sum_y
+
+        deallocate (y_point)
+    end subroutine bench_old_public
+
+    subroutine bench_public()
+        integer, parameter :: niter_public = 6
+        integer :: it
+        real(dp) :: t0, t1, dt, warmup
+        real(dp) :: diff_max_public
+
+        real(dp), pointer :: y2d(:, :)
+
+        y_ptr = c_loc(y_public(1))
+        call c_f_pointer(y_ptr, y2d, [spl%num_quantities, npts])
+
+        t0 = wall_time()
+        call evaluate_batch_splines_3d_many(spl, x_eval, y2d)
+        t1 = wall_time()
+        warmup = t1 - t0
+
+        best = huge(1.0d0)
+        do it = 1, niter_public
+            t0 = wall_time()
+            call evaluate_batch_splines_3d_many(spl, x_eval, y2d)
+            t1 = wall_time()
+            dt = t1 - t0
+            best = min(best, dt)
+        end do
+
+        diff_max_public = maxval(abs(y_public - y_ref))
+        print *, "public warmup_s ", warmup
+        print *, "public best_s ", best, " pts_per_s ", real(npts, dp)/best, &
+            " max_abs_diff ", diff_max_public
+    end subroutine bench_public
 
     subroutine bench_openacc()
         integer :: it, rep
