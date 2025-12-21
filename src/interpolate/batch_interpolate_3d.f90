@@ -1,7 +1,10 @@
 module batch_interpolate_3d
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use batch_interpolate_types, only: BatchSplineData3D
-    use acc_spline_build_order5, only: spl_five_per_line, spl_five_reg_line
+    use spline_build_lines, only: spl_build_line_inplace, &
+                                  spl_three_per_line, spl_three_reg_line, &
+                                  spl_four_per_line, spl_four_reg_line, &
+                                  spl_five_per_line, spl_five_reg_line
     use spl_three_to_five_sub, only: spl_per, spl_reg
 #ifdef _OPENACC
     use openacc, only: acc_is_present
@@ -12,6 +15,7 @@ module batch_interpolate_3d
     
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_3d
+    public :: construct_batch_splines_3d_lines
     public :: construct_batch_splines_3d_resident
     public :: construct_batch_splines_3d_resident_device
     public :: destroy_batch_splines_3d
@@ -157,6 +161,296 @@ contains
         deallocate(temp_coeff)
     end subroutine construct_batch_splines_3d
 
+    subroutine construct_batch_splines_3d_lines(x_min, x_max, y_batch, order, periodic, spl)
+        real(dp), intent(in) :: x_min(3), x_max(3)
+        real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
+        integer, intent(in) :: order(3)
+        logical, intent(in) :: periodic(3)
+        type(BatchSplineData3D), intent(out) :: spl
+
+        integer :: n1, n2, n3, n_quantities
+        integer :: N1_order, N2_order, N3_order
+        integer :: istat
+        integer :: i1, i2, i3, iq, k1, k2, k3
+        integer :: line, line2, line3
+        real(dp), allocatable :: work3(:, :, :)
+        real(dp), allocatable :: work2(:, :, :)
+        real(dp), allocatable :: work1(:, :, :)
+        real(dp) :: h1, h2, h3
+
+        n1 = size(y_batch, 1)
+        n2 = size(y_batch, 2)
+        n3 = size(y_batch, 3)
+        n_quantities = size(y_batch, 4)
+        N1_order = order(1)
+        N2_order = order(2)
+        N3_order = order(3)
+
+        if (n1 < 2 .or. n2 < 2 .or. n3 < 2) then
+            error stop "construct_batch_splines_3d_lines: Need at least 2 points"
+        end if
+        if (n_quantities < 1) then
+            error stop "construct_batch_splines_3d_lines: Need at least 1 quantity"
+        end if
+        if (any(order < 3) .or. any(order > 5)) then
+            error stop "construct_batch_splines_3d_lines: Order must be between 3 and 5"
+        end if
+        if (N1_order == 3) then
+            if (periodic(1) .and. n1 < 3) then
+                error stop "construct_batch_splines_3d_lines: Need at least 3 points " // &
+                           "for periodic order(1)=3"
+            end if
+        else if (N1_order == 4) then
+            if (n1 < 5) then
+                error stop "construct_batch_splines_3d_lines: Need at least 5 points for order(1)=4"
+            end if
+        else
+            if (n1 < 6) then
+                error stop "construct_batch_splines_3d_lines: Need at least 6 points for order(1)=5"
+            end if
+        end if
+        if (N2_order == 3) then
+            if (periodic(2) .and. n2 < 3) then
+                error stop "construct_batch_splines_3d_lines: Need at least 3 points " // &
+                           "for periodic order(2)=3"
+            end if
+        else if (N2_order == 4) then
+            if (n2 < 5) then
+                error stop "construct_batch_splines_3d_lines: Need at least 5 points for order(2)=4"
+            end if
+        else
+            if (n2 < 6) then
+                error stop "construct_batch_splines_3d_lines: Need at least 6 points for order(2)=5"
+            end if
+        end if
+        if (N3_order == 3) then
+            if (periodic(3) .and. n3 < 3) then
+                error stop "construct_batch_splines_3d_lines: Need at least 3 points " // &
+                           "for periodic order(3)=3"
+            end if
+        else if (N3_order == 4) then
+            if (n3 < 5) then
+                error stop "construct_batch_splines_3d_lines: Need at least 5 points for order(3)=4"
+            end if
+        else
+            if (n3 < 6) then
+                error stop "construct_batch_splines_3d_lines: Need at least 6 points for order(3)=5"
+            end if
+        end if
+
+        spl%order = order
+        spl%num_points = [n1, n2, n3]
+        spl%periodic = periodic
+        spl%h_step = [(x_max(1) - x_min(1))/dble(n1 - 1), &
+                      (x_max(2) - x_min(2))/dble(n2 - 1), &
+                      (x_max(3) - x_min(3))/dble(n3 - 1)]
+        spl%x_min = x_min
+        spl%num_quantities = n_quantities
+
+        allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
+                           n1, n2, n3), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_lines: Allocation failed for coeff"
+        end if
+
+        allocate(work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_lines: Allocation failed for work3"
+        end if
+        allocate(work2(n2, n1*n3*n_quantities, 0:N2_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_lines: Allocation failed for work2"
+        end if
+        allocate(work1(n1, n2*n3*n_quantities, 0:N1_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_lines: Allocation failed for work1"
+        end if
+
+        do iq = 1, n_quantities
+            do i2 = 1, n2
+                do i1 = 1, n1
+                    line = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
+                    work3(:, line, 0) = y_batch(i1, i2, :, iq)
+                end do
+            end do
+        end do
+
+#ifdef _OPENMP
+        !$omp parallel do default(none) shared(work3, n1, n2, n3, n_quantities, N3_order, periodic, &
+        !$omp& spl) private(line)
+#endif
+        do line = 1, n1*n2*n_quantities
+            if (N3_order == 3) then
+                if (periodic(3)) then
+                    call spl_three_per_line(n3, spl%h_step(3), work3(:, line, 0), &
+                                            work3(:, line, 1), work3(:, line, 2), &
+                                            work3(:, line, 3))
+                else
+                    call spl_three_reg_line(n3, spl%h_step(3), work3(:, line, 0), &
+                                            work3(:, line, 1), work3(:, line, 2), &
+                                            work3(:, line, 3))
+                end if
+            else if (N3_order == 4) then
+                if (periodic(3)) then
+                    call spl_four_per_line(n3, spl%h_step(3), work3(:, line, 0), &
+                                           work3(:, line, 1), work3(:, line, 2), &
+                                           work3(:, line, 3), work3(:, line, 4))
+                else
+                    call spl_four_reg_line(n3, spl%h_step(3), work3(:, line, 0), &
+                                           work3(:, line, 1), work3(:, line, 2), &
+                                           work3(:, line, 3), work3(:, line, 4))
+                end if
+            else
+                if (periodic(3)) then
+                    call spl_five_per_line(n3, spl%h_step(3), work3(:, line, 0), &
+                                           work3(:, line, 1), work3(:, line, 2), &
+                                           work3(:, line, 3), work3(:, line, 4), &
+                                           work3(:, line, 5))
+                else
+                    call spl_five_reg_line(n3, spl%h_step(3), work3(:, line, 0), &
+                                           work3(:, line, 1), work3(:, line, 2), &
+                                           work3(:, line, 3), work3(:, line, 4), &
+                                           work3(:, line, 5))
+                end if
+            end if
+        end do
+#ifdef _OPENMP
+        !$omp end parallel do
+#endif
+
+        do k3 = 0, N3_order
+            do iq = 1, n_quantities
+                do i3 = 1, n3
+                    do i1 = 1, n1
+                        line2 = i1 + (i3 - 1)*n1 + (iq - 1)*n1*n3
+                        do i2 = 1, n2
+                            line3 = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
+                            work2(i2, line2, 0) = work3(i3, line3, k3)
+                        end do
+                    end do
+                end do
+            end do
+
+#ifdef _OPENMP
+            !$omp parallel do default(none) shared(work2, n1, n2, n3, n_quantities, N2_order, periodic, &
+            !$omp& spl) private(line)
+#endif
+            do line = 1, n1*n3*n_quantities
+                if (N2_order == 3) then
+                    if (periodic(2)) then
+                        call spl_three_per_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                                work2(:, line, 1), work2(:, line, 2), &
+                                                work2(:, line, 3))
+                    else
+                        call spl_three_reg_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                                work2(:, line, 1), work2(:, line, 2), &
+                                                work2(:, line, 3))
+                    end if
+                else if (N2_order == 4) then
+                    if (periodic(2)) then
+                        call spl_four_per_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                               work2(:, line, 1), work2(:, line, 2), &
+                                               work2(:, line, 3), work2(:, line, 4))
+                    else
+                        call spl_four_reg_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                               work2(:, line, 1), work2(:, line, 2), &
+                                               work2(:, line, 3), work2(:, line, 4))
+                    end if
+                else
+                    if (periodic(2)) then
+                        call spl_five_per_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                               work2(:, line, 1), work2(:, line, 2), &
+                                               work2(:, line, 3), work2(:, line, 4), &
+                                               work2(:, line, 5))
+                    else
+                        call spl_five_reg_line(n2, spl%h_step(2), work2(:, line, 0), &
+                                               work2(:, line, 1), work2(:, line, 2), &
+                                               work2(:, line, 3), work2(:, line, 4), &
+                                               work2(:, line, 5))
+                    end if
+                end if
+            end do
+#ifdef _OPENMP
+            !$omp end parallel do
+#endif
+
+            do k2 = 0, N2_order
+                do iq = 1, n_quantities
+                    do i3 = 1, n3
+                        do i2 = 1, n2
+                            line = i2 + (i3 - 1)*n2 + (iq - 1)*n2*n3
+                            do i1 = 1, n1
+                                line2 = i1 + (i3 - 1)*n1 + (iq - 1)*n1*n3
+                                work1(i1, line, 0) = work2(i2, line2, k2)
+                            end do
+                        end do
+                    end do
+                end do
+
+#ifdef _OPENMP
+                !$omp parallel do default(none) shared(work1, n1, n2, n3, n_quantities, N1_order, periodic, &
+                !$omp& spl) private(line)
+#endif
+                do line = 1, n2*n3*n_quantities
+                    if (N1_order == 3) then
+                        if (periodic(1)) then
+                            call spl_three_per_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                                    work1(:, line, 1), work1(:, line, 2), &
+                                                    work1(:, line, 3))
+                        else
+                            call spl_three_reg_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                                    work1(:, line, 1), work1(:, line, 2), &
+                                                    work1(:, line, 3))
+                        end if
+                    else if (N1_order == 4) then
+                        if (periodic(1)) then
+                            call spl_four_per_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                                   work1(:, line, 1), work1(:, line, 2), &
+                                                   work1(:, line, 3), work1(:, line, 4))
+                        else
+                            call spl_four_reg_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                                   work1(:, line, 1), work1(:, line, 2), &
+                                                   work1(:, line, 3), work1(:, line, 4))
+                        end if
+                    else
+                        if (periodic(1)) then
+                            call spl_five_per_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                                   work1(:, line, 1), work1(:, line, 2), &
+                                                   work1(:, line, 3), work1(:, line, 4), &
+                                                   work1(:, line, 5))
+                        else
+                            call spl_five_reg_line(n1, spl%h_step(1), work1(:, line, 0), &
+                                                   work1(:, line, 1), work1(:, line, 2), &
+                                                   work1(:, line, 3), work1(:, line, 4), &
+                                                   work1(:, line, 5))
+                        end if
+                    end if
+                end do
+#ifdef _OPENMP
+                !$omp end parallel do
+#endif
+
+                do iq = 1, n_quantities
+                    do i3 = 1, n3
+                        do i2 = 1, n2
+                            line = i2 + (i3 - 1)*n2 + (iq - 1)*n2*n3
+                            do i1 = 1, n1
+                                do k1 = 0, N1_order
+                                    spl%coeff(iq, k1, k2, k3, i1, i2, i3) = &
+                                        work1(i1, line, k1)
+                                end do
+                            end do
+                        end do
+                    end do
+                end do
+            end do
+        end do
+
+        deallocate(work1)
+        deallocate(work2)
+        deallocate(work3)
+    end subroutine construct_batch_splines_3d_lines
+
     subroutine construct_batch_splines_3d_resident(x_min, x_max, y_batch, order, &
                                                    periodic, spl)
         real(dp), intent(in) :: x_min(:), x_max(:)
@@ -227,15 +521,24 @@ contains
 
         integer :: istat
         integer :: N1_order, N2_order, N3_order
+        integer :: order1, order2, order3
         integer :: i1, i2, i3, iq, k1, k2, k3
         integer :: line, line2, line3
         real(dp), allocatable :: work3(:, :, :)
         real(dp), allocatable :: work2(:, :, :)
         real(dp), allocatable :: work1(:, :, :)
+        real(dp) :: h1, h2, h3
+        logical :: periodic1, periodic2, periodic3
 
         N1_order = order(1)
         N2_order = order(2)
         N3_order = order(3)
+        order1 = N1_order
+        order2 = N2_order
+        order3 = N3_order
+        periodic1 = periodic(1)
+        periodic2 = periodic(2)
+        periodic3 = periodic(3)
 
         if (n1 < 2 .or. n2 < 2 .or. n3 < 2) then
             error stop "construct_batch_splines_3d_resident_device:" // &
@@ -245,9 +548,57 @@ contains
             error stop "construct_batch_splines_3d_resident_device:" // &
                 " Need at least 1 quantity"
         end if
-        if (N1_order /= 5 .or. N2_order /= 5 .or. N3_order /= 5) then
+        if (any(order < 3) .or. any(order > 5)) then
             error stop "construct_batch_splines_3d_resident_device:" // &
-                " Only order=[5,5,5] supported"
+                " Order must be between 3 and 5"
+        end if
+        if (N1_order == 3) then
+            if (periodic(1) .and. n1 < 3) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 3 points for periodic order(1)=3"
+            end if
+        else if (N1_order == 4) then
+            if (n1 < 5) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 5 points for order(1)=4"
+            end if
+        else
+            if (n1 < 6) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 6 points for order(1)=5"
+            end if
+        end if
+        if (N2_order == 3) then
+            if (periodic(2) .and. n2 < 3) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 3 points for periodic order(2)=3"
+            end if
+        else if (N2_order == 4) then
+            if (n2 < 5) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 5 points for order(2)=4"
+            end if
+        else
+            if (n2 < 6) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 6 points for order(2)=5"
+            end if
+        end if
+        if (N3_order == 3) then
+            if (periodic(3) .and. n3 < 3) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 3 points for periodic order(3)=3"
+            end if
+        else if (N3_order == 4) then
+            if (n3 < 5) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 5 points for order(3)=4"
+            end if
+        else
+            if (n3 < 6) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Need at least 6 points for order(3)=5"
+            end if
         end if
 
         spl%order = order
@@ -266,10 +617,8 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        if (.not. do_assume_present) then
-            !$acc enter data copyin(y_batch)
-        end if
-        !$acc enter data create(spl%coeff)
+        !$acc enter data create(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, &
+        !$acc&                          0:N3_order, 1:n1, 1:n2, 1:n3))
 
         allocate(work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
         if (istat /= 0) then
@@ -287,121 +636,120 @@ contains
                 " Allocation failed for work1"
         end if
 
-        !$acc data present(y_batch, spl%coeff) create(work3, work2, work1)
-        !$acc parallel loop collapse(4) gang
-        do iq = 1, n_quantities
-            do i2 = 1, n2
-                do i1 = 1, n1
-                    do i3 = 1, n3
-                        line = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
-                        work3(i3, line, 0) = y_batch(i1, i2, i3, iq)
-                    end do
-                end do
-            end do
-        end do
+        h1 = spl%h_step(1)
+        h2 = spl%h_step(2)
+        h3 = spl%h_step(3)
 
-        !$acc parallel loop gang
-        do line = 1, n1*n2*n_quantities
-            if (periodic(3)) then
-                call spl_five_per_line(n3, spl%h_step(3), work3(:, line, 0), &
-                                       work3(:, line, 1), work3(:, line, 2), &
-                                       work3(:, line, 3), work3(:, line, 4), &
-                                       work3(:, line, 5))
-            else
-                call spl_five_reg_line(n3, spl%h_step(3), work3(:, line, 0), &
-                                       work3(:, line, 1), work3(:, line, 2), &
-                                       work3(:, line, 3), work3(:, line, 4), &
-                                       work3(:, line, 5))
+#ifdef _OPENACC
+        block
+            logical :: y_was_present
+            logical :: did_copyin_y
+
+            y_was_present = acc_is_present(y_batch)
+            if (do_assume_present .and. .not. y_was_present) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " assume_y_present=T but y_batch is not present"
             end if
-        end do
+            did_copyin_y = .false.
+            if (.not. y_was_present) then
+                !$acc enter data copyin(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities))
+                did_copyin_y = .true.
+            end if
 
-        do k3 = 0, N3_order
-            !$acc parallel loop collapse(3) gang
+            !$acc enter data create(work3, work2, work1)
+
+            !$acc parallel loop collapse(4) gang present(y_batch, work3)
             do iq = 1, n_quantities
-                do i3 = 1, n3
+                do i2 = 1, n2
                     do i1 = 1, n1
-                        line2 = i1 + (i3 - 1)*n1 + (iq - 1)*n1*n3
-                        !$acc loop vector
-                        do i2 = 1, n2
-                            line3 = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
-                            work2(i2, line2, 0) = work3(i3, line3, k3)
+                        do i3 = 1, n3
+                            line = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
+                            work3(i3, line, 0) = y_batch(i1, i2, i3, iq)
                         end do
                     end do
                 end do
             end do
 
-            !$acc parallel loop gang
-            do line = 1, n1*n3*n_quantities
-                if (periodic(2)) then
-                    call spl_five_per_line(n2, spl%h_step(2), work2(:, line, 0), &
-                                           work2(:, line, 1), work2(:, line, 2), &
-                                           work2(:, line, 3), work2(:, line, 4), &
-                                           work2(:, line, 5))
-                else
-                    call spl_five_reg_line(n2, spl%h_step(2), work2(:, line, 0), &
-                                           work2(:, line, 1), work2(:, line, 2), &
-                                           work2(:, line, 3), work2(:, line, 4), &
-                                           work2(:, line, 5))
-                end if
+            !$acc parallel loop gang present(work3)
+            do line = 1, n1*n2*n_quantities
+                call spl_build_line_inplace(order3, periodic3, n3, h3, work3, line)
             end do
 
-            do k2 = 0, N2_order
-                !$acc parallel loop collapse(3) gang
+            do k3 = 0, N3_order
+                !$acc parallel loop collapse(3) gang present(work2, work3)
                 do iq = 1, n_quantities
                     do i3 = 1, n3
-                        do i2 = 1, n2
-                            line = i2 + (i3 - 1)*n2 + (iq - 1)*n2*n3
+                        do i1 = 1, n1
+                            line2 = i1 + (i3 - 1)*n1 + (iq - 1)*n1*n3
                             !$acc loop vector
-                            do i1 = 1, n1
-                                line2 = i1 + (i3 - 1)*n1 + (iq - 1)*n1*n3
-                                work1(i1, line, 0) = work2(i2, line2, k2)
+                            do i2 = 1, n2
+                                line3 = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
+                                work2(i2, line2, 0) = work3(i3, line3, k3)
                             end do
                         end do
                     end do
                 end do
 
-                !$acc parallel loop gang
-                do line = 1, n2*n3*n_quantities
-                    if (periodic(1)) then
-                        call spl_five_per_line(n1, spl%h_step(1), work1(:, line, 0), &
-                                               work1(:, line, 1), work1(:, line, 2), &
-                                               work1(:, line, 3), work1(:, line, 4), &
-                                               work1(:, line, 5))
-                    else
-                        call spl_five_reg_line(n1, spl%h_step(1), work1(:, line, 0), &
-                                               work1(:, line, 1), work1(:, line, 2), &
-                                               work1(:, line, 3), work1(:, line, 4), &
-                                               work1(:, line, 5))
-                    end if
+                !$acc parallel loop gang present(work2)
+                do line = 1, n1*n3*n_quantities
+                    call spl_build_line_inplace(order2, periodic2, n2, h2, work2, &
+                                                line)
                 end do
 
-                !$acc parallel loop collapse(4) gang
-                do iq = 1, n_quantities
-                    do i3 = 1, n3
-                        do i2 = 1, n2
-                            do i1 = 1, n1
+                do k2 = 0, N2_order
+                    !$acc parallel loop collapse(3) gang present(work1, work2)
+                    do iq = 1, n_quantities
+                        do i3 = 1, n3
+                            do i2 = 1, n2
                                 line = i2 + (i3 - 1)*n2 + (iq - 1)*n2*n3
                                 !$acc loop vector
-                                do k1 = 0, N1_order
-                                    spl%coeff(iq, k1, k2, k3, i1, i2, i3) = &
-                                        work1(i1, line, k1)
+                                do i1 = 1, n1
+                                    line2 = i1 + (i3 - 1)*n1 + (iq - 1)*n1*n3
+                                    work1(i1, line, 0) = work2(i2, line2, k2)
                                 end do
                             end do
                         end do
                     end do
+
+                    !$acc parallel loop gang present(work1)
+                    do line = 1, n2*n3*n_quantities
+                        call spl_build_line_inplace(order1, periodic1, n1, h1, &
+                                                    work1, line)
+                    end do
+
+                    associate (coeff => spl%coeff)
+                        !$acc parallel loop collapse(4) gang present(work1, coeff)
+                        do iq = 1, n_quantities
+                            do i3 = 1, n3
+                                do i2 = 1, n2
+                                    do i1 = 1, n1
+                                        line = i2 + (i3 - 1)*n2 + (iq - 1)*n2*n3
+                                        !$acc loop vector
+                                        do k1 = 0, N1_order
+                                            coeff(iq, k1, k2, k3, i1, i2, i3) = &
+                                                work1(i1, line, k1)
+                                        end do
+                                    end do
+                                end do
+                            end do
+                        end do
+                    end associate
                 end do
             end do
-        end do
-        !$acc end data
+
+            !$acc exit data delete(work3, work2, work1)
+            if (did_copyin_y) then
+                !$acc exit data delete(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities))
+            end if
+        end block
+#endif
 
         deallocate(work1)
         deallocate(work2)
         deallocate(work3)
-        if (.not. do_assume_present) then
-            !$acc exit data delete(y_batch)
-        end if
         if (do_update) then
-            !$acc update self(spl%coeff)
+            !$acc update self(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, &
+            !$acc&                        0:N3_order, 1:n1, 1:n2, 1:n3))
         end if
     end subroutine construct_batch_splines_3d_resident_device_impl
     
@@ -411,8 +759,14 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl%coeff)) then
-                !$acc exit data delete(spl%coeff)
+            if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
+                                         0:spl%order(2), 0:spl%order(3), &
+                                         1:spl%num_points(1), 1:spl%num_points(2), &
+                                         1:spl%num_points(3)))) then
+                !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
+                !$acc&                         0:spl%order(2), 0:spl%order(3), &
+                !$acc&                         1:spl%num_points(1), 1:spl%num_points(2), &
+                !$acc&                         1:spl%num_points(3)))
             end if
         end if
 #endif

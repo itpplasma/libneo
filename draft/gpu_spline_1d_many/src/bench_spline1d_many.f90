@@ -3,6 +3,7 @@ program bench_spline1d_many
     use, intrinsic :: iso_c_binding, only: c_ptr, c_loc, c_f_pointer
     use batch_interpolate_types, only: BatchSplineData1D
     use batch_interpolate_1d, only: construct_batch_splines_1d, &
+                                    construct_batch_splines_1d_lines, &
                                     construct_batch_splines_1d_resident, &
                                     construct_batch_splines_1d_resident_device, &
                                     destroy_batch_splines_1d
@@ -12,10 +13,11 @@ program bench_spline1d_many
                                      spline1d_many_eval_host, &
                                      spline1d_many_eval_resident
     use util_lcg_rng, only: lcg_state_t, lcg_init, lcg_uniform_0_1
+    use util_timer, only: wall_time
+    use util_bench_args, only: get_env_int
     implicit none
 
     integer, parameter :: num_points = 2048
-    integer, parameter :: num_quantities = 8
     integer, parameter :: npts = 2000000
     integer, parameter :: niter = 20
     integer, parameter :: nbuild = 3
@@ -39,11 +41,16 @@ program bench_spline1d_many
 
     type(lcg_state_t) :: rng
     integer :: ip, iq
+    integer :: num_quantities
     real(dp) :: best
     real(dp) :: diff_max
 
     order = 5
     call parse_order_arg(order)
+    num_quantities = get_env_int("LIBNEO_BENCH_NQ", 8)
+    if (num_quantities < 1) then
+        error stop "bench_spline1d_many: LIBNEO_BENCH_NQ must be >= 1"
+    end if
 
     allocate (x_grid(num_points))
     allocate (y_grid(num_points, num_quantities))
@@ -58,6 +65,7 @@ program bench_spline1d_many
     end do
 
     call bench_build_1d(x_min, x_max, y_grid, spl)
+    call bench_build_lines_1d(x_min, x_max, y_grid)
     call bench_build_resident_1d(x_min, x_max, y_grid, spl)
     call bench_build_device_1d()
 
@@ -141,6 +149,34 @@ contains
         print *, "build best_s ", best_build, " grid_pts_per_s ", grid_pts_per_s
     end subroutine bench_build_1d
 
+    subroutine bench_build_lines_1d(x_min_local, x_max_local, y_grid_local)
+        real(dp), intent(in) :: x_min_local
+        real(dp), intent(in) :: x_max_local
+        real(dp), intent(in) :: y_grid_local(:, :)
+
+        type(BatchSplineData1D) :: spl_tmp
+        integer :: it, rep
+        real(dp) :: t0, t1, dt, best_build
+        real(dp) :: grid_pts_per_s
+
+        best_build = huge(1.0d0)
+        do it = 1, nbuild
+            t0 = wall_time()
+            do rep = 1, nbuild_repeat
+                call construct_batch_splines_1d_lines(x_min_local, x_max_local, &
+                                                      y_grid_local, order, periodic, &
+                                                      spl_tmp)
+                call destroy_batch_splines_1d(spl_tmp)
+            end do
+            t1 = wall_time()
+            dt = (t1 - t0) / real(nbuild_repeat, dp)
+            best_build = min(best_build, dt)
+        end do
+
+        grid_pts_per_s = real(num_points*num_quantities, dp) / best_build
+        print *, "build_lines best_s ", best_build, " grid_pts_per_s ", grid_pts_per_s
+    end subroutine bench_build_lines_1d
+
     subroutine bench_build_resident_1d(x_min_local, x_max_local, y_grid_local, spl_out)
         real(dp), intent(in) :: x_min_local
         real(dp), intent(in) :: x_max_local
@@ -183,7 +219,7 @@ contains
     end subroutine bench_build_resident_1d
 
     subroutine bench_build_device_1d()
-        type(BatchSplineData1D) :: spl_dev
+        type(BatchSplineData1D), save :: spl_dev
         integer :: it, rep
         real(dp) :: t0, t1, dt, best_build
         real(dp) :: grid_pts_per_s
@@ -228,12 +264,6 @@ contains
             grid_pts_per_s
 #endif
     end subroutine bench_build_device_1d
-
-    real(dp) function wall_time() result(t)
-        integer :: count, rate, max_count
-        call system_clock(count, rate, max_count)
-        t = real(count, dp)/real(rate, dp)
-    end function wall_time
 
     subroutine bench_cpu(spl_local, x, y, y_expected)
         type(BatchSplineData1D), intent(in) :: spl_local

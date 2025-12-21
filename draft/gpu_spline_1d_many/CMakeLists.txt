@@ -93,7 +93,6 @@ endif()
 
 add_library(draft_interpolate STATIC
     ${LIBNEO_ROOT}/src/spl_three_to_five.f90
-    ${LIBNEO_ROOT}/src/interpolate/acc_tridiag_pcr.f90
     ${LIBNEO_ROOT}/src/interpolate/acc_spline_build_order5.f90
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_types.f90
     ${LIBNEO_ROOT}/src/interpolate/batch_interpolate_1d.f90
@@ -106,6 +105,8 @@ target_link_libraries(draft_interpolate PUBLIC draft_build_flags)
 add_library(draft_spline1d_many STATIC
     src/spline1d_many_offload.f90
     src/util_lcg_rng.f90
+    src/util_timer.f90
+    src/util_bench_args.f90
 )
 target_link_libraries(draft_spline1d_many PUBLIC draft_interpolate)
 

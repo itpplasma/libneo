@@ -1,8 +1,9 @@
 module batch_interpolate_1d
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use batch_interpolate_types, only: BatchSplineData1D
-    use acc_spline_build_order5, only: spl_five_per_line, spl_five_reg_line
-    use acc_tridiag_pcr, only: tridiag_pcr_solve_inplace, tridiag_pcr_solve_cyclic
+    use spline_build_lines, only: spl_three_per_line, spl_three_reg_line, &
+                                  spl_four_per_line, spl_four_reg_line, &
+                                  spl_five_per_line, spl_five_reg_line
     use spl_three_to_five_sub, only: spl_per, spl_reg
 #ifdef _OPENACC
     use openacc, only: acc_is_present
@@ -13,6 +14,7 @@ module batch_interpolate_1d
     
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_1d
+    public :: construct_batch_splines_1d_lines
     public :: construct_batch_splines_1d_resident
     public :: construct_batch_splines_1d_resident_device
     public :: destroy_batch_splines_1d
@@ -24,7 +26,8 @@ module batch_interpolate_1d
     public :: evaluate_batch_splines_1d_many_resident
     public :: evaluate_batch_splines_1d_der
     public :: evaluate_batch_splines_1d_der2
-    
+    public :: evaluate_batch_splines_1d_der3
+
 contains
     
     subroutine construct_batch_splines_1d(x_min, x_max, y_batch, order, periodic, spl)
@@ -89,6 +92,114 @@ contains
         
         deallocate(splcoe_temp)
     end subroutine construct_batch_splines_1d
+
+    subroutine construct_batch_splines_1d_lines(x_min, x_max, y_batch, order, periodic, spl)
+        real(dp), intent(in) :: x_min, x_max
+        real(dp), intent(in) :: y_batch(:, :)  ! (n_points, n_quantities)
+        integer, intent(in) :: order
+        logical, intent(in) :: periodic
+        type(BatchSplineData1D), intent(out) :: spl
+
+        integer :: iq, n_points, n_quantities, istat
+        real(dp), allocatable :: work(:, :, :)
+
+        n_points = size(y_batch, 1)
+        n_quantities = size(y_batch, 2)
+
+        if (n_points < 2) then
+            error stop "construct_batch_splines_1d_lines: Need at least 2 points"
+        end if
+        if (n_quantities < 1) then
+            error stop "construct_batch_splines_1d_lines: Need at least 1 quantity"
+        end if
+        if (order < 3 .or. order > 5) then
+            error stop "construct_batch_splines_1d_lines: Order must be between 3 and 5"
+        end if
+        if (order == 3) then
+            if (periodic .and. n_points < 3) then
+                error stop "construct_batch_splines_1d_lines: Need at least 3 points " // &
+                           "for periodic order=3"
+            end if
+        else if (order == 4) then
+            if (n_points < 5) then
+                error stop "construct_batch_splines_1d_lines: Need at least 5 points for order=4"
+            end if
+        else
+            if (n_points < 6) then
+                error stop "construct_batch_splines_1d_lines: Need at least 6 points for order=5"
+            end if
+        end if
+
+        spl%order = order
+        spl%num_points = n_points
+        spl%periodic = periodic
+        spl%x_min = x_min
+        spl%h_step = (x_max - x_min) / dble(n_points - 1)
+        spl%num_quantities = n_quantities
+
+        allocate(spl%coeff(n_quantities, 0:order, n_points), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_1d_lines: Allocation failed for coeff"
+        end if
+
+        allocate(work(n_points, n_quantities, 0:order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_1d_lines: Allocation failed for work"
+        end if
+
+        do iq = 1, n_quantities
+            work(:, iq, 0) = y_batch(:, iq)
+        end do
+
+#ifdef _OPENMP
+        !$omp parallel do default(none) shared(work, n_points, n_quantities, order, periodic, &
+        !$omp& spl) private(iq)
+#endif
+        do iq = 1, n_quantities
+            if (order == 3) then
+                if (periodic) then
+                    call spl_three_per_line(n_points, spl%h_step, work(:, iq, 0), &
+                                            work(:, iq, 1), work(:, iq, 2), &
+                                            work(:, iq, 3))
+                else
+                    call spl_three_reg_line(n_points, spl%h_step, work(:, iq, 0), &
+                                            work(:, iq, 1), work(:, iq, 2), &
+                                            work(:, iq, 3))
+                end if
+            else if (order == 4) then
+                if (periodic) then
+                    call spl_four_per_line(n_points, spl%h_step, work(:, iq, 0), &
+                                           work(:, iq, 1), work(:, iq, 2), &
+                                           work(:, iq, 3), work(:, iq, 4))
+                else
+                    call spl_four_reg_line(n_points, spl%h_step, work(:, iq, 0), &
+                                           work(:, iq, 1), work(:, iq, 2), &
+                                           work(:, iq, 3), work(:, iq, 4))
+                end if
+            else
+                if (periodic) then
+                    call spl_five_per_line(n_points, spl%h_step, work(:, iq, 0), &
+                                           work(:, iq, 1), work(:, iq, 2), &
+                                           work(:, iq, 3), work(:, iq, 4), &
+                                           work(:, iq, 5))
+                else
+                    call spl_five_reg_line(n_points, spl%h_step, work(:, iq, 0), &
+                                           work(:, iq, 1), work(:, iq, 2), &
+                                           work(:, iq, 3), work(:, iq, 4), &
+                                           work(:, iq, 5))
+                end if
+            end if
+        end do
+#ifdef _OPENMP
+        !$omp end parallel do
+#endif
+
+        do iq = 1, n_quantities
+            spl%coeff(iq, :, :) = transpose(work(:, iq, :))
+        end do
+
+        deallocate(work)
+    end subroutine construct_batch_splines_1d_lines
 
     subroutine construct_batch_splines_1d_resident(x_min, x_max, y_batch, order, &
                                                    periodic, spl)
@@ -157,13 +268,6 @@ contains
         integer :: istat
         integer :: ip, iq, k
         real(dp), allocatable :: work(:, :, :)
-        real(dp), allocatable :: a_tri(:, :), b_tri(:, :), c_tri(:, :)
-        real(dp), allocatable :: rhs(:, :), a_tmp(:, :), b_tmp(:, :)
-        real(dp), allocatable :: c_tmp(:, :), rhs_tmp(:, :), x(:, :)
-        real(dp), allocatable :: bdiag(:, :), y_sol(:, :), z_sol(:, :)
-        real(dp), allocatable :: u_vec(:, :), factor(:)
-        integer :: m
-        real(dp) :: psi, inv_h
         real(dp) :: h_step
 
         if (n_points < 2) then
@@ -177,6 +281,22 @@ contains
         if (order < 3 .or. order > 5) then
             error stop "construct_batch_splines_1d_resident_device:" // &
                 " Order must be between 3 and 5"
+        end if
+        if (order == 3) then
+            if (periodic .and. n_points < 3) then
+                error stop "construct_batch_splines_1d_resident_device:" // &
+                    " Need at least 3 points for periodic order=3"
+            end if
+        else if (order == 4) then
+            if (n_points < 5) then
+                error stop "construct_batch_splines_1d_resident_device:" // &
+                    " Need at least 5 points for order=4"
+            end if
+        else
+            if (n_points < 6) then
+                error stop "construct_batch_splines_1d_resident_device:" // &
+                    " Need at least 6 points for order=5"
+            end if
         end if
 
         spl%order = order
@@ -192,10 +312,7 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        if (.not. do_assume_present) then
-            !$acc enter data copyin(y_batch)
-        end if
-        !$acc enter data create(spl%coeff)
+        !$acc enter data create(spl%coeff(1:n_quantities, 0:order, 1:n_points))
 
         allocate(work(n_points, n_quantities, 0:order), stat=istat)
         if (istat /= 0) then
@@ -203,11 +320,17 @@ contains
                 " Allocation failed for work"
         end if
 
-        inv_h = 1.0d0/spl%h_step
         h_step = spl%h_step
-        psi = 3.0d0*inv_h*inv_h
 
-        !$acc data present(y_batch, spl%coeff) create(work)
+#ifdef _OPENACC
+        if (do_assume_present) then
+            if (.not. acc_is_present(y_batch)) then
+                error stop "construct_batch_splines_1d_resident_device:" // &
+                    " assume_y_present=T but y_batch is not present"
+            end if
+        end if
+#endif
+        !$acc data present_or_copyin(y_batch(1:n_points, 1:n_quantities)) create(work)
         !$acc parallel loop collapse(2) gang
         do iq = 1, n_quantities
             do ip = 1, n_points
@@ -215,9 +338,29 @@ contains
             end do
         end do
 
-        if (order == 5) then
-            !$acc parallel loop gang
-            do iq = 1, n_quantities
+        !$acc parallel loop gang
+        do iq = 1, n_quantities
+            if (order == 3) then
+                if (periodic) then
+                    call spl_three_per_line(n_points, h_step, work(:, iq, 0), &
+                                            work(:, iq, 1), work(:, iq, 2), &
+                                            work(:, iq, 3))
+                else
+                    call spl_three_reg_line(n_points, h_step, work(:, iq, 0), &
+                                            work(:, iq, 1), work(:, iq, 2), &
+                                            work(:, iq, 3))
+                end if
+            else if (order == 4) then
+                if (periodic) then
+                    call spl_four_per_line(n_points, h_step, work(:, iq, 0), &
+                                           work(:, iq, 1), work(:, iq, 2), &
+                                           work(:, iq, 3), work(:, iq, 4))
+                else
+                    call spl_four_reg_line(n_points, h_step, work(:, iq, 0), &
+                                           work(:, iq, 1), work(:, iq, 2), &
+                                           work(:, iq, 3), work(:, iq, 4))
+                end if
+            else
                 if (periodic) then
                     call spl_five_per_line(n_points, h_step, work(:, iq, 0), &
                                            work(:, iq, 1), work(:, iq, 2), &
@@ -229,181 +372,39 @@ contains
                                            work(:, iq, 3), work(:, iq, 4), &
                                            work(:, iq, 5))
                 end if
-            end do
-        else if (order == 3) then
-            if (.not. periodic) then
-                allocate(a_tri(n_points, n_quantities), b_tri(n_points, n_quantities), &
-                         c_tri(n_points, n_quantities), rhs(n_points, n_quantities), &
-                         a_tmp(n_points, n_quantities), b_tmp(n_points, n_quantities), &
-                         c_tmp(n_points, n_quantities), rhs_tmp(n_points, n_quantities), &
-                         x(n_points, n_quantities), stat=istat)
-                if (istat /= 0) then
-                    error stop "construct_batch_splines_1d_resident_device:" // &
-                        " Allocation failed for cubic work arrays"
-                end if
-
-                !$acc data present(work) create(a_tri, b_tri, c_tri, rhs, a_tmp, b_tmp, &
-                !$acc& c_tmp, rhs_tmp, x)
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 1, n_points
-                        a_tri(ip, iq) = 1.0d0
-                        b_tri(ip, iq) = 4.0d0
-                        c_tri(ip, iq) = 1.0d0
-                        rhs(ip, iq) = 0.0d0
-                    end do
-                end do
-
-                !$acc parallel loop gang vector
-                do iq = 1, n_quantities
-                    a_tri(1, iq) = 0.0d0
-                    c_tri(1, iq) = 0.0d0
-                    b_tri(1, iq) = 1.0d0
-                    a_tri(n_points, iq) = 0.0d0
-                    c_tri(n_points, iq) = 0.0d0
-                    b_tri(n_points, iq) = 1.0d0
-                end do
-
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 2, n_points - 1
-                        rhs(ip, iq) = (work(ip + 1, iq, 0) - 2.0d0*work(ip, iq, 0) + &
-                                       work(ip - 1, iq, 0))*psi
-                    end do
-                end do
-
-                call tridiag_pcr_solve_inplace(a_tri, b_tri, c_tri, rhs, a_tmp, b_tmp, &
-                                               c_tmp, rhs_tmp, x)
-
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 1, n_points
-                        work(ip, iq, 2) = x(ip, iq)
-                    end do
-                end do
-
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 1, n_points - 1
-                        work(ip, iq, 1) = (work(ip + 1, iq, 0) - work(ip, iq, 0))*inv_h - &
-                                          h_step*(work(ip + 1, iq, 2) + &
-                                          2.0d0*work(ip, iq, 2))/3.0d0
-                        work(ip, iq, 3) = (work(ip + 1, iq, 2) - work(ip, iq, 2))*inv_h / &
-                                          3.0d0
-                    end do
-                end do
-                !$acc parallel loop gang vector
-                do iq = 1, n_quantities
-                    work(n_points, iq, 1) = 0.0d0
-                    work(n_points, iq, 3) = 0.0d0
-                end do
-                !$acc end data
-
-                deallocate(a_tri, b_tri, c_tri, rhs, a_tmp, b_tmp, c_tmp, rhs_tmp, x)
-            else
-                if (n_points < 3) then
-                    error stop "construct_batch_splines_1d_resident_device:" // &
-                        " periodic cubic requires at least 3 points"
-                end if
-
-                m = n_points - 1
-                allocate(a_tri(m, n_quantities), b_tri(m, n_quantities), c_tri(m, n_quantities), &
-                         rhs(m, n_quantities), a_tmp(m, n_quantities), b_tmp(m, n_quantities), &
-                         c_tmp(m, n_quantities), rhs_tmp(m, n_quantities), x(m, n_quantities), &
-                         bdiag(m, n_quantities), y_sol(m, n_quantities), z_sol(m, n_quantities), &
-                         u_vec(m, n_quantities), factor(n_quantities), stat=istat)
-                if (istat /= 0) then
-                    error stop "construct_batch_splines_1d_resident_device:" // &
-                        " Allocation failed for periodic cubic work arrays"
-                end if
-
-                !$acc data present(work) create(a_tri, b_tri, c_tri, rhs, a_tmp, b_tmp, &
-                !$acc& c_tmp, rhs_tmp, x, bdiag, y_sol, z_sol, u_vec, factor)
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 1, m
-                        bdiag(ip, iq) = 4.0d0
-                        rhs(ip, iq) = 0.0d0
-                    end do
-                end do
-
-                !$acc parallel loop gang vector
-                do iq = 1, n_quantities
-                    rhs(1, iq) = (work(2, iq, 0) - work(1, iq, 0) - work(n_points, iq, 0) + &
-                                  work(n_points - 1, iq, 0))*psi
-                    rhs(m, iq) = (work(n_points, iq, 0) - 2.0d0*work(n_points - 1, iq, 0) + &
-                                  work(n_points - 2, iq, 0))*psi
-                end do
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 2, m - 1
-                        rhs(ip, iq) = (work(ip + 1, iq, 0) - 2.0d0*work(ip, iq, 0) + &
-                                       work(ip - 1, iq, 0))*psi
-                    end do
-                end do
-
-                call tridiag_pcr_solve_cyclic(bdiag, rhs, a_tri, b_tri, c_tri, rhs, a_tmp, &
-                                              b_tmp, c_tmp, rhs_tmp, y_sol, z_sol, u_vec, &
-                                              factor, x)
-
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 1, m
-                        work(ip, iq, 2) = x(ip, iq)
-                    end do
-                end do
-                !$acc parallel loop gang vector
-                do iq = 1, n_quantities
-                    work(n_points, iq, 2) = work(1, iq, 2)
-                end do
-
-                !$acc parallel loop collapse(2) gang vector
-                do iq = 1, n_quantities
-                    do ip = 1, m - 1
-                        work(ip, iq, 1) = (work(ip + 1, iq, 0) - work(ip, iq, 0))*inv_h - &
-                                          h_step*(work(ip + 1, iq, 2) + &
-                                          2.0d0*work(ip, iq, 2))/3.0d0
-                        work(ip, iq, 3) = (work(ip + 1, iq, 2) - work(ip, iq, 2))*inv_h / &
-                                          3.0d0
-                    end do
-                end do
-                !$acc parallel loop gang vector
-                do iq = 1, n_quantities
-                    work(m, iq, 1) = (work(n_points, iq, 0) - work(n_points - 1, iq, 0))*inv_h - &
-                                     h_step*(work(1, iq, 2) + 2.0d0*work(m, iq, 2))/3.0d0
-                    work(m, iq, 3) = (work(1, iq, 2) - work(m, iq, 2))*inv_h / 3.0d0
-                    work(n_points, iq, 1) = work(1, iq, 1)
-                    work(n_points, iq, 3) = work(1, iq, 3)
-                end do
-                !$acc end data
-
-                deallocate(a_tri, b_tri, c_tri, rhs, a_tmp, b_tmp, c_tmp, rhs_tmp, x)
-                deallocate(bdiag, y_sol, z_sol, u_vec, factor)
             end if
-        else
-            error stop "construct_batch_splines_1d_resident_device:" // &
-                " order=4 not yet supported on device"
-        end if
-
-        !$acc parallel loop collapse(2) gang
-        do ip = 1, n_points
-            do k = 0, order
-                !$acc loop vector
-                do iq = 1, n_quantities
-                    spl%coeff(iq, k, ip) = work(ip, iq, k)
-                end do
-            end do
         end do
+
+        call store_coeff_1d(n_points, n_quantities, order, work, spl%coeff)
         !$acc end data
 
         deallocate(work)
-        if (.not. do_assume_present) then
-            !$acc exit data delete(y_batch)
-        end if
         if (do_update) then
-            !$acc update self(spl%coeff)
+            !$acc update self(spl%coeff(1:n_quantities, 0:order, 1:n_points))
         end if
     end subroutine construct_batch_splines_1d_resident_device_impl
+
+    subroutine store_coeff_1d(n_points, n_quantities, order, work, coeff)
+        integer, intent(in) :: n_points, n_quantities, order
+        real(dp), intent(in) :: work(n_points, n_quantities, 0:order)
+        real(dp), intent(out) :: coeff(n_quantities, 0:order, n_points)
+
+        integer :: ip, iq, k
+
+#ifdef _OPENACC
+        !$acc parallel loop collapse(2) gang present(work, coeff)
+#endif
+        do ip = 1, n_points
+            do k = 0, order
+#ifdef _OPENACC
+                !$acc loop vector
+#endif
+                do iq = 1, n_quantities
+                    coeff(iq, k, ip) = work(ip, iq, k)
+                end do
+            end do
+        end do
+    end subroutine store_coeff_1d
 
 
     subroutine destroy_batch_splines_1d(spl)
@@ -411,8 +412,10 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl%coeff)) then
-                !$acc exit data delete(spl%coeff)
+            if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order, &
+                                         1:spl%num_points))) then
+                !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order, &
+                !$acc&                         1:spl%num_points))
             end if
         end if
 #endif
@@ -696,5 +699,111 @@ contains
             end do
         end do
     end subroutine evaluate_batch_splines_1d_der2
-    
+
+    subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
+                                              d3y_batch)
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
+        real(dp), intent(out) :: y_batch(:)    ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:)   ! (n_quantities)
+        real(dp), intent(out) :: d2y_batch(:)  ! (n_quantities)
+        real(dp), intent(out) :: d3y_batch(:)  ! (n_quantities)
+
+        real(dp) :: x_norm, x_local, xj
+        integer :: interval_index, k_power, iq
+        integer :: N
+
+        N = spl%order
+
+        ! Validate output sizes
+        if (size(y_batch) < spl%num_quantities .or. &
+            size(dy_batch) < spl%num_quantities .or. &
+            size(d2y_batch) < spl%num_quantities .or. &
+            size(d3y_batch) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_1d_der3: Output arrays too small"
+        end if
+
+        ! Handle periodic boundary conditions
+        if (spl%periodic) then
+            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points - 1)) + spl%x_min
+        else
+            xj = x
+        end if
+
+        ! Find interval and local coordinate
+        x_norm = (xj - spl%x_min)/spl%h_step
+        interval_index = max(0, min(spl%num_points - 2, int(x_norm)))
+        x_local = (x_norm - real(interval_index, dp))*spl%h_step
+
+        ! Initialize with highest order coefficients
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            y_batch(iq) = spl%coeff(iq, N, interval_index + 1)
+        end do
+
+        ! Apply Horner method for value
+        do k_power = N - 1, 0, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                y_batch(iq) = spl%coeff(iq, k_power, interval_index + 1) + &
+                              x_local*y_batch(iq)
+            end do
+        end do
+
+        ! First derivative: d/dx sum(a_k * x^k) = sum(k * a_k * x^(k-1))
+        !$omp simd
+        do iq = 1, spl%num_quantities
+            dy_batch(iq) = N*spl%coeff(iq, N, interval_index + 1)
+        end do
+        do k_power = N - 1, 1, -1
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                dy_batch(iq) = k_power*spl%coeff(iq, k_power, interval_index + 1) + &
+                               x_local*dy_batch(iq)
+            end do
+        end do
+
+        ! Second derivative
+        if (N >= 2) then
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                d2y_batch(iq) = N*(N - 1)*spl%coeff(iq, N, interval_index + 1)
+            end do
+            do k_power = N - 1, 2, -1
+                !$omp simd
+                do iq = 1, spl%num_quantities
+                    d2y_batch(iq) = k_power*(k_power - 1)* &
+                        spl%coeff(iq, k_power, interval_index + 1) + &
+                        x_local*d2y_batch(iq)
+                end do
+            end do
+        else
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                d2y_batch(iq) = 0.0_dp
+            end do
+        end if
+
+        ! Third derivative
+        if (N >= 3) then
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                d3y_batch(iq) = N*(N - 1)*(N - 2)*spl%coeff(iq, N, interval_index + 1)
+            end do
+            do k_power = N - 1, 3, -1
+                !$omp simd
+                do iq = 1, spl%num_quantities
+                    d3y_batch(iq) = k_power*(k_power - 1)*(k_power - 2)* &
+                        spl%coeff(iq, k_power, interval_index + 1) + &
+                        x_local*d3y_batch(iq)
+                end do
+            end do
+        else
+            !$omp simd
+            do iq = 1, spl%num_quantities
+                d3y_batch(iq) = 0.0_dp
+            end do
+        end if
+    end subroutine evaluate_batch_splines_1d_der3
+
 end module batch_interpolate_1d

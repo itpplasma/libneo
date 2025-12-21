@@ -1,20 +1,338 @@
-module acc_spline_build_order5
+module spline_build_lines
     use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
     private
 
+    public :: spl_build_line_inplace
+    public :: spl_three_reg_line
+    public :: spl_three_per_line
+    public :: spl_four_reg_line
+    public :: spl_four_per_line
     public :: spl_five_reg_line
     public :: spl_five_per_line
 
 contains
 
-    subroutine spl_five_reg_line(n, h, a, b, c, d, e, f)
+    subroutine spl_build_line_inplace(order, periodic, n, h, work, line)
+#ifdef _OPENACC
         !$acc routine seq
+#endif
+        integer, intent(in) :: order
+        logical, intent(in) :: periodic
         integer, intent(in) :: n
         real(dp), intent(in) :: h
-        real(dp), intent(in) :: a(:)
-        real(dp), intent(out) :: b(:), c(:), d(:), e(:), f(:)
+        real(dp), intent(inout), contiguous :: work(:, :, 0:)
+        integer, intent(in) :: line
+
+        select case (order)
+        case (3)
+            if (periodic) then
+                call spl_three_per_line(n, h, work(:, line, 0), work(:, line, 1), &
+                                        work(:, line, 2), work(:, line, 3))
+            else
+                call spl_three_reg_line(n, h, work(:, line, 0), work(:, line, 1), &
+                                        work(:, line, 2), work(:, line, 3))
+            end if
+        case (4)
+            if (periodic) then
+                call spl_four_per_line(n, h, work(:, line, 0), work(:, line, 1), &
+                                       work(:, line, 2), work(:, line, 3), &
+                                       work(:, line, 4))
+            else
+                call spl_four_reg_line(n, h, work(:, line, 0), work(:, line, 1), &
+                                       work(:, line, 2), work(:, line, 3), &
+                                       work(:, line, 4))
+            end if
+        case (5)
+            if (periodic) then
+                call spl_five_per_line(n, h, work(:, line, 0), work(:, line, 1), &
+                                       work(:, line, 2), work(:, line, 3), &
+                                       work(:, line, 4), work(:, line, 5))
+            else
+                call spl_five_reg_line(n, h, work(:, line, 0), work(:, line, 1), &
+                                       work(:, line, 2), work(:, line, 3), &
+                                       work(:, line, 4), work(:, line, 5))
+            end if
+        end select
+    end subroutine spl_build_line_inplace
+
+    subroutine spl_three_reg_line(n, h, a, b, c, d)
+#ifdef _OPENACC
+        !$acc routine seq
+#endif
+        integer, intent(in) :: n
+        real(dp), intent(in) :: h
+        real(dp), intent(in), contiguous :: a(:)
+        real(dp), intent(out), contiguous :: b(:), c(:), d(:)
+
+        integer :: i, k, i5
+        real(dp) :: c0, e, c1
+
+        b(1) = 0.0d0
+        d(1) = 0.0d0
+        c0 = -4.0d0*h
+
+        do i = 1, n - 2
+            e = -3.0d0*((a(i + 2) - a(i + 1)) - (a(i + 1) - a(i)))/h
+            c1 = c0 - b(i)*h
+            b(i + 1) = h/c1
+            d(i + 1) = (h*d(i) + e)/c1
+        end do
+
+        c(n) = 0.0d0
+        k = n - 1
+        do i = 1, k
+            i5 = n - i
+            c(i5) = b(i5)*c(i5 + 1) + d(i5)
+        end do
+
+        do i = 1, n - 1
+            b(i) = (a(i + 1) - a(i))/h - h*(c(i + 1) + 2.0d0*c(i))/3.0d0
+            d(i) = (c(i + 1) - c(i))/h/3.0d0
+        end do
+        b(n) = 0.0d0
+        d(n) = 0.0d0
+    end subroutine spl_three_reg_line
+
+    subroutine tridiag_thomas(n, bdiag, rhs, x)
+#ifdef _OPENACC
+        !$acc routine seq
+#endif
+        integer, intent(in) :: n
+        real(dp), intent(in), contiguous :: bdiag(:)
+        real(dp), intent(inout), contiguous :: rhs(:)
+        real(dp), intent(out), contiguous :: x(:)
+
+        integer :: i
+        real(dp) :: bet
+        real(dp) :: gam(n)
+
+        bet = bdiag(1)
+        x(1) = rhs(1)/bet
+        do i = 2, n
+            gam(i) = 1.0d0/bet
+            bet = bdiag(i) - gam(i)
+            x(i) = (rhs(i) - x(i - 1))/bet
+        end do
+        do i = n - 1, 1, -1
+            x(i) = x(i) - gam(i + 1)*x(i + 1)
+        end do
+    end subroutine tridiag_thomas
+
+    subroutine spl_three_per_line(n, h, a, b, c, d)
+#ifdef _OPENACC
+        !$acc routine seq
+#endif
+        integer, intent(in) :: n
+        real(dp), intent(in) :: h
+        real(dp), intent(in), contiguous :: a(:)
+        real(dp), intent(out), contiguous :: b(:), c(:), d(:)
+
+        integer :: nmx, i
+        real(dp) :: psi, inv_h, beta, denom, fact
+        real(dp) :: rhs(n - 1), y(n - 1), z(n - 1), u(n - 1)
+        real(dp) :: bb(n - 1)
+
+        nmx = n - 1
+        inv_h = 1.0d0/h
+        psi = 3.0d0*inv_h*inv_h
+
+        rhs(1) = (a(2) - a(1) - a(n) + a(nmx))*psi
+        do i = 3, nmx
+            rhs(i - 1) = (a(i) - 2.0d0*a(i - 1) + a(i - 2))*psi
+        end do
+        rhs(nmx) = (a(n) - 2.0d0*a(nmx) + a(nmx - 1))*psi
+
+        bb = 4.0d0
+        beta = -bb(1)
+        bb(1) = bb(1) - beta
+        bb(nmx) = bb(nmx) - 1.0d0/beta
+
+        u = 0.0d0
+        u(1) = beta
+        u(nmx) = 1.0d0
+
+        call tridiag_thomas(nmx, bb, rhs, y)
+        call tridiag_thomas(nmx, bb, u, z)
+
+        denom = 1.0d0 + z(1) + z(nmx)/beta
+        fact = (y(1) + y(nmx)/beta)/denom
+        do i = 1, nmx
+            c(i) = y(i) - fact*z(i)
+        end do
+        c(n) = c(1)
+
+        do i = 1, nmx - 1
+            b(i) = (a(i + 1) - a(i))*inv_h - h*(c(i + 1) + 2.0d0*c(i))/3.0d0
+            d(i) = (c(i + 1) - c(i))*inv_h/3.0d0
+        end do
+        b(nmx) = (a(n) - a(nmx))*inv_h - h*(c(1) + 2.0d0*c(nmx))/3.0d0
+        d(nmx) = (c(1) - c(nmx))*inv_h/3.0d0
+
+        b(n) = b(1)
+        d(n) = d(1)
+    end subroutine spl_three_per_line
+
+    subroutine spl_four_reg_line(n, h, a, b, c, d, e)
+#ifdef _OPENACC
+        !$acc routine seq
+#endif
+        integer, intent(in) :: n
+        real(dp), intent(in) :: h
+        real(dp), intent(in), contiguous :: a(:)
+        real(dp), intent(out), contiguous :: b(:), c(:), d(:), e(:)
+
+        integer :: i, ip1
+        real(dp) :: fac, fpl31, fpl40, fmn31, fmn40
+        real(dp) :: alp(n), bet(n), gam(n)
+
+        fpl31 = 0.5d0*(a(2) + a(4)) - a(3)
+        fpl40 = 0.5d0*(a(1) + a(5)) - a(3)
+        fmn31 = 0.5d0*(a(4) - a(2))
+        fmn40 = 0.5d0*(a(5) - a(1))
+        d(3) = (fmn40 - 2.0d0*fmn31)/6.0d0
+        e(3) = (fpl40 - 4.0d0*fpl31)/12.0d0
+        d(2) = d(3) - 4.0d0*e(3)
+        d(1) = d(3) - 8.0d0*e(3)
+
+        alp(1) = 0.0d0
+        bet(1) = d(1) + d(2)
+
+        do i = 1, n - 3
+            ip1 = i + 1
+            alp(ip1) = -1.0d0/(10.0d0 + alp(i))
+            bet(ip1) = alp(ip1)*(bet(i) - 4.0d0*(a(i + 3) - 3.0d0*(a(i + 2) - a(ip1)) - a(i)))
+        end do
+
+        fpl31 = 0.5d0*(a(n - 3) + a(n - 1)) - a(n - 2)
+        fpl40 = 0.5d0*(a(n - 4) + a(n)) - a(n - 2)
+        fmn31 = 0.5d0*(a(n - 1) - a(n - 3))
+        fmn40 = 0.5d0*(a(n) - a(n - 4))
+        d(n - 2) = (fmn40 - 2.0d0*fmn31)/6.0d0
+        e(n - 2) = (fpl40 - 4.0d0*fpl31)/12.0d0
+        d(n - 1) = d(n - 2) + 4.0d0*e(n - 2)
+        d(n) = d(n - 2) + 8.0d0*e(n - 2)
+
+        gam(n - 1) = d(n) + d(n - 1)
+
+        do i = n - 2, 1, -1
+            gam(i) = gam(i + 1)*alp(i) + bet(i)
+            d(i) = gam(i) - d(i + 1)
+            e(i) = (d(i + 1) - d(i))/4.0d0
+            c(i) = 0.5d0*(a(i + 2) + a(i)) - a(i + 1) - 0.125d0*(d(i + 2) + 12.0d0*d(i + 1) + &
+                   11.0d0*d(i))
+            b(i) = a(i + 1) - a(i) - c(i) - (3.0d0*d(i) + d(i + 1))/4.0d0
+        end do
+
+        b(n - 1) = b(n - 2) + 2.0d0*c(n - 2) + 3.0d0*d(n - 2) + 4.0d0*e(n - 2)
+        c(n - 1) = c(n - 2) + 3.0d0*d(n - 2) + 6.0d0*e(n - 2)
+        e(n - 1) = a(n) - a(n - 1) - b(n - 1) - c(n - 1) - d(n - 1)
+        b(n) = b(n - 1) + 2.0d0*c(n - 1) + 3.0d0*d(n - 1) + 4.0d0*e(n - 1)
+        c(n) = c(n - 1) + 3.0d0*d(n - 1) + 6.0d0*e(n - 1)
+        e(n) = e(n - 1)
+
+        fac = 1.0d0/h
+        b = b*fac
+        fac = fac/h
+        c = c*fac
+        fac = fac/h
+        d = d*fac
+        fac = fac/h
+        e = e*fac
+    end subroutine spl_four_reg_line
+
+    subroutine spl_four_per_line(n, h, a, b, c, d, e)
+#ifdef _OPENACC
+        !$acc routine seq
+#endif
+        integer, intent(in) :: n
+        real(dp), intent(in) :: h
+        real(dp), intent(in), contiguous :: a(:)
+        real(dp), intent(out), contiguous :: b(:), c(:), d(:), e(:)
+
+        integer :: i, ip1
+        real(dp) :: fac, base1, base2, phi1, phi2, phi
+        real(dp) :: alp(n), bet(n), gam(n)
+
+        base1 = -5.0d0 + 2.0d0*sqrt(6.0d0)
+        base2 = -5.0d0 - 2.0d0*sqrt(6.0d0)
+
+        alp(1) = 0.0d0
+        bet(1) = 0.0d0
+
+        do i = 1, n - 3
+            ip1 = i + 1
+            alp(ip1) = -1.0d0/(10.0d0 + alp(i))
+            bet(ip1) = alp(ip1)*(bet(i) - 4.0d0*(a(i + 3) - 3.0d0*(a(i + 2) - a(ip1)) - a(i)))
+        end do
+        alp(n - 1) = -1.0d0/(10.0d0 + alp(n - 2))
+        bet(n - 1) = alp(n - 1)*(bet(n - 2) - 4.0d0*(a(2) - 3.0d0*(a(n) - a(n - 1)) - a(n - 2)))
+        alp(n) = -1.0d0/(10.0d0 + alp(n - 1))
+        bet(n) = alp(n)*(bet(n - 1) - 4.0d0*(a(3) - 3.0d0*(a(2) - a(n)) - a(n - 1)))
+
+        gam(n) = bet(n)
+        do i = n - 1, 1, -1
+            gam(i) = gam(i + 1)*alp(i) + bet(i)
+        end do
+
+        phi1 = (gam(n)*base2 + gam(2))/(base2 - base1)/(1.0d0 - base1**(n - 1))
+        phi2 = (gam(n)*base1 + gam(2))/(base2 - base1)/(1.0d0 - (1.0d0/base2)**(n - 1))
+
+        do i = n, 1, -1
+            gam(i) = gam(i) + phi2
+            phi2 = phi2/base2
+        end do
+
+        do i = 1, n
+            gam(i) = gam(i) + phi1
+            phi1 = phi1*base1
+        end do
+
+        d(n) = 0.0d0
+        do i = n - 1, 1, -1
+            d(i) = gam(i) - d(i + 1)
+        end do
+
+        phi = -0.5d0*d(1)
+        do i = 1, n
+            d(i) = d(i) + phi
+            phi = -phi
+        end do
+
+        e(n) = (d(2) - d(n))/4.0d0
+        c(n) = 0.5d0*(a(3) + a(n)) - a(2) - 0.125d0*(d(3) + 12.0d0*d(2) + 11.0d0*d(n))
+        b(n) = a(2) - a(n) - c(n) - (3.0d0*d(n) + d(2))/4.0d0
+        e(n - 1) = (d(1) - d(n - 1))/4.0d0
+        c(n - 1) = 0.5d0*(a(2) + a(n - 1)) - a(1) - 0.125d0*(d(2) + 12.0d0*d(1) + &
+                   11.0d0*d(n - 1))
+        b(n - 1) = a(1) - a(n - 1) - c(n - 1) - (3.0d0*d(n - 1) + d(1))/4.0d0
+
+        do i = n - 2, 1, -1
+            e(i) = (d(i + 1) - d(i))/4.0d0
+            c(i) = 0.5d0*(a(i + 2) + a(i)) - a(i + 1) - 0.125d0*(d(i + 2) + 12.0d0*d(i + 1) + &
+                   11.0d0*d(i))
+            b(i) = a(i + 1) - a(i) - c(i) - (3.0d0*d(i) + d(i + 1))/4.0d0
+        end do
+
+        fac = 1.0d0/h
+        b = b*fac
+        fac = fac/h
+        c = c*fac
+        fac = fac/h
+        d = d*fac
+        fac = fac/h
+        e = e*fac
+    end subroutine spl_four_per_line
+
+    subroutine spl_five_reg_line(n, h, a, b, c, d, e, f)
+#ifdef _OPENACC
+        !$acc routine seq
+#endif
+        integer, intent(in) :: n
+        real(dp), intent(in) :: h
+        real(dp), intent(in), contiguous :: a(:)
+        real(dp), intent(out), contiguous :: b(:), c(:), d(:), e(:), f(:)
 
         integer :: i, ip1
         real(dp) :: rhop, rhom, fac
@@ -163,11 +481,13 @@ contains
     end subroutine spl_five_reg_line
 
     subroutine spl_five_per_line(n, h, a, b, c, d, e, f)
+#ifdef _OPENACC
         !$acc routine seq
+#endif
         integer, intent(in) :: n
         real(dp), intent(in) :: h
-        real(dp), intent(in) :: a(:)
-        real(dp), intent(out) :: b(:), c(:), d(:), e(:), f(:)
+        real(dp), intent(in), contiguous :: a(:)
+        real(dp), intent(out), contiguous :: b(:), c(:), d(:), e(:), f(:)
 
         integer :: i, ip1
         real(dp) :: rhop, rhom, fac, xplu, xmin, gammao_p, gammao_m_redef
@@ -280,4 +600,4 @@ contains
         f = f*fac
     end subroutine spl_five_per_line
 
-end module acc_spline_build_order5
+end module spline_build_lines

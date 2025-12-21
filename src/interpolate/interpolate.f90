@@ -18,7 +18,8 @@ module interpolate
                                  evaluate_batch_splines_1d_many, &
                                  evaluate_batch_splines_1d_many_resident, &
                                  evaluate_batch_splines_1d_der, &
-                                 evaluate_batch_splines_1d_der2
+                                 evaluate_batch_splines_1d_der2, &
+                                 evaluate_batch_splines_1d_der3
     use batch_interpolate, only: evaluate_batch_splines_2d, &
                                  evaluate_batch_splines_2d_der, &
                                  evaluate_batch_splines_2d_many, &
@@ -45,6 +46,7 @@ module interpolate
     public :: evaluate_batch_splines_1d, evaluate_batch_splines_1d_single
     public :: evaluate_batch_splines_1d_many, evaluate_batch_splines_1d_many_resident
     public :: evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2
+    public :: evaluate_batch_splines_1d_der3
     public :: evaluate_batch_splines_2d, evaluate_batch_splines_2d_der
     public :: evaluate_batch_splines_2d_many, evaluate_batch_splines_2d_many_resident
     public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &

@@ -23,6 +23,12 @@ quantities at `npts` points:
 
 All implementations are in double precision (`real(dp)`).
 
+The benchmark binaries also time spline *construction* (building coefficients) in three
+variants:
+- `build`: legacy CPU construction (`construct_batch_splines_*`)
+- `build_lines`: line-based CPU construction (`construct_batch_splines_*_lines`)
+- `build_device_*`: device-resident construction (`construct_batch_splines_*_resident_device`)
+
 ## Implementations (alternatives)
 
 - One shared Fortran kernel compiled in different modes:

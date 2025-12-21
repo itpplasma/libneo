@@ -75,6 +75,19 @@ extract_build_grid_pts_per_s() {
   ' "${log_path}"
 }
 
+extract_build_lines_grid_pts_per_s() {
+  local log_path="$1"
+  awk '
+    {
+      for (i = 1; i <= NF; i++) {
+        if (state == 0 && $i == "build_lines") state = 1;
+        else if (state == 1 && $i == "grid_pts_per_s") state = 2;
+        else if (state == 2) { print $i; exit; }
+      }
+    }
+  ' "${log_path}"
+}
+
 extract_build_resident_grid_pts_per_s() {
   local log_path="$1"
   awk '
@@ -136,6 +149,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     log="${log_dir}/libneo_gpu_spline_${nv_tag}_cpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" "${exe}"
     results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
+    results["${nv_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
     results["${nv_tag},cpu,${dim}"]="$(extract_pts_per_s "${log}" cpu)"
   done
 
@@ -151,6 +165,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     log_host="${log_dir}/libneo_gpu_spline_${nv_tag}_openacc_host_${dim}_${date_tag}.log"
     run_one "${exe}" "${log_host}" env ACC_DEVICE_TYPE=host "${exe}"
     results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_host}")"
+    results["${nv_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log_host}")"
     results["${nv_tag},build_resident_host,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log_host}")"
     results["${nv_tag},build_device_host,${dim}"]="$(extract_build_device_grid_pts_per_s "${log_host}" host)"
     results["${nv_tag},openacc_setup_host,${dim}"]="$(extract_setup_s "${log_host}" openacc)"
@@ -159,6 +174,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     log_gpu="${log_dir}/libneo_gpu_spline_${nv_tag}_openacc_gpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log_gpu}" env ACC_DEVICE_TYPE=nvidia "${exe}"
     results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_gpu}")"
+    results["${nv_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log_gpu}")"
     results["${nv_tag},build_resident_gpu,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log_gpu}")"
     results["${nv_tag},build_device_gpu,${dim}"]="$(extract_build_device_grid_pts_per_s "${log_gpu}" gpu)"
     results["${nv_tag},openacc_setup_gpu,${dim}"]="$(extract_setup_s "${log_gpu}" openacc)"
@@ -180,6 +196,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
         log_host="${log_dir}/libneo_gpu_spline_${nv_tag}_openmp_host_${dim}_${date_tag}.log"
         run_one "${exe}" "${log_host}" env OMP_TARGET_OFFLOAD=DISABLED OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
         results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_host}")"
+        results["${nv_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log_host}")"
         results["${nv_tag},openmp_setup_host,${dim}"]="$(extract_setup_s "${log_host}" openmp)"
         results["${nv_tag},openmp_host,${dim}"]="$(extract_pts_per_s "${log_host}" openmp)"
       fi
@@ -187,6 +204,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
       log_gpu="${log_dir}/libneo_gpu_spline_${nv_tag}_openmp_gpu_${dim}_${date_tag}.log"
       run_one "${exe}" "${log_gpu}" env OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
       results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_gpu}")"
+      results["${nv_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log_gpu}")"
       results["${nv_tag},openmp_setup_gpu,${dim}"]="$(extract_setup_s "${log_gpu}" openmp)"
       results["${nv_tag},openmp_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" openmp)"
     done
@@ -210,6 +228,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     log="${log_dir}/libneo_gpu_spline_${g_tag}_cpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" "${exe}"
     results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
+    results["${g_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
     results["${g_tag},cpu,${dim}"]="$(extract_pts_per_s "${log}" cpu)"
   done
 
@@ -225,6 +244,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openacc_host_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=host "${exe}"
     results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
+    results["${g_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
     results["${g_tag},build_resident_host,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log}")"
     results["${g_tag},build_device_host,${dim}"]="$(extract_build_device_grid_pts_per_s "${log}" host)"
     results["${g_tag},openacc_setup_host,${dim}"]="$(extract_setup_s "${log}" openacc)"
@@ -243,6 +263,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openacc_gpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=nvidia GOMP_DEBUG="${gomp_debug}" "${exe}"
     results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
+    results["${g_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
     results["${g_tag},build_resident_gpu,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log}")"
     results["${g_tag},build_device_gpu,${dim}"]="$(extract_build_device_grid_pts_per_s "${log}" gpu)"
     results["${g_tag},openacc_setup_gpu,${dim}"]="$(extract_setup_s "${log}" openacc)"
@@ -264,6 +285,7 @@ if [[ -x "${gfortran_bin}" ]]; then
         log="${log_dir}/libneo_gpu_spline_${g_tag}_openmp_host_${dim}_${date_tag}.log"
         run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=DISABLED OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
         results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
+        results["${g_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
         results["${g_tag},openmp_setup_host,${dim}"]="$(extract_setup_s "${log}" openmp)"
         results["${g_tag},openmp_host,${dim}"]="$(extract_pts_per_s "${log}" openmp)"
       done
@@ -282,6 +304,7 @@ if [[ -x "${gfortran_bin}" ]]; then
       log="${log_dir}/libneo_gpu_spline_${g_tag}_openmp_gpu_${dim}_${date_tag}.log"
       run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 GOMP_DEBUG="${gomp_debug}" "${exe}"
       results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
+      results["${g_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log}")"
       results["${g_tag},openmp_setup_gpu,${dim}"]="$(extract_setup_s "${log}" openmp)"
       results["${g_tag},openmp_gpu,${dim}"]="$(extract_pts_per_s "${log}" openmp)"
     done
@@ -295,7 +318,7 @@ echo "Summary (grid_pts_per_s, pts_per_s, setup_s)"
 printf "%-10s %-13s %-4s %s\n" "compiler" "metric" "dim" "value"
 for dim in 1d 2d 3d; do
   for compiler in nvfortran gfortran; do
-    for metric in build build_resident_host build_resident_gpu \
+    for metric in build build_lines build_resident_host build_resident_gpu \
       build_device_host build_device_gpu cpu \
       openacc_setup_host openacc_host openacc_setup_gpu openacc_gpu \
       openmp_setup_host openmp_host openmp_setup_gpu openmp_gpu; do

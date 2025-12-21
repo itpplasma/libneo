@@ -189,6 +189,19 @@ add_test(NAME test_coordinate_systems COMMAND test_coordinate_systems.x)
 add_test(NAME test_analytical_circular COMMAND test_analytical_circular.x)
 add_test(NAME test_nctools_nc_get3 COMMAND test_nctools_nc_get3.x)
 
+# These tests use fixed relative paths ../../test/resources/... in the sources.
+# Run them from ${CMAKE_SOURCE_DIR}/test/source so those paths resolve to
+# ${CMAKE_SOURCE_DIR}/test/resources/...
+set_tests_properties(test_boozer_class PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
+)
+set_tests_properties(test_efit_class PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
+)
+set_tests_properties(test_geqdsk_tools PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
+)
+
 add_test(
   NAME test_ascot5_compare
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/test_ascot5_compare.py

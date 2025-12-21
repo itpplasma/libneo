@@ -2,8 +2,11 @@ program test_batch_interpolate_many
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
     use batch_interpolate, only: construct_batch_splines_1d, &
+                                 construct_batch_splines_1d_lines, &
                                  construct_batch_splines_2d, &
+                                 construct_batch_splines_2d_lines, &
                                  construct_batch_splines_3d
+    use batch_interpolate, only: construct_batch_splines_3d_lines
     use batch_interpolate, only: construct_batch_splines_1d_resident, &
                                  construct_batch_splines_1d_resident_device, &
                                  construct_batch_splines_2d_resident, &
@@ -76,12 +79,15 @@ contains
 
         type(BatchSplineData1D) :: spl
         type(BatchSplineData1D) :: spl3
+        type(BatchSplineData1D) :: spl_lines
+        type(BatchSplineData1D) :: spl3_lines
         real(dp), allocatable :: x_grid(:)
         real(dp), allocatable :: y_grid(:, :)
         real(dp), allocatable :: x_eval(:)
         real(dp), allocatable :: y_many(:, :)
         real(dp), allocatable :: y_many3(:, :)
         real(dp), allocatable :: y_many_res(:, :)
+        real(dp), allocatable :: y_many_lines(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -117,6 +123,14 @@ contains
             call evaluate_batch_splines_1d(spl, x_eval(ip), y_one)
             call assert_close("1d", y_one, y_many(:, ip), tol)
         end do
+
+        call construct_batch_splines_1d_lines(x_min, x_max, y_grid, order, periodic, spl_lines)
+        allocate (y_many_lines(nq, npts))
+        call evaluate_batch_splines_1d_many(spl_lines, x_eval, y_many_lines)
+        call assert_close("1d_lines", reshape(y_many_lines, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+        call destroy_batch_splines_1d(spl_lines)
+        deallocate (y_many_lines)
 
         call destroy_batch_splines_1d(spl)
         call construct_batch_splines_1d_resident(x_min, x_max, y_grid, &
@@ -159,6 +173,15 @@ contains
         allocate (y_many3(nq, npts))
         call evaluate_batch_splines_1d_many(spl3, x_eval, y_many3)
 
+        call construct_batch_splines_1d_lines(x_min, x_max, y_grid, order3, periodic, &
+                                              spl3_lines)
+        allocate (y_many_lines(nq, npts))
+        call evaluate_batch_splines_1d_many(spl3_lines, x_eval, y_many_lines)
+        call assert_close("1d_lines_order3", reshape(y_many_lines, [nq*npts]), &
+                          reshape(y_many3, [nq*npts]), tol)
+        call destroy_batch_splines_1d(spl3_lines)
+        deallocate (y_many_lines)
+
         call destroy_batch_splines_1d(spl3)
         call construct_batch_splines_1d_resident_device(x_min, x_max, y_grid, order3, &
                                                         periodic, spl3, update_host=.false.)
@@ -184,10 +207,12 @@ contains
         real(dp), parameter :: x_max(2) = [x_min(1) + 3.0d0, x_min(2) + 2.0d0]
 
         type(BatchSplineData2D) :: spl
+        type(BatchSplineData2D) :: spl_lines
         real(dp), allocatable :: y_grid(:, :, :)
         real(dp), allocatable :: x_eval(:, :)
         real(dp), allocatable :: y_many(:, :)
         real(dp), allocatable :: y_many_res(:, :)
+        real(dp), allocatable :: y_many_lines(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -227,6 +252,14 @@ contains
             call evaluate_batch_splines_2d(spl, x_eval(:, ip), y_one)
             call assert_close("2d", y_one, y_many(:, ip), tol)
         end do
+
+        call construct_batch_splines_2d_lines(x_min, x_max, y_grid, order, periodic, spl_lines)
+        allocate (y_many_lines(nq, npts))
+        call evaluate_batch_splines_2d_many(spl_lines, x_eval, y_many_lines)
+        call assert_close("2d_lines", reshape(y_many_lines, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+        call destroy_batch_splines_2d(spl_lines)
+        deallocate (y_many_lines)
 
         call destroy_batch_splines_2d(spl)
         call construct_batch_splines_2d_resident(x_min, x_max, y_grid, &
@@ -279,10 +312,12 @@ contains
                                            x_min(3) + 1.0d0]
 
         type(BatchSplineData3D) :: spl
+        type(BatchSplineData3D) :: spl_lines
         real(dp), allocatable :: y_grid(:, :, :, :)
         real(dp), allocatable :: x_eval(:, :)
         real(dp), allocatable :: y_many(:, :)
         real(dp), allocatable :: y_many_res(:, :)
+        real(dp), allocatable :: y_many_lines(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -328,6 +363,14 @@ contains
             call evaluate_batch_splines_3d(spl, x_eval(:, ip), y_one)
             call assert_close("3d", y_one, y_many(:, ip), tol)
         end do
+
+        call construct_batch_splines_3d_lines(x_min, x_max, y_grid, order, periodic, spl_lines)
+        allocate (y_many_lines(nq, npts))
+        call evaluate_batch_splines_3d_many(spl_lines, x_eval, y_many_lines)
+        call assert_close("3d_lines", reshape(y_many_lines, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+        call destroy_batch_splines_3d(spl_lines)
+        deallocate (y_many_lines)
 
         call destroy_batch_splines_3d(spl)
         call construct_batch_splines_3d_resident(x_min, x_max, y_grid, &
