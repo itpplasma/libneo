@@ -23,6 +23,9 @@ program test_batch_interpolate_many
     use batch_interpolate, only: evaluate_batch_splines_1d_many_resident, &
                                  evaluate_batch_splines_2d_many_resident, &
                                  evaluate_batch_splines_3d_many_resident
+#ifdef _OPENACC
+    use openacc, only: acc_is_present
+#endif
     implicit none
 
     type :: lcg_t
@@ -88,6 +91,7 @@ contains
         real(dp), allocatable :: y_many3(:, :)
         real(dp), allocatable :: y_many_res(:, :)
         real(dp), allocatable :: y_many_lines(:, :)
+        real(dp), allocatable :: y_many_cpu(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -123,8 +127,22 @@ contains
             call evaluate_batch_splines_1d(spl, x_eval(ip), y_one)
             call assert_close("1d", y_one, y_many(:, ip), tol)
         end do
+#ifdef _OPENACC
+        if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order, &
+                                     1:spl%num_points))) then
+            allocate (y_many_cpu(nq, npts))
+            y_many_cpu = 0.0d0
+            !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order, &
+            !$acc&                            1:spl%num_points))
+            call evaluate_batch_splines_1d_many(spl, x_eval, y_many_cpu)
+            call assert_close("1d_cpu_fallback", reshape(y_many_cpu, [nq*npts]), &
+                              reshape(y_many, [nq*npts]), tol)
+            deallocate (y_many_cpu)
+        end if
+#endif
 
-        call construct_batch_splines_1d_lines(x_min, x_max, y_grid, order, periodic, spl_lines)
+        call construct_batch_splines_1d_lines(x_min, x_max, y_grid, order, periodic, &
+                                              spl_lines)
         allocate (y_many_lines(nq, npts))
         call evaluate_batch_splines_1d_many(spl_lines, x_eval, y_many_lines)
         call assert_close("1d_lines", reshape(y_many_lines, [nq*npts]), &
@@ -184,14 +202,16 @@ contains
 
         call destroy_batch_splines_1d(spl3)
         call construct_batch_splines_1d_resident_device(x_min, x_max, y_grid, order3, &
-                                                        periodic, spl3, update_host=.false.)
+                                                        periodic, spl3, &
+                                                        update_host=.false.)
         y_many_res = 0.0d0
         !$acc enter data copyin(x_eval) create(y_many_res)
         call evaluate_batch_splines_1d_many_resident(spl3, x_eval, y_many_res)
         !$acc update self(y_many_res)
         !$acc exit data delete(y_many_res, x_eval)
-        call assert_close("1d_device_resident_only_order3", reshape(y_many_res, [nq*npts]), &
-                          reshape(y_many3, [nq*npts]), tol)
+        call assert_close("1d_device_resident_only_order3", &
+                          reshape(y_many_res, [nq*npts]), reshape(y_many3, [nq*npts]), &
+                          tol)
 
         call destroy_batch_splines_1d(spl3)
     end subroutine test_1d
@@ -213,6 +233,7 @@ contains
         real(dp), allocatable :: y_many(:, :)
         real(dp), allocatable :: y_many_res(:, :)
         real(dp), allocatable :: y_many_lines(:, :)
+        real(dp), allocatable :: y_many_cpu(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -252,8 +273,24 @@ contains
             call evaluate_batch_splines_2d(spl, x_eval(:, ip), y_one)
             call assert_close("2d", y_one, y_many(:, ip), tol)
         end do
+#ifdef _OPENACC
+        if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
+                                     0:spl%order(2), 1:spl%num_points(1), &
+                                     1:spl%num_points(2)))) then
+            allocate (y_many_cpu(nq, npts))
+            y_many_cpu = 0.0d0
+            !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
+            !$acc&                            0:spl%order(2), 1:spl%num_points(1), &
+            !$acc&                            1:spl%num_points(2)))
+            call evaluate_batch_splines_2d_many(spl, x_eval, y_many_cpu)
+            call assert_close("2d_cpu_fallback", reshape(y_many_cpu, [nq*npts]), &
+                              reshape(y_many, [nq*npts]), tol)
+            deallocate (y_many_cpu)
+        end if
+#endif
 
-        call construct_batch_splines_2d_lines(x_min, x_max, y_grid, order, periodic, spl_lines)
+        call construct_batch_splines_2d_lines(x_min, x_max, y_grid, order, periodic, &
+                                              spl_lines)
         allocate (y_many_lines(nq, npts))
         call evaluate_batch_splines_2d_many(spl_lines, x_eval, y_many_lines)
         call assert_close("2d_lines", reshape(y_many_lines, [nq*npts]), &
@@ -318,6 +355,7 @@ contains
         real(dp), allocatable :: y_many(:, :)
         real(dp), allocatable :: y_many_res(:, :)
         real(dp), allocatable :: y_many_lines(:, :)
+        real(dp), allocatable :: y_many_cpu(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -363,8 +401,27 @@ contains
             call evaluate_batch_splines_3d(spl, x_eval(:, ip), y_one)
             call assert_close("3d", y_one, y_many(:, ip), tol)
         end do
+#ifdef _OPENACC
+        if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
+                                     0:spl%order(2), 0:spl%order(3), &
+                                     1:spl%num_points(1), 1:spl%num_points(2), &
+                                     1:spl%num_points(3)))) then
+            allocate (y_many_cpu(nq, npts))
+            y_many_cpu = 0.0d0
+            !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
+            !$acc&                            0:spl%order(2), 0:spl%order(3), &
+            !$acc&                            1:spl%num_points(1), &
+            !$acc&                            1:spl%num_points(2), &
+            !$acc&                            1:spl%num_points(3)))
+            call evaluate_batch_splines_3d_many(spl, x_eval, y_many_cpu)
+            call assert_close("3d_cpu_fallback", reshape(y_many_cpu, [nq*npts]), &
+                              reshape(y_many, [nq*npts]), tol)
+            deallocate (y_many_cpu)
+        end if
+#endif
 
-        call construct_batch_splines_3d_lines(x_min, x_max, y_grid, order, periodic, spl_lines)
+        call construct_batch_splines_3d_lines(x_min, x_max, y_grid, order, periodic, &
+                                              spl_lines)
         allocate (y_many_lines(nq, npts))
         call evaluate_batch_splines_3d_many(spl_lines, x_eval, y_many_lines)
         call assert_close("3d_lines", reshape(y_many_lines, [nq*npts]), &

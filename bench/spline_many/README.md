@@ -1,11 +1,9 @@
-# Draft: GPU spline many-point benchmarks (1D/2D/3D)
+# GPU spline many-point benchmarks (1D/2D/3D)
 
-This folder is an isolated draft benchmark for the GPU-ready API work discussed in issue
-`itpplasma/libneo#199`. It does **not** modify libneo production code; it reuses the
-existing batch spline coefficient layouts (`BatchSplineData{1D,2D,3D}`) and benchmarks
-one shared Fortran kernel compiled in different modes (CPU / OpenACC).
+This folder is an isolated benchmark build that reuses libneo interpolate sources and
+benchmarks one shared Fortran kernel compiled in different modes (CPU / OpenACC).
 
-This is intentionally targeting the missing API shape in libneo today:
+This is intentionally benchmarking the many-point API shape in libneo:
 - existing: batch-over-quantities at a single point (`evaluate_batch_splines_*`)
 - needed: batch-over-points (many points per call): `y(nq, npts)`
 
@@ -33,13 +31,11 @@ variants:
 
 - One shared Fortran kernel compiled in different modes:
   - CPU: plain Fortran loop (same routine)
-  - OpenACC: offload via NVHPC `nvfortran -acc` or GNU `gfortran -fopenacc`
+  - OpenACC: offload via NVHPC `nvfortran -acc`
 
-Sources live in `draft/gpu_spline_1d_many/src/`.
+Sources live in `bench/spline_many/src/`.
 
 ## Build and run
-
-This draft project supports NVHPC `nvfortran` and GNU `gfortran`.
 
 For NVHPC GPU offload (`-acc`), NVHPC needs a CUDA toolkit; on this machine it is provided
 at `/opt/cuda`:
@@ -51,32 +47,32 @@ export NVHPC_CUDA_HOME=/opt/cuda
 Configure and build (out-of-tree; example uses `/tmp`):
 
 ```bash
-cmake -S draft/gpu_spline_1d_many -B /tmp/libneo_gpu_spline_1d_many_build -G Ninja \
+cmake -S bench/spline_many -B /tmp/libneo_bench_spline_many_build -G Ninja \
   -DCMAKE_Fortran_COMPILER=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/bin/nvfortran
-cmake --build /tmp/libneo_gpu_spline_1d_many_build -j
+cmake --build /tmp/libneo_bench_spline_many_build -j
 ```
 
 Run:
 
 ```bash
-/tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
-/tmp/libneo_gpu_spline_1d_many_build/bench_spline2d_many
-/tmp/libneo_gpu_spline_1d_many_build/bench_spline3d_many
+/tmp/libneo_bench_spline_many_build/bench_spline1d_many
+/tmp/libneo_bench_spline_many_build/bench_spline2d_many
+/tmp/libneo_bench_spline_many_build/bench_spline3d_many
 ```
 
 ### NVHPC device selection
 
 ```bash
-ACC_DEVICE_TYPE=host   /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
-ACC_DEVICE_TYPE=nvidia /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
+ACC_DEVICE_TYPE=host   /tmp/libneo_bench_spline_many_build/bench_spline1d_many
+ACC_DEVICE_TYPE=nvidia /tmp/libneo_bench_spline_many_build/bench_spline1d_many
 ```
 
 ## Automated benchmark matrix
 
-Run the matrix (CPU, OpenACC host/GPU; nvfortran vs gfortran; 1D/2D/3D):
+Run the matrix (CPU, OpenACC host/GPU; nvfortran; 1D/2D/3D):
 
 ```bash
-./draft/gpu_spline_1d_many/run_benchmarks.sh
+./bench/spline_many/run_benchmarks.sh
 ```
 
 This writes one log per run under `/tmp` with the prefix `libneo_gpu_spline_`.

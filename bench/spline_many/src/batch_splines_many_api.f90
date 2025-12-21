@@ -1,4 +1,4 @@
-module draft_batch_splines_many_api
+module batch_splines_many_api
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use, intrinsic :: iso_c_binding, only: c_ptr, c_loc, c_f_pointer
     use batch_interpolate_types, only: BatchSplineData1D, BatchSplineData2D, &
@@ -83,4 +83,4 @@ contains
                                      x, y_flat)
     end subroutine evaluate_batch_splines_3d_many
 
-end module draft_batch_splines_many_api
+end module batch_splines_many_api

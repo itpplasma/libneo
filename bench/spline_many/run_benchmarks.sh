@@ -15,8 +15,8 @@ if [[ -d /opt/cuda ]]; then
   export NVCOMPILER_CUDA_HOME="${NVCOMPILER_CUDA_HOME:-${NVHPC_CUDA_HOME}}"
 fi
 
-gomp_debug="${LIBNEO_DRAFT_GOMP_DEBUG:-0}"
-fast="${LIBNEO_DRAFT_FAST:-1}"
+gomp_debug="${LIBNEO_BENCH_GOMP_DEBUG:-0}"
+fast="${LIBNEO_BENCH_FAST:-1}"
 
 bench_env_common=()
 bench_env_dim=()
@@ -203,7 +203,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     rm -rf "${nv_acc_build}"
   fi
   cmake_configure_build "${nvfortran_bin}" "${nv_acc_build}" \
-    -DDRAFT_ENABLE_OPENACC=ON
+    -DBENCH_ENABLE_OPENACC=ON
 
   for dim in 1d 2d 3d; do
     bench_env_set_for_dim "${dim}"
