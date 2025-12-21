@@ -4,20 +4,10 @@ program bench_spline1d_many
     use batch_interpolate_types, only: BatchSplineData1D
     use batch_interpolate_1d, only: construct_batch_splines_1d, destroy_batch_splines_1d
     use draft_batch_splines_many_api, only: evaluate_batch_splines_1d_many
-    use spline1d_many_cpu, only: spline1d_many_cpu_eval
     use spline1d_many_openacc, only: spline1d_many_openacc_setup, &
                                      spline1d_many_openacc_teardown, &
+                                     spline1d_many_openacc_eval_host, &
                                      spline1d_many_openacc_eval_resident
-    use spline1d_many_cuda_fortran, only: spline1d_many_cuda_fortran_setup, &
-                                          spline1d_many_cuda_fortran_teardown, &
-                                          spline1d_many_cuda_fortran_eval_device, &
-                                          spline1d_many_cuda_fortran_get_y
-    use spline1d_many_cuda_c_wrapper, only: cuda_c_state_t, spline1d_many_cuda_c_init, &
-                                            spline1d_many_cuda_c_free, &
-                                            spline1d_many_cuda_c_set_x, &
-                                            spline1d_many_cuda_c_eval_device, &
-                                            spline1d_many_cuda_c_get_y, &
-                                            spline1d_many_cuda_sync
     use util_lcg_rng, only: lcg_state_t, lcg_init, lcg_uniform_0_1
     implicit none
 
@@ -45,8 +35,6 @@ program bench_spline1d_many
     integer :: ip, iq
     real(dp) :: best
     real(dp) :: diff_max
-
-    type(cuda_c_state_t) :: cuda_c
 
     allocate (x_grid(num_points))
     allocate (y_grid(num_points, num_quantities))
@@ -85,8 +73,6 @@ program bench_spline1d_many
 
     call bench_cpu(spl, x_eval, y_batch, y_ref)
     call bench_openacc(spl, x_eval, y_batch, y_ref)
-    call bench_cuda_fortran(spl, x_eval, y_batch, y_ref)
-    call bench_cuda_c(spl, x_eval, y_batch, y_ref, cuda_c)
 
     call destroy_batch_splines_1d(spl)
 
@@ -110,10 +96,12 @@ contains
         best = huge(1.0d0)
         do it = 1, niter
             tstart = wall_time()
-            call spline1d_many_cpu_eval(spl_local%order, spl_local%num_points, &
-                                        spl_local%num_quantities, spl_local%periodic, &
-                                        spl_local%x_min, &
-                                        spl_local%h_step, spl_local%coeff, x, y)
+            call spline1d_many_openacc_eval_host(spl_local%order, &
+                                                 spl_local%num_points, &
+                                                 spl_local%num_quantities, &
+                                                 spl_local%periodic, &
+                                                 spl_local%x_min, spl_local%h_step, &
+                                                 spl_local%coeff, x, y)
             tend = wall_time()
             dt = tend - tstart
             best = min(best, dt)
@@ -166,77 +154,5 @@ contains
 
         call spline1d_many_openacc_teardown(spl_local%coeff, x, y)
     end subroutine bench_openacc
-
-    subroutine bench_cuda_fortran(spl_local, x, y, y_expected)
-        type(BatchSplineData1D), intent(in) :: spl_local
-        real(dp), intent(in) :: x(:)
-        real(dp), intent(inout) :: y(:)
-        real(dp), intent(in) :: y_expected(:)
-
-        integer :: it
-        real(dp) :: tstart, tend, dt
-
-        call spline1d_many_cuda_fortran_setup(spl_local%order, spl_local%num_points, &
-                                              spl_local%num_quantities, &
-                                              spl_local%periodic, &
-                                              spl_local%x_min, &
-                                              spl_local%h_step, &
-                                              spl_local%coeff, x)
-        call spline1d_many_cuda_fortran_eval_device()
-
-        best = huge(1.0d0)
-        do it = 1, niter
-            tstart = wall_time()
-            call spline1d_many_cuda_fortran_eval_device()
-            tend = wall_time()
-            dt = tend - tstart
-            best = min(best, dt)
-        end do
-
-        call spline1d_many_cuda_fortran_get_y(y)
-        diff_max = maxval(abs(y - y_expected))
-        print *, "cuda_fortran best_s ", best, " pts_per_s ", real(size(x), dp)/best, &
-            " max_abs_diff ", diff_max
-
-        call spline1d_many_cuda_fortran_teardown()
-    end subroutine bench_cuda_fortran
-
-    subroutine bench_cuda_c(spl_local, x, y, y_expected, st)
-        type(BatchSplineData1D), intent(in) :: spl_local
-        real(dp), intent(in), target :: x(:)
-        real(dp), intent(inout), target :: y(:)
-        real(dp), intent(in) :: y_expected(:)
-        type(cuda_c_state_t), intent(inout) :: st
-
-        integer :: it
-        real(dp) :: tstart, tend, dt
-
-        call spline1d_many_cuda_c_init(st, spl_local%order, spl_local%num_points, &
-                                       spl_local%num_quantities, spl_local%periodic, &
-                                       spl_local%x_min, &
-                                       spl_local%h_step, &
-                                       spl_local%coeff)
-
-        call spline1d_many_cuda_c_set_x(st, x)
-        call spline1d_many_cuda_c_eval_device(st, size(x))
-        call spline1d_many_cuda_sync()
-
-        best = huge(1.0d0)
-        do it = 1, niter
-            tstart = wall_time()
-            call spline1d_many_cuda_c_eval_device(st, size(x))
-            call spline1d_many_cuda_sync()
-            tend = wall_time()
-            dt = tend - tstart
-            best = min(best, dt)
-        end do
-
-        call spline1d_many_cuda_c_get_y(st, y, size(x))
-        diff_max = maxval(abs(y - y_expected))
-        print *, "cuda_c best_s ", best, " pts_per_s ", real(size(x), dp)/best, &
-            " max_abs_diff ", diff_max
-
-        call spline1d_many_cuda_c_free(st)
-    end subroutine bench_cuda_c
 
 end program bench_spline1d_many

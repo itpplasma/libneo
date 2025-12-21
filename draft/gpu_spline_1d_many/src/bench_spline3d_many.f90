@@ -4,21 +4,10 @@ program bench_spline3d_many
     use batch_interpolate_types, only: BatchSplineData3D
     use batch_interpolate_3d, only: construct_batch_splines_3d, destroy_batch_splines_3d
     use draft_batch_splines_many_api, only: evaluate_batch_splines_3d_many
-    use spline3d_many_cpu, only: spline3d_many_cpu_eval
     use spline3d_many_openacc, only: spline3d_many_openacc_setup, &
                                      spline3d_many_openacc_teardown, &
+                                     spline3d_many_openacc_eval_host, &
                                      spline3d_many_openacc_eval_resident
-    use spline3d_many_cuda_fortran, only: spline3d_many_cuda_fortran_setup, &
-                                          spline3d_many_cuda_fortran_teardown, &
-                                          spline3d_many_cuda_fortran_eval_device, &
-                                          spline3d_many_cuda_fortran_get_y
-    use spline3d_many_cuda_c_wrapper, only: cuda3d_c_state_t, &
-                                            spline3d_many_cuda_c_init, &
-                                            spline3d_many_cuda_c_free, &
-                                            spline3d_many_cuda_c_set_x, &
-                                            spline3d_many_cuda_c_eval_device, &
-                                            spline3d_many_cuda_c_get_y
-    use spline1d_many_cuda_c_wrapper, only: spline1d_many_cuda_sync
     use util_lcg_rng, only: lcg_state_t, lcg_init, lcg_uniform_0_1
     implicit none
 
@@ -44,8 +33,6 @@ program bench_spline3d_many
     type(lcg_state_t) :: rng
     integer :: i1, i2, i3, iq, ipt
     real(dp) :: best, diff_max
-
-    type(cuda3d_c_state_t) :: cuda_c
 
     call lcg_init(rng, 97531_int64)
 
@@ -92,8 +79,6 @@ program bench_spline3d_many
 
     call bench_cpu()
     call bench_openacc()
-    call bench_cuda_fortran()
-    call bench_cuda_c()
 
     call destroy_batch_splines_3d(spl)
 
@@ -112,10 +97,11 @@ contains
         best = huge(1.0d0)
         do it = 1, niter
             t0 = wall_time()
-            call spline3d_many_cpu_eval(spl%order, spl%num_points, spl%num_quantities, &
-                                        spl%periodic, spl%x_min, spl%h_step, &
-                                        spl%coeff, x_eval, &
-                                        y_out)
+            call spline3d_many_openacc_eval_host(spl%order, spl%num_points, &
+                                                 spl%num_quantities, &
+                                                 spl%periodic, spl%x_min, spl%h_step, &
+                                                 spl%coeff, &
+                                                 x_eval, y_out)
             t1 = wall_time()
             dt = t1 - t0
             best = min(best, dt)
@@ -157,59 +143,5 @@ contains
             " max_abs_diff ", diff_max
         call spline3d_many_openacc_teardown(spl%coeff, x_eval, y_out)
     end subroutine bench_openacc
-
-    subroutine bench_cuda_fortran()
-        integer :: it
-        real(dp) :: t0, t1, dt
-
-        call spline3d_many_cuda_fortran_setup(spl%order, spl%num_points, &
-                                              spl%num_quantities, &
-                                              spl%periodic, spl%x_min, spl%h_step, &
-                                              spl%coeff, &
-                                              x_eval)
-        call spline3d_many_cuda_fortran_eval_device()
-
-        best = huge(1.0d0)
-        do it = 1, niter
-            t0 = wall_time()
-            call spline3d_many_cuda_fortran_eval_device()
-            t1 = wall_time()
-            dt = t1 - t0
-            best = min(best, dt)
-        end do
-        call spline3d_many_cuda_fortran_get_y(y_out)
-        diff_max = maxval(abs(y_out - y_ref))
-        print *, "cuda_fortran best_s ", best, " pts_per_s ", real(npts, dp)/best, &
-            " max_abs_diff ", diff_max
-        call spline3d_many_cuda_fortran_teardown()
-    end subroutine bench_cuda_fortran
-
-    subroutine bench_cuda_c()
-        integer :: it
-        real(dp) :: t0, t1, dt
-
-        call spline3d_many_cuda_c_init(cuda_c, spl%order, spl%num_points, &
-                                       spl%num_quantities, &
-                                       spl%periodic, spl%x_min, spl%h_step, spl%coeff)
-        call spline3d_many_cuda_c_set_x(cuda_c, x_eval)
-        call spline3d_many_cuda_c_eval_device(cuda_c, npts)
-        call spline1d_many_cuda_sync()
-
-        best = huge(1.0d0)
-        do it = 1, niter
-            t0 = wall_time()
-            call spline3d_many_cuda_c_eval_device(cuda_c, npts)
-            call spline1d_many_cuda_sync()
-            t1 = wall_time()
-            dt = t1 - t0
-            best = min(best, dt)
-        end do
-        call spline3d_many_cuda_c_get_y(cuda_c, y_out, npts)
-        diff_max = maxval(abs(y_out - y_ref))
-        print *, "cuda_c best_s ", best, " pts_per_s ", real(npts, dp)/best, &
-            " max_abs_diff ", &
-            diff_max
-        call spline3d_many_cuda_c_free(cuda_c)
-    end subroutine bench_cuda_c
 
 end program bench_spline3d_many
