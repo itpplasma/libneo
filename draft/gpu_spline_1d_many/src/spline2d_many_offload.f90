@@ -1,5 +1,8 @@
 module spline2d_many_offload
     use, intrinsic :: iso_fortran_env, only: dp => real64
+#if defined(LIBNEO_ENABLE_OPENACC)
+    use openacc, only: acc_is_present
+#endif
     implicit none
     private
 
@@ -9,6 +12,9 @@ module spline2d_many_offload
     public :: spline2d_many_eval_resident
 
     logical :: is_setup = .false.
+#if defined(LIBNEO_ENABLE_OPENACC)
+    logical :: did_copy_coeff = .false.
+#endif
 
 contains
 
@@ -19,7 +25,11 @@ contains
 
         if (is_setup) return
 #if defined(LIBNEO_ENABLE_OPENACC)
-        !$acc enter data copyin(coeff)
+        did_copy_coeff = .false.
+        if (.not. acc_is_present(coeff)) then
+            !$acc enter data copyin(coeff)
+            did_copy_coeff = .true.
+        end if
         !$acc enter data copyin(x)
         !$acc enter data create(y)
 #elif defined(LIBNEO_ENABLE_OPENMP)
@@ -37,15 +47,18 @@ contains
 #if defined(LIBNEO_ENABLE_OPENACC)
         !$acc exit data delete(y)
         !$acc exit data delete(x)
-        !$acc exit data delete(coeff)
+        if (did_copy_coeff) then
+            !$acc exit data delete(coeff)
+        end if
+        did_copy_coeff = .false.
 #elif defined(LIBNEO_ENABLE_OPENMP)
         !$omp target exit data map(delete: y, x, coeff)
 #endif
         is_setup = .false.
     end subroutine spline2d_many_teardown
 
-    pure subroutine spline2d_many_eval_host(order, num_points, num_quantities, periodic, &
-                                            x_min, h_step, coeff, x, y)
+    pure subroutine spline2d_many_eval_host(order, num_points, num_quantities, &
+                                            periodic, x_min, h_step, coeff, x, y)
         integer, intent(in) :: order(2)
         integer, intent(in) :: num_points(2)
         integer, intent(in) :: num_quantities
@@ -83,8 +96,8 @@ contains
         end do
     end subroutine spline2d_many_eval_host
 
-    subroutine spline2d_many_eval_resident(order, num_points, num_quantities, periodic, &
-                                           x_min, h_step, coeff, x, y)
+    subroutine spline2d_many_eval_resident(order, num_points, num_quantities, &
+                                           periodic, x_min, h_step, coeff, x, y)
         integer, intent(in) :: order(2)
         integer, intent(in) :: num_points(2)
         integer, intent(in) :: num_quantities

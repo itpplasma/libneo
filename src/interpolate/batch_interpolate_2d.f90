@@ -2,12 +2,16 @@ module batch_interpolate_2d
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use batch_interpolate_types, only: BatchSplineData2D
     use spl_three_to_five_sub, only: spl_per, spl_reg
+#ifdef _OPENACC
+    use openacc, only: acc_is_present
+#endif
 
     implicit none
     private
     
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_2d
+    public :: construct_batch_splines_2d_resident
     public :: destroy_batch_splines_2d
     
     ! Export batch spline evaluation routines
@@ -40,7 +44,8 @@ contains
         
         ! Validate input
         if (n1 < 2 .or. n2 < 2) then
-            error stop "construct_batch_splines_2d: Need at least 2 points in each dimension"
+            error stop "construct_batch_splines_2d: Need at least 2 points in " // &
+                       "each dimension"
         end if
         if (n_quantities < 1) then
             error stop "construct_batch_splines_2d: Need at least 1 quantity"
@@ -114,12 +119,33 @@ contains
         
         deallocate(temp_coeff)
     end subroutine construct_batch_splines_2d
+
+    subroutine construct_batch_splines_2d_resident(x_min, x_max, y_batch, order, &
+                                                   periodic, spl)
+        real(dp), intent(in) :: x_min(:), x_max(:)
+        real(dp), intent(in) :: y_batch(:, :, :)  ! (n1, n2, n_quantities)
+        integer, intent(in) :: order(:)
+        logical, intent(in) :: periodic(:)
+        type(BatchSplineData2D), intent(out) :: spl
+
+        call construct_batch_splines_2d(x_min, x_max, y_batch, order, periodic, spl)
+#ifdef _OPENACC
+        !$acc enter data copyin(spl%coeff)
+#endif
+    end subroutine construct_batch_splines_2d_resident
     
     
     subroutine destroy_batch_splines_2d(spl)
         type(BatchSplineData2D), intent(inout) :: spl
-        
-        if(allocated(spl%coeff)) deallocate(spl%coeff)
+
+#ifdef _OPENACC
+        if (allocated(spl%coeff)) then
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
+            end if
+        end if
+#endif
+        if (allocated(spl%coeff)) deallocate(spl%coeff)
     end subroutine destroy_batch_splines_2d
     
     
@@ -210,7 +236,7 @@ contains
             error stop "evaluate_batch_splines_2d_many: First dimension too small"
         end if
         if (size(y_batch, 2) /= size(x, 2)) then
-            error stop "evaluate_batch_splines_2d_many: Second dimension must equal size(x,2)"
+            error stop "evaluate_batch_splines_2d_many: y_batch second dim mismatch"
         end if
 
         nq = spl%num_quantities
@@ -240,13 +266,13 @@ contains
         real(dp) :: t, w, v, yq
 
         if (size(x, 1) /= 2) then
-            error stop "evaluate_batch_splines_2d_many_resident: First dimension of x must be 2"
+            error stop "evaluate_batch_splines_2d_many_resident: x first dim must be 2"
         end if
         if (size(y_batch, 1) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_2d_many_resident: First dimension too small"
+            error stop "evaluate_batch_splines_2d_many_resident: y_batch dim1 too small"
         end if
         if (size(y_batch, 2) /= size(x, 2)) then
-            error stop "evaluate_batch_splines_2d_many_resident: Second dimension must equal size(x,2)"
+            error stop "evaluate_batch_splines_2d_many_resident: y_batch dim2 mismatch"
         end if
 
         nq = spl%num_quantities

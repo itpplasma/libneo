@@ -1,33 +1,48 @@
 module interpolate
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use spl_three_to_five_sub, only: spl_per, spl_reg
-    use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D, &
-                                 construct_batch_splines_1d, construct_batch_splines_2d, &
-                                 construct_batch_splines_3d, destroy_batch_splines_1d, &
-                                 destroy_batch_splines_2d, destroy_batch_splines_3d, &
-                                 evaluate_batch_splines_1d, evaluate_batch_splines_1d_single, &
+    use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
+    use batch_interpolate, only: construct_batch_splines_1d, &
+                                 construct_batch_splines_2d, &
+                                 construct_batch_splines_3d, &
+                                 construct_batch_splines_1d_resident, &
+                                 construct_batch_splines_2d_resident, &
+                                 construct_batch_splines_3d_resident
+    use batch_interpolate, only: destroy_batch_splines_1d, destroy_batch_splines_2d, &
+                                 destroy_batch_splines_3d
+    use batch_interpolate, only: evaluate_batch_splines_1d, &
+                                 evaluate_batch_splines_1d_single, &
                                  evaluate_batch_splines_1d_many, &
                                  evaluate_batch_splines_1d_many_resident, &
-                                 evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2, &
-                                 evaluate_batch_splines_2d, evaluate_batch_splines_2d_der, &
+                                 evaluate_batch_splines_1d_der, &
+                                 evaluate_batch_splines_1d_der2
+    use batch_interpolate, only: evaluate_batch_splines_2d, &
+                                 evaluate_batch_splines_2d_der, &
                                  evaluate_batch_splines_2d_many, &
-                                 evaluate_batch_splines_2d_many_resident, &
-                                 evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &
-                                 evaluate_batch_splines_3d_der2, evaluate_batch_splines_3d_many, &
+                                 evaluate_batch_splines_2d_many_resident
+    use batch_interpolate, only: evaluate_batch_splines_3d, &
+                                 evaluate_batch_splines_3d_der, &
+                                 evaluate_batch_splines_3d_der2, &
+                                 evaluate_batch_splines_3d_many, &
                                  evaluate_batch_splines_3d_many_resident
 
     implicit none
     
     ! Re-export batch interpolate types and procedures
     public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
-    public :: construct_batch_splines_1d, construct_batch_splines_2d, construct_batch_splines_3d
-    public :: destroy_batch_splines_1d, destroy_batch_splines_2d, destroy_batch_splines_3d
+    public :: construct_batch_splines_1d, construct_batch_splines_2d, &
+              construct_batch_splines_3d
+    public :: construct_batch_splines_1d_resident, construct_batch_splines_2d_resident
+    public :: construct_batch_splines_3d_resident
+    public :: destroy_batch_splines_1d, destroy_batch_splines_2d, &
+              destroy_batch_splines_3d
     public :: evaluate_batch_splines_1d, evaluate_batch_splines_1d_single
     public :: evaluate_batch_splines_1d_many, evaluate_batch_splines_1d_many_resident
     public :: evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2
     public :: evaluate_batch_splines_2d, evaluate_batch_splines_2d_der
     public :: evaluate_batch_splines_2d_many, evaluate_batch_splines_2d_many_resident
-    public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, evaluate_batch_splines_3d_der2
+    public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &
+              evaluate_batch_splines_3d_der2
     public :: evaluate_batch_splines_3d_many, evaluate_batch_splines_3d_many_resident
 
     type :: SplineData1D
@@ -495,9 +510,11 @@ contains
                     coeff_23(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
                         interval_index(2) + 1, interval_index(3) + 1)
                     do k1 = 1, N1
-                        coeff_23(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
-                            interval_index(2) + 1, interval_index(3) + 1) &
-                            + x_local(1)*coeff_23(k2, k3)
+                        coeff_23(k2, k3) = spl%coeff(k1, k2, k3, &
+                                                     interval_index(1) + 1, &
+                                                     interval_index(2) + 1, &
+                                                     interval_index(3) + 1) &
+                                           + x_local(1)*coeff_23(k2, k3)
                     enddo
                 enddo
             enddo
@@ -508,9 +525,11 @@ contains
                     coeff_23_dx1(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
                         interval_index(2) + 1, interval_index(3) + 1)*N1
                     do k1 = 1, N1-1
-                        coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
-                            interval_index(2) + 1, interval_index(3) + 1)*(N1-k1) &
-                            + x_local(1)*coeff_23_dx1(k2, k3)
+                        coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, &
+                                                         interval_index(1) + 1, &
+                                                         interval_index(2) + 1, &
+                                                         interval_index(3) + 1) * &
+                                               (N1-k1) + x_local(1)*coeff_23_dx1(k2, k3)
                     enddo
                 enddo
             enddo
@@ -593,9 +612,11 @@ contains
                     coeff_23(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
                         interval_index(2) + 1, interval_index(3) + 1)
                     do k1 = 1, N1
-                        coeff_23(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
-                            interval_index(2) + 1, interval_index(3) + 1) &
-                            + x_local(1)*coeff_23(k2, k3)
+                        coeff_23(k2, k3) = spl%coeff(k1, k2, k3, &
+                                                     interval_index(1) + 1, &
+                                                     interval_index(2) + 1, &
+                                                     interval_index(3) + 1) &
+                                           + x_local(1)*coeff_23(k2, k3)
                     enddo
                 enddo
             enddo
@@ -606,9 +627,11 @@ contains
                     coeff_23_dx1(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
                         interval_index(2) + 1, interval_index(3) + 1)*N1
                     do k1 = 1, N1-1
-                        coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, interval_index(1) + 1, &
-                            interval_index(2) + 1, interval_index(3) + 1)*(N1-k1) &
-                            + x_local(1)*coeff_23_dx1(k2, k3)
+                        coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, &
+                                                         interval_index(1) + 1, &
+                                                         interval_index(2) + 1, &
+                                                         interval_index(3) + 1) * &
+                                               (N1-k1) + x_local(1)*coeff_23_dx1(k2, k3)
                     enddo
                 enddo
             enddo
@@ -616,12 +639,18 @@ contains
             ! Second derivitative over x1
             do k3 = 0, N3
                 do k2 = 0, N2
-                    coeff_23_dx1x1(k2,k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
-                        interval_index(2) + 1, interval_index(3) + 1)*N1*(N1-1)
+                    coeff_23_dx1x1(k2, k3) = spl%coeff(0, k2, k3, &
+                                                       interval_index(1) + 1, &
+                                                       interval_index(2) + 1, &
+                                                       interval_index(3) + 1) * &
+                                                       N1*(N1-1)
                     do k1 = 1, N1-2
-                        coeff_23_dx1x1(k2, k3)=spl%coeff(k1,k2,k3, interval_index(1) + 1, &
-                            interval_index(2) + 1, interval_index(3) + 1)*(N1-k1)*(N1-k1-1) &
-                            + x_local(1)*coeff_23_dx1x1(k2, k3)
+                        coeff_23_dx1x1(k2, k3) = spl%coeff(k1, k2, k3, &
+                                                           interval_index(1) + 1, &
+                                                           interval_index(2) + 1, &
+                                                           interval_index(3) + 1) * &
+                                                 (N1-k1)*(N1-k1-1) + &
+                                                 x_local(1)*coeff_23_dx1x1(k2, k3)
                     enddo
                 enddo
             enddo

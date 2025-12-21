@@ -2,12 +2,16 @@ module batch_interpolate_3d
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use batch_interpolate_types, only: BatchSplineData3D
     use spl_three_to_five_sub, only: spl_per, spl_reg
+#ifdef _OPENACC
+    use openacc, only: acc_is_present
+#endif
 
     implicit none
     private
     
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_3d
+    public :: construct_batch_splines_3d_resident
     public :: destroy_batch_splines_3d
     
     ! Export batch spline evaluation routines
@@ -150,12 +154,33 @@ contains
         
         deallocate(temp_coeff)
     end subroutine construct_batch_splines_3d
+
+    subroutine construct_batch_splines_3d_resident(x_min, x_max, y_batch, order, &
+                                                   periodic, spl)
+        real(dp), intent(in) :: x_min(:), x_max(:)
+        real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
+        integer, intent(in) :: order(:)
+        logical, intent(in) :: periodic(:)
+        type(BatchSplineData3D), intent(out) :: spl
+
+        call construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
+#ifdef _OPENACC
+        !$acc enter data copyin(spl%coeff)
+#endif
+    end subroutine construct_batch_splines_3d_resident
     
     
     subroutine destroy_batch_splines_3d(spl)
         type(BatchSplineData3D), intent(inout) :: spl
-        
-        if(allocated(spl%coeff)) deallocate(spl%coeff)
+
+#ifdef _OPENACC
+        if (allocated(spl%coeff)) then
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
+            end if
+        end if
+#endif
+        if (allocated(spl%coeff)) deallocate(spl%coeff)
     end subroutine destroy_batch_splines_3d
     
     
@@ -273,7 +298,7 @@ contains
             error stop "evaluate_batch_splines_3d_many: First dimension too small"
         end if
         if (size(y_batch, 2) /= size(x, 2)) then
-            error stop "evaluate_batch_splines_3d_many: Second dimension must equal size(x,2)"
+            error stop "evaluate_batch_splines_3d_many: y_batch second dim mismatch"
         end if
 
         nq = spl%num_quantities
@@ -307,13 +332,13 @@ contains
         real(dp) :: t, w, v, w2, yq
 
         if (size(x, 1) /= 3) then
-            error stop "evaluate_batch_splines_3d_many_resident: First dimension of x must be 3"
+            error stop "evaluate_batch_splines_3d_many_resident: x first dim must be 3"
         end if
         if (size(y_batch, 1) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d_many_resident: First dimension too small"
+            error stop "evaluate_batch_splines_3d_many_resident: y_batch dim1 too small"
         end if
         if (size(y_batch, 2) /= size(x, 2)) then
-            error stop "evaluate_batch_splines_3d_many_resident: Second dimension must equal size(x,2)"
+            error stop "evaluate_batch_splines_3d_many_resident: y_batch dim2 mismatch"
         end if
 
         nq = spl%num_quantities
@@ -330,7 +355,8 @@ contains
         !$acc parallel loop present(spl%coeff, x, y_batch) &
         !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap) &
         !$acc& private(xj1, xj2, xj3, x_norm1, x_norm2, x_norm3) &
-        !$acc& private(x_local1, x_local2, x_local3, t, w, v, w2, yq) gang vector vector_length(256)
+        !$acc& private(x_local1, x_local2, x_local3, t, w, v, w2, yq) gang vector &
+        !$acc& vector_length(256)
         do ipt = 1, size(x, 2)
             include "spline3d_many_point_body.inc"
         end do

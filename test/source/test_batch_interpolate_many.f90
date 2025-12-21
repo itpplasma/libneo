@@ -1,12 +1,22 @@
 program test_batch_interpolate_many
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
-    use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D, &
-                                 construct_batch_splines_1d, construct_batch_splines_2d, &
-                                 construct_batch_splines_3d, destroy_batch_splines_1d, &
-                                 destroy_batch_splines_2d, destroy_batch_splines_3d, &
-                                 evaluate_batch_splines_1d, evaluate_batch_splines_2d, &
-                                 evaluate_batch_splines_3d, evaluate_batch_splines_1d_many, &
-                                 evaluate_batch_splines_2d_many, evaluate_batch_splines_3d_many
+    use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
+    use batch_interpolate, only: construct_batch_splines_1d, &
+                                 construct_batch_splines_2d, &
+                                 construct_batch_splines_3d
+    use batch_interpolate, only: construct_batch_splines_1d_resident, &
+                                 construct_batch_splines_2d_resident, &
+                                 construct_batch_splines_3d_resident
+    use batch_interpolate, only: destroy_batch_splines_1d, destroy_batch_splines_2d, &
+                                 destroy_batch_splines_3d
+    use batch_interpolate, only: evaluate_batch_splines_1d, evaluate_batch_splines_2d, &
+                                 evaluate_batch_splines_3d
+    use batch_interpolate, only: evaluate_batch_splines_1d_many, &
+                                 evaluate_batch_splines_2d_many, &
+                                 evaluate_batch_splines_3d_many
+    use batch_interpolate, only: evaluate_batch_splines_1d_many_resident, &
+                                 evaluate_batch_splines_2d_many_resident, &
+                                 evaluate_batch_splines_3d_many_resident
     implicit none
 
     type :: lcg_t
@@ -32,7 +42,8 @@ contains
         integer(int64) :: x
         rng%state = a*rng%state + c
         x = ishft(rng%state, -11)
-        r = real(iand(x, int(z'1FFFFFFFFFFFFF', int64)), dp)/real(int(z'20000000000000', int64), dp)
+        r = real(iand(x, int(z'1FFFFFFFFFFFFF', int64)), dp) / &
+            real(int(z'20000000000000', int64), dp)
     end function lcg_u01
 
     subroutine assert_close(name, a, b, tol)
@@ -64,6 +75,7 @@ contains
         real(dp), allocatable :: y_grid(:, :)
         real(dp), allocatable :: x_eval(:)
         real(dp), allocatable :: y_many(:, :)
+        real(dp), allocatable :: y_many_res(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -101,6 +113,20 @@ contains
         end do
 
         call destroy_batch_splines_1d(spl)
+        call construct_batch_splines_1d_resident(x_min, x_max, y_grid, &
+                                                 order, periodic, spl)
+        allocate (y_many_res(nq, npts))
+        y_many_res = 0.0d0
+
+        !$acc enter data copyin(x_eval) create(y_many_res)
+        call evaluate_batch_splines_1d_many_resident(spl, x_eval, y_many_res)
+        !$acc update self(y_many_res)
+        !$acc exit data delete(y_many_res, x_eval)
+
+        call assert_close("1d_resident", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
+
+        call destroy_batch_splines_1d(spl)
     end subroutine test_1d
 
     subroutine test_2d()
@@ -117,6 +143,7 @@ contains
         real(dp), allocatable :: y_grid(:, :, :)
         real(dp), allocatable :: x_eval(:, :)
         real(dp), allocatable :: y_many(:, :)
+        real(dp), allocatable :: y_many_res(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -127,9 +154,12 @@ contains
         do iq = 1, nq
             do i2 = 1, ngrid(2)
                 do i1 = 1, ngrid(1)
-                    y_grid(i1, i2, iq) = cos(x_min(1) + real(i1 - 1, dp)*(x_max(1) - x_min(1))/real(ngrid(1) - 1, dp)) * &
-                                         cos(x_min(2) + real(i2 - 1, dp)*(x_max(2) - x_min(2))/real(ngrid(2) - 1, dp)) * &
-                                         (1.0d0 + 0.05d0*real(iq - 1, dp))
+                    y_grid(i1, i2, iq) = &
+                        cos(x_min(1) + real(i1 - 1, dp)*(x_max(1) - x_min(1)) / &
+                            real(ngrid(1) - 1, dp)) * &
+                        cos(x_min(2) + real(i2 - 1, dp)*(x_max(2) - x_min(2)) / &
+                            real(ngrid(2) - 1, dp)) * &
+                        (1.0d0 + 0.05d0*real(iq - 1, dp))
                 end do
             end do
         end do
@@ -142,8 +172,10 @@ contains
 
         call lcg_init(rng, 67890_int64)
         do ip = 1, npts
-            x_eval(1, ip) = x_min(1) - 2.0d0*(x_max(1) - x_min(1)) + 5.0d0*(x_max(1) - x_min(1))*lcg_u01(rng)
-            x_eval(2, ip) = x_min(2) - 1.0d0*(x_max(2) - x_min(2)) + 3.0d0*(x_max(2) - x_min(2))*lcg_u01(rng)
+            x_eval(1, ip) = x_min(1) - 2.0d0*(x_max(1) - x_min(1)) + &
+                            5.0d0*(x_max(1) - x_min(1))*lcg_u01(rng)
+            x_eval(2, ip) = x_min(2) - 1.0d0*(x_max(2) - x_min(2)) + &
+                            3.0d0*(x_max(2) - x_min(2))*lcg_u01(rng)
         end do
 
         call evaluate_batch_splines_2d_many(spl, x_eval, y_many)
@@ -151,6 +183,20 @@ contains
             call evaluate_batch_splines_2d(spl, x_eval(:, ip), y_one)
             call assert_close("2d", y_one, y_many(:, ip), tol)
         end do
+
+        call destroy_batch_splines_2d(spl)
+        call construct_batch_splines_2d_resident(x_min, x_max, y_grid, &
+                                                 order, periodic, spl)
+        allocate (y_many_res(nq, npts))
+        y_many_res = 0.0d0
+
+        !$acc enter data copyin(x_eval) create(y_many_res)
+        call evaluate_batch_splines_2d_many_resident(spl, x_eval, y_many_res)
+        !$acc update self(y_many_res)
+        !$acc exit data delete(y_many_res, x_eval)
+
+        call assert_close("2d_resident", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
 
         call destroy_batch_splines_2d(spl)
     end subroutine test_2d
@@ -163,12 +209,14 @@ contains
         logical, parameter :: periodic(3) = [.true., .true., .true.]
 
         real(dp), parameter :: x_min(3) = [1.23d0, -0.7d0, 0.5d0]
-        real(dp), parameter :: x_max(3) = [x_min(1) + 2.0d0, x_min(2) + 1.5d0, x_min(3) + 1.0d0]
+        real(dp), parameter :: x_max(3) = [x_min(1) + 2.0d0, x_min(2) + 1.5d0, &
+                                           x_min(3) + 1.0d0]
 
         type(BatchSplineData3D) :: spl
         real(dp), allocatable :: y_grid(:, :, :, :)
         real(dp), allocatable :: x_eval(:, :)
         real(dp), allocatable :: y_many(:, :)
+        real(dp), allocatable :: y_many_res(:, :)
         real(dp), allocatable :: y_one(:)
 
         type(lcg_t) :: rng
@@ -180,10 +228,14 @@ contains
             do i3 = 1, ngrid(3)
                 do i2 = 1, ngrid(2)
                     do i1 = 1, ngrid(1)
-                        y_grid(i1, i2, i3, iq) = cos(x_min(1) + real(i1 - 1, dp)*(x_max(1) - x_min(1))/real(ngrid(1) - 1, dp)) * &
-                                                 cos(x_min(2) + real(i2 - 1, dp)*(x_max(2) - x_min(2))/real(ngrid(2) - 1, dp)) * &
-                                                 cos(x_min(3) + real(i3 - 1, dp)*(x_max(3) - x_min(3))/real(ngrid(3) - 1, dp)) * &
-                                                 (1.0d0 + 0.03d0*real(iq - 1, dp))
+                        y_grid(i1, i2, i3, iq) = &
+                            cos(x_min(1) + real(i1 - 1, dp)*(x_max(1) - x_min(1)) / &
+                                real(ngrid(1) - 1, dp)) * &
+                            cos(x_min(2) + real(i2 - 1, dp)*(x_max(2) - x_min(2)) / &
+                                real(ngrid(2) - 1, dp)) * &
+                            cos(x_min(3) + real(i3 - 1, dp)*(x_max(3) - x_min(3)) / &
+                                real(ngrid(3) - 1, dp)) * &
+                            (1.0d0 + 0.03d0*real(iq - 1, dp))
                     end do
                 end do
             end do
@@ -197,9 +249,12 @@ contains
 
         call lcg_init(rng, 13579_int64)
         do ip = 1, npts
-            x_eval(1, ip) = x_min(1) - 2.0d0*(x_max(1) - x_min(1)) + 5.0d0*(x_max(1) - x_min(1))*lcg_u01(rng)
-            x_eval(2, ip) = x_min(2) - 2.0d0*(x_max(2) - x_min(2)) + 5.0d0*(x_max(2) - x_min(2))*lcg_u01(rng)
-            x_eval(3, ip) = x_min(3) - 2.0d0*(x_max(3) - x_min(3)) + 5.0d0*(x_max(3) - x_min(3))*lcg_u01(rng)
+            x_eval(1, ip) = x_min(1) - 2.0d0*(x_max(1) - x_min(1)) + &
+                            5.0d0*(x_max(1) - x_min(1))*lcg_u01(rng)
+            x_eval(2, ip) = x_min(2) - 2.0d0*(x_max(2) - x_min(2)) + &
+                            5.0d0*(x_max(2) - x_min(2))*lcg_u01(rng)
+            x_eval(3, ip) = x_min(3) - 2.0d0*(x_max(3) - x_min(3)) + &
+                            5.0d0*(x_max(3) - x_min(3))*lcg_u01(rng)
         end do
 
         call evaluate_batch_splines_3d_many(spl, x_eval, y_many)
@@ -207,6 +262,20 @@ contains
             call evaluate_batch_splines_3d(spl, x_eval(:, ip), y_one)
             call assert_close("3d", y_one, y_many(:, ip), tol)
         end do
+
+        call destroy_batch_splines_3d(spl)
+        call construct_batch_splines_3d_resident(x_min, x_max, y_grid, &
+                                                 order, periodic, spl)
+        allocate (y_many_res(nq, npts))
+        y_many_res = 0.0d0
+
+        !$acc enter data copyin(x_eval) create(y_many_res)
+        call evaluate_batch_splines_3d_many_resident(spl, x_eval, y_many_res)
+        !$acc update self(y_many_res)
+        !$acc exit data delete(y_many_res, x_eval)
+
+        call assert_close("3d_resident", reshape(y_many_res, [nq*npts]), &
+                          reshape(y_many, [nq*npts]), tol)
 
         call destroy_batch_splines_3d(spl)
     end subroutine test_3d
