@@ -16,6 +16,8 @@ if [[ -d /opt/cuda ]]; then
   export NVCOMPILER_CUDA_HOME="${NVCOMPILER_CUDA_HOME:-${NVHPC_CUDA_HOME}}"
 fi
 
+gomp_debug="${LIBNEO_DRAFT_GOMP_DEBUG:-0}"
+
 build_dir_for() {
   local compiler_tag="$1"
   local variant="$2"
@@ -160,7 +162,7 @@ if [[ -x "${gfortran_bin}" ]]; then
   for dim in 1d 2d 3d; do
     exe="${g_acc_gpu_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openacc_gpu_${dim}_${date_tag}.log"
-    run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=nvidia GOMP_DEBUG=1 "${exe}"
+    run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=nvidia GOMP_DEBUG="${gomp_debug}" "${exe}"
     results["${g_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log}" openacc)"
   done
 
@@ -190,7 +192,7 @@ if [[ -x "${gfortran_bin}" ]]; then
   for dim in 1d 2d 3d; do
     exe="${g_omp_gpu_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openmp_gpu_${dim}_${date_tag}.log"
-    run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 GOMP_DEBUG=1 "${exe}"
+    run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 GOMP_DEBUG="${gomp_debug}" "${exe}"
     results["${g_tag},openmp_gpu,${dim}"]="$(extract_pts_per_s "${log}" openmp)"
   done
 else
