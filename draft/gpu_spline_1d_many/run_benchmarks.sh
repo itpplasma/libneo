@@ -60,6 +60,33 @@ extract_pts_per_s() {
   ' "${log_path}"
 }
 
+extract_build_grid_pts_per_s() {
+  local log_path="$1"
+  awk '
+    {
+      for (i = 1; i <= NF; i++) {
+        if (state == 0 && $i == "build") state = 1;
+        else if (state == 1 && $i == "grid_pts_per_s") state = 2;
+        else if (state == 2) { print $i; exit; }
+      }
+    }
+  ' "${log_path}"
+}
+
+extract_setup_s() {
+  local log_path="$1"
+  local kind="$2" # openacc|openmp
+  awk -v kind="${kind}" '
+    {
+      for (i = 1; i <= NF; i++) {
+        if (state == 0 && $i == kind) state = 1;
+        else if (state == 1 && $i == "setup_s") state = 2;
+        else if (state == 2) { print $(i+0); exit; }
+      }
+    }
+  ' "${log_path}"
+}
+
 echo "Building + running benchmarks (1D/2D/3D) into ${log_dir} (date tag ${date_tag})"
 
 declare -A results
@@ -78,6 +105,7 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
     exe="${nv_cpu_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${nv_tag}_cpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" "${exe}"
+    results["${nv_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
     results["${nv_tag},cpu,${dim}"]="$(extract_pts_per_s "${log}" cpu)"
   done
 
@@ -92,10 +120,12 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
 
     log_host="${log_dir}/libneo_gpu_spline_${nv_tag}_openacc_host_${dim}_${date_tag}.log"
     run_one "${exe}" "${log_host}" env ACC_DEVICE_TYPE=host "${exe}"
+    results["${nv_tag},openacc_setup_host,${dim}"]="$(extract_setup_s "${log_host}" openacc)"
     results["${nv_tag},openacc_host,${dim}"]="$(extract_pts_per_s "${log_host}" openacc)"
 
     log_gpu="${log_dir}/libneo_gpu_spline_${nv_tag}_openacc_gpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log_gpu}" env ACC_DEVICE_TYPE=nvidia "${exe}"
+    results["${nv_tag},openacc_setup_gpu,${dim}"]="$(extract_setup_s "${log_gpu}" openacc)"
     results["${nv_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" openacc)"
   done
 
@@ -111,10 +141,12 @@ if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
 
     log_host="${log_dir}/libneo_gpu_spline_${nv_tag}_openmp_host_${dim}_${date_tag}.log"
     run_one "${exe}" "${log_host}" env OMP_TARGET_OFFLOAD=DISABLED OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
+    results["${nv_tag},openmp_setup_host,${dim}"]="$(extract_setup_s "${log_host}" openmp)"
     results["${nv_tag},openmp_host,${dim}"]="$(extract_pts_per_s "${log_host}" openmp)"
 
     log_gpu="${log_dir}/libneo_gpu_spline_${nv_tag}_openmp_gpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log_gpu}" env OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
+    results["${nv_tag},openmp_setup_gpu,${dim}"]="$(extract_setup_s "${log_gpu}" openmp)"
     results["${nv_tag},openmp_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" openmp)"
   done
 else
@@ -135,6 +167,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     exe="${g_cpu_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${g_tag}_cpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" "${exe}"
+    results["${g_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log}")"
     results["${g_tag},cpu,${dim}"]="$(extract_pts_per_s "${log}" cpu)"
   done
 
@@ -149,6 +182,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     exe="${g_acc_host_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openacc_host_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=host "${exe}"
+    results["${g_tag},openacc_setup_host,${dim}"]="$(extract_setup_s "${log}" openacc)"
     results["${g_tag},openacc_host,${dim}"]="$(extract_pts_per_s "${log}" openacc)"
   done
 
@@ -163,6 +197,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     exe="${g_acc_gpu_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openacc_gpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 ACC_DEVICE_TYPE=nvidia GOMP_DEBUG="${gomp_debug}" "${exe}"
+    results["${g_tag},openacc_setup_gpu,${dim}"]="$(extract_setup_s "${log}" openacc)"
     results["${g_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log}" openacc)"
   done
 
@@ -178,6 +213,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     exe="${g_omp_host_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openmp_host_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=DISABLED OMP_TEAMS_THREAD_LIMIT=256 "${exe}"
+    results["${g_tag},openmp_setup_host,${dim}"]="$(extract_setup_s "${log}" openmp)"
     results["${g_tag},openmp_host,${dim}"]="$(extract_pts_per_s "${log}" openmp)"
   done
 
@@ -193,6 +229,7 @@ if [[ -x "${gfortran_bin}" ]]; then
     exe="${g_omp_gpu_build}/bench_spline${dim}_many"
     log="${log_dir}/libneo_gpu_spline_${g_tag}_openmp_gpu_${dim}_${date_tag}.log"
     run_one "${exe}" "${log}" env LD_LIBRARY_PATH=/opt/gcc16/lib64 OMP_TARGET_OFFLOAD=MANDATORY OMP_TEAMS_THREAD_LIMIT=256 GOMP_DEBUG="${gomp_debug}" "${exe}"
+    results["${g_tag},openmp_setup_gpu,${dim}"]="$(extract_setup_s "${log}" openmp)"
     results["${g_tag},openmp_gpu,${dim}"]="$(extract_pts_per_s "${log}" openmp)"
   done
 else
@@ -200,14 +237,16 @@ else
 fi
 
 echo
-echo "Summary (pts_per_s)"
-printf "%-10s %-13s %-4s %s\n" "compiler" "mode" "dim" "pts_per_s"
+echo "Summary (grid_pts_per_s, pts_per_s, setup_s)"
+printf "%-10s %-13s %-4s %s\n" "compiler" "metric" "dim" "value"
 for dim in 1d 2d 3d; do
   for compiler in nvfortran gfortran; do
-    for mode in cpu openacc_host openacc_gpu openmp_host openmp_gpu; do
-      key="${compiler},${mode},${dim}"
+    for metric in build cpu \
+      openacc_setup_host openacc_host openacc_setup_gpu openacc_gpu \
+      openmp_setup_host openmp_host openmp_setup_gpu openmp_gpu; do
+      key="${compiler},${metric},${dim}"
       if [[ -n "${results[$key]:-}" ]]; then
-        printf "%-10s %-13s %-4s %s\n" "${compiler}" "${mode}" "${dim}" "${results[$key]}"
+        printf "%-10s %-13s %-4s %s\n" "${compiler}" "${metric}" "${dim}" "${results[$key]}"
       fi
     done
   done

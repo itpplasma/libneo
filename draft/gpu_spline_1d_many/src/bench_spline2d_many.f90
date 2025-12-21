@@ -16,6 +16,7 @@ program bench_spline2d_many
     integer, parameter :: num_quantities = 8
     integer, parameter :: npts = 500000
     integer, parameter :: niter = 10
+    integer, parameter :: nbuild = 2
     logical, parameter :: periodic(2) = [.true., .true.]
 
     real(dp), parameter :: x_min(2) = [1.23d0, -0.7d0]
@@ -52,7 +53,7 @@ program bench_spline2d_many
         end do
     end do
 
-    call construct_batch_splines_2d(x_min, x_max, y_grid, order, periodic, spl)
+    call bench_build_2d(x_min, x_max, y_grid, spl)
 
     allocate (x_eval(2, npts))
     do ipt = 1, npts
@@ -86,6 +87,35 @@ program bench_spline2d_many
 
 contains
 
+    subroutine bench_build_2d(x_min_local, x_max_local, y_grid_local, spl_out)
+        real(dp), intent(in) :: x_min_local(2)
+        real(dp), intent(in) :: x_max_local(2)
+        real(dp), intent(in) :: y_grid_local(:, :, :)
+        type(BatchSplineData2D), intent(out) :: spl_out
+
+        integer :: it
+        real(dp) :: t0, t1, dt, best_build
+        real(dp) :: grid_pts_per_s
+
+        best_build = huge(1.0d0)
+        do it = 1, nbuild
+            t0 = wall_time()
+            call construct_batch_splines_2d(x_min_local, x_max_local, y_grid_local, &
+                                            order, periodic, spl_out)
+            t1 = wall_time()
+            dt = t1 - t0
+            best_build = min(best_build, dt)
+            call destroy_batch_splines_2d(spl_out)
+        end do
+
+        call construct_batch_splines_2d(x_min_local, x_max_local, y_grid_local, &
+                                        order, periodic, spl_out)
+
+        grid_pts_per_s = real(num_points(1)*num_points(2)*num_quantities, dp) / &
+                         best_build
+        print *, "build best_s ", best_build, " grid_pts_per_s ", grid_pts_per_s
+    end subroutine bench_build_2d
+
     real(dp) function wall_time() result(t)
         integer :: count, rate, max_count
         call system_clock(count, rate, max_count)
@@ -99,8 +129,9 @@ contains
         best = huge(1.0d0)
         do it = 1, niter
             t0 = wall_time()
-            call spline2d_many_eval_host(spl%order, spl%num_points, spl%num_quantities, &
-                                         spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+            call spline2d_many_eval_host(spl%order, spl%num_points, &
+                                         spl%num_quantities, spl%periodic, &
+                                         spl%x_min, spl%h_step, spl%coeff, &
                                          x_eval, y_out)
             t1 = wall_time()
             dt = t1 - t0
@@ -116,18 +147,25 @@ contains
     subroutine bench_openacc()
         integer :: it
         real(dp) :: t0, t1, dt
+        real(dp) :: tsetup0, tsetup1
 
+        tsetup0 = wall_time()
         call spline2d_many_setup(spl%coeff, x_eval, y_out)
-        call spline2d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
-                                         spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+        !$acc wait
+        tsetup1 = wall_time()
+        print *, "openacc setup_s ", tsetup1 - tsetup0
+        call spline2d_many_eval_resident(spl%order, spl%num_points, &
+                                         spl%num_quantities, spl%periodic, &
+                                         spl%x_min, spl%h_step, spl%coeff, &
                                          x_eval, y_out)
         !$acc wait
 
         best = huge(1.0d0)
         do it = 1, niter
             t0 = wall_time()
-            call spline2d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
-                                             spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+            call spline2d_many_eval_resident(spl%order, spl%num_points, &
+                                             spl%num_quantities, spl%periodic, &
+                                             spl%x_min, spl%h_step, spl%coeff, &
                                              x_eval, y_out)
             !$acc wait
             t1 = wall_time()
@@ -145,17 +183,23 @@ contains
     subroutine bench_openmp()
         integer :: it
         real(dp) :: t0, t1, dt
+        real(dp) :: tsetup0, tsetup1
 
+        tsetup0 = wall_time()
         call spline2d_many_setup(spl%coeff, x_eval, y_out)
-        call spline2d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
-                                         spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+        tsetup1 = wall_time()
+        print *, "openmp setup_s ", tsetup1 - tsetup0
+        call spline2d_many_eval_resident(spl%order, spl%num_points, &
+                                         spl%num_quantities, spl%periodic, &
+                                         spl%x_min, spl%h_step, spl%coeff, &
                                          x_eval, y_out)
 
         best = huge(1.0d0)
         do it = 1, niter
             t0 = wall_time()
-            call spline2d_many_eval_resident(spl%order, spl%num_points, spl%num_quantities, &
-                                             spl%periodic, spl%x_min, spl%h_step, spl%coeff, &
+            call spline2d_many_eval_resident(spl%order, spl%num_points, &
+                                             spl%num_quantities, spl%periodic, &
+                                             spl%x_min, spl%h_step, spl%coeff, &
                                              x_eval, y_out)
             t1 = wall_time()
             dt = t1 - t0

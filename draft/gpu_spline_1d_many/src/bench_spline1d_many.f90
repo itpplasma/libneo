@@ -16,6 +16,7 @@ program bench_spline1d_many
     integer, parameter :: num_quantities = 8
     integer, parameter :: npts = 2000000
     integer, parameter :: niter = 20
+    integer, parameter :: nbuild = 3
     logical, parameter :: periodic = .true.
 
     real(dp), parameter :: x_min = 1.23d0
@@ -48,7 +49,7 @@ program bench_spline1d_many
         end do
     end do
 
-    call construct_batch_splines_1d(x_min, x_max, y_grid, order, periodic, spl)
+    call bench_build_1d(x_min, x_max, y_grid, spl)
 
     allocate (x_eval(npts))
     allocate (y_ref(num_quantities*npts))
@@ -82,6 +83,34 @@ program bench_spline1d_many
 
 contains
 
+    subroutine bench_build_1d(x_min_local, x_max_local, y_grid_local, spl_out)
+        real(dp), intent(in) :: x_min_local
+        real(dp), intent(in) :: x_max_local
+        real(dp), intent(in) :: y_grid_local(:, :)
+        type(BatchSplineData1D), intent(out) :: spl_out
+
+        integer :: it
+        real(dp) :: t0, t1, dt, best_build
+        real(dp) :: grid_pts_per_s
+
+        best_build = huge(1.0d0)
+        do it = 1, nbuild
+            t0 = wall_time()
+            call construct_batch_splines_1d(x_min_local, x_max_local, y_grid_local, &
+                                            order, periodic, spl_out)
+            t1 = wall_time()
+            dt = t1 - t0
+            best_build = min(best_build, dt)
+            call destroy_batch_splines_1d(spl_out)
+        end do
+
+        call construct_batch_splines_1d(x_min_local, x_max_local, y_grid_local, &
+                                        order, periodic, spl_out)
+
+        grid_pts_per_s = real(num_points*num_quantities, dp)/best_build
+        print *, "build best_s ", best_build, " grid_pts_per_s ", grid_pts_per_s
+    end subroutine bench_build_1d
+
     real(dp) function wall_time() result(t)
         integer :: count, rate, max_count
         call system_clock(count, rate, max_count)
@@ -102,7 +131,8 @@ contains
             tstart = wall_time()
             call spline1d_many_eval_host(spl_local%order, spl_local%num_points, &
                                          spl_local%num_quantities, spl_local%periodic, &
-                                         spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                         spl_local%x_min, spl_local%h_step, &
+                                         spl_local%coeff, &
                                          x, y)
             tend = wall_time()
             dt = tend - tstart
@@ -122,11 +152,17 @@ contains
 
         integer :: it
         real(dp) :: tstart, tend, dt
+        real(dp) :: tsetup0, tsetup1
 
+        tsetup0 = wall_time()
         call spline1d_many_setup(spl_local%coeff, x, y)
+        !$acc wait
+        tsetup1 = wall_time()
+        print *, "openacc setup_s ", tsetup1 - tsetup0
         call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
                                          spl_local%num_quantities, spl_local%periodic, &
-                                         spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                         spl_local%x_min, spl_local%h_step, &
+                                         spl_local%coeff, &
                                          x, y)
         !$acc wait
 
@@ -134,8 +170,10 @@ contains
         do it = 1, niter
             tstart = wall_time()
             call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
-                                             spl_local%num_quantities, spl_local%periodic, &
-                                             spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                             spl_local%num_quantities, &
+                                             spl_local%periodic, &
+                                             spl_local%x_min, spl_local%h_step, &
+                                             spl_local%coeff, &
                                              x, y)
             !$acc wait
             tend = wall_time()
@@ -159,19 +197,26 @@ contains
 
         integer :: it
         real(dp) :: tstart, tend, dt
+        real(dp) :: tsetup0, tsetup1
 
+        tsetup0 = wall_time()
         call spline1d_many_setup(spl_local%coeff, x, y)
+        tsetup1 = wall_time()
+        print *, "openmp setup_s ", tsetup1 - tsetup0
         call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
                                          spl_local%num_quantities, spl_local%periodic, &
-                                         spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                         spl_local%x_min, spl_local%h_step, &
+                                         spl_local%coeff, &
                                          x, y)
 
         best = huge(1.0d0)
         do it = 1, niter
             tstart = wall_time()
             call spline1d_many_eval_resident(spl_local%order, spl_local%num_points, &
-                                             spl_local%num_quantities, spl_local%periodic, &
-                                             spl_local%x_min, spl_local%h_step, spl_local%coeff, &
+                                             spl_local%num_quantities, &
+                                             spl_local%periodic, &
+                                             spl_local%x_min, spl_local%h_step, &
+                                             spl_local%coeff, &
                                              x, y)
             tend = wall_time()
             dt = tend - tstart
