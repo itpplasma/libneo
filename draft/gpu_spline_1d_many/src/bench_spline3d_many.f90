@@ -78,13 +78,15 @@ program bench_spline3d_many
     print *, "periodic      ", periodic
 
     call bench_cpu()
+#if defined(LIBNEO_ENABLE_OPENACC)
     call bench_openacc()
+#endif
 
     call destroy_batch_splines_3d(spl)
 
 contains
 
-    pure real(dp) function wall_time() result(t)
+    real(dp) function wall_time() result(t)
         integer :: count, rate, max_count
         call system_clock(count, rate, max_count)
         t = real(count, dp)/real(rate, dp)

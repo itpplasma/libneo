@@ -27,14 +27,16 @@ All implementations are in double precision (`real(dp)`).
 
 - One code path that runs on CPU and can be accelerated with OpenACC:
   - CPU: plain Fortran loop (same routine)
-  - GPU: OpenACC offload via NVHPC `nvfortran -acc`
+  - OpenACC: offload via NVHPC `nvfortran -acc` or GNU `gfortran -fopenacc`
 
 Sources live in `draft/gpu_spline_1d_many/src/`.
 
 ## Build and run
 
-This draft project expects NVHPC `nvfortran`. For GPU offload (`-acc`), NVHPC needs a CUDA
-toolkit; on this machine it is provided at `/opt/cuda`:
+This draft project supports NVHPC `nvfortran` and GNU `gfortran`.
+
+For NVHPC GPU offload (`-acc`), NVHPC needs a CUDA toolkit; on this machine it is provided
+at `/opt/cuda`:
 
 ```bash
 export NVHPC_CUDA_HOME=/opt/cuda
@@ -56,6 +58,23 @@ Run:
 /tmp/libneo_gpu_spline_1d_many_build/bench_spline3d_many
 ```
 
+### NVHPC device selection
+
+```bash
+ACC_DEVICE_TYPE=host   /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
+ACC_DEVICE_TYPE=nvidia /tmp/libneo_gpu_spline_1d_many_build/bench_spline1d_many
+```
+
+## Automated benchmark matrix
+
+Run the full matrix (CPU vs OpenACC host vs OpenACC GPU; nvfortran vs gfortran; 1D/2D/3D):
+
+```bash
+./draft/gpu_spline_1d_many/run_benchmarks.sh
+```
+
+This writes one log per run under `/tmp` with the prefix `libneo_gpu_spline_`.
+
 ## Captured runs (evidence)
 
 On this machine (RTX 5060 Ti, driver 590.48.01), running:
@@ -67,6 +86,18 @@ On this machine (RTX 5060 Ti, driver 590.48.01), running:
   `periodic=[T,T,T]`
 
 produced the following best times (Fortran compiled with `-O3` in this draft CMake project):
+
+From `/tmp/libneo_gpu_spline_matrix_run_ert_2025-12-21_final.log` (matrix run; `pts_per_s`):
+
+```
+nvfortran cpu          1d 4.57e7    nvfortran openacc_host 1d 4.56e7    nvfortran openacc_gpu 1d 8.05e8
+nvfortran cpu          2d 8.08e6    nvfortran openacc_host 2d 8.12e6    nvfortran openacc_gpu 2d 5.41e8
+nvfortran cpu          3d 3.01e6    nvfortran openacc_host 3d 3.02e6    nvfortran openacc_gpu 3d 2.15e8
+
+gfortran  cpu          1d 4.55e7    gfortran  openacc_host 1d 4.35e7    gfortran  openacc_gpu 1d 1.00e9
+gfortran  cpu          2d 9.80e6    gfortran  openacc_host 2d 9.80e6    gfortran  openacc_gpu 2d 5.00e8
+gfortran  cpu          3d 4.00e6    gfortran  openacc_host 3d 4.00e6    gfortran  openacc_gpu 3d 2.00e8
+```
 
 From `/tmp/libneo_gpu_spline_openacc_only_1d_2025-12-21.log`:
 - CPU: `best_s 0.041794` → `4.79e7 pts/s`
@@ -81,3 +112,6 @@ From `/tmp/libneo_gpu_spline_openacc_only_3d_2025-12-21.log`:
 - OpenACC: `best_s 0.000980` → `2.04e8 pts/s`
 
 All variants reported `max_abs_diff 0.0` versus the CPU reference in these runs.
+
+These are historical single runs; prefer `run_benchmarks.sh` for the current matrix and keep the
+`/tmp/libneo_gpu_spline_*_<date>.log` logs as the source of truth.
