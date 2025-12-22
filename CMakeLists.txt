@@ -69,6 +69,11 @@ set(libneo_VERSION_MAJOR 2025)
 set(libneo_VERSION_MINOR 08)
 set(libneo_VERSION_PATCH 20)
 
+# Auto-detect CUDA for NVHPC compilers (must be before enable_language)
+# This sets NVHPC_CUDA_HOME and NVCOMPILER_COMM_LIBS_HOME environment variables
+# if NVHPC compiler is detected and CUDA is found at /opt/cuda or /usr/local/cuda
+include(${PROJECT_SOURCE_DIR}/cmake/SetupNVHPCCuda.cmake)
+
 enable_language(C Fortran)
 if(LIBNEO_BUILD_TESTING)
     include(CTest)

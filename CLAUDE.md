@@ -81,11 +81,56 @@ The library follows an object-oriented Fortran design with abstract types and in
 6. **HDF5 Tools** (`src/hdf5_tools/`): Simplified HDF5 I/O interface
 
 ### Dependencies
-- CMake 3.18+, Ninja, GCC/GFortran
-- MPI (OpenMPI)
+- CMake 3.18+, Ninja, GCC/GFortran or NVHPC (nvfortran)
+- MPI (OpenMPI for gfortran, HPC-X for nvfortran)
 - BLAS/LAPACK (OpenBLAS or MKL)
 - FFTW3, NetCDF, HDF5
 - Python with numpy and f90wrap (for Python interface)
+- CUDA toolkit (for GPU offloading with OpenACC)
+
+### NVHPC Compiler Setup
+
+When using NVHPC (nvfortran) with OpenACC GPU offloading:
+
+**Quick start:**
+```bash
+make nvfortran        # Configure and build with nvfortran
+make test-nvfortran   # Run tests
+```
+
+**Manual setup (if make target does not work):**
+
+1. **Source HPC-X environment** (REQUIRED - the stub wrapper in comm_libs/hpcx/bin does NOT work):
+   ```bash
+   # Use the FULL HPC-X from comm_libs/13.0 (or similar version subdir)
+   source /opt/nvidia/hpc_sdk/Linux_x86_64/VERSION/comm_libs/13.0/hpcx/latest/hpcx-mt-init.sh
+   hpcx_load
+   ```
+
+2. **Set CUDA home** (auto-detected if CUDA is at /opt/cuda or /usr/local/cuda):
+   ```bash
+   export NVHPC_CUDA_HOME=/opt/cuda
+   ```
+
+3. **Configure with CMake:**
+   ```bash
+   cmake -S . -B build_nvfortran -G Ninja \
+     -DCMAKE_Fortran_COMPILER=/opt/nvidia/hpc_sdk/Linux_x86_64/VERSION/comm_libs/13.0/hpcx/latest/ompi/bin/mpifort \
+     -DCMAKE_C_COMPILER=/opt/nvidia/hpc_sdk/Linux_x86_64/VERSION/compilers/bin/nvc \
+     -DCMAKE_BUILD_TYPE=Release \
+     -DFORCE_FETCH_DEPS=ON
+   ```
+
+4. **Build:**
+   ```bash
+   cmake --build build_nvfortran -j
+   ```
+
+**Important notes:**
+- NVHPC auto-fetches HDF5, NetCDF, FFTW from source (ABI incompatibility with system libs)
+- The stub mpifort at `comm_libs/hpcx/bin/mpifort` has strict CUDA version checks that may fail
+- Use the full HPC-X installation at `comm_libs/13.0/hpcx/latest/ompi/bin/mpifort` instead
+- CMake auto-detects CUDA at `/opt/cuda` or `/usr/local/cuda` via `cmake/SetupNVHPCCuda.cmake`
 
 ### Testing Structure
 Tests are organized by component in `test/`:
