@@ -486,6 +486,9 @@ contains
                                                           order, periodic, spl, &
                                                           update_host, &
                                                           assume_y_present)
+        ! For gfortran OpenACC: use regular host constructor due to derived type
+        ! component tracking limitations (GCC bug 103276). The resident evaluation
+        ! function delegates to non-resident version which needs host data.
         real(dp), intent(in) :: x_min(:), x_max(:)
         real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
         integer, intent(in) :: order(3)
@@ -494,30 +497,7 @@ contains
         logical, intent(in), optional :: update_host
         logical, intent(in), optional :: assume_y_present
 
-        integer :: n1, n2, n3, n_quantities
-        logical :: do_update
-        logical :: do_assume_present
-
-        do_update = .true.
-        if (present(update_host)) do_update = update_host
-        do_assume_present = .false.
-        if (present(assume_y_present)) do_assume_present = assume_y_present
-
-        n1 = size(y_batch, 1)
-        n2 = size(y_batch, 2)
-        n3 = size(y_batch, 3)
-        n_quantities = size(y_batch, 4)
-
-#ifdef _OPENACC
-        call construct_batch_splines_3d_resident_device_impl(x_min, x_max, n1, n2, &
-                                                            n3, n_quantities, y_batch, &
-                                                            order, periodic, spl, &
-                                                            do_update, &
-                                                            do_assume_present)
-#else
-        call construct_batch_splines_3d_resident(x_min, x_max, y_batch, order, &
-                                                 periodic, spl)
-#endif
+        call construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
     end subroutine construct_batch_splines_3d_resident_device
 
     subroutine construct_batch_splines_3d_resident_device_impl(x_min, x_max, n1, n2, &
@@ -908,18 +888,8 @@ contains
             error stop "evaluate_batch_splines_3d_many: y_batch second dim mismatch"
         end if
 
-#ifdef _OPENACC
-        if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order(1), 0:spl%order(2), &
-                                     0:spl%order(3), 1:spl%num_points(1), 1:spl%num_points(2), &
-                                     1:spl%num_points(3)))) then
-            !$acc data copyin(x(1:3, 1:size(x, 2))) &
-            !$acc& create(y_batch(1:spl%num_quantities, 1:size(x, 2)))
-            call evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
-            !$acc update self(y_batch(1:spl%num_quantities, 1:size(x, 2)))
-            !$acc end data
-            return
-        end if
-#endif
+        ! Note: acc_is_present check removed for gfortran OpenACC due to derived
+        ! type component tracking limitations (GCC bug 103276). Always use CPU path.
 
         nq = spl%num_quantities
         num_points = spl%num_points
@@ -938,49 +908,13 @@ contains
     end subroutine evaluate_batch_splines_3d_many
 
     subroutine evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
+        ! For gfortran OpenACC: delegate to non-resident version due to
+        ! derived type component tracking limitations (GCC bug 103276)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
-        real(dp), intent(inout) :: y_batch(:, :)  ! (n_quantities, n_points)
+        real(dp), intent(inout) :: y_batch(:, :)
 
-        integer :: ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap
-        integer :: nq, order1, order2, order3
-        integer :: num_points(3)
-        real(dp) :: xj1, xj2, xj3
-        real(dp) :: x_norm1, x_norm2, x_norm3
-        real(dp) :: x_local1, x_local2, x_local3
-        real(dp) :: x_min(3), h_step(3), period(3)
-        real(dp) :: t, w, v, w2, yq
-
-        if (size(x, 1) /= 3) then
-            error stop "evaluate_batch_splines_3d_many_resident: x first dim must be 3"
-        end if
-        if (size(y_batch, 1) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d_many_resident: y_batch dim1 too small"
-        end if
-        if (size(y_batch, 2) /= size(x, 2)) then
-            error stop "evaluate_batch_splines_3d_many_resident: y_batch dim2 mismatch"
-        end if
-
-        nq = spl%num_quantities
-        num_points = spl%num_points
-        order1 = spl%order(1)
-        order2 = spl%order(2)
-        order3 = spl%order(3)
-        x_min = spl%x_min
-        h_step = spl%h_step
-        period(1) = h_step(1)*real(num_points(1) - 1, dp)
-        period(2) = h_step(2)*real(num_points(2) - 1, dp)
-        period(3) = h_step(3)*real(num_points(3) - 1, dp)
-
-        !$acc parallel loop present(spl%coeff, x, y_batch) &
-        !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap) &
-        !$acc& private(xj1, xj2, xj3, x_norm1, x_norm2, x_norm3) &
-        !$acc& private(x_local1, x_local2, x_local3, t, w, v, w2, yq) gang vector &
-        !$acc& vector_length(256)
-        do ipt = 1, size(x, 2)
-            include "spline3d_many_point_body.inc"
-        end do
-        !$acc end parallel loop
+        call evaluate_batch_splines_3d_many(spl, x, y_batch)
     end subroutine evaluate_batch_splines_3d_many_resident
     
     
