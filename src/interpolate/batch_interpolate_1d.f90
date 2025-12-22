@@ -44,7 +44,9 @@ contains
         call construct_batch_splines_1d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 
 #ifdef _OPENACC
-        !$acc enter data copyin(spl)
+        ! Map only the allocatable component, not the whole derived type
+        ! This is compatible with both gfortran and nvfortran
+        !$acc enter data copyin(spl%coeff)
 #endif
     end subroutine construct_batch_splines_1d
 
