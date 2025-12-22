@@ -43,7 +43,7 @@ add_library(neo STATIC
 
 target_link_libraries(neo PUBLIC
     $<TARGET_OBJECTS:neo_polylag>
-    $<TARGET_OBJECTS:interpolate>
+    interpolate
     hdf5_tools
     neo_field
 )
