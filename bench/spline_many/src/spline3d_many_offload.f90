@@ -18,7 +18,7 @@ contains
 
         if (is_setup) return
 #if defined(LIBNEO_ENABLE_OPENACC)
-        !$acc enter data copyin(x)
+        !$acc enter data copyin(coeff, x)
         !$acc enter data create(y)
 #endif
         is_setup = .true.
@@ -33,6 +33,7 @@ contains
 #if defined(LIBNEO_ENABLE_OPENACC)
         !$acc exit data delete(y)
         !$acc exit data delete(x)
+        !$acc exit data delete(coeff)
 #endif
         is_setup = .false.
     end subroutine spline3d_many_teardown

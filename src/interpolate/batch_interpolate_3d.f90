@@ -630,7 +630,7 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        !$acc enter data create(spl)
+        !$acc enter data create(spl%coeff)
 
         allocate(work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
         if (istat /= 0) then
@@ -771,8 +771,8 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl)) then
-                !$acc exit data delete(spl)
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
             end if
         end if
 #endif
@@ -881,6 +881,7 @@ contains
         integer :: ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap
         integer :: nq, order1, order2, order3
         integer :: num_points(3)
+        logical :: periodic(3)
         real(dp) :: xj1, xj2, xj3
         real(dp) :: x_norm1, x_norm2, x_norm3
         real(dp) :: x_local1, x_local2, x_local3
@@ -898,7 +899,7 @@ contains
         end if
 
 #ifdef _OPENACC
-        if (acc_is_present(spl)) then
+        if (acc_is_present(spl%coeff)) then
             !$acc data copyin(x) copy(y_batch)
             call evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
             !$acc end data
@@ -911,6 +912,7 @@ contains
         order1 = spl%order(1)
         order2 = spl%order(2)
         order3 = spl%order(3)
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period(1) = h_step(1)*real(num_points(1) - 1, dp)
@@ -930,6 +932,7 @@ contains
         integer :: ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap
         integer :: nq, order1, order2, order3
         integer :: num_points(3)
+        logical :: periodic(3)
         real(dp) :: xj1, xj2, xj3
         real(dp) :: x_norm1, x_norm2, x_norm3
         real(dp) :: x_local1, x_local2, x_local3
@@ -951,13 +954,14 @@ contains
         order1 = spl%order(1)
         order2 = spl%order(2)
         order3 = spl%order(3)
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period(1) = h_step(1)*real(num_points(1) - 1, dp)
         period(2) = h_step(2)*real(num_points(2) - 1, dp)
         period(3) = h_step(3)*real(num_points(3) - 1, dp)
 
-        !$acc parallel loop present(spl, x, y_batch) &
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
         !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap) &
         !$acc& private(xj1, xj2, xj3, x_norm1, x_norm2, x_norm3) &
         !$acc& private(x_local1, x_local2, x_local3, t, w, v, w2, yq)

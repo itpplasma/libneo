@@ -481,7 +481,7 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        !$acc enter data create(spl)
+        !$acc enter data create(spl%coeff)
 
         allocate(work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
         if (istat /= 0) then
@@ -584,8 +584,8 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl)) then
-                !$acc exit data delete(spl)
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
             end if
         end if
 #endif
@@ -669,6 +669,7 @@ contains
         integer :: ipt, iq, k1, k2, i1, i2, k_wrap
         integer :: nq, order1, order2
         integer :: num_points(2)
+        logical :: periodic(2)
         real(dp) :: xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
         real(dp) :: x_min(2), h_step(2), period(2)
         real(dp) :: t, w, v, yq
@@ -684,7 +685,7 @@ contains
         end if
 
 #ifdef _OPENACC
-        if (acc_is_present(spl)) then
+        if (acc_is_present(spl%coeff)) then
             !$acc data copyin(x) copy(y_batch)
             call evaluate_batch_splines_2d_many_resident(spl, x, y_batch)
             !$acc end data
@@ -696,6 +697,7 @@ contains
         num_points = spl%num_points
         order1 = spl%order(1)
         order2 = spl%order(2)
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period(1) = h_step(1)*real(num_points(1) - 1, dp)
@@ -714,6 +716,7 @@ contains
         integer :: ipt, iq, k1, k2, i1, i2, k_wrap
         integer :: nq, order1, order2
         integer :: num_points(2)
+        logical :: periodic(2)
         real(dp) :: xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
         real(dp) :: x_min(2), h_step(2), period(2)
         real(dp) :: t, w, v, yq
@@ -732,12 +735,13 @@ contains
         num_points = spl%num_points
         order1 = spl%order(1)
         order2 = spl%order(2)
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period(1) = h_step(1)*real(num_points(1) - 1, dp)
         period(2) = h_step(2)*real(num_points(2) - 1, dp)
 
-        !$acc parallel loop present(spl, x, y_batch) &
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
         !$acc& private(ipt, iq, k1, k2, i1, i2, k_wrap) &
         !$acc& private(xj1, xj2, x_norm1, x_norm2, x_local1, x_local2, t, w, v, yq)
         do ipt = 1, size(x, 2)

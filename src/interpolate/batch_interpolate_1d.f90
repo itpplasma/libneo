@@ -325,7 +325,7 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        !$acc enter data create(spl)
+        !$acc enter data create(spl%coeff)
 
         allocate(work(n_points, n_quantities, 0:order), stat=istat)
         if (istat /= 0) then
@@ -425,8 +425,8 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl)) then
-                !$acc exit data delete(spl)
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
             end if
         end if
 #endif
@@ -516,6 +516,7 @@ contains
 
         integer :: ipt, iq, k_power, idx, k_wrap
         integer :: num_points, nq, order
+        logical :: periodic
         real(dp) :: xj, x_norm, x_local, x_min, h_step, period, t, w
 
         if (size(y_batch, 1) < spl%num_quantities) then
@@ -526,7 +527,7 @@ contains
         end if
 
 #ifdef _OPENACC
-        if (acc_is_present(spl)) then
+        if (acc_is_present(spl%coeff)) then
             !$acc data copyin(x) copy(y_batch)
             call evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
             !$acc end data
@@ -537,6 +538,7 @@ contains
         order = spl%order
         num_points = spl%num_points
         nq = spl%num_quantities
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period = h_step*real(num_points - 1, dp)
@@ -553,6 +555,7 @@ contains
 
         integer :: ipt, iq, k_power, idx, k_wrap
         integer :: num_points, nq, order
+        logical :: periodic
         real(dp) :: xj, x_norm, x_local, x_min, h_step, period, t, w
 
         if (size(y_batch, 1) < spl%num_quantities) then
@@ -565,11 +568,12 @@ contains
         order = spl%order
         num_points = spl%num_points
         nq = spl%num_quantities
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period = h_step*real(num_points - 1, dp)
 
-        !$acc parallel loop present(spl, x, y_batch) &
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
         !$acc& private(ipt, iq, k_power, idx, k_wrap, xj, x_norm, x_local, t, w)
         do ipt = 1, size(x)
             include "spline1d_many_point_body.inc"
