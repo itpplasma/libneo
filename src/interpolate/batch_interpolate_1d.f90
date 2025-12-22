@@ -44,7 +44,7 @@ contains
         call construct_batch_splines_1d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 
 #ifdef _OPENACC
-        !$acc enter data copyin(spl%coeff(1:spl%num_quantities, 0:spl%order, 1:spl%num_points))
+        !$acc enter data copyin(spl)
 #endif
     end subroutine construct_batch_splines_1d
 
@@ -325,7 +325,7 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        !$acc enter data create(spl%coeff(1:n_quantities, 0:order, 1:n_points))
+        !$acc enter data create(spl)
 
         allocate(work(n_points, n_quantities, 0:order), stat=istat)
         if (istat /= 0) then
@@ -425,10 +425,8 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order, &
-                                         1:spl%num_points))) then
-                !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order, &
-                !$acc&                         1:spl%num_points))
+            if (acc_is_present(spl)) then
+                !$acc exit data delete(spl)
             end if
         end if
 #endif
@@ -528,7 +526,7 @@ contains
         end if
 
 #ifdef _OPENACC
-        if (acc_is_present(spl%coeff, size(spl%coeff)*8)) then
+        if (acc_is_present(spl)) then
             !$acc data copyin(x) copy(y_batch)
             call evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
             !$acc end data
@@ -571,7 +569,7 @@ contains
         h_step = spl%h_step
         period = h_step*real(num_points - 1, dp)
 
-        !$acc parallel loop present(spl%coeff, x, y_batch) &
+        !$acc parallel loop present(spl, x, y_batch) &
         !$acc& private(ipt, iq, k_power, idx, k_wrap, xj, x_norm, x_local, t, w)
         do ipt = 1, size(x)
             include "spline1d_many_point_body.inc"

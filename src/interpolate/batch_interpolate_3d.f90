@@ -43,9 +43,7 @@ contains
         call construct_batch_splines_3d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 
 #ifdef _OPENACC
-        !$acc enter data copyin(spl%coeff(1:spl%num_quantities, 0:spl%order(1), 0:spl%order(2), &
-        !$acc&                         0:spl%order(3), 1:spl%num_points(1), 1:spl%num_points(2), &
-        !$acc&                         1:spl%num_points(3)))
+        !$acc enter data copyin(spl)
 #endif
     end subroutine construct_batch_splines_3d
 
@@ -632,8 +630,7 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        !$acc enter data create(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, &
-        !$acc&                          0:N3_order, 1:n1, 1:n2, 1:n3))
+        !$acc enter data create(spl)
 
         allocate(work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
         if (istat /= 0) then
@@ -774,14 +771,8 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
-                                         0:spl%order(2), 0:spl%order(3), &
-                                         1:spl%num_points(1), 1:spl%num_points(2), &
-                                         1:spl%num_points(3)))) then
-                !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order(1), &
-                !$acc&                         0:spl%order(2), 0:spl%order(3), &
-                !$acc&                         1:spl%num_points(1), 1:spl%num_points(2), &
-                !$acc&                         1:spl%num_points(3)))
+            if (acc_is_present(spl)) then
+                !$acc exit data delete(spl)
             end if
         end if
 #endif
@@ -907,7 +898,7 @@ contains
         end if
 
 #ifdef _OPENACC
-        if (acc_is_present(spl%coeff, size(spl%coeff)*8)) then
+        if (acc_is_present(spl)) then
             !$acc data copyin(x) copy(y_batch)
             call evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
             !$acc end data
@@ -966,7 +957,7 @@ contains
         period(2) = h_step(2)*real(num_points(2) - 1, dp)
         period(3) = h_step(3)*real(num_points(3) - 1, dp)
 
-        !$acc parallel loop present(spl%coeff, x, y_batch) &
+        !$acc parallel loop present(spl, x, y_batch) &
         !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap) &
         !$acc& private(xj1, xj2, xj3, x_norm1, x_norm2, x_norm3) &
         !$acc& private(x_local1, x_local2, x_local3, t, w, v, w2, yq)
