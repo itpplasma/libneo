@@ -266,7 +266,7 @@ subroutine chartmap_eval_cart_der(self, u, vals, dvals)
     end if
 end subroutine chartmap_eval_cart_der
 
-module subroutine make_chartmap_coordinate_system(cs, filename)
+subroutine make_chartmap_coordinate_system(cs, filename)
     class(coordinate_system_t), allocatable, intent(out) :: cs
     character(len=*), intent(in) :: filename
 
