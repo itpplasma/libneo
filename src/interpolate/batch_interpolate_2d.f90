@@ -361,9 +361,6 @@ contains
                                                           order, periodic, spl, &
                                                           update_host, &
                                                           assume_y_present)
-        ! For gfortran OpenACC: use regular host constructor due to derived type
-        ! component tracking limitations (GCC bug 103276). The resident evaluation
-        ! function delegates to non-resident version which needs host data.
         real(dp), intent(in) :: x_min(:), x_max(:)
         real(dp), intent(in) :: y_batch(:, :, :)  ! (n1, n2, n_quantities)
         integer, intent(in) :: order(:)
@@ -372,7 +369,27 @@ contains
         logical, intent(in), optional :: update_host
         logical, intent(in), optional :: assume_y_present
 
-        call construct_batch_splines_2d(x_min, x_max, y_batch, order, periodic, spl)
+        integer :: n1, n2, n_quantities
+        logical :: do_update, do_assume_present
+
+        do_update = .true.
+        if (present(update_host)) do_update = update_host
+        do_assume_present = .false.
+        if (present(assume_y_present)) do_assume_present = assume_y_present
+
+        n1 = size(y_batch, 1)
+        n2 = size(y_batch, 2)
+        n_quantities = size(y_batch, 3)
+
+#ifdef _OPENACC
+        call construct_batch_splines_2d_resident_device_impl(x_min, x_max, n1, n2, &
+                                                            n_quantities, y_batch, &
+                                                            order, periodic, spl, &
+                                                            do_update, do_assume_present)
+#else
+        call construct_batch_splines_2d_resident(x_min, x_max, y_batch, order, &
+                                                 periodic, spl)
+#endif
     end subroutine construct_batch_splines_2d_resident_device
 
     subroutine construct_batch_splines_2d_resident_device_impl(x_min, x_max, n1, n2, &
@@ -671,8 +688,14 @@ contains
             error stop "evaluate_batch_splines_2d_many: y_batch second dim mismatch"
         end if
 
-        ! Note: acc_is_present check removed for gfortran OpenACC due to derived
-        ! type component tracking limitations (GCC bug 103276). Always use CPU path.
+#ifdef _OPENACC
+        if (acc_is_present(spl%coeff, size(spl%coeff)*8)) then
+            !$acc data copyin(x) copy(y_batch)
+            call evaluate_batch_splines_2d_many_resident(spl, x, y_batch)
+            !$acc end data
+            return
+        end if
+#endif
 
         nq = spl%num_quantities
         num_points = spl%num_points
@@ -693,7 +716,39 @@ contains
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(inout) :: y_batch(:, :)
 
-        call evaluate_batch_splines_2d_many(spl, x, y_batch)
+        integer :: ipt, iq, k1, k2, i1, i2, k_wrap
+        integer :: nq, order1, order2
+        integer :: num_points(2)
+        real(dp) :: xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
+        real(dp) :: x_min(2), h_step(2), period(2)
+        real(dp) :: t, w, v, yq
+
+        if (size(x, 1) /= 2) then
+            error stop "evaluate_batch_splines_2d_many_resident: x first dim must be 2"
+        end if
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_2d_many_resident: y_batch dim1 too small"
+        end if
+        if (size(y_batch, 2) /= size(x, 2)) then
+            error stop "evaluate_batch_splines_2d_many_resident: y_batch dim2 mismatch"
+        end if
+
+        nq = spl%num_quantities
+        num_points = spl%num_points
+        order1 = spl%order(1)
+        order2 = spl%order(2)
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period(1) = h_step(1)*real(num_points(1) - 1, dp)
+        period(2) = h_step(2)*real(num_points(2) - 1, dp)
+
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
+        !$acc& private(ipt, iq, k1, k2, i1, i2, k_wrap) &
+        !$acc& private(xj1, xj2, x_norm1, x_norm2, x_local1, x_local2, t, w, v, yq)
+        do ipt = 1, size(x, 2)
+            include "spline2d_many_point_body.inc"
+        end do
+        !$acc end parallel loop
     end subroutine evaluate_batch_splines_2d_many_resident
     
     

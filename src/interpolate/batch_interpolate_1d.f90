@@ -234,9 +234,6 @@ contains
                                                           order, periodic, spl, &
                                                           update_host, &
                                                           assume_y_present)
-        ! For gfortran OpenACC: use regular host constructor due to derived type
-        ! component tracking limitations (GCC bug 103276). The resident evaluation
-        ! function delegates to non-resident version which needs host data.
         real(dp), intent(in) :: x_min, x_max
         real(dp), intent(in) :: y_batch(:, :)  ! (n_points, n_quantities)
         integer, intent(in) :: order
@@ -245,7 +242,26 @@ contains
         logical, intent(in), optional :: update_host
         logical, intent(in), optional :: assume_y_present
 
-        call construct_batch_splines_1d(x_min, x_max, y_batch, order, periodic, spl)
+        integer :: n_points, n_quantities
+        logical :: do_update, do_assume_present
+
+        do_update = .true.
+        if (present(update_host)) do_update = update_host
+        do_assume_present = .false.
+        if (present(assume_y_present)) do_assume_present = assume_y_present
+
+        n_points = size(y_batch, 1)
+        n_quantities = size(y_batch, 2)
+
+#ifdef _OPENACC
+        call construct_batch_splines_1d_resident_device_impl(x_min, x_max, n_points, &
+                                                            n_quantities, y_batch, &
+                                                            order, periodic, spl, &
+                                                            do_update, do_assume_present)
+#else
+        call construct_batch_splines_1d_resident(x_min, x_max, y_batch, order, &
+                                                 periodic, spl)
+#endif
     end subroutine construct_batch_splines_1d_resident_device
 
     subroutine construct_batch_splines_1d_resident_device_impl(x_min, x_max, n_points, &
@@ -511,8 +527,14 @@ contains
             error stop "evaluate_batch_splines_1d_many: y_batch second dim mismatch"
         end if
 
-        ! Note: acc_is_present check removed for gfortran OpenACC due to derived
-        ! type component tracking limitations (GCC bug 103276). Always use CPU path.
+#ifdef _OPENACC
+        if (acc_is_present(spl%coeff, size(spl%coeff)*8)) then
+            !$acc data copyin(x) copy(y_batch)
+            call evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
+            !$acc end data
+            return
+        end if
+#endif
 
         order = spl%order
         num_points = spl%num_points
@@ -531,7 +553,30 @@ contains
         real(dp), intent(in) :: x(:)
         real(dp), intent(inout) :: y_batch(:, :)
 
-        call evaluate_batch_splines_1d_many(spl, x, y_batch)
+        integer :: ipt, iq, k_power, idx, k_wrap
+        integer :: num_points, nq, order
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period, t, w
+
+        if (size(y_batch, 1) < spl%num_quantities) then
+            error stop "evaluate_batch_splines_1d_many_resident: y_batch dim1 too small"
+        end if
+        if (size(y_batch, 2) /= size(x)) then
+            error stop "evaluate_batch_splines_1d_many_resident: y_batch dim2 mismatch"
+        end if
+
+        order = spl%order
+        num_points = spl%num_points
+        nq = spl%num_quantities
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step*real(num_points - 1, dp)
+
+        !$acc parallel loop present(spl%coeff, x, y_batch) &
+        !$acc& private(ipt, iq, k_power, idx, k_wrap, xj, x_norm, x_local, t, w)
+        do ipt = 1, size(x)
+            include "spline1d_many_point_body.inc"
+        end do
+        !$acc end parallel loop
     end subroutine evaluate_batch_splines_1d_many_resident
     
     
