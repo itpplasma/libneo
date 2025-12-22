@@ -1,4 +1,4 @@
-if (spl%periodic(1)) then
+if (periodic(1)) then
     t = x(1, ipt) - x_min(1)
     k_wrap = int(t/period(1))
     w = t - real(k_wrap, dp)*period(1)
@@ -7,7 +7,7 @@ if (spl%periodic(1)) then
 else
     xj1 = x(1, ipt)
 end if
-if (spl%periodic(2)) then
+if (periodic(2)) then
     t = x(2, ipt) - x_min(2)
     k_wrap = int(t/period(2))
     w = t - real(k_wrap, dp)*period(2)

@@ -2,14 +2,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/magfie)
 
 # Test executable for Biot-Savart Fourier routines
 add_executable(test_coil_tools_biot_savart.x test_coil_tools_biot_savart.f90)
-target_link_libraries(test_coil_tools_biot_savart.x PRIVATE 
+target_link_libraries(test_coil_tools_biot_savart.x PRIVATE
     neo
     magfie
     util_for_test
-    ${FFTW3_LIBRARIES}
-    ${HDF5_LIBRARIES}
-    ${NETCDF_LIBRARIES}
-    ${MPI_Fortran_LIBRARIES}
+    MPI::MPI_Fortran
 )
 
 # Register the test
@@ -27,10 +24,7 @@ target_link_libraries(tilted_coil_fourier_modes.x PRIVATE
     neo
     magfie
     util_for_test
-    ${FFTW3_LIBRARIES}
-    ${HDF5_LIBRARIES}
-    ${NETCDF_LIBRARIES}
-    ${MPI_Fortran_LIBRARIES}
+    MPI::MPI_Fortran
 )
 
 add_executable(tilted_coil_axis_field.x tilted_coil_axis_field.f90)

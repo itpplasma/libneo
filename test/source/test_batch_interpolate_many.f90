@@ -156,10 +156,7 @@ contains
         allocate (y_many_res(nq, npts))
         y_many_res = 0.0d0
 
-        !$acc enter data copyin(x_eval) create(y_many_res)
         call evaluate_batch_splines_1d_many_resident(spl, x_eval, y_many_res)
-        !$acc update self(y_many_res)
-        !$acc exit data delete(y_many_res, x_eval)
 
         call assert_close("1d_resident", reshape(y_many_res, [nq*npts]), &
                           reshape(y_many, [nq*npts]), tol)
@@ -178,10 +175,7 @@ contains
                                                         order, periodic, spl, &
                                                         update_host=.false.)
         y_many_res = 0.0d0
-        !$acc enter data copyin(x_eval) create(y_many_res)
         call evaluate_batch_splines_1d_many_resident(spl, x_eval, y_many_res)
-        !$acc update self(y_many_res)
-        !$acc exit data delete(y_many_res, x_eval)
         call assert_close("1d_device_resident_only", reshape(y_many_res, [nq*npts]), &
                           reshape(y_many, [nq*npts]), tol)
 
@@ -205,10 +199,7 @@ contains
                                                         periodic, spl3, &
                                                         update_host=.false.)
         y_many_res = 0.0d0
-        !$acc enter data copyin(x_eval) create(y_many_res)
         call evaluate_batch_splines_1d_many_resident(spl3, x_eval, y_many_res)
-        !$acc update self(y_many_res)
-        !$acc exit data delete(y_many_res, x_eval)
         call assert_close("1d_device_resident_only_order3", &
                           reshape(y_many_res, [nq*npts]), reshape(y_many3, [nq*npts]), &
                           tol)
@@ -304,10 +295,7 @@ contains
         allocate (y_many_res(nq, npts))
         y_many_res = 0.0d0
 
-        !$acc enter data copyin(x_eval) create(y_many_res)
         call evaluate_batch_splines_2d_many_resident(spl, x_eval, y_many_res)
-        !$acc update self(y_many_res)
-        !$acc exit data delete(y_many_res, x_eval)
 
         call assert_close("2d_resident", reshape(y_many_res, [nq*npts]), &
                           reshape(y_many, [nq*npts]), tol)
@@ -326,10 +314,7 @@ contains
                                                         order, periodic, spl, &
                                                         update_host=.false.)
         y_many_res = 0.0d0
-        !$acc enter data copyin(x_eval) create(y_many_res)
         call evaluate_batch_splines_2d_many_resident(spl, x_eval, y_many_res)
-        !$acc update self(y_many_res)
-        !$acc exit data delete(y_many_res, x_eval)
         call assert_close("2d_device_resident_only", reshape(y_many_res, [nq*npts]), &
                           reshape(y_many, [nq*npts]), tol)
 
@@ -435,10 +420,7 @@ contains
         allocate (y_many_res(nq, npts))
         y_many_res = 0.0d0
 
-        !$acc enter data copyin(x_eval) create(y_many_res)
         call evaluate_batch_splines_3d_many_resident(spl, x_eval, y_many_res)
-        !$acc update self(y_many_res)
-        !$acc exit data delete(y_many_res, x_eval)
 
         call assert_close("3d_resident", reshape(y_many_res, [nq*npts]), &
                           reshape(y_many, [nq*npts]), tol)
@@ -463,10 +445,7 @@ contains
                                                         order_dev, periodic, spl, &
                                                         update_host=.false.)
         y_many = 0.0d0
-        !$acc enter data copyin(x_eval) create(y_many)
         call evaluate_batch_splines_3d_many_resident(spl, x_eval, y_many)
-        !$acc update self(y_many)
-        !$acc exit data delete(y_many, x_eval)
         call assert_close("3d_device_resident_only", reshape(y_many, [nq*npts]), &
                           reshape(y_many_res, [nq*npts]), tol)
         call destroy_batch_splines_3d(spl)

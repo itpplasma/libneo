@@ -69,6 +69,11 @@ set(libneo_VERSION_MAJOR 2025)
 set(libneo_VERSION_MINOR 08)
 set(libneo_VERSION_PATCH 20)
 
+# Auto-detect CUDA for NVHPC compilers (must be before enable_language)
+# This sets NVHPC_CUDA_HOME and NVCOMPILER_COMM_LIBS_HOME environment variables
+# if NVHPC compiler is detected and CUDA is found at /opt/cuda or /usr/local/cuda
+include(${PROJECT_SOURCE_DIR}/cmake/SetupNVHPCCuda.cmake)
+
 enable_language(C Fortran)
 if(LIBNEO_BUILD_TESTING)
     include(CTest)
@@ -80,6 +85,10 @@ set(OPENACC_OFFLOAD_TARGET "none" CACHE STRING "OpenACC offload target for GNU (
 set_property(CACHE OPENACC_OFFLOAD_TARGET PROPERTY STRINGS none nvptx)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
     "Enable fetching and running the ODEINT golden record regression test" ON)
+
+# Dependency fetching options
+option(PREFER_SYSTEM_LIBS "Try system libraries before building from source" ON)
+option(FORCE_FETCH_DEPS "Always build Fortran dependencies from source" OFF)
 
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
@@ -149,34 +158,40 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
     # Base flags for all builds
-    add_compile_options(-cpp)
-
-elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
-    # Base flags for all builds
-    add_compile_options(-Mpreprocess)
-    if(ENABLE_OPENACC)
-        if(EXISTS "/opt/cuda" AND NOT DEFINED ENV{NVHPC_CUDA_HOME})
-            set(ENV{NVHPC_CUDA_HOME} "/opt/cuda")
-            set(ENV{NVCOMPILER_CUDA_HOME} "/opt/cuda")
-        endif()
-        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-acc>)
-        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-gpu=ccnative>)
-        add_link_options($<$<LINK_LANGUAGE:Fortran>:-acc>)
-        add_link_options($<$<LINK_LANGUAGE:Fortran>:-gpu=ccnative>)
-    endif()
+    add_compile_options(-cpp -fPIC -g)
 
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
-        add_compile_options(-g -O0 -check all -traceback -warn all)
+        add_compile_options(-O0 -check all -traceback -warn all)
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
         # Common optimization flags for Release and Fast builds
-        add_compile_options(-O3 -fp-model fast=2 -no-prec-div -g -traceback)
+        add_compile_options(-O3 -fp-model fast=2 -no-prec-div -traceback)
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast)
-            add_compile_options(-xHost)  # Intel's equivalent of -march=native
+            add_compile_options(-xHost)  # Native architecture
         else()
-            add_compile_options(-xCORE-AVX2)  # Intel's equivalent of x86-64-v2
+            add_compile_options(-xCORE-AVX2)  # Broad compatibility baseline
+        endif()
+    endif()
+
+elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
+    # Base flags for all builds
+    add_compile_options(-Mpreprocess -fPIC -g)
+
+    # Note: OpenACC is applied selectively to interpolate library only
+    # See src/interpolate/CMakeLists.txt
+
+    # Build type specific flags
+    if(CMAKE_BUILD_TYPE MATCHES Debug)
+        add_compile_options(-O0 -Mbounds -traceback)
+    elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
+        # Common optimization flags for Release and Fast builds
+        add_compile_options(-fast -O3 -Mfprelaxed -traceback)
+
+        # Architecture-specific flags
+        if(CMAKE_BUILD_TYPE MATCHES Fast)
+            add_compile_options(-tp=host)  # Native architecture
         endif()
     endif()
 endif()
@@ -184,31 +199,10 @@ endif()
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
 
-find_program(NF_CONFIG "nf-config")
-
-if(NF_CONFIG)
-    execute_process(COMMAND nf-config --includedir
-        OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
-    execute_process(COMMAND nc-config --libdir
-        OUTPUT_VARIABLE NETCDFLIB_DIR)
-    execute_process(COMMAND nf-config --flibs
-        OUTPUT_VARIABLE NETCDF_FLIBS)
-else()
-    message(SEND_ERROR "nf-config not found. Please install libnetcdff-dev")
-endif()
-
-string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
-string(STRIP ${NETCDFLIB_DIR} NETCDFLIB_DIR)
-string(STRIP ${NETCDF_FLIBS} NETCDF_FLIBS)
-
-message(STATUS "NetCDF include path: " ${NETCDFINCLUDE_DIR})
-message(STATUS "NetCDF lib path: " ${NETCDFLIB_DIR})
-message(STATUS "NetCDF Fortran libs: " ${NETCDF_FLIBS})
-string(REPLACE " " ";" NETCDF_FLIBS "${NETCDF_FLIBS}")
-
-include_directories(${NETCDFINCLUDE_DIR})
-link_directories(${NETCDFLIB_DIR})
-add_link_options(${NETCDF_FLIBS})
+# Detect and configure external dependencies (HDF5, NetCDF, FFTW)
+# Uses smoke tests to verify ABI compatibility with current compiler.
+# Falls back to building from source if system libraries are incompatible.
+include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
 # Libraries that libneo depends on
 add_subdirectory(src/contrib)

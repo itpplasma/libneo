@@ -193,7 +193,67 @@ echo "Building + running benchmarks (1D/2D/3D) into ${log_dir} (date tag ${date_
 
 declare -A results
 
-### nvfortran (only)
+gfortran_bin="${GFORTRAN_BIN:-gfortran}"
+
+# Derive GCC lib path from compiler location for LD_LIBRARY_PATH
+gfortran_libdir=""
+if [[ -n "${GFORTRAN_BIN:-}" ]]; then
+  gfortran_prefix="$(dirname "$(dirname "${GFORTRAN_BIN}")")"
+  if [[ -d "${gfortran_prefix}/lib64" ]]; then
+    gfortran_libdir="${gfortran_prefix}/lib64"
+  fi
+fi
+
+### gfortran
+if command -v "${gfortran_bin}" >/dev/null 2>&1; then
+  gf_tag="gfortran"
+
+  # OpenACC build for gfortran
+  gf_acc_build="$(build_dir_for "${gf_tag}" openacc)"
+  if [[ "${fast}" != "1" ]]; then
+    rm -rf "${gf_acc_build}"
+  fi
+  cmake_configure_build "${gfortran_bin}" "${gf_acc_build}" \
+    -DBENCH_ENABLE_OPENACC=ON
+
+  # Build gfortran LD_LIBRARY_PATH env array
+  gf_ld_env=()
+  if [[ -n "${gfortran_libdir}" ]]; then
+    gf_ld_env+=("LD_LIBRARY_PATH=${gfortran_libdir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}")
+  fi
+
+  for dim in 1d 2d 3d; do
+    bench_env_set_for_dim "${dim}"
+    exe="${gf_acc_build}/bench_spline${dim}_many"
+
+    log_host="${log_dir}/libneo_gpu_spline_${gf_tag}_openacc_host_${dim}_${date_tag}.log"
+    run_one "${exe}" "${log_host}" env "${gf_ld_env[@]}" "${bench_env_common[@]}" "${bench_env_dim[@]}" ACC_DEVICE_TYPE=host "${exe}"
+    results["${gf_tag},build,${dim}"]="$(extract_build_grid_pts_per_s "${log_host}")"
+    results["${gf_tag},build_lines,${dim}"]="$(extract_build_lines_grid_pts_per_s "${log_host}")"
+    results["${gf_tag},build_resident_host,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log_host}")"
+    results["${gf_tag},build_device_host,${dim}"]="$(extract_build_device_grid_pts_per_s "${log_host}" host)"
+    results["${gf_tag},openacc_setup_host,${dim}"]="$(extract_setup_s "${log_host}" openacc)"
+    results["${gf_tag},openacc_host,${dim}"]="$(extract_pts_per_s "${log_host}" openacc)"
+    results["${gf_tag},old_public_host,${dim}"]="$(extract_pts_per_s "${log_host}" old_public)"
+    results["${gf_tag},public_warmup_host,${dim}"]="$(extract_warmup_s "${log_host}" public)"
+    results["${gf_tag},public_host,${dim}"]="$(extract_pts_per_s "${log_host}" public)"
+    results["${gf_tag},cpu,${dim}"]="$(extract_pts_per_s "${log_host}" cpu)"
+
+    log_gpu="${log_dir}/libneo_gpu_spline_${gf_tag}_openacc_gpu_${dim}_${date_tag}.log"
+    run_one "${exe}" "${log_gpu}" env "${gf_ld_env[@]}" "${bench_env_common[@]}" "${bench_env_dim[@]}" ACC_DEVICE_TYPE=nvidia "${exe}"
+    results["${gf_tag},build_resident_gpu,${dim}"]="$(extract_build_resident_grid_pts_per_s "${log_gpu}")"
+    results["${gf_tag},build_device_gpu,${dim}"]="$(extract_build_device_grid_pts_per_s "${log_gpu}" gpu)"
+    results["${gf_tag},openacc_setup_gpu,${dim}"]="$(extract_setup_s "${log_gpu}" openacc)"
+    results["${gf_tag},openacc_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" openacc)"
+    results["${gf_tag},old_public_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" old_public)"
+    results["${gf_tag},public_warmup_gpu,${dim}"]="$(extract_warmup_s "${log_gpu}" public)"
+    results["${gf_tag},public_gpu,${dim}"]="$(extract_pts_per_s "${log_gpu}" public)"
+  done
+else
+  echo "gfortran not found (set GFORTRAN_BIN=... to override), skipping." >&2
+fi
+
+### nvfortran
 if command -v "${nvfortran_bin}" >/dev/null 2>&1; then
   nv_tag="nvfortran"
 
@@ -242,9 +302,9 @@ fi
 
 echo
 echo "Summary (grid_pts_per_s, pts_per_s, setup_s)"
-printf "%-10s %-13s %-4s %s\n" "compiler" "metric" "dim" "value"
+printf "%-10s %-22s %-4s %s\n" "compiler" "metric" "dim" "value"
 for dim in 1d 2d 3d; do
-  for compiler in nvfortran; do
+  for compiler in gfortran nvfortran; do
     for metric in build build_lines build_resident_host build_resident_gpu \
       build_device_host build_device_gpu cpu \
       old_public_host old_public_gpu \
@@ -252,7 +312,7 @@ for dim in 1d 2d 3d; do
       openacc_setup_host openacc_host openacc_setup_gpu openacc_gpu; do
       key="${compiler},${metric},${dim}"
       if [[ -n "${results[$key]:-}" ]]; then
-        printf "%-10s %-13s %-4s %s\n" "${compiler}" "${metric}" "${dim}" "${results[$key]}"
+        printf "%-10s %-22s %-4s %s\n" "${compiler}" "${metric}" "${dim}" "${results[$key]}"
       fi
     done
   done

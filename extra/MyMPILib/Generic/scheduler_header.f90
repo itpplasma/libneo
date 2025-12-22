@@ -7,13 +7,11 @@
   include "comDispatcher_header.f90"
   include "wuDispatcher_header.f90"
 
-  !> Settings for the generic scheduler
+  !> Settings for the generic scheduler (hardcoded defaults - namelist removed for nvfortran bug)
   logical :: loadBalancing  = .false.
   integer :: bufferSize     = 32    !Megabytes
   integer :: verbose        = 0
   logical :: activateMPE         = .false.
-  namelist / nmlGenericScheduler / loadBalancing, buffersize, verbose, activateMPE
-  namelist / parallel / loadBalancing, buffersize, verbose, activateMPE
 
   !> Basic scheduler class with matmul performance testing
   type :: scheduler

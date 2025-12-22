@@ -23,14 +23,9 @@ add_library(neo STATIC
     src/coordinates/vmec_coordinates.f90
     src/coordinates/geoflux_coordinates.f90
     src/coordinates/libneo_coordinate_conventions.f90
-    src/coordinates/libneo_coordinates.f90
-    src/coordinates/libneo_coordinates_vmec.f90
-    src/coordinates/libneo_coordinates_geoflux.f90
-    src/coordinates/libneo_coordinates_chartmap.f90
-    src/coordinates/libneo_coordinates_chartmap_validator.f90
+    src/coordinates/libneo_coordinates_merged.f90
     src/coordinates/libneo_chartmap_vmec_generator.f90
     src/coordinates/libneo_coordinates_mapping.f90
-    src/coordinates/libneo_coordinates_file_detection.f90
     src/spline_vmec_data.f90
     src/vmecinm_m.f90
     src/vmec/vmec_field_tools.f90
@@ -48,7 +43,7 @@ add_library(neo STATIC
 
 target_link_libraries(neo PUBLIC
     $<TARGET_OBJECTS:neo_polylag>
-    $<TARGET_OBJECTS:interpolate>
+    interpolate
     hdf5_tools
     neo_field
 )
@@ -56,9 +51,16 @@ target_link_libraries(neo PUBLIC
 target_link_libraries(neo PRIVATE
   BLAS::BLAS
   LAPACK::LAPACK
-  netcdf
-  netcdff
 )
+
+# Link NetCDF - use built targets if available, otherwise system libraries
+if(TARGET netcdf::netcdff)
+    target_link_libraries(neo PRIVATE netcdf::netcdff)
+elseif(TARGET netcdf::netcdf)
+    target_link_libraries(neo PRIVATE netcdf::netcdf netcdff)
+else()
+    target_link_libraries(neo PRIVATE netcdf netcdff)
+endif()
 
 add_library(LIBNEO::neo ALIAS neo)
 set_target_properties(neo PROPERTIES
@@ -80,14 +82,7 @@ target_link_libraries(standardise_geqdsk.x magfie)
 add_executable(vacfield.x src/magfie/vacfield.f90)
 add_executable(coil_convert.x src/magfie/coil_convert.f90)
 
-# Find FFTW
-find_package(FFTW REQUIRED)
-
-if(FFTW_FOUND)
-    message(STATUS "Found FFTW")
-else()
-    message(FATAL_ERROR "FFTW not found")
-endif()
+# FFTW is detected in cmake/DetectDependencies.cmake
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})

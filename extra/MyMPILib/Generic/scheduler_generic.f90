@@ -17,27 +17,8 @@ subroutine init_scheduler(this)
 
     mpro%schedInitTime = MPI_WTime()
     
-    ! Read config file
-    open(f, file=this%configFilename, status='old', action='read', iostat = stat)
-    
-    if (stat == 0) then
-       read(f, nml=nmlGenericScheduler, iostat = stat) !< Old namelist 
-       if (stat /= 0) then
-          rewind(f)
-          read(f, nml=parallel, iostat = stat, iomsg = msg)   !< New namelist (neo2.in)
-          if (stat == 0) then
-             write (*,*) "MyMPILib: Settings found in ", trim(this%configFilename)
-          else          
-             write (*,*) "MyMPILib: No settings found in ", trim(this%configFilename), stat, msg
-          end if
-       else
-          write (*,*) "MyMPILib: Settings found in ", trim(this%configFilename)
-       end if
-       
-       close(f)
-    else
-       write (*,*) "MyMPILib: No configuration file for scheduler found, using default values."
-    end if
+    ! Namelist reading removed due to nvfortran 25.11 bug - using defaults
+    write (*,*) "MyMPILib: Using default scheduler settings (namelist disabled for nvfortran compatibility)"
     ! Set values of nameList
     this%balance = loadBalancing
     myLog%verbose = verbose

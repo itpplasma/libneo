@@ -1,4 +1,4 @@
-if (spl%periodic) then
+if (periodic) then
     t = x(ipt) - x_min
     k_wrap = int(t/period)
     w = t - real(k_wrap, dp)*period

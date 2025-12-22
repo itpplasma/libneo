@@ -44,7 +44,9 @@ contains
         call construct_batch_splines_1d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 
 #ifdef _OPENACC
-        !$acc enter data copyin(spl%coeff(1:spl%num_quantities, 0:spl%order, 1:spl%num_points))
+        ! Map only the allocatable component, not the whole derived type
+        ! This is compatible with both gfortran and nvfortran
+        !$acc enter data copyin(spl%coeff)
 #endif
     end subroutine construct_batch_splines_1d
 
@@ -243,8 +245,7 @@ contains
         logical, intent(in), optional :: assume_y_present
 
         integer :: n_points, n_quantities
-        logical :: do_update
-        logical :: do_assume_present
+        logical :: do_update, do_assume_present
 
         do_update = .true.
         if (present(update_host)) do_update = update_host
@@ -258,8 +259,7 @@ contains
         call construct_batch_splines_1d_resident_device_impl(x_min, x_max, n_points, &
                                                             n_quantities, y_batch, &
                                                             order, periodic, spl, &
-                                                            do_update, &
-                                                            do_assume_present)
+                                                            do_update, do_assume_present)
 #else
         call construct_batch_splines_1d_resident(x_min, x_max, y_batch, order, &
                                                  periodic, spl)
@@ -327,7 +327,7 @@ contains
                 " Allocation failed for coeff"
         end if
 
-        !$acc enter data create(spl%coeff(1:n_quantities, 0:order, 1:n_points))
+        !$acc enter data create(spl%coeff)
 
         allocate(work(n_points, n_quantities, 0:order), stat=istat)
         if (istat /= 0) then
@@ -427,10 +427,8 @@ contains
 
 #ifdef _OPENACC
         if (allocated(spl%coeff)) then
-            if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order, &
-                                         1:spl%num_points))) then
-                !$acc exit data delete(spl%coeff(1:spl%num_quantities, 0:spl%order, &
-                !$acc&                         1:spl%num_points))
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
             end if
         end if
 #endif
@@ -520,6 +518,7 @@ contains
 
         integer :: ipt, iq, k_power, idx, k_wrap
         integer :: num_points, nq, order
+        logical :: periodic
         real(dp) :: xj, x_norm, x_local, x_min, h_step, period, t, w
 
         if (size(y_batch, 1) < spl%num_quantities) then
@@ -530,10 +529,9 @@ contains
         end if
 
 #ifdef _OPENACC
-        if (acc_is_present(spl%coeff(1:spl%num_quantities, 0:spl%order, 1:spl%num_points))) then
-            !$acc data copyin(x(1:size(x))) create(y_batch(1:spl%num_quantities, 1:size(x)))
+        if (acc_is_present(spl%coeff)) then
+            !$acc data copyin(x) copy(y_batch)
             call evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
-            !$acc update self(y_batch(1:spl%num_quantities, 1:size(x)))
             !$acc end data
             return
         end if
@@ -542,6 +540,7 @@ contains
         order = spl%order
         num_points = spl%num_points
         nq = spl%num_quantities
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period = h_step*real(num_points - 1, dp)
@@ -554,10 +553,11 @@ contains
     subroutine evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
-        real(dp), intent(inout) :: y_batch(:, :)  ! (n_quantities, n_points)
+        real(dp), intent(inout) :: y_batch(:, :)
 
         integer :: ipt, iq, k_power, idx, k_wrap
         integer :: num_points, nq, order
+        logical :: periodic
         real(dp) :: xj, x_norm, x_local, x_min, h_step, period, t, w
 
         if (size(y_batch, 1) < spl%num_quantities) then
@@ -570,13 +570,13 @@ contains
         order = spl%order
         num_points = spl%num_points
         nq = spl%num_quantities
+        periodic = spl%periodic
         x_min = spl%x_min
         h_step = spl%h_step
         period = h_step*real(num_points - 1, dp)
 
         !$acc parallel loop present(spl%coeff, x, y_batch) &
-        !$acc& private(ipt, iq, k_power, idx, k_wrap, xj, x_norm, x_local, t, w) &
-        !$acc& gang vector vector_length(256)
+        !$acc& private(ipt, iq, k_power, idx, k_wrap, xj, x_norm, x_local, t, w)
         do ipt = 1, size(x)
             include "spline1d_many_point_body.inc"
         end do
