@@ -56,9 +56,16 @@ target_link_libraries(neo PUBLIC
 target_link_libraries(neo PRIVATE
   BLAS::BLAS
   LAPACK::LAPACK
-  netcdf
-  netcdff
 )
+
+# Link NetCDF - use built targets if available, otherwise system libraries
+if(TARGET netcdf::netcdff)
+    target_link_libraries(neo PRIVATE netcdf::netcdff)
+elseif(TARGET netcdf::netcdf)
+    target_link_libraries(neo PRIVATE netcdf::netcdf netcdff)
+else()
+    target_link_libraries(neo PRIVATE netcdf netcdff)
+endif()
 
 add_library(LIBNEO::neo ALIAS neo)
 set_target_properties(neo PROPERTIES

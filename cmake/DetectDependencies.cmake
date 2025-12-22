@@ -11,7 +11,7 @@
 #
 # After including, the following will be available:
 #   - HDF5 targets (hdf5::hdf5_fortran, etc.)
-#   - NetCDF linking via NETCDFINCLUDE_DIR and NETCDF_FLIBS_LIST
+#   - NetCDF linking via NETCDFINCLUDE_DIR and NETCDF_FLIBS_LIST, or netcdf::netcdff
 #   - FFTW targets (FFTW::Double, FFTW::DoubleThreads)
 
 include(${CMAKE_CURRENT_LIST_DIR}/CheckFortranDependency.cmake)
@@ -24,6 +24,11 @@ if(MUST_FETCH_FORTRAN_DEPS)
     message(STATUS "NVIDIA/PGI compiler detected - building Fortran dependencies from source")
     message(STATUS "")
 endif()
+
+# Track what needs to be built from source
+set(NEED_BUILD_HDF5 FALSE)
+set(NEED_BUILD_NETCDF FALSE)
+set(NEED_BUILD_FFTW FALSE)
 
 #------------------------------------------------------------------------------
 # HDF5 Detection
@@ -56,8 +61,7 @@ macro(detect_hdf5)
     endif()
 
     if(NOT HDF5_USABLE)
-        include(${CMAKE_CURRENT_LIST_DIR}/FetchHDF5.cmake)
-        set(HDF5_FETCHED TRUE CACHE BOOL "" FORCE)
+        set(NEED_BUILD_HDF5 TRUE)
     endif()
 endmacro()
 
@@ -95,6 +99,7 @@ macro(detect_netcdf)
                 set(NETCDFINCLUDE_DIR "${NETCDFINCLUDE_DIR}" CACHE PATH "" FORCE)
                 set(NETCDFLIB_DIR "${NETCDFLIB_DIR}" CACHE PATH "" FORCE)
                 set(NETCDF_FLIBS_LIST "${NETCDF_FLIBS_LIST}" CACHE STRING "" FORCE)
+                set(NETCDF_FOUND TRUE CACHE BOOL "" FORCE)
             else()
                 message(STATUS "  -> ABI incompatible, will build from source")
             endif()
@@ -104,7 +109,9 @@ macro(detect_netcdf)
     endif()
 
     if(NOT NETCDF_USABLE)
-        include(${CMAKE_CURRENT_LIST_DIR}/FetchNetCDF.cmake)
+        set(NEED_BUILD_NETCDF TRUE)
+        # NetCDF depends on HDF5, so we need to build that too
+        set(NEED_BUILD_HDF5 TRUE)
     endif()
 endmacro()
 
@@ -127,15 +134,15 @@ macro(detect_fftw)
     endif()
 
     if(NOT FFTW_USABLE)
-        include(${CMAKE_CURRENT_LIST_DIR}/FetchFFTW.cmake)
+        set(NEED_BUILD_FFTW TRUE)
     endif()
 endmacro()
 
 #------------------------------------------------------------------------------
-# Apply detected NetCDF to build
+# Apply detected NetCDF to build (for system libs case)
 #------------------------------------------------------------------------------
 macro(apply_netcdf_to_build)
-    if(NETCDF_USABLE)
+    if(NETCDF_USABLE AND NOT NETCDF_FETCHED)
         include_directories(${NETCDFINCLUDE_DIR})
         link_directories(${NETCDFLIB_DIR})
         add_link_options(${NETCDF_FLIBS_LIST})
@@ -153,8 +160,32 @@ detect_hdf5()
 detect_netcdf()
 detect_fftw()
 
-# Apply NetCDF settings to the build
-apply_netcdf_to_build()
+# If any dependencies need to be built from source, use the superbuild
+if(NEED_BUILD_HDF5 OR NEED_BUILD_NETCDF OR NEED_BUILD_FFTW)
+    message(STATUS "")
+    message(STATUS "Some dependencies will be built from source:")
+    if(NEED_BUILD_HDF5)
+        message(STATUS "  - HDF5")
+    endif()
+    if(NEED_BUILD_NETCDF)
+        message(STATUS "  - NetCDF-C and NetCDF-Fortran")
+    endif()
+    if(NEED_BUILD_FFTW)
+        message(STATUS "  - FFTW")
+    endif()
+
+    # Include the superbuild module and build all needed dependencies
+    include(${CMAKE_CURRENT_LIST_DIR}/BuildExternalDependencies.cmake)
+    build_all_external_dependencies()
+
+    # Set include directory for built NetCDF
+    if(NEED_BUILD_NETCDF)
+        include_directories(${DEPS_PREFIX}/include)
+    endif()
+else()
+    # Apply NetCDF settings to the build (system libs)
+    apply_netcdf_to_build()
+endif()
 
 message(STATUS "")
 message(STATUS "=== Dependency Detection Complete ===")

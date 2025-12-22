@@ -153,34 +153,40 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
     # Base flags for all builds
-    add_compile_options(-cpp)
-
-elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
-    # Base flags for all builds
-    add_compile_options(-Mpreprocess)
-    if(ENABLE_OPENACC)
-        if(EXISTS "/opt/cuda" AND NOT DEFINED ENV{NVHPC_CUDA_HOME})
-            set(ENV{NVHPC_CUDA_HOME} "/opt/cuda")
-            set(ENV{NVCOMPILER_CUDA_HOME} "/opt/cuda")
-        endif()
-        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-acc>)
-        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-gpu=ccnative>)
-        add_link_options($<$<LINK_LANGUAGE:Fortran>:-acc>)
-        add_link_options($<$<LINK_LANGUAGE:Fortran>:-gpu=ccnative>)
-    endif()
+    add_compile_options(-cpp -fPIC -g)
 
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
-        add_compile_options(-g -O0 -check all -traceback -warn all)
+        add_compile_options(-O0 -check all -traceback -warn all)
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
         # Common optimization flags for Release and Fast builds
-        add_compile_options(-O3 -fp-model fast=2 -no-prec-div -g -traceback)
+        add_compile_options(-O3 -fp-model fast=2 -no-prec-div -traceback)
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast)
-            add_compile_options(-xHost)  # Intel's equivalent of -march=native
+            add_compile_options(-xHost)  # Native architecture
         else()
-            add_compile_options(-xCORE-AVX2)  # Intel's equivalent of x86-64-v2
+            add_compile_options(-xCORE-AVX2)  # Broad compatibility baseline
+        endif()
+    endif()
+
+elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
+    # Base flags for all builds
+    add_compile_options(-Mpreprocess -fPIC -g)
+
+    # Note: OpenACC is applied selectively to interpolate library only
+    # See src/interpolate/CMakeLists.txt
+
+    # Build type specific flags
+    if(CMAKE_BUILD_TYPE MATCHES Debug)
+        add_compile_options(-O0 -Mbounds -traceback)
+    elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
+        # Common optimization flags for Release and Fast builds
+        add_compile_options(-fast -O3 -Mfprelaxed -traceback)
+
+        # Architecture-specific flags
+        if(CMAKE_BUILD_TYPE MATCHES Fast)
+            add_compile_options(-tp=host)  # Native architecture
         endif()
     endif()
 endif()

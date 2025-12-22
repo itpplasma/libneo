@@ -25,14 +25,21 @@ add_library(magfie STATIC
 )
 target_link_libraries(magfie PRIVATE
     neo
-    netcdf
-    netcdff
     hdf5_tools
     BLAS::BLAS
     LAPACK::LAPACK
     FFTW::DoubleThreads
     FFTW::Double
 )
+
+# Link NetCDF - use built targets if available, otherwise system libraries
+if(TARGET netcdf::netcdff)
+    target_link_libraries(magfie PRIVATE netcdf::netcdff)
+elseif(TARGET netcdf::netcdf)
+    target_link_libraries(magfie PRIVATE netcdf::netcdf netcdff)
+else()
+    target_link_libraries(magfie PRIVATE netcdf netcdff)
+endif()
 set_property(TARGET neo_field PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::magfie ALIAS magfie)
