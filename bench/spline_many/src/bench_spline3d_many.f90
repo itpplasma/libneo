@@ -8,7 +8,8 @@ program bench_spline3d_many
                                     construct_batch_splines_3d_resident_device, &
                                     evaluate_batch_splines_3d, &
                                     evaluate_batch_splines_3d_many, &
-                                    destroy_batch_splines_3d
+                                    destroy_batch_splines_3d, &
+                                    destroy_batch_splines_3d_device_only
     use spline3d_many_offload, only: spline3d_many_setup, &
                                      spline3d_many_teardown, &
                                      spline3d_many_eval_host, &
@@ -207,6 +208,8 @@ contains
 #if defined(LIBNEO_ENABLE_OPENACC)
         call destroy_batch_splines_3d(spl_out)
 
+        ! GCC bug workaround: reuse allocation to avoid repeated map/unmap cycle
+        ! The construct function now reuses existing allocations when possible
         best_build = huge(1.0d0)
         do it = 1, nbuild_resident
             t0 = wall_time()
@@ -215,15 +218,11 @@ contains
                                                          y_grid_local, &
                                                          order, periodic, spl_out)
                 !$acc wait
-                call destroy_batch_splines_3d(spl_out)
             end do
             t1 = wall_time()
             dt = (t1 - t0) / real(nbuild_repeat, dp)
             best_build = min(best_build, dt)
         end do
-
-        call construct_batch_splines_3d_resident(x_min_local, x_max_local, &
-                                                 y_grid_local, order, periodic, spl_out)
 
         grid_pts_per_s = real(num_points(1)*num_points(2), dp) * &
                          real(num_points(3)*num_quantities, dp) / best_build
@@ -243,6 +242,8 @@ contains
         real(dp) :: grid_pts_per_s
 
 #if defined(LIBNEO_ENABLE_OPENACC)
+        ! GCC bug workaround: reuse allocation to avoid repeated map/unmap cycle
+        ! The construct function now reuses existing allocations when possible
         best_build = huge(1.0d0)
         do it = 1, nbuild_resident
             t0 = wall_time()
@@ -251,7 +252,6 @@ contains
                     x_min, x_max, y_grid, order, periodic, spl_dev, &
                     update_host=.true., assume_y_present=.false.)
                 !$acc wait
-                call destroy_batch_splines_3d(spl_dev)
             end do
             t1 = wall_time()
             dt = (t1 - t0) / real(nbuild_repeat, dp)
@@ -261,9 +261,9 @@ contains
                               num_quantities, dp) / best_build
         print *, "build_device_host best_s ", best_build, " grid_pts_per_s ", &
             grid_pts_per_s
+        call destroy_batch_splines_3d(spl_dev)
 
-#if defined(__NVCOMPILER)
-        ! NVHPC: Test build with y_grid already present on device
+        ! Test build with y_grid already present on device
         !$acc enter data copyin(y_grid)
         best_build = huge(1.0d0)
         do it = 1, nbuild_resident
@@ -273,22 +273,17 @@ contains
                     x_min, x_max, y_grid, order, periodic, spl_dev, &
                     update_host=.false., assume_y_present=.true.)
                 !$acc wait
-                call destroy_batch_splines_3d(spl_dev)
             end do
             t1 = wall_time()
             dt = (t1 - t0) / real(nbuild_repeat, dp)
             best_build = min(best_build, dt)
         end do
         !$acc exit data delete(y_grid)
+        call destroy_batch_splines_3d(spl_dev)
         grid_pts_per_s = real(num_points(1)*num_points(2)*num_points(3)* &
                               num_quantities, dp) / best_build
         print *, "build_device_gpu best_s ", best_build, " grid_pts_per_s ", &
             grid_pts_per_s
-#else
-        ! GCC: Skip this phase due to acc_is_present issues with assumed-shape
-        ! arrays passed across subroutine boundaries
-        print *, "build_device_gpu best_s ", 0.0_dp, " grid_pts_per_s ", 0.0_dp
-#endif
 #endif
     end subroutine bench_build_device_3d
 

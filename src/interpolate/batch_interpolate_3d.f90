@@ -19,6 +19,7 @@ module batch_interpolate_3d
     public :: construct_batch_splines_3d_resident
     public :: construct_batch_splines_3d_resident_device
     public :: destroy_batch_splines_3d
+    public :: destroy_batch_splines_3d_device_only
 
 #ifdef LIBNEO_ENABLE_SPLINE_ORACLE
     public :: construct_batch_splines_3d_legacy
@@ -38,7 +39,25 @@ contains
         real(dp), intent(in) :: y_batch(:,:,:,:)  ! (n1, n2, n3, n_quantities)
         integer, intent(in) :: order(3)
         logical, intent(in) :: periodic(3)
-        type(BatchSplineData3D), intent(out) :: spl
+        type(BatchSplineData3D), intent(inout) :: spl
+
+#ifdef _OPENACC
+        logical :: needs_map
+
+        ! GCC OpenACC bug workaround: check if already present to avoid
+        ! repeated map/unmap cycle that crashes on iteration 2
+        needs_map = .true.
+        if (allocated(spl%coeff)) then
+            if (acc_is_present(spl%coeff)) then
+                needs_map = .false.
+                ! Already mapped - just update the data
+                call construct_batch_splines_3d_legacy(x_min, x_max, y_batch, &
+                                                       order, periodic, spl)
+                !$acc update device(spl%coeff)
+                return
+            end if
+        end if
+#endif
 
         call construct_batch_splines_3d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 
@@ -54,15 +73,16 @@ contains
         real(dp), intent(in) :: y_batch(:,:,:,:)  ! (n1, n2, n3, n_quantities)
         integer, intent(in) :: order(3)
         logical, intent(in) :: periodic(3)
-        type(BatchSplineData3D), intent(out) :: spl
-        
+        type(BatchSplineData3D), intent(inout) :: spl
+
         real(dp), dimension(:,:), allocatable  :: splcoe
         real(dp), dimension(:,:,:,:,:,:), allocatable :: temp_coeff
         integer :: i1, i2, i3, iq  ! Loop indices
         integer :: k2, k3          ! Loop indices for polynomial order
         integer :: n1, n2, n3, n_quantities, istat
         integer :: N1_order, N2_order, N3_order
-        
+        logical :: needs_alloc
+
         n1 = size(y_batch, 1)
         n2 = size(y_batch, 2)
         n3 = size(y_batch, 3)
@@ -70,7 +90,7 @@ contains
         N1_order = order(1)
         N2_order = order(2)
         N3_order = order(3)
-        
+
         ! Validate input
         if (n1 < 2 .or. n2 < 2 .or. n3 < 2) then
             error stop &
@@ -84,7 +104,7 @@ contains
             N3_order < 3 .or. N3_order > 5) then
             error stop "construct_batch_splines_3d: Orders must be between 3 and 5"
         end if
-        
+
         ! Store metadata
         spl%order = order
         spl%num_points = [n1, n2, n3]
@@ -94,14 +114,32 @@ contains
                       (x_max(3) - x_min(3))/dble(n3-1)]
         spl%x_min = x_min
         spl%num_quantities = n_quantities
-        
-        ! Allocate batch coefficients with cache-friendly layout
-        allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
-            n1, n2, n3), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_3d: Allocation failed for coeff"
+
+        ! GCC OpenACC bug workaround: reuse existing allocation if possible
+        needs_alloc = .true.
+        if (allocated(spl%coeff)) then
+            if (size(spl%coeff, 1) == n_quantities .and. &
+                size(spl%coeff, 2) == N1_order + 1 .and. &
+                size(spl%coeff, 3) == N2_order + 1 .and. &
+                size(spl%coeff, 4) == N3_order + 1 .and. &
+                size(spl%coeff, 5) == n1 .and. &
+                size(spl%coeff, 6) == n2 .and. &
+                size(spl%coeff, 7) == n3) then
+                needs_alloc = .false.
+            else
+                deallocate(spl%coeff)
+            end if
         end if
-        
+
+        ! Allocate batch coefficients with cache-friendly layout
+        if (needs_alloc) then
+            allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
+                n1, n2, n3), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_3d: Allocation failed for coeff"
+            end if
+        end if
+
         allocate(temp_coeff(0:N1_order, 0:N2_order, 0:N3_order, n1, n2, n3), &
             stat=istat)
         if (istat /= 0) then
@@ -477,7 +515,7 @@ contains
         real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
         integer, intent(in) :: order(:)
         logical, intent(in) :: periodic(:)
-        type(BatchSplineData3D), intent(out) :: spl
+        type(BatchSplineData3D), intent(inout) :: spl
 
         call construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
     end subroutine construct_batch_splines_3d_resident
@@ -490,7 +528,7 @@ contains
         real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
         integer, intent(in) :: order(3)
         logical, intent(in) :: periodic(3)
-        type(BatchSplineData3D), intent(out) :: spl
+        type(BatchSplineData3D), intent(inout) :: spl
         logical, intent(in), optional :: update_host
         logical, intent(in), optional :: assume_y_present
 
@@ -530,7 +568,7 @@ contains
         real(dp), intent(in) :: y_batch(n1, n2, n3, n_quantities)
         integer, intent(in) :: order(3)
         logical, intent(in) :: periodic(3)
-        type(BatchSplineData3D), intent(out) :: spl
+        type(BatchSplineData3D), intent(inout) :: spl
         logical, intent(in) :: do_update
         logical, intent(in) :: do_assume_present
 
@@ -625,14 +663,37 @@ contains
         spl%x_min = x_min
         spl%num_quantities = n_quantities
 
-        allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
-            n1, n2, n3), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_3d_resident_device:" // &
-                " Allocation failed for coeff"
+        ! GCC OpenACC bug workaround: reuse existing allocation if possible
+        ! to avoid repeated map/unmap cycle that crashes on iteration 2
+        if (.not. allocated(spl%coeff)) then
+            allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
+                n1, n2, n3), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Allocation failed for coeff"
+            end if
+            !$acc enter data create(spl%coeff)
+        else if (size(spl%coeff, 1) /= n_quantities .or. &
+                 size(spl%coeff, 2) /= N1_order + 1 .or. &
+                 size(spl%coeff, 3) /= N2_order + 1 .or. &
+                 size(spl%coeff, 4) /= N3_order + 1 .or. &
+                 size(spl%coeff, 5) /= n1 .or. &
+                 size(spl%coeff, 6) /= n2 .or. &
+                 size(spl%coeff, 7) /= n3) then
+            ! Size mismatch - need to reallocate
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
+            end if
+            deallocate(spl%coeff)
+            allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
+                n1, n2, n3), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Allocation failed for coeff"
+            end if
+            !$acc enter data create(spl%coeff)
         end if
-
-        !$acc enter data create(spl%coeff)
+        ! If already allocated with right size, reuse (GCC bug workaround)
 
         allocate(work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
         if (istat /= 0) then
@@ -656,23 +717,10 @@ contains
 
 #ifdef _OPENACC
         block
-            logical :: y_was_present
-            logical :: did_copyin_y
-
-            y_was_present = acc_is_present(y_batch)
-            if (do_assume_present .and. .not. y_was_present) then
-                error stop "construct_batch_splines_3d_resident_device:" // &
-                    " assume_y_present=T but y_batch is not present"
-            end if
-            did_copyin_y = .false.
-            if (.not. y_was_present) then
-                !$acc enter data copyin(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities))
-                did_copyin_y = .true.
-            end if
-
             !$acc enter data create(work3, work2, work1)
 
-            !$acc parallel loop collapse(4) gang present(y_batch, work3)
+            !$acc parallel loop collapse(4) gang present(work3) &
+            !$acc&    present_or_copyin(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities))
             do iq = 1, n_quantities
                 do i2 = 1, n2
                     do i1 = 1, n1
@@ -752,9 +800,6 @@ contains
             end do
 
             !$acc exit data delete(work3, work2, work1)
-            if (did_copyin_y) then
-                !$acc exit data delete(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities))
-            end if
         end block
 #endif
 
@@ -780,8 +825,20 @@ contains
 #endif
         if (allocated(spl%coeff)) deallocate(spl%coeff)
     end subroutine destroy_batch_splines_3d
-    
-    
+
+    subroutine destroy_batch_splines_3d_device_only(spl)
+        type(BatchSplineData3D), intent(inout) :: spl
+
+#ifdef _OPENACC
+        if (allocated(spl%coeff)) then
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
+            end if
+        end if
+#endif
+    end subroutine destroy_batch_splines_3d_device_only
+
+
     subroutine evaluate_batch_splines_3d(spl, x, y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)

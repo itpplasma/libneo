@@ -501,23 +501,10 @@ contains
 
 #ifdef _OPENACC
         block
-            logical :: y_was_present
-            logical :: did_copyin_y
-
-            y_was_present = acc_is_present(y_batch)
-            if (do_assume_present .and. .not. y_was_present) then
-                error stop "construct_batch_splines_2d_resident_device:" // &
-                    " assume_y_present=T but y_batch is not present"
-            end if
-            did_copyin_y = .false.
-            if (.not. y_was_present) then
-                !$acc enter data copyin(y_batch(1:n1, 1:n2, 1:n_quantities))
-                did_copyin_y = .true.
-            end if
-
             !$acc enter data create(work2, work1)
 
-            !$acc parallel loop collapse(3) gang present(y_batch, work2)
+            !$acc parallel loop collapse(3) gang present(work2) &
+            !$acc&    present_or_copyin(y_batch(1:n1, 1:n2, 1:n_quantities))
             do iq = 1, n_quantities
                 do i1 = 1, n1
                     do i2 = 1, n2
@@ -567,9 +554,6 @@ contains
             end do
 
             !$acc exit data delete(work2, work1)
-            if (did_copyin_y) then
-                !$acc exit data delete(y_batch(1:n1, 1:n2, 1:n_quantities))
-            end if
         end block
 #endif
 
