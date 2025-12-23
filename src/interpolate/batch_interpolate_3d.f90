@@ -577,11 +577,14 @@ contains
         integer :: order1, order2, order3
         integer :: i1, i2, i3, iq, k1, k2, k3
         integer :: line, line2, line3
-        real(dp), allocatable :: work3(:, :, :)
-        real(dp), allocatable :: work2(:, :, :)
-        real(dp), allocatable :: work1(:, :, :)
+        ! GCC OpenACC bug workaround: keep work arrays persistent across calls
+        ! to avoid address reuse that triggers the mapping bug
+        real(dp), allocatable, save :: work3(:, :, :)
+        real(dp), allocatable, save :: work2(:, :, :)
+        real(dp), allocatable, save :: work1(:, :, :)
         real(dp) :: h1, h2, h3
         logical :: periodic1, periodic2, periodic3
+        logical :: work_needs_alloc
 
         N1_order = order(1)
         N2_order = order(2)
@@ -695,20 +698,38 @@ contains
         end if
         ! If already allocated with right size, reuse (GCC bug workaround)
 
-        allocate(work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_3d_resident_device:" // &
-                " Allocation failed for work3"
+        ! GCC OpenACC bug workaround: check if work arrays need (re)allocation
+        work_needs_alloc = .not. allocated(work3)
+        if (allocated(work3)) then
+            if (size(work3, 1) /= n3 .or. &
+                size(work3, 2) /= n1*n2*n_quantities .or. &
+                size(work3, 3) /= N3_order + 1) then
+#ifdef _OPENACC
+                if (acc_is_present(work3)) then
+                    !$acc exit data delete(work3, work2, work1)
+                end if
+#endif
+                deallocate(work3, work2, work1)
+                work_needs_alloc = .true.
+            end if
         end if
-        allocate(work2(n2, n1*n3*n_quantities, 0:N2_order), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_3d_resident_device:" // &
-                " Allocation failed for work2"
-        end if
-        allocate(work1(n1, n2*n3*n_quantities, 0:N1_order), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_3d_resident_device:" // &
-                " Allocation failed for work1"
+
+        if (work_needs_alloc) then
+            allocate(work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Allocation failed for work3"
+            end if
+            allocate(work2(n2, n1*n3*n_quantities, 0:N2_order), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Allocation failed for work2"
+            end if
+            allocate(work1(n1, n2*n3*n_quantities, 0:N1_order), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_3d_resident_device:" // &
+                    " Allocation failed for work1"
+            end if
         end if
 
         h1 = spl%h_step(1)
@@ -717,9 +738,15 @@ contains
 
 #ifdef _OPENACC
         block
-            !$acc enter data create(work3, work2, work1)
+            if (work_needs_alloc) then
+                !$acc enter data create(work3, work2, work1)
+            end if
 
-            !$acc parallel loop collapse(4) gang present(work3) &
+            ! GCC OpenACC bug workaround: first parallel loop MUST write to spl%coeff
+            ! to properly initialize the struct mapping. Include spl%coeff in present
+            ! clause AND write to it (even if overwritten later).
+            ! See gcc-dev/pr/new_struct_realloc/README.md for details.
+            !$acc parallel loop collapse(4) gang present(work3, spl%coeff) &
             !$acc&    present_or_copyin(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities))
             do iq = 1, n_quantities
                 do i2 = 1, n2
@@ -727,6 +754,8 @@ contains
                         do i3 = 1, n3
                             line = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
                             work3(i3, line, 0) = y_batch(i1, i2, i3, iq)
+                            ! GCC bug workaround: write to coeff in first loop
+                            spl%coeff(iq, 0, 0, 0, i1, i2, i3) = 0.0d0
                         end do
                     end do
                 end do
@@ -734,7 +763,8 @@ contains
 
             !$acc parallel loop gang present(work3)
             do line = 1, n1*n2*n_quantities
-                call spl_build_line_inplace(order3, periodic3, n3, h3, work3, line)
+                call spl_build_line_inplace(order3, periodic3, n3, h3, work3, &
+                                            line)
             end do
 
             do k3 = 0, N3_order
@@ -754,8 +784,8 @@ contains
 
                 !$acc parallel loop gang present(work2)
                 do line = 1, n1*n3*n_quantities
-                    call spl_build_line_inplace(order2, periodic2, n2, h2, work2, &
-                                                line)
+                    call spl_build_line_inplace(order2, periodic2, n2, h2, &
+                                                work2, line)
                 end do
 
                 do k2 = 0, N2_order
@@ -779,33 +809,29 @@ contains
                                                     work1, line)
                     end do
 
-                    associate (coeff => spl%coeff)
-                        !$acc parallel loop collapse(4) gang present(work1, coeff)
-                        do iq = 1, n_quantities
-                            do i3 = 1, n3
-                                do i2 = 1, n2
-                                    do i1 = 1, n1
-                                        line = i2 + (i3 - 1)*n2 + (iq - 1)*n2*n3
-                                        !$acc loop vector
-                                        do k1 = 0, N1_order
-                                            coeff(iq, k1, k2, k3, i1, i2, i3) = &
-                                                work1(i1, line, k1)
-                                        end do
+                    !$acc parallel loop collapse(4) gang present(work1, spl%coeff)
+                    do iq = 1, n_quantities
+                        do i3 = 1, n3
+                            do i2 = 1, n2
+                                do i1 = 1, n1
+                                    line = i2 + (i3 - 1)*n2 + (iq - 1)*n2*n3
+                                    !$acc loop vector
+                                    do k1 = 0, N1_order
+                                        spl%coeff(iq, k1, k2, k3, i1, i2, i3) = &
+                                            work1(i1, line, k1)
                                     end do
                                 end do
                             end do
                         end do
-                    end associate
+                    end do
                 end do
             end do
 
-            !$acc exit data delete(work3, work2, work1)
+            ! GCC bug workaround: keep work arrays mapped for next call
         end block
 #endif
 
-        deallocate(work1)
-        deallocate(work2)
-        deallocate(work3)
+        ! GCC bug workaround: keep work arrays allocated for next call
         if (do_update) then
             !$acc update self(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, &
             !$acc&                        0:N3_order, 1:n1, 1:n2, 1:n3))

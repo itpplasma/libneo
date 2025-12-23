@@ -261,7 +261,7 @@ contains
                               num_quantities, dp) / best_build
         print *, "build_device_host best_s ", best_build, " grid_pts_per_s ", &
             grid_pts_per_s
-        call destroy_batch_splines_3d(spl_dev)
+        ! GCC bug workaround: don't destroy between phases, keep mapping persistent
 
         ! Test build with y_grid already present on device
         !$acc enter data copyin(y_grid)
