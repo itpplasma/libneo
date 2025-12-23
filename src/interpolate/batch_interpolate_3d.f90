@@ -42,29 +42,13 @@ contains
         type(BatchSplineData3D), intent(inout) :: spl
 
 #ifdef _OPENACC
-        logical :: needs_map
-
-        ! GCC OpenACC bug workaround: check if already present to avoid
-        ! repeated map/unmap cycle that crashes on iteration 2
-        needs_map = .true.
-        if (allocated(spl%coeff)) then
-            if (acc_is_present(spl%coeff)) then
-                needs_map = .false.
-                ! Already mapped - just update the data
-                call construct_batch_splines_3d_legacy(x_min, x_max, y_batch, &
-                                                       order, periodic, spl)
-                !$acc update device(spl%coeff)
-                return
-            end if
-        end if
-#endif
-
+        ! Use GPU construction by default (3-9x faster than CPU)
+        call construct_batch_splines_3d_resident_device(x_min, x_max, y_batch, &
+                                                        order, periodic, spl, &
+                                                        update_host=.true., &
+                                                        assume_y_present=.false.)
+#else
         call construct_batch_splines_3d_legacy(x_min, x_max, y_batch, order, periodic, spl)
-
-#ifdef _OPENACC
-        ! Map only the allocatable component, not the whole derived type
-        ! This is compatible with both gfortran and nvfortran
-        !$acc enter data copyin(spl%coeff)
 #endif
     end subroutine construct_batch_splines_3d
 
@@ -699,11 +683,18 @@ contains
         ! If already allocated with right size, reuse (GCC bug workaround)
 
         ! GCC OpenACC bug workaround: check if work arrays need (re)allocation
+        ! Must check ALL three work arrays since their sizes depend on different orders
         work_needs_alloc = .not. allocated(work3)
         if (allocated(work3)) then
             if (size(work3, 1) /= n3 .or. &
                 size(work3, 2) /= n1*n2*n_quantities .or. &
-                size(work3, 3) /= N3_order + 1) then
+                size(work3, 3) /= N3_order + 1 .or. &
+                size(work2, 1) /= n2 .or. &
+                size(work2, 2) /= n1*n3*n_quantities .or. &
+                size(work2, 3) /= N2_order + 1 .or. &
+                size(work1, 1) /= n1 .or. &
+                size(work1, 2) /= n2*n3*n_quantities .or. &
+                size(work1, 3) /= N1_order + 1) then
 #ifdef _OPENACC
                 if (acc_is_present(work3)) then
                     !$acc exit data delete(work3, work2, work1)
@@ -742,33 +733,37 @@ contains
                 !$acc enter data create(work3, work2, work1)
             end if
 
-            ! GCC OpenACC bug workaround: first parallel loop MUST write to spl%coeff
-            ! to properly initialize the struct mapping. Include spl%coeff in present
-            ! clause AND write to it (even if overwritten later).
-            ! See gcc-dev/pr/new_struct_realloc/README.md for details.
-            !$acc parallel loop collapse(4) gang present(work3, spl%coeff) &
-            !$acc&    present_or_copyin(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities))
+            ! Copy input data to work3
+            !$acc parallel present(work3) &
+            !$acc&    present_or_copyin(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities)) &
+            !$acc&    firstprivate(n1, n2, n_quantities)
+            !$acc loop gang
             do iq = 1, n_quantities
+                !$acc loop worker
                 do i2 = 1, n2
+                    !$acc loop vector collapse(2)
                     do i1 = 1, n1
                         do i3 = 1, n3
                             line = i1 + (i2 - 1)*n1 + (iq - 1)*n1*n2
                             work3(i3, line, 0) = y_batch(i1, i2, i3, iq)
-                            ! GCC bug workaround: write to coeff in first loop
-                            spl%coeff(iq, 0, 0, 0, i1, i2, i3) = 0.0d0
                         end do
                     end do
                 end do
             end do
+            !$acc end parallel
+            !$acc wait
 
-            !$acc parallel loop gang present(work3)
+            !$acc parallel loop gang present(work3) &
+            !$acc&    firstprivate(order3, periodic3, n3, h3)
             do line = 1, n1*n2*n_quantities
                 call spl_build_line_inplace(order3, periodic3, n3, h3, work3, &
                                             line)
             end do
+            !$acc wait
 
             do k3 = 0, N3_order
-                !$acc parallel loop collapse(3) gang present(work2, work3)
+                !$acc parallel loop collapse(3) gang present(work2, work3) &
+                !$acc&    firstprivate(n1, n2, n3, n_quantities, k3)
                 do iq = 1, n_quantities
                     do i3 = 1, n3
                         do i1 = 1, n1
@@ -781,15 +776,19 @@ contains
                         end do
                     end do
                 end do
+                !$acc wait
 
-                !$acc parallel loop gang present(work2)
+                !$acc parallel loop gang present(work2) &
+                !$acc&    firstprivate(order2, periodic2, n2, h2)
                 do line = 1, n1*n3*n_quantities
                     call spl_build_line_inplace(order2, periodic2, n2, h2, &
                                                 work2, line)
                 end do
+                !$acc wait
 
                 do k2 = 0, N2_order
-                    !$acc parallel loop collapse(3) gang present(work1, work2)
+                    !$acc parallel loop collapse(3) gang present(work1, work2) &
+                    !$acc&    firstprivate(n1, n2, n3, n_quantities, k2)
                     do iq = 1, n_quantities
                         do i3 = 1, n3
                             do i2 = 1, n2
@@ -802,14 +801,18 @@ contains
                             end do
                         end do
                     end do
+                    !$acc wait
 
-                    !$acc parallel loop gang present(work1)
+                    !$acc parallel loop gang present(work1) &
+                    !$acc&    firstprivate(order1, periodic1, n1, h1)
                     do line = 1, n2*n3*n_quantities
                         call spl_build_line_inplace(order1, periodic1, n1, h1, &
                                                     work1, line)
                     end do
+                    !$acc wait
 
-                    !$acc parallel loop collapse(4) gang present(work1, spl%coeff)
+                    !$acc parallel loop collapse(4) gang present(work1, spl%coeff) &
+                    !$acc&    firstprivate(n1, n2, n3, n_quantities, N1_order)
                     do iq = 1, n_quantities
                         do i3 = 1, n3
                             do i2 = 1, n2
