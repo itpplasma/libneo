@@ -262,6 +262,8 @@ contains
         print *, "build_device_host best_s ", best_build, " grid_pts_per_s ", &
             grid_pts_per_s
 
+#if defined(__NVCOMPILER)
+        ! NVHPC: Test build with y_grid already present on device
         !$acc enter data copyin(y_grid)
         best_build = huge(1.0d0)
         do it = 1, nbuild_resident
@@ -282,6 +284,11 @@ contains
                               num_quantities, dp) / best_build
         print *, "build_device_gpu best_s ", best_build, " grid_pts_per_s ", &
             grid_pts_per_s
+#else
+        ! GCC: Skip this phase due to acc_is_present issues with assumed-shape
+        ! arrays passed across subroutine boundaries
+        print *, "build_device_gpu best_s ", 0.0_dp, " grid_pts_per_s ", 0.0_dp
+#endif
 #endif
     end subroutine bench_build_device_3d
 

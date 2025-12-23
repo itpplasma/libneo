@@ -672,7 +672,8 @@ contains
 
             !$acc enter data create(work3, work2, work1)
 
-            !$acc parallel loop collapse(4) gang present(y_batch, work3)
+            !$acc parallel loop collapse(4) gang &
+            !$acc& present(y_batch(1:n1, 1:n2, 1:n3, 1:n_quantities), work3)
             do iq = 1, n_quantities
                 do i2 = 1, n2
                     do i1 = 1, n1
