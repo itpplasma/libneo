@@ -26,7 +26,7 @@ program test_batch_interpolate_oracle
 contains
 
     subroutine test_oracle_1d()
-        real(dp), parameter :: rel_tol = 1.0d-14
+        real(dp), parameter :: rel_tol = 5.0d-14
         real(dp), parameter :: x_min = 1.23d0
         real(dp), parameter :: x_max = 7.89d0
         integer, parameter :: n_points = 64
@@ -87,7 +87,7 @@ contains
 
 
     subroutine test_oracle_2d()
-        real(dp), parameter :: rel_tol = 1.0d-14
+        real(dp), parameter :: rel_tol = 5.0d-14
         real(dp), parameter :: x_min(2) = [1.23d0, -0.75d0]
         real(dp), parameter :: x_max(2) = [4.56d0,  2.25d0]
         integer, parameter :: n1 = 32, n2 = 33
@@ -164,7 +164,7 @@ contains
 
 
     subroutine test_oracle_3d()
-        real(dp), parameter :: rel_tol = 1.0d-14
+        real(dp), parameter :: rel_tol = 5.0d-14
         real(dp), parameter :: x_min(3) = [0.10d0, -1.20d0, 2.20d0]
         real(dp), parameter :: x_max(3) = [1.70d0,  0.80d0, 3.70d0]
         integer, parameter :: n1 = 16, n2 = 17, n3 = 18

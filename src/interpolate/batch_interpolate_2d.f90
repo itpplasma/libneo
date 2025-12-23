@@ -29,6 +29,7 @@ module batch_interpolate_2d
     public :: evaluate_batch_splines_2d_der
     public :: evaluate_batch_splines_2d_many
     public :: evaluate_batch_splines_2d_many_resident
+    public :: evaluate_batch_splines_2d_many_der
     
 contains
     
@@ -629,68 +630,13 @@ contains
         type(BatchSplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
-        
-        real(dp) :: x_norm(2), x_local(2), xj
-        real(dp) :: coeff_2(spl%num_quantities, 0:spl%order(2))
-        integer :: interval_index(2), k1, k2, j, iq
-        integer :: N1, N2
-        
-        N1 = spl%order(1)
-        N2 = spl%order(2)
-        
-        ! Validate output size
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_2d: Output array too small"
-        end if
-        
-        do j=1,2
-            if (spl%periodic(j)) then
-                xj = modulo(x(j) - spl%x_min(j), &
-                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
-            else
-                xj = x(j)
-            end if
-            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-            interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
-            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
-        end do
-        
-        ! First reduction: interpolation over x1
-        ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
-                coeff_2(iq, k2) = spl%coeff(iq, N1, k2, &
-                    interval_index(1)+1, interval_index(2)+1)
-            end do
-        end do
-        
-        ! Apply Horner method
-        do k1 = N1-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
-                    coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
-                        interval_index(1)+1, interval_index(2)+1) + &
-                        x_local(1) * coeff_2(iq, k2)
-                end do
-            end do
-        end do
-        
-        ! Second reduction: interpolation over x2
-        ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = coeff_2(iq, N2)
-        end do
-        
-        ! Apply Horner method
-        do k2 = N2-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_2(iq, k2) + x_local(2) * y_batch(iq)
-            end do
-        end do
+
+        real(dp) :: x_arr(2, 1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+
+        x_arr(:, 1) = x
+        call evaluate_batch_splines_2d_many(spl, x_arr, y_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
     end subroutine evaluate_batch_splines_2d
 
     subroutine evaluate_batch_splines_2d_many(spl, x, y_batch)
@@ -781,105 +727,101 @@ contains
         end do
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_2d_many_resident
-    
-    
+
+    subroutine evaluate_batch_splines_2d_many_der(spl, x, y_batch, dy_batch)
+        type(BatchSplineData2D), intent(in) :: spl
+        real(dp), intent(in) :: x(:,:)           ! (2, npts)
+        real(dp), intent(out) :: y_batch(:,:)    ! (nq, npts)
+        real(dp), intent(out) :: dy_batch(:,:,:) ! (2, nq, npts)
+
+        integer :: ipt, iq, k1, k2, j, idx(2), npts, nq, N1, N2
+        real(dp) :: xj, x_norm(2), x_local(2), period(2)
+        real(dp), allocatable :: coeff_2(:,:), coeff_2_dx1(:,:)
+
+        npts = size(x, 2)
+        nq = spl%num_quantities
+        N1 = spl%order(1)
+        N2 = spl%order(2)
+        period = spl%h_step * real(spl%num_points - 1, dp)
+
+        allocate(coeff_2(nq, 0:N2), coeff_2_dx1(nq, 0:N2))
+
+        do ipt = 1, npts
+            do j = 1, 2
+                if (spl%periodic(j)) then
+                    xj = modulo(x(j, ipt) - spl%x_min(j), period(j)) + spl%x_min(j)
+                else
+                    xj = x(j, ipt)
+                end if
+                x_norm(j) = (xj - spl%x_min(j)) / spl%h_step(j)
+                idx(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j)))) + 1
+                x_local(j) = (x_norm(j) - real(idx(j) - 1, dp)) * spl%h_step(j)
+            end do
+
+            do iq = 1, nq
+                do k2 = 0, N2
+                    coeff_2(iq, k2) = spl%coeff(iq, N1, k2, idx(1), idx(2))
+                    coeff_2_dx1(iq, k2) = N1 * spl%coeff(iq, N1, k2, idx(1), idx(2))
+                end do
+            end do
+
+            do k1 = N1 - 1, 0, -1
+                do iq = 1, nq
+                    do k2 = 0, N2
+                        coeff_2(iq, k2) = spl%coeff(iq, k1, k2, idx(1), idx(2)) + &
+                                          x_local(1) * coeff_2(iq, k2)
+                    end do
+                end do
+            end do
+
+            do k1 = N1 - 1, 1, -1
+                do iq = 1, nq
+                    do k2 = 0, N2
+                        coeff_2_dx1(iq, k2) = k1 * spl%coeff(iq, k1, k2, idx(1), idx(2)) + &
+                                              x_local(1) * coeff_2_dx1(iq, k2)
+                    end do
+                end do
+            end do
+
+            do iq = 1, nq
+                y_batch(iq, ipt) = coeff_2(iq, N2)
+                dy_batch(1, iq, ipt) = coeff_2_dx1(iq, N2)
+                dy_batch(2, iq, ipt) = N2 * coeff_2(iq, N2)
+            end do
+
+            do k2 = N2 - 1, 0, -1
+                do iq = 1, nq
+                    y_batch(iq, ipt) = coeff_2(iq, k2) + x_local(2) * y_batch(iq, ipt)
+                    dy_batch(1, iq, ipt) = coeff_2_dx1(iq, k2) + &
+                                           x_local(2) * dy_batch(1, iq, ipt)
+                end do
+            end do
+
+            do k2 = N2 - 1, 1, -1
+                do iq = 1, nq
+                    dy_batch(2, iq, ipt) = k2 * coeff_2(iq, k2) + &
+                                           x_local(2) * dy_batch(2, iq, ipt)
+                end do
+            end do
+        end do
+
+        deallocate(coeff_2, coeff_2_dx1)
+    end subroutine evaluate_batch_splines_2d_many_der
+
     subroutine evaluate_batch_splines_2d_der(spl, x, y_batch, dy_batch)
         type(BatchSplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:,:)  ! (2, n_quantities)
-        
-        real(dp) :: x_norm(2), x_local(2), xj
-        real(dp) :: coeff_2(spl%num_quantities, 0:spl%order(2))
-        real(dp) :: coeff_2_dx1(spl%num_quantities, 0:spl%order(2))
-        integer :: interval_index(2), k1, k2, j, iq
-        integer :: N1, N2
-        
-        N1 = spl%order(1)
-        N2 = spl%order(2)
-        
-        ! Validate output sizes
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_2d_der: y_batch array too small"
-        end if
-        if (size(dy_batch, 1) < 2 .or. size(dy_batch, 2) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_2d_der: dy_batch array too small"
-        end if
-        
-        do j=1,2
-            if (spl%periodic(j)) then
-                xj = modulo(x(j) - spl%x_min(j), &
-                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
-            else
-                xj = x(j)
-            end if
-            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-            interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
-            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
-        end do
-        
-        ! First reduction: interpolation over x1 for value
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
-                coeff_2(iq, k2) = spl%coeff(iq, N1, k2, &
-                    interval_index(1)+1, interval_index(2)+1)
-            end do
-        end do
-        
-        do k1 = N1-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
-                    coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
-                        interval_index(1)+1, interval_index(2)+1) + &
-                        x_local(1) * coeff_2(iq, k2)
-                end do
-            end do
-        end do
-        
-        ! First derivative over x1
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
-                coeff_2_dx1(iq, k2) = N1 * spl%coeff(iq, N1, k2, &
-                    interval_index(1)+1, interval_index(2)+1)
-            end do
-        end do
-        
-        do k1 = N1-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
-                    coeff_2_dx1(iq, k2) = k1 * spl%coeff(iq, k1, k2, &
-                        interval_index(1)+1, interval_index(2)+1) + &
-                        x_local(1) * coeff_2_dx1(iq, k2)
-                end do
-            end do
-        end do
-        
-        ! Second reduction: interpolation over x2
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = coeff_2(iq, N2)
-            dy_batch(1, iq) = coeff_2_dx1(iq, N2)
-            dy_batch(2, iq) = N2 * coeff_2(iq, N2)
-        end do
-        
-        do k2 = N2-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_2(iq, k2) + x_local(2) * y_batch(iq)
-                dy_batch(1, iq) = coeff_2_dx1(iq, k2) + x_local(2) * dy_batch(1, iq)
-            end do
-        end do
-        
-        do k2 = N2-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                dy_batch(2, iq) = k2 * coeff_2(iq, k2) + x_local(2) * dy_batch(2, iq)
-            end do
-        end do
+
+        real(dp) :: x_arr(2, 1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+        real(dp) :: dy_arr(2, spl%num_quantities, 1)
+
+        x_arr(:, 1) = x
+        call evaluate_batch_splines_2d_many_der(spl, x_arr, y_arr, dy_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:2, 1:spl%num_quantities) = dy_arr(:, :, 1)
     end subroutine evaluate_batch_splines_2d_der
     
 end module batch_interpolate_2d

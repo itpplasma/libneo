@@ -31,6 +31,8 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d_der2
     public :: evaluate_batch_splines_3d_many
     public :: evaluate_batch_splines_3d_many_resident
+    public :: evaluate_batch_splines_3d_many_der
+    public :: evaluate_batch_splines_3d_many_der2
     
 contains
     
@@ -872,93 +874,13 @@ contains
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
-        
-        real(dp) :: x_norm(3), x_local(3), xj
-        real(dp) :: coeff_23(spl%num_quantities, 0:spl%order(2), 0:spl%order(3))
-        real(dp) :: coeff_3(spl%num_quantities, 0:spl%order(3))
-        integer :: interval_index(3), k1, k2, k3, j, iq
-        integer :: N1, N2, N3
-        
-        N1 = spl%order(1)
-        N2 = spl%order(2)
-        N3 = spl%order(3)
-        
-        ! Validate output size
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d: Output array too small"
-        end if
-        
-        do j=1,3
-            if (spl%periodic(j)) then
-                xj = modulo(x(j) - spl%x_min(j), &
-                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
-            else
-                xj = x(j)
-            end if
-            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-            interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
-            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
-        end do
-        
-        ! First reduction: interpolation over x1 using backward Horner
-        ! Initialize with highest order coefficient
-        do k3 = 0, N3
-            do k2 = 0, N2
-                !$omp simd
-                do iq = 1, spl%num_quantities
-                    coeff_23(iq, k2, k3) = spl%coeff(iq, N1, k2, k3, &
-                        interval_index(1)+1, interval_index(2)+1, interval_index(3)+1)
-                end do
-            end do
-        end do
-        
-        ! Apply backward Horner method (standard polynomial evaluation)
-        do k1 = N1-1, 0, -1
-            do k3 = 0, N3
-                do k2 = 0, N2
-                    !$omp simd
-                    do iq = 1, spl%num_quantities
-                        coeff_23(iq, k2, k3) = spl%coeff(iq, k1, k2, k3, &
-                            interval_index(1)+1, interval_index(2)+1, &
-                            interval_index(3)+1) + x_local(1)*coeff_23(iq, k2, k3)
-                    end do
-                end do
-            end do
-        end do
-        
-        ! Second reduction: interpolation over x2 using backward Horner
-        ! Initialize with highest order
-        do k3 = 0, N3
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                coeff_3(iq, k3) = coeff_23(iq, N2, k3)
-            end do
-        end do
-        
-        ! Apply Horner method
-        do k2 = N2-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k3 = 0, N3
-                    coeff_3(iq, k3) = coeff_23(iq, k2, k3) + x_local(2)*coeff_3(iq, k3)
-                end do
-            end do
-        end do
-        
-        ! Third reduction: interpolation over x3 using backward Horner
-        ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = coeff_3(iq, N3)
-        end do
-        
-        ! Apply Horner method
-        do k3 = N3-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
-            end do
-        end do
+
+        real(dp) :: x_arr(3, 1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+
+        x_arr(:, 1) = x
+        call evaluate_batch_splines_3d_many(spl, x_arr, y_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
     end subroutine evaluate_batch_splines_3d
 
     subroutine evaluate_batch_splines_3d_many(spl, x, y_batch)
@@ -1058,9 +980,55 @@ contains
         end do
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_3d_many_resident
-    
-    
+
+    subroutine evaluate_batch_splines_3d_many_der(spl, x, y_batch, dy_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(:,:)           ! (3, npts)
+        real(dp), intent(out) :: y_batch(:,:)    ! (nq, npts)
+        real(dp), intent(out) :: dy_batch(:,:,:) ! (3, nq, npts)
+
+        integer :: ipt, npts
+
+        npts = size(x, 2)
+        do ipt = 1, npts
+            call evaluate_batch_splines_3d_der_core(spl, x(:, ipt), &
+                y_batch(:, ipt), dy_batch(:, :, ipt))
+        end do
+    end subroutine evaluate_batch_splines_3d_many_der
+
+    subroutine evaluate_batch_splines_3d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(:,:)            ! (3, npts)
+        real(dp), intent(out) :: y_batch(:,:)     ! (nq, npts)
+        real(dp), intent(out) :: dy_batch(:,:,:)  ! (3, nq, npts)
+        real(dp), intent(out) :: d2y_batch(:,:,:) ! (6, nq, npts)
+
+        integer :: ipt, npts
+
+        npts = size(x, 2)
+        do ipt = 1, npts
+            call evaluate_batch_splines_3d_der2_core(spl, x(:, ipt), &
+                y_batch(:, ipt), dy_batch(:, :, ipt), d2y_batch(:, :, ipt))
+        end do
+    end subroutine evaluate_batch_splines_3d_many_der2
+
     subroutine evaluate_batch_splines_3d_der(spl, x, y_batch, dy_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:,:)  ! (3, n_quantities)
+
+        real(dp) :: x_arr(3, 1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+        real(dp) :: dy_arr(3, spl%num_quantities, 1)
+
+        x_arr(:, 1) = x
+        call evaluate_batch_splines_3d_many_der(spl, x_arr, y_arr, dy_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:3, 1:spl%num_quantities) = dy_arr(:, :, 1)
+    end subroutine evaluate_batch_splines_3d_der
+
+    subroutine evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
@@ -1217,10 +1185,28 @@ contains
             end do
         end do
         
-    end subroutine evaluate_batch_splines_3d_der
-    
-    
+    end subroutine evaluate_batch_splines_3d_der_core
+
     subroutine evaluate_batch_splines_3d_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:,:)   ! (3, n_quantities)
+        real(dp), intent(out) :: d2y_batch(:,:)  ! (6, n_quantities)
+
+        real(dp) :: x_arr(3, 1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+        real(dp) :: dy_arr(3, spl%num_quantities, 1)
+        real(dp) :: d2y_arr(6, spl%num_quantities, 1)
+
+        x_arr(:, 1) = x
+        call evaluate_batch_splines_3d_many_der2(spl, x_arr, y_arr, dy_arr, d2y_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:3, 1:spl%num_quantities) = dy_arr(:, :, 1)
+        d2y_batch(1:6, 1:spl%num_quantities) = d2y_arr(:, :, 1)
+    end subroutine evaluate_batch_splines_3d_der2
+
+    subroutine evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
@@ -1484,6 +1470,6 @@ contains
                 x_local(3)*d2y_batch(4, iq)
         end do
         
-    end subroutine evaluate_batch_splines_3d_der2
-    
+    end subroutine evaluate_batch_splines_3d_der2_core
+
 end module batch_interpolate_3d

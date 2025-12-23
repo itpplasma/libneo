@@ -31,6 +31,9 @@ module batch_interpolate_1d
     public :: evaluate_batch_splines_1d_der
     public :: evaluate_batch_splines_1d_der2
     public :: evaluate_batch_splines_1d_der3
+    public :: evaluate_batch_splines_1d_many_der
+    public :: evaluate_batch_splines_1d_many_der2
+    public :: evaluate_batch_splines_1d_many_der3
 
 contains
     
@@ -440,41 +443,13 @@ contains
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
-        
-        real(dp) :: x_norm, x_local, xj
-        integer :: interval_index, k_power, iq
-        
-        ! Validate output size
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_1d: Output array too small"
-        end if
-        
-        ! Handle periodic boundary conditions
-        if (spl%periodic) then
-            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points-1)) + spl%x_min
-        else
-            xj = x
-        end if
-        
-        ! Find interval and local coordinate
-        x_norm = (xj - spl%x_min)/spl%h_step
-        interval_index = max(0, min(spl%num_points-2, int(x_norm)))
-        x_local = (x_norm - dble(interval_index))*spl%h_step
-        
-        ! Initialize with highest order coefficient
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = spl%coeff(iq, spl%order, interval_index+1)
-        end do
-        
-        ! Apply Horner method (backward)
-        do k_power = spl%order-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
-                              x_local * y_batch(iq)
-            end do
-        end do
+
+        real(dp) :: x_arr(1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+
+        x_arr(1) = x
+        call evaluate_batch_splines_1d_many(spl, x_arr, y_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
     end subroutine evaluate_batch_splines_1d
     
     
@@ -483,32 +458,15 @@ contains
         real(dp), intent(in) :: x
         integer, intent(in) :: iq  ! quantity index
         real(dp), intent(out) :: y
-        
-        real(dp) :: x_norm, x_local, xj
-        integer :: interval_index, k_power
-        
-        ! Validate input
+
+        real(dp) :: y_all(spl%num_quantities)
+
         if (iq < 1 .or. iq > spl%num_quantities) then
             error stop "evaluate_batch_splines_1d_single: Invalid quantity index"
         end if
-        
-        ! Handle periodic boundary conditions
-        if (spl%periodic) then
-            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points-1)) + spl%x_min
-        else
-            xj = x
-        end if
-        
-        ! Find interval and local coordinate
-        x_norm = (xj - spl%x_min)/spl%h_step
-        interval_index = max(0, min(spl%num_points-2, int(x_norm)))
-        x_local = (x_norm - dble(interval_index))*spl%h_step
-        
-        ! Horner method for single quantity
-        y = spl%coeff(iq, spl%order, interval_index+1)
-        do k_power = spl%order-1, 0, -1
-            y = spl%coeff(iq, k_power, interval_index+1) + x_local * y
-        end do
+
+        call evaluate_batch_splines_1d(spl, x, y_all)
+        y = y_all(iq)
     end subroutine evaluate_batch_splines_1d_single
 
     subroutine evaluate_batch_splines_1d_many(spl, x, y_batch)
@@ -582,253 +540,222 @@ contains
         end do
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_1d_many_resident
-    
-    
+
+    subroutine evaluate_batch_splines_1d_many_der(spl, x, y_batch, dy_batch)
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(out) :: y_batch(:,:)   ! (nq, npts)
+        real(dp), intent(out) :: dy_batch(:,:)  ! (nq, npts)
+
+        integer :: ipt, iq, k, idx, npts, nq, N
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+
+        npts = size(x)
+        nq = spl%num_quantities
+        N = spl%order
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step * real(spl%num_points - 1, dp)
+
+        do ipt = 1, npts
+            if (spl%periodic) then
+                xj = modulo(x(ipt) - x_min, period) + x_min
+            else
+                xj = x(ipt)
+            end if
+            x_norm = (xj - x_min) / h_step
+            idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+            x_local = (x_norm - real(idx - 1, dp)) * h_step
+
+            do iq = 1, nq
+                y_batch(iq, ipt) = spl%coeff(iq, N, idx)
+                dy_batch(iq, ipt) = N * spl%coeff(iq, N, idx)
+            end do
+
+            do k = N - 1, 1, -1
+                do iq = 1, nq
+                    dy_batch(iq, ipt) = k * spl%coeff(iq, k, idx) + &
+                                        x_local * dy_batch(iq, ipt)
+                end do
+            end do
+
+            do k = N - 1, 0, -1
+                do iq = 1, nq
+                    y_batch(iq, ipt) = spl%coeff(iq, k, idx) + &
+                                       x_local * y_batch(iq, ipt)
+                end do
+            end do
+        end do
+    end subroutine evaluate_batch_splines_1d_many_der
+
+    subroutine evaluate_batch_splines_1d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(out) :: y_batch(:,:), dy_batch(:,:), d2y_batch(:,:)
+
+        integer :: ipt, iq, k, idx, npts, nq, N
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+
+        npts = size(x)
+        nq = spl%num_quantities
+        N = spl%order
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step * real(spl%num_points - 1, dp)
+
+        do ipt = 1, npts
+            if (spl%periodic) then
+                xj = modulo(x(ipt) - x_min, period) + x_min
+            else
+                xj = x(ipt)
+            end if
+            x_norm = (xj - x_min) / h_step
+            idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+            x_local = (x_norm - real(idx - 1, dp)) * h_step
+
+            do iq = 1, nq
+                y_batch(iq, ipt) = spl%coeff(iq, N, idx)
+                dy_batch(iq, ipt) = N * spl%coeff(iq, N, idx)
+                d2y_batch(iq, ipt) = N * (N - 1) * spl%coeff(iq, N, idx)
+            end do
+
+            do k = N - 1, 2, -1
+                do iq = 1, nq
+                    d2y_batch(iq, ipt) = k * (k - 1) * spl%coeff(iq, k, idx) + &
+                                         x_local * d2y_batch(iq, ipt)
+                end do
+            end do
+
+            do k = N - 1, 1, -1
+                do iq = 1, nq
+                    dy_batch(iq, ipt) = k * spl%coeff(iq, k, idx) + &
+                                        x_local * dy_batch(iq, ipt)
+                end do
+            end do
+
+            do k = N - 1, 0, -1
+                do iq = 1, nq
+                    y_batch(iq, ipt) = spl%coeff(iq, k, idx) + &
+                                       x_local * y_batch(iq, ipt)
+                end do
+            end do
+        end do
+    end subroutine evaluate_batch_splines_1d_many_der2
+
+    subroutine evaluate_batch_splines_1d_many_der3(spl, x, y_batch, dy_batch, d2y_batch, &
+                                                   d3y_batch)
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(out) :: y_batch(:,:), dy_batch(:,:), d2y_batch(:,:), d3y_batch(:,:)
+
+        integer :: ipt, iq, k, idx, npts, nq, N
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+
+        npts = size(x)
+        nq = spl%num_quantities
+        N = spl%order
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step * real(spl%num_points - 1, dp)
+
+        do ipt = 1, npts
+            if (spl%periodic) then
+                xj = modulo(x(ipt) - x_min, period) + x_min
+            else
+                xj = x(ipt)
+            end if
+            x_norm = (xj - x_min) / h_step
+            idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+            x_local = (x_norm - real(idx - 1, dp)) * h_step
+
+            do iq = 1, nq
+                y_batch(iq, ipt) = spl%coeff(iq, N, idx)
+                dy_batch(iq, ipt) = N * spl%coeff(iq, N, idx)
+                d2y_batch(iq, ipt) = N * (N - 1) * spl%coeff(iq, N, idx)
+                d3y_batch(iq, ipt) = N * (N - 1) * (N - 2) * spl%coeff(iq, N, idx)
+            end do
+
+            do k = N - 1, 3, -1
+                do iq = 1, nq
+                    d3y_batch(iq, ipt) = k * (k - 1) * (k - 2) * spl%coeff(iq, k, idx) + &
+                                         x_local * d3y_batch(iq, ipt)
+                end do
+            end do
+
+            do k = N - 1, 2, -1
+                do iq = 1, nq
+                    d2y_batch(iq, ipt) = k * (k - 1) * spl%coeff(iq, k, idx) + &
+                                         x_local * d2y_batch(iq, ipt)
+                end do
+            end do
+
+            do k = N - 1, 1, -1
+                do iq = 1, nq
+                    dy_batch(iq, ipt) = k * spl%coeff(iq, k, idx) + &
+                                        x_local * dy_batch(iq, ipt)
+                end do
+            end do
+
+            do k = N - 1, 0, -1
+                do iq = 1, nq
+                    y_batch(iq, ipt) = spl%coeff(iq, k, idx) + &
+                                       x_local * y_batch(iq, ipt)
+                end do
+            end do
+        end do
+    end subroutine evaluate_batch_splines_1d_many_der3
+
     subroutine evaluate_batch_splines_1d_der(spl, x, y_batch, dy_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:)   ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:)  ! (n_quantities)
-        
-        real(dp) :: x_norm, x_local, xj
-        integer :: interval_index, k_power, iq
-        integer :: N
-        
-        N = spl%order
-        
-        ! Validate output sizes
-        if (size(y_batch) < spl%num_quantities .or. &
-            size(dy_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_1d_der: Output arrays too small"
-        end if
-        
-        ! Handle periodic boundary conditions
-        if (spl%periodic) then
-            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points-1)) + spl%x_min
-        else
-            xj = x
-        end if
-        
-        ! Find interval and local coordinate
-        x_norm = (xj - spl%x_min)/spl%h_step
-        interval_index = max(0, min(spl%num_points-2, int(x_norm)))
-        x_local = (x_norm - dble(interval_index))*spl%h_step
-        
-        ! Initialize value with highest order coefficient
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = spl%coeff(iq, N, interval_index+1)
-        end do
-        
-        ! Apply Horner method for value
-        do k_power = N-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
-                              x_local * y_batch(iq)
-            end do
-        end do
-        
-        ! Initialize derivative with highest order coefficient
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            dy_batch(iq) = N * spl%coeff(iq, N, interval_index+1)
-        end do
-        
-        ! Apply Horner method for derivative
-        do k_power = N-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                dy_batch(iq) = k_power * spl%coeff(iq, k_power, interval_index+1) + &
-                               x_local * dy_batch(iq)
-            end do
-        end do
+
+        real(dp) :: x_arr(1)
+        real(dp) :: y_arr(spl%num_quantities, 1), dy_arr(spl%num_quantities, 1)
+
+        x_arr(1) = x
+        call evaluate_batch_splines_1d_many_der(spl, x_arr, y_arr, dy_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
     end subroutine evaluate_batch_splines_1d_der
     
     
     subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
-        real(dp), intent(out) :: y_batch(:)    ! (n_quantities)
-        real(dp), intent(out) :: dy_batch(:)   ! (n_quantities)
-        real(dp), intent(out) :: d2y_batch(:)  ! (n_quantities)
-        
-        real(dp) :: x_norm, x_local, xj
-        integer :: interval_index, k_power, iq
-        integer :: N
-        
-        N = spl%order
-        
-        ! Validate output sizes
-        if (size(y_batch) < spl%num_quantities .or. &
-            size(dy_batch) < spl%num_quantities .or. &
-            size(d2y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_1d_der2: Output arrays too small"
-        end if
-        
-        ! Handle periodic boundary conditions
-        if (spl%periodic) then
-            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points-1)) + spl%x_min
-        else
-            xj = x
-        end if
-        
-        ! Find interval and local coordinate
-        x_norm = (xj - spl%x_min)/spl%h_step
-        interval_index = max(0, min(spl%num_points-2, int(x_norm)))
-        x_local = (x_norm - dble(interval_index))*spl%h_step
-        
-        ! Initialize value with highest order coefficient
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = spl%coeff(iq, N, interval_index+1)
-        end do
-        
-        ! Apply Horner method for value
-        do k_power = N-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = spl%coeff(iq, k_power, interval_index+1) + &
-                              x_local * y_batch(iq)
-            end do
-        end do
-        
-        ! Initialize first derivative
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            dy_batch(iq) = N * spl%coeff(iq, N, interval_index+1)
-        end do
-        
-        ! Apply Horner method for first derivative
-        do k_power = N-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                dy_batch(iq) = k_power * spl%coeff(iq, k_power, interval_index+1) + &
-                               x_local * dy_batch(iq)
-            end do
-        end do
-        
-        ! Initialize second derivative
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            d2y_batch(iq) = N*(N-1) * spl%coeff(iq, N, interval_index+1)
-        end do
-        
-        ! Apply Horner method for second derivative
-        do k_power = N-1, 2, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                d2y_batch(iq) = k_power*(k_power-1) * &
-                    spl%coeff(iq, k_power, interval_index+1) + &
-                    x_local * d2y_batch(iq)
-            end do
-        end do
+        real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:)
+
+        real(dp) :: x_arr(1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+        real(dp) :: dy_arr(spl%num_quantities, 1)
+        real(dp) :: d2y_arr(spl%num_quantities, 1)
+
+        x_arr(1) = x
+        call evaluate_batch_splines_1d_many_der2(spl, x_arr, y_arr, dy_arr, d2y_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
+        d2y_batch(1:spl%num_quantities) = d2y_arr(:, 1)
     end subroutine evaluate_batch_splines_1d_der2
 
     subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
                                               d3y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
-        real(dp), intent(out) :: y_batch(:)    ! (n_quantities)
-        real(dp), intent(out) :: dy_batch(:)   ! (n_quantities)
-        real(dp), intent(out) :: d2y_batch(:)  ! (n_quantities)
-        real(dp), intent(out) :: d3y_batch(:)  ! (n_quantities)
+        real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:), d3y_batch(:)
 
-        real(dp) :: x_norm, x_local, xj
-        integer :: interval_index, k_power, iq
-        integer :: N
+        real(dp) :: x_arr(1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+        real(dp) :: dy_arr(spl%num_quantities, 1)
+        real(dp) :: d2y_arr(spl%num_quantities, 1)
+        real(dp) :: d3y_arr(spl%num_quantities, 1)
 
-        N = spl%order
-
-        ! Validate output sizes
-        if (size(y_batch) < spl%num_quantities .or. &
-            size(dy_batch) < spl%num_quantities .or. &
-            size(d2y_batch) < spl%num_quantities .or. &
-            size(d3y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_1d_der3: Output arrays too small"
-        end if
-
-        ! Handle periodic boundary conditions
-        if (spl%periodic) then
-            xj = modulo(x - spl%x_min, spl%h_step*(spl%num_points - 1)) + spl%x_min
-        else
-            xj = x
-        end if
-
-        ! Find interval and local coordinate
-        x_norm = (xj - spl%x_min)/spl%h_step
-        interval_index = max(0, min(spl%num_points - 2, int(x_norm)))
-        x_local = (x_norm - real(interval_index, dp))*spl%h_step
-
-        ! Initialize with highest order coefficients
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = spl%coeff(iq, N, interval_index + 1)
-        end do
-
-        ! Apply Horner method for value
-        do k_power = N - 1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = spl%coeff(iq, k_power, interval_index + 1) + &
-                              x_local*y_batch(iq)
-            end do
-        end do
-
-        ! First derivative: d/dx sum(a_k * x^k) = sum(k * a_k * x^(k-1))
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            dy_batch(iq) = N*spl%coeff(iq, N, interval_index + 1)
-        end do
-        do k_power = N - 1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                dy_batch(iq) = k_power*spl%coeff(iq, k_power, interval_index + 1) + &
-                               x_local*dy_batch(iq)
-            end do
-        end do
-
-        ! Second derivative
-        if (N >= 2) then
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                d2y_batch(iq) = N*(N - 1)*spl%coeff(iq, N, interval_index + 1)
-            end do
-            do k_power = N - 1, 2, -1
-                !$omp simd
-                do iq = 1, spl%num_quantities
-                    d2y_batch(iq) = k_power*(k_power - 1)* &
-                        spl%coeff(iq, k_power, interval_index + 1) + &
-                        x_local*d2y_batch(iq)
-                end do
-            end do
-        else
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                d2y_batch(iq) = 0.0_dp
-            end do
-        end if
-
-        ! Third derivative
-        if (N >= 3) then
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                d3y_batch(iq) = N*(N - 1)*(N - 2)*spl%coeff(iq, N, interval_index + 1)
-            end do
-            do k_power = N - 1, 3, -1
-                !$omp simd
-                do iq = 1, spl%num_quantities
-                    d3y_batch(iq) = k_power*(k_power - 1)*(k_power - 2)* &
-                        spl%coeff(iq, k_power, interval_index + 1) + &
-                        x_local*d3y_batch(iq)
-                end do
-            end do
-        else
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                d3y_batch(iq) = 0.0_dp
-            end do
-        end if
+        x_arr(1) = x
+        call evaluate_batch_splines_1d_many_der3(spl, x_arr, y_arr, dy_arr, d2y_arr, d3y_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
+        d2y_batch(1:spl%num_quantities) = d2y_arr(:, 1)
+        d3y_batch(1:spl%num_quantities) = d3y_arr(:, 1)
     end subroutine evaluate_batch_splines_1d_der3
 
 end module batch_interpolate_1d
