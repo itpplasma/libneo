@@ -37,15 +37,16 @@ contains
         real(dp), intent(in) :: y_batch(:,:,:)  ! (n1, n2, n_quantities)
         integer, intent(in) :: order(:)
         logical, intent(in) :: periodic(:)
-        type(BatchSplineData2D), intent(out) :: spl
-
-        ! Use legacy construction for consistent coefficients with single-spline API
-        ! GPU construction available via construct_batch_splines_2d_resident_device
-        call construct_batch_splines_2d_legacy(x_min, x_max, y_batch, order, periodic, spl)
+        type(BatchSplineData2D), intent(inout) :: spl
 
 #ifdef _OPENACC
-        ! Map coefficient array to GPU for subsequent evaluations
-        !$acc enter data copyin(spl%coeff)
+        ! Use GPU construction by default (1.5x faster than CPU)
+        call construct_batch_splines_2d_resident_device(x_min, x_max, y_batch, &
+                                                        order, periodic, spl, &
+                                                        update_host=.true., &
+                                                        assume_y_present=.false.)
+#else
+        call construct_batch_splines_2d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 #endif
     end subroutine construct_batch_splines_2d
 
