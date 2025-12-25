@@ -190,7 +190,7 @@ contains
                 xj = x(ie)
             end if
             x_norm = (xj - spl%x_min) / spl%h_step
-            interval_index = max(0, min(spl%num_points-1, int(x_norm)))
+            interval_index = max(0, min(spl%num_points-2, int(x_norm)))
             x_local = (x_norm - dble(interval_index))*spl%h_step
 
             y(ie) = spl%coeff(spl%order, interval_index+1)
@@ -217,7 +217,7 @@ contains
                 xj = x(ie)
             end if
             x_norm = (xj - spl%x_min) / spl%h_step
-            interval_index = max(0, min(spl%num_points-1, int(x_norm)))
+            interval_index = max(0, min(spl%num_points-2, int(x_norm)))
             x_local = (x_norm - dble(interval_index))*spl%h_step
 
             y(ie) = spl%coeff(spl%order, interval_index+1)
@@ -248,7 +248,7 @@ contains
                 xj = x(ie)
             end if
             x_norm = (xj - spl%x_min) / spl%h_step
-            interval_index = max(0, min(spl%num_points-1, int(x_norm)))
+            interval_index = max(0, min(spl%num_points-2, int(x_norm)))
             x_local = (x_norm - dble(interval_index))*spl%h_step
 
             y(ie) = spl%coeff(spl%order, interval_index+1)
@@ -368,7 +368,7 @@ contains
                     xj = x(j, ie)
                 end if
                 x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-                interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+                interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
                 x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
             end do
 
@@ -408,7 +408,7 @@ contains
                     xj = x(j, ie)
                 end if
                 x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-                interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+                interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
                 x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
             end do
 
@@ -594,7 +594,7 @@ contains
                     xj = x(j, ie)
                 end if
                 x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-                interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+                interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
                 x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
             end do
 
@@ -642,7 +642,7 @@ contains
                     xj = x(j, ie)
                 end if
                 x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-                interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+                interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
                 x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
             end do
 
@@ -726,7 +726,7 @@ contains
                     xj = x(j, ie)
                 end if
                 x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-                interval_index(j) = max(0, min(spl%num_points(j)-1, int(x_norm(j))))
+                interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
                 x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
             end do
 
