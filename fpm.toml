@@ -25,3 +25,7 @@ library = true
 implicit-typing = true
 implicit-external = true
 source-form = "free"
+
+[preprocess]
+[preprocess.cpp]
+suffixes = ["F90"]
