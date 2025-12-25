@@ -415,12 +415,11 @@ contains
         integer :: order1, order2
         integer :: i1, i2, iq, k1, k2
         integer :: line, line2
-        ! GCC OpenACC bug workaround: keep work arrays persistent across calls
-        real(dp), allocatable, save :: work2(:, :, :)
-        real(dp), allocatable, save :: work1(:, :, :)
+        ! Work arrays - allocated fresh each call to avoid GCC OpenACC memory issues
+        real(dp), allocatable :: work2(:, :, :)
+        real(dp), allocatable :: work1(:, :, :)
         real(dp) :: h1, h2
         logical :: periodic1, periodic2
-        logical :: work_needs_alloc
 
 	        N1_order = order(1)
 	        N2_order = order(2)
@@ -498,6 +497,7 @@ contains
 #ifdef _OPENACC
             if (acc_is_present(spl%coeff)) then
                 !$acc exit data delete(spl%coeff)
+                !$acc wait
             end if
 #endif
             deallocate(spl%coeff)
@@ -509,37 +509,16 @@ contains
             !$acc enter data create(spl%coeff)
         end if
 
-        ! GCC OpenACC bug workaround: check if work arrays need (re)allocation
-        ! Must check BOTH work arrays since their sizes depend on different orders
-        work_needs_alloc = .not. allocated(work2)
-        if (allocated(work2)) then
-            if (size(work2, 1) /= n2 .or. &
-                size(work2, 2) /= n1*n_quantities .or. &
-                size(work2, 3) /= N2_order + 1 .or. &
-                size(work1, 1) /= n1 .or. &
-                size(work1, 2) /= n2*n_quantities .or. &
-                size(work1, 3) /= N1_order + 1) then
-#ifdef _OPENACC
-                if (acc_is_present(work2)) then
-                    !$acc exit data delete(work2, work1)
-                end if
-#endif
-                deallocate(work2, work1)
-                work_needs_alloc = .true.
-            end if
+        ! Allocate work arrays (local, not persistent)
+        allocate(work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Allocation failed for work2"
         end if
-
-        if (work_needs_alloc) then
-            allocate(work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_2d_resident_device:" // &
-                    " Allocation failed for work2"
-            end if
-            allocate(work1(n1, n2*n_quantities, 0:N1_order), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_2d_resident_device:" // &
-                    " Allocation failed for work1"
-            end if
+        allocate(work1(n1, n2*n_quantities, 0:N1_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_2d_resident_device:" // &
+                " Allocation failed for work1"
         end if
 
         h1 = spl%h_step(1)
@@ -547,9 +526,7 @@ contains
 
 #ifdef _OPENACC
         block
-            if (work_needs_alloc) then
-                !$acc enter data create(work2, work1)
-            end if
+            !$acc enter data create(work2, work1)
 
             ! GCC OpenACC bug workaround: first parallel loop MUST write to spl%coeff
             !$acc parallel loop collapse(3) gang present(work2, spl%coeff) &
@@ -603,11 +580,12 @@ contains
                 end do
             end do
 
-            ! GCC bug workaround: keep work arrays mapped for next call
+            ! Clean up work arrays from device
+            !$acc exit data delete(work2, work1)
+            !$acc wait
         end block
 #endif
 
-        ! GCC bug workaround: keep work arrays allocated for next call
         if (do_update) then
             !$acc update self(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, 1:n1, 1:n2))
         end if
@@ -621,6 +599,7 @@ contains
         if (allocated(spl%coeff)) then
             if (acc_is_present(spl%coeff)) then
                 !$acc exit data delete(spl%coeff)
+                !$acc wait
             end if
         end if
 #endif
