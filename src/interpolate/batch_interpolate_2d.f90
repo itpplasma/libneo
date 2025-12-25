@@ -293,33 +293,24 @@ contains
       spl%x_min = x_min
       spl%num_quantities = n_quantities
 
-      ! GCC OpenACC bug workaround: reuse existing allocation if possible
-      if (.not. allocated(spl%coeff)) then
-         allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
-         if (istat /= 0) then
-            error stop "construct_batch_splines_2d_resident_device:"// &
-               " Allocation failed for coeff"
-         end if
-         !$acc enter data create(spl%coeff)
-      else if (size(spl%coeff, 1) /= n_quantities .or. &
-               size(spl%coeff, 2) /= N1_order + 1 .or. &
-               size(spl%coeff, 3) /= N2_order + 1 .or. &
-               size(spl%coeff, 4) /= n1 .or. &
-               size(spl%coeff, 5) /= n2) then
-	#ifdef _OPENACC
+	      ! Always allocate fresh - no reuse to avoid GCC OpenACC memory issues
+#ifdef _OPENACC
+	      if (allocated(spl%coeff)) then
 	         if (acc_is_present(spl%coeff)) then
 	            !$acc exit data delete(spl%coeff)
 	            !$acc wait
 	         end if
-	#endif
 	         deallocate (spl%coeff)
-         allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
-         if (istat /= 0) then
-            error stop "construct_batch_splines_2d_resident_device:"// &
-               " Allocation failed for coeff"
-         end if
-         !$acc enter data create(spl%coeff)
-      end if
+	      end if
+#else
+	      if (allocated(spl%coeff)) deallocate (spl%coeff)
+#endif
+	      allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
+	      if (istat /= 0) then
+	         error stop "construct_batch_splines_2d_resident_device:"// &
+	            " Allocation failed for coeff"
+	      end if
+	      !$acc enter data create(spl%coeff)
 
 	      allocate (work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
 	      if (istat /= 0) then

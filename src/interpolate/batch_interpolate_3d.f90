@@ -699,40 +699,25 @@ contains
         spl%x_min = x_min
         spl%num_quantities = n_quantities
 
-        ! GCC OpenACC bug workaround: reuse existing allocation if possible
-        ! to avoid repeated map/unmap cycle that crashes on iteration 2
-        if (.not. allocated(spl%coeff)) then
-            allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
-                                n1, n2, n3), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_3d_resident_device:"// &
-                    " Allocation failed for coeff"
-            end if
-            !$acc enter data create(spl%coeff)
-        else if (size(spl%coeff, 1) /= n_quantities .or. &
-                 size(spl%coeff, 2) /= N1_order + 1 .or. &
-                 size(spl%coeff, 3) /= N2_order + 1 .or. &
-                 size(spl%coeff, 4) /= N3_order + 1 .or. &
-                 size(spl%coeff, 5) /= n1 .or. &
-                 size(spl%coeff, 6) /= n2 .or. &
-                 size(spl%coeff, 7) /= n3) then
-            ! Size mismatch - need to reallocate
+        ! Always allocate fresh - no reuse to avoid GCC OpenACC memory issues
 #ifdef _OPENACC
-	            if (acc_is_present(spl%coeff)) then
-	                !$acc exit data delete(spl%coeff)
-	                !$acc wait
-	            end if
-#endif
-            deallocate (spl%coeff)
-            allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
-                                n1, n2, n3), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_3d_resident_device:"// &
-                    " Allocation failed for coeff"
+        if (allocated(spl%coeff)) then
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
+                !$acc wait
             end if
-            !$acc enter data create(spl%coeff)
+            deallocate (spl%coeff)
         end if
-        ! If already allocated with right size, reuse (GCC bug workaround)
+#else
+        if (allocated(spl%coeff)) deallocate (spl%coeff)
+#endif
+        allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
+                            n1, n2, n3), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_resident_device:"// &
+                " Allocation failed for coeff"
+        end if
+        !$acc enter data create(spl%coeff)
 
         allocate (work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
         if (istat /= 0) then
