@@ -546,73 +546,85 @@ contains
     
     subroutine test_batch_spline_2d_construction()
         use interpolate
-        
+
         integer, parameter :: N_POINTS(2) = [40, 45]
         integer, parameter :: N_QUANTITIES = 3
         integer, parameter :: ORDER(2) = [5, 3]
         logical, parameter :: PERIODIC(2) = [.false., .false.]
-        
+        integer, parameter :: N_EVAL = 100
+        real(dp), parameter :: REL_TOL = 1.0d-14
+
         type(BatchSplineData2D) :: batch_spl
         type(SplineData2D) :: single_spls(N_QUANTITIES)
-        
+
         real(dp) :: y_batch(N_POINTS(1), N_POINTS(2), N_QUANTITIES)
         real(dp) :: y_single(N_POINTS(1), N_POINTS(2))
-        
+
         real(dp) :: x1(N_POINTS(1)), x2(N_POINTS(2))
-        integer :: iq, i1, i2, k1, k2
-        
+        real(dp) :: x_eval(2)
+        real(dp) :: y_batch_result(N_QUANTITIES), y_single_result
+        real(dp) :: rel_err, scale_val
+        integer :: iq, i1, i2, ie
+
         print *, "Testing 2D batch spline construction..."
-        
-        ! Generate test data
+
+        ! Generate test data: use exp-based function to stay positive
         call linspace(X_MIN, X_MAX, N_POINTS(1), x1)
         call linspace(X_MIN, X_MAX, N_POINTS(2), x2)
-        
+
         do iq = 1, N_QUANTITIES
             do i2 = 1, N_POINTS(2)
                 do i1 = 1, N_POINTS(1)
-                    y_batch(i1, i2, iq) = cos(x1(i1)*real(iq, dp)) * sin(x2(i2))
+                    y_batch(i1, i2, iq) = exp(0.2d0*cos(x1(i1)*real(iq, dp))) * &
+                                          (1.5d0 + 0.5d0*sin(x2(i2)))
                 end do
             end do
         end do
-        
+
         ! Construct batch spline
         call construct_batch_splines_2d([X_MIN, X_MIN], [X_MAX, X_MAX], y_batch, ORDER, PERIODIC, batch_spl)
-        
+
         ! Construct individual splines for comparison
         do iq = 1, N_QUANTITIES
             y_single(:,:) = y_batch(:,:,iq)
             call construct_splines_2d([X_MIN, X_MIN], [X_MAX, X_MAX], y_single, ORDER, PERIODIC, single_spls(iq))
         end do
-        
+
         ! Verify metadata
         if (batch_spl%num_quantities /= N_QUANTITIES) error stop "Wrong num_quantities in 2D"
         if (any(batch_spl%num_points /= N_POINTS)) error stop "Wrong num_points in 2D"
         if (any(batch_spl%order /= ORDER)) error stop "Wrong order in 2D"
-        
-        ! Verify coefficients match
-        do iq = 1, N_QUANTITIES
-            do i2 = 1, N_POINTS(2)
-                do i1 = 1, N_POINTS(1)
-                    do k2 = 0, ORDER(2)
-                        do k1 = 0, ORDER(1)
-                            if (abs(batch_spl%coeff(iq, k1, k2, i1, i2) - &
-                                   single_spls(iq)%coeff(k1, k2, i1, i2)) > TOL) then
-                                error stop "2D coefficient mismatch"
-                            end if
-                        end do
-                    end do
-                end do
+
+        ! Verify evaluation matches with tight relative tolerance
+        do ie = 1, N_EVAL
+            x_eval(1) = X_MIN + (X_MAX - X_MIN) * real(ie, dp) / real(N_EVAL + 1, dp)
+            x_eval(2) = X_MIN + (X_MAX - X_MIN) * real(ie + 7, dp) / real(N_EVAL + 10, dp)
+
+            call evaluate_batch_splines_2d(batch_spl, x_eval, y_batch_result)
+
+            do iq = 1, N_QUANTITIES
+                call evaluate_splines_2d(single_spls(iq), x_eval, y_single_result)
+                scale_val = max(abs(y_batch_result(iq)), abs(y_single_result))
+                if (scale_val < 1.0d-100) error stop "2D test data too close to zero"
+                rel_err = abs(y_batch_result(iq) - y_single_result) / scale_val
+                if (rel_err > REL_TOL) then
+                    print *, "2D evaluation mismatch at ie=", ie, " iq=", iq
+                    print *, "  Batch: ", y_batch_result(iq)
+                    print *, "  Single: ", y_single_result
+                    print *, "  Rel err: ", rel_err
+                    error stop "2D construction: evaluation mismatch"
+                end if
             end do
         end do
-        
+
         ! Clean up
         call destroy_batch_splines_2d(batch_spl)
         do iq = 1, N_QUANTITIES
             call destroy_splines_2d(single_spls(iq))
         end do
-        
+
         print *, "  PASSED: 2D batch construction matches individual splines"
-        
+
     end subroutine test_batch_spline_2d_construction
     
     

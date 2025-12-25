@@ -26,7 +26,7 @@ program test_batch_interpolate_oracle
 contains
 
     subroutine test_oracle_1d()
-        real(dp), parameter :: tol = 5.0d-12
+        real(dp), parameter :: rel_tol = 5.0d-14
         real(dp), parameter :: x_min = 1.23d0
         real(dp), parameter :: x_max = 7.89d0
         integer, parameter :: n_points = 64
@@ -47,10 +47,11 @@ contains
 
         call linspace(x_min, x_max, n_points, x_grid)
 
+        ! Test function: exp-based to stay positive and avoid zeros
         do iq = 1, nq
             do ip = 1, n_points
-                y_grid(ip, iq) = cos(x_grid(ip) + 0.5d0*dble(iq - 1)) + &
-                                 0.1d0*sin(2.0d0*x_grid(ip))
+                y_grid(ip, iq) = exp(0.3d0*cos(x_grid(ip) + 0.5d0*dble(iq - 1))) * &
+                                 (2.0d0 + sin(2.0d0*x_grid(ip)))
             end do
         end do
 
@@ -74,7 +75,7 @@ contains
 
                 call evaluate_batch_splines_1d_many(spl_new, x_eval, y_new)
                 call evaluate_batch_splines_1d_many(spl_old, x_eval, y_old)
-                call assert_close_2d("1d many oracle", y_new, y_old, tol)
+                call assert_close_2d("1d many oracle", y_new, y_old, rel_tol)
 
                 call destroy_batch_splines_1d(spl_new)
                 call destroy_batch_splines_1d(spl_old)
@@ -86,7 +87,7 @@ contains
 
 
     subroutine test_oracle_2d()
-        real(dp), parameter :: tol = 1.0d-11
+        real(dp), parameter :: rel_tol = 5.0d-14
         real(dp), parameter :: x_min(2) = [1.23d0, -0.75d0]
         real(dp), parameter :: x_max(2) = [4.56d0,  2.25d0]
         integer, parameter :: n1 = 32, n2 = 33
@@ -112,11 +113,12 @@ contains
         call linspace(x_min(1), x_max(1), n1, x1)
         call linspace(x_min(2), x_max(2), n2, x2)
 
+        ! Test function: exp-based to stay positive and avoid zeros
         do iq = 1, nq
             do i2 = 1, n2
                 do i1 = 1, n1
-                    y_grid(i1, i2, iq) = cos(x1(i1) + 0.25d0*dble(iq - 1)) * &
-                                         cos(x2(i2) - 0.10d0*dble(iq - 1))
+                    y_grid(i1, i2, iq) = exp(0.2d0*cos(x1(i1) + 0.25d0*dble(iq - 1))) * &
+                                         (1.5d0 + 0.5d0*sin(x2(i2) - 0.10d0*dble(iq - 1)))
                 end do
             end do
         end do
@@ -151,7 +153,7 @@ contains
 
             call evaluate_batch_splines_2d_many(spl_new, x_eval, y_new)
             call evaluate_batch_splines_2d_many(spl_old, x_eval, y_old)
-            call assert_close_2d("2d many oracle", y_new, y_old, tol)
+            call assert_close_2d("2d many oracle", y_new, y_old, rel_tol)
 
             call destroy_batch_splines_2d(spl_new)
             call destroy_batch_splines_2d(spl_old)
@@ -162,7 +164,7 @@ contains
 
 
     subroutine test_oracle_3d()
-        real(dp), parameter :: tol = 2.0d-11
+        real(dp), parameter :: rel_tol = 5.0d-14
         real(dp), parameter :: x_min(3) = [0.10d0, -1.20d0, 2.20d0]
         real(dp), parameter :: x_max(3) = [1.70d0,  0.80d0, 3.70d0]
         integer, parameter :: n1 = 16, n2 = 17, n3 = 18
@@ -189,14 +191,15 @@ contains
         call linspace(x_min(2), x_max(2), n2, x2)
         call linspace(x_min(3), x_max(3), n3, x3)
 
+        ! Test function: exp-based to stay positive and avoid zeros
         do iq = 1, nq
             do i3 = 1, n3
                 do i2 = 1, n2
                     do i1 = 1, n1
                         y_grid(i1, i2, i3, iq) = &
-                            cos(x1(i1) + 0.10d0*dble(iq - 1)) * &
-                            cos(x2(i2) - 0.15d0*dble(iq - 1)) * &
-                            cos(x3(i3) + 0.05d0*dble(iq - 1))
+                            exp(0.15d0*cos(x1(i1) + 0.10d0*dble(iq - 1))) * &
+                            (1.2d0 + 0.3d0*sin(x2(i2) - 0.15d0*dble(iq - 1))) * &
+                            (1.4d0 + 0.4d0*cos(x3(i3) + 0.05d0*dble(iq - 1)))
                     end do
                 end do
             end do
@@ -229,7 +232,7 @@ contains
 
             call evaluate_batch_splines_3d_many(spl_new, x_eval, y_new)
             call evaluate_batch_splines_3d_many(spl_old, x_eval, y_old)
-            call assert_close_2d("3d many oracle", y_new, y_old, tol)
+            call assert_close_2d("3d many oracle", y_new, y_old, rel_tol)
 
             call destroy_batch_splines_3d(spl_new)
             call destroy_batch_splines_3d(spl_old)
@@ -239,20 +242,32 @@ contains
     end subroutine test_oracle_3d
 
 
-    subroutine assert_close_2d(label, a, b, tol)
+    subroutine assert_close_2d(label, a, b, rel_tol)
         character(len=*), intent(in) :: label
         real(dp), intent(in) :: a(:,:), b(:,:)
-        real(dp), intent(in) :: tol
+        real(dp), intent(in) :: rel_tol
 
-        real(dp) :: err_max
+        real(dp) :: rel_err_max, scale_max
+        integer :: i, j
 
         if (any(shape(a) /= shape(b))) then
             error stop label // ": shape mismatch"
         end if
 
-        err_max = maxval(abs(a - b))
-        if (err_max > tol) then
-            print *, trim(label), ": max abs error = ", err_max, " tol = ", tol
+        ! Compute maximum relative error using max(|a|,|b|) as scale
+        rel_err_max = 0.0d0
+        do j = 1, size(a, 2)
+            do i = 1, size(a, 1)
+                scale_max = max(abs(a(i,j)), abs(b(i,j)))
+                if (scale_max < 1.0d-100) then
+                    error stop label // ": test data too close to zero"
+                end if
+                rel_err_max = max(rel_err_max, abs(a(i,j) - b(i,j)) / scale_max)
+            end do
+        end do
+
+        if (rel_err_max > rel_tol) then
+            print *, trim(label), ": max rel error = ", rel_err_max, " tol = ", rel_tol
             error stop trim(label) // ": values differ"
         end if
     end subroutine assert_close_2d

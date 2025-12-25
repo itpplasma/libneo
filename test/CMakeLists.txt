@@ -144,6 +144,17 @@ target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
 
+add_executable(test_batch_eval_oracle.x
+    source/test_batch_eval_oracle.f90
+    source/spline_eval_reference.f90)
+target_link_libraries(test_batch_eval_oracle.x ${COMMON_LIBS})
+
+add_executable(benchmark_spline_performance.x source/benchmark_spline_performance.f90)
+target_link_libraries(benchmark_spline_performance.x ${COMMON_LIBS})
+
+add_executable(test_spline_performance.x source/test_spline_performance.f90)
+target_link_libraries(test_spline_performance.x ${COMMON_LIBS})
+
 add_executable(test_vmec_modules.x source/test_vmec_modules.f90)
 target_link_libraries(test_vmec_modules.x neo)
 
@@ -185,6 +196,8 @@ add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
+add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
+add_test(NAME test_spline_performance COMMAND test_spline_performance.x)
 add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
 add_test(NAME test_transport COMMAND test_transport.x)
 add_test(NAME test_vmec_modules COMMAND test_vmec_modules.x)
@@ -206,15 +219,8 @@ set_tests_properties(test_geqdsk_tools PROPERTIES
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
 )
 
-add_test(
-  NAME test_ascot5_compare
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/test_ascot5_compare.py
-          --build-dir ${CMAKE_BINARY_DIR}
-          --output-dir ${CMAKE_BINARY_DIR}/test/scripts
-)
-set_tests_properties(test_ascot5_compare PROPERTIES
-  ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/test/scripts/ascot5/build:$ENV{LD_LIBRARY_PATH}"
-)
+# test_ascot5_compare is run separately in CI workflow (not in ctest)
+# because a5py requires libascot.so at import time, which the test builds
 
 if(LIBNEO_TESTING_ENABLED)
   add_test(

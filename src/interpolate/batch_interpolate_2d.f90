@@ -29,6 +29,7 @@ module batch_interpolate_2d
     public :: evaluate_batch_splines_2d_der
     public :: evaluate_batch_splines_2d_many
     public :: evaluate_batch_splines_2d_many_resident
+    public :: evaluate_batch_splines_2d_many_der
     
 contains
     
@@ -37,14 +38,16 @@ contains
         real(dp), intent(in) :: y_batch(:,:,:)  ! (n1, n2, n_quantities)
         integer, intent(in) :: order(:)
         logical, intent(in) :: periodic(:)
-        type(BatchSplineData2D), intent(out) :: spl
-
-        call construct_batch_splines_2d_legacy(x_min, x_max, y_batch, order, periodic, spl)
+        type(BatchSplineData2D), intent(inout) :: spl
 
 #ifdef _OPENACC
-        ! Map only the allocatable component, not the whole derived type
-        ! This is compatible with both gfortran and nvfortran
-        !$acc enter data copyin(spl%coeff)
+        ! Use GPU construction by default (1.5x faster than CPU)
+        call construct_batch_splines_2d_resident_device(x_min, x_max, y_batch, &
+                                                        order, periodic, spl, &
+                                                        update_host=.true., &
+                                                        assume_y_present=.false.)
+#else
+        call construct_batch_splines_2d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 #endif
     end subroutine construct_batch_splines_2d
 
@@ -403,19 +406,21 @@ contains
         real(dp), intent(in) :: y_batch(n1, n2, n_quantities)
         integer, intent(in) :: order(2)
         logical, intent(in) :: periodic(2)
-        type(BatchSplineData2D), intent(out) :: spl
+        type(BatchSplineData2D), intent(inout) :: spl
         logical, intent(in) :: do_update
         logical, intent(in) :: do_assume_present
 
         integer :: istat
-	        integer :: N1_order, N2_order
-	        integer :: order1, order2
-	        integer :: i1, i2, iq, k1, k2
-	        integer :: line, line2
-	        real(dp), allocatable :: work2(:, :, :)
-	        real(dp), allocatable :: work1(:, :, :)
-	        real(dp) :: h1, h2
-	        logical :: periodic1, periodic2
+        integer :: N1_order, N2_order
+        integer :: order1, order2
+        integer :: i1, i2, iq, k1, k2
+        integer :: line, line2
+        ! GCC OpenACC bug workaround: keep work arrays persistent across calls
+        real(dp), allocatable, save :: work2(:, :, :)
+        real(dp), allocatable, save :: work1(:, :, :)
+        real(dp) :: h1, h2
+        logical :: periodic1, periodic2
+        logical :: work_needs_alloc
 
 	        N1_order = order(1)
 	        N2_order = order(2)
@@ -477,23 +482,62 @@ contains
         spl%x_min = x_min
         spl%num_quantities = n_quantities
 
-        allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_2d_resident_device:" // &
-                " Allocation failed for coeff"
+        ! GCC OpenACC bug workaround: reuse existing allocation if possible
+        if (.not. allocated(spl%coeff)) then
+            allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_2d_resident_device:" // &
+                    " Allocation failed for coeff"
+            end if
+            !$acc enter data create(spl%coeff)
+        else if (size(spl%coeff, 1) /= n_quantities .or. &
+                 size(spl%coeff, 2) /= N1_order + 1 .or. &
+                 size(spl%coeff, 3) /= N2_order + 1 .or. &
+                 size(spl%coeff, 4) /= n1 .or. &
+                 size(spl%coeff, 5) /= n2) then
+            if (acc_is_present(spl%coeff)) then
+                !$acc exit data delete(spl%coeff)
+            end if
+            deallocate(spl%coeff)
+            allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_2d_resident_device:" // &
+                    " Allocation failed for coeff"
+            end if
+            !$acc enter data create(spl%coeff)
         end if
 
-        !$acc enter data create(spl%coeff)
-
-        allocate(work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_2d_resident_device:" // &
-                " Allocation failed for work2"
+        ! GCC OpenACC bug workaround: check if work arrays need (re)allocation
+        ! Must check BOTH work arrays since their sizes depend on different orders
+        work_needs_alloc = .not. allocated(work2)
+        if (allocated(work2)) then
+            if (size(work2, 1) /= n2 .or. &
+                size(work2, 2) /= n1*n_quantities .or. &
+                size(work2, 3) /= N2_order + 1 .or. &
+                size(work1, 1) /= n1 .or. &
+                size(work1, 2) /= n2*n_quantities .or. &
+                size(work1, 3) /= N1_order + 1) then
+#ifdef _OPENACC
+                if (acc_is_present(work2)) then
+                    !$acc exit data delete(work2, work1)
+                end if
+#endif
+                deallocate(work2, work1)
+                work_needs_alloc = .true.
+            end if
         end if
-        allocate(work1(n1, n2*n_quantities, 0:N1_order), stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_2d_resident_device:" // &
-                " Allocation failed for work1"
+
+        if (work_needs_alloc) then
+            allocate(work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_2d_resident_device:" // &
+                    " Allocation failed for work2"
+            end if
+            allocate(work1(n1, n2*n_quantities, 0:N1_order), stat=istat)
+            if (istat /= 0) then
+                error stop "construct_batch_splines_2d_resident_device:" // &
+                    " Allocation failed for work1"
+            end if
         end if
 
         h1 = spl%h_step(1)
@@ -501,28 +545,20 @@ contains
 
 #ifdef _OPENACC
         block
-            logical :: y_was_present
-            logical :: did_copyin_y
-
-            y_was_present = acc_is_present(y_batch)
-            if (do_assume_present .and. .not. y_was_present) then
-                error stop "construct_batch_splines_2d_resident_device:" // &
-                    " assume_y_present=T but y_batch is not present"
-            end if
-            did_copyin_y = .false.
-            if (.not. y_was_present) then
-                !$acc enter data copyin(y_batch(1:n1, 1:n2, 1:n_quantities))
-                did_copyin_y = .true.
+            if (work_needs_alloc) then
+                !$acc enter data create(work2, work1)
             end if
 
-            !$acc enter data create(work2, work1)
-
-            !$acc parallel loop collapse(3) gang present(y_batch, work2)
+            ! GCC OpenACC bug workaround: first parallel loop MUST write to spl%coeff
+            !$acc parallel loop collapse(3) gang present(work2, spl%coeff) &
+            !$acc&    present_or_copyin(y_batch(1:n1, 1:n2, 1:n_quantities))
             do iq = 1, n_quantities
                 do i1 = 1, n1
                     do i2 = 1, n2
                         line = (iq - 1)*n1 + i1
                         work2(i2, line, 0) = y_batch(i1, i2, iq)
+                        ! GCC bug workaround: write to coeff in first loop
+                        spl%coeff(iq, 0, 0, i1, i2) = 0.0d0
                     end do
                 end do
             end do
@@ -550,31 +586,26 @@ contains
                     call spl_build_line_inplace(order1, periodic1, n1, h1, work1, &
                                                 line)
                 end do
-                associate (coeff => spl%coeff)
-                    !$acc parallel loop collapse(3) gang present(work1, coeff)
-                    do iq = 1, n_quantities
-                        do i2 = 1, n2
-                            do i1 = 1, n1
-                                line = (iq - 1)*n2 + i2
-                                !$acc loop vector
-                                do k1 = 0, N1_order
-                                    coeff(iq, k1, k2, i1, i2) = work1(i1, line, k1)
-                                end do
+
+                !$acc parallel loop collapse(3) gang present(work1, spl%coeff)
+                do iq = 1, n_quantities
+                    do i2 = 1, n2
+                        do i1 = 1, n1
+                            line = (iq - 1)*n2 + i2
+                            !$acc loop vector
+                            do k1 = 0, N1_order
+                                spl%coeff(iq, k1, k2, i1, i2) = work1(i1, line, k1)
                             end do
                         end do
                     end do
-                end associate
+                end do
             end do
 
-            !$acc exit data delete(work2, work1)
-            if (did_copyin_y) then
-                !$acc exit data delete(y_batch(1:n1, 1:n2, 1:n_quantities))
-            end if
+            ! GCC bug workaround: keep work arrays mapped for next call
         end block
 #endif
 
-        deallocate(work1)
-        deallocate(work2)
+        ! GCC bug workaround: keep work arrays allocated for next call
         if (do_update) then
             !$acc update self(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, 1:n1, 1:n2))
         end if
@@ -599,68 +630,13 @@ contains
         type(BatchSplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
-        
-        real(dp) :: x_norm(2), x_local(2), xj
-        real(dp) :: coeff_2(spl%num_quantities, 0:spl%order(2))
-        integer :: interval_index(2), k1, k2, j, iq
-        integer :: N1, N2
-        
-        N1 = spl%order(1)
-        N2 = spl%order(2)
-        
-        ! Validate output size
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_2d: Output array too small"
-        end if
-        
-        do j=1,2
-            if (spl%periodic(j)) then
-                xj = modulo(x(j) - spl%x_min(j), &
-                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
-            else
-                xj = x(j)
-            end if
-            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-            interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
-            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
-        end do
-        
-        ! First reduction: interpolation over x1
-        ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
-                coeff_2(iq, k2) = spl%coeff(iq, N1, k2, &
-                    interval_index(1)+1, interval_index(2)+1)
-            end do
-        end do
-        
-        ! Apply Horner method
-        do k1 = N1-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
-                    coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
-                        interval_index(1)+1, interval_index(2)+1) + &
-                        x_local(1) * coeff_2(iq, k2)
-                end do
-            end do
-        end do
-        
-        ! Second reduction: interpolation over x2
-        ! Initialize with highest order
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = coeff_2(iq, N2)
-        end do
-        
-        ! Apply Horner method
-        do k2 = N2-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_2(iq, k2) + x_local(2) * y_batch(iq)
-            end do
-        end do
+
+        real(dp) :: x_arr(2, 1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+
+        x_arr(:, 1) = x
+        call evaluate_batch_splines_2d_many(spl, x_arr, y_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
     end subroutine evaluate_batch_splines_2d
 
     subroutine evaluate_batch_splines_2d_many(spl, x, y_batch)
@@ -751,105 +727,101 @@ contains
         end do
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_2d_many_resident
-    
-    
+
+    subroutine evaluate_batch_splines_2d_many_der(spl, x, y_batch, dy_batch)
+        type(BatchSplineData2D), intent(in) :: spl
+        real(dp), intent(in) :: x(:,:)           ! (2, npts)
+        real(dp), intent(out) :: y_batch(:,:)    ! (nq, npts)
+        real(dp), intent(out) :: dy_batch(:,:,:) ! (2, nq, npts)
+
+        integer :: ipt, iq, k1, k2, j, idx(2), npts, nq, N1, N2
+        real(dp) :: xj, x_norm(2), x_local(2), period(2)
+        real(dp), allocatable :: coeff_2(:,:), coeff_2_dx1(:,:)
+
+        npts = size(x, 2)
+        nq = spl%num_quantities
+        N1 = spl%order(1)
+        N2 = spl%order(2)
+        period = spl%h_step * real(spl%num_points - 1, dp)
+
+        allocate(coeff_2(nq, 0:N2), coeff_2_dx1(nq, 0:N2))
+
+        do ipt = 1, npts
+            do j = 1, 2
+                if (spl%periodic(j)) then
+                    xj = modulo(x(j, ipt) - spl%x_min(j), period(j)) + spl%x_min(j)
+                else
+                    xj = x(j, ipt)
+                end if
+                x_norm(j) = (xj - spl%x_min(j)) / spl%h_step(j)
+                idx(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j)))) + 1
+                x_local(j) = (x_norm(j) - real(idx(j) - 1, dp)) * spl%h_step(j)
+            end do
+
+            do iq = 1, nq
+                do k2 = 0, N2
+                    coeff_2(iq, k2) = spl%coeff(iq, N1, k2, idx(1), idx(2))
+                    coeff_2_dx1(iq, k2) = N1 * spl%coeff(iq, N1, k2, idx(1), idx(2))
+                end do
+            end do
+
+            do k1 = N1 - 1, 0, -1
+                do iq = 1, nq
+                    do k2 = 0, N2
+                        coeff_2(iq, k2) = spl%coeff(iq, k1, k2, idx(1), idx(2)) + &
+                                          x_local(1) * coeff_2(iq, k2)
+                    end do
+                end do
+            end do
+
+            do k1 = N1 - 1, 1, -1
+                do iq = 1, nq
+                    do k2 = 0, N2
+                        coeff_2_dx1(iq, k2) = k1 * spl%coeff(iq, k1, k2, idx(1), idx(2)) + &
+                                              x_local(1) * coeff_2_dx1(iq, k2)
+                    end do
+                end do
+            end do
+
+            do iq = 1, nq
+                y_batch(iq, ipt) = coeff_2(iq, N2)
+                dy_batch(1, iq, ipt) = coeff_2_dx1(iq, N2)
+                dy_batch(2, iq, ipt) = N2 * coeff_2(iq, N2)
+            end do
+
+            do k2 = N2 - 1, 0, -1
+                do iq = 1, nq
+                    y_batch(iq, ipt) = coeff_2(iq, k2) + x_local(2) * y_batch(iq, ipt)
+                    dy_batch(1, iq, ipt) = coeff_2_dx1(iq, k2) + &
+                                           x_local(2) * dy_batch(1, iq, ipt)
+                end do
+            end do
+
+            do k2 = N2 - 1, 1, -1
+                do iq = 1, nq
+                    dy_batch(2, iq, ipt) = k2 * coeff_2(iq, k2) + &
+                                           x_local(2) * dy_batch(2, iq, ipt)
+                end do
+            end do
+        end do
+
+        deallocate(coeff_2, coeff_2_dx1)
+    end subroutine evaluate_batch_splines_2d_many_der
+
     subroutine evaluate_batch_splines_2d_der(spl, x, y_batch, dy_batch)
         type(BatchSplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:,:)  ! (2, n_quantities)
-        
-        real(dp) :: x_norm(2), x_local(2), xj
-        real(dp) :: coeff_2(spl%num_quantities, 0:spl%order(2))
-        real(dp) :: coeff_2_dx1(spl%num_quantities, 0:spl%order(2))
-        integer :: interval_index(2), k1, k2, j, iq
-        integer :: N1, N2
-        
-        N1 = spl%order(1)
-        N2 = spl%order(2)
-        
-        ! Validate output sizes
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_2d_der: y_batch array too small"
-        end if
-        if (size(dy_batch, 1) < 2 .or. size(dy_batch, 2) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_2d_der: dy_batch array too small"
-        end if
-        
-        do j=1,2
-            if (spl%periodic(j)) then
-                xj = modulo(x(j) - spl%x_min(j), &
-                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
-            else
-                xj = x(j)
-            end if
-            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
-            interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
-            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
-        end do
-        
-        ! First reduction: interpolation over x1 for value
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
-                coeff_2(iq, k2) = spl%coeff(iq, N1, k2, &
-                    interval_index(1)+1, interval_index(2)+1)
-            end do
-        end do
-        
-        do k1 = N1-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
-                    coeff_2(iq, k2) = spl%coeff(iq, k1, k2, &
-                        interval_index(1)+1, interval_index(2)+1) + &
-                        x_local(1) * coeff_2(iq, k2)
-                end do
-            end do
-        end do
-        
-        ! First derivative over x1
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            do k2 = 0, N2
-                coeff_2_dx1(iq, k2) = N1 * spl%coeff(iq, N1, k2, &
-                    interval_index(1)+1, interval_index(2)+1)
-            end do
-        end do
-        
-        do k1 = N1-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                do k2 = 0, N2
-                    coeff_2_dx1(iq, k2) = k1 * spl%coeff(iq, k1, k2, &
-                        interval_index(1)+1, interval_index(2)+1) + &
-                        x_local(1) * coeff_2_dx1(iq, k2)
-                end do
-            end do
-        end do
-        
-        ! Second reduction: interpolation over x2
-        !$omp simd
-        do iq = 1, spl%num_quantities
-            y_batch(iq) = coeff_2(iq, N2)
-            dy_batch(1, iq) = coeff_2_dx1(iq, N2)
-            dy_batch(2, iq) = N2 * coeff_2(iq, N2)
-        end do
-        
-        do k2 = N2-1, 0, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                y_batch(iq) = coeff_2(iq, k2) + x_local(2) * y_batch(iq)
-                dy_batch(1, iq) = coeff_2_dx1(iq, k2) + x_local(2) * dy_batch(1, iq)
-            end do
-        end do
-        
-        do k2 = N2-1, 1, -1
-            !$omp simd
-            do iq = 1, spl%num_quantities
-                dy_batch(2, iq) = k2 * coeff_2(iq, k2) + x_local(2) * dy_batch(2, iq)
-            end do
-        end do
+
+        real(dp) :: x_arr(2, 1)
+        real(dp) :: y_arr(spl%num_quantities, 1)
+        real(dp) :: dy_arr(2, spl%num_quantities, 1)
+
+        x_arr(:, 1) = x
+        call evaluate_batch_splines_2d_many_der(spl, x_arr, y_arr, dy_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:2, 1:spl%num_quantities) = dy_arr(:, :, 1)
     end subroutine evaluate_batch_splines_2d_der
     
 end module batch_interpolate_2d
