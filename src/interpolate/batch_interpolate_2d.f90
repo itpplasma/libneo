@@ -495,9 +495,11 @@ contains
                  size(spl%coeff, 3) /= N2_order + 1 .or. &
                  size(spl%coeff, 4) /= n1 .or. &
                  size(spl%coeff, 5) /= n2) then
+#ifdef _OPENACC
             if (acc_is_present(spl%coeff)) then
                 !$acc exit data delete(spl%coeff)
             end if
+#endif
             deallocate(spl%coeff)
             allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
             if (istat /= 0) then

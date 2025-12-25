@@ -670,9 +670,11 @@ contains
                  size(spl%coeff, 6) /= n2 .or. &
                  size(spl%coeff, 7) /= n3) then
             ! Size mismatch - need to reallocate
+#ifdef _OPENACC
             if (acc_is_present(spl%coeff)) then
                 !$acc exit data delete(spl%coeff)
             end if
+#endif
             deallocate(spl%coeff)
             allocate(spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
                 n1, n2, n3), stat=istat)
