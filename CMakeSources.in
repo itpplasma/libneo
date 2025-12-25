@@ -4,14 +4,11 @@
 # Main goal (of the created build file): creating the library file.
 add_library(neo STATIC
     src/arnoldi.f90
-    src/boozer.f90
-    src/io.f90
     src/libneo_kinds.f90
     src/math_constants.f90
     src/odeint_allroutines.f90
     src/poincare.f90
     src/rusage_type.f90
-    src/solve_systems.f90
     src/system_utility.f90
     src/util.f90
 

@@ -80,11 +80,6 @@
     integer :: isw_field_type = 0
   end module velo_mod
 !
-module gbpi_mod
-  character*24 :: filed
-  integer :: ierrfield
-end module gbpi_mod
-!
 module diag_mod
   logical :: dodiag=.false.
   integer(8) :: icounter

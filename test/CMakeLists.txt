@@ -66,16 +66,6 @@ target_link_libraries(test_binsrc.x
   ${COMMON_LIBS}
 )
 
-add_executable(test_boozer_class.x source/test_boozer_class.f90)
-target_link_libraries(test_boozer_class.x
-  ${COMMON_LIBS}
-)
-
-add_executable(test_efit_class.x source/test_efit_class.f90)
-target_link_libraries(test_efit_class.x
-  ${COMMON_LIBS}
-)
-
 add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
 target_link_libraries(test_geqdsk_tools.x
   ${MAIN_LIB}
@@ -186,8 +176,6 @@ target_link_libraries(test_nctools_nc_get3.x
 ## Standard tests according to standard libneo Fortran test convention.
 
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
-add_test(NAME test_boozer_class COMMAND test_boozer_class.x)
-add_test(NAME test_efit_class COMMAND test_efit_class.x)
 add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
@@ -209,12 +197,6 @@ add_test(NAME test_nctools_nc_get3 COMMAND test_nctools_nc_get3.x)
 # These tests use fixed relative paths ../../test/resources/... in the sources.
 # Run them from ${CMAKE_SOURCE_DIR}/test/source so those paths resolve to
 # ${CMAKE_SOURCE_DIR}/test/resources/...
-set_tests_properties(test_boozer_class PROPERTIES
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
-)
-set_tests_properties(test_efit_class PROPERTIES
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
-)
 set_tests_properties(test_geqdsk_tools PROPERTIES
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
 )
