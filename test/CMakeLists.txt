@@ -219,15 +219,8 @@ set_tests_properties(test_geqdsk_tools PROPERTIES
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
 )
 
-add_test(
-  NAME test_ascot5_compare
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/test_ascot5_compare.py
-          --build-dir ${CMAKE_BINARY_DIR}
-          --output-dir ${CMAKE_BINARY_DIR}/test/scripts
-)
-set_tests_properties(test_ascot5_compare PROPERTIES
-  ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/test/scripts/ascot5/build:$ENV{LD_LIBRARY_PATH}"
-)
+# test_ascot5_compare is run separately in CI workflow (not in ctest)
+# because a5py requires libascot.so at import time, which the test builds
 
 if(LIBNEO_TESTING_ENABLED)
   add_test(

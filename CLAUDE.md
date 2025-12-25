@@ -55,6 +55,12 @@ cd build && ctest
 ```bash
 # Activate your virtual environment first
 pip install -e .
+
+# For chartmap tests (requires map2disc from MPCDF GitLab):
+pip install -e ".[chartmap]"
+
+# For full development (includes map2disc and other tools):
+pip install -e ".[dev]"
 ```
 
 ### Clean Build
@@ -87,6 +93,19 @@ The library follows an object-oriented Fortran design with abstract types and in
 - FFTW3, NetCDF, HDF5
 - Python with numpy and f90wrap (for Python interface)
 - CUDA toolkit (for GPU offloading with OpenACC)
+
+### GCC16 Setup (faepcr* machines)
+
+On ITPcp cluster machines (hostname pattern `faepcr*`), GCC 16 with nvptx OpenACC offloading is available at `/temp/AG-plasma/opt/gcc16`. Use it for GPU-accelerated builds:
+
+```bash
+cmake -S . -B build_gcc16 -G Ninja \
+  -DCMAKE_Fortran_COMPILER=/temp/AG-plasma/opt/gcc16/bin/gfortran \
+  -DCMAKE_C_COMPILER=/temp/AG-plasma/opt/gcc16/bin/gcc \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build_gcc16 -j
+LD_LIBRARY_PATH=/temp/AG-plasma/opt/gcc16/lib64 ctest --test-dir build_gcc16
+```
 
 ### NVHPC Compiler Setup
 

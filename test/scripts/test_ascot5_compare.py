@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -297,32 +298,40 @@ def main() -> None:
     run([str(fortran_exe), str(libneo_dir)])
 
     ascot_clone = artifact_root / "ascot5"
-    if ascot_clone.exists():
-        shutil.rmtree(ascot_clone)
-    run(["git", "clone", "--depth", "1", "--branch", "5.6.1", "https://github.com/ascot4fusion/ascot5.git", str(ascot_clone)])
+    lib_path = ascot_clone / "build" / "libascot.so"
 
-    lib_path = compile_ascot_library(ascot_clone)
+    # Clone and build ASCOT5 if not already done (CI does this in a separate step)
+    if not lib_path.exists():
+        if ascot_clone.exists():
+            shutil.rmtree(ascot_clone)
+        run(["git", "clone", "--depth", "1", "--branch", "5.6.1",
+             "https://github.com/ascot4fusion/ascot5.git", str(ascot_clone)])
+        lib_path = compile_ascot_library(ascot_clone)
+        # Install a5py from cloned repo
+        lib_dir = lib_path.parent
+        os.environ["LD_LIBRARY_PATH"] = f"{lib_dir}:{os.environ.get('LD_LIBRARY_PATH', '')}"
+        run([sys.executable, "-m", "pip", "install", "--quiet", "--force-reinstall",
+             "--break-system-packages", str(ascot_clone)])
+
     lib, _ = load_ascot_functions(lib_path)
 
     # Check for required Python dependencies
     try:
-        import unyt
+        import unyt  # noqa: F401
     except ImportError:
         raise ImportError(
             "The 'unyt' module is required for ASCOT5 comparison.\n"
-            "Please install it on the system:\n"
-            "  sudo apt install python3-unyt"
+            "Please install it: pip install unyt"
         )
 
-    # Import a5py from system installation
+    # Import a5py
     try:
         from a5py.physlib.analyticequilibrium import analyticGS  # type: ignore
     except ImportError as e:
         raise ImportError(
             f"Failed to import a5py: {e}\n"
-            "Please install a5py system-wide:\n"
-            "  pip install -e /path/to/ascot5\n"
-            "or install globally from the ASCOT5 repository."
+            f"libascot.so should be at: {lib_path}\n"
+            "Ensure LD_LIBRARY_PATH is set to the directory containing libascot.so"
         )
 
     rms_tol = 3.0e-2

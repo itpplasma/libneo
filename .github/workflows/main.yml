@@ -57,7 +57,15 @@ jobs:
           pytest test/python -q
           pytest python/tests -vv -s
 
+      - name: Build ASCOT5 and install a5py
+        run: |
+          git clone --depth 1 --branch 5.6.1 https://github.com/ascot4fusion/ascot5.git build/test/ascot5_compare/ascot5
+          make -C build/test/ascot5_compare/ascot5 libascot
+          pip install --break-system-packages --force-reinstall build/test/ascot5_compare/ascot5
+
       - name: Compare with ASCOT5 reference
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/build/test/ascot5_compare/ascot5/build
         run: |
           python test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
 
