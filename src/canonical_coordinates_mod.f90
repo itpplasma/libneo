@@ -80,11 +80,14 @@
     double precision, dimension(:,:,:),         allocatable :: s_Bcovar_tp_B
 !
 ! spline coefficients for Boozer $B$ and $B_r$:
+! Layout: (s_spline, theta_spline, phi_spline, phi_grid, theta_grid, s_grid)
+! Grid dims ordered (phi, theta, s) for cache-efficient orbit tracing where phi changes fastest
     double precision, dimension(:,:,:,:,:,:),   allocatable :: s_Bmod_B,s_Bcovar_r_B
 !
 ! spline coefficients for $\Delta \vartheta_{BV}=\vartheta_B-\theta_V$
 ! and $\Delta \varphi_{BV}=\varphi_B-\varphi_V=G$ as functions of VMEC coordinates, s_delt_delp_V,
 ! and as functions of Boozer coordinates, s_delt_delp_B:
+! Layout: (quantity, s_spline, theta_spline, phi_spline, phi_grid, theta_grid, s_grid)
     double precision, dimension(:,:,:,:,:,:,:), allocatable :: s_delt_delp_V,s_delt_delp_B
   end module boozer_coordinates_mod
 !

@@ -89,14 +89,15 @@ subroutine boozer_converter
   ! allocate spline coefficients for Boozer data:
   if(.not.allocated(s_Bcovar_tp_B)) &
           allocate(s_Bcovar_tp_B(2,ns_s_B+1,ns_B))
+  ! Grid dimensions ordered (phi, theta, s) for cache-efficient orbit tracing
   if(.not.allocated(s_Bmod_B)) &
-          allocate(s_Bmod_B(ns_s_B+1,ns_tp_B+1,ns_tp_B+1,ns_B,n_theta_B,n_phi_B))
+          allocate(s_Bmod_B(ns_s_B+1,ns_tp_B+1,ns_tp_B+1,n_phi_B,n_theta_B,ns_B))
   if(use_B_r.and..not.allocated(s_Bcovar_r_B)) &
-          allocate(s_Bcovar_r_B(ns_s_B+1,ns_tp_B+1,ns_tp_B+1,ns_B,n_theta_B,n_phi_B))
+          allocate(s_Bcovar_r_B(ns_s_B+1,ns_tp_B+1,ns_tp_B+1,n_phi_B,n_theta_B,ns_B))
   if(.not.allocated(s_delt_delp_V)) &
-          allocate(s_delt_delp_V(2,ns_s_B+1,ns_tp_B+1,ns_tp_B+1,ns_B,n_theta_B,n_phi_B))
+          allocate(s_delt_delp_V(2,ns_s_B+1,ns_tp_B+1,ns_tp_B+1,n_phi_B,n_theta_B,ns_B))
   if(use_del_tp_B.and..not.allocated(s_delt_delp_B)) &
-          allocate(s_delt_delp_B(2,ns_s_B+1,ns_tp_B+1,ns_tp_B+1,ns_B,n_theta_B,n_phi_B))
+          allocate(s_delt_delp_B(2,ns_s_B+1,ns_tp_B+1,ns_tp_B+1,n_phi_B,n_theta_B,ns_B))
 
   do i=0,ns_tp_B
     wint_t(i)=h_theta_B**(i+1)/dble(i+1)
@@ -184,8 +185,8 @@ subroutine boozer_converter
     ! difference between Boozer and VMEC poloidal angle, $\Delta \vartheta_{BV}=\vartheta_B-\theta$:
     deltheta_BV_Vg=aiota*delphi_BV_Vg+alam_2D
 
-    s_delt_delp_V(1,1,1,1,i_rho,:,:)=deltheta_BV_Vg
-    s_delt_delp_V(2,1,1,1,i_rho,:,:)=delphi_BV_Vg
+    s_delt_delp_V(1,1,1,1,:,:,i_rho)=transpose(deltheta_BV_Vg)
+    s_delt_delp_V(2,1,1,1,:,:,i_rho)=transpose(delphi_BV_Vg)
 
     ! At this point, all quantities are specified on equidistant grid in VMEC angles $(\theta,\varphi)$
     !
@@ -236,8 +237,11 @@ subroutine boozer_converter
       end do
     end do
 
-    if(use_del_tp_B) s_delt_delp_B(:,1,1,1,i_rho,:,:)=perqua_2D(1:2,:,:)
-    s_Bmod_B(1,1,1,i_rho,:,:)=perqua_2D(3,:,:)
+    if(use_del_tp_B) then
+      s_delt_delp_B(1,1,1,1,:,:,i_rho)=transpose(perqua_2D(1,:,:))
+      s_delt_delp_B(2,1,1,1,:,:,i_rho)=transpose(perqua_2D(2,:,:))
+    end if
+    s_Bmod_B(1,1,1,:,:,i_rho)=transpose(perqua_2D(3,:,:))
 
     ! End re-interpolate to equidistant grid in $(\vartheta_B,\varphi_B)$
 
@@ -274,7 +278,7 @@ subroutine boozer_converter
 
       ! We spline covariant component $B_\rho$ instead of $B_s$:
       do i_phi=1,n_phi_B
-        s_Bcovar_r_B(1,1,1,i_rho,:,i_phi)=2.d0*rho_tor(i_rho)*Bcovar_symfl(1,i_rho,:,i_phi) &
+        s_Bcovar_r_B(1,1,1,i_phi,:,i_rho)=2.d0*rho_tor(i_rho)*Bcovar_symfl(1,i_rho,:,i_phi) &
                            -matmul(coef(1,:)*aiota_arr(ibeg:iend),Gfunc(ibeg:iend,:,i_phi)) &
                            *Bcovar_symfl(2,i_rho,:,i_phi) &
                            -matmul(coef(1,:),Gfunc(ibeg:iend,:,i_phi)) &
@@ -307,45 +311,46 @@ subroutine boozer_converter
   end if
 
   ! splining over $\varphi$:
+  ! New layout: (spline_dims, phi_grid, theta_grid, s_grid)
 
   do i_rho=1,ns_B
     do i_theta=1,n_theta_B
 
       do i_qua=1,2
-        splcoe_p(0,:)=s_delt_delp_V(i_qua,1,1,1,i_rho,i_theta,:)
+        splcoe_p(0,:)=s_delt_delp_V(i_qua,1,1,1,:,i_theta,i_rho)
 
         call spl_per(ns_tp_B,n_phi_B,h_phi_B,splcoe_p)
 
         do k=1,ns_tp_B
-          s_delt_delp_V(i_qua,1,1,k+1,i_rho,i_theta,:)=splcoe_p(k,:)
+          s_delt_delp_V(i_qua,1,1,k+1,:,i_theta,i_rho)=splcoe_p(k,:)
         end do
 
         if(use_del_tp_B) then
-          splcoe_p(0,:)=s_delt_delp_B(i_qua,1,1,1,i_rho,i_theta,:)
+          splcoe_p(0,:)=s_delt_delp_B(i_qua,1,1,1,:,i_theta,i_rho)
 
           call spl_per(ns_tp_B,n_phi_B,h_phi_B,splcoe_p)
 
           do k=1,ns_tp_B
-            s_delt_delp_B(i_qua,1,1,k+1,i_rho,i_theta,:)=splcoe_p(k,:)
+            s_delt_delp_B(i_qua,1,1,k+1,:,i_theta,i_rho)=splcoe_p(k,:)
           end do
         end if
       end do
 
-      splcoe_p(0,:)=s_Bmod_B(1,1,1,i_rho,i_theta,:)
+      splcoe_p(0,:)=s_Bmod_B(1,1,1,:,i_theta,i_rho)
 
       call spl_per(ns_tp_B,n_phi_B,h_phi_B,splcoe_p)
 
       do k=1,ns_tp_B
-        s_Bmod_B(1,1,k+1,i_rho,i_theta,:)=splcoe_p(k,:)
+        s_Bmod_B(1,1,k+1,:,i_theta,i_rho)=splcoe_p(k,:)
       end do
 
       if(use_B_r) then
-        splcoe_p(0,:)=s_Bcovar_r_B(1,1,1,i_rho,i_theta,:)
+        splcoe_p(0,:)=s_Bcovar_r_B(1,1,1,:,i_theta,i_rho)
 
         call spl_per(ns_tp_B,n_phi_B,h_phi_B,splcoe_p)
 
         do k=1,ns_tp_B
-          s_Bcovar_r_B(1,1,k+1,i_rho,i_theta,:)=splcoe_p(k,:)
+          s_Bcovar_r_B(1,1,k+1,:,i_theta,i_rho)=splcoe_p(k,:)
         end do
       end if
 
@@ -359,40 +364,40 @@ subroutine boozer_converter
       do isp=1,ns_tp_B+1
 
         do i_qua=1,2
-          splcoe_t(0,:)=s_delt_delp_V(i_qua,1,1,isp,i_rho,:,i_phi)
+          splcoe_t(0,:)=s_delt_delp_V(i_qua,1,1,isp,i_phi,:,i_rho)
 
           call spl_per(ns_tp_B,n_theta_B,h_theta_B,splcoe_t)
 
           do k=1,ns_tp_B
-            s_delt_delp_V(i_qua,1,k+1,isp,i_rho,:,i_phi)=splcoe_t(k,:)
+            s_delt_delp_V(i_qua,1,k+1,isp,i_phi,:,i_rho)=splcoe_t(k,:)
           end do
 
           if(use_del_tp_B) then
-            splcoe_t(0,:)=s_delt_delp_B(i_qua,1,1,isp,i_rho,:,i_phi)
+            splcoe_t(0,:)=s_delt_delp_B(i_qua,1,1,isp,i_phi,:,i_rho)
 
             call spl_per(ns_tp_B,n_theta_B,h_theta_B,splcoe_t)
 
             do k=1,ns_tp_B
-              s_delt_delp_B(i_qua,1,k+1,isp,i_rho,:,i_phi)=splcoe_t(k,:)
+              s_delt_delp_B(i_qua,1,k+1,isp,i_phi,:,i_rho)=splcoe_t(k,:)
             end do
           end if
         end do
 
-        splcoe_t(0,:)=s_Bmod_B(1,1,isp,i_rho,:,i_phi)
+        splcoe_t(0,:)=s_Bmod_B(1,1,isp,i_phi,:,i_rho)
 
         call spl_per(ns_tp_B,n_theta_B,h_theta_B,splcoe_t)
 
         do k=1,ns_tp_B
-          s_Bmod_B(1,k+1,isp,i_rho,:,i_phi)=splcoe_t(k,:)
+          s_Bmod_B(1,k+1,isp,i_phi,:,i_rho)=splcoe_t(k,:)
         end do
 
         if(use_B_r) then
-          splcoe_t(0,:)=s_Bcovar_r_B(1,1,isp,i_rho,:,i_phi)
+          splcoe_t(0,:)=s_Bcovar_r_B(1,1,isp,i_phi,:,i_rho)
 
           call spl_per(ns_tp_B,n_theta_B,h_theta_B,splcoe_t)
 
           do k=1,ns_tp_B
-            s_Bcovar_r_B(1,k+1,isp,i_rho,:,i_phi)=splcoe_t(k,:)
+            s_Bcovar_r_B(1,k+1,isp,i_phi,:,i_rho)=splcoe_t(k,:)
           end do
         end if
 
@@ -420,40 +425,40 @@ subroutine boozer_converter
         do isp=1,ns_tp_B+1
 
           do i_qua=1,2
-            splcoe_r(0,:)=s_delt_delp_V(i_qua,1,ist,isp,:,i_theta,i_phi)
+            splcoe_r(0,:)=s_delt_delp_V(i_qua,1,ist,isp,i_phi,i_theta,:)
 
             call spl_reg(ns_s_B,ns_B,hs_B,splcoe_r)
 
             do k=1,ns_s_B
-              s_delt_delp_V(i_qua,k+1,ist,isp,:,i_theta,i_phi)=splcoe_r(k,:)
+              s_delt_delp_V(i_qua,k+1,ist,isp,i_phi,i_theta,:)=splcoe_r(k,:)
             end do
 
             if(use_del_tp_B) then
-              splcoe_r(0,:)=s_delt_delp_B(i_qua,1,ist,isp,:,i_theta,i_phi)
+              splcoe_r(0,:)=s_delt_delp_B(i_qua,1,ist,isp,i_phi,i_theta,:)
 
               call spl_reg(ns_s_B,ns_B,hs_B,splcoe_r)
 
               do k=1,ns_s_B
-                s_delt_delp_B(i_qua,k+1,ist,isp,:,i_theta,i_phi)=splcoe_r(k,:)
+                s_delt_delp_B(i_qua,k+1,ist,isp,i_phi,i_theta,:)=splcoe_r(k,:)
               end do
             end if
           end do
 
-          splcoe_r(0,:)=s_Bmod_B(1,ist,isp,:,i_theta,i_phi)
+          splcoe_r(0,:)=s_Bmod_B(1,ist,isp,i_phi,i_theta,:)
 
           call spl_reg(ns_s_B,ns_B,hs_B,splcoe_r)
 
           do k=1,ns_s_B
-            s_Bmod_B(k+1,ist,isp,:,i_theta,i_phi)=splcoe_r(k,:)
+            s_Bmod_B(k+1,ist,isp,i_phi,i_theta,:)=splcoe_r(k,:)
           end do
 
           if(use_B_r) then
-            splcoe_r(0,:)=s_Bcovar_r_B(1,ist,isp,:,i_theta,i_phi)
+            splcoe_r(0,:)=s_Bcovar_r_B(1,ist,isp,i_phi,i_theta,:)
 
             call spl_reg(ns_s_B,ns_B,hs_B,splcoe_r)
 
             do k=1,ns_s_B
-              s_Bcovar_r_B(k+1,ist,isp,:,i_theta,i_phi)=splcoe_r(k,:)
+              s_Bcovar_r_B(k+1,ist,isp,i_phi,i_theta,:)=splcoe_r(k,:)
             end do
           end if
 
@@ -591,19 +596,19 @@ subroutine splint_boozer_coord(r,vartheta_B,varphi_B,                           
 
   ! Begin interpolation of mod-B over $rho$
 
-  stp_all(1:nstp,1:nstp)=s_Bmod_B(ns_s_p1,:,:,is,i_theta,i_phi)
+  stp_all(1:nstp,1:nstp)=s_Bmod_B(ns_s_p1,:,:,i_phi,i_theta,is)
   dstp_all_ds(1:nstp,1:nstp)=stp_all(1:nstp,1:nstp)*derf1(ns_s_p1)
   d2stp_all_ds2(1:nstp,1:nstp)=stp_all(1:nstp,1:nstp)*derf2(ns_s_p1)
 
   do k=ns_s_B,3,-1
-    stp_all(1:nstp,1:nstp)=s_Bmod_B(k,:,:,is,i_theta,i_phi)+ds*stp_all(1:nstp,1:nstp)
-    dstp_all_ds(1:nstp,1:nstp)=s_Bmod_B(k,:,:,is,i_theta,i_phi)*derf1(k)+ds*dstp_all_ds(1:nstp,1:nstp)
-    d2stp_all_ds2(1:nstp,1:nstp)=s_Bmod_B(k,:,:,is,i_theta,i_phi)*derf2(k)+ds*d2stp_all_ds2(1:nstp,1:nstp)
+    stp_all(1:nstp,1:nstp)=s_Bmod_B(k,:,:,i_phi,i_theta,is)+ds*stp_all(1:nstp,1:nstp)
+    dstp_all_ds(1:nstp,1:nstp)=s_Bmod_B(k,:,:,i_phi,i_theta,is)*derf1(k)+ds*dstp_all_ds(1:nstp,1:nstp)
+    d2stp_all_ds2(1:nstp,1:nstp)=s_Bmod_B(k,:,:,i_phi,i_theta,is)*derf2(k)+ds*d2stp_all_ds2(1:nstp,1:nstp)
   end do
 
-  stp_all(1:nstp,1:nstp)=s_Bmod_B(1,:,:,is,i_theta,i_phi)                                 &
-                        +ds*(s_Bmod_B(2,:,:,is,i_theta,i_phi)+ds*stp_all(1:nstp,1:nstp))
-  dstp_all_ds(1:nstp,1:nstp)=s_Bmod_B(2,:,:,is,i_theta,i_phi)+ds*dstp_all_ds(1:nstp,1:nstp)
+  stp_all(1:nstp,1:nstp)=s_Bmod_B(1,:,:,i_phi,i_theta,is)                                 &
+                        +ds*(s_Bmod_B(2,:,:,i_phi,i_theta,is)+ds*stp_all(1:nstp,1:nstp))
+  dstp_all_ds(1:nstp,1:nstp)=s_Bmod_B(2,:,:,i_phi,i_theta,is)+ds*dstp_all_ds(1:nstp,1:nstp)
 
   ! End interpolation of mod-B over $rho$
   !-------------------------------
@@ -744,19 +749,19 @@ subroutine splint_boozer_coord(r,vartheta_B,varphi_B,                           
 
     ! Begin interpolation of B_rho over $rho$
 
-    stp_all(1:nstp,1:nstp)=s_Bcovar_r_B(ns_s_p1,:,:,is,i_theta,i_phi)
+    stp_all(1:nstp,1:nstp)=s_Bcovar_r_B(ns_s_p1,:,:,i_phi,i_theta,is)
     dstp_all_ds(1:nstp,1:nstp)=stp_all(1:nstp,1:nstp)*derf1(ns_s_p1)
     d2stp_all_ds2(1:nstp,1:nstp)=stp_all(1:nstp,1:nstp)*derf2(ns_s_p1)
 
     do k=ns_s_B,3,-1
-      stp_all(1:nstp,1:nstp)=s_Bcovar_r_B(k,:,:,is,i_theta,i_phi)+ds*stp_all(1:nstp,1:nstp)
-      dstp_all_ds(1:nstp,1:nstp)=s_Bcovar_r_B(k,:,:,is,i_theta,i_phi)*derf1(k)+ds*dstp_all_ds(1:nstp,1:nstp)
-      d2stp_all_ds2(1:nstp,1:nstp)=s_Bcovar_r_B(k,:,:,is,i_theta,i_phi)*derf2(k)+ds*d2stp_all_ds2(1:nstp,1:nstp)
+      stp_all(1:nstp,1:nstp)=s_Bcovar_r_B(k,:,:,i_phi,i_theta,is)+ds*stp_all(1:nstp,1:nstp)
+      dstp_all_ds(1:nstp,1:nstp)=s_Bcovar_r_B(k,:,:,i_phi,i_theta,is)*derf1(k)+ds*dstp_all_ds(1:nstp,1:nstp)
+      d2stp_all_ds2(1:nstp,1:nstp)=s_Bcovar_r_B(k,:,:,i_phi,i_theta,is)*derf2(k)+ds*d2stp_all_ds2(1:nstp,1:nstp)
     end do
 
-    stp_all(1:nstp,1:nstp)=s_Bcovar_r_B(1,:,:,is,i_theta,i_phi)                                 &
-                          +ds*(s_Bcovar_r_B(2,:,:,is,i_theta,i_phi)+ds*stp_all(1:nstp,1:nstp))
-    dstp_all_ds(1:nstp,1:nstp)=s_Bcovar_r_B(2,:,:,is,i_theta,i_phi)+ds*dstp_all_ds(1:nstp,1:nstp)
+    stp_all(1:nstp,1:nstp)=s_Bcovar_r_B(1,:,:,i_phi,i_theta,is)                                 &
+                          +ds*(s_Bcovar_r_B(2,:,:,i_phi,i_theta,is)+ds*stp_all(1:nstp,1:nstp))
+    dstp_all_ds(1:nstp,1:nstp)=s_Bcovar_r_B(2,:,:,i_phi,i_theta,is)+ds*dstp_all_ds(1:nstp,1:nstp)
 
     ! End interpolation of B_rho over $rho$
     !-------------------------------
@@ -933,20 +938,20 @@ subroutine delthe_delphi_BV(isw,r,vartheta,varphi,deltheta_BV,delphi_BV, &
   ! Begin interpolation of all over $rho$
 
   if(isw.eq.0) then
-    stp_all(:,1:nstp,1:nstp)=s_delt_delp_V(:,ns_s_p1,:,:,is,i_theta,i_phi)
+    stp_all(:,1:nstp,1:nstp)=s_delt_delp_V(:,ns_s_p1,:,:,i_phi,i_theta,is)
 
     do k=ns_s_B,1,-1
-      stp_all(:,1:nstp,1:nstp)=s_delt_delp_V(:,k,:,:,is,i_theta,i_phi)+ds*stp_all(:,1:nstp,1:nstp)
+      stp_all(:,1:nstp,1:nstp)=s_delt_delp_V(:,k,:,:,i_phi,i_theta,is)+ds*stp_all(:,1:nstp,1:nstp)
     end do
   elseif(isw.eq.1) then
     if(.not.use_del_tp_B) then
       print *,'delthe_delphi_BV : Boozer data is not loaded'
       return
     end if
-    stp_all(:,1:nstp,1:nstp)=s_delt_delp_B(:,ns_s_p1,:,:,is,i_theta,i_phi)
+    stp_all(:,1:nstp,1:nstp)=s_delt_delp_B(:,ns_s_p1,:,:,i_phi,i_theta,is)
 !
     do k=ns_s_B,1,-1
-      stp_all(:,1:nstp,1:nstp)=s_delt_delp_B(:,k,:,:,is,i_theta,i_phi)+ds*stp_all(:,1:nstp,1:nstp)
+      stp_all(:,1:nstp,1:nstp)=s_delt_delp_B(:,k,:,:,i_phi,i_theta,is)+ds*stp_all(:,1:nstp,1:nstp)
     end do
   else
     print *,'delthe_delphi_BV : unknown value of switch isw'
