@@ -1,6 +1,6 @@
 # See https://github.com/Forsti5/Fortran-Unit-Test-Basic/blob/main/.github/workflows/main.yml
 
-name: Build and test
+name: test
 
 on:
   push:
