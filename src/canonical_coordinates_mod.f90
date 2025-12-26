@@ -2,6 +2,7 @@
   module chamb_mod
     logical :: rnegflag=.false.
 !$omp threadprivate(rnegflag)
+!$acc declare create(rnegflag)
   end module chamb_mod
 !
   module parmot_mod
@@ -26,12 +27,16 @@
 
     logical :: old_axis_healing = .True.
     logical :: old_axis_healing_boundary = .True.
+    !$acc declare copyin(nper)
   end module new_vmec_stuff_mod
 !
   module vector_potentail_mod
     integer :: ns
     double precision :: hs,torflux
     double precision, dimension(:,:),         allocatable :: sA_phi
+#ifdef SIMPLE_OPENACC
+    !$acc declare copyin(torflux)
+#endif
   end module vector_potentail_mod
 !
   module canonical_coordinates_mod
@@ -93,4 +98,5 @@
 module diag_mod
   logical :: dodiag=.false.
   integer(8) :: icounter
+!$acc declare create(icounter)
 end module diag_mod
