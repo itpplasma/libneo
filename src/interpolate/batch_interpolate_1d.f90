@@ -34,6 +34,7 @@ module batch_interpolate_1d
    public :: evaluate_batch_splines_1d_many_der
    public :: evaluate_batch_splines_1d_many_der2
    public :: evaluate_batch_splines_1d_many_der3
+   public :: evaluate_batch_splines_1d_many_der2_mask
    public :: evaluate_batch_splines_1d_many_der3_mask
 
 contains
@@ -645,6 +646,67 @@ contains
          end do
       end do
    end subroutine evaluate_batch_splines_1d_many_der2
+
+   subroutine evaluate_batch_splines_1d_many_der2_mask(spl, x, mask, y_batch, dy_batch, d2y_batch)
+      type(BatchSplineData1D), intent(in) :: spl
+      real(dp), intent(in) :: x(:)
+      logical, intent(in) :: mask(:)
+      real(dp), intent(inout) :: y_batch(:, :), dy_batch(:, :), d2y_batch(:, :)
+
+      integer :: ipt, iq, k, idx, npts, nq, N
+      real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+
+      npts = size(x)
+      if (size(mask) /= npts) then
+         error stop "evaluate_batch_splines_1d_many_der2_mask: mask size mismatch"
+      end if
+
+      nq = spl%num_quantities
+      N = spl%order
+      x_min = spl%x_min
+      h_step = spl%h_step
+      period = h_step*real(spl%num_points - 1, dp)
+
+      do ipt = 1, npts
+         if (.not. mask(ipt)) cycle
+
+         if (spl%periodic) then
+            xj = modulo(x(ipt) - x_min, period) + x_min
+         else
+            xj = x(ipt)
+         end if
+         x_norm = (xj - x_min)/h_step
+         idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+         x_local = (x_norm - real(idx - 1, dp))*h_step
+
+         do iq = 1, nq
+            y_batch(iq, ipt) = spl%coeff(iq, N, idx)
+            dy_batch(iq, ipt) = N*spl%coeff(iq, N, idx)
+            d2y_batch(iq, ipt) = N*(N - 1)*spl%coeff(iq, N, idx)
+         end do
+
+         do k = N - 1, 2, -1
+            do iq = 1, nq
+               d2y_batch(iq, ipt) = k*(k - 1)*spl%coeff(iq, k, idx) + &
+                                    x_local*d2y_batch(iq, ipt)
+            end do
+         end do
+
+         do k = N - 1, 1, -1
+            do iq = 1, nq
+               dy_batch(iq, ipt) = k*spl%coeff(iq, k, idx) + &
+                                   x_local*dy_batch(iq, ipt)
+            end do
+         end do
+
+         do k = N - 1, 0, -1
+            do iq = 1, nq
+               y_batch(iq, ipt) = spl%coeff(iq, k, idx) + &
+                                  x_local*y_batch(iq, ipt)
+            end do
+         end do
+      end do
+   end subroutine evaluate_batch_splines_1d_many_der2_mask
 
    subroutine evaluate_batch_splines_1d_many_der3(spl, x, y_batch, dy_batch, d2y_batch, &
                                                   d3y_batch)
