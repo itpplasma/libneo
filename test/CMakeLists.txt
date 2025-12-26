@@ -66,6 +66,13 @@ target_link_libraries(test_binsrc.x
   ${COMMON_LIBS}
 )
 
+add_executable(test_boozer_coordinates_exports.x
+  source/test_boozer_coordinates_exports.f90
+)
+target_link_libraries(test_boozer_coordinates_exports.x
+  neo
+)
+
 add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
 target_link_libraries(test_geqdsk_tools.x
   ${MAIN_LIB}
@@ -176,6 +183,9 @@ target_link_libraries(test_nctools_nc_get3.x
 ## Standard tests according to standard libneo Fortran test convention.
 
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
+add_test(NAME test_boozer_coordinates_exports
+  COMMAND test_boozer_coordinates_exports.x
+)
 add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)

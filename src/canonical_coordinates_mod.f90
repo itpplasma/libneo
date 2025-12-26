@@ -66,14 +66,24 @@
   end module canonical_coordinates_new_mod
 !
   module boozer_coordinates_mod
-    logical :: use_B_r=.false., use_del_tp_B=.false.
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use canonical_coordinates_mod, only: ns_max, derf1, derf2, derf3
+
+    implicit none
+
+    logical :: use_B_r = .false.
+    logical :: use_del_tp_B = .false.
 
     integer :: ns_s_B,ns_tp_B
     integer :: ns_B,n_theta_B,n_phi_B
-    double precision :: hs_B,h_theta_B,h_phi_B
+    real(dp) :: hs_B, h_theta_B, h_phi_B
 
 ! spline coefficients for Boozer $B_\vartheta$ and $B_\varphi$:
-    double precision, dimension(:,:,:),         allocatable :: s_Bcovar_tp_B
+    real(dp), allocatable :: s_Bcovar_tp_B(:, :, :)
+    real(dp), allocatable :: s_Bmod_B(:, :, :, :, :, :)
+    real(dp), allocatable :: s_Bcovar_r_B(:, :, :, :, :, :)
+    real(dp), allocatable :: s_delt_delp_V(:, :, :, :, :, :, :)
+    real(dp), allocatable :: s_delt_delp_B(:, :, :, :, :, :, :)
   end module boozer_coordinates_mod
 !
   module velo_mod
