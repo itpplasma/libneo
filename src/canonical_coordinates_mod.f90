@@ -2,7 +2,7 @@
   module chamb_mod
     logical :: rnegflag=.false.
 !$omp threadprivate(rnegflag)
-!$acc declare create(rnegflag)
+! Note: Cannot use !$acc declare with threadprivate - GPU code handles this flag separately
   end module chamb_mod
 !
   module parmot_mod
@@ -27,16 +27,14 @@
 
     logical :: old_axis_healing = .True.
     logical :: old_axis_healing_boundary = .True.
-    !$acc declare copyin(nper)
+! Note: nper is copied to GPU via explicit update in SIMPLE's get_canonical_coordinates
   end module new_vmec_stuff_mod
 !
   module vector_potentail_mod
     integer :: ns
     double precision :: hs,torflux
     double precision, dimension(:,:),         allocatable :: sA_phi
-#ifdef SIMPLE_OPENACC
-    !$acc declare copyin(torflux)
-#endif
+! Note: torflux is copied to GPU via explicit update in SIMPLE's get_canonical_coordinates
   end module vector_potentail_mod
 !
   module canonical_coordinates_mod
@@ -98,5 +96,5 @@
 module diag_mod
   logical :: dodiag=.false.
   integer(8) :: icounter
-!$acc declare create(icounter)
+! Note: icounter is updated atomically in splint_can_coord - GPU handles counter separately
 end module diag_mod
