@@ -589,6 +589,7 @@ contains
     end subroutine evaluate_batch_splines_1d_many_der
 
     subroutine evaluate_batch_splines_1d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y_batch(:,:), dy_batch(:,:), d2y_batch(:,:)
@@ -644,6 +645,7 @@ contains
 
     subroutine evaluate_batch_splines_1d_many_der3(spl, x, y_batch, dy_batch, d2y_batch, &
                                                    d3y_batch)
+        !$acc routine seq
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y_batch(:,:), dy_batch(:,:), d2y_batch(:,:), d3y_batch(:,:)
@@ -722,6 +724,7 @@ contains
     
     
     subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:)
@@ -740,6 +743,7 @@ contains
 
     subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
                                               d3y_batch)
+        !$acc routine seq
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:), d3y_batch(:)
