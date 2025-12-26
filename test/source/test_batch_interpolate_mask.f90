@@ -4,7 +4,9 @@ program test_batch_interpolate_mask
     use batch_interpolate, only: construct_batch_splines_1d, destroy_batch_splines_1d
     use batch_interpolate, only: construct_batch_splines_3d, destroy_batch_splines_3d
     use batch_interpolate, only: evaluate_batch_splines_1d_many_der3
+    use batch_interpolate, only: evaluate_batch_splines_1d_many_der2
     use batch_interpolate, only: evaluate_batch_splines_3d_many_der2
+    use batch_interpolate, only: evaluate_batch_splines_1d_many_der2_mask
     use batch_interpolate, only: evaluate_batch_splines_1d_many_der3_mask
     use batch_interpolate, only: evaluate_batch_splines_3d_many_der2_mask
     implicit none
@@ -60,6 +62,8 @@ contains
 
         real(dp) :: y_full(nq, npts), dy_full(nq, npts), d2_full(nq, npts), d3_full(nq, npts)
         real(dp) :: y_mask(nq, npts), dy_mask(nq, npts), d2_mask(nq, npts), d3_mask(nq, npts)
+        real(dp) :: y2_full(nq, npts), dy2_full(nq, npts), d22_full(nq, npts)
+        real(dp) :: y2_mask(nq, npts), dy2_mask(nq, npts), d22_mask(nq, npts)
         integer :: i, iq
 
         do i = 1, ngrid
@@ -79,6 +83,14 @@ contains
 
         call evaluate_batch_splines_1d_many_der3(spl, x_eval, y_full, dy_full, d2_full, d3_full)
 
+        call evaluate_batch_splines_1d_many_der2(spl, x_eval, y2_full, dy2_full, d22_full)
+
+        y2_mask = sentinel
+        dy2_mask = sentinel
+        d22_mask = sentinel
+        call evaluate_batch_splines_1d_many_der2_mask(spl, x_eval, mask, y2_mask, dy2_mask, &
+                                                      d22_mask)
+
         y_mask = sentinel
         dy_mask = sentinel
         d2_mask = sentinel
@@ -88,11 +100,17 @@ contains
 
         do i = 1, npts
             if (mask(i)) then
+                call assert_close("1d_y2", y2_full(:, i), y2_mask(:, i), tol)
+                call assert_close("1d_dy2", dy2_full(:, i), dy2_mask(:, i), tol)
+                call assert_close("1d_d22", d22_full(:, i), d22_mask(:, i), tol)
                 call assert_close("1d_y", y_full(:, i), y_mask(:, i), tol)
                 call assert_close("1d_dy", dy_full(:, i), dy_mask(:, i), tol)
                 call assert_close("1d_d2", d2_full(:, i), d2_mask(:, i), tol)
                 call assert_close("1d_d3", d3_full(:, i), d3_mask(:, i), tol)
             else
+                call assert_unchanged("1d_y2_sentinel", y2_mask(:, i), sentinel)
+                call assert_unchanged("1d_dy2_sentinel", dy2_mask(:, i), sentinel)
+                call assert_unchanged("1d_d22_sentinel", d22_mask(:, i), sentinel)
                 call assert_unchanged("1d_y_sentinel", y_mask(:, i), sentinel)
                 call assert_unchanged("1d_dy_sentinel", dy_mask(:, i), sentinel)
                 call assert_unchanged("1d_d2_sentinel", d2_mask(:, i), sentinel)
