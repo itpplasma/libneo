@@ -159,6 +159,9 @@ target_link_libraries(test_batch_interpolate_rmix.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_mask.x source/test_batch_interpolate_mask.f90)
+target_link_libraries(test_batch_interpolate_mask.x ${COMMON_LIBS})
+
 add_executable(test_batch_eval_oracle.x
     source/test_batch_eval_oracle.f90
     source/spline_eval_reference.f90)
@@ -218,6 +221,7 @@ add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
+add_test(NAME test_batch_interpolate_mask COMMAND test_batch_interpolate_mask.x)
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)
 add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
