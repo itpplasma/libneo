@@ -12,7 +12,11 @@ module batch_interpolate_3d
 
     implicit none
     private
-    
+
+    ! Maximum sizes for work arrays to avoid heap allocation in hot loops
+    integer, parameter :: MAX_QUANTITIES = 8
+    integer, parameter :: MAX_ORDER = 8
+
     ! Export batch spline construction/destruction routines
     public :: construct_batch_splines_3d
     public :: construct_batch_splines_3d_lines
@@ -1037,28 +1041,20 @@ contains
         real(dp), intent(out) :: dy_batch(:,:)  ! (3, n_quantities)
         
         real(dp) :: x_norm(3), x_local(3), xj
-        ! Arrays with quantities first for SIMD
-        real(dp) :: coeff_23(spl%num_quantities, 0:spl%order(2), 0:spl%order(3))
-        real(dp) :: coeff_23_dx1(spl%num_quantities, 0:spl%order(2), &
-            0:spl%order(3))
-        real(dp) :: coeff_3(spl%num_quantities, 0:spl%order(3))
-        real(dp) :: coeff_3_dx1(spl%num_quantities, 0:spl%order(3))
-        real(dp) :: coeff_3_dx2(spl%num_quantities, 0:spl%order(3))
-        
+        ! Fixed-size arrays to avoid heap allocation (stack only)
+        real(dp) :: coeff_23(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_3(MAX_QUANTITIES, 0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1(MAX_QUANTITIES, 0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2(MAX_QUANTITIES, 0:MAX_ORDER)
+
         integer :: interval_index(3), k1, k2, k3, j, iq
-        integer :: N1, N2, N3
-        
+        integer :: N1, N2, N3, NQ
+
         N1 = spl%order(1)
         N2 = spl%order(2)
         N3 = spl%order(3)
-        
-        ! Validate output sizes
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d_der: y_batch array too small"
-        end if
-        if (size(dy_batch, 1) < 3 .or. size(dy_batch, 2) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d_der: dy_batch array too small"
-        end if
+        NQ = spl%num_quantities
         
         do j=1,3
             if (spl%periodic(j)) then
@@ -1216,38 +1212,26 @@ contains
         real(dp), intent(out) :: d2y_batch(:,:)  ! (6, n_quantities)
         
         real(dp) :: x_norm(3), x_local(3), xj
-        ! Arrays with quantities first for SIMD
-        real(dp) :: coeff_23(spl%num_quantities, 0:spl%order(2), 0:spl%order(3))
-        real(dp) :: coeff_23_dx1(spl%num_quantities, 0:spl%order(2), &
-            0:spl%order(3))
-        real(dp) :: coeff_23_dx1x1(spl%num_quantities, 0:spl%order(2), &
-            0:spl%order(3))
-        
-        real(dp) :: coeff_3(spl%num_quantities, 0:spl%order(3))
-        real(dp) :: coeff_3_dx1(spl%num_quantities, 0:spl%order(3))
-        real(dp) :: coeff_3_dx2(spl%num_quantities, 0:spl%order(3))
-        real(dp) :: coeff_3_dx1x1(spl%num_quantities, 0:spl%order(3))
-        real(dp) :: coeff_3_dx1x2(spl%num_quantities, 0:spl%order(3))
-        real(dp) :: coeff_3_dx2x2(spl%num_quantities, 0:spl%order(3))
-        
+        ! Fixed-size arrays to avoid heap allocation (stack only)
+        real(dp) :: coeff_23(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1x1(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
+
+        real(dp) :: coeff_3(MAX_QUANTITIES, 0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1(MAX_QUANTITIES, 0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2(MAX_QUANTITIES, 0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1x1(MAX_QUANTITIES, 0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1x2(MAX_QUANTITIES, 0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2x2(MAX_QUANTITIES, 0:MAX_ORDER)
+
         integer :: interval_index(3), k1, k2, k3, j, iq
-        integer :: N1, N2, N3
+        integer :: N1, N2, N3, NQ
         real(dp) :: c  ! Temporary variable for coefficient reuse
-        
+
         N1 = spl%order(1)
         N2 = spl%order(2)
         N3 = spl%order(3)
-        
-        ! Validate output sizes
-        if (size(y_batch) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d_der2: y_batch array too small"
-        end if
-        if (size(dy_batch, 1) < 3 .or. size(dy_batch, 2) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d_der2: dy_batch array too small"
-        end if
-        if (size(d2y_batch, 1) < 6 .or. size(d2y_batch, 2) < spl%num_quantities) then
-            error stop "evaluate_batch_splines_3d_der2: d2y_batch array too small"
-        end if
+        NQ = spl%num_quantities
         
         do j=1,3
             if (spl%periodic(j)) then
