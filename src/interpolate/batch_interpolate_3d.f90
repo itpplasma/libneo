@@ -984,6 +984,7 @@ contains
     end subroutine evaluate_batch_splines_3d_many_resident
 
     subroutine evaluate_batch_splines_3d_many_der(spl, x, y_batch, dy_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:,:)           ! (3, npts)
         real(dp), intent(out) :: y_batch(:,:)    ! (nq, npts)
@@ -999,6 +1000,7 @@ contains
     end subroutine evaluate_batch_splines_3d_many_der
 
     subroutine evaluate_batch_splines_3d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:,:)            ! (3, npts)
         real(dp), intent(out) :: y_batch(:,:)     ! (nq, npts)
@@ -1015,6 +1017,7 @@ contains
     end subroutine evaluate_batch_splines_3d_many_der2
 
     subroutine evaluate_batch_splines_3d_der(spl, x, y_batch, dy_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
@@ -1031,6 +1034,7 @@ contains
     end subroutine evaluate_batch_splines_3d_der
 
     subroutine evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
@@ -1190,6 +1194,7 @@ contains
     end subroutine evaluate_batch_splines_3d_der_core
 
     subroutine evaluate_batch_splines_3d_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
@@ -1209,6 +1214,7 @@ contains
     end subroutine evaluate_batch_splines_3d_der2
 
     subroutine evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
