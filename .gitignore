@@ -1,9 +1,14 @@
 # Ignore directories for building the code.
 [Bb]uild/*
-[Bb]uild-*/*
+# Ignore build directories with suffix/preset names.
+[Bb]uild-*/
+[Bb]uild_*/
+[Bb]uild*/
 # Build directories of tools.
 */*/[Bb]uild/*
-*/*/[Bb]uild-*/*
+*/*/[Bb]uild-*/
+*/*/[Bb]uild_*/
+*/*/[Bb]uild*/
 
 # Ignore error files and log files.
 *.err

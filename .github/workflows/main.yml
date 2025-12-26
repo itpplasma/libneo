@@ -32,7 +32,7 @@ jobs:
 
       - name: Install Python dependencies for tests
         run: |
-          pip install --break-system-packages ".[dev]"
+          pip install --break-system-packages -c constraints/ci-python.txt ".[dev]"
 
       - name: Test
         run: |

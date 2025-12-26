@@ -1,0 +1,4 @@
+# CI constraints for optional Python test dependencies.
+#
+# map2disc depends on numba, and current numba releases constrain NumPy to <= 2.3.
+numpy<2.4
