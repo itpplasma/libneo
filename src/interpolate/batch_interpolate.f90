@@ -16,6 +16,7 @@ module batch_interpolate
                                     evaluate_batch_splines_1d_many_der, &
                                     evaluate_batch_splines_1d_many_der2, &
                                     evaluate_batch_splines_1d_many_der3, &
+                                    evaluate_batch_splines_1d_many_der3_mask, &
                                     evaluate_batch_splines_1d_der, &
                                     evaluate_batch_splines_1d_der2, &
                                     evaluate_batch_splines_1d_der3
@@ -40,7 +41,8 @@ module batch_interpolate
                                     evaluate_batch_splines_3d_many, &
                                     evaluate_batch_splines_3d_many_resident, &
                                     evaluate_batch_splines_3d_many_der, &
-                                    evaluate_batch_splines_3d_many_der2
+                                    evaluate_batch_splines_3d_many_der2, &
+                                    evaluate_batch_splines_3d_many_der2_mask
 
     implicit none
 
@@ -56,6 +58,7 @@ module batch_interpolate
     public :: evaluate_batch_splines_1d_many, evaluate_batch_splines_1d_many_resident
     public :: evaluate_batch_splines_1d_many_der
     public :: evaluate_batch_splines_1d_many_der2, evaluate_batch_splines_1d_many_der3
+    public :: evaluate_batch_splines_1d_many_der3_mask
     public :: evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2
     public :: evaluate_batch_splines_1d_der3
 
@@ -77,5 +80,5 @@ module batch_interpolate
     public :: evaluate_batch_splines_3d_der2_rmix
     public :: evaluate_batch_splines_3d_many, evaluate_batch_splines_3d_many_resident
     public :: evaluate_batch_splines_3d_many_der, evaluate_batch_splines_3d_many_der2
-
+    public :: evaluate_batch_splines_3d_many_der2_mask
 end module batch_interpolate
