@@ -256,6 +256,8 @@ contains
                 events(event_id)%x_event = x_start
                 call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
             end do
+            ! Initial-point events (g0 ≈ 0) are handled uniformly by find_event_in_step
+            ! using the (g1 - g0) directional surrogate for consistent direction logic.
         end if
 
         do step = 1, max_steps
@@ -345,6 +347,8 @@ contains
                 call eval_event(events(event_id)%condition, x, y_work, &
                                 g_old(event_id), context)
             end do
+            ! Initial-point events (g0 ≈ 0) are handled uniformly by find_event_in_step
+            ! using the (g1 - g0) directional surrogate for consistent direction logic.
         end if
 
         do step = 1, max_steps
@@ -490,14 +494,15 @@ contains
         end do
     end subroutine hermite_interpolate
 
-    pure elemental real(dp) function g_tol_value(g)
-        real(dp), intent(in) :: g
+    pure real(dp) function g_tol_step(g0, g1)
+        real(dp), intent(in) :: g0, g1
 
-        ! Use a relative tolerance band to avoid exact zero comparisons for event functions.
-        g_tol_value = sqrt(epsilon(1.0_dp)) * max(1.0_dp, abs(g))
-    end function g_tol_value
+        ! Step-consistent tolerance using both endpoint values.
+        ! This ensures symmetric treatment and avoids tolerance-band chatter.
+        g_tol_step = sqrt(epsilon(1.0_dp)) * max(1.0_dp, abs(g0), abs(g1))
+    end function g_tol_step
 
-    pure elemental integer function g_band_sign(g, g_tol)
+    pure integer function g_band_sign(g, g_tol)
         real(dp), intent(in) :: g, g_tol
 
         ! Map g into a tolerance band: +1/-1 are "definitely" positive/negative, 0 is near zero.
@@ -526,8 +531,8 @@ contains
         class(*), intent(in), optional :: context
 
         real(dp) :: h, s_est, best_s, x_left, x_right, x_try, s_try, g_try
-        real(dp) :: g_left, g_right, x_tol, g0_tol, g1_tol, g_delta_tol, g_try_tol
-        integer :: i, iter
+        real(dp) :: g_left, g_right, x_tol, tol, tol_step
+        integer :: i, iter, s_left, s_try_band
         integer, parameter :: max_event_iter = 50
 
         event_found = .false.
@@ -538,22 +543,27 @@ contains
         h = x1 - x0
         best_s = 2.0_dp
 
+        ! Pass 1: Find earliest event using stable s_est computation
         do i = 1, n_events
             if (.not. event_crossing(g0(i), g1(i), direction(i))) cycle
-            g0_tol = g_tol_value(g0(i))
-            g1_tol = g_tol_value(g1(i))
-            if (abs(g0(i)) <= g0_tol) then
+
+            ! Use step-consistent tolerance for this event
+            tol = g_tol_step(g0(i), g1(i))
+
+            if (abs(g0(i)) <= tol) then
                 ! g(x0) ~ 0 is a valid event; choose it as the earliest candidate.
                 s_est = 0.0_dp
-            else if (abs(g1(i)) <= g1_tol) then
+            else if (abs(g1(i)) <= tol) then
                 ! Symmetric endpoint handling for g(x1) ~ 0.
                 s_est = 1.0_dp
             else
-                g_delta_tol = sqrt(epsilon(1.0_dp)) * max(1.0_dp, max(abs(g0(i)), abs(g1(i))))
-                if (abs(g0(i) - g1(i)) < g_delta_tol) cycle  ! Avoid unstable s_est when endpoints are nearly equal.
-                s_est = g0(i)/(g0(i) - g1(i))
-                if (s_est < 0.0_dp .or. s_est > 1.0_dp) cycle  ! Ensure ordering uses only in-step estimates.
+                ! Only compute s_est if denominator is sufficiently large
+                if (abs(g0(i) - g1(i)) <= tol) cycle
+                s_est = g0(i) / (g0(i) - g1(i))
+                ! Require s_est in [0, 1] for valid in-step ordering
+                if (s_est < 0.0_dp .or. s_est > 1.0_dp) cycle
             end if
+
             if (s_est < best_s) then
                 best_s = s_est
                 event_id = i
@@ -563,55 +573,67 @@ contains
         if (event_id == 0) return
 
         event_found = .true.
-        g0_tol = g_tol_value(g0(event_id))
-        g1_tol = g_tol_value(g1(event_id))
-        if (abs(g0(event_id)) <= g0_tol) then
-            ! Report the left endpoint event explicitly to respect g(x0) = 0 candidates.
+
+        ! Compute step tolerance ONCE from original step endpoints.
+        ! Invariant: convergence tolerance must not shrink during refinement.
+        tol_step = g_tol_step(g0(event_id), g1(event_id))
+
+        ! Handle endpoint events explicitly
+        if (abs(g0(event_id)) <= tol_step) then
             x_root = x0
             y_root = y0
             return
         end if
-        if (abs(g1(event_id)) <= g1_tol) then
-            ! Symmetric right endpoint handling with tolerance-based zero detection.
+        if (abs(g1(event_id)) <= tol_step) then
             x_root = x1
             y_root = y1
             return
         end if
 
+        ! Root refinement with Hermite interpolation
         x_left = x0
         x_right = x1
         g_left = g0(event_id)
         g_right = g1(event_id)
-        x_tol = 100.0_dp*epsilon(x1)*max(abs(x0), abs(x1), abs(h))
+        x_tol = 100.0_dp * epsilon(x1) * max(abs(x0), abs(x1), abs(h))
 
         do iter = 1, max_event_iter
+            ! Termination: bracket sufficiently small
             if (abs(x_right - x_left) <= x_tol) exit
-            g_delta_tol = sqrt(epsilon(1.0_dp)) * max(1.0_dp, max(abs(g_left), abs(g_right)))
-            if (abs(g_right - g_left) > g_delta_tol) then
-                ! Use secant when the bracket endpoints are sufficiently distinct.
-                s_try = g_left/(g_left - g_right)
+
+            ! Use frozen step tolerance for all checks (invariant preservation)
+
+            ! Compute trial point using secant or bisection
+            if (abs(g_right - g_left) > tol_step) then
+                s_try = g_left / (g_left - g_right)
             else
-                ! Fall back to bisection to avoid division by a near-zero denominator.
                 s_try = 0.5_dp
             end if
+
+            ! Clamp to interior of bracket
             if (s_try <= 0.0_dp .or. s_try >= 1.0_dp) then
-                x_try = 0.5_dp*(x_left + x_right)
+                x_try = 0.5_dp * (x_left + x_right)
             else
-                x_try = x_left + s_try*(x_right - x_left)
+                x_try = x_left + s_try * (x_right - x_left)
             end if
-            s_try = (x_try - x0)/h
+
+            ! Evaluate event function at trial point
+            s_try = (x_try - x0) / h
             call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
             call eval_event(events(event_id)%condition, x_try, y_root, g_try, context)
-            g_try_tol = g_tol_value(g_try)
-            if (abs(g_try) <= g_try_tol) then
-                ! Collapse the bracket to the converged point so the final interpolation uses x_try.
+
+            ! Termination: found zero within step tolerance
+            if (abs(g_try) <= tol_step) then
                 x_left = x_try
                 x_right = x_try
-                g_left = g_try
-                g_right = g_try
                 exit
             end if
-            if (g_left*g_try <= 0.0_dp) then
+
+            ! Update bracket using band signs to avoid tolerance-band chatter
+            s_left = g_band_sign(g_left, tol_step)
+            s_try_band = g_band_sign(g_try, tol_step)
+
+            if (s_left * s_try_band <= 0) then
                 x_right = x_try
                 g_right = g_try
             else
@@ -620,54 +642,61 @@ contains
             end if
         end do
 
-        x_root = 0.5_dp*(x_left + x_right)
-        s_try = (x_root - x0)/h
+        x_root = 0.5_dp * (x_left + x_right)
+        s_try = (x_root - x0) / h
         call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
     end subroutine find_event_in_step
 
     pure logical function event_crossing(g0, g1, direction)
         real(dp), intent(in) :: g0, g1
         integer, intent(in) :: direction
-        real(dp) :: g0_tol, g1_tol
+
+        real(dp) :: tol, dg
         integer :: s0, s1
+        logical :: one_near_zero
 
-        g0_tol = g_tol_value(g0)
-        g1_tol = g_tol_value(g1)
-        s0 = g_band_sign(g0, g0_tol)
-        s1 = g_band_sign(g1, g1_tol)
+        ! Use single step-consistent tolerance for both endpoints.
+        tol = g_tol_step(g0, g1)
+        s0 = g_band_sign(g0, tol)
+        s1 = g_band_sign(g1, tol)
 
+        ! If BOTH endpoints are inside the tolerance band, we cannot decide.
+        ! Return false - no crossing detected.
         if (s0 == 0 .and. s1 == 0) then
-            ! Both endpoints are within the tolerance band: only accept direction==0 to allow endpoint events.
-            event_crossing = direction == 0
+            event_crossing = .false.
             return
         end if
 
-        if (s0 == 0 .and. s1 /= 0) then
-            ! Treat g(x0) ~ 0 as an event candidate and apply direction filtering symmetrically.
-            event_crossing = direction == 0 .or. &
-                             (direction == 1 .and. s1 > 0) .or. &
-                             (direction == -1 .and. s1 < 0)
+        ! Exactly one endpoint inside tolerance band: use directional surrogate.
+        ! dg = g1 - g0 approximates dg/dt (first-order accurate).
+        ! Known limitation: direction detection near endpoints is first-order accurate.
+        one_near_zero = (s0 == 0) .neqv. (s1 == 0)
+        if (one_near_zero) then
+            dg = g1 - g0
+            select case (direction)
+            case (0)
+                event_crossing = .true.
+            case (1)
+                event_crossing = dg > 0.0_dp
+            case (-1)
+                event_crossing = dg < 0.0_dp
+            case default
+                event_crossing = .true.
+            end select
             return
         end if
 
-        if (s1 == 0 .and. s0 /= 0) then
-            ! Symmetric handling for g(x1) ~ 0 with direction filtering at the right endpoint.
-            event_crossing = direction == 0 .or. &
-                             (direction == 1 .and. s0 < 0) .or. &
-                             (direction == -1 .and. s0 > 0)
-            return
-        end if
-
-        ! Require a sign change across tolerance bands; same-sign endpoints imply tangential/no-crossing.
+        ! Both endpoints outside tolerance band: require a sign change.
+        ! Known limitation: tangential roots without sign change are intentionally ignored.
         select case (direction)
         case (0)
-            event_crossing = s0*s1 < 0
+            event_crossing = s0 * s1 < 0
         case (1)
             event_crossing = s0 < 0 .and. s1 > 0
         case (-1)
             event_crossing = s0 > 0 .and. s1 < 0
         case default
-            event_crossing = s0*s1 < 0
+            event_crossing = s0 * s1 < 0
         end select
     end function event_crossing
 
