@@ -1878,168 +1878,20 @@ contains
       inv_h_step = spl%inv_h_step
       period = spl%period
 
-      include "spline3d_o555_point_setup.inc"
+#include "spline3d_o555_point_setup.inc"
 
-      ! First reduction (k1): initialize from k1 = 5
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, N1, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c
-            coeff_23_dx1(k2, k3) = real(N1, dp)*c
-            coeff_23_dx1x1(k2, k3) = 20.0_dp*c
-         end do
-      end do
+#include "spline3d_o555_k1_reduce_nq1.inc"
 
-      ! k1 = 4
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 4, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = 4.0_dp*c + x1*coeff_23_dx1(k2, k3)
-            coeff_23_dx1x1(k2, k3) = 12.0_dp*c + x1*coeff_23_dx1x1(k2, k3)
-         end do
-      end do
+#define D2_11 d2y_rmix(1, 1)
+#define D2_12 d2y_rmix(2, 1)
+#define D2_13 d2y_rmix(3, 1)
 
-      ! k1 = 3
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = 3.0_dp*c + x1*coeff_23_dx1(k2, k3)
-            coeff_23_dx1x1(k2, k3) = 6.0_dp*c + x1*coeff_23_dx1x1(k2, k3)
-         end do
-      end do
+#include "spline3d_o555_k2_reduce_nq1.inc"
+#include "spline3d_o555_k3_reduce_nq1.inc"
 
-      ! k1 = 2
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = 2.0_dp*c + x1*coeff_23_dx1(k2, k3)
-            coeff_23_dx1x1(k2, k3) = 2.0_dp*c + x1*coeff_23_dx1x1(k2, k3)
-         end do
-      end do
-
-      ! k1 = 1
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = c + x1*coeff_23_dx1(k2, k3)
-         end do
-      end do
-
-      ! k1 = 0
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-         end do
-      end do
-
-      ! Second reduction (k2): initialize from k2 = 5
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(N2, k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(N2, k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(N2, k3)
-         coeff_3_dx2(k3) = real(N2, dp)*coeff_3(k3)
-         coeff_3_dx1x2(k3) = real(N2, dp)*coeff_3_dx1(k3)
-      end do
-
-      ! k2 = 4
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(4, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(4, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(4, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = 4.0_dp*coeff_23(4, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = 4.0_dp*coeff_23_dx1(4, k3) + x2*coeff_3_dx1x2(k3)
-      end do
-
-      ! k2 = 3
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(3, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(3, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(3, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = 3.0_dp*coeff_23(3, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = 3.0_dp*coeff_23_dx1(3, k3) + x2*coeff_3_dx1x2(k3)
-      end do
-
-      ! k2 = 2
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(2, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(2, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(2, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = 2.0_dp*coeff_23(2, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = 2.0_dp*coeff_23_dx1(2, k3) + x2*coeff_3_dx1x2(k3)
-      end do
-
-      ! k2 = 1
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(1, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(1, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(1, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = coeff_23(1, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = coeff_23_dx1(1, k3) + x2*coeff_3_dx1x2(k3)
-      end do
-
-      ! k2 = 0
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(0, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(0, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(0, k3) + x2*coeff_3_dx1x1(k3)
-      end do
-
-      ! Third reduction (k3): initialize from k3 = 5
-      y_batch(1) = coeff_3(N3)
-      dy_batch(1, 1) = coeff_3_dx1(N3)
-      dy_batch(2, 1) = coeff_3_dx2(N3)
-      dy_batch(3, 1) = real(N3, dp)*coeff_3(N3)
-      d2y_rmix(1, 1) = coeff_3_dx1x1(N3)
-      d2y_rmix(2, 1) = coeff_3_dx1x2(N3)
-      d2y_rmix(3, 1) = real(N3, dp)*coeff_3_dx1(N3)
-
-      ! k3 = 4
-      y_batch(1) = coeff_3(4) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(4) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(4) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = 4.0_dp*coeff_3(4) + x3*dy_batch(3, 1)
-      d2y_rmix(1, 1) = coeff_3_dx1x1(4) + x3*d2y_rmix(1, 1)
-      d2y_rmix(2, 1) = coeff_3_dx1x2(4) + x3*d2y_rmix(2, 1)
-      d2y_rmix(3, 1) = 4.0_dp*coeff_3_dx1(4) + x3*d2y_rmix(3, 1)
-
-      ! k3 = 3
-      y_batch(1) = coeff_3(3) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(3) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(3) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = 3.0_dp*coeff_3(3) + x3*dy_batch(3, 1)
-      d2y_rmix(1, 1) = coeff_3_dx1x1(3) + x3*d2y_rmix(1, 1)
-      d2y_rmix(2, 1) = coeff_3_dx1x2(3) + x3*d2y_rmix(2, 1)
-      d2y_rmix(3, 1) = 3.0_dp*coeff_3_dx1(3) + x3*d2y_rmix(3, 1)
-
-      ! k3 = 2
-      y_batch(1) = coeff_3(2) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(2) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(2) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = 2.0_dp*coeff_3(2) + x3*dy_batch(3, 1)
-      d2y_rmix(1, 1) = coeff_3_dx1x1(2) + x3*d2y_rmix(1, 1)
-      d2y_rmix(2, 1) = coeff_3_dx1x2(2) + x3*d2y_rmix(2, 1)
-      d2y_rmix(3, 1) = 2.0_dp*coeff_3_dx1(2) + x3*d2y_rmix(3, 1)
-
-      ! k3 = 1
-      y_batch(1) = coeff_3(1) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(1) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(1) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = coeff_3(1) + x3*dy_batch(3, 1)
-      d2y_rmix(1, 1) = coeff_3_dx1x1(1) + x3*d2y_rmix(1, 1)
-      d2y_rmix(2, 1) = coeff_3_dx1x2(1) + x3*d2y_rmix(2, 1)
-      d2y_rmix(3, 1) = coeff_3_dx1(1) + x3*d2y_rmix(3, 1)
-
-      ! k3 = 0
-      y_batch(1) = coeff_3(0) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(0) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(0) + x3*dy_batch(2, 1)
-      d2y_rmix(1, 1) = coeff_3_dx1x1(0) + x3*d2y_rmix(1, 1)
-      d2y_rmix(2, 1) = coeff_3_dx1x2(0) + x3*d2y_rmix(2, 1)
+#undef D2_11
+#undef D2_12
+#undef D2_13
    end subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o555
 
    subroutine evaluate_batch_splines_3d_der2_core_rmix_o555(spl, x, y_batch, &
@@ -2078,237 +1930,20 @@ contains
       inv_h_step = spl%inv_h_step
       period = spl%period
 
-      include "spline3d_o555_point_setup.inc"
+#include "spline3d_o555_point_setup.inc"
 
-      ! First reduction (k1): initialize from k1 = 5
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 5, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c
-               coeff_23_dx1(iq, k2, k3) = 5.0_dp*c
-               coeff_23_dx1x1(iq, k2, k3) = 20.0_dp*c
-            end do
-         end do
-      end do
+#include "spline3d_o555_k1_reduce_many.inc"
 
-      ! k1 = 4
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 4, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = 4.0_dp*c + x1*coeff_23_dx1(iq, k2, k3)
-               coeff_23_dx1x1(iq, k2, k3) = 12.0_dp*c + &
-                                            x1*coeff_23_dx1x1(iq, k2, k3)
-            end do
-         end do
-      end do
+#define D2_11(iq) d2y_rmix(1, iq)
+#define D2_12(iq) d2y_rmix(2, iq)
+#define D2_13(iq) d2y_rmix(3, iq)
 
-      ! k1 = 3
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 3, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = 3.0_dp*c + x1*coeff_23_dx1(iq, k2, k3)
-               coeff_23_dx1x1(iq, k2, k3) = 6.0_dp*c + &
-                                            x1*coeff_23_dx1x1(iq, k2, k3)
-            end do
-         end do
-      end do
+#include "spline3d_o555_k2_reduce_many.inc"
+#include "spline3d_o555_k3_reduce_many.inc"
 
-      ! k1 = 2
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 2, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = 2.0_dp*c + x1*coeff_23_dx1(iq, k2, k3)
-               coeff_23_dx1x1(iq, k2, k3) = 2.0_dp*c + &
-                                            x1*coeff_23_dx1x1(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! k1 = 1
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 1, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = c + x1*coeff_23_dx1(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! k1 = 0
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 0, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! Second reduction (k2): initialize from k2 = 5
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 5, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 5, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 5, k3)
-            coeff_3_dx2(iq, k3) = 5.0_dp*coeff_3(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 5.0_dp*coeff_3_dx1(iq, k3)
-         end do
-      end do
-
-      ! k2 = 4
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 4, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 4, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 4, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = 4.0_dp*coeff_23(iq, 4, k3) + &
-                                  x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 4.0_dp*coeff_23_dx1(iq, 4, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 3
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 3, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 3, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 3, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = 3.0_dp*coeff_23(iq, 3, k3) + &
-                                  x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 3.0_dp*coeff_23_dx1(iq, 3, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 2
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 2, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 2, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 2, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = 2.0_dp*coeff_23(iq, 2, k3) + &
-                                  x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 2.0_dp*coeff_23_dx1(iq, 2, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 1
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 1, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 1, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 1, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = coeff_23(iq, 1, k3) + x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = coeff_23_dx1(iq, 1, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 0
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 0, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 0, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 0, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-         end do
-      end do
-
-      ! Third reduction (k3): initialize from k3 = 5
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 5)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 5)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 5)
-         dy_batch(3, iq) = 5.0_dp*coeff_3(iq, 5)
-         d2y_rmix(1, iq) = coeff_3_dx1x1(iq, 5)
-         d2y_rmix(2, iq) = coeff_3_dx1x2(iq, 5)
-         d2y_rmix(3, iq) = 5.0_dp*coeff_3_dx1(iq, 5)
-      end do
-
-      ! k3 = 4
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 4) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 4) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 4) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = 4.0_dp*coeff_3(iq, 4) + x3*dy_batch(3, iq)
-         d2y_rmix(1, iq) = coeff_3_dx1x1(iq, 4) + x3*d2y_rmix(1, iq)
-         d2y_rmix(2, iq) = coeff_3_dx1x2(iq, 4) + x3*d2y_rmix(2, iq)
-         d2y_rmix(3, iq) = 4.0_dp*coeff_3_dx1(iq, 4) + x3*d2y_rmix(3, iq)
-      end do
-
-      ! k3 = 3
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 3) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 3) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 3) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = 3.0_dp*coeff_3(iq, 3) + x3*dy_batch(3, iq)
-         d2y_rmix(1, iq) = coeff_3_dx1x1(iq, 3) + x3*d2y_rmix(1, iq)
-         d2y_rmix(2, iq) = coeff_3_dx1x2(iq, 3) + x3*d2y_rmix(2, iq)
-         d2y_rmix(3, iq) = 3.0_dp*coeff_3_dx1(iq, 3) + x3*d2y_rmix(3, iq)
-      end do
-
-      ! k3 = 2
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 2) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 2) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 2) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = 2.0_dp*coeff_3(iq, 2) + x3*dy_batch(3, iq)
-         d2y_rmix(1, iq) = coeff_3_dx1x1(iq, 2) + x3*d2y_rmix(1, iq)
-         d2y_rmix(2, iq) = coeff_3_dx1x2(iq, 2) + x3*d2y_rmix(2, iq)
-         d2y_rmix(3, iq) = 2.0_dp*coeff_3_dx1(iq, 2) + x3*d2y_rmix(3, iq)
-      end do
-
-      ! k3 = 1
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 1) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 1) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 1) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = coeff_3(iq, 1) + x3*dy_batch(3, iq)
-         d2y_rmix(1, iq) = coeff_3_dx1x1(iq, 1) + x3*d2y_rmix(1, iq)
-         d2y_rmix(2, iq) = coeff_3_dx1x2(iq, 1) + x3*d2y_rmix(2, iq)
-         d2y_rmix(3, iq) = coeff_3_dx1(iq, 1) + x3*d2y_rmix(3, iq)
-      end do
-
-      ! k3 = 0
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 0) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 0) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 0) + x3*dy_batch(2, iq)
-         d2y_rmix(1, iq) = coeff_3_dx1x1(iq, 0) + x3*d2y_rmix(1, iq)
-         d2y_rmix(2, iq) = coeff_3_dx1x2(iq, 0) + x3*d2y_rmix(2, iq)
-      end do
+#undef D2_11
+#undef D2_12
+#undef D2_13
    end subroutine evaluate_batch_splines_3d_der2_core_rmix_o555
 
    subroutine evaluate_batch_splines_3d_der2_core_nq1_o555(spl, x, y_batch, &
@@ -2345,207 +1980,28 @@ contains
       inv_h_step = spl%inv_h_step
       period = spl%period
 
-      do j = 1, 3
-         if (spl%periodic(j)) then
-            xj = x(j)
-            if (xj < x_min(j) .or. xj >= x_min(j) + period(j)) then
-               xj = modulo(xj - x_min(j), period(j)) + x_min(j)
-            end if
-         else
-            xj = x(j)
-         end if
-         x_norm(j) = (xj - x_min(j))*inv_h_step(j)
-         interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
-         x_local(j) = (x_norm(j) - real(interval_index(j), dp))*h_step(j)
-      end do
+#include "spline3d_o555_point_setup.inc"
 
-      x1 = x_local(1)
-      x2 = x_local(2)
-      x3 = x_local(3)
+#include "spline3d_o555_k1_reduce_nq1.inc"
 
-      i1 = interval_index(1) + 1
-      i2 = interval_index(2) + 1
-      i3 = interval_index(3) + 1
+#define SPLINE3D_O555_FULL_D2 1
+#define D2_11 d2y_batch(1, 1)
+#define D2_12 d2y_batch(2, 1)
+#define D2_13 d2y_batch(3, 1)
+#define D2_22 d2y_batch(4, 1)
+#define D2_23 d2y_batch(5, 1)
+#define D2_33 d2y_batch(6, 1)
 
-      ! First reduction (k1): initialize from k1 = 5
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 5, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c
-            coeff_23_dx1(k2, k3) = 5.0_dp*c
-            coeff_23_dx1x1(k2, k3) = 20.0_dp*c
-         end do
-      end do
+#include "spline3d_o555_k2_reduce_nq1.inc"
+#include "spline3d_o555_k3_reduce_nq1.inc"
 
-      ! k1 = 4
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 4, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = 4.0_dp*c + x1*coeff_23_dx1(k2, k3)
-            coeff_23_dx1x1(k2, k3) = 12.0_dp*c + x1*coeff_23_dx1x1(k2, k3)
-         end do
-      end do
-
-      ! k1 = 3
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = 3.0_dp*c + x1*coeff_23_dx1(k2, k3)
-            coeff_23_dx1x1(k2, k3) = 6.0_dp*c + x1*coeff_23_dx1x1(k2, k3)
-         end do
-      end do
-
-      ! k1 = 2
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = 2.0_dp*c + x1*coeff_23_dx1(k2, k3)
-            coeff_23_dx1x1(k2, k3) = 2.0_dp*c + x1*coeff_23_dx1x1(k2, k3)
-         end do
-      end do
-
-      ! k1 = 1
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-            coeff_23_dx1(k2, k3) = c + x1*coeff_23_dx1(k2, k3)
-         end do
-      end do
-
-      ! k1 = 0
-      do k3 = 0, N3
-         do k2 = 0, N2
-            c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
-            coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-         end do
-      end do
-
-      ! Second reduction (k2): initialize from k2 = 5
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(5, k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(5, k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(5, k3)
-         coeff_3_dx2(k3) = 5.0_dp*coeff_3(k3)
-         coeff_3_dx1x2(k3) = 5.0_dp*coeff_3_dx1(k3)
-         coeff_3_dx2x2(k3) = 20.0_dp*coeff_3(k3)
-      end do
-
-      ! k2 = 4
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(4, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(4, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(4, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = 4.0_dp*coeff_23(4, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = 4.0_dp*coeff_23_dx1(4, k3) + x2*coeff_3_dx1x2(k3)
-         coeff_3_dx2x2(k3) = 12.0_dp*coeff_23(4, k3) + x2*coeff_3_dx2x2(k3)
-      end do
-
-      ! k2 = 3
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(3, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(3, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(3, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = 3.0_dp*coeff_23(3, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = 3.0_dp*coeff_23_dx1(3, k3) + x2*coeff_3_dx1x2(k3)
-         coeff_3_dx2x2(k3) = 6.0_dp*coeff_23(3, k3) + x2*coeff_3_dx2x2(k3)
-      end do
-
-      ! k2 = 2
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(2, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(2, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(2, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = 2.0_dp*coeff_23(2, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = 2.0_dp*coeff_23_dx1(2, k3) + x2*coeff_3_dx1x2(k3)
-         coeff_3_dx2x2(k3) = 2.0_dp*coeff_23(2, k3) + x2*coeff_3_dx2x2(k3)
-      end do
-
-      ! k2 = 1
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(1, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(1, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(1, k3) + x2*coeff_3_dx1x1(k3)
-         coeff_3_dx2(k3) = coeff_23(1, k3) + x2*coeff_3_dx2(k3)
-         coeff_3_dx1x2(k3) = coeff_23_dx1(1, k3) + x2*coeff_3_dx1x2(k3)
-      end do
-
-      ! k2 = 0
-      do k3 = 0, N3
-         coeff_3(k3) = coeff_23(0, k3) + x2*coeff_3(k3)
-         coeff_3_dx1(k3) = coeff_23_dx1(0, k3) + x2*coeff_3_dx1(k3)
-         coeff_3_dx1x1(k3) = coeff_23_dx1x1(0, k3) + x2*coeff_3_dx1x1(k3)
-      end do
-
-      ! Third reduction (k3): initialize from k3 = 5
-      y_batch(1) = coeff_3(5)
-      dy_batch(1, 1) = coeff_3_dx1(5)
-      dy_batch(2, 1) = coeff_3_dx2(5)
-      dy_batch(3, 1) = 5.0_dp*coeff_3(5)
-      d2y_batch(1, 1) = coeff_3_dx1x1(5)
-      d2y_batch(2, 1) = coeff_3_dx1x2(5)
-      d2y_batch(3, 1) = 5.0_dp*coeff_3_dx1(5)
-      d2y_batch(4, 1) = coeff_3_dx2x2(5)
-      d2y_batch(5, 1) = 5.0_dp*coeff_3_dx2(5)
-      d2y_batch(6, 1) = 20.0_dp*coeff_3(5)
-
-      ! k3 = 4
-      y_batch(1) = coeff_3(4) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(4) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(4) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = 4.0_dp*coeff_3(4) + x3*dy_batch(3, 1)
-      d2y_batch(1, 1) = coeff_3_dx1x1(4) + x3*d2y_batch(1, 1)
-      d2y_batch(2, 1) = coeff_3_dx1x2(4) + x3*d2y_batch(2, 1)
-      d2y_batch(3, 1) = 4.0_dp*coeff_3_dx1(4) + x3*d2y_batch(3, 1)
-      d2y_batch(4, 1) = coeff_3_dx2x2(4) + x3*d2y_batch(4, 1)
-      d2y_batch(5, 1) = 4.0_dp*coeff_3_dx2(4) + x3*d2y_batch(5, 1)
-      d2y_batch(6, 1) = 12.0_dp*coeff_3(4) + x3*d2y_batch(6, 1)
-
-      ! k3 = 3
-      y_batch(1) = coeff_3(3) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(3) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(3) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = 3.0_dp*coeff_3(3) + x3*dy_batch(3, 1)
-      d2y_batch(1, 1) = coeff_3_dx1x1(3) + x3*d2y_batch(1, 1)
-      d2y_batch(2, 1) = coeff_3_dx1x2(3) + x3*d2y_batch(2, 1)
-      d2y_batch(3, 1) = 3.0_dp*coeff_3_dx1(3) + x3*d2y_batch(3, 1)
-      d2y_batch(4, 1) = coeff_3_dx2x2(3) + x3*d2y_batch(4, 1)
-      d2y_batch(5, 1) = 3.0_dp*coeff_3_dx2(3) + x3*d2y_batch(5, 1)
-      d2y_batch(6, 1) = 6.0_dp*coeff_3(3) + x3*d2y_batch(6, 1)
-
-      ! k3 = 2
-      y_batch(1) = coeff_3(2) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(2) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(2) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = 2.0_dp*coeff_3(2) + x3*dy_batch(3, 1)
-      d2y_batch(1, 1) = coeff_3_dx1x1(2) + x3*d2y_batch(1, 1)
-      d2y_batch(2, 1) = coeff_3_dx1x2(2) + x3*d2y_batch(2, 1)
-      d2y_batch(3, 1) = 2.0_dp*coeff_3_dx1(2) + x3*d2y_batch(3, 1)
-      d2y_batch(4, 1) = coeff_3_dx2x2(2) + x3*d2y_batch(4, 1)
-      d2y_batch(5, 1) = 2.0_dp*coeff_3_dx2(2) + x3*d2y_batch(5, 1)
-      d2y_batch(6, 1) = 2.0_dp*coeff_3(2) + x3*d2y_batch(6, 1)
-
-      ! k3 = 1
-      y_batch(1) = coeff_3(1) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(1) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(1) + x3*dy_batch(2, 1)
-      dy_batch(3, 1) = coeff_3(1) + x3*dy_batch(3, 1)
-      d2y_batch(1, 1) = coeff_3_dx1x1(1) + x3*d2y_batch(1, 1)
-      d2y_batch(2, 1) = coeff_3_dx1x2(1) + x3*d2y_batch(2, 1)
-      d2y_batch(3, 1) = coeff_3_dx1(1) + x3*d2y_batch(3, 1)
-      d2y_batch(4, 1) = coeff_3_dx2x2(1) + x3*d2y_batch(4, 1)
-      d2y_batch(5, 1) = coeff_3_dx2(1) + x3*d2y_batch(5, 1)
-
-      ! k3 = 0
-      y_batch(1) = coeff_3(0) + x3*y_batch(1)
-      dy_batch(1, 1) = coeff_3_dx1(0) + x3*dy_batch(1, 1)
-      dy_batch(2, 1) = coeff_3_dx2(0) + x3*dy_batch(2, 1)
-      d2y_batch(1, 1) = coeff_3_dx1x1(0) + x3*d2y_batch(1, 1)
-      d2y_batch(2, 1) = coeff_3_dx1x2(0) + x3*d2y_batch(2, 1)
-      d2y_batch(4, 1) = coeff_3_dx2x2(0) + x3*d2y_batch(4, 1)
+#undef SPLINE3D_O555_FULL_D2
+#undef D2_11
+#undef D2_12
+#undef D2_13
+#undef D2_22
+#undef D2_23
+#undef D2_33
    end subroutine evaluate_batch_splines_3d_der2_core_nq1_o555
 
    subroutine evaluate_batch_splines_3d_der2_core_o555(spl, x, y_batch, dy_batch, &
@@ -2585,279 +2041,28 @@ contains
       inv_h_step = spl%inv_h_step
       period = spl%period
 
-      do j = 1, 3
-         if (spl%periodic(j)) then
-            xj = x(j)
-            if (xj < x_min(j) .or. xj >= x_min(j) + period(j)) then
-               xj = modulo(xj - x_min(j), period(j)) + x_min(j)
-            end if
-         else
-            xj = x(j)
-         end if
-         x_norm(j) = (xj - x_min(j))*inv_h_step(j)
-         interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
-         x_local(j) = (x_norm(j) - real(interval_index(j), dp))*h_step(j)
-      end do
+#include "spline3d_o555_point_setup.inc"
 
-      x1 = x_local(1)
-      x2 = x_local(2)
-      x3 = x_local(3)
+#include "spline3d_o555_k1_reduce_many.inc"
 
-      i1 = interval_index(1) + 1
-      i2 = interval_index(2) + 1
-      i3 = interval_index(3) + 1
+#define SPLINE3D_O555_FULL_D2 1
+#define D2_11(iq) d2y_batch(1, iq)
+#define D2_12(iq) d2y_batch(2, iq)
+#define D2_13(iq) d2y_batch(3, iq)
+#define D2_22(iq) d2y_batch(4, iq)
+#define D2_23(iq) d2y_batch(5, iq)
+#define D2_33(iq) d2y_batch(6, iq)
 
-      ! First reduction (k1): initialize from k1 = 5
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 5, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c
-               coeff_23_dx1(iq, k2, k3) = 5.0_dp*c
-               coeff_23_dx1x1(iq, k2, k3) = 20.0_dp*c
-            end do
-         end do
-      end do
+#include "spline3d_o555_k2_reduce_many.inc"
+#include "spline3d_o555_k3_reduce_many.inc"
 
-      ! k1 = 4
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 4, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = 4.0_dp*c + x1*coeff_23_dx1(iq, k2, k3)
-               coeff_23_dx1x1(iq, k2, k3) = 12.0_dp*c + &
-                                            x1*coeff_23_dx1x1(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! k1 = 3
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 3, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = 3.0_dp*c + x1*coeff_23_dx1(iq, k2, k3)
-               coeff_23_dx1x1(iq, k2, k3) = 6.0_dp*c + &
-                                            x1*coeff_23_dx1x1(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! k1 = 2
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 2, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = 2.0_dp*c + x1*coeff_23_dx1(iq, k2, k3)
-               coeff_23_dx1x1(iq, k2, k3) = 2.0_dp*c + &
-                                            x1*coeff_23_dx1x1(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! k1 = 1
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 1, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-               coeff_23_dx1(iq, k2, k3) = c + x1*coeff_23_dx1(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! k1 = 0
-      do k3 = 0, N3
-         do k2 = 0, N2
-!$omp simd
-            do iq = 1, NQ
-               c = spl%coeff(iq, 0, k2, k3, i1, i2, i3)
-               coeff_23(iq, k2, k3) = c + x1*coeff_23(iq, k2, k3)
-            end do
-         end do
-      end do
-
-      ! Second reduction (k2): initialize from k2 = 5
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 5, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 5, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 5, k3)
-            coeff_3_dx2(iq, k3) = 5.0_dp*coeff_3(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 5.0_dp*coeff_3_dx1(iq, k3)
-            coeff_3_dx2x2(iq, k3) = 20.0_dp*coeff_3(iq, k3)
-         end do
-      end do
-
-      ! k2 = 4
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 4, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 4, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 4, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = 4.0_dp*coeff_23(iq, 4, k3) + &
-                                  x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 4.0_dp*coeff_23_dx1(iq, 4, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-            coeff_3_dx2x2(iq, k3) = 12.0_dp*coeff_23(iq, 4, k3) + &
-                                    x2*coeff_3_dx2x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 3
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 3, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 3, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 3, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = 3.0_dp*coeff_23(iq, 3, k3) + &
-                                  x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 3.0_dp*coeff_23_dx1(iq, 3, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-            coeff_3_dx2x2(iq, k3) = 6.0_dp*coeff_23(iq, 3, k3) + &
-                                    x2*coeff_3_dx2x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 2
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 2, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 2, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 2, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = 2.0_dp*coeff_23(iq, 2, k3) + &
-                                  x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = 2.0_dp*coeff_23_dx1(iq, 2, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-            coeff_3_dx2x2(iq, k3) = 2.0_dp*coeff_23(iq, 2, k3) + &
-                                    x2*coeff_3_dx2x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 1
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 1, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 1, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 1, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-            coeff_3_dx2(iq, k3) = coeff_23(iq, 1, k3) + x2*coeff_3_dx2(iq, k3)
-            coeff_3_dx1x2(iq, k3) = coeff_23_dx1(iq, 1, k3) + &
-                                    x2*coeff_3_dx1x2(iq, k3)
-         end do
-      end do
-
-      ! k2 = 0
-      do k3 = 0, N3
-!$omp simd
-         do iq = 1, NQ
-            coeff_3(iq, k3) = coeff_23(iq, 0, k3) + x2*coeff_3(iq, k3)
-            coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, 0, k3) + x2*coeff_3_dx1(iq, k3)
-            coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, 0, k3) + &
-                                    x2*coeff_3_dx1x1(iq, k3)
-         end do
-      end do
-
-      ! Third reduction (k3): initialize from k3 = 5
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 5)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 5)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 5)
-         dy_batch(3, iq) = 5.0_dp*coeff_3(iq, 5)
-         d2y_batch(1, iq) = coeff_3_dx1x1(iq, 5)
-         d2y_batch(2, iq) = coeff_3_dx1x2(iq, 5)
-         d2y_batch(3, iq) = 5.0_dp*coeff_3_dx1(iq, 5)
-         d2y_batch(4, iq) = coeff_3_dx2x2(iq, 5)
-         d2y_batch(5, iq) = 5.0_dp*coeff_3_dx2(iq, 5)
-         d2y_batch(6, iq) = 20.0_dp*coeff_3(iq, 5)
-      end do
-
-      ! k3 = 4
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 4) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 4) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 4) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = 4.0_dp*coeff_3(iq, 4) + x3*dy_batch(3, iq)
-         d2y_batch(1, iq) = coeff_3_dx1x1(iq, 4) + x3*d2y_batch(1, iq)
-         d2y_batch(2, iq) = coeff_3_dx1x2(iq, 4) + x3*d2y_batch(2, iq)
-         d2y_batch(3, iq) = 4.0_dp*coeff_3_dx1(iq, 4) + x3*d2y_batch(3, iq)
-         d2y_batch(4, iq) = coeff_3_dx2x2(iq, 4) + x3*d2y_batch(4, iq)
-         d2y_batch(5, iq) = 4.0_dp*coeff_3_dx2(iq, 4) + x3*d2y_batch(5, iq)
-         d2y_batch(6, iq) = 12.0_dp*coeff_3(iq, 4) + x3*d2y_batch(6, iq)
-      end do
-
-      ! k3 = 3
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 3) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 3) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 3) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = 3.0_dp*coeff_3(iq, 3) + x3*dy_batch(3, iq)
-         d2y_batch(1, iq) = coeff_3_dx1x1(iq, 3) + x3*d2y_batch(1, iq)
-         d2y_batch(2, iq) = coeff_3_dx1x2(iq, 3) + x3*d2y_batch(2, iq)
-         d2y_batch(3, iq) = 3.0_dp*coeff_3_dx1(iq, 3) + x3*d2y_batch(3, iq)
-         d2y_batch(4, iq) = coeff_3_dx2x2(iq, 3) + x3*d2y_batch(4, iq)
-         d2y_batch(5, iq) = 3.0_dp*coeff_3_dx2(iq, 3) + x3*d2y_batch(5, iq)
-         d2y_batch(6, iq) = 6.0_dp*coeff_3(iq, 3) + x3*d2y_batch(6, iq)
-      end do
-
-      ! k3 = 2
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 2) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 2) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 2) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = 2.0_dp*coeff_3(iq, 2) + x3*dy_batch(3, iq)
-         d2y_batch(1, iq) = coeff_3_dx1x1(iq, 2) + x3*d2y_batch(1, iq)
-         d2y_batch(2, iq) = coeff_3_dx1x2(iq, 2) + x3*d2y_batch(2, iq)
-         d2y_batch(3, iq) = 2.0_dp*coeff_3_dx1(iq, 2) + x3*d2y_batch(3, iq)
-         d2y_batch(4, iq) = coeff_3_dx2x2(iq, 2) + x3*d2y_batch(4, iq)
-         d2y_batch(5, iq) = 2.0_dp*coeff_3_dx2(iq, 2) + x3*d2y_batch(5, iq)
-         d2y_batch(6, iq) = 2.0_dp*coeff_3(iq, 2) + x3*d2y_batch(6, iq)
-      end do
-
-      ! k3 = 1
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 1) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 1) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 1) + x3*dy_batch(2, iq)
-         dy_batch(3, iq) = coeff_3(iq, 1) + x3*dy_batch(3, iq)
-         d2y_batch(1, iq) = coeff_3_dx1x1(iq, 1) + x3*d2y_batch(1, iq)
-         d2y_batch(2, iq) = coeff_3_dx1x2(iq, 1) + x3*d2y_batch(2, iq)
-         d2y_batch(3, iq) = coeff_3_dx1(iq, 1) + x3*d2y_batch(3, iq)
-         d2y_batch(4, iq) = coeff_3_dx2x2(iq, 1) + x3*d2y_batch(4, iq)
-         d2y_batch(5, iq) = coeff_3_dx2(iq, 1) + x3*d2y_batch(5, iq)
-      end do
-
-      ! k3 = 0
-!$omp simd
-      do iq = 1, NQ
-         y_batch(iq) = coeff_3(iq, 0) + x3*y_batch(iq)
-         dy_batch(1, iq) = coeff_3_dx1(iq, 0) + x3*dy_batch(1, iq)
-         dy_batch(2, iq) = coeff_3_dx2(iq, 0) + x3*dy_batch(2, iq)
-         d2y_batch(1, iq) = coeff_3_dx1x1(iq, 0) + x3*d2y_batch(1, iq)
-         d2y_batch(2, iq) = coeff_3_dx1x2(iq, 0) + x3*d2y_batch(2, iq)
-         d2y_batch(4, iq) = coeff_3_dx2x2(iq, 0) + x3*d2y_batch(4, iq)
-      end do
+#undef SPLINE3D_O555_FULL_D2
+#undef D2_11
+#undef D2_12
+#undef D2_13
+#undef D2_22
+#undef D2_23
+#undef D2_33
    end subroutine evaluate_batch_splines_3d_der2_core_o555
 
    subroutine evaluate_batch_splines_3d_der2_core_general(spl, x, y_batch, &
