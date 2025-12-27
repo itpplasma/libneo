@@ -1236,9 +1236,9 @@ contains
     subroutine evaluate_batch_splines_3d_der2(spl, x, y_batch, dy_batch, d2y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
-        real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
-        real(dp), intent(out) :: dy_batch(:, :)   ! (3, n_quantities)
-        real(dp), intent(out) :: d2y_batch(:, :)  ! (6, n_quantities)
+      real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
+      real(dp), intent(out) :: dy_batch(:, :)   ! (3, n_quantities)
+      real(dp), intent(out) :: d2y_batch(:, :)  ! (6, n_quantities)
         call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_3d_der2
 
