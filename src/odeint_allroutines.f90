@@ -67,7 +67,7 @@ module odeint_mod
     real(dp), allocatable :: y_temp(:)      ! Temporary for RK stages
     real(dp), allocatable :: y_error(:)     ! Error estimate
     real(dp), allocatable :: y_scale(:)     ! Error scaling
-    !$omp threadprivate(k_stages, y_work, y_temp, y_error, y_scale)
+!$omp threadprivate(k_stages, y_work, y_temp, y_error, y_scale)
 
     public :: allocate_state, deallocate_state, pow_m02, pow_m025
 
@@ -89,7 +89,8 @@ contains
 
         ! Check if already allocated with correct size
         if (allocated(k_stages)) then
-            if (size(k_stages, 1) /= n) then
+            if (size(k_stages, 2) /= n) then
+                ! k_stages is (6, n); the column count must match n, not the fixed stage count.
                 call deallocate_state()
             else
                 return
@@ -146,9 +147,23 @@ module odeint_allroutines_sub
             real(dp), intent(out) :: dydx(:)
             class(*), intent(in) :: context
         end subroutine derivative_function_with_context
+
+        real(dp) function event_function(x, y, context)
+            import :: dp
+            real(dp), intent(in) :: x
+            real(dp), intent(in) :: y(:)
+            class(*), intent(in), optional :: context
+        end function event_function
     end interface
 
-    public :: odeint_allroutines
+    type :: ode_event_t
+        procedure(event_function), pointer, nopass :: condition => null()
+        integer :: direction = 0
+        logical :: triggered = .false.
+        real(dp) :: x_event = 0.0_dp
+    end type ode_event_t
+
+    public :: odeint_allroutines, ode_event_t
 
     interface odeint_allroutines
         module procedure odeint_allroutines_no_context
@@ -159,12 +174,13 @@ contains
 
     !> Integrate ODE system without context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_no_context(y, nvar, x1, x2, eps, derivs, &
-                                             initial_stepsize)
+                                             initial_stepsize, events)
         integer, intent(in) :: nvar
         real(dp), dimension(nvar), intent(inout) :: y
         real(dp), intent(in) :: x1, x2, eps
         procedure(derivative_function) :: derivs
         real(dp), intent(in), optional :: initial_stepsize
+        type(ode_event_t), intent(inout), optional :: events(:)
 
         real(dp) :: h_init
 
@@ -173,18 +189,19 @@ contains
             h_init = sign(initial_stepsize, x2 - x1)
         end if
 
-        call integrate_adaptive(y, nvar, x1, x2, eps, h_init, derivs)
+        call integrate_adaptive(y, nvar, x1, x2, eps, h_init, derivs, events)
     end subroutine odeint_allroutines_no_context
 
     !> Integrate ODE system with context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_context(y, nvar, context, x1, x2, eps, &
-                                          derivs, initial_stepsize)
+                                          derivs, initial_stepsize, events)
         integer, intent(in) :: nvar
         real(dp), dimension(nvar), intent(inout) :: y
         class(*), intent(in) :: context
         real(dp), intent(in) :: x1, x2, eps
         procedure(derivative_function_with_context) :: derivs
         real(dp), intent(in), optional :: initial_stepsize
+        type(ode_event_t), intent(inout), optional :: events(:)
 
         real(dp) :: h_init
 
@@ -194,32 +211,87 @@ contains
         end if
 
         call integrate_adaptive_with_context(y, nvar, x1, x2, eps, h_init, &
-                                             derivs, context)
+                                             derivs, context, events)
     end subroutine odeint_allroutines_context
 
     !> Main integration loop with adaptive step control
     subroutine integrate_adaptive(y, n, x_start, x_end, tolerance, h_init, &
-                                  derivative)
+                                  derivative, events)
 
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
         real(dp), intent(in) :: x_start, x_end, tolerance
         real(dp), intent(in) :: h_init
         procedure(derivative_function) :: derivative
+        type(ode_event_t), intent(inout), optional :: events(:)
 
         real(dp) :: x, h, h_next
-        integer :: step
+        real(dp) :: x_step_start, x_root
+        integer :: step, n_events, event_id
+        logical :: events_active, event_found
+        real(dp), allocatable :: g_old(:), g_new(:)
+        real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
+        integer, allocatable :: direction(:)
 
         call allocate_state(n)
         x = x_start
         h = h_init
         y_work = y
 
+        events_active = present(events)
+        if (events_active) then
+            n_events = size(events)
+            if (n_events < 1) then
+                error stop 'Event array must be non-empty'
+            end if
+            allocate (g_old(n_events), g_new(n_events))
+            allocate (direction(n_events))
+            allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
+            do event_id = 1, n_events
+                if (.not. associated(events(event_id)%condition)) then
+                    error stop 'Event function not associated'
+                end if
+                direction(event_id) = events(event_id)%direction
+                events(event_id)%triggered = .false.
+                events(event_id)%x_event = x_start
+                call eval_event(events(event_id)%condition, x, y_work, g_old(event_id))
+            end do
+            ! Initial-point events (g0 ≈ 0) are handled uniformly by find_event_in_step
+            ! using the (g1 - g0) directional surrogate for consistent direction logic.
+        end if
+
         do step = 1, max_steps
+            x_step_start = x
+            if (events_active) then
+                y_start = y_work
+            end if
+
             call derivative(x, y_work, k_stages(1, :))
+            if (events_active) then
+                f_start = k_stages(1, :)
+            end if
             call compute_error_scale_fused(h, n)
             call check_endpoint_adjustment(x, h, x_start, x_end)
             call step_with_error_control(x, h, h_next, n, tolerance, derivative)
+
+            if (events_active) then
+                y_end = y_work
+                call derivative(x, y_end, f_end)
+                do event_id = 1, n_events
+                    call eval_event(events(event_id)%condition, x, y_end, g_new(event_id))
+                end do
+                call find_event_in_step(events, n_events, direction, x_step_start, x, &
+                                        y_start, y_end, f_start, f_end, g_old, g_new, &
+                                        event_found, event_id, x_root, y_root)
+                if (event_found) then
+                    events(event_id)%triggered = .true.
+                    events(event_id)%x_event = x_root
+                    y_work = y_root
+                    y = y_root
+                    return
+                end if
+                g_old = g_new
+            end if
 
             if (integration_complete(x, x_start, x_end)) then
                 y = y_work
@@ -233,7 +305,7 @@ contains
 
     !> Main integration loop with context
     subroutine integrate_adaptive_with_context(y, n, x_start, x_end, tolerance, &
-                                               h_init, derivative, context)
+                                               h_init, derivative, context, events)
 
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
@@ -241,21 +313,78 @@ contains
         real(dp), intent(in) :: h_init
         procedure(derivative_function_with_context) :: derivative
         class(*), intent(in) :: context
+        type(ode_event_t), intent(inout), optional :: events(:)
 
         real(dp) :: x, h, h_next
-        integer :: step
+        real(dp) :: x_step_start, x_root
+        integer :: step, n_events, event_id
+        logical :: events_active, event_found
+        real(dp), allocatable :: g_old(:), g_new(:)
+        real(dp), allocatable :: y_start(:), y_end(:), f_start(:), f_end(:), y_root(:)
+        integer, allocatable :: direction(:)
 
         call allocate_state(n)
         x = x_start
         h = h_init
         y_work = y
 
+        events_active = present(events)
+        if (events_active) then
+            n_events = size(events)
+            if (n_events < 1) then
+                error stop 'Event array must be non-empty'
+            end if
+            allocate (g_old(n_events), g_new(n_events))
+            allocate (direction(n_events))
+            allocate (y_start(n), y_end(n), f_start(n), f_end(n), y_root(n))
+            do event_id = 1, n_events
+                if (.not. associated(events(event_id)%condition)) then
+                    error stop 'Event function not associated'
+                end if
+                direction(event_id) = events(event_id)%direction
+                events(event_id)%triggered = .false.
+                events(event_id)%x_event = x_start
+                call eval_event(events(event_id)%condition, x, y_work, &
+                                g_old(event_id), context)
+            end do
+            ! Initial-point events (g0 ≈ 0) are handled uniformly by find_event_in_step
+            ! using the (g1 - g0) directional surrogate for consistent direction logic.
+        end if
+
         do step = 1, max_steps
+            x_step_start = x
+            if (events_active) then
+                y_start = y_work
+            end if
+
             call derivative(x, y_work, k_stages(1, :), context)
+            if (events_active) then
+                f_start = k_stages(1, :)
+            end if
             call compute_error_scale_fused(h, n)
             call check_endpoint_adjustment(x, h, x_start, x_end)
             call step_with_error_control_context(x, h, h_next, n, tolerance, &
                                                  derivative, context)
+
+            if (events_active) then
+                y_end = y_work
+                call derivative(x, y_end, f_end, context)
+                do event_id = 1, n_events
+                    call eval_event(events(event_id)%condition, x, y_end, &
+                                    g_new(event_id), context)
+                end do
+                call find_event_in_step(events, n_events, direction, x_step_start, x, &
+                                        y_start, y_end, f_start, f_end, g_old, g_new, &
+                                        event_found, event_id, x_root, y_root, context)
+                if (event_found) then
+                    events(event_id)%triggered = .true.
+                    events(event_id)%x_event = x_root
+                    y_work = y_root
+                    y = y_root
+                    return
+                end if
+                g_old = g_new
+            end if
 
             if (integration_complete(x, x_start, x_end)) then
                 y = y_work
@@ -275,7 +404,7 @@ contains
         integer :: i
         real(dp) :: abs_y, abs_hk1
 
-        !$omp simd private(abs_y, abs_hk1)
+!$omp simd private(abs_y, abs_hk1)
         do i = 1, n
             abs_y = abs(y_work(i))
             abs_hk1 = abs(h*k_stages(1, i))
@@ -331,6 +460,246 @@ contains
         end do
     end subroutine step_with_error_control_context
 
+    subroutine eval_event(event_fn, x, y, g, context)
+        procedure(event_function) :: event_fn
+        real(dp), intent(in) :: x
+        real(dp), intent(in) :: y(:)
+        real(dp), intent(out) :: g
+        class(*), intent(in), optional :: context
+
+        if (present(context)) then
+            g = event_fn(x, y, context)
+        else
+            g = event_fn(x, y)
+        end if
+    end subroutine eval_event
+
+    pure subroutine hermite_interpolate(y0, y1, f0, f1, h, s, y_out)
+        real(dp), intent(in) :: y0(:), y1(:), f0(:), f1(:)
+        real(dp), intent(in) :: h, s
+        real(dp), intent(out) :: y_out(:)
+
+        real(dp) :: s2, s3, h00, h10, h01, h11
+        integer :: i
+
+        s2 = s*s
+        s3 = s2*s
+        h00 = 2.0_dp*s3 - 3.0_dp*s2 + 1.0_dp
+        h10 = s3 - 2.0_dp*s2 + s
+        h01 = -2.0_dp*s3 + 3.0_dp*s2
+        h11 = s3 - s2
+
+        do i = 1, size(y0)
+            y_out(i) = h00*y0(i) + h10*h*f0(i) + h01*y1(i) + h11*h*f1(i)
+        end do
+    end subroutine hermite_interpolate
+
+    pure real(dp) function g_tol_step(g0, g1)
+        real(dp), intent(in) :: g0, g1
+
+        ! Step-consistent tolerance using both endpoint values.
+        ! This ensures symmetric treatment and avoids tolerance-band chatter.
+        g_tol_step = sqrt(epsilon(1.0_dp)) * max(1.0_dp, abs(g0), abs(g1))
+    end function g_tol_step
+
+    pure integer function g_band_sign(g, g_tol)
+        real(dp), intent(in) :: g, g_tol
+
+        ! Map g into a tolerance band: +1/-1 are "definitely" positive/negative, 0 is near zero.
+        if (g > g_tol) then
+            g_band_sign = 1
+        else if (g < -g_tol) then
+            g_band_sign = -1
+        else
+            g_band_sign = 0
+        end if
+    end function g_band_sign
+
+    subroutine find_event_in_step(events, n_events, direction, x0, x1, y0, y1, &
+                                  f0, f1, g0, g1, event_found, event_id, x_root, &
+                                  y_root, context)
+        type(ode_event_t), intent(inout) :: events(:)
+        integer, intent(in) :: n_events
+        integer, intent(in) :: direction(:)
+        real(dp), intent(in) :: x0, x1
+        real(dp), intent(in) :: y0(:), y1(:), f0(:), f1(:)
+        real(dp), intent(in) :: g0(:), g1(:)
+        logical, intent(out) :: event_found
+        integer, intent(out) :: event_id
+        real(dp), intent(out) :: x_root
+        real(dp), intent(out) :: y_root(:)
+        class(*), intent(in), optional :: context
+
+        real(dp) :: h, s_est, best_s, x_left, x_right, x_try, s_try, g_try
+        real(dp) :: g_left, g_right, x_tol, tol, tol_step
+        integer :: i, iter, s_left, s_try_band
+        integer, parameter :: max_event_iter = 50
+
+        event_found = .false.
+        event_id = 0
+        x_root = x1
+        y_root = y1
+
+        h = x1 - x0
+        best_s = 2.0_dp
+
+        ! Pass 1: Find earliest event using stable s_est computation
+        do i = 1, n_events
+            if (.not. event_crossing(g0(i), g1(i), direction(i))) cycle
+
+            ! Use step-consistent tolerance for this event
+            tol = g_tol_step(g0(i), g1(i))
+
+            if (abs(g0(i)) <= tol) then
+                ! g(x0) ~ 0 is a valid event; choose it as the earliest candidate.
+                s_est = 0.0_dp
+            else if (abs(g1(i)) <= tol) then
+                ! Symmetric endpoint handling for g(x1) ~ 0.
+                s_est = 1.0_dp
+            else
+                ! Only compute s_est if denominator is sufficiently large
+                if (abs(g0(i) - g1(i)) <= tol) cycle
+                s_est = g0(i) / (g0(i) - g1(i))
+                ! Require s_est in [0, 1] for valid in-step ordering
+                if (s_est < 0.0_dp .or. s_est > 1.0_dp) cycle
+            end if
+
+            if (s_est < best_s) then
+                best_s = s_est
+                event_id = i
+            end if
+        end do
+
+        if (event_id == 0) return
+
+        event_found = .true.
+
+        ! Compute step tolerance ONCE from original step endpoints.
+        ! Invariant: convergence tolerance must not shrink during refinement.
+        tol_step = g_tol_step(g0(event_id), g1(event_id))
+
+        ! Handle endpoint events explicitly
+        if (abs(g0(event_id)) <= tol_step) then
+            x_root = x0
+            y_root = y0
+            return
+        end if
+        if (abs(g1(event_id)) <= tol_step) then
+            x_root = x1
+            y_root = y1
+            return
+        end if
+
+        ! Root refinement with Hermite interpolation
+        x_left = x0
+        x_right = x1
+        g_left = g0(event_id)
+        g_right = g1(event_id)
+        x_tol = 100.0_dp * epsilon(x1) * max(abs(x0), abs(x1), abs(h))
+
+        do iter = 1, max_event_iter
+            ! Termination: bracket sufficiently small
+            if (abs(x_right - x_left) <= x_tol) exit
+
+            ! Use frozen step tolerance for all checks (invariant preservation)
+
+            ! Compute trial point using secant or bisection
+            if (abs(g_right - g_left) > tol_step) then
+                s_try = g_left / (g_left - g_right)
+            else
+                s_try = 0.5_dp
+            end if
+
+            ! Clamp to interior of bracket
+            if (s_try <= 0.0_dp .or. s_try >= 1.0_dp) then
+                x_try = 0.5_dp * (x_left + x_right)
+            else
+                x_try = x_left + s_try * (x_right - x_left)
+            end if
+
+            ! Evaluate event function at trial point
+            s_try = (x_try - x0) / h
+            call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
+            call eval_event(events(event_id)%condition, x_try, y_root, g_try, context)
+
+            ! Termination: found zero within step tolerance
+            if (abs(g_try) <= tol_step) then
+                x_left = x_try
+                x_right = x_try
+                exit
+            end if
+
+            ! Update bracket using band signs to avoid tolerance-band chatter
+            s_left = g_band_sign(g_left, tol_step)
+            s_try_band = g_band_sign(g_try, tol_step)
+
+            if (s_left * s_try_band <= 0) then
+                x_right = x_try
+                g_right = g_try
+            else
+                x_left = x_try
+                g_left = g_try
+            end if
+        end do
+
+        x_root = 0.5_dp * (x_left + x_right)
+        s_try = (x_root - x0) / h
+        call hermite_interpolate(y0, y1, f0, f1, h, s_try, y_root)
+    end subroutine find_event_in_step
+
+    pure logical function event_crossing(g0, g1, direction)
+        real(dp), intent(in) :: g0, g1
+        integer, intent(in) :: direction
+
+        real(dp) :: tol, dg
+        integer :: s0, s1
+        logical :: one_near_zero
+
+        ! Use single step-consistent tolerance for both endpoints.
+        tol = g_tol_step(g0, g1)
+        s0 = g_band_sign(g0, tol)
+        s1 = g_band_sign(g1, tol)
+
+        ! If BOTH endpoints are inside the tolerance band, we cannot decide.
+        ! Return false - no crossing detected.
+        if (s0 == 0 .and. s1 == 0) then
+            event_crossing = .false.
+            return
+        end if
+
+        ! Exactly one endpoint inside tolerance band: use directional surrogate.
+        ! dg = g1 - g0 approximates dg/dt (first-order accurate).
+        ! Known limitation: direction detection near endpoints is first-order accurate.
+        one_near_zero = (s0 == 0) .neqv. (s1 == 0)
+        if (one_near_zero) then
+            dg = g1 - g0
+            select case (direction)
+            case (0)
+                event_crossing = .true.
+            case (1)
+                event_crossing = dg > 0.0_dp
+            case (-1)
+                event_crossing = dg < 0.0_dp
+            case default
+                event_crossing = .true.
+            end select
+            return
+        end if
+
+        ! Both endpoints outside tolerance band: require a sign change.
+        ! Known limitation: tangential roots without sign change are intentionally ignored.
+        select case (direction)
+        case (0)
+            event_crossing = s0 * s1 < 0
+        case (1)
+            event_crossing = s0 < 0 .and. s1 > 0
+        case (-1)
+            event_crossing = s0 > 0 .and. s1 < 0
+        case default
+            event_crossing = s0 * s1 < 0
+        end select
+    end function event_crossing
+
     !> Check if integration is complete (will be inlined)
     pure logical function integration_complete(x, x_start, x_end)
         real(dp), intent(in) :: x, x_start, x_end
@@ -368,7 +737,7 @@ contains
         error_norm = 0.0_dp
 
         ! Vectorized max reduction (compiler will optimize to SIMD)
-        !$omp simd reduction(max:error_norm) private(temp_error)
+!$omp simd reduction(max:error_norm) private(temp_error)
         do i = 1, n
             temp_error = abs(y_error(i)/y_scale(i))
             error_norm = max(error_norm, temp_error)
@@ -427,14 +796,14 @@ contains
         h_a61 = h*a61; h_a62 = h*a62; h_a63 = h*a63; h_a64 = h*a64; h_a65 = h*a65
 
         ! Stage 2: k2 = f(x + c2*h, y + h*a21*k1)
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a21*k_stages(1, i)
         end do
         call derivative(x + c2*h, y_temp, k_stages(2, :))
 
         ! Stage 3: k3 = f(x + c3*h, y + h*(a31*k1 + a32*k2))
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a31*k_stages(1, i) + &
                         h_a32*k_stages(2, i)
@@ -442,7 +811,7 @@ contains
         call derivative(x + c3*h, y_temp, k_stages(3, :))
 
         ! Stage 4: k4 = f(x + c4*h, y + h*(a41*k1 + a42*k2 + a43*k3))
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a41*k_stages(1, i) + &
                         h_a42*k_stages(2, i) + &
@@ -451,7 +820,7 @@ contains
         call derivative(x + c4*h, y_temp, k_stages(4, :))
 
         ! Stage 5: k5 = f(x + c5*h, y + h*(a51*k1 + a52*k2 + a53*k3 + a54*k4))
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a51*k_stages(1, i) + &
                         h_a52*k_stages(2, i) + &
@@ -461,7 +830,7 @@ contains
         call derivative(x + c5*h, y_temp, k_stages(5, :))
 
         ! Stage 6: k6 = f(x + c6*h, y + h*(a61*k1 + a62*k2 + a63*k3 + a64*k4 + a65*k5))
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a61*k_stages(1, i) + &
                         h_a62*k_stages(2, i) + &
@@ -490,14 +859,14 @@ contains
         h_a61 = h*a61; h_a62 = h*a62; h_a63 = h*a63; h_a64 = h*a64; h_a65 = h*a65
 
         ! Stage 2
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a21*k_stages(1, i)
         end do
         call derivative(x + c2*h, y_temp, k_stages(2, :), context)
 
         ! Stage 3
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a31*k_stages(1, i) + &
                         h_a32*k_stages(2, i)
@@ -505,7 +874,7 @@ contains
         call derivative(x + c3*h, y_temp, k_stages(3, :), context)
 
         ! Stage 4
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a41*k_stages(1, i) + &
                         h_a42*k_stages(2, i) + &
@@ -514,7 +883,7 @@ contains
         call derivative(x + c4*h, y_temp, k_stages(4, :), context)
 
         ! Stage 5
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a51*k_stages(1, i) + &
                         h_a52*k_stages(2, i) + &
@@ -524,7 +893,7 @@ contains
         call derivative(x + c5*h, y_temp, k_stages(5, :), context)
 
         ! Stage 6
-        !$omp simd
+!$omp simd
         do i = 1, n
             y_temp(i) = y_work(i) + h_a61*k_stages(1, i) + &
                         h_a62*k_stages(2, i) + &
@@ -548,7 +917,7 @@ contains
         h_b1 = h*b1; h_b3 = h*b3; h_b4 = h*b4; h_b6 = h*b6
         h_e1 = h*e1; h_e3 = h*e3; h_e4 = h*e4; h_e5 = h*e5; h_e6 = h*e6
 
-        !$omp simd private(k1_i, k3_i, k4_i, k5_i, k6_i)
+!$omp simd private(k1_i, k3_i, k4_i, k5_i, k6_i)
         do i = 1, n
             ! Load k-values once (register promotion)
             k1_i = k_stages(1, i)

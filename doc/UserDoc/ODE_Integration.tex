@@ -1,1 +1,10 @@
 \section{ODE Integration}
+
+\subsection{Event Detection}
+The \texttt{odeint\_allroutines} interface supports optional root detection.
+Provide an array of \texttt{ode\_event\_t} instances with event functions
+$g(x, y)$. Events trigger on sign changes of $g$ over an accepted step.
+Direction filtering is controlled with \texttt{direction} values of $-1$
+falling, $0$ both, or $+1$ rising. Events are terminal and return at the
+root; the solution is provided at the event location. Results are
+returned in \texttt{triggered} and \texttt{x\_event}.
