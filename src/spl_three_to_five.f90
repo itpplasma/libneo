@@ -600,10 +600,9 @@ subroutine spl_reg(ns,n,h,splcoe)
   integer :: ns,n
   real(dp) :: h
   real(dp), dimension(0:ns,n) :: splcoe
-  real(dp), dimension(:), allocatable :: a,b,c,d,e,f
+  real(dp) :: a(n),b(n),c(n),d(n),e(n),f(n)
 
   if(ns.eq.3) then
-    allocate(a(n),b(n),c(n),d(n))
     a=splcoe(0,:)
 
     call splreg(n,h,a,b,c,d)
@@ -611,9 +610,7 @@ subroutine spl_reg(ns,n,h,splcoe)
     splcoe(1,:)=b
     splcoe(2,:)=c
     splcoe(3,:)=d
-    deallocate(a,b,c,d)
   elseif(ns.eq.4) then
-    allocate(a(n),b(n),c(n),d(n),e(n))
     a=splcoe(0,:)
 
     call spl_four_reg(n,h,a,b,c,d,e)
@@ -622,9 +619,7 @@ subroutine spl_reg(ns,n,h,splcoe)
     splcoe(2,:)=c
     splcoe(3,:)=d
     splcoe(4,:)=e
-    deallocate(a,b,c,d,e)
   elseif(ns.eq.5) then
-    allocate(a(n),b(n),c(n),d(n),e(n),f(n))
     a=splcoe(0,:)
 
     call spl_five_reg(n,h,a,b,c,d,e,f)
@@ -634,7 +629,6 @@ subroutine spl_reg(ns,n,h,splcoe)
     splcoe(3,:)=d
     splcoe(4,:)=e
     splcoe(5,:)=f
-    deallocate(a,b,c,d,e,f)
   else
     print *,'wrong spline order'
   endif
@@ -658,10 +652,9 @@ subroutine spl_per(ns,n,h,splcoe)
   integer :: ns,n
   real(dp) :: h
   real(dp), dimension(0:ns,n) :: splcoe
-  real(dp), dimension(:), allocatable :: a,b,c,d,e,f
+  real(dp) :: a(n),b(n),c(n),d(n),e(n),f(n)
 
   if(ns.eq.3) then
-    allocate(a(n),b(n),c(n),d(n))
     a=splcoe(0,:)
 
     call splper(n,h,a,b,c,d)
@@ -669,9 +662,7 @@ subroutine spl_per(ns,n,h,splcoe)
     splcoe(1,:)=b
     splcoe(2,:)=c
     splcoe(3,:)=d
-    deallocate(a,b,c,d)
   elseif(ns.eq.4) then
-    allocate(a(n),b(n),c(n),d(n),e(n))
     a=splcoe(0,:)
 
     call spl_four_per(n,h,a,b,c,d,e)
@@ -680,9 +671,7 @@ subroutine spl_per(ns,n,h,splcoe)
     splcoe(2,:)=c
     splcoe(3,:)=d
     splcoe(4,:)=e
-    deallocate(a,b,c,d,e)
   elseif(ns.eq.5) then
-    allocate(a(n),b(n),c(n),d(n),e(n),f(n))
     a=splcoe(0,:)
 
     call spl_five_per(n,h,a,b,c,d,e,f)
@@ -692,7 +681,6 @@ subroutine spl_per(ns,n,h,splcoe)
     splcoe(3,:)=d
     splcoe(4,:)=e
     splcoe(5,:)=f
-    deallocate(a,b,c,d,e,f)
   else
     print *,'wrong spline order'
   endif

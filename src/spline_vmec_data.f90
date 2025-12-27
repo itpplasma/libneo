@@ -288,17 +288,14 @@ contains
     subroutine spline_1d_periodic(data_array, ns_order, h_step)
         use spl_three_to_five_sub, only: spl_per
 
-        real(dp), dimension(:, :), intent(inout) :: data_array
+        real(dp), dimension(:, :), intent(inout), contiguous :: data_array
         integer, intent(in) :: ns_order
         real(dp), intent(in) :: h_step
 
         integer :: n_points
-        real(dp), dimension(0:ns_order, size(data_array, 2)) :: splcoe
 
         n_points = size(data_array, 2)
-        splcoe(0, :) = data_array(1, :)
-        call spl_per(ns_order, n_points, h_step, splcoe)
-        data_array(:, :) = splcoe(:, :)
+        call spl_per(ns_order, n_points, h_step, data_array(1:ns_order + 1, 1:n_points))
     end subroutine spline_1d_periodic
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -306,17 +303,14 @@ contains
     subroutine spline_1d_regular(data_array, ns_order, h_step)
         use spl_three_to_five_sub, only: spl_reg
 
-        real(dp), dimension(:, :), intent(inout) :: data_array
+        real(dp), dimension(:, :), intent(inout), contiguous :: data_array
         integer, intent(in) :: ns_order
         real(dp), intent(in) :: h_step
 
         integer :: n_points
-        real(dp), dimension(0:ns_order, size(data_array, 2)) :: splcoe
 
         n_points = size(data_array, 2)
-        splcoe(0, :) = data_array(1, :)
-        call spl_reg(ns_order, n_points, h_step, splcoe)
-        data_array(:, :) = splcoe(:, :)
+        call spl_reg(ns_order, n_points, h_step, data_array(1:ns_order + 1, 1:n_points))
     end subroutine spline_1d_regular
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

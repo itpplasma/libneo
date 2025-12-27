@@ -1041,6 +1041,7 @@ contains
         real(dp), intent(out) :: dy_batch(:,:)  ! (3, n_quantities)
         
         real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3)
         ! Fixed-size arrays to avoid heap allocation (stack only)
         real(dp) :: coeff_23(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
         real(dp) :: coeff_23_dx1(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
@@ -1200,8 +1201,221 @@ contains
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:,:)   ! (3, n_quantities)
         real(dp), intent(out) :: d2y_batch(:,:)  ! (6, n_quantities)
+
+        if (spl%num_quantities == 1) then
+            call evaluate_batch_splines_3d_der2_core_nq1(spl, x, y_batch, dy_batch, d2y_batch)
+            return
+        end if
+
+        call evaluate_batch_splines_3d_der2_core_general(spl, x, y_batch, dy_batch, d2y_batch)
+    end subroutine evaluate_batch_splines_3d_der2_core
+
+    subroutine evaluate_batch_splines_3d_der2_core_nq1(spl, x, y_batch, dy_batch, d2y_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:,:)   ! (3, n_quantities)
+        real(dp), intent(out) :: d2y_batch(:,:)  ! (6, n_quantities)
         
         real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3)
+        real(dp) :: x1, x2, x3
+
+        real(dp) :: coeff_23(0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1(0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1x1(0:MAX_ORDER, 0:MAX_ORDER)
+
+        real(dp) :: coeff_3(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1x1(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1x2(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2x2(0:MAX_ORDER)
+
+        integer :: interval_index(3), k1, k2, k3, j
+        integer :: N1, N2, N3
+        integer :: i1, i2, i3
+        real(dp) :: c
+
+        N1 = spl%order(1)
+        N2 = spl%order(2)
+        N3 = spl%order(3)
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period(1) = h_step(1)*real(spl%num_points(1) - 1, dp)
+        period(2) = h_step(2)*real(spl%num_points(2) - 1, dp)
+        period(3) = h_step(3)*real(spl%num_points(3) - 1, dp)
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = x(j)
+                if (xj < x_min(j) .or. xj >= x_min(j) + period(j)) then
+                    xj = modulo(xj - x_min(j), period(j)) + x_min(j)
+                end if
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - x_min(j))/h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))*h_step(j)
+        end do
+
+        x1 = x_local(1)
+        x2 = x_local(2)
+        x3 = x_local(3)
+
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        ! First reduction: x1 interpolation (value, dx1, dx1x1)
+        do k3 = 0, N3
+            do k2 = 0, N2
+                c = spl%coeff(1, N1, k2, k3, i1, i2, i3)
+                coeff_23(k2, k3) = c
+                coeff_23_dx1(k2, k3) = N1*c
+                coeff_23_dx1x1(k2, k3) = N1*(N1 - 1)*c
+            end do
+        end do
+
+        do k1 = N1 - 1, 2, -1
+            do k3 = 0, N3
+                !$omp simd
+                do k2 = 0, N2
+                    c = spl%coeff(1, k1, k2, k3, i1, i2, i3)
+                    coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
+                    coeff_23_dx1(k2, k3) = k1*c + x1*coeff_23_dx1(k2, k3)
+                    coeff_23_dx1x1(k2, k3) = k1*(k1 - 1)*c + &
+                        x1*coeff_23_dx1x1(k2, k3)
+                end do
+            end do
+        end do
+
+        if (N1 > 1) then
+            k1 = 1
+            do k3 = 0, N3
+                !$omp simd
+                do k2 = 0, N2
+                    c = spl%coeff(1, k1, k2, k3, i1, i2, i3)
+                    coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
+                    coeff_23_dx1(k2, k3) = k1*c + x1*coeff_23_dx1(k2, k3)
+                end do
+            end do
+        end if
+
+        k1 = 0
+        do k3 = 0, N3
+            !$omp simd
+            do k2 = 0, N2
+                c = spl%coeff(1, k1, k2, k3, i1, i2, i3)
+                coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
+            end do
+        end do
+
+        ! Second reduction: x2 interpolation (value, dx1, dx1x1, dx2, dx1x2, dx2x2)
+        do k3 = 0, N3
+            coeff_3(k3) = coeff_23(N2, k3)
+            coeff_3_dx1(k3) = coeff_23_dx1(N2, k3)
+            coeff_3_dx1x1(k3) = coeff_23_dx1x1(N2, k3)
+            coeff_3_dx2(k3) = N2*coeff_3(k3)
+            coeff_3_dx1x2(k3) = N2*coeff_3_dx1(k3)
+            coeff_3_dx2x2(k3) = N2*(N2 - 1)*coeff_3(k3)
+        end do
+
+        do k2 = N2 - 1, 2, -1
+            !$omp simd
+            do k3 = 0, N3
+                coeff_3(k3) = coeff_23(k2, k3) + x2*coeff_3(k3)
+                coeff_3_dx1(k3) = coeff_23_dx1(k2, k3) + x2*coeff_3_dx1(k3)
+                coeff_3_dx1x1(k3) = coeff_23_dx1x1(k2, k3) + &
+                    x2*coeff_3_dx1x1(k3)
+                coeff_3_dx2(k3) = k2*coeff_23(k2, k3) + x2*coeff_3_dx2(k3)
+                coeff_3_dx1x2(k3) = k2*coeff_23_dx1(k2, k3) + &
+                    x2*coeff_3_dx1x2(k3)
+                coeff_3_dx2x2(k3) = k2*(k2 - 1)*coeff_23(k2, k3) + &
+                    x2*coeff_3_dx2x2(k3)
+            end do
+        end do
+
+        if (N2 > 1) then
+            k2 = 1
+            !$omp simd
+            do k3 = 0, N3
+                coeff_3(k3) = coeff_23(k2, k3) + x2*coeff_3(k3)
+                coeff_3_dx1(k3) = coeff_23_dx1(k2, k3) + x2*coeff_3_dx1(k3)
+                coeff_3_dx1x1(k3) = coeff_23_dx1x1(k2, k3) + &
+                    x2*coeff_3_dx1x1(k3)
+                coeff_3_dx2(k3) = k2*coeff_23(k2, k3) + x2*coeff_3_dx2(k3)
+                coeff_3_dx1x2(k3) = k2*coeff_23_dx1(k2, k3) + &
+                    x2*coeff_3_dx1x2(k3)
+            end do
+        end if
+
+        k2 = 0
+        !$omp simd
+        do k3 = 0, N3
+            coeff_3(k3) = coeff_23(k2, k3) + x2*coeff_3(k3)
+            coeff_3_dx1(k3) = coeff_23_dx1(k2, k3) + x2*coeff_3_dx1(k3)
+            coeff_3_dx1x1(k3) = coeff_23_dx1x1(k2, k3) + x2*coeff_3_dx1x1(k3)
+        end do
+
+        ! Third reduction: x3 interpolation
+        y_batch(1) = coeff_3(N3)
+        dy_batch(1, 1) = coeff_3_dx1(N3)
+        dy_batch(2, 1) = coeff_3_dx2(N3)
+        dy_batch(3, 1) = N3*coeff_3(N3)
+        d2y_batch(1, 1) = coeff_3_dx1x1(N3)
+        d2y_batch(2, 1) = coeff_3_dx1x2(N3)
+        d2y_batch(3, 1) = N3*coeff_3_dx1(N3)
+        d2y_batch(4, 1) = coeff_3_dx2x2(N3)
+        d2y_batch(5, 1) = N3*coeff_3_dx2(N3)
+        d2y_batch(6, 1) = N3*(N3 - 1)*coeff_3(N3)
+
+        do k3 = N3 - 1, 2, -1
+            y_batch(1) = coeff_3(k3) + x3*y_batch(1)
+            dy_batch(1, 1) = coeff_3_dx1(k3) + x3*dy_batch(1, 1)
+            dy_batch(2, 1) = coeff_3_dx2(k3) + x3*dy_batch(2, 1)
+            dy_batch(3, 1) = k3*coeff_3(k3) + x3*dy_batch(3, 1)
+            d2y_batch(1, 1) = coeff_3_dx1x1(k3) + x3*d2y_batch(1, 1)
+            d2y_batch(2, 1) = coeff_3_dx1x2(k3) + x3*d2y_batch(2, 1)
+            d2y_batch(3, 1) = k3*coeff_3_dx1(k3) + x3*d2y_batch(3, 1)
+            d2y_batch(4, 1) = coeff_3_dx2x2(k3) + x3*d2y_batch(4, 1)
+            d2y_batch(5, 1) = k3*coeff_3_dx2(k3) + x3*d2y_batch(5, 1)
+            d2y_batch(6, 1) = k3*(k3 - 1)*coeff_3(k3) + x3*d2y_batch(6, 1)
+        end do
+
+        if (N3 > 1) then
+            k3 = 1
+            y_batch(1) = coeff_3(k3) + x3*y_batch(1)
+            dy_batch(1, 1) = coeff_3_dx1(k3) + x3*dy_batch(1, 1)
+            dy_batch(2, 1) = coeff_3_dx2(k3) + x3*dy_batch(2, 1)
+            dy_batch(3, 1) = k3*coeff_3(k3) + x3*dy_batch(3, 1)
+            d2y_batch(1, 1) = coeff_3_dx1x1(k3) + x3*d2y_batch(1, 1)
+            d2y_batch(2, 1) = coeff_3_dx1x2(k3) + x3*d2y_batch(2, 1)
+            d2y_batch(3, 1) = k3*coeff_3_dx1(k3) + x3*d2y_batch(3, 1)
+            d2y_batch(4, 1) = coeff_3_dx2x2(k3) + x3*d2y_batch(4, 1)
+            d2y_batch(5, 1) = k3*coeff_3_dx2(k3) + x3*d2y_batch(5, 1)
+        end if
+
+        k3 = 0
+        y_batch(1) = coeff_3(k3) + x3*y_batch(1)
+        dy_batch(1, 1) = coeff_3_dx1(k3) + x3*dy_batch(1, 1)
+        dy_batch(2, 1) = coeff_3_dx2(k3) + x3*dy_batch(2, 1)
+        d2y_batch(1, 1) = coeff_3_dx1x1(k3) + x3*d2y_batch(1, 1)
+        d2y_batch(2, 1) = coeff_3_dx1x2(k3) + x3*d2y_batch(2, 1)
+        d2y_batch(4, 1) = coeff_3_dx2x2(k3) + x3*d2y_batch(4, 1)
+    end subroutine evaluate_batch_splines_3d_der2_core_nq1
+
+    subroutine evaluate_batch_splines_3d_der2_core_general(spl, x, y_batch, dy_batch, d2y_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:,:)   ! (3, n_quantities)
+        real(dp), intent(out) :: d2y_batch(:,:)  ! (6, n_quantities)
+        
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3)
         ! Fixed-size arrays to avoid heap allocation (stack only)
         real(dp) :: coeff_23(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
         real(dp) :: coeff_23_dx1(MAX_QUANTITIES, 0:MAX_ORDER, 0:MAX_ORDER)
@@ -1216,33 +1430,45 @@ contains
 
         integer :: interval_index(3), k1, k2, k3, j, iq
         integer :: N1, N2, N3, NQ
+        integer :: i1, i2, i3
         real(dp) :: c  ! Temporary variable for coefficient reuse
 
         N1 = spl%order(1)
         N2 = spl%order(2)
         N3 = spl%order(3)
         NQ = spl%num_quantities
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period(1) = h_step(1)*real(spl%num_points(1) - 1, dp)
+        period(2) = h_step(2)*real(spl%num_points(2) - 1, dp)
+        period(3) = h_step(3)*real(spl%num_points(3) - 1, dp)
         
-        do j=1,3
+        do j = 1, 3
             if (spl%periodic(j)) then
-                xj = modulo(x(j) - spl%x_min(j), &
-                    spl%h_step(j)*(spl%num_points(j)-1)) + spl%x_min(j)
+                xj = x(j)
+                if (xj < x_min(j) .or. xj >= x_min(j) + period(j)) then
+                    xj = modulo(xj - x_min(j), period(j)) + x_min(j)
+                end if
             else
                 xj = x(j)
             end if
-            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            x_norm(j) = (xj - x_min(j))/h_step(j)
             interval_index(j) = max(0, min(spl%num_points(j)-2, int(x_norm(j))))
-            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))*h_step(j)
         end do
-        
+
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
         ! First reduction: x1 interpolation with fused derivative computation
         ! Initialize all polynomials with highest order coefficient (k1 = N1)
         do k3 = 0, N3
             do k2 = 0, N2
                 !$omp simd
-                do iq = 1, spl%num_quantities
-                    c = spl%coeff(iq, N1, k2, k3, interval_index(1)+1, &
-                        interval_index(2)+1, interval_index(3)+1)
+                do iq = 1, NQ
+                    c = spl%coeff(iq, N1, k2, k3, i1, i2, i3)
                     coeff_23(iq, k2, k3) = c
                     coeff_23_dx1(iq, k2, k3) = N1 * c
                     coeff_23_dx1x1(iq, k2, k3) = N1*(N1-1) * c
@@ -1256,9 +1482,8 @@ contains
             do k3 = 0, N3
                 do k2 = 0, N2
                     !$omp simd
-                    do iq = 1, spl%num_quantities
-                        c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
-                            interval_index(2)+1, interval_index(3)+1)
+                    do iq = 1, NQ
+                        c = spl%coeff(iq, k1, k2, k3, i1, i2, i3)
                         coeff_23(iq, k2, k3) = c + x_local(1)*coeff_23(iq, k2, k3)
                         coeff_23_dx1(iq, k2, k3) = k1*c + &
                             x_local(1)*coeff_23_dx1(iq, k2, k3)
@@ -1275,9 +1500,8 @@ contains
             do k3 = 0, N3
                 do k2 = 0, N2
                     !$omp simd
-                    do iq = 1, spl%num_quantities
-                        c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
-                            interval_index(2)+1, interval_index(3)+1)
+                    do iq = 1, NQ
+                        c = spl%coeff(iq, k1, k2, k3, i1, i2, i3)
                         coeff_23(iq, k2, k3) = c + x_local(1)*coeff_23(iq, k2, k3)
                         coeff_23_dx1(iq, k2, k3) = k1*c + &
                             x_local(1)*coeff_23_dx1(iq, k2, k3)
@@ -1291,9 +1515,8 @@ contains
         do k3 = 0, N3
             do k2 = 0, N2
                 !$omp simd
-                do iq = 1, spl%num_quantities
-                    c = spl%coeff(iq, k1, k2, k3, interval_index(1)+1, &
-                        interval_index(2)+1, interval_index(3)+1)
+                do iq = 1, NQ
+                    c = spl%coeff(iq, k1, k2, k3, i1, i2, i3)
                     coeff_23(iq, k2, k3) = c + x_local(1)*coeff_23(iq, k2, k3)
                 end do
             end do
@@ -1303,7 +1526,7 @@ contains
         ! Initialize all polynomials with highest order coefficient (k2 = N2)
         do k3 = 0, N3
             !$omp simd
-            do iq = 1, spl%num_quantities
+            do iq = 1, NQ
                 coeff_3(iq, k3) = coeff_23(iq, N2, k3)
                 coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, N2, k3)
                 coeff_3_dx1x1(iq, k3) = coeff_23_dx1x1(iq, N2, k3)
@@ -1318,7 +1541,7 @@ contains
         do k2 = N2-1, 2, -1
             do k3 = 0, N3
                 !$omp simd
-                do iq = 1, spl%num_quantities
+                do iq = 1, NQ
                     coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
                         x_local(2)*coeff_3(iq, k3)
                     coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
@@ -1340,7 +1563,7 @@ contains
             k2 = 1
             do k3 = 0, N3
                 !$omp simd
-                do iq = 1, spl%num_quantities
+                do iq = 1, NQ
                     coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
                         x_local(2)*coeff_3(iq, k3)
                     coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
@@ -1359,7 +1582,7 @@ contains
         k2 = 0
         do k3 = 0, N3
             !$omp simd
-            do iq = 1, spl%num_quantities
+            do iq = 1, NQ
                 coeff_3(iq, k3) = coeff_23(iq, k2, k3) + &
                     x_local(2)*coeff_3(iq, k3)
                 coeff_3_dx1(iq, k3) = coeff_23_dx1(iq, k2, k3) + &
@@ -1372,7 +1595,7 @@ contains
         ! Third reduction: x3 interpolation with fused derivative computation
         ! Initialize all outputs with highest order coefficient (k3 = N3)
         !$omp simd
-        do iq = 1, spl%num_quantities
+        do iq = 1, NQ
             y_batch(iq) = coeff_3(iq, N3)
             dy_batch(1, iq) = coeff_3_dx1(iq, N3)
             dy_batch(2, iq) = coeff_3_dx2(iq, N3)
@@ -1389,7 +1612,7 @@ contains
         ! Range k3 = N3-1 down to 2: update all outputs
         do k3 = N3-1, 2, -1
             !$omp simd
-            do iq = 1, spl%num_quantities
+            do iq = 1, NQ
                 y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
                 dy_batch(1, iq) = coeff_3_dx1(iq, k3) + x_local(3)*dy_batch(1, iq)
                 dy_batch(2, iq) = coeff_3_dx2(iq, k3) + x_local(3)*dy_batch(2, iq)
@@ -1413,7 +1636,7 @@ contains
         if (N3 > 1) then
             k3 = 1
             !$omp simd
-            do iq = 1, spl%num_quantities
+            do iq = 1, NQ
                 y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
                 dy_batch(1, iq) = coeff_3_dx1(iq, k3) + x_local(3)*dy_batch(1, iq)
                 dy_batch(2, iq) = coeff_3_dx2(iq, k3) + x_local(3)*dy_batch(2, iq)
@@ -1434,7 +1657,7 @@ contains
         ! k3 = 0: update value and first-order derivatives only
         k3 = 0
         !$omp simd
-        do iq = 1, spl%num_quantities
+        do iq = 1, NQ
             y_batch(iq) = coeff_3(iq, k3) + x_local(3)*y_batch(iq)
             dy_batch(1, iq) = coeff_3_dx1(iq, k3) + x_local(3)*dy_batch(1, iq)
             dy_batch(2, iq) = coeff_3_dx2(iq, k3) + x_local(3)*dy_batch(2, iq)
@@ -1445,7 +1668,6 @@ contains
             d2y_batch(4, iq) = coeff_3_dx2x2(iq, k3) + &
                 x_local(3)*d2y_batch(4, iq)
         end do
-        
-    end subroutine evaluate_batch_splines_3d_der2_core
+    end subroutine evaluate_batch_splines_3d_der2_core_general
 
 end module batch_interpolate_3d

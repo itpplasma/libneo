@@ -726,16 +726,54 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:)
 
-        real(dp) :: x_arr(1)
-        real(dp) :: y_arr(spl%num_quantities, 1)
-        real(dp) :: dy_arr(spl%num_quantities, 1)
-        real(dp) :: d2y_arr(spl%num_quantities, 1)
+        integer :: iq, k, idx, nq, N
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period
 
-        x_arr(1) = x
-        call evaluate_batch_splines_1d_many_der2(spl, x_arr, y_arr, dy_arr, d2y_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
-        d2y_batch(1:spl%num_quantities) = d2y_arr(:, 1)
+        nq = spl%num_quantities
+        N = spl%order
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step * real(spl%num_points - 1, dp)
+
+        if (spl%periodic) then
+            xj = x
+            if (xj < x_min .or. xj >= x_min + period) then
+                xj = modulo(xj - x_min, period) + x_min
+            end if
+        else
+            xj = x
+        end if
+
+        x_norm = (xj - x_min) / h_step
+        idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+        x_local = (x_norm - real(idx - 1, dp)) * h_step
+
+        do iq = 1, nq
+            y_batch(iq) = spl%coeff(iq, N, idx)
+            dy_batch(iq) = N * spl%coeff(iq, N, idx)
+            d2y_batch(iq) = N * (N - 1) * spl%coeff(iq, N, idx)
+        end do
+
+        do k = N - 1, 2, -1
+            do iq = 1, nq
+                d2y_batch(iq) = k * (k - 1) * spl%coeff(iq, k, idx) + &
+                                x_local * d2y_batch(iq)
+            end do
+        end do
+
+        do k = N - 1, 1, -1
+            do iq = 1, nq
+                dy_batch(iq) = k * spl%coeff(iq, k, idx) + &
+                               x_local * dy_batch(iq)
+            end do
+        end do
+
+        do k = N - 1, 0, -1
+            do iq = 1, nq
+                y_batch(iq) = spl%coeff(iq, k, idx) + &
+                              x_local * y_batch(iq)
+            end do
+        end do
     end subroutine evaluate_batch_splines_1d_der2
 
     subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
@@ -744,18 +782,62 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:), d3y_batch(:)
 
-        real(dp) :: x_arr(1)
-        real(dp) :: y_arr(spl%num_quantities, 1)
-        real(dp) :: dy_arr(spl%num_quantities, 1)
-        real(dp) :: d2y_arr(spl%num_quantities, 1)
-        real(dp) :: d3y_arr(spl%num_quantities, 1)
+        integer :: iq, k, idx, nq, N
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period
 
-        x_arr(1) = x
-        call evaluate_batch_splines_1d_many_der3(spl, x_arr, y_arr, dy_arr, d2y_arr, d3y_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
-        d2y_batch(1:spl%num_quantities) = d2y_arr(:, 1)
-        d3y_batch(1:spl%num_quantities) = d3y_arr(:, 1)
+        nq = spl%num_quantities
+        N = spl%order
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step * real(spl%num_points - 1, dp)
+
+        if (spl%periodic) then
+            xj = x
+            if (xj < x_min .or. xj >= x_min + period) then
+                xj = modulo(xj - x_min, period) + x_min
+            end if
+        else
+            xj = x
+        end if
+
+        x_norm = (xj - x_min) / h_step
+        idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+        x_local = (x_norm - real(idx - 1, dp)) * h_step
+
+        do iq = 1, nq
+            y_batch(iq) = spl%coeff(iq, N, idx)
+            dy_batch(iq) = N * spl%coeff(iq, N, idx)
+            d2y_batch(iq) = N * (N - 1) * spl%coeff(iq, N, idx)
+            d3y_batch(iq) = N * (N - 1) * (N - 2) * spl%coeff(iq, N, idx)
+        end do
+
+        do k = N - 1, 3, -1
+            do iq = 1, nq
+                d3y_batch(iq) = k * (k - 1) * (k - 2) * spl%coeff(iq, k, idx) + &
+                                x_local * d3y_batch(iq)
+            end do
+        end do
+
+        do k = N - 1, 2, -1
+            do iq = 1, nq
+                d2y_batch(iq) = k * (k - 1) * spl%coeff(iq, k, idx) + &
+                                x_local * d2y_batch(iq)
+            end do
+        end do
+
+        do k = N - 1, 1, -1
+            do iq = 1, nq
+                dy_batch(iq) = k * spl%coeff(iq, k, idx) + &
+                               x_local * dy_batch(iq)
+            end do
+        end do
+
+        do k = N - 1, 0, -1
+            do iq = 1, nq
+                y_batch(iq) = spl%coeff(iq, k, idx) + &
+                              x_local * y_batch(iq)
+            end do
+        end do
     end subroutine evaluate_batch_splines_1d_der3
 
 end module batch_interpolate_1d
