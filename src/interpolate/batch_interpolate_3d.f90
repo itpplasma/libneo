@@ -1191,17 +1191,7 @@ contains
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:,:)   ! (3, n_quantities)
         real(dp), intent(out) :: d2y_batch(:,:)  ! (6, n_quantities)
-
-        real(dp) :: x_arr(3, 1)
-        real(dp) :: y_arr(spl%num_quantities, 1)
-        real(dp) :: dy_arr(3, spl%num_quantities, 1)
-        real(dp) :: d2y_arr(6, spl%num_quantities, 1)
-
-        x_arr(:, 1) = x
-        call evaluate_batch_splines_3d_many_der2(spl, x_arr, y_arr, dy_arr, d2y_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:3, 1:spl%num_quantities) = dy_arr(:, :, 1)
-        d2y_batch(1:6, 1:spl%num_quantities) = d2y_arr(:, :, 1)
+        call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_3d_der2
 
     subroutine evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
