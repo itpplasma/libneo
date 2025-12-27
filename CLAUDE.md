@@ -38,8 +38,8 @@ See `CODING_STANDARD.md` for complete details. Key points:
 # Simple build with CMake/Ninja (recommended)
 make
 
-# Alternative: using fpm
-fpm build
+# IMPORTANT: `fpm` support is experimental and must not be used for development,
+# testing, or performance work in this repository.
 ```
 
 ### Run Tests

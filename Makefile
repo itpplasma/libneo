@@ -13,7 +13,7 @@ NVHPC_BUILD_DIR := build_nvfortran
 .PHONY: all ninja test install clean nvfortran test-nvfortran clean-nvfortran
 all: ninja tools/h5merge/build/h5merge.x
 
-tools/h5merge/build/h5merge.x:
+tools/h5merge/build/h5merge.x: ninja
 	if [ ! -d "tools/h5merge/build" ] ; then \
     	echo "Creating 'build' directory..."; \
     	mkdir -p tools/h5merge/build; \

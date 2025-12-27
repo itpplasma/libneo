@@ -80,7 +80,11 @@ if(LIBNEO_BUILD_TESTING)
 endif()
 
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
-option(ENABLE_OPENACC "Enable OpenACC compiler flags." ON)
+set(_enable_openacc_default OFF)
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
+    set(_enable_openacc_default ON)
+endif()
+option(ENABLE_OPENACC "Enable OpenACC compiler flags." ${_enable_openacc_default})
 set(OPENACC_OFFLOAD_TARGET "none" CACHE STRING "OpenACC offload target for GNU (none|nvptx)")
 set_property(CACHE OPENACC_OFFLOAD_TARGET PROPERTY STRINGS none nvptx)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
