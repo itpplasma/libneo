@@ -24,8 +24,8 @@ program test_odeint_events
 
 contains
 
-    subroutine test_event_trigger(test_failed)
-        logical, intent(inout) :: test_failed
+    subroutine test_event_trigger(test_failed_)
+        logical, intent(inout) :: test_failed_
 
         real(dp), parameter :: x1 = 0.0_dp, x2 = 1.0_dp, eps = 1.0e-8_dp
         real(dp) :: y(1)
@@ -38,20 +38,20 @@ contains
 
         if (.not. ev(1)%triggered) then
             write (*, *) 'ERROR: event not detected'
-            test_failed = .true.
+            test_failed_ = .true.
         end if
         if (abs(ev(1)%x_event - 0.5_dp) > 1.0e-6_dp) then
             write (*, *) 'ERROR: event time incorrect', ev(1)%x_event
-            test_failed = .true.
+            test_failed_ = .true.
         end if
         if (abs(y(1) - 0.5_dp) > 1.0e-6_dp) then
             write (*, *) 'ERROR: event state incorrect', y(1)
-            test_failed = .true.
+            test_failed_ = .true.
         end if
     end subroutine test_event_trigger
 
-    subroutine test_event_approx_start(test_failed)
-        logical, intent(inout) :: test_failed
+    subroutine test_event_approx_start(test_failed_)
+        logical, intent(inout) :: test_failed_
 
         real(dp), parameter :: x1 = 0.0_dp, x2 = 1.0_dp, eps = 1.0e-8_dp
         real(dp) :: y(1)
@@ -64,20 +64,20 @@ contains
 
         if (.not. ev(1)%triggered) then
             write (*, *) 'ERROR: approx-start event not detected'
-            test_failed = .true.
+            test_failed_ = .true.
         end if
         if (abs(ev(1)%x_event - x1) > 1.0e-12_dp) then
             write (*, *) 'ERROR: approx-start event time incorrect', ev(1)%x_event
-            test_failed = .true.
+            test_failed_ = .true.
         end if
         if (abs(y(1) - 1.0e-10_dp) > 1.0e-8_dp) then
             write (*, *) 'ERROR: approx-start event state incorrect', y(1)
-            test_failed = .true.
+            test_failed_ = .true.
         end if
     end subroutine test_event_approx_start
 
-    subroutine test_direction_filter(test_failed)
-        logical, intent(inout) :: test_failed
+    subroutine test_direction_filter(test_failed_)
+        logical, intent(inout) :: test_failed_
 
         real(dp), parameter :: x1 = 0.0_dp, x2 = 1.0_dp, eps = 1.0e-8_dp
         real(dp) :: y(1)
@@ -90,16 +90,16 @@ contains
 
         if (ev(1)%triggered) then
             write (*, *) 'ERROR: direction filter should block event'
-            test_failed = .true.
+            test_failed_ = .true.
         end if
         if (abs(y(1) - 1.0_dp) > 1.0e-6_dp) then
             write (*, *) 'ERROR: direction filter end state incorrect', y(1)
-            test_failed = .true.
+            test_failed_ = .true.
         end if
     end subroutine test_direction_filter
 
-    subroutine test_context_event(test_failed)
-        logical, intent(inout) :: test_failed
+    subroutine test_context_event(test_failed_)
+        logical, intent(inout) :: test_failed_
 
         real(dp), parameter :: x1 = 0.0_dp, x2 = 1.0_dp, eps = 1.0e-8_dp
         real(dp) :: y(1)
@@ -114,11 +114,11 @@ contains
 
         if (.not. ev(1)%triggered) then
             write (*, *) 'ERROR: context event not detected'
-            test_failed = .true.
+            test_failed_ = .true.
         end if
         if (abs(ev(1)%x_event - 0.25_dp) > 1.0e-6_dp) then
             write (*, *) 'ERROR: context event time incorrect', ev(1)%x_event
-            test_failed = .true.
+            test_failed_ = .true.
         end if
     end subroutine test_context_event
 
