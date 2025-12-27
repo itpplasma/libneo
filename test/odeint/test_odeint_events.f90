@@ -12,6 +12,7 @@ program test_odeint_events
    test_failed = .false.
 
    call test_event_trigger(test_failed)
+   call test_event_approx_start(test_failed)
    call test_direction_filter(test_failed)
    call test_context_event(test_failed)
 
@@ -48,6 +49,32 @@ contains
          test_failed = .true.
       end if
    end subroutine test_event_trigger
+
+   subroutine test_event_approx_start(test_failed)
+      logical, intent(inout) :: test_failed
+
+      real(dp), parameter :: x1 = 0.0_dp, x2 = 1.0_dp, eps = 1.0e-8_dp
+      real(dp) :: y(1)
+      type(ode_event_t) :: ev(1)
+
+      ev(1)%condition => event_y
+      ev(1)%direction = 0
+      y(1) = 1.0e-10_dp
+      call odeint_allroutines(y, 1, x1, x2, eps, rhs_unit, events=ev)
+
+      if (.not. ev(1)%triggered) then
+         write (*, *) 'ERROR: approx-start event not detected'
+         test_failed = .true.
+      end if
+      if (abs(ev(1)%x_event - x1) > 1.0e-12_dp) then
+         write (*, *) 'ERROR: approx-start event time incorrect', ev(1)%x_event
+         test_failed = .true.
+      end if
+      if (abs(y(1) - 1.0e-10_dp) > 1.0e-8_dp) then
+         write (*, *) 'ERROR: approx-start event state incorrect', y(1)
+         test_failed = .true.
+      end if
+   end subroutine test_event_approx_start
 
    subroutine test_direction_filter(test_failed)
       logical, intent(inout) :: test_failed
@@ -137,6 +164,19 @@ contains
 
       event_y_minus_half = y(1) - 0.5_dp
    end function event_y_minus_half
+
+   real(dp) function event_y(x, y, context)
+      real(dp), intent(in) :: x
+      real(dp), intent(in) :: y(:)
+      class(*), intent(in), optional :: context
+
+      associate (x_unused => x)
+      end associate
+      associate (context_unused => context)
+      end associate
+
+      event_y = y(1)
+   end function event_y
 
    real(dp) function event_with_context(x, y, context)
       real(dp), intent(in) :: x
