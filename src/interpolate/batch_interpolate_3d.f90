@@ -1274,9 +1274,13 @@ contains
                                                                    dy_batch, &
                                                                    d2y_batch_rmix)
             else
-                call evaluate_batch_splines_3d_der2_core_rmix_general(spl, x, y_batch, &
-                                                                      dy_batch, &
-                                                                      d2y_batch_rmix)
+                block
+                    real(dp) :: d2y_full(6, size(y_batch))
+
+                    call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, &
+                                                            dy_batch, d2y_full)
+                    d2y_batch_rmix(:, :) = d2y_full(1:3, :)
+                end block
             end if
         end if
     end subroutine evaluate_batch_splines_3d_der2_rmix
