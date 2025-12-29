@@ -38,7 +38,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d_many_resident
     public :: evaluate_batch_splines_3d_many_der
     public :: evaluate_batch_splines_3d_many_der2
-
+    public :: evaluate_batch_splines_3d_many_der2_mask
 contains
 
     subroutine construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
@@ -1063,6 +1063,28 @@ contains
                 )
         end do
     end subroutine evaluate_batch_splines_3d_many_der2
+
+    subroutine evaluate_batch_splines_3d_many_der2_mask(spl, x, mask, y_batch, dy_batch, d2y_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(:,:)             ! (3, npts)
+        logical, intent(in) :: mask(:)
+        real(dp), intent(inout) :: y_batch(:,:)     ! (nq, npts)
+        real(dp), intent(inout) :: dy_batch(:,:,:)  ! (3, nq, npts)
+        real(dp), intent(inout) :: d2y_batch(:,:,:) ! (6, nq, npts)
+
+        integer :: ipt, npts
+
+        npts = size(x, 2)
+        if (size(mask) /= npts) then
+            error stop "evaluate_batch_splines_3d_many_der2_mask: mask size mismatch"
+        end if
+
+        do ipt = 1, npts
+            if (.not. mask(ipt)) cycle
+            call evaluate_batch_splines_3d_der2_core(spl, x(:, ipt), &
+                y_batch(:, ipt), dy_batch(:, :, ipt), d2y_batch(:, :, ipt))
+        end do
+    end subroutine evaluate_batch_splines_3d_many_der2_mask
 
     subroutine evaluate_batch_splines_3d_der(spl, x, y_batch, dy_batch)
         type(BatchSplineData3D), intent(in) :: spl
