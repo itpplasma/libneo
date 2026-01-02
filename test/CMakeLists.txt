@@ -135,6 +135,15 @@ target_link_libraries(test_plag_coeff.x ${COMMON_LIBS})
 add_executable(test_spl_three_to_five.x source/test_spl_three_to_five.f90)
 target_link_libraries(test_spl_three_to_five.x ${COMMON_LIBS})
 
+add_executable(test_species.x source/test_species.f90)
+target_link_libraries(test_species.x neo species)
+
+add_executable(test_rng.x source/test_rng.f90 ../src/MC/rng.f90)
+target_link_libraries(test_rng.x ${COMMON_LIBS})
+
+add_executable(test_polylag_3.x source/test_polylag_3.f90)
+target_link_libraries(test_polylag_3.x ${COMMON_LIBS} ${MAGFIE_LIB})
+
 add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
@@ -201,6 +210,9 @@ add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
 add_test(NAME test_plag_coeff COMMAND test_plag_coeff.x)
 add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
+add_test(NAME test_species COMMAND test_species.x)
+add_test(NAME test_rng COMMAND test_rng.x)
+add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
