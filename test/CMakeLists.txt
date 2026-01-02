@@ -129,6 +129,12 @@ target_link_libraries(test_system_utility.x
 add_executable(test_util.x source/test_util.f90)
 target_link_libraries(test_util.x ${COMMON_LIBS})
 
+add_executable(test_plag_coeff.x source/test_plag_coeff.f90)
+target_link_libraries(test_plag_coeff.x ${COMMON_LIBS})
+
+add_executable(test_spl_three_to_five.x source/test_spl_three_to_five.f90)
+target_link_libraries(test_spl_three_to_five.x ${COMMON_LIBS})
+
 add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
@@ -193,6 +199,8 @@ add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
+add_test(NAME test_plag_coeff COMMAND test_plag_coeff.x)
+add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
