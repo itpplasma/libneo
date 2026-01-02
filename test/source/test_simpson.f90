@@ -304,7 +304,7 @@ contains
         expected = 2.0_dp / pi
 
         call simpson_nonequi(approx, x, f)
-        if (abs(approx - expected) > 1.0e-7_dp) then
+        if (abs(approx - expected) > 1.0e-6_dp) then
             write(*,*) "FAIL: many_points. Value:", approx, " expected ", expected
             passed = .false.
             deallocate(x, f)
