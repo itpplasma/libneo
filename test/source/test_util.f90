@@ -14,6 +14,10 @@ program test_util
     call test_linspace_negative_range(all_passed)
     call test_linspace_reversed(all_passed)
     call test_linspace_uniform_spacing(all_passed)
+    call test_fill_random_numbers_basic(all_passed)
+    call test_fill_random_numbers_range(all_passed)
+    call test_get_random_numbers_sub(all_passed)
+    call test_get_random_numbers_func(all_passed)
 
     if (.not. all_passed) then
         error stop "One or more util tests failed"
@@ -182,5 +186,102 @@ contains
 
         write(*,*) "PASS: test_linspace_uniform_spacing"
     end subroutine test_linspace_uniform_spacing
+
+    subroutine test_fill_random_numbers_basic(passed)
+        use libneo_util, only: fill_random_numbers
+        logical, intent(inout) :: passed
+
+        integer, parameter :: n = 100
+        real(dp), dimension(n) :: x
+        integer :: i
+
+        call fill_random_numbers(0.0d0, 1.0d0, x)
+
+        do i = 1, n
+            if (x(i) < 0.0d0 .or. x(i) > 1.0d0) then
+                write(*,*) "FAIL: fill_random_numbers_basic out of range at i=", i
+                passed = .false.
+                return
+            end if
+        end do
+
+        write(*,*) "PASS: test_fill_random_numbers_basic"
+    end subroutine test_fill_random_numbers_basic
+
+    subroutine test_fill_random_numbers_range(passed)
+        use libneo_util, only: fill_random_numbers
+        logical, intent(inout) :: passed
+
+        integer, parameter :: n = 100
+        real(dp), dimension(n) :: x
+        real(dp), parameter :: xmin = -5.0d0, xmax = 10.0d0
+        integer :: i
+
+        call fill_random_numbers(xmin, xmax, x)
+
+        do i = 1, n
+            if (x(i) < xmin .or. x(i) > xmax) then
+                write(*,*) "FAIL: fill_random_numbers_range out of range at i=", i
+                passed = .false.
+                return
+            end if
+        end do
+
+        write(*,*) "PASS: test_fill_random_numbers_range"
+    end subroutine test_fill_random_numbers_range
+
+    subroutine test_get_random_numbers_sub(passed)
+        use libneo_util, only: get_random_numbers_sub
+        logical, intent(inout) :: passed
+
+        integer, parameter :: n = 100
+        real(dp), allocatable :: x(:)
+        integer :: i
+
+        call get_random_numbers_sub(0.0d0, 1.0d0, n, x)
+
+        if (.not. allocated(x)) then
+            write(*,*) "FAIL: get_random_numbers_sub array not allocated"
+            passed = .false.
+            return
+        end if
+
+        if (size(x) /= n) then
+            write(*,*) "FAIL: get_random_numbers_sub wrong size:", size(x), " expected", n
+            passed = .false.
+            return
+        end if
+
+        do i = 1, n
+            if (x(i) < 0.0d0 .or. x(i) > 1.0d0) then
+                write(*,*) "FAIL: get_random_numbers_sub out of range at i=", i
+                passed = .false.
+                return
+            end if
+        end do
+
+        write(*,*) "PASS: test_get_random_numbers_sub"
+    end subroutine test_get_random_numbers_sub
+
+    subroutine test_get_random_numbers_func(passed)
+        use libneo_util, only: get_random_numbers
+        logical, intent(inout) :: passed
+
+        integer, parameter :: n = 100
+        real(dp) :: x(n)
+        integer :: i
+
+        x = get_random_numbers(0.0d0, 1.0d0, n)
+
+        do i = 1, n
+            if (x(i) < 0.0d0 .or. x(i) > 1.0d0) then
+                write(*,*) "FAIL: get_random_numbers out of range at i=", i
+                passed = .false.
+                return
+            end if
+        end do
+
+        write(*,*) "PASS: test_get_random_numbers_func"
+    end subroutine test_get_random_numbers_func
 
 end program test_util

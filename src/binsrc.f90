@@ -37,6 +37,8 @@ module binsrc_sub
     end do
 
     i = imax
+    ! Correct for values at or below the minimum (fixes edge case with small arrays)
+    if (xi <= p(nmin)) i = nmin + 1
 
   end
 

@@ -256,6 +256,15 @@ contains
 
         values = [1.0_dp, 2.0_dp]
 
+        value_to_find = 0.5_dp
+        call binsrc(values, 1, 2, value_to_find, found_index)
+        if (found_index /= 2) then
+            write(*,*) "FAIL: two_element_array below. Found:", found_index, &
+                " expected 2"
+            passed = .false.
+            return
+        end if
+
         value_to_find = 1.5_dp
         call binsrc(values, 1, 2, value_to_find, found_index)
         if (found_index /= 2) then
