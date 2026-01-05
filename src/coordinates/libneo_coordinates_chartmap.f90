@@ -1,11 +1,43 @@
-submodule(libneo_coordinates) libneo_coordinates_chartmap
+module libneo_coordinates_chartmap
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use libneo_coordinates_base, only: coordinate_system_t, &
+                                       UNKNOWN, CYL, VMEC, BOOZER, &
+                                       RHO_TOR, RHO_POL, PSI_TOR_NORM, PSI_POL_NORM, &
+                                       chartmap_from_cyl_ok, chartmap_from_cyl_err_max_iter, &
+                                       chartmap_from_cyl_err_singular, &
+                                       chartmap_from_cyl_err_out_of_bounds, &
+                                       chartmap_from_cyl_err_invalid
+    use interpolate, only: BatchSplineData3D, construct_batch_splines_3d, &
+                           evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
     use nctools_module, only: nc_open, nc_close, nc_inq_dim, nc_get
     use math_constants, only: TWOPI
-    use interpolate, only: construct_batch_splines_3d, &
-                           evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
     use netcdf, only: NF90_CHAR, NF90_GLOBAL, NF90_NOERR, nf90_get_att, nf90_get_var, &
                       nf90_inq_varid, nf90_inquire_attribute
     implicit none
+    private
+
+    public :: chartmap_coordinate_system_t
+    public :: make_chartmap_coordinate_system
+
+    type, extends(coordinate_system_t) :: chartmap_coordinate_system_t
+        type(BatchSplineData3D) :: spl_cart
+        type(BatchSplineData3D) :: spl_rz
+        logical :: has_spl_rz = .false.
+        integer :: nrho = 0
+        integer :: ntheta = 0
+        integer :: nzeta = 0
+        integer :: num_field_periods = 1
+        integer :: zeta_convention = UNKNOWN
+        integer :: rho_convention = UNKNOWN
+        real(dp) :: tol_newton = 1.0e-12_dp
+    contains
+        procedure :: evaluate_cart => chartmap_evaluate_cart
+        procedure :: evaluate_cyl => chartmap_evaluate_cyl
+        procedure :: covariant_basis => chartmap_covariant_basis
+        procedure :: metric_tensor => chartmap_metric_tensor
+        procedure :: from_cyl => chartmap_from_cyl
+        procedure :: from_cart => chartmap_from_cart
+    end type chartmap_coordinate_system_t
 
 contains
 
@@ -287,30 +319,24 @@ contains
             vals(2) = rz(1)*sph
             vals(3) = rz(2)
 
-            ! dvals(cart_component, coord_index) = d(x_cart)/d(u_coord)
-            ! drz(derivative_dim, quantity) where quantity 1=R, 2=Z
-            ! X = R*cos(phi), Y = R*sin(phi), Z = Z
+            dvals(1, 1) = drz(1, 1)*cph
+            dvals(2, 1) = drz(1, 1)*sph
+            dvals(3, 1) = drz(1, 2)
 
-            ! d/drho derivatives:
-            dvals(1, 1) = drz(1, 1)*cph        ! dX/drho = dR/drho * cos
-            dvals(2, 1) = drz(1, 1)*sph        ! dY/drho = dR/drho * sin
-            dvals(3, 1) = drz(1, 2)            ! dZ/drho = dZ/drho
+            dvals(1, 2) = drz(2, 1)*cph
+            dvals(2, 2) = drz(2, 1)*sph
+            dvals(3, 2) = drz(2, 2)
 
-            ! d/dtheta derivatives:
-            dvals(1, 2) = drz(2, 1)*cph        ! dX/dtheta = dR/dtheta * cos
-            dvals(2, 2) = drz(2, 1)*sph        ! dY/dtheta = dR/dtheta * sin
-            dvals(3, 2) = drz(2, 2)            ! dZ/dtheta = dZ/dtheta
-
-            ! d/dphi derivatives:
-            dvals(1, 3) = drz(3, 1)*cph - rz(1)*sph  ! dX/dphi = dR/dphi*cos - R*sin
-            dvals(2, 3) = drz(3, 1)*sph + rz(1)*cph  ! dY/dphi = dR/dphi*sin + R*cos
-            dvals(3, 3) = drz(3, 2)            ! dZ/dphi = dZ/dphi
+            dvals(1, 3) = drz(3, 1)*cph - rz(1)*sph
+            dvals(2, 3) = drz(3, 1)*sph + rz(1)*cph
+            dvals(3, 3) = drz(3, 2)
         else
             call evaluate_batch_splines_3d_der(self%spl_cart, u_eval, vals, dvals)
         end if
     end subroutine chartmap_eval_cart_der
 
-    module subroutine make_chartmap_coordinate_system(cs, filename)
+    subroutine make_chartmap_coordinate_system(cs, filename)
+        use libneo_coordinates_validator, only: validate_chartmap_file
         class(coordinate_system_t), allocatable, intent(out) :: cs
         character(len=*), intent(in) :: filename
 
@@ -325,6 +351,7 @@ contains
     end subroutine make_chartmap_coordinate_system
 
     subroutine initialize_chartmap(ccs, filename)
+        use libneo_coordinates_validator, only: validate_chartmap_file
         type(chartmap_coordinate_system_t), intent(inout) :: ccs
         character(len=*), intent(in) :: filename
 
@@ -522,9 +549,6 @@ contains
         real(dp) :: dvals(3, 3)
 
         call chartmap_eval_cart_der(self, u, vals, dvals)
-
-        ! e_cov(cart_component, coord_index) = d(x_cart)/d(u_coord)
-        ! dvals has the same indexing: dvals(cart_component, coord_index)
         e_cov = dvals
     end subroutine chartmap_covariant_basis
 
@@ -788,8 +812,6 @@ contains
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
-        ! dvals(cart_component, coord_index) = d(x_cart)/d(u_coord)
-        ! Extract columns: dx_drho = [dX/drho, dY/drho, dZ/drho] = dvals(:, 1)
         dx_drho = dvals(:, 1)
         dx_dtheta = dvals(:, 2)
         dx_dzeta = dvals(:, 3)
@@ -1063,7 +1085,6 @@ contains
 
         residual = x_target - vals
         res_norm = sqrt(sum(residual**2))
-        ! dvals(cart_component, coord_index) = d(x_cart)/d(u_coord)
         dx_drho = dvals(:, 1)
         dx_dtheta = dvals(:, 2)
     end subroutine chartmap_eval_residual_and_partials
@@ -1188,4 +1209,4 @@ contains
         end if
     end subroutine chartmap_solve_slice
 
-end submodule libneo_coordinates_chartmap
+end module libneo_coordinates_chartmap
