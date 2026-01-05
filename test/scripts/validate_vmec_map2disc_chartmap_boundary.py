@@ -24,8 +24,9 @@ def _import_libneo_from_repo() -> None:
     sys.path.insert(0, str(repo_root / "python"))
 
 
-def _load_chartmap_boundary(chartmap_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _load_chartmap_boundary(chartmap_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, object]]:
     with Dataset(chartmap_path, "r") as ds:
+        attrs = {str(k): ds.getncattr(k) for k in ds.ncattrs()}
         rho = np.array(ds.variables["rho"][:], dtype=float)
         theta = np.array(ds.variables["theta"][:], dtype=float)
         zeta = np.array(ds.variables["zeta"][:], dtype=float)
@@ -50,7 +51,7 @@ def _load_chartmap_boundary(chartmap_path: Path) -> tuple[np.ndarray, np.ndarray
     ir = int(rho.size - 1)
     R_chart = np.sqrt(x[:, :, ir] ** 2 + y[:, :, ir] ** 2) / 100.0
     Z_chart = z[:, :, ir] / 100.0
-    return theta, zeta, np.stack([R_chart, Z_chart], axis=-1)
+    return theta, zeta, np.stack([R_chart, Z_chart], axis=-1), attrs
 
 
 def _select_zeta_indices(nzeta: int) -> list[int]:
@@ -69,8 +70,8 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="validate_vmec_map2disc_chartmap_boundary")
     p.add_argument("--wout", type=Path, required=True)
     p.add_argument("--chartmap", type=Path, required=True)
-    p.add_argument("--s-boundary", type=float, default=1.0)
-    p.add_argument("--boundary-offset", type=float, default=0.0)
+    p.add_argument("--s-boundary", type=float, default=None)
+    p.add_argument("--boundary-offset", type=float, default=None)
     p.add_argument("--tol-R", type=float, default=1.0e-10)
     p.add_argument("--tol-Z", type=float, default=1.0e-10)
     args = p.parse_args(argv)
@@ -85,15 +86,25 @@ def main(argv: list[str] | None = None) -> int:
     if not chartmap.exists() or chartmap.stat().st_size == 0:
         raise RuntimeError(f"missing chartmap file: {chartmap}")
 
-    theta, zeta, rz_chart = _load_chartmap_boundary(chartmap)
+    theta, zeta, rz_chart, attrs = _load_chartmap_boundary(chartmap)
 
     geom = VMECGeometry.from_file(str(wout))
-    s_boundary = float(args.s_boundary)
+    if args.s_boundary is None:
+        s_boundary = float(attrs.get("s_boundary", 1.0))
+    else:
+        s_boundary = float(args.s_boundary)
     if not (0.0 < s_boundary <= 1.0):
         raise ValueError("s_boundary must be in (0, 1]")
-    boundary_offset = float(args.boundary_offset)
+    if args.boundary_offset is None:
+        boundary_offset = float(attrs.get("boundary_offset_m", 0.0))
+    else:
+        boundary_offset = float(args.boundary_offset)
     if boundary_offset < 0.0:
         raise ValueError("boundary_offset must be >= 0")
+
+    fourier_M = attrs.get("map2disc_M")
+    if fourier_M is not None:
+        fourier_M = int(fourier_M)
 
     iz_list = _select_zeta_indices(int(zeta.size))
     max_dR = 0.0
@@ -105,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
             theta,
             zeta_val,
             boundary_offset=boundary_offset,
+            fourier_M=fourier_M,
             use_asym=True,
         )
         R_chart = rz_chart[iz, :, 0]

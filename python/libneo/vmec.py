@@ -168,6 +168,7 @@ class VMECGeometry:
         zeta: float,
         *,
         boundary_offset: float = 0.0,
+        fourier_M: int | None = None,
         use_asym: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray, float]:
         """
@@ -184,13 +185,6 @@ class VMECGeometry:
             R, Z, _ = self.coords_s(float(s), theta, float(zeta), use_asym=use_asym)
             return R, Z, float(zeta)
 
-        try:
-            from shapely.geometry import Polygon
-        except Exception as exc:  # pragma: no cover
-            raise ImportError(
-                "boundary_offset requires shapely; install libneo with the 'chartmap' extra"
-            ) from exc
-
         th = np.asarray(theta, dtype=float)
         if th.ndim == 0:
             th = th.reshape((1,))
@@ -200,41 +194,43 @@ class VMECGeometry:
         n_base = 4096
         th_base = np.linspace(0.0, 2.0 * np.pi, n_base, endpoint=False, dtype=float)
         R_base, Z_base, _ = self.coords_s(float(s), th_base, float(zeta), use_asym=use_asym)
-        poly = Polygon(np.column_stack([R_base, Z_base]))
-        if not poly.is_valid:
-            poly = poly.buffer(0.0)
-        if poly.is_empty:
-            raise ValueError("invalid VMEC boundary polygon for buffering")
 
-        off = poly.buffer(boundary_offset, join_style=1)
-        if off.is_empty:
-            raise ValueError("boundary_offset produced empty geometry")
-        if off.geom_type != "Polygon":
-            off = max(list(off.geoms), key=lambda g: g.area)
+        dtheta = float(th_base[1] - th_base[0])
+        dR = (np.roll(R_base, -1) - np.roll(R_base, 1)) / (2.0 * dtheta)
+        dZ = (np.roll(Z_base, -1) - np.roll(Z_base, 1)) / (2.0 * dtheta)
+        area = 0.5 * float(np.sum(R_base * np.roll(Z_base, -1) - np.roll(R_base, -1) * Z_base))
 
-        coords = np.asarray(off.exterior.coords, dtype=float)
-        if coords.ndim != 2 or coords.shape[0] < 4:
-            raise ValueError("unexpected buffered boundary geometry")
+        if area > 0.0:
+            nR = dZ
+            nZ = -dR
+        else:
+            nR = -dZ
+            nZ = dR
 
-        # Canonicalize startpoint and orientation so theta=0 is deterministic.
-        coords_open = coords[:-1, :]
-        i0 = int(np.argmax(coords_open[:, 0]))
-        coords_open = np.vstack([coords_open[i0:, :], coords_open[:i0, :]])
-        if coords_open.shape[0] >= 2 and coords_open[1, 1] - coords_open[0, 1] < 0.0:
-            coords_open = coords_open[::-1, :]
-        coords = np.vstack([coords_open, coords_open[0, :]])
+        nrm = np.sqrt(nR**2 + nZ**2)
+        nrm = np.where(nrm == 0.0, 1.0, nrm)
+        nR = nR / nrm
+        nZ = nZ / nrm
 
-        seg = np.sqrt(np.sum((coords[1:] - coords[:-1]) ** 2, axis=1))
-        s_coords = np.concatenate(([0.0], np.cumsum(seg)))
-        length = float(s_coords[-1])
-        if length == 0.0:
-            raise ValueError("buffered boundary has zero length")
+        R_off = R_base + boundary_offset * nR
+        Z_off = Z_base + boundary_offset * nZ
 
-        u = (th % (2.0 * np.pi)) / (2.0 * np.pi)
-        s_query = u * length
-        R_out = np.interp(s_query, s_coords, coords[:, 0])
-        Z_out = np.interp(s_query, s_coords, coords[:, 1])
-        return R_out, Z_out, float(zeta)
+        cR = np.fft.rfft(R_off) / float(th_base.size)
+        cZ = np.fft.rfft(Z_off) / float(th_base.size)
+
+        if fourier_M is None:
+            kmax = min(256, int(cR.size) - 1)
+        else:
+            kmax = min(int(fourier_M), int(cR.size) - 1)
+
+        def eval_series(theta_eval: np.ndarray, c: np.ndarray) -> np.ndarray:
+            out = np.full(theta_eval.shape, float(np.real(c[0])), dtype=float)
+            for k in range(1, kmax + 1):
+                out = out + 2.0 * np.real(c[k] * np.exp(1j * float(k) * theta_eval))
+            return out
+
+        th_mod = th % (2.0 * np.pi)
+        return eval_series(th_mod, cR), eval_series(th_mod, cZ), float(zeta)
 
 
 def vmec_to_cylindrical(nc_path: str, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:

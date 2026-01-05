@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     wout = out_dir / "wout.nc"
     outfile_api = out_dir / "wout_vmec_python.chartmap.nc"
     outfile_cli = out_dir / "wout_vmec_cli.chartmap.nc"
+    outfile_api_offset_small = out_dir / "wout_vmec_python_offset0p01m.chartmap.nc"
     outfile_api_padded = out_dir / "wout_vmec_python_padded.chartmap.nc"
 
     if not wout.exists() or wout.stat().st_size == 0:
@@ -46,6 +47,18 @@ def main(argv: list[str] | None = None) -> int:
         nrho=17,
         ntheta=33,
         nzeta=17,
+        M=12,
+        Nt=128,
+        Ng=(128, 128),
+    )
+
+    write_chartmap_from_vmec_boundary(
+        wout,
+        outfile_api_offset_small,
+        nrho=17,
+        ntheta=33,
+        nzeta=17,
+        boundary_offset=0.01,
         M=12,
         Nt=128,
         Ng=(128, 128),
@@ -94,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise RuntimeError("expected zeta_convention=cyl")
             if ds.getncattr("rho_convention") != "unknown":
                 raise RuntimeError("expected rho_convention=unknown")
+    if not outfile_api_offset_small.exists() or outfile_api_offset_small.stat().st_size == 0:
+        raise RuntimeError(f"failed to create {outfile_api_offset_small}")
     return 0
 
 
