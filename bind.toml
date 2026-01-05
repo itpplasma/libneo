@@ -1,0 +1,7 @@
+[python]
+package-name = "pylibneo"
+# Exclude files that cause issues with f90wrap
+exclude = [
+    "**/f2py_*.f90",
+    "**/local_rusage.c"
+]

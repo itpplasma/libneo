@@ -1,4 +1,5 @@
-submodule(libneo_coordinates) libneo_coordinates_chartmap_validator
+module libneo_coordinates_validator
+    use, intrinsic :: iso_fortran_env, only: dp => real64
     use math_constants, only: TWOPI
     use netcdf, only: NF90_BYTE, NF90_CHAR, NF90_DOUBLE, NF90_GLOBAL, NF90_INT, &
                       NF90_INT64, NF90_MAX_VAR_DIMS, NF90_NOERR, NF90_NOWRITE, &
@@ -9,10 +10,13 @@ submodule(libneo_coordinates) libneo_coordinates_chartmap_validator
                       nf90_inquire_variable, &
                       nf90_open, nf90_strerror
     implicit none
+    private
+
+    public :: validate_chartmap_file
 
 contains
 
-    module subroutine validate_chartmap_file(filename, ierr, message)
+    subroutine validate_chartmap_file(filename, ierr, message)
         character(len=*), intent(in) :: filename
         integer, intent(out) :: ierr
         character(len=*), intent(out) :: message
@@ -571,4 +575,4 @@ contains
         is_uniform_step = (dx_max <= 10.0_dp*tol)
     end function is_uniform_step
 
-end submodule libneo_coordinates_chartmap_validator
+end module libneo_coordinates_validator

@@ -1,11 +1,18 @@
-submodule(libneo_coordinates) libneo_coordinates_file_detection
+module libneo_coordinates_file_detection
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use libneo_coordinates_base, only: refcoords_file_unknown, refcoords_file_chartmap, &
+                                       refcoords_file_vmec_wout
+    use libneo_coordinates_validator, only: validate_chartmap_file
     use netcdf, only: NF90_NOERR, NF90_NOWRITE, nf90_close, nf90_inq_dimid, &
                       nf90_inq_varid, nf90_open, nf90_strerror
     implicit none
+    private
+
+    public :: detect_refcoords_file_type
 
 contains
 
-    module subroutine detect_refcoords_file_type(filename, file_type, ierr, message)
+    subroutine detect_refcoords_file_type(filename, file_type, ierr, message)
         character(len=*), intent(in) :: filename
         integer, intent(out) :: file_type
         integer, intent(out) :: ierr
@@ -56,4 +63,4 @@ contains
         status = nf90_close(ncid)
     end subroutine detect_refcoords_file_type
 
-end submodule libneo_coordinates_file_detection
+end module libneo_coordinates_file_detection
