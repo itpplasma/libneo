@@ -18,6 +18,13 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p_vmec.add_argument("--nzeta", type=int, default=33)
     p_vmec.add_argument("--s-boundary", type=float, default=1.0)
     p_vmec.add_argument("--boundary-offset", type=float, default=0.0)
+    p_vmec.add_argument(
+        "--boundary-param",
+        type=str,
+        default="arc",
+        choices=("arc", "theta"),
+        help="Boundary parameterization for map2disc (arc or theta).",
+    )
     p_vmec.add_argument("--num-field-periods", type=int)
     p_vmec.add_argument("--M", type=int, default=16)
     p_vmec.add_argument("--Nt", type=int, default=256)
@@ -53,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
             nzeta=int(args.nzeta),
             s_boundary=float(args.s_boundary),
             boundary_offset=float(args.boundary_offset),
+            boundary_param=str(args.boundary_param),
             num_field_periods=None if args.num_field_periods is None else int(args.num_field_periods),
             M=int(args.M),
             Nt=int(args.Nt),
