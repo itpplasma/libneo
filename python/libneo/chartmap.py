@@ -110,9 +110,9 @@ def write_chartmap_from_vmec_boundary(
     for iz, phi in enumerate(grid.zeta):
         phi_val = float(phi)
 
-        if boundary_offset != 0.0:
-            theta_base = np.linspace(0.0, 2.0 * np.pi, 4096, endpoint=False, dtype=float)
-            if boundary_param == "theta":
+        if boundary_param == "theta":
+            if boundary_offset != 0.0:
+                theta_base = np.linspace(0.0, 2.0 * np.pi, 4096, endpoint=False, dtype=float)
                 R_base, Z_base, _ = geom.coords_s(float(s_boundary), theta_base, phi_val, use_asym=use_asym)
                 dR = np.gradient(R_base, theta_base, edge_order=2)
                 dZ = np.gradient(Z_base, theta_base, edge_order=2)
@@ -142,51 +142,54 @@ def write_chartmap_from_vmec_boundary(
                     Zc = np.interp(th, theta_ext, Z_ext)
                     return np.array([R, Zc])
             else:
-                try:
-                    from shapely.geometry import Polygon
-                except Exception as exc:  # pragma: no cover
-                    raise ImportError(
-                        "boundary_offset requires shapely; install libneo with the 'chartmap' extra"
-                    ) from exc
+                def curve(t: np.ndarray) -> np.ndarray:
+                    th = np.asarray(t, dtype=float)
+                    R, Zc, _ = geom.coords_s(float(s_boundary), th, phi_val, use_asym=use_asym)
+                    return np.array([R, Zc])
+        else:
+            theta_base = np.linspace(0.0, 2.0 * np.pi, 4096, endpoint=False, dtype=float)
+            try:
+                from shapely.geometry import Polygon
+            except Exception as exc:  # pragma: no cover
+                raise ImportError(
+                    "boundary_offset requires shapely; install libneo with the 'chartmap' extra"
+                ) from exc
 
-                R_base, Z_base, _ = geom.coords_s(float(s_boundary), theta_base, phi_val, use_asym=use_asym)
-                poly = Polygon(np.column_stack([R_base, Z_base]))
-                if not poly.is_valid:
-                    poly = poly.buffer(0.0)
-                if poly.is_empty:
-                    raise ValueError("invalid VMEC boundary polygon for buffering")
+            R_base, Z_base, _ = geom.coords_s(float(s_boundary), theta_base, phi_val, use_asym=use_asym)
+            poly = Polygon(np.column_stack([R_base, Z_base]))
+            if not poly.is_valid:
+                poly = poly.buffer(0.0)
+            if poly.is_empty:
+                raise ValueError("invalid VMEC boundary polygon for buffering")
 
+            if boundary_offset == 0.0:
+                off = poly
+            else:
                 off = poly.buffer(boundary_offset, join_style=1)
                 if off.is_empty:
                     raise ValueError("boundary_offset produced empty geometry")
                 if off.geom_type != "Polygon":
                     off = max(list(off.geoms), key=lambda g: g.area)
 
-                coords = np.asarray(off.exterior.coords, dtype=float)
-                coords_open = coords[:-1, :]
-                i0 = int(np.argmax(coords_open[:, 0]))
-                coords_open = np.vstack([coords_open[i0:, :], coords_open[:i0, :]])
-                if coords_open.shape[0] >= 2 and coords_open[1, 1] - coords_open[0, 1] < 0.0:
-                    coords_open = coords_open[::-1, :]
-                coords = np.vstack([coords_open, coords_open[0, :]])
-                seg = np.sqrt(np.sum((coords[1:] - coords[:-1]) ** 2, axis=1))
-                s_coords = np.concatenate(([0.0], np.cumsum(seg)))
-                length = float(s_coords[-1])
-                if length == 0.0:
-                    raise ValueError("buffered boundary has zero length")
-
-                def curve(t: np.ndarray) -> np.ndarray:
-                    tt = np.asarray(t, dtype=float)
-                    u = (tt % (2.0 * np.pi)) / (2.0 * np.pi)
-                    s_query = u * length
-                    R = np.interp(s_query, s_coords, coords[:, 0])
-                    Zc = np.interp(s_query, s_coords, coords[:, 1])
-                    return np.array([R, Zc])
-        else:
+            coords = np.asarray(off.exterior.coords, dtype=float)
+            coords_open = coords[:-1, :]
+            i0 = int(np.argmax(coords_open[:, 0]))
+            coords_open = np.vstack([coords_open[i0:, :], coords_open[:i0, :]])
+            if coords_open.shape[0] >= 2 and coords_open[1, 1] - coords_open[0, 1] < 0.0:
+                coords_open = coords_open[::-1, :]
+            coords = np.vstack([coords_open, coords_open[0, :]])
+            seg = np.sqrt(np.sum((coords[1:] - coords[:-1]) ** 2, axis=1))
+            s_coords = np.concatenate(([0.0], np.cumsum(seg)))
+            length = float(s_coords[-1])
+            if length == 0.0:
+                raise ValueError("buffered boundary has zero length")
 
             def curve(t: np.ndarray) -> np.ndarray:
-                th = np.asarray(t, dtype=float)
-                R, Zc, _ = geom.coords_s(float(s_boundary), th, phi_val, use_asym=use_asym)
+                tt = np.asarray(t, dtype=float)
+                u = (tt % (2.0 * np.pi)) / (2.0 * np.pi)
+                s_query = u * length
+                R = np.interp(s_query, s_coords, coords[:, 0])
+                Zc = np.interp(s_query, s_coords, coords[:, 1])
                 return np.array([R, Zc])
 
         bcm = m2d.BoundaryConformingMapping(curve=curve, M=int(M), Nt=int(Nt), Ng=Ng)
