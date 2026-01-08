@@ -105,6 +105,18 @@ This mode uses exact VMEC coordinates inside the LCFS and extends beyond using c
 Hermite interpolation along coordinate line tangents, providing C1 continuity at the
 boundary suitable for symplectic integrators.
 
+VMEC extended to STL wall boundary (no map2disc dependency, C1 continuous):
+
+    libneo-write-chartmap from-vmec-to-wall wout.nc wall.stl wout.chartmap.nc \
+        --rho-lcfs 0.8 --nrho 33 --ntheta 65 --nzeta 33
+
+This mode combines VMEC coordinates inside the LCFS with linear interpolation
+to a wall boundary extracted from an STL file. The radial coordinate `rho` ranges from
+0 to 1, where `rho <= rho_lcfs` corresponds to VMEC surfaces (with `s = (rho/rho_lcfs)^2`)
+and `rho = 1` lies exactly on the wall boundary. Poloidal points are matched between
+the LCFS and wall by aligning both curves to start at their outboard midplane and
+interpolating by fractional position along the curve.
+
 ### Coils format converter
 Convert STELLOPT coils format to simple biotsavart format:
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .chartmap import (
     write_chartmap_from_stl,
+    write_chartmap_from_vmec_and_stl,
     write_chartmap_from_vmec_boundary,
     write_chartmap_from_vmec_extended,
 )
@@ -76,6 +77,36 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     p_ext.add_argument("--num-field-periods", type=int)
 
+    p_wall = sub.add_parser(
+        "from-vmec-to-wall",
+        help="Generate chartmap from VMEC extended to STL wall boundary",
+    )
+    p_wall.add_argument("wout", type=Path, help="Path to VMEC wout NetCDF")
+    p_wall.add_argument("stl", type=Path, help="Path to STL wall geometry file")
+    p_wall.add_argument("out", type=Path, help="Output chartmap NetCDF path")
+    p_wall.add_argument("--nrho", type=int, default=33)
+    p_wall.add_argument("--ntheta", type=int, default=65)
+    p_wall.add_argument("--nzeta", type=int, default=33)
+    p_wall.add_argument(
+        "--rho-lcfs",
+        type=float,
+        default=0.8,
+        help="Radial location of LCFS in (0,1)",
+    )
+    p_wall.add_argument(
+        "--n-boundary-points",
+        type=int,
+        default=512,
+        help="Points for STL boundary extraction",
+    )
+    p_wall.add_argument(
+        "--stitch-tol",
+        type=float,
+        default=1.0e-6,
+        help="Tolerance for stitching open contours",
+    )
+    p_wall.add_argument("--num-field-periods", type=int)
+
     return p.parse_args(argv)
 
 
@@ -132,6 +163,21 @@ def main(argv: list[str] | None = None) -> int:
             nrho_vmec=None if args.nrho_vmec is None else int(args.nrho_vmec),
             rho_lcfs=None if args.rho_lcfs is None else float(args.rho_lcfs),
             boundary_offset=float(args.boundary_offset),
+            num_field_periods=None if args.num_field_periods is None else int(args.num_field_periods),
+        )
+        return 0
+
+    if args.cmd == "from-vmec-to-wall":
+        write_chartmap_from_vmec_and_stl(
+            args.wout,
+            args.stl,
+            args.out,
+            nrho=int(args.nrho),
+            ntheta=int(args.ntheta),
+            nzeta=int(args.nzeta),
+            rho_lcfs=float(args.rho_lcfs),
+            n_boundary_points=int(args.n_boundary_points),
+            stitch_tol=float(args.stitch_tol),
             num_field_periods=None if args.num_field_periods is None else int(args.num_field_periods),
         )
         return 0
