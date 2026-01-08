@@ -131,6 +131,7 @@ module odeint_allroutines_sub
     implicit none
 
     private
+    logical, save :: odeint_failed = .false.
 
     abstract interface
         subroutine derivative_function(x, y, dydx)
@@ -164,6 +165,7 @@ module odeint_allroutines_sub
     end type ode_event_t
 
     public :: odeint_allroutines, ode_event_t
+    public :: odeint_clear_status, odeint_has_failed
 
     interface odeint_allroutines
         module procedure odeint_allroutines_no_context
@@ -171,6 +173,14 @@ module odeint_allroutines_sub
     end interface odeint_allroutines
 
 contains
+
+    subroutine odeint_clear_status()
+        odeint_failed = .false.
+    end subroutine odeint_clear_status
+
+    logical function odeint_has_failed()
+        odeint_has_failed = odeint_failed
+    end function odeint_has_failed
 
     !> Integrate ODE system without context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_no_context(y, nvar, x1, x2, eps, derivs, &
@@ -234,6 +244,7 @@ contains
         integer, allocatable :: direction(:)
 
         call allocate_state(n)
+        odeint_failed = .false.
         x = x_start
         h = h_init
         y_work = y
@@ -273,6 +284,10 @@ contains
             call compute_error_scale_fused(h, n)
             call check_endpoint_adjustment(x, h, x_start, x_end)
             call step_with_error_control(x, h, h_next, n, tolerance, derivative)
+            if (odeint_failed) then
+                y = y_work
+                return
+            end if
 
             if (events_active) then
                 y_end = y_work
@@ -324,6 +339,7 @@ contains
         integer, allocatable :: direction(:)
 
         call allocate_state(n)
+        odeint_failed = .false.
         x = x_start
         h = h_init
         y_work = y
@@ -365,6 +381,10 @@ contains
             call check_endpoint_adjustment(x, h, x_start, x_end)
             call step_with_error_control_context(x, h, h_next, n, tolerance, &
                                                  derivative, context)
+            if (odeint_failed) then
+                y = y_work
+                return
+            end if
 
             if (events_active) then
                 y_end = y_work
@@ -760,7 +780,10 @@ contains
             h = sign(max(abs(h_temp), 0.1_dp*abs(h)), h)
 
             if (abs(h) < epsilon(x)) then
-                error stop 'Step size underflow in ODE integration'
+                odeint_failed = .true.
+                step_accepted = .true.
+                h_next = h
+                return
             end if
         else
             ! Step succeeded
