@@ -104,6 +104,18 @@ class VMECGeometry:
             Z = Z + _cfunct(theta, zeta, self.zmnc, self.xm, self.xn)[s_index, :]
         return R, Z, float(zeta)
 
+    @property
+    def ns(self) -> int:
+        """Number of radial surfaces in VMEC output."""
+        return int(self.rmnc.shape[1])
+
+    def _s_grid(self) -> np.ndarray:
+        """Return the normalized toroidal flux grid s in [0, 1]."""
+        ns = self.ns
+        if self.phi is not None and self.phi.size == ns and float(self.phi[-1]) > 0.0:
+            return np.asarray(self.phi, dtype=float) / float(self.phi[-1])
+        return np.linspace(0.0, 1.0, ns, dtype=float)
+
     def coords_s(self, s: float, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
         """
         Evaluate cylindrical coordinates (R, Z, phi) on a fractional surface coordinate s in [0, 1].
@@ -160,6 +172,66 @@ class VMECGeometry:
             R = R + _sfunct(theta, zeta, rmns_s, self.xm, self.xn)[0, :]
             Z = Z + _cfunct(theta, zeta, zmnc_s, self.xm, self.xn)[0, :]
         return R, Z, float(zeta)
+
+    def coords_s_with_deriv(
+        self,
+        s: float,
+        theta: np.ndarray,
+        zeta: float,
+        use_asym: bool = True,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Evaluate (R, Z) and their radial derivatives (dR/ds, dZ/ds) at surface s.
+
+        Uses second-order finite differences on the VMEC radial grid.
+        At s=1, uses backward difference; at s=0, uses forward difference.
+
+        Returns: (R, Z, dR_ds, dZ_ds) where each is an array over theta.
+        """
+        s_val = float(s)
+        if not (0.0 <= s_val <= 1.0):
+            raise ValueError("s must be in [0, 1]")
+
+        R, Z, _ = self.coords_s(s_val, theta, zeta, use_asym=use_asym)
+
+        s_grid = self._s_grid()
+        ns = self.ns
+
+        if ns < 3:
+            dR_ds = np.zeros_like(R)
+            dZ_ds = np.zeros_like(Z)
+            return R, Z, dR_ds, dZ_ds
+
+        if s_val >= 1.0:
+            s0, s1, s2 = float(s_grid[-3]), float(s_grid[-2]), float(s_grid[-1])
+            R0, Z0, _ = self.coords_s(s0, theta, zeta, use_asym=use_asym)
+            R1, Z1, _ = self.coords_s(s1, theta, zeta, use_asym=use_asym)
+            R2, Z2, _ = self.coords_s(s2, theta, zeta, use_asym=use_asym)
+            h1, h2 = s1 - s0, s2 - s1
+            dR_ds = (h1**2 * R2 - (h1**2 - h2**2) * R1 - h2**2 * R0) / (h1 * h2 * (h1 + h2))
+            dZ_ds = (h1**2 * Z2 - (h1**2 - h2**2) * Z1 - h2**2 * Z0) / (h1 * h2 * (h1 + h2))
+        elif s_val <= 0.0:
+            s0, s1, s2 = float(s_grid[0]), float(s_grid[1]), float(s_grid[2])
+            R0, Z0, _ = self.coords_s(s0, theta, zeta, use_asym=use_asym)
+            R1, Z1, _ = self.coords_s(s1, theta, zeta, use_asym=use_asym)
+            R2, Z2, _ = self.coords_s(s2, theta, zeta, use_asym=use_asym)
+            h1, h2 = s1 - s0, s2 - s1
+            dR_ds = (-(h1 + h2)**2 * R0 + (h1 + h2)**2 * R1 - h1**2 * R1 + h1**2 * R2) / (h1 * h2 * (h1 + h2))
+            dZ_ds = (-(h1 + h2)**2 * Z0 + (h1 + h2)**2 * Z1 - h1**2 * Z1 + h1**2 * Z2) / (h1 * h2 * (h1 + h2))
+        else:
+            idx = int(np.searchsorted(s_grid, s_val, side="right"))
+            idx = max(1, min(ns - 2, idx))
+            s0, s1, s2 = float(s_grid[idx - 1]), float(s_grid[idx]), float(s_grid[idx + 1])
+            R0, Z0, _ = self.coords_s(s0, theta, zeta, use_asym=use_asym)
+            R1, Z1, _ = self.coords_s(s1, theta, zeta, use_asym=use_asym)
+            R2, Z2, _ = self.coords_s(s2, theta, zeta, use_asym=use_asym)
+            w0 = (2.0 * s_val - s1 - s2) / ((s0 - s1) * (s0 - s2))
+            w1 = (2.0 * s_val - s0 - s2) / ((s1 - s0) * (s1 - s2))
+            w2 = (2.0 * s_val - s0 - s1) / ((s2 - s0) * (s2 - s1))
+            dR_ds = w0 * R0 + w1 * R1 + w2 * R2
+            dZ_ds = w0 * Z0 + w1 * Z1 + w2 * Z2
+
+        return R, Z, dR_ds, dZ_ds
 
     def boundary_rz(
         self,

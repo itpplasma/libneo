@@ -3,7 +3,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .chartmap import write_chartmap_from_stl, write_chartmap_from_vmec_boundary
+from .chartmap import (
+    write_chartmap_from_stl,
+    write_chartmap_from_vmec_boundary,
+    write_chartmap_from_vmec_extended,
+)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -44,6 +48,33 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p_stl.add_argument("--M", type=int, default=16)
     p_stl.add_argument("--Nt", type=int, default=256)
     p_stl.add_argument("--Ng", type=int, nargs=2, default=(256, 256))
+
+    p_ext = sub.add_parser(
+        "from-vmec-extended",
+        help="Generate chartmap from VMEC with cubic Hermite extension beyond LCFS",
+    )
+    p_ext.add_argument("wout", type=Path, help="Path to VMEC wout NetCDF")
+    p_ext.add_argument("out", type=Path, help="Output chartmap NetCDF path")
+    p_ext.add_argument("--nrho", type=int, default=33)
+    p_ext.add_argument("--ntheta", type=int, default=65)
+    p_ext.add_argument("--nzeta", type=int, default=33)
+    p_ext.add_argument(
+        "--nrho-vmec",
+        type=int,
+        help="Number of rho points inside LCFS (alternative to --rho-lcfs)",
+    )
+    p_ext.add_argument(
+        "--rho-lcfs",
+        type=float,
+        help="Radial location of LCFS in [0,1] (alternative to --nrho-vmec)",
+    )
+    p_ext.add_argument(
+        "--boundary-offset",
+        type=float,
+        default=0.1,
+        help="Extension distance beyond LCFS in meters",
+    )
+    p_ext.add_argument("--num-field-periods", type=int)
 
     return p.parse_args(argv)
 
@@ -88,6 +119,20 @@ def main(argv: list[str] | None = None) -> int:
             M=int(args.M),
             Nt=int(args.Nt),
             Ng=(int(args.Ng[0]), int(args.Ng[1])),
+        )
+        return 0
+
+    if args.cmd == "from-vmec-extended":
+        write_chartmap_from_vmec_extended(
+            args.wout,
+            args.out,
+            nrho=int(args.nrho),
+            ntheta=int(args.ntheta),
+            nzeta=int(args.nzeta),
+            nrho_vmec=None if args.nrho_vmec is None else int(args.nrho_vmec),
+            rho_lcfs=None if args.rho_lcfs is None else float(args.rho_lcfs),
+            boundary_offset=float(args.boundary_offset),
+            num_field_periods=None if args.num_field_periods is None else int(args.num_field_periods),
         )
         return 0
 
