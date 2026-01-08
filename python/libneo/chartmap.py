@@ -586,27 +586,23 @@ def write_chartmap_from_vmec_to_wall(
         R_wall = np.asarray(R_wall, dtype=float)
         Z_wall = np.asarray(Z_wall, dtype=float)
 
-        R_lcfs, Z_lcfs, _ = geom.coords_s(1.0, grid.theta, phi_val, use_asym=use_asym)
+        R_lcfs, Z_lcfs, dR_ds, dZ_ds = geom.coords_s_with_deriv(
+            1.0, grid.theta, phi_val, use_asym=use_asym
+        )
 
         R_wall_matched, Z_wall_matched = _match_wall_to_lcfs_by_fraction(
             R_lcfs, Z_lcfs, R_wall, Z_wall
         )
 
-        Rc = float(np.mean(R_lcfs))
-        Zc = float(np.mean(Z_lcfs))
-        outward_R = R_lcfs - Rc
-        outward_Z = Z_lcfs - Zc
-        outward_norm = np.sqrt(outward_R**2 + outward_Z**2)
-        outward_norm = np.where(outward_norm == 0.0, 1.0, outward_norm)
-        outward_R = outward_R / outward_norm
-        outward_Z = outward_Z / outward_norm
+        ds_drho_at_lcfs = 2.0 / rho_lcfs_actual
+        drho_interval = 1.0 - rho_lcfs_actual
+        m0_R = dR_ds * ds_drho_at_lcfs * drho_interval
+        m0_Z = dZ_ds * ds_drho_at_lcfs * drho_interval
 
-        chord_len = np.sqrt((R_wall_matched - R_lcfs)**2 + (Z_wall_matched - Z_lcfs)**2)
-
-        m0_R = outward_R * chord_len
-        m0_Z = outward_Z * chord_len
-        m1_R = outward_R * chord_len
-        m1_Z = outward_Z * chord_len
+        chord_R = R_wall_matched - R_lcfs
+        chord_Z = Z_wall_matched - Z_lcfs
+        m1_R = chord_R
+        m1_Z = chord_Z
 
         for ir in range(ir_lcfs + 1):
             rho_val = grid.rho[ir]
