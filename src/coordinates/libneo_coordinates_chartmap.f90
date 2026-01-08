@@ -212,18 +212,35 @@ contains
         real(dp) :: phi
         real(dp) :: phi_mod
         real(dp) :: zeta_period
+        real(dp) :: u_eval(3)
+        real(dp) :: x_min(3), x_max(3)
 
         if (self%has_spl_rz) then
-            phi = u(3)
-            zeta_period = TWOPI/real(self%num_field_periods, dp)
+            x_min = self%spl_rz%x_min
+            x_max = self%spl_rz%x_min + self%spl_rz%h_step * &
+                    real(self%spl_rz%num_points - 1, dp)
+        else
+            x_min = self%spl_cart%x_min
+            x_max = self%spl_cart%x_min + self%spl_cart%h_step * &
+                    real(self%spl_cart%num_points - 1, dp)
+        end if
+
+        u_eval = u
+        u_eval(1) = max(x_min(1), min(u_eval(1), x_max(1)))
+        u_eval(2) = modulo(u_eval(2) - x_min(2), TWOPI) + x_min(2)
+        zeta_period = TWOPI/real(self%num_field_periods, dp)
+        u_eval(3) = modulo(u_eval(3) - x_min(3), zeta_period) + x_min(3)
+
+        if (self%has_spl_rz) then
+            phi = u_eval(3)
             phi_mod = modulo(phi - self%spl_rz%x_min(3), zeta_period) + &
                       self%spl_rz%x_min(3)
-            call evaluate_batch_splines_3d(self%spl_rz, u, rz)
+            call evaluate_batch_splines_3d(self%spl_rz, u_eval, rz)
             vals(1) = rz(1)*cos(phi_mod)
             vals(2) = rz(1)*sin(phi_mod)
             vals(3) = rz(2)
         else
-            call evaluate_batch_splines_3d(self%spl_cart, u, vals)
+            call evaluate_batch_splines_3d(self%spl_cart, u_eval, vals)
         end if
     end subroutine chartmap_eval_cart
 
@@ -239,15 +256,32 @@ contains
         real(dp) :: phi_mod
         real(dp) :: cph, sph
         real(dp) :: zeta_period
+        real(dp) :: u_eval(3)
+        real(dp) :: x_min(3), x_max(3)
 
         if (self%has_spl_rz) then
-            phi = u(3)
-            zeta_period = TWOPI/real(self%num_field_periods, dp)
+            x_min = self%spl_rz%x_min
+            x_max = self%spl_rz%x_min + self%spl_rz%h_step * &
+                    real(self%spl_rz%num_points - 1, dp)
+        else
+            x_min = self%spl_cart%x_min
+            x_max = self%spl_cart%x_min + self%spl_cart%h_step * &
+                    real(self%spl_cart%num_points - 1, dp)
+        end if
+
+        u_eval = u
+        u_eval(1) = max(x_min(1), min(u_eval(1), x_max(1)))
+        u_eval(2) = modulo(u_eval(2) - x_min(2), TWOPI) + x_min(2)
+        zeta_period = TWOPI/real(self%num_field_periods, dp)
+        u_eval(3) = modulo(u_eval(3) - x_min(3), zeta_period) + x_min(3)
+
+        if (self%has_spl_rz) then
+            phi = u_eval(3)
             phi_mod = modulo(phi - self%spl_rz%x_min(3), zeta_period) + &
                       self%spl_rz%x_min(3)
             cph = cos(phi_mod)
             sph = sin(phi_mod)
-            call evaluate_batch_splines_3d_der(self%spl_rz, u, rz, drz)
+            call evaluate_batch_splines_3d_der(self%spl_rz, u_eval, rz, drz)
 
             vals(1) = rz(1)*cph
             vals(2) = rz(1)*sph
@@ -272,7 +306,7 @@ contains
             dvals(2, 3) = drz(3, 1)*sph + rz(1)*cph  ! dY/dphi = dR/dphi*sin + R*cos
             dvals(3, 3) = drz(3, 2)            ! dZ/dphi = dZ/dphi
         else
-            call evaluate_batch_splines_3d_der(self%spl_cart, u, vals, dvals)
+            call evaluate_batch_splines_3d_der(self%spl_cart, u_eval, vals, dvals)
         end if
     end subroutine chartmap_eval_cart_der
 
@@ -351,6 +385,23 @@ contains
         call chartmap_read_zeta_convention(ncid, zeta_convention)
         call chartmap_read_rho_convention(ncid, rho_convention)
         call nc_close(ncid)
+
+        if (num_field_periods == 1 .and. nzeta >= 2) then
+            block
+                real(dp) :: dz, period_est, nfp_est_real
+                integer :: nfp_est
+
+                dz = zeta(2) - zeta(1)
+                period_est = (zeta(nzeta) - zeta(1)) + dz
+                if (period_est > 0.0_dp) then
+                    nfp_est_real = TWOPI/period_est
+                    nfp_est = max(1, nint(nfp_est_real))
+                    if (abs(nfp_est_real - real(nfp_est, dp)) < 0.25_dp) then
+                        num_field_periods = nfp_est
+                    end if
+                end if
+            end block
+        end if
 
         order = [3, 3, 3]
 
