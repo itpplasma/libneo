@@ -98,7 +98,7 @@ contains
         if (status /= NF90_NOERR) return
 
         select case (trim(value))
-        case ('rho_tor')
+        case ('rho_tor', 'vmec', 'vmec_extended', 'vmec_to_wall')
             rho_convention = RHO_TOR
         case ('rho_pol')
             rho_convention = RHO_POL

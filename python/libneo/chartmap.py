@@ -176,6 +176,81 @@ def _build_grid(
     )
 
 
+def write_chartmap_from_vmec(
+    wout_path: str | Path,
+    out_path: str | Path,
+    *,
+    nrho: int = 33,
+    ntheta: int = 65,
+    nzeta: int = 33,
+    num_field_periods: int | None = None,
+    use_asym: bool = True,
+) -> None:
+    """
+    Generate a chartmap NetCDF using pure VMEC coordinates.
+
+    This creates a coordinate system where:
+    - rho in [0, 1] maps directly to VMEC s via s = rho^2
+    - rho = 1 corresponds exactly to the VMEC LCFS (s = 1)
+    - theta is preserved as VMEC poloidal angle
+    - No extension beyond LCFS
+
+    This is the reference chartmap that should match VMEC exactly.
+
+    Parameters
+    ----------
+    wout_path : path to VMEC wout NetCDF file
+    out_path : output chartmap NetCDF path
+    nrho : number of radial grid points
+    ntheta : number of poloidal grid points
+    nzeta : number of toroidal grid points
+    num_field_periods : override nfp from wout file
+    use_asym : include asymmetric Fourier terms if available
+    """
+    from netCDF4 import Dataset
+
+    from .vmec import VMECGeometry
+
+    wout = _as_path(wout_path)
+    out = _as_path(out_path)
+
+    geom = VMECGeometry.from_file(str(wout))
+
+    if num_field_periods is None:
+        with Dataset(wout, "r") as ds:
+            if "nfp" not in ds.variables:
+                raise ValueError("wout file missing nfp variable")
+            nfp = int(np.array(ds.variables["nfp"][...]))
+    else:
+        nfp = int(num_field_periods)
+
+    grid = _build_grid(nrho=nrho, ntheta=ntheta, nzeta=nzeta, num_field_periods=nfp)
+
+    x = np.zeros((grid.rho.size, grid.theta.size, grid.zeta.size), dtype=np.float64)
+    y = np.zeros_like(x)
+    z = np.zeros_like(x)
+
+    for iz, phi in enumerate(grid.zeta):
+        phi_val = float(phi)
+
+        for ir, rho_val in enumerate(grid.rho):
+            s_val = float(rho_val) ** 2
+            R_vmec, Z_vmec, _ = geom.coords_s(s_val, grid.theta, phi_val, use_asym=use_asym)
+            x[ir, :, iz] = R_vmec * np.cos(phi_val) * 100.0
+            y[ir, :, iz] = R_vmec * np.sin(phi_val) * 100.0
+            z[ir, :, iz] = Z_vmec * 100.0
+
+    write_chartmap_netcdf(
+        out,
+        grid=grid,
+        x_rtz=x,
+        y_rtz=y,
+        z_rtz=z,
+        zeta_convention="cyl",
+        rho_convention="vmec",
+    )
+
+
 def write_chartmap_from_vmec_boundary(
     wout_path: str | Path,
     out_path: str | Path,
