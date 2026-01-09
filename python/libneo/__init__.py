@@ -25,3 +25,6 @@ from .coordinate_converter import order_monotonically
 
 # VMEC utilities
 from .vmec import VMECGeometry, vmec_to_cylindrical
+
+# Chartmap coordinate utilities
+from .chartmap import chartmap_to_rz, vmec_to_chartmap_coords
