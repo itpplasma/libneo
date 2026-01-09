@@ -465,6 +465,7 @@ contains
         character(len=*), intent(out) :: message
 
         real(dp), parameter :: tol = 1.0e-12_dp
+        real(dp), parameter :: rho_min_max = 0.01_dp
 
         ierr = 0
         message = ""
@@ -475,9 +476,15 @@ contains
             return
         end if
 
-        if (abs(rho(1) - 0.0_dp) > tol .or. abs(rho(size(rho)) - 1.0_dp) > tol) then
+        if (rho(1) < 0.0_dp .or. rho(1) > rho_min_max) then
             ierr = 8
-            message = "rho must span [0,1] including endpoints"
+            message = "rho(1) must be in [0, 0.01] (axis or small positive for singularity avoidance)"
+            return
+        end if
+
+        if (abs(rho(size(rho)) - 1.0_dp) > tol) then
+            ierr = 8
+            message = "rho must end at 1.0"
             return
         end if
     end subroutine check_rho_grid

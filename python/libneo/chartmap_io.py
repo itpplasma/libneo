@@ -20,7 +20,14 @@ def build_chartmap_grid(
     ntheta: int,
     zeta: np.ndarray,
     num_field_periods: int,
+    rho_min: float = 1e-6,
+    rho_max: float = 1.0,
 ) -> ChartmapGrid:
+    """Build a chartmap grid with given dimensions and rho range.
+
+    The default rho_min=1e-6 avoids the magnetic axis singularity where the
+    covariant basis becomes degenerate (e_theta -> 0 as rho -> 0).
+    """
     if nrho < 2 or ntheta < 2:
         raise ValueError("nrho and ntheta must be >= 2")
     if num_field_periods < 1:
@@ -30,7 +37,7 @@ def build_chartmap_grid(
     if z.ndim != 1 or z.size < 2:
         raise ValueError("zeta must be a 1D array with at least 2 values")
 
-    rho = np.linspace(0.0, 1.0, int(nrho), dtype=float)
+    rho = np.linspace(float(rho_min), float(rho_max), int(nrho), dtype=float)
     theta = np.linspace(0.0, 2.0 * np.pi, int(ntheta), endpoint=False, dtype=float)
     return ChartmapGrid(rho=rho, theta=theta, zeta=z, num_field_periods=int(num_field_periods))
 
