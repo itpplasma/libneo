@@ -51,6 +51,7 @@ def write_chartmap_netcdf(
     z_rtz: np.ndarray,
     zeta_convention: str,
     rho_convention: str,
+    rho_lcfs: float | None = None,
 ) -> None:
     from netCDF4 import Dataset
 
@@ -63,6 +64,8 @@ def write_chartmap_netcdf(
     with Dataset(out_path, "w", format="NETCDF4") as ds:
         ds.setncattr("zeta_convention", str(zeta_convention))
         ds.setncattr("rho_convention", str(rho_convention))
+        if rho_lcfs is not None:
+            ds.setncattr("rho_lcfs", float(rho_lcfs))
 
         ds.createDimension("rho", grid.rho.size)
         ds.createDimension("theta", grid.theta.size)
@@ -90,4 +93,3 @@ def write_chartmap_netcdf(
         v_z[:, :, :] = np.transpose(z_rtz, (2, 1, 0))
 
         v_nfp.assignValue(int(grid.num_field_periods))
-

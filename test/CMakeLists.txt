@@ -313,6 +313,16 @@ set_tests_properties(setup_vmec_chartmap_python PROPERTIES
 )
 
 add_test(
+  NAME validate_vmec_rho_lcfs_auto
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_rho_lcfs_auto.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(validate_vmec_rho_lcfs_auto PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout
+)
+
+add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_python
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
