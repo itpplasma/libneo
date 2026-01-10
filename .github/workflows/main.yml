@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   GNU:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     env:
       LIBNEO_TESTING: "1"
 
@@ -26,13 +26,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake \
+            gfortran \
+            libfftw3-dev \
+            libgsl-dev \
+            libhdf5-dev \
+            libnetcdf-dev \
+            libnetcdff-dev \
+            libopenblas-dev \
+            liblapack-dev \
+            libopenmpi-dev \
+            ninja-build \
+            openmpi-bin \
+            pkg-config
+
+      - name: Install Python build dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -c constraints/ci-python.txt numpy
+
       - name: Build
         run: |
           make
 
       - name: Install Python dependencies for tests
         run: |
-          pip install --break-system-packages -c constraints/ci-python.txt ".[dev]"
+          python -m pip install -c constraints/ci-python.txt ".[dev]"
 
       - name: Test
         run: |
@@ -47,21 +78,21 @@ jobs:
 
       - name: Editable install of libneo
         run: |
-          pip install --break-system-packages -e .
+          python -m pip install -e .
 
       - name: Run Python tests (pytest)
         env:
           PYTHONFAULTHANDLER: "1"
           LIBNEO_DEBUG_BOOZER: "1"
         run: |
-          pytest test/python -q
-          pytest python/tests -vv -s
+          python -m pytest test/python -q
+          python -m pytest python/tests -vv -s
 
       - name: Build ASCOT5 and install a5py
         run: |
           git clone --depth 1 --branch 5.6.1 https://github.com/ascot4fusion/ascot5.git build/test/ascot5_compare/ascot5
           make -C build/test/ascot5_compare/ascot5 libascot
-          pip install --break-system-packages --force-reinstall build/test/ascot5_compare/ascot5
+          python -m pip install --force-reinstall build/test/ascot5_compare/ascot5
 
       - name: Compare with ASCOT5 reference
         env:
@@ -87,7 +118,7 @@ jobs:
     name: Build test dashboard
     needs: GNU
     if: ${{ needs.GNU.result == 'success' }}
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pages: write
@@ -97,11 +128,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download testboard ARM64 binary
+      - name: Install dashboard dependencies
         run: |
           set -euo pipefail
-          curl -LO https://github.com/lazy-fortran/testboard/releases/latest/download/testboard-aarch64
-          chmod +x testboard-aarch64
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            jq \
+            rsync \
+            wget
+
+      - name: Download testboard binary
+        run: |
+          set -euo pipefail
+          arch="$(uname -m)"
+          if [ "$arch" = "aarch64" ] || [ "$arch" = "arm64" ]; then
+            asset="testboard-aarch64"
+          else
+            asset="testboard-x86_64"
+          fi
+          curl -LO "https://github.com/lazy-fortran/testboard/releases/latest/download/${asset}"
+          chmod +x "${asset}"
+          ln -sf "${asset}" testboard
 
       - name: Download image artifacts
         uses: actions/download-artifact@v4
@@ -145,7 +192,7 @@ jobs:
           PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           set -euo pipefail
-          ./testboard-aarch64 \
+          ./testboard \
             --image-root image-artifacts \
             --output dashboard \
             --branch "${GITHUB_REF_NAME}" \
@@ -209,7 +256,7 @@ jobs:
     name: Deploy to GitHub Pages
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     needs: dashboard
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pages: write
