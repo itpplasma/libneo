@@ -370,6 +370,39 @@ def _cubic_hermite(t: np.ndarray, p0: np.ndarray, m0: np.ndarray, p1: np.ndarray
     return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1
 
 
+def _quintic_hermite(
+    t: np.ndarray,
+    p0: np.ndarray,
+    m0: np.ndarray,
+    a0: np.ndarray,
+    p1: np.ndarray,
+    m1: np.ndarray,
+    a1: np.ndarray,
+) -> np.ndarray:
+    """
+    Quintic Hermite interpolation (C2 continuity).
+
+    Given endpoints p0, p1, first derivatives m0, m1, and second derivatives a0, a1
+    (all scaled by interval width), evaluate at parameter t in [0, 1].
+
+    Provides C2 continuity: matches position, 1st and 2nd derivatives at both ends.
+    """
+    t = np.asarray(t, dtype=float)
+    t2 = t * t
+    t3 = t2 * t
+    t4 = t3 * t
+    t5 = t4 * t
+
+    h00 = 1.0 - 10.0 * t3 + 15.0 * t4 - 6.0 * t5
+    h10 = t - 6.0 * t3 + 8.0 * t4 - 3.0 * t5
+    h20 = 0.5 * t2 - 1.5 * t3 + 1.5 * t4 - 0.5 * t5
+    h01 = 10.0 * t3 - 15.0 * t4 + 6.0 * t5
+    h11 = -4.0 * t3 + 7.0 * t4 - 3.0 * t5
+    h21 = 0.5 * t3 - t4 + 0.5 * t5
+
+    return h00 * p0 + h10 * m0 + h20 * a0 + h01 * p1 + h11 * m1 + h21 * a1
+
+
 def write_chartmap_from_vmec_extended(
     wout_path: str | Path,
     out_path: str | Path,
@@ -527,51 +560,93 @@ def write_chartmap_from_vmec_extended(
     )
 
 
-def _match_wall_to_lcfs_by_fraction(
+def _ray_wall_intersections(
     R_lcfs: np.ndarray,
     Z_lcfs: np.ndarray,
+    dR_ds: np.ndarray,
+    dZ_ds: np.ndarray,
     R_wall: np.ndarray,
     Z_wall: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Match wall points to LCFS points by fractional position along curve.
+    """Find wall intersections by tracing rays from LCFS in VMEC derivative direction.
 
-    Both curves are aligned to start at their maximum-R point (outboard midplane),
-    then wall points are interpolated at the same fractional positions as LCFS.
+    For each LCFS point, traces a ray in the direction of the VMEC radial derivative
+    (dR/ds, dZ/ds) and finds where it intersects the wall polygon. This preserves
+    VMEC theta angles exactly, avoiding coordinate line kinking.
+
+    Parameters
+    ----------
+    R_lcfs : LCFS R coordinates for all theta values
+    Z_lcfs : LCFS Z coordinates for all theta values
+    dR_ds : VMEC dR/ds derivative at LCFS for all theta values
+    dZ_ds : VMEC dZ/ds derivative at LCFS for all theta values
+    R_wall : wall polygon R coordinates (closed curve)
+    Z_wall : wall polygon Z coordinates (closed curve)
+
+    Returns
+    -------
+    R_wall_intersect : R coordinates of wall intersections
+    Z_wall_intersect : Z coordinates of wall intersections
     """
-    i_lcfs_start = int(np.argmax(R_lcfs))
-    n_lcfs = len(R_lcfs)
-    lcfs_order = np.r_[np.arange(i_lcfs_start, n_lcfs), np.arange(0, i_lcfs_start)]
-    R_lcfs_ordered = R_lcfs[lcfs_order]
-    Z_lcfs_ordered = Z_lcfs[lcfs_order]
+    try:
+        from shapely.geometry import LineString, Point, Polygon
+    except ImportError as exc:
+        raise ImportError(
+            "ray-wall intersection requires shapely; "
+            "install libneo with the 'chartmap' extra"
+        ) from exc
 
-    i_wall_start = int(np.argmax(R_wall))
-    n_wall = len(R_wall)
-    wall_order = np.r_[np.arange(i_wall_start, n_wall), np.arange(0, i_wall_start)]
-    R_wall_ordered = R_wall[wall_order]
-    Z_wall_ordered = Z_wall[wall_order]
+    wall_coords = np.column_stack([R_wall, Z_wall])
+    if not np.allclose(wall_coords[0], wall_coords[-1]):
+        wall_coords = np.vstack([wall_coords, wall_coords[0]])
+    wall_ring = LineString(wall_coords)
 
-    if Z_lcfs_ordered[1] < Z_lcfs_ordered[0]:
-        R_lcfs_ordered = R_lcfs_ordered[::-1]
-        Z_lcfs_ordered = Z_lcfs_ordered[::-1]
-    if Z_wall_ordered[1] < Z_wall_ordered[0]:
-        R_wall_ordered = R_wall_ordered[::-1]
-        Z_wall_ordered = Z_wall_ordered[::-1]
+    n_theta = len(R_lcfs)
+    R_intersect = np.zeros(n_theta, dtype=float)
+    Z_intersect = np.zeros(n_theta, dtype=float)
 
-    t_lcfs = np.arange(n_lcfs) / n_lcfs
-    t_wall = np.arange(n_wall) / n_wall
+    for ith in range(n_theta):
+        r0, z0 = R_lcfs[ith], Z_lcfs[ith]
+        dr, dz = dR_ds[ith], dZ_ds[ith]
 
-    t_wall_ext = np.r_[t_wall - 1.0, t_wall, t_wall + 1.0]
-    R_wall_ext = np.r_[R_wall_ordered, R_wall_ordered, R_wall_ordered]
-    Z_wall_ext = np.r_[Z_wall_ordered, Z_wall_ordered, Z_wall_ordered]
+        norm = np.sqrt(dr**2 + dz**2)
+        if norm < 1e-12:
+            R_intersect[ith] = r0
+            Z_intersect[ith] = z0
+            continue
 
-    R_matched_ordered = np.interp(t_lcfs, t_wall_ext, R_wall_ext)
-    Z_matched_ordered = np.interp(t_lcfs, t_wall_ext, Z_wall_ext)
+        ray_length = 10.0 * max(np.ptp(R_wall), np.ptp(Z_wall))
+        r1 = r0 + ray_length * dr / norm
+        z1 = z0 + ray_length * dz / norm
+        ray = LineString([(r0, z0), (r1, z1)])
 
-    reverse_order = np.argsort(lcfs_order)
-    R_matched = R_matched_ordered[reverse_order]
-    Z_matched = Z_matched_ordered[reverse_order]
+        intersection = ray.intersection(wall_ring)
 
-    return R_matched, Z_matched
+        if intersection.is_empty:
+            R_intersect[ith] = r0 + dr
+            Z_intersect[ith] = z0 + dz
+            continue
+
+        if intersection.geom_type == "Point":
+            R_intersect[ith] = intersection.x
+            Z_intersect[ith] = intersection.y
+        elif intersection.geom_type == "MultiPoint":
+            origin = Point(r0, z0)
+            closest = min(intersection.geoms, key=lambda p: origin.distance(p))
+            R_intersect[ith] = closest.x
+            Z_intersect[ith] = closest.y
+        elif intersection.geom_type == "LineString":
+            coords = np.array(intersection.coords)
+            origin = Point(r0, z0)
+            dists = [origin.distance(Point(c)) for c in coords]
+            idx = np.argmin(dists)
+            R_intersect[ith] = coords[idx, 0]
+            Z_intersect[ith] = coords[idx, 1]
+        else:
+            R_intersect[ith] = r0 + dr
+            Z_intersect[ith] = z0 + dz
+
+    return R_intersect, Z_intersect
 
 
 def write_chartmap_from_vmec_to_wall(
@@ -611,9 +686,10 @@ def write_chartmap_from_vmec_to_wall(
 
     Notes
     -----
-    The wall curves are matched to VMEC theta using arc-length parameterization.
-    Both the LCFS and wall curves are parameterized by fractional arc length,
-    and corresponding points are connected by cubic Hermite interpolation.
+    Wall points are found by tracing rays from each LCFS point in the direction
+    of the VMEC radial derivative (dR/ds, dZ/ds). This preserves VMEC theta
+    angles exactly, avoiding coordinate line kinking. The LCFS and wall points
+    are connected by cubic Hermite interpolation with C1 continuity.
     """
     from netCDF4 import Dataset
 
@@ -661,23 +737,35 @@ def write_chartmap_from_vmec_to_wall(
         R_wall = np.asarray(R_wall, dtype=float)
         Z_wall = np.asarray(Z_wall, dtype=float)
 
-        R_lcfs, Z_lcfs, dR_ds, dZ_ds = geom.coords_s_with_deriv(
+        R_lcfs, Z_lcfs, dR_ds, dZ_ds, d2R_ds2, d2Z_ds2 = geom.coords_s_with_second_deriv(
             1.0, grid.theta, phi_val, use_asym=use_asym
         )
 
-        R_wall_matched, Z_wall_matched = _match_wall_to_lcfs_by_fraction(
-            R_lcfs, Z_lcfs, R_wall, Z_wall
+        R_wall_matched, Z_wall_matched = _ray_wall_intersections(
+            R_lcfs, Z_lcfs, dR_ds, dZ_ds, R_wall, Z_wall
         )
 
         ds_drho_at_lcfs = 2.0 / rho_lcfs_actual
+        d2s_drho2_at_lcfs = 2.0 / (rho_lcfs_actual**2)
         drho_interval = 1.0 - rho_lcfs_actual
+
         m0_R = dR_ds * ds_drho_at_lcfs * drho_interval
         m0_Z = dZ_ds * ds_drho_at_lcfs * drho_interval
+
+        a0_R = (
+            d2R_ds2 * (ds_drho_at_lcfs**2) + dR_ds * d2s_drho2_at_lcfs
+        ) * (drho_interval**2)
+        a0_Z = (
+            d2Z_ds2 * (ds_drho_at_lcfs**2) + dZ_ds * d2s_drho2_at_lcfs
+        ) * (drho_interval**2)
 
         chord_R = R_wall_matched - R_lcfs
         chord_Z = Z_wall_matched - Z_lcfs
         m1_R = chord_R
         m1_Z = chord_Z
+
+        a1_R = np.zeros_like(a0_R)
+        a1_Z = np.zeros_like(a0_Z)
 
         for ir in range(ir_lcfs + 1):
             rho_val = grid.rho[ir]
@@ -693,19 +781,23 @@ def write_chartmap_from_vmec_to_wall(
             t_param = (rho_outer - rho_lcfs_actual) / (1.0 - rho_lcfs_actual)
 
             for ith in range(grid.theta.size):
-                R_interp = _cubic_hermite(
+                R_interp = _quintic_hermite(
                     t_param,
                     R_lcfs[ith],
                     m0_R[ith],
+                    a0_R[ith],
                     R_wall_matched[ith],
                     m1_R[ith],
+                    a1_R[ith],
                 )
-                Z_interp = _cubic_hermite(
+                Z_interp = _quintic_hermite(
                     t_param,
                     Z_lcfs[ith],
                     m0_Z[ith],
+                    a0_Z[ith],
                     Z_wall_matched[ith],
                     m1_Z[ith],
+                    a1_Z[ith],
                 )
                 x[ir_lcfs + 1:, ith, iz] = R_interp * np.cos(phi_val) * 100.0
                 y[ir_lcfs + 1:, ith, iz] = R_interp * np.sin(phi_val) * 100.0
