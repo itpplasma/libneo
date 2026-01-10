@@ -563,23 +563,23 @@ def write_chartmap_from_vmec_extended(
 def _ray_wall_intersections(
     R_lcfs: np.ndarray,
     Z_lcfs: np.ndarray,
-    dR_ds: np.ndarray,
-    dZ_ds: np.ndarray,
+    dir_R: np.ndarray,
+    dir_Z: np.ndarray,
     R_wall: np.ndarray,
     Z_wall: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Find wall intersections by tracing rays from LCFS in VMEC derivative direction.
+    """Find wall intersections by tracing rays from LCFS in a prescribed direction.
 
-    For each LCFS point, traces a ray in the direction of the VMEC radial derivative
-    (dR/ds, dZ/ds) and finds where it intersects the wall polygon. This preserves
-    VMEC theta angles exactly, avoiding coordinate line kinking.
+    For each LCFS point, traces a ray in direction (dir_R, dir_Z) and finds where
+    it intersects the wall curve. This is used to define a theta-to-wall mapping
+    when the wall curve is given as an arbitrary closed (R,Z) contour.
 
     Parameters
     ----------
     R_lcfs : LCFS R coordinates for all theta values
     Z_lcfs : LCFS Z coordinates for all theta values
-    dR_ds : VMEC dR/ds derivative at LCFS for all theta values
-    dZ_ds : VMEC dZ/ds derivative at LCFS for all theta values
+    dir_R : ray direction in R for all theta values
+    dir_Z : ray direction in Z for all theta values
     R_wall : wall polygon R coordinates (closed curve)
     Z_wall : wall polygon Z coordinates (closed curve)
 
@@ -607,7 +607,7 @@ def _ray_wall_intersections(
 
     for ith in range(n_theta):
         r0, z0 = R_lcfs[ith], Z_lcfs[ith]
-        dr, dz = dR_ds[ith], dZ_ds[ith]
+        dr, dz = dir_R[ith], dir_Z[ith]
 
         norm = np.sqrt(dr**2 + dz**2)
         if norm < 1e-12:
@@ -660,6 +660,7 @@ def write_chartmap_from_vmec_to_wall(
     rho_lcfs: float = 0.8,
     num_field_periods: int | None = None,
     use_asym: bool = True,
+    wall_match: str = "vmec_derivative",
 ) -> None:
     """
     Generate a chartmap from VMEC coordinates extended to wall boundaries.
@@ -684,12 +685,18 @@ def write_chartmap_from_vmec_to_wall(
     num_field_periods : override nfp from wout file
     use_asym : include asymmetric Fourier terms if available
 
+    wall_match : how to map LCFS theta to wall intersections:
+        - vmec_derivative (default): trace rays along the VMEC radial derivative
+          (dR/ds, dZ/ds) at the LCFS. This preserves VMEC-theta alignment.
+        - poloidal_normal: trace rays along the outward poloidal-plane normal
+          of the LCFS (computed from d/dtheta and oriented using the VMEC
+          radial derivative). This is appropriate for synthetic normal-offset
+          walls and physical-wall matching.
+
     Notes
     -----
-    Wall points are found by tracing rays from each LCFS point in the direction
-    of the VMEC radial derivative (dR/ds, dZ/ds). This preserves VMEC theta
-    angles exactly, avoiding coordinate line kinking. The LCFS and wall points
-    are connected by cubic Hermite interpolation with C1 continuity.
+    The LCFS and wall points are connected by quintic Hermite interpolation with
+    C2 continuity at the LCFS.
     """
     from netCDF4 import Dataset
 
@@ -741,8 +748,35 @@ def write_chartmap_from_vmec_to_wall(
             1.0, grid.theta, phi_val, use_asym=use_asym
         )
 
+        wall_match_norm = wall_match.strip().lower()
+        if wall_match_norm not in {"vmec_derivative", "poloidal_normal"}:
+            raise ValueError(
+                "wall_match must be 'vmec_derivative' or 'poloidal_normal'"
+            )
+
+        if wall_match_norm == "vmec_derivative":
+            dir_R = dR_ds
+            dir_Z = dZ_ds
+        else:
+            dtheta = float(grid.theta[1] - grid.theta[0])
+            dR_dth = (np.roll(R_lcfs, -1) - np.roll(R_lcfs, 1)) / (2.0 * dtheta)
+            dZ_dth = (np.roll(Z_lcfs, -1) - np.roll(Z_lcfs, 1)) / (2.0 * dtheta)
+
+            dir_R = dZ_dth
+            dir_Z = -dR_dth
+
+            norm_dir = np.sqrt(dir_R**2 + dir_Z**2)
+            norm_dir = np.where(norm_dir == 0.0, 1.0, norm_dir)
+            dir_R = dir_R / norm_dir
+            dir_Z = dir_Z / norm_dir
+
+            outward_dot = dir_R * dR_ds + dir_Z * dZ_ds
+            flip = outward_dot < 0.0
+            dir_R = np.where(flip, -dir_R, dir_R)
+            dir_Z = np.where(flip, -dir_Z, dir_Z)
+
         R_wall_matched, Z_wall_matched = _ray_wall_intersections(
-            R_lcfs, Z_lcfs, dR_ds, dZ_ds, R_wall, Z_wall
+            R_lcfs, Z_lcfs, dir_R, dir_Z, R_wall, Z_wall
         )
 
         ds_drho_at_lcfs = 2.0 / rho_lcfs_actual
