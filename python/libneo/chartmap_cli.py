@@ -90,8 +90,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p_wall.add_argument(
         "--rho-lcfs",
         type=float,
-        default=0.8,
-        help="Radial location of LCFS in (0,1)",
+        default=None,
+        help="Radial location of LCFS in (0,1); omit to estimate from geometry",
     )
     p_wall.add_argument(
         "--n-boundary-points",
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
             nrho=int(args.nrho),
             ntheta=int(args.ntheta),
             nzeta=int(args.nzeta),
-            rho_lcfs=float(args.rho_lcfs),
+            rho_lcfs=None if args.rho_lcfs is None else float(args.rho_lcfs),
             n_boundary_points=int(args.n_boundary_points),
             stitch_tol=float(args.stitch_tol),
             num_field_periods=None if args.num_field_periods is None else int(args.num_field_periods),

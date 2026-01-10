@@ -176,6 +176,34 @@ def _build_grid(
     )
 
 
+def _estimate_rho_lcfs_from_axis_ratio(
+    *,
+    rho_grid: np.ndarray,
+    R_axis: np.ndarray,
+    Z_axis: np.ndarray,
+    R_lcfs: np.ndarray,
+    Z_lcfs: np.ndarray,
+    R_wall: np.ndarray,
+    Z_wall: np.ndarray,
+) -> float:
+    d_lcfs = np.sqrt((R_lcfs - R_axis) ** 2 + (Z_lcfs - Z_axis) ** 2)
+    d_wall = np.sqrt((R_wall - R_axis) ** 2 + (Z_wall - Z_axis) ** 2)
+
+    mask = (d_lcfs > 0.0) & (d_wall > 0.0)
+    ratio = d_lcfs[mask] / d_wall[mask]
+    ratio = ratio[np.isfinite(ratio)]
+    if ratio.size == 0:
+        raise ValueError("unable to estimate rho_lcfs from geometry")
+
+    rho_lcfs = float(np.median(ratio))
+    if not np.isfinite(rho_lcfs):
+        raise ValueError("unable to estimate rho_lcfs from geometry")
+
+    ir = int(np.searchsorted(rho_grid, rho_lcfs, side="right") - 1)
+    ir = max(1, min(rho_grid.size - 2, ir))
+    return float(rho_grid[ir])
+
+
 def write_chartmap_from_vmec(
     wout_path: str | Path,
     out_path: str | Path,
@@ -460,7 +488,7 @@ def write_chartmap_from_vmec_extended(
     if nrho_vmec is not None and rho_lcfs is not None:
         raise ValueError("provide only one of nrho_vmec or rho_lcfs")
     if nrho_vmec is None and rho_lcfs is None:
-        nrho_vmec = max(2, int(0.8 * nrho))
+        rho_lcfs = None
 
     geom = VMECGeometry.from_file(str(wout))
 
@@ -481,13 +509,47 @@ def write_chartmap_from_vmec_extended(
         ir_lcfs = nrho_vmec - 1
         rho_lcfs_val = float(grid.rho[ir_lcfs])
     else:
-        assert rho_lcfs is not None
-        rho_lcfs_val = float(rho_lcfs)
-        if not (0.0 < rho_lcfs_val < 1.0):
-            raise ValueError("rho_lcfs must be in (0, 1)")
+        theta_grid = grid.theta
+        rho_lcfs_val: float
+        if rho_lcfs is None:
+            ratios = []
+            for phi in grid.zeta:
+                phi_val = float(phi)
+                R_axis, Z_axis, _ = geom.coords_s(
+                    0.0, np.array([0.0]), phi_val, use_asym=use_asym
+                )
+                R_lcfs, Z_lcfs, dR_ds, dZ_ds = geom.coords_s_with_deriv(
+                    1.0, theta_grid, phi_val, use_asym=use_asym
+                )
+                outward_norm = np.sqrt(dR_ds**2 + dZ_ds**2)
+                outward_norm = np.where(outward_norm == 0.0, 1.0, outward_norm)
+                outward_R = dR_ds / outward_norm
+                outward_Z = dZ_ds / outward_norm
+                R_outer = R_lcfs + boundary_offset * outward_R
+                Z_outer = Z_lcfs + boundary_offset * outward_Z
+                ratios.append(
+                    _estimate_rho_lcfs_from_axis_ratio(
+                        rho_grid=grid.rho,
+                        R_axis=np.full_like(R_lcfs, float(R_axis[0])),
+                        Z_axis=np.full_like(Z_lcfs, float(Z_axis[0])),
+                        R_lcfs=R_lcfs,
+                        Z_lcfs=Z_lcfs,
+                        R_wall=R_outer,
+                        Z_wall=Z_outer,
+                    )
+                )
+            rho_lcfs_val = float(np.median(np.array(ratios, dtype=float)))
+        else:
+            rho_lcfs_val = float(rho_lcfs)
+            if not (0.0 < rho_lcfs_val < 1.0):
+                raise ValueError("rho_lcfs must be in (0, 1)")
+            ir_lcfs = int(np.searchsorted(grid.rho, rho_lcfs_val, side="right") - 1)
+            if ir_lcfs < 1 or ir_lcfs >= grid.rho.size - 1:
+                raise ValueError("rho_lcfs must leave room for extended region")
+            rho_lcfs_val = float(grid.rho[ir_lcfs])
+
         ir_lcfs = int(np.searchsorted(grid.rho, rho_lcfs_val, side="right") - 1)
-        if ir_lcfs < 1 or ir_lcfs >= grid.rho.size - 1:
-            raise ValueError("rho_lcfs must leave room for extended region")
+        ir_lcfs = max(1, min(grid.rho.size - 2, ir_lcfs))
         rho_lcfs_val = float(grid.rho[ir_lcfs])
 
     x = np.zeros((grid.rho.size, grid.theta.size, grid.zeta.size), dtype=np.float64)
@@ -557,6 +619,7 @@ def write_chartmap_from_vmec_extended(
         z_rtz=z,
         zeta_convention="cyl",
         rho_convention="vmec_extended",
+        rho_lcfs=rho_lcfs_val,
     )
 
 
@@ -657,7 +720,7 @@ def write_chartmap_from_vmec_to_wall(
     *,
     nrho: int = 33,
     ntheta: int = 65,
-    rho_lcfs: float = 0.8,
+    rho_lcfs: float | None = None,
     num_field_periods: int | None = None,
     use_asym: bool = True,
     wall_match: str = "vmec_derivative",
@@ -681,7 +744,9 @@ def write_chartmap_from_vmec_to_wall(
     wall_zeta : array of zeta values corresponding to wall_rz curves
     nrho : number of radial grid points
     ntheta : number of poloidal grid points
-    rho_lcfs : radial location of LCFS in (0, 1)
+    rho_lcfs : radial location of LCFS in (0, 1). If None, estimate a value
+               from geometry using the axis-to-LCFS and axis-to-wall distance
+               ratio (median over theta,zeta).
     num_field_periods : override nfp from wout file
     use_asym : include asymmetric Fourier terms if available
 
@@ -705,8 +770,10 @@ def write_chartmap_from_vmec_to_wall(
     wout = _as_path(wout_path)
     out = _as_path(out_path)
 
-    if not (0.0 < rho_lcfs < 1.0):
-        raise ValueError("rho_lcfs must be in (0, 1)")
+    if rho_lcfs is not None:
+        rho_lcfs = float(rho_lcfs)
+        if not (0.0 < rho_lcfs < 1.0):
+            raise ValueError("rho_lcfs must be in (0, 1)")
 
     wall_zeta = np.asarray(wall_zeta, dtype=float)
     if len(wall_rz) != len(wall_zeta):
@@ -722,21 +789,15 @@ def write_chartmap_from_vmec_to_wall(
     else:
         nfp = int(num_field_periods)
 
-    grid = ChartmapGrid(
-        rho=np.linspace(0.0, 1.0, nrho, dtype=float),
-        theta=np.linspace(0.0, 2.0 * np.pi, ntheta, endpoint=False, dtype=float),
+    grid = build_chartmap_grid(
+        nrho=int(nrho),
+        ntheta=int(ntheta),
         zeta=wall_zeta,
-        num_field_periods=nfp,
+        num_field_periods=int(nfp),
     )
 
-    ir_lcfs = int(np.searchsorted(grid.rho, rho_lcfs, side="right") - 1)
-    ir_lcfs = max(1, min(nrho - 2, ir_lcfs))
-    rho_lcfs_actual = float(grid.rho[ir_lcfs])
-
-    x = np.zeros((grid.rho.size, grid.theta.size, grid.zeta.size), dtype=np.float64)
-    y = np.zeros_like(x)
-    z = np.zeros_like(x)
-
+    prepass = []
+    ratios = []
     for iz, phi_val in enumerate(grid.zeta):
         phi_val = float(phi_val)
 
@@ -778,6 +839,59 @@ def write_chartmap_from_vmec_to_wall(
         R_wall_matched, Z_wall_matched = _ray_wall_intersections(
             R_lcfs, Z_lcfs, dir_R, dir_Z, R_wall, Z_wall
         )
+
+        R_axis, Z_axis, _ = geom.coords_s(
+            0.0, np.array([0.0]), phi_val, use_asym=use_asym
+        )
+        ratios.append(
+            _estimate_rho_lcfs_from_axis_ratio(
+                rho_grid=grid.rho,
+                R_axis=np.full_like(R_lcfs, float(R_axis[0])),
+                Z_axis=np.full_like(Z_lcfs, float(Z_axis[0])),
+                R_lcfs=R_lcfs,
+                Z_lcfs=Z_lcfs,
+                R_wall=R_wall_matched,
+                Z_wall=Z_wall_matched,
+            )
+        )
+        prepass.append(
+            (
+                phi_val,
+                R_wall_matched,
+                Z_wall_matched,
+                R_lcfs,
+                Z_lcfs,
+                dR_ds,
+                dZ_ds,
+                d2R_ds2,
+                d2Z_ds2,
+            )
+        )
+
+    if rho_lcfs is None:
+        rho_lcfs_actual = float(np.median(np.array(ratios, dtype=float)))
+    else:
+        rho_lcfs_actual = float(rho_lcfs)
+
+    ir_lcfs = int(np.searchsorted(grid.rho, rho_lcfs_actual, side="right") - 1)
+    ir_lcfs = max(1, min(grid.rho.size - 2, ir_lcfs))
+    rho_lcfs_actual = float(grid.rho[ir_lcfs])
+
+    x = np.zeros((grid.rho.size, grid.theta.size, grid.zeta.size), dtype=np.float64)
+    y = np.zeros_like(x)
+    z = np.zeros_like(x)
+
+    for iz, (
+        phi_val,
+        R_wall_matched,
+        Z_wall_matched,
+        R_lcfs,
+        Z_lcfs,
+        dR_ds,
+        dZ_ds,
+        d2R_ds2,
+        d2Z_ds2,
+    ) in enumerate(prepass):
 
         ds_drho_at_lcfs = 2.0 / rho_lcfs_actual
         d2s_drho2_at_lcfs = 2.0 / (rho_lcfs_actual**2)
@@ -845,6 +959,7 @@ def write_chartmap_from_vmec_to_wall(
         z_rtz=z,
         zeta_convention="cyl",
         rho_convention="vmec_to_wall",
+        rho_lcfs=rho_lcfs_actual,
     )
 
 
@@ -856,7 +971,7 @@ def write_chartmap_from_vmec_and_stl(
     nrho: int = 33,
     ntheta: int = 65,
     nzeta: int = 33,
-    rho_lcfs: float = 0.8,
+    rho_lcfs: float | None = None,
     n_boundary_points: int = 512,
     stitch_tol: float = 1.0e-6,
     num_field_periods: int | None = None,
@@ -876,7 +991,8 @@ def write_chartmap_from_vmec_and_stl(
     nrho : number of radial grid points
     ntheta : number of poloidal grid points
     nzeta : number of toroidal slices
-    rho_lcfs : radial location of LCFS in (0, 1)
+    rho_lcfs : radial location of LCFS in (0, 1). If None, estimate a value
+               from geometry (see write_chartmap_from_vmec_to_wall).
     n_boundary_points : points for STL boundary extraction
     stitch_tol : tolerance for stitching open contours
     num_field_periods : override nfp from wout file
