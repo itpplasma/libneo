@@ -162,6 +162,16 @@ def _invert_chartmap(
         rho = np.clip(rho - 0.5 * drho, 0.0, 0.999)
         theta = (theta - 0.5 * dtheta) % (2.0 * np.pi)
 
+    R_final, Z_final = _chartmap_rz(chartmap_path, rho, theta, zeta)
+    err_R = np.abs(R_final - R_target)
+    err_Z = np.abs(Z_final - Z_target)
+    max_err = float(np.max(np.maximum(err_R, err_Z)))
+    if max_err >= tol_m:
+        raise RuntimeError(
+            f"chartmap inversion did not converge within {max_iter} iterations. "
+            f"Max error: {max_err:.2e} m"
+        )
+
     return rho, theta
 
 
