@@ -452,6 +452,282 @@ def write_chartmap_from_vmec_extended(
     )
 
 
+def _match_wall_to_lcfs_by_fraction(
+    R_lcfs: np.ndarray,
+    Z_lcfs: np.ndarray,
+    R_wall: np.ndarray,
+    Z_wall: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Match wall points to LCFS points by fractional position along curve.
+
+    Both curves are aligned to start at their maximum-R point (outboard midplane),
+    then wall points are interpolated at the same fractional positions as LCFS.
+    """
+    i_lcfs_start = int(np.argmax(R_lcfs))
+    n_lcfs = len(R_lcfs)
+    lcfs_order = np.r_[np.arange(i_lcfs_start, n_lcfs), np.arange(0, i_lcfs_start)]
+    R_lcfs_ordered = R_lcfs[lcfs_order]
+    Z_lcfs_ordered = Z_lcfs[lcfs_order]
+
+    i_wall_start = int(np.argmax(R_wall))
+    n_wall = len(R_wall)
+    wall_order = np.r_[np.arange(i_wall_start, n_wall), np.arange(0, i_wall_start)]
+    R_wall_ordered = R_wall[wall_order]
+    Z_wall_ordered = Z_wall[wall_order]
+
+    if Z_lcfs_ordered[1] < Z_lcfs_ordered[0]:
+        R_lcfs_ordered = R_lcfs_ordered[::-1]
+        Z_lcfs_ordered = Z_lcfs_ordered[::-1]
+    if Z_wall_ordered[1] < Z_wall_ordered[0]:
+        R_wall_ordered = R_wall_ordered[::-1]
+        Z_wall_ordered = Z_wall_ordered[::-1]
+
+    t_lcfs = np.arange(n_lcfs) / n_lcfs
+    t_wall = np.arange(n_wall) / n_wall
+
+    t_wall_ext = np.r_[t_wall - 1.0, t_wall, t_wall + 1.0]
+    R_wall_ext = np.r_[R_wall_ordered, R_wall_ordered, R_wall_ordered]
+    Z_wall_ext = np.r_[Z_wall_ordered, Z_wall_ordered, Z_wall_ordered]
+
+    R_matched_ordered = np.interp(t_lcfs, t_wall_ext, R_wall_ext)
+    Z_matched_ordered = np.interp(t_lcfs, t_wall_ext, Z_wall_ext)
+
+    reverse_order = np.argsort(lcfs_order)
+    R_matched = R_matched_ordered[reverse_order]
+    Z_matched = Z_matched_ordered[reverse_order]
+
+    return R_matched, Z_matched
+
+
+def write_chartmap_from_vmec_to_wall(
+    wout_path: str | Path,
+    out_path: str | Path,
+    wall_rz: list[tuple[np.ndarray, np.ndarray]],
+    wall_zeta: np.ndarray,
+    *,
+    nrho: int = 33,
+    ntheta: int = 65,
+    rho_lcfs: float = 0.8,
+    num_field_periods: int | None = None,
+    use_asym: bool = True,
+) -> None:
+    """
+    Generate a chartmap from VMEC coordinates extended to wall boundaries.
+
+    This creates a boundary-fitted coordinate system where:
+    - rho in [0, rho_lcfs]: VMEC coordinates with rho = sqrt(s) * rho_lcfs
+    - rho in [rho_lcfs, 1]: Cubic Hermite interpolation from LCFS to wall
+    - rho = 1: Exactly on the wall boundary
+
+    The coordinate system has C1 continuity at the LCFS.
+
+    Parameters
+    ----------
+    wout_path : path to VMEC wout NetCDF file
+    out_path : output chartmap NetCDF path
+    wall_rz : list of (R, Z) arrays defining wall boundary at each zeta
+              Each R, Z should be a closed curve (first point != last point)
+    wall_zeta : array of zeta values corresponding to wall_rz curves
+    nrho : number of radial grid points
+    ntheta : number of poloidal grid points
+    rho_lcfs : radial location of LCFS in (0, 1)
+    num_field_periods : override nfp from wout file
+    use_asym : include asymmetric Fourier terms if available
+
+    Notes
+    -----
+    The wall curves are matched to VMEC theta using arc-length parameterization.
+    Both the LCFS and wall curves are parameterized by fractional arc length,
+    and corresponding points are connected by cubic Hermite interpolation.
+    """
+    from netCDF4 import Dataset
+
+    from .vmec import VMECGeometry
+
+    wout = _as_path(wout_path)
+    out = _as_path(out_path)
+
+    if not (0.0 < rho_lcfs < 1.0):
+        raise ValueError("rho_lcfs must be in (0, 1)")
+
+    wall_zeta = np.asarray(wall_zeta, dtype=float)
+    if len(wall_rz) != len(wall_zeta):
+        raise ValueError("wall_rz and wall_zeta must have same length")
+
+    geom = VMECGeometry.from_file(str(wout))
+
+    if num_field_periods is None:
+        with Dataset(wout, "r") as ds:
+            if "nfp" not in ds.variables:
+                raise ValueError("wout file missing nfp variable")
+            nfp = int(np.array(ds.variables["nfp"][...]))
+    else:
+        nfp = int(num_field_periods)
+
+    grid = ChartmapGrid(
+        rho=np.linspace(0.0, 1.0, nrho, dtype=float),
+        theta=np.linspace(0.0, 2.0 * np.pi, ntheta, endpoint=False, dtype=float),
+        zeta=wall_zeta,
+        num_field_periods=nfp,
+    )
+
+    ir_lcfs = int(np.searchsorted(grid.rho, rho_lcfs, side="right") - 1)
+    ir_lcfs = max(1, min(nrho - 2, ir_lcfs))
+    rho_lcfs_actual = float(grid.rho[ir_lcfs])
+
+    x = np.zeros((grid.rho.size, grid.theta.size, grid.zeta.size), dtype=np.float64)
+    y = np.zeros_like(x)
+    z = np.zeros_like(x)
+
+    for iz, phi_val in enumerate(grid.zeta):
+        phi_val = float(phi_val)
+
+        R_wall, Z_wall = wall_rz[iz]
+        R_wall = np.asarray(R_wall, dtype=float)
+        Z_wall = np.asarray(Z_wall, dtype=float)
+
+        R_lcfs, Z_lcfs, dR_ds, dZ_ds = geom.coords_s_with_deriv(
+            1.0, grid.theta, phi_val, use_asym=use_asym
+        )
+
+        R_wall_matched, Z_wall_matched = _match_wall_to_lcfs_by_fraction(
+            R_lcfs, Z_lcfs, R_wall, Z_wall
+        )
+
+        ds_drho_at_lcfs = 2.0 / rho_lcfs_actual
+        drho_interval = 1.0 - rho_lcfs_actual
+        m0_R = dR_ds * ds_drho_at_lcfs * drho_interval
+        m0_Z = dZ_ds * ds_drho_at_lcfs * drho_interval
+
+        chord_R = R_wall_matched - R_lcfs
+        chord_Z = Z_wall_matched - Z_lcfs
+        m1_R = chord_R
+        m1_Z = chord_Z
+
+        for ir in range(ir_lcfs + 1):
+            rho_val = grid.rho[ir]
+            s_val = (float(rho_val) / rho_lcfs_actual) ** 2
+            R_in, Z_in, _ = geom.coords_s(s_val, grid.theta, phi_val, use_asym=use_asym)
+            x[ir, :, iz] = R_in * np.cos(phi_val) * 100.0
+            y[ir, :, iz] = R_in * np.sin(phi_val) * 100.0
+            z[ir, :, iz] = Z_in * 100.0
+
+        n_outer = grid.rho.size - ir_lcfs - 1
+        if n_outer > 0:
+            rho_outer = grid.rho[ir_lcfs + 1:]
+            t_param = (rho_outer - rho_lcfs_actual) / (1.0 - rho_lcfs_actual)
+
+            for ith in range(grid.theta.size):
+                R_interp = _cubic_hermite(
+                    t_param,
+                    R_lcfs[ith],
+                    m0_R[ith],
+                    R_wall_matched[ith],
+                    m1_R[ith],
+                )
+                Z_interp = _cubic_hermite(
+                    t_param,
+                    Z_lcfs[ith],
+                    m0_Z[ith],
+                    Z_wall_matched[ith],
+                    m1_Z[ith],
+                )
+                x[ir_lcfs + 1:, ith, iz] = R_interp * np.cos(phi_val) * 100.0
+                y[ir_lcfs + 1:, ith, iz] = R_interp * np.sin(phi_val) * 100.0
+                z[ir_lcfs + 1:, ith, iz] = Z_interp * 100.0
+
+    write_chartmap_netcdf(
+        out,
+        grid=grid,
+        x_rtz=x,
+        y_rtz=y,
+        z_rtz=z,
+        zeta_convention="cyl",
+        rho_convention="vmec_to_wall",
+    )
+
+
+def write_chartmap_from_vmec_and_stl(
+    wout_path: str | Path,
+    stl_path: str | Path,
+    out_path: str | Path,
+    *,
+    nrho: int = 33,
+    ntheta: int = 65,
+    nzeta: int = 33,
+    rho_lcfs: float = 0.8,
+    n_boundary_points: int = 512,
+    stitch_tol: float = 1.0e-6,
+    num_field_periods: int | None = None,
+    use_asym: bool = True,
+) -> None:
+    """
+    Generate a chartmap from VMEC extended to STL wall boundaries.
+
+    Convenience function that combines STL boundary extraction with
+    write_chartmap_from_vmec_to_wall.
+
+    Parameters
+    ----------
+    wout_path : path to VMEC wout NetCDF file
+    stl_path : path to STL wall geometry file
+    out_path : output chartmap NetCDF path
+    nrho : number of radial grid points
+    ntheta : number of poloidal grid points
+    nzeta : number of toroidal slices
+    rho_lcfs : radial location of LCFS in (0, 1)
+    n_boundary_points : points for STL boundary extraction
+    stitch_tol : tolerance for stitching open contours
+    num_field_periods : override nfp from wout file
+    use_asym : include asymmetric Fourier terms if available
+    """
+    from netCDF4 import Dataset
+
+    from .stl_boundary import extract_boundary_slices
+
+    wout = _as_path(wout_path)
+    stl = _as_path(stl_path)
+
+    if num_field_periods is None:
+        with Dataset(wout, "r") as ds:
+            if "nfp" not in ds.variables:
+                raise ValueError("wout file missing nfp variable")
+            nfp = int(np.array(ds.variables["nfp"][...]))
+    else:
+        nfp = int(num_field_periods)
+
+    period = _zeta_period(nfp)
+    phi_vals = np.linspace(0.0, period, nzeta, endpoint=False, dtype=float)
+
+    slices = extract_boundary_slices(
+        stl,
+        n_phi=nzeta,
+        n_boundary_points=n_boundary_points,
+        stitch_tol=stitch_tol,
+        phi_vals=phi_vals,
+    )
+
+    wall_rz = []
+    wall_zeta = []
+    for s in slices:
+        R = s.outer_filled[:-1, 0]
+        Z = s.outer_filled[:-1, 1]
+        wall_rz.append((R, Z))
+        wall_zeta.append(s.phi)
+
+    write_chartmap_from_vmec_to_wall(
+        wout,
+        out_path,
+        wall_rz,
+        np.array(wall_zeta),
+        nrho=nrho,
+        ntheta=ntheta,
+        rho_lcfs=rho_lcfs,
+        num_field_periods=nfp,
+        use_asym=use_asym,
+    )
+
+
 def write_chartmap_from_stl(
     stl_path: str | Path,
     out_path: str | Path,
