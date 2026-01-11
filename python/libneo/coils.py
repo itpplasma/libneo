@@ -142,6 +142,39 @@ def _parse_coils(path: str) -> Coils:
 
     return Coils(periods=periods, mirror=mirror, filaments=filaments)
 
+def _split_filaments_on_zero_current(filaments: List[Filament]) -> List[Filament]:
+    """
+    Split filaments at zero-current points.
+
+    Many coil file formats use I=0 lines as separators between individual coils
+    within a single 'begin filament' block. This function splits such combined
+    filaments into individual coils.
+    """
+    result: List[Filament] = []
+    for fil in filaments:
+        if fil.current.size == 0:
+            continue
+        zero_mask = fil.current == 0.0
+        if not np.any(zero_mask):
+            result.append(fil)
+            continue
+        zero_indices = np.where(zero_mask)[0]
+        start = 0
+        for idx in zero_indices:
+            if idx > start:
+                coords = fil.coords[start:idx]
+                current = fil.current[start:idx]
+                if coords.shape[0] >= 2:
+                    result.append(Filament(coords=coords, current=current))
+            start = idx + 1
+        if start < fil.coords.shape[0]:
+            coords = fil.coords[start:]
+            current = fil.current[start:]
+            if coords.shape[0] >= 2:
+                result.append(Filament(coords=coords, current=current))
+    return result
+
+
 class CoilsFile:
     def __init__(self, *, periods: Optional[int], mirror: Optional[str], filaments: List[Filament]):
         self.periods = periods
@@ -164,9 +197,21 @@ class CoilsFile:
         return groups, currents
 
     @classmethod
-    def from_file(cls, filename: str) -> "CoilsFile":
+    def from_file(cls, filename: str, *, split_on_zero_current: bool = True) -> "CoilsFile":
+        """
+        Load coils from a STELLOPT/MAKEGRID format file.
+
+        Args:
+            filename: Path to coils file
+            split_on_zero_current: If True, split filaments at zero-current points.
+                Many coil files use I=0 lines to separate individual coils within
+                a single 'begin filament' block.
+        """
         coils = _parse_coils(filename)
-        return cls(periods=coils.periods, mirror=coils.mirror, filaments=coils.filaments)
+        filaments = coils.filaments
+        if split_on_zero_current:
+            filaments = _split_filaments_on_zero_current(filaments)
+        return cls(periods=coils.periods, mirror=coils.mirror, filaments=filaments)
 
     def write(self, filename: str) -> None:
         with open(filename, "w", encoding="utf-8") as f:
