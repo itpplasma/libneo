@@ -20,21 +20,26 @@ module interpolate
                                  evaluate_batch_splines_1d_many_der, &
                                  evaluate_batch_splines_1d_many_der2, &
                                  evaluate_batch_splines_1d_many_der3, &
+                                 evaluate_batch_splines_1d_many_der2_mask, &
+                                 evaluate_batch_splines_1d_many_der3_mask, &
                                  evaluate_batch_splines_1d_der, &
                                  evaluate_batch_splines_1d_der2, &
                                  evaluate_batch_splines_1d_der3
     use batch_interpolate, only: evaluate_batch_splines_2d, &
                                  evaluate_batch_splines_2d_der, &
                                  evaluate_batch_splines_2d_many, &
-                                 evaluate_batch_splines_2d_many_resident
+                                 evaluate_batch_splines_2d_many_mask, &
+                                 evaluate_batch_splines_2d_many_resident, &
+                                 evaluate_batch_splines_2d_many_der, &
+                                 evaluate_batch_splines_2d_many_der_mask
     use batch_interpolate, only: evaluate_batch_splines_3d, &
                                  evaluate_batch_splines_3d_der, &
                                  evaluate_batch_splines_3d_der2, &
-                                 evaluate_batch_splines_3d_der2_rmix, &
                                  evaluate_batch_splines_3d_many, &
                                  evaluate_batch_splines_3d_many_resident, &
                                  evaluate_batch_splines_3d_many_der, &
-                                 evaluate_batch_splines_3d_many_der2
+                                 evaluate_batch_splines_3d_many_der2, &
+                                 evaluate_batch_splines_3d_many_der2_mask
 
     implicit none
 
@@ -53,14 +58,20 @@ module interpolate
     public :: evaluate_batch_splines_1d_many, evaluate_batch_splines_1d_many_resident
     public :: evaluate_batch_splines_1d_many_der
     public :: evaluate_batch_splines_1d_many_der2, evaluate_batch_splines_1d_many_der3
+    public :: evaluate_batch_splines_1d_many_der2_mask
+    public :: evaluate_batch_splines_1d_many_der3_mask
     public :: evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2
     public :: evaluate_batch_splines_1d_der3
     public :: evaluate_batch_splines_2d, evaluate_batch_splines_2d_der
-    public :: evaluate_batch_splines_2d_many, evaluate_batch_splines_2d_many_resident
+    public :: evaluate_batch_splines_2d_many, evaluate_batch_splines_2d_many_mask
+    public :: evaluate_batch_splines_2d_many_resident
+    public :: evaluate_batch_splines_2d_many_der, &
+              evaluate_batch_splines_2d_many_der_mask
     public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &
-              evaluate_batch_splines_3d_der2, evaluate_batch_splines_3d_der2_rmix
+              evaluate_batch_splines_3d_der2
     public :: evaluate_batch_splines_3d_many, evaluate_batch_splines_3d_many_resident
     public :: evaluate_batch_splines_3d_many_der, evaluate_batch_splines_3d_many_der2
+    public :: evaluate_batch_splines_3d_many_der2_mask
 
     ! Single-quantity non-batch spline types and routines
     public :: SplineData1D, SplineData2D, SplineData3D
@@ -475,55 +486,55 @@ contains
         ! Spline over x3
         allocate (splcoe(0:spl%order(3), spl%num_points(3)))
         do i2 = 1, spl%num_points(2)
-            do i1 = 1, spl%num_points(1)
-                splcoe(0, :) = y(i1, i2, :)
-                if (spl%periodic(3)) then
-                    call spl_per(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
-                else
-                    call spl_reg(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
-                end if
-                spl%coeff(order(1), 0, :, i1, i2, :) = splcoe
-            end do
+        do i1 = 1, spl%num_points(1)
+            splcoe(0, :) = y(i1, i2, :)
+            if (spl%periodic(3)) then
+                call spl_per(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
+            else
+                call spl_reg(spl%order(3), spl%num_points(3), spl%h_step(3), splcoe)
+            end if
+            spl%coeff(order(1), 0, :, i1, i2, :) = splcoe
+        end do
         end do
         deallocate (splcoe)
 
         ! Spline over x2
         allocate (splcoe(0:spl%order(2), spl%num_points(2)))
         do i3 = 1, spl%num_points(3)
-            do i1 = 1, spl%num_points(1)
-                do k3 = 0, spl%order(3)
-                    splcoe(0, :) = spl%coeff(order(1), 0, k3, i1, :, i3)
-                    if (spl%periodic(2)) then
-                        call spl_per( &
-                            spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
-                    else
-                        call spl_reg( &
-                            spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
-                    end if
-                    spl%coeff(order(1), :, k3, i1, :, i3) = splcoe
-                end do
+        do i1 = 1, spl%num_points(1)
+            do k3 = 0, spl%order(3)
+                splcoe(0, :) = spl%coeff(order(1), 0, k3, i1, :, i3)
+                if (spl%periodic(2)) then
+                    call spl_per( &
+                        spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
+                else
+                    call spl_reg( &
+                        spl%order(2), spl%num_points(2), spl%h_step(2), splcoe)
+                end if
+                spl%coeff(order(1), :, k3, i1, :, i3) = splcoe
             end do
+        end do
         end do
         deallocate (splcoe)
 
         ! Spline over x1
         allocate (splcoe(0:spl%order(1), spl%num_points(1)))
         do i3 = 1, spl%num_points(3)
-            do i2 = 1, spl%num_points(2)
-                do k3 = 0, spl%order(3)
-                do k2 = 0, spl%order(2)
-                    splcoe(0, :) = spl%coeff(order(1), k2, k3, :, i2, i3)
-                    if (spl%periodic(1)) then
-                        call spl_per( &
-                            spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
-                    else
-                        call spl_reg( &
-                            spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
-                    end if
-                    spl%coeff(order(1):0:-1, k2, k3, :, i2, i3) = splcoe
-                end do
-                end do
+        do i2 = 1, spl%num_points(2)
+            do k3 = 0, spl%order(3)
+            do k2 = 0, spl%order(2)
+                splcoe(0, :) = spl%coeff(order(1), k2, k3, :, i2, i3)
+                if (spl%periodic(1)) then
+                    call spl_per( &
+                        spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
+                else
+                    call spl_reg( &
+                        spl%order(1), spl%num_points(1), spl%h_step(1), splcoe)
+                end if
+                spl%coeff(order(1):0:-1, k2, k3, :, i2, i3) = splcoe
             end do
+            end do
+        end do
         end do
         deallocate (splcoe)
     end subroutine construct_splines_3d
@@ -644,13 +655,14 @@ contains
                     do k2 = 0, N2
                         coeff_23(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
                                                      interval_index(2) + 1, &
-                                                     interval_index(3) + 1)
+                                                         interval_index(3) + 1)
                         do k1 = 1, N1
                             coeff_23(k2, k3) = spl%coeff(k1, k2, k3, &
                                                          interval_index(1) + 1, &
-                                                         interval_index(2) + 1, &
+                                                             interval_index(2) + 1, &
                                                          interval_index(3) + 1) + &
-                                               x_local(1)*coeff_23(k2, k3)
+                                                             x_local(1)*coeff_23(k2, &
+                                                             k3)
                         end do
                     end do
                 end do
@@ -660,16 +672,13 @@ contains
                         coeff_23_dx1(k2, k3) = spl%coeff(0, k2, k3, &
                                                          interval_index(1) + 1, &
                                                          interval_index(2) + 1, &
-                                                         interval_index(3) + 1)*N1
+                                                             interval_index(3) + 1)*N1
                         do k1 = 1, N1 - 1
                             coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, &
-                                                             interval_index(1) + 1, &
-                                                             interval_index(2) + 1, &
+                                         interval_index(1) + 1, interval_index(2) + 1, &
                                                              interval_index(3) + &
-                                                             1)*(N1 - k1) &
-                                                   + &
-                                                   x_local(1)*coeff_23_dx1(k2, &
-                                                                           k3)
+                                                                 1)*(N1 - k1) + &
+                                                   x_local(1)*coeff_23_dx1(k2, k3)
                         end do
                     end do
                 end do
@@ -737,13 +746,14 @@ contains
                     do k2 = 0, N2
                         coeff_23(k2, k3) = spl%coeff(0, k2, k3, interval_index(1) + 1, &
                                                      interval_index(2) + 1, &
-                                                     interval_index(3) + 1)
+                                                         interval_index(3) + 1)
                         do k1 = 1, N1
                             coeff_23(k2, k3) = spl%coeff(k1, k2, k3, &
                                                          interval_index(1) + 1, &
-                                                         interval_index(2) + 1, &
+                                                             interval_index(2) + 1, &
                                                          interval_index(3) + 1) + &
-                                               x_local(1)*coeff_23(k2, k3)
+                                                             x_local(1)*coeff_23(k2, &
+                                                             k3)
                         end do
                     end do
                 end do
@@ -753,16 +763,13 @@ contains
                         coeff_23_dx1(k2, k3) = spl%coeff(0, k2, k3, &
                                                          interval_index(1) + 1, &
                                                          interval_index(2) + 1, &
-                                                         interval_index(3) + 1)*N1
+                                                             interval_index(3) + 1)*N1
                         do k1 = 1, N1 - 1
                             coeff_23_dx1(k2, k3) = spl%coeff(k1, k2, k3, &
-                                                             interval_index(1) + 1, &
-                                                             interval_index(2) + 1, &
+                                         interval_index(1) + 1, interval_index(2) + 1, &
                                                              interval_index(3) + &
-                                                             1)*(N1 - k1) &
-                                                   + &
-                                                   x_local(1)*coeff_23_dx1(k2, &
-                                                                           k3)
+                                                                 1)*(N1 - k1) + &
+                                                   x_local(1)*coeff_23_dx1(k2, k3)
                         end do
                     end do
                 end do
@@ -772,15 +779,14 @@ contains
                         coeff_23_dx1x1(k2, k3) = spl%coeff(0, k2, k3, &
                                                            interval_index(1) + 1, &
                                                            interval_index(2) + 1, &
-                                                           interval_index(3) + &
-                                                           1)*N1*(N1 - 1)
+                                                               interval_index(3) + &
+                                                               1)*N1*(N1 - 1)
                         do k1 = 1, N1 - 2
                             coeff_23_dx1x1(k2, k3) = spl%coeff(k1, k2, k3, &
-                                                               interval_index(1) + 1, &
-                                                               interval_index(2) + 1, &
-                                                               interval_index(3) &
-                                                               + 1)*(N1 - &
-                                                                     k1)*(N1 - k1 - 1) &
+                                         interval_index(1) + 1, interval_index(2) + 1, &
+                                                               interval_index(3) + &
+                                                                   1)*(N1 - k1)*(N1 &
+                                                                   - k1 - 1) &
                                                      + x_local(1)*coeff_23_dx1x1(k2, k3)
                         end do
                     end do
