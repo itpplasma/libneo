@@ -23,12 +23,14 @@ chartmap = [
     "trimesh",
 ]
 dev = [
-    "scipy",
-    "shapely",
-    "matplotlib",
-    "netCDF4",
-    "trimesh",
-    "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
+  "scipy",
+  "shapely",
+  "matplotlib",
+  "netCDF4",
+  "h5py",
+  "trimesh",
+  "pytest",
+  "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
 ]
 
 [project.scripts]
