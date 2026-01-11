@@ -433,13 +433,14 @@ contains
    subroutine destroy_batch_splines_1d(spl)
       type(BatchSplineData1D), intent(inout) :: spl
 
-#ifdef _OPENACC
-      if (allocated(spl%coeff)) then
-         if (acc_is_present(spl%coeff)) then
-            !$acc exit data delete(spl%coeff)
-         end if
-      end if
-#endif
+	#ifdef _OPENACC
+	      if (allocated(spl%coeff)) then
+	         if (acc_is_present(spl%coeff)) then
+	            !$acc exit data delete(spl%coeff)
+	            !$acc wait
+	         end if
+	      end if
+	#endif
       if (allocated(spl%coeff)) deallocate (spl%coeff)
    end subroutine destroy_batch_splines_1d
 
