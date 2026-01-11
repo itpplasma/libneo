@@ -96,6 +96,15 @@ CLI:
 
     libneo-write-chartmap from-vmec wout.nc wout.chartmap.nc --nrho 33 --ntheta 65 --nzeta 33
 
+VMEC with cubic Hermite extension beyond LCFS (no map2disc dependency, C1 continuous):
+
+    libneo-write-chartmap from-vmec-extended wout.nc wout.chartmap.nc \
+        --nrho-vmec 25 --boundary-offset 0.15
+
+This mode uses exact VMEC coordinates inside the LCFS and extends beyond using cubic
+Hermite interpolation along coordinate line tangents, providing C1 continuity at the
+boundary suitable for symplectic integrators.
+
 ### Coils format converter
 Convert STELLOPT coils format to simple biotsavart format:
 
