@@ -144,6 +144,12 @@ target_link_libraries(test_rng.x ${COMMON_LIBS})
 add_executable(test_polylag_3.x source/test_polylag_3.f90)
 target_link_libraries(test_polylag_3.x ${COMMON_LIBS} ${MAGFIE_LIB})
 
+add_executable(test_neo_bspline_1d.x source/test_neo_bspline_1d.f90)
+target_link_libraries(test_neo_bspline_1d.x ${COMMON_LIBS})
+add_executable(test_neo_bspline_2d.x source/test_neo_bspline_2d.f90)
+target_link_libraries(test_neo_bspline_2d.x ${COMMON_LIBS})
+add_executable(test_neo_bspline_3d.x source/test_neo_bspline_3d.f90)
+target_link_libraries(test_neo_bspline_3d.x ${COMMON_LIBS})
 add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
@@ -197,6 +203,9 @@ target_link_libraries(test_nctools_nc_get3.x
   ${COMMON_LIBS}
 )
 
+add_executable(bench_neo_bspline_vs_interpolate.x
+  source/bench_neo_bspline_vs_interpolate.f90)
+target_link_libraries(bench_neo_bspline_vs_interpolate.x ${COMMON_LIBS})
 
 ## Standard tests according to standard libneo Fortran test convention.
 
@@ -213,6 +222,9 @@ add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
 add_test(NAME test_species COMMAND test_species.x)
 add_test(NAME test_rng COMMAND test_rng.x)
 add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
+add_test(NAME test_neo_bspline_1d COMMAND test_neo_bspline_1d.x)
+add_test(NAME test_neo_bspline_2d COMMAND test_neo_bspline_2d.x)
+add_test(NAME test_neo_bspline_3d COMMAND test_neo_bspline_3d.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)

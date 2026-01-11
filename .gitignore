@@ -66,5 +66,6 @@ lib/
 .venv
 dist/
 test/**/*.png
+bench_neo_bspline_*.png
 version.f90
 Testing/Temporary/CTestCostData.txt
