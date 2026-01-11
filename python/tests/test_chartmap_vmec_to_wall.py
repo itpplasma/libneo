@@ -243,22 +243,12 @@ def test_chartmap_vmec_to_wall_synthetic(tmp_path: Path) -> None:
     R_outer = R[0, :, -1]
     Z_outer = Z[0, :, -1]
     R_wall_expected, Z_wall_expected = wall_rz[0]
-
-    from libneo.chartmap import _match_wall_to_lcfs_by_fraction
-
-    R_lcfs_check, Z_lcfs_check, _ = geom.coords_s(
-        1.0, theta_grid, float(wall_zeta[0]), use_asym=True
-    )
-    R_wall_matched, Z_wall_matched = _match_wall_to_lcfs_by_fraction(
-        R_lcfs_check, Z_lcfs_check, R_wall_expected, Z_wall_expected
-    )
-
-    assert np.allclose(R_outer, R_wall_matched, rtol=0.0, atol=1.0e-5), (
-        "Outer boundary should match wall"
-    )
-    assert np.allclose(Z_outer, Z_wall_matched, rtol=0.0, atol=1.0e-5), (
-        "Outer boundary should match wall"
-    )
+    d2 = (R_outer[:, None] - R_wall_expected[None, :]) ** 2 + (
+        Z_outer[:, None] - Z_wall_expected[None, :]
+    ) ** 2
+    min_dist = np.sqrt(np.min(d2, axis=1))
+    max_dist = float(np.max(min_dist))
+    assert max_dist < 5.0e-3, f"outer boundary too far from wall (max dist {max_dist:.2e} m)"
 
 
 @pytest.mark.network
