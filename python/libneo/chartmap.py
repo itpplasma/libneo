@@ -176,6 +176,81 @@ def _build_grid(
     )
 
 
+def write_chartmap_from_vmec(
+    wout_path: str | Path,
+    out_path: str | Path,
+    *,
+    nrho: int = 33,
+    ntheta: int = 65,
+    nzeta: int = 33,
+    num_field_periods: int | None = None,
+    use_asym: bool = True,
+) -> None:
+    """
+    Generate a chartmap NetCDF using pure VMEC coordinates.
+
+    This creates a coordinate system where:
+    - rho in [0, 1] maps directly to VMEC s via s = rho^2
+    - rho = 1 corresponds exactly to the VMEC LCFS (s = 1)
+    - theta is preserved as VMEC poloidal angle
+    - No extension beyond LCFS
+
+    This is the reference chartmap that should match VMEC exactly.
+
+    Parameters
+    ----------
+    wout_path : path to VMEC wout NetCDF file
+    out_path : output chartmap NetCDF path
+    nrho : number of radial grid points
+    ntheta : number of poloidal grid points
+    nzeta : number of toroidal grid points
+    num_field_periods : override nfp from wout file
+    use_asym : include asymmetric Fourier terms if available
+    """
+    from netCDF4 import Dataset
+
+    from .vmec import VMECGeometry
+
+    wout = _as_path(wout_path)
+    out = _as_path(out_path)
+
+    geom = VMECGeometry.from_file(str(wout))
+
+    if num_field_periods is None:
+        with Dataset(wout, "r") as ds:
+            if "nfp" not in ds.variables:
+                raise ValueError("wout file missing nfp variable")
+            nfp = int(np.array(ds.variables["nfp"][...]))
+    else:
+        nfp = int(num_field_periods)
+
+    grid = _build_grid(nrho=nrho, ntheta=ntheta, nzeta=nzeta, num_field_periods=nfp)
+
+    x = np.zeros((grid.rho.size, grid.theta.size, grid.zeta.size), dtype=np.float64)
+    y = np.zeros_like(x)
+    z = np.zeros_like(x)
+
+    for iz, phi in enumerate(grid.zeta):
+        phi_val = float(phi)
+
+        for ir, rho_val in enumerate(grid.rho):
+            s_val = float(rho_val) ** 2
+            R_vmec, Z_vmec, _ = geom.coords_s(s_val, grid.theta, phi_val, use_asym=use_asym)
+            x[ir, :, iz] = R_vmec * np.cos(phi_val) * 100.0
+            y[ir, :, iz] = R_vmec * np.sin(phi_val) * 100.0
+            z[ir, :, iz] = Z_vmec * 100.0
+
+    write_chartmap_netcdf(
+        out,
+        grid=grid,
+        x_rtz=x,
+        y_rtz=y,
+        z_rtz=z,
+        zeta_convention="cyl",
+        rho_convention="vmec",
+    )
+
+
 def write_chartmap_from_vmec_boundary(
     wout_path: str | Path,
     out_path: str | Path,
@@ -726,6 +801,202 @@ def write_chartmap_from_vmec_and_stl(
         num_field_periods=nfp,
         use_asym=use_asym,
     )
+
+
+def chartmap_to_rz(
+    chartmap_path: str | Path,
+    rho: float | np.ndarray,
+    theta: float | np.ndarray,
+    zeta: float | np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Interpolate (R, Z) from a chartmap NetCDF at given (rho, theta, zeta).
+
+    Uses trilinear interpolation on the chartmap grid. Handles periodic boundary
+    conditions in theta and zeta.
+
+    Parameters
+    ----------
+    chartmap_path : path to chartmap NetCDF file
+    rho : radial coordinate(s) in [0, 1]
+    theta : poloidal angle(s) in radians
+    zeta : toroidal angle(s) in radians (cylindrical convention)
+
+    Returns
+    -------
+    R : major radius coordinate(s) in meters
+    Z : vertical coordinate(s) in meters
+    """
+    from netCDF4 import Dataset
+
+    path = _as_path(chartmap_path)
+    rho = np.atleast_1d(np.asarray(rho, dtype=float)).flatten()
+    theta = np.atleast_1d(np.asarray(theta, dtype=float)).flatten()
+    zeta = np.atleast_1d(np.asarray(zeta, dtype=float)).flatten()
+
+    if not (rho.shape == theta.shape == zeta.shape):
+        raise ValueError("rho, theta, zeta must have the same shape")
+
+    with Dataset(path, "r") as ds:
+        rho_grid = np.array(ds.variables["rho"][:], dtype=float)
+        theta_grid = np.array(ds.variables["theta"][:], dtype=float)
+        zeta_grid = np.array(ds.variables["zeta"][:], dtype=float)
+        x = np.array(ds.variables["x"][:, :, :], dtype=float)
+        y = np.array(ds.variables["y"][:, :, :], dtype=float)
+        z = np.array(ds.variables["z"][:, :, :], dtype=float)
+        nfp = int(np.array(ds.variables["num_field_periods"][...]))
+        units = str(getattr(ds.variables["x"], "units", "cm")).strip().lower()
+
+    scale = 0.01 if units == "cm" else 1.0
+    r_grid = np.sqrt((x * scale) ** 2 + (y * scale) ** 2)
+    z_grid = z * scale
+
+    rho = np.clip(rho, float(rho_grid[0]), float(rho_grid[-1]))
+    theta = np.mod(theta, 2.0 * np.pi)
+    zeta_period = 2.0 * np.pi / float(nfp)
+    zeta = np.mod(zeta, zeta_period)
+
+    dr = float(rho_grid[1] - rho_grid[0])
+    dth = 2.0 * np.pi / float(theta_grid.size)
+    dz = zeta_period / float(zeta_grid.size)
+
+    ur = (rho - float(rho_grid[0])) / dr
+    ut = theta / dth
+    uz = zeta / dz
+
+    ir0 = np.floor(ur).astype(int)
+    it0 = np.floor(ut).astype(int) % theta_grid.size
+    iz0 = np.floor(uz).astype(int) % zeta_grid.size
+
+    ir0 = np.clip(ir0, 0, rho_grid.size - 2)
+    ir1 = ir0 + 1
+    it1 = (it0 + 1) % theta_grid.size
+    iz1 = (iz0 + 1) % zeta_grid.size
+
+    tr = ur - ir0.astype(float)
+    tt = ut - np.floor(ut)
+    tz = uz - np.floor(uz)
+
+    def tri(arr):
+        c000 = arr[iz0, it0, ir0]
+        c001 = arr[iz0, it0, ir1]
+        c010 = arr[iz0, it1, ir0]
+        c011 = arr[iz0, it1, ir1]
+        c100 = arr[iz1, it0, ir0]
+        c101 = arr[iz1, it0, ir1]
+        c110 = arr[iz1, it1, ir0]
+        c111 = arr[iz1, it1, ir1]
+        v00 = c000 * (1.0 - tr) + c001 * tr
+        v01 = c010 * (1.0 - tr) + c011 * tr
+        v10 = c100 * (1.0 - tr) + c101 * tr
+        v11 = c110 * (1.0 - tr) + c111 * tr
+        v0 = v00 * (1.0 - tt) + v01 * tt
+        v1 = v10 * (1.0 - tt) + v11 * tt
+        return v0 * (1.0 - tz) + v1 * tz
+
+    R = tri(r_grid)
+    Z = tri(z_grid)
+    return R, Z
+
+
+def vmec_to_chartmap_coords(
+    wout_path: str | Path,
+    chartmap_path: str | Path,
+    s: float | np.ndarray,
+    theta_vmec: float | np.ndarray,
+    zeta: float | np.ndarray,
+    *,
+    max_iter: int = 30,
+    tol_m: float = 1.0e-8,
+    use_asym: bool = True,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Convert VMEC coordinates to chartmap coordinates.
+
+    For each input (s, theta_vmec, zeta), finds the chartmap (rho, theta_cm)
+    that gives the same (R, Z) position at the same zeta.
+
+    Parameters
+    ----------
+    wout_path : path to VMEC wout NetCDF file
+    chartmap_path : path to chartmap NetCDF file
+    s : VMEC normalized toroidal flux coordinate(s) in [0, 1]
+    theta_vmec : VMEC poloidal angle(s) in radians
+    zeta : toroidal angle(s) in radians (same for VMEC and chartmap)
+    max_iter : maximum Newton iterations for inversion
+    tol_m : convergence tolerance in meters
+    use_asym : include VMEC asymmetric terms if available
+
+    Returns
+    -------
+    rho : chartmap radial coordinate(s)
+    theta_cm : chartmap poloidal angle(s) in radians
+    dist : final distance error(s) in meters
+    zeta : toroidal angle(s) (unchanged, returned for convenience)
+
+    Notes
+    -----
+    Uses Newton iteration to invert the chartmap coordinate transformation.
+    Initial guess: rho = sqrt(s), theta_cm = theta_vmec.
+    """
+    from .vmec import VMECGeometry
+
+    wout = _as_path(wout_path)
+    cm_path = _as_path(chartmap_path)
+
+    s = np.atleast_1d(np.asarray(s, dtype=float)).flatten()
+    theta_vmec = np.atleast_1d(np.asarray(theta_vmec, dtype=float)).flatten()
+    zeta = np.atleast_1d(np.asarray(zeta, dtype=float)).flatten()
+
+    if not (s.shape == theta_vmec.shape == zeta.shape):
+        raise ValueError("s, theta_vmec, zeta must have the same shape")
+
+    geom = VMECGeometry.from_file(str(wout))
+
+    R_target = np.zeros_like(s)
+    Z_target = np.zeros_like(s)
+    for i in range(s.size):
+        R_arr, Z_arr, _ = geom.coords_s(
+            float(s[i]), np.array([float(theta_vmec[i])]), float(zeta[i]),
+            use_asym=use_asym
+        )
+        R_target[i] = float(R_arr[0])
+        Z_target[i] = float(Z_arr[0])
+
+    rho = np.clip(np.sqrt(s), 0.0, 0.999)
+    theta = theta_vmec.copy() % (2.0 * np.pi)
+
+    for _ in range(max_iter):
+        R, Z = chartmap_to_rz(cm_path, rho, theta, zeta)
+        f1 = R - R_target
+        f2 = Z - Z_target
+        err = np.maximum(np.abs(f1), np.abs(f2))
+        if np.all(err < tol_m):
+            break
+
+        dr = 1.0e-4
+        dth = 1.0e-4
+        Rr, Zr = chartmap_to_rz(cm_path, np.clip(rho + dr, 0, 0.999), theta, zeta)
+        Rt, Zt = chartmap_to_rz(cm_path, rho, theta + dth, zeta)
+
+        dR_dr = (Rr - R) / dr
+        dZ_dr = (Zr - Z) / dr
+        dR_dth = (Rt - R) / dth
+        dZ_dth = (Zt - Z) / dth
+
+        det = dR_dr * dZ_dth - dR_dth * dZ_dr
+        det = np.where(np.abs(det) < 1e-16, 1e-16, det)
+
+        drho = (dZ_dth * f1 - dR_dth * f2) / det
+        dtheta = (-dZ_dr * f1 + dR_dr * f2) / det
+
+        rho = np.clip(rho - 0.5 * drho, 0.0, 0.999)
+        theta = (theta - 0.5 * dtheta) % (2.0 * np.pi)
+
+    R_final, Z_final = chartmap_to_rz(cm_path, rho, theta, zeta)
+    dist = np.sqrt((R_final - R_target) ** 2 + (Z_final - Z_target) ** 2)
+
+    return rho, theta, dist, zeta
 
 
 def write_chartmap_from_stl(
