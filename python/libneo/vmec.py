@@ -233,6 +233,77 @@ class VMECGeometry:
 
         return R, Z, dR_ds, dZ_ds
 
+    def coords_s_with_second_deriv(
+        self,
+        s: float,
+        theta: np.ndarray,
+        zeta: float,
+        use_asym: bool = True,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Evaluate (R, Z), first and second radial derivatives at surface s.
+
+        Returns: (R, Z, dR_ds, dZ_ds, d2R_ds2, d2Z_ds2) where each is array over theta.
+        """
+        s_val = float(s)
+        if not (0.0 <= s_val <= 1.0):
+            raise ValueError("s must be in [0, 1]")
+
+        R, Z, dR_ds, dZ_ds = self.coords_s_with_deriv(s_val, theta, zeta, use_asym)
+
+        s_grid = self._s_grid()
+        ns = self.ns
+
+        if ns < 4:
+            d2R_ds2 = np.zeros_like(R)
+            d2Z_ds2 = np.zeros_like(Z)
+            return R, Z, dR_ds, dZ_ds, d2R_ds2, d2Z_ds2
+
+        if s_val >= 1.0:
+            s0, s1, s2 = float(s_grid[-3]), float(s_grid[-2]), float(s_grid[-1])
+            _, _, dR0, dZ0 = self.coords_s_with_deriv(s0, theta, zeta, use_asym)
+            _, _, dR1, dZ1 = self.coords_s_with_deriv(s1, theta, zeta, use_asym)
+            _, _, dR2, dZ2 = self.coords_s_with_deriv(s2, theta, zeta, use_asym)
+            h1, h2 = s1 - s0, s2 - s1
+            d2R_ds2 = (h1**2 * dR2 - (h1**2 - h2**2) * dR1 - h2**2 * dR0) / (
+                h1 * h2 * (h1 + h2)
+            )
+            d2Z_ds2 = (h1**2 * dZ2 - (h1**2 - h2**2) * dZ1 - h2**2 * dZ0) / (
+                h1 * h2 * (h1 + h2)
+            )
+        elif s_val <= 0.0:
+            s0, s1, s2 = float(s_grid[0]), float(s_grid[1]), float(s_grid[2])
+            _, _, dR0, dZ0 = self.coords_s_with_deriv(s0, theta, zeta, use_asym)
+            _, _, dR1, dZ1 = self.coords_s_with_deriv(s1, theta, zeta, use_asym)
+            _, _, dR2, dZ2 = self.coords_s_with_deriv(s2, theta, zeta, use_asym)
+            h1, h2 = s1 - s0, s2 - s1
+            d2R_ds2 = (
+                -(h1 + h2) ** 2 * dR0
+                + (h1 + h2) ** 2 * dR1
+                - h1**2 * dR1
+                + h1**2 * dR2
+            ) / (h1 * h2 * (h1 + h2))
+            d2Z_ds2 = (
+                -(h1 + h2) ** 2 * dZ0
+                + (h1 + h2) ** 2 * dZ1
+                - h1**2 * dZ1
+                + h1**2 * dZ2
+            ) / (h1 * h2 * (h1 + h2))
+        else:
+            idx = int(np.searchsorted(s_grid, s_val, side="right"))
+            idx = max(1, min(ns - 2, idx))
+            s0, s1, s2 = float(s_grid[idx - 1]), float(s_grid[idx]), float(s_grid[idx + 1])
+            _, _, dR0, dZ0 = self.coords_s_with_deriv(s0, theta, zeta, use_asym)
+            _, _, dR1, dZ1 = self.coords_s_with_deriv(s1, theta, zeta, use_asym)
+            _, _, dR2, dZ2 = self.coords_s_with_deriv(s2, theta, zeta, use_asym)
+            w0 = (2.0 * s_val - s1 - s2) / ((s0 - s1) * (s0 - s2))
+            w1 = (2.0 * s_val - s0 - s2) / ((s1 - s0) * (s1 - s2))
+            w2 = (2.0 * s_val - s0 - s1) / ((s2 - s0) * (s2 - s1))
+            d2R_ds2 = w0 * dR0 + w1 * dR1 + w2 * dR2
+            d2Z_ds2 = w0 * dZ0 + w1 * dZ1 + w2 * dZ2
+
+        return R, Z, dR_ds, dZ_ds, d2R_ds2, d2Z_ds2
+
     def boundary_rz(
         self,
         s: float,

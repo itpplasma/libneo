@@ -243,22 +243,126 @@ def test_chartmap_vmec_to_wall_synthetic(tmp_path: Path) -> None:
     R_outer = R[0, :, -1]
     Z_outer = Z[0, :, -1]
     R_wall_expected, Z_wall_expected = wall_rz[0]
+    d2 = (R_outer[:, None] - R_wall_expected[None, :]) ** 2 + (
+        Z_outer[:, None] - Z_wall_expected[None, :]
+    ) ** 2
+    min_dist = np.sqrt(np.min(d2, axis=1))
+    max_dist = float(np.max(min_dist))
+    assert max_dist < 5.0e-3, f"outer boundary too far from wall (max dist {max_dist:.2e} m)"
 
-    from libneo.chartmap import _match_wall_to_lcfs_by_fraction
 
-    R_lcfs_check, Z_lcfs_check, _ = geom.coords_s(
-        1.0, theta_grid, float(wall_zeta[0]), use_asym=True
+@pytest.mark.network
+def test_chartmap_vmec_to_wall_poloidal_normal_matching(tmp_path: Path) -> None:
+    """Wall matching along LCFS poloidal-plane normal should preserve offsets."""
+    from netCDF4 import Dataset
+
+    from libneo.chartmap import write_chartmap_from_vmec_to_wall
+    from libneo.vmec import VMECGeometry
+
+    wout_url = (
+        "https://princetonuniversity.github.io/STELLOPT/examples/wout_ncsx_c09r00_fixed.nc"
     )
-    R_wall_matched, Z_wall_matched = _match_wall_to_lcfs_by_fraction(
-        R_lcfs_check, Z_lcfs_check, R_wall_expected, Z_wall_expected
+    wout = tmp_path / "wout_ncsx.nc"
+    _download(wout_url, wout)
+
+    geom = VMECGeometry.from_file(str(wout))
+
+    with Dataset(wout, "r") as ds:
+        nfp = int(np.array(ds.variables["nfp"][...]))
+
+    nrho = 33
+    ntheta = 65
+    nzeta = 5
+    rho_lcfs = 0.8
+    wall_offset = 0.15
+
+    period = 2.0 * np.pi / nfp
+    wall_zeta = np.linspace(0.0, period, nzeta, endpoint=False, dtype=float)
+
+    wall_rz = []
+    theta_wall = np.linspace(0.0, 2.0 * np.pi, 1024, endpoint=False, dtype=float)
+    dtheta_wall = float(theta_wall[1] - theta_wall[0])
+
+    for zeta in wall_zeta:
+        R_lcfs, Z_lcfs, dR_ds, dZ_ds = geom.coords_s_with_deriv(
+            1.0, theta_wall, float(zeta), use_asym=True
+        )
+
+        dR_dth = (np.roll(R_lcfs, -1) - np.roll(R_lcfs, 1)) / (2.0 * dtheta_wall)
+        dZ_dth = (np.roll(Z_lcfs, -1) - np.roll(Z_lcfs, 1)) / (2.0 * dtheta_wall)
+
+        nR = dZ_dth
+        nZ = -dR_dth
+
+        nmag = np.sqrt(nR**2 + nZ**2)
+        nmag = np.where(nmag == 0.0, 1.0, nmag)
+        nR = nR / nmag
+        nZ = nZ / nmag
+
+        outward_dot = nR * dR_ds + nZ * dZ_ds
+        flip = outward_dot < 0.0
+        nR = np.where(flip, -nR, nR)
+        nZ = np.where(flip, -nZ, nZ)
+
+        R_wall = R_lcfs + wall_offset * nR
+        Z_wall = Z_lcfs + wall_offset * nZ
+        wall_rz.append((R_wall, Z_wall))
+
+    chartmap = tmp_path / "chartmap_vmec_to_wall_normal.nc"
+    write_chartmap_from_vmec_to_wall(
+        wout,
+        chartmap,
+        wall_rz,
+        wall_zeta,
+        nrho=nrho,
+        ntheta=ntheta,
+        rho_lcfs=rho_lcfs,
+        num_field_periods=nfp,
+        wall_match="poloidal_normal",
     )
 
-    assert np.allclose(R_outer, R_wall_matched, rtol=0.0, atol=1.0e-5), (
-        "Outer boundary should match wall"
+    with Dataset(chartmap, "r") as ds:
+        rho_grid = np.array(ds.variables["rho"][:], dtype=float)
+        theta_grid = np.array(ds.variables["theta"][:], dtype=float)
+        zeta_grid = np.array(ds.variables["zeta"][:], dtype=float)
+        x = np.array(ds.variables["x"][:], dtype=float)
+        y = np.array(ds.variables["y"][:], dtype=float)
+        z = np.array(ds.variables["z"][:], dtype=float)
+        units = str(getattr(ds.variables["x"], "units", "cm")).strip().lower()
+        scale = 0.01 if units == "cm" else 1.0
+
+    R = np.sqrt((x * scale) ** 2 + (y * scale) ** 2)
+    Z = z * scale
+
+    ir_lcfs = int(np.searchsorted(rho_grid, rho_lcfs, side="right") - 1)
+    rho_lcfs_actual = float(rho_grid[ir_lcfs])
+
+    iz = 0
+    zeta0 = float(zeta_grid[iz])
+    R_lcfs_g, Z_lcfs_g, dR_ds_g, dZ_ds_g = geom.coords_s_with_deriv(
+        1.0, theta_grid, zeta0, use_asym=True
     )
-    assert np.allclose(Z_outer, Z_wall_matched, rtol=0.0, atol=1.0e-5), (
-        "Outer boundary should match wall"
-    )
+
+    dtheta = float(theta_grid[1] - theta_grid[0])
+    dR_dth = (np.roll(R_lcfs_g, -1) - np.roll(R_lcfs_g, 1)) / (2.0 * dtheta)
+    dZ_dth = (np.roll(Z_lcfs_g, -1) - np.roll(Z_lcfs_g, 1)) / (2.0 * dtheta)
+
+    nR = dZ_dth
+    nZ = -dR_dth
+    nmag = np.sqrt(nR**2 + nZ**2)
+    nmag = np.where(nmag == 0.0, 1.0, nmag)
+    nR = nR / nmag
+    nZ = nZ / nmag
+    outward_dot = nR * dR_ds_g + nZ * dZ_ds_g
+    flip = outward_dot < 0.0
+    nR = np.where(flip, -nR, nR)
+    nZ = np.where(flip, -nZ, nZ)
+
+    R_expected = R_lcfs_g + wall_offset * nR
+    Z_expected = Z_lcfs_g + wall_offset * nZ
+
+    assert np.allclose(R[iz, :, -1], R_expected, rtol=0.0, atol=5.0e-4)
+    assert np.allclose(Z[iz, :, -1], Z_expected, rtol=0.0, atol=5.0e-4)
 
     _plot_vmec_to_wall_grid(
         chartmap,
