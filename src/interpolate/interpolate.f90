@@ -3,6 +3,7 @@ module interpolate
     use spl_three_to_five_sub, only: spl_per, spl_reg
     use batch_interpolate, only: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
     use batch_interpolate, only: construct_batch_splines_1d, &
+                                 construct_batch_splines_1d_lsq, &
                                  construct_batch_splines_2d, &
                                  construct_batch_splines_3d, &
                                  construct_batch_splines_1d_resident, &
@@ -41,7 +42,8 @@ module interpolate
 
     ! Re-export batch interpolate types and procedures
     public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
-    public :: construct_batch_splines_1d, construct_batch_splines_2d, &
+    public :: construct_batch_splines_1d, construct_batch_splines_1d_lsq, &
+              construct_batch_splines_2d, &
               construct_batch_splines_3d
     public :: construct_batch_splines_1d_resident, construct_batch_splines_2d_resident
     public :: construct_batch_splines_1d_resident_device
