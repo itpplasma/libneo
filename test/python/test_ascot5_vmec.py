@@ -21,7 +21,9 @@ STELLOPT_WOUT_URL = (
 
 def _store_artifacts(*paths: Path) -> None:
     target_env = os.environ.get("PYTEST_ARTIFACTS")
-    target = Path(target_env) if target_env else Path("pytest_artifacts")
+    if not target_env:
+        return
+    target = Path(target_env)
     os.makedirs(target, exist_ok=True)
     for path in paths:
         shutil.copy(path, Path(target) / path.name)
@@ -29,6 +31,9 @@ def _store_artifacts(*paths: Path) -> None:
 
 @pytest.mark.network
 def test_field_from_vmec_generates_b3ds(tmp_path):
+    if os.environ.get("LIBNEO_TEST_NETWORK") != "1":
+        pytest.skip("network test; set LIBNEO_TEST_NETWORK=1 to enable")
+
     with tempfile.TemporaryDirectory() as td:
         wout_path = os.path.join(td, "wout.nc")
         with urlopen(STELLOPT_WOUT_URL, timeout=30) as resp, open(wout_path, "wb") as f:
@@ -66,14 +71,7 @@ def test_field_from_vmec_generates_b3ds(tmp_path):
         ).T
         * GAUSS_TO_TESLA
     )
-    fig, ax = plt.subplots(figsize=(4, 4))
-    im = ax.pcolormesh(field.r_grid, field.z_grid, bmag, shading="auto")
-    ax.set_xlabel("R [m]")
-    ax.set_ylabel("Z [m]")
-    fig.colorbar(im, ax=ax, label="|B| [T]")
     png_path = tmp_path / "vmec_bfield.png"
-    fig.savefig(png_path)
-    plt.show()
-    plt.close(fig)
+    plt.imsave(png_path, bmag, cmap="viridis", origin="lower")
     assert png_path.exists()
     _store_artifacts(output, png_path)

@@ -74,13 +74,7 @@ def test_field_from_mgrid(tmp_path):
         ).T
         * GAUSS_TO_TESLA
     )
-    fig, ax = plt.subplots(figsize=(4, 4))
-    im = ax.pcolormesh(field.r_grid, field.z_grid, bmag, shading="auto")
-    ax.set_xlabel("R [m]")
-    ax.set_ylabel("Z [m]")
-    fig.colorbar(im, ax=ax, label="|B| [T]")
     png_path = tmp_path / "mgrid_bfield.png"
-    fig.savefig(png_path)
-    plt.close(fig)
+    plt.imsave(png_path, bmag, cmap="viridis", origin="lower")
     assert png_path.exists()
     _store_artifacts(output, png_path)
