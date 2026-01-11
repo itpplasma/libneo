@@ -322,12 +322,29 @@ def extract_boundary_slices(
     axis_xy: tuple[float, float] | None = None,
     stitch_tol: float = 1.0e-6,
     phi_vals: np.ndarray | None = None,
+    stl_units: str | None = None,
+    stl_scale: float = 1.0,
 ) -> list[BoundarySlice]:
     import trimesh
 
     mesh = trimesh.load_mesh(stl_path, process=False)
     if not isinstance(mesh, trimesh.Trimesh):
         raise TypeError("expected a single STL mesh")
+
+    if stl_units is not None:
+        if stl_scale != 1.0:
+            raise ValueError("provide only one of stl_units or stl_scale")
+        u = str(stl_units).strip().lower()
+        if u == "m":
+            stl_scale = 1.0
+        elif u == "mm":
+            stl_scale = 1.0e-3
+        else:
+            raise ValueError("stl_units must be 'm' or 'mm'")
+
+    if stl_scale != 1.0:
+        mesh = mesh.copy()
+        mesh.apply_scale(float(stl_scale))
 
     if axis_xy is None:
         axis_xy = (float(np.mean(mesh.vertices[:, 0])), float(np.mean(mesh.vertices[:, 1])))
@@ -610,6 +627,7 @@ def plot_mesh_3d(
     stl_path: Path,
     out_path: Path,
     *,
+    stl_scale: float = 1.0,
     max_faces: int | None = 8000,
     face_alpha: float = 0.85,
     edge_alpha: float = 1.0,
@@ -626,6 +644,10 @@ def plot_mesh_3d(
     mesh = trimesh.load_mesh(stl_path, process=False)
     if not isinstance(mesh, trimesh.Trimesh):
         raise TypeError("expected a single STL mesh")
+
+    if stl_scale != 1.0:
+        mesh = mesh.copy()
+        mesh.apply_scale(float(stl_scale))
 
     faces = mesh.faces
     if max_faces is not None and faces.shape[0] > max_faces:
@@ -678,6 +700,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("stl", type=Path)
     p.add_argument("--n-phi", type=int, default=32)
     p.add_argument("--n-boundary-points", type=int, default=512)
+    p.add_argument("--stl-units", choices=["m", "mm"], default=None)
+    p.add_argument("--stl-scale", type=float, default=1.0)
     p.add_argument("--axis-x", type=float)
     p.add_argument("--axis-y", type=float)
     p.add_argument("--output", type=Path, required=True)
@@ -733,6 +757,8 @@ def main(argv: list[str] | None = None) -> int:
         n_phi=args.n_phi,
         n_boundary_points=args.n_boundary_points,
         axis_xy=axis_xy,
+        stl_units=None if args.stl_units is None else str(args.stl_units),
+        stl_scale=float(args.stl_scale),
     )
     write_boundaries_netcdf(slices, args.output)
 
@@ -752,6 +778,7 @@ def main(argv: list[str] | None = None) -> int:
             edge_width=float(args.plot_3d_edge_width),
             padding=float(args.plot_3d_padding),
             camera_dist=None if cam <= 0.0 else cam,
+            stl_scale=float(args.stl_scale),
         )
     if args.plot_summary is not None:
         plot_rz_slices(slices, args.plot_summary)
