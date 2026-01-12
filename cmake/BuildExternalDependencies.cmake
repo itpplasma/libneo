@@ -250,7 +250,7 @@ function(build_fftw)
 endfunction()
 
 #------------------------------------------------------------------------------
-# Build all dependencies in order
+# Build all dependencies in order (only those that are needed)
 #------------------------------------------------------------------------------
 function(build_all_external_dependencies)
     message(STATUS "")
@@ -258,10 +258,16 @@ function(build_all_external_dependencies)
     message(STATUS "Installation prefix: ${DEPS_PREFIX}")
     message(STATUS "")
 
-    build_hdf5()
-    build_netcdf_c()
-    build_netcdf_fortran()
-    build_fftw()
+    if(NEED_BUILD_HDF5)
+        build_hdf5()
+    endif()
+    if(NEED_BUILD_NETCDF)
+        build_netcdf_c()
+        build_netcdf_fortran()
+    endif()
+    if(NEED_BUILD_FFTW)
+        build_fftw()
+    endif()
 
     message(STATUS "")
     message(STATUS "=== External Dependencies Configured ===")
