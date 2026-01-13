@@ -264,6 +264,16 @@ if(LIBNEO_TESTING_ENABLED)
             --basename geoflux
   )
   set_tests_properties(test_geoflux_plot PROPERTIES DEPENDS test_geoflux)
+
+  add_test(
+    NAME test_geoflux_coordinate_system
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/run_geoflux_test.py
+            --exe $<TARGET_FILE:test_geoflux_coordinate_system.x>
+            --data-dir ${TEST_OUTPUT_DIR}/scripts
+  )
+  set_tests_properties(test_geoflux_coordinate_system PROPERTIES
+    FAIL_REGULAR_EXPRESSION "STOP"
+    DEPENDS test_geoflux)
 endif()
 
 ## Custom tests
@@ -443,6 +453,18 @@ set_tests_properties(test_vmec_from_cyl PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
+
+add_executable(test_vector_conversion.x source/test_vector_conversion.f90)
+target_link_libraries(test_vector_conversion.x neo ${MAGFIE_LIB})
+add_test(NAME test_vector_conversion
+  COMMAND test_vector_conversion.x)
+set_tests_properties(test_vector_conversion PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_chartmap_volume)
+
+add_executable(test_geoflux_coordinate_system.x source/test_geoflux_coordinate_system.f90)
+target_link_libraries(test_geoflux_coordinate_system.x neo ${MAGFIE_LIB})
 
 add_executable(test_chartmap_matches_vmec.x source/test_chartmap_matches_vmec.f90)
 target_link_libraries(test_chartmap_matches_vmec.x neo)
