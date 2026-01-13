@@ -45,6 +45,7 @@ function(build_hdf5)
         SOURCE_DIR ${DEPS_SOURCE_DIR}/hdf5
         BINARY_DIR ${DEPS_BUILD_DIR}/hdf5
         INSTALL_DIR ${DEPS_PREFIX}
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         CMAKE_ARGS
             ${COMMON_CMAKE_ARGS}
             -DHDF5_BUILD_FORTRAN=ON
@@ -68,12 +69,25 @@ function(build_hdf5)
 
     # Create imported targets that the main build can use
     # HDF5 creates separate C stub libraries for Fortran bindings
-    add_library(hdf5::hdf5 STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_hl STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_f90cstub STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_hl_f90cstub STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_fortran STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_hl_fortran STATIC IMPORTED GLOBAL)
+    # Use if(NOT TARGET) guards in case find_package already created these targets
+    if(NOT TARGET hdf5::hdf5)
+        add_library(hdf5::hdf5 STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_hl)
+        add_library(hdf5::hdf5_hl STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_f90cstub)
+        add_library(hdf5::hdf5_f90cstub STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_hl_f90cstub)
+        add_library(hdf5::hdf5_hl_f90cstub STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_fortran)
+        add_library(hdf5::hdf5_fortran STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_hl_fortran)
+        add_library(hdf5::hdf5_hl_fortran STATIC IMPORTED GLOBAL)
+    endif()
 
     # For static linking, specify all dependencies explicitly to ensure correct link order
     set_target_properties(hdf5::hdf5 PROPERTIES
@@ -218,6 +232,7 @@ function(build_fftw)
         SOURCE_DIR ${DEPS_SOURCE_DIR}/fftw
         BINARY_DIR ${DEPS_BUILD_DIR}/fftw
         INSTALL_DIR ${DEPS_PREFIX}
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         CMAKE_ARGS
             ${COMMON_CMAKE_ARGS}
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
