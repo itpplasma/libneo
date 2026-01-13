@@ -14,7 +14,7 @@ end type coils_t
 contains
 
 
-subroutine coils_init(x, y, z, current, coils)
+recursive subroutine coils_init(x, y, z, current, coils)
     real(dp), intent(in) :: x(:), y(:), z(:), current(:)
     type(coils_t), intent(out) :: coils
 
@@ -30,14 +30,14 @@ subroutine coils_init(x, y, z, current, coils)
 end subroutine coils_init
 
 
-subroutine coils_deinit(coils)
+recursive subroutine coils_deinit(coils)
     type(coils_t), intent(inout) :: coils
 
     call deallocate_coils_data(coils)
 end subroutine coils_deinit
 
 
-subroutine load_coils_from_file(filename, coils)
+recursive subroutine load_coils_from_file(filename, coils)
     character(*), intent(in) :: filename
     type(coils_t), intent(out) :: coils
 
@@ -54,7 +54,7 @@ subroutine load_coils_from_file(filename, coils)
 end subroutine load_coils_from_file
 
 
-subroutine save_coils_to_file(filename, coils)
+recursive subroutine save_coils_to_file(filename, coils)
     character(*), intent(in) :: filename
     type(coils_t), intent(in) :: coils
 
@@ -71,7 +71,7 @@ subroutine save_coils_to_file(filename, coils)
 end subroutine save_coils_to_file
 
 
-subroutine allocate_coils_data(coils, n_points)
+recursive subroutine allocate_coils_data(coils, n_points)
     type(coils_t), intent(out) :: coils
     integer, intent(in) :: n_points
 
@@ -80,7 +80,7 @@ subroutine allocate_coils_data(coils, n_points)
 end subroutine allocate_coils_data
 
 
-subroutine deallocate_coils_data(coils)
+recursive subroutine deallocate_coils_data(coils)
     type(coils_t), intent(inout) :: coils
 
     deallocate(coils%x, coils%y, coils%z, coils%current)
@@ -88,7 +88,7 @@ end subroutine deallocate_coils_data
 
 
 !> Formula of Hanson and Hirshman (2002)
-function compute_vector_potential(coils, x) result(A)
+recursive function compute_vector_potential(coils, x) result(A)
     type(coils_t), intent(in) :: coils
     real(dp), intent(in) :: x(3)
 
@@ -110,7 +110,7 @@ function compute_vector_potential(coils, x) result(A)
 end function compute_vector_potential
 
 
-function compute_magnetic_field(coils, x) result(B)
+recursive function compute_magnetic_field(coils, x) result(B)
     type(coils_t), intent(in) :: coils
     real(dp), intent(in) :: x(3)
 
@@ -134,7 +134,7 @@ function compute_magnetic_field(coils, x) result(B)
 end function compute_magnetic_field
 
 
-function get_segment_vector(coils, i) result(dl)
+recursive function get_segment_vector(coils, i) result(dl)
     type(coils_t), intent(in) :: coils
     integer, intent(in) :: i
 
@@ -146,7 +146,7 @@ function get_segment_vector(coils, i) result(dl)
 end function get_segment_vector
 
 
-function get_vector_from_segment_start_to_x(coils, i, x) result(dx_i)
+recursive function get_vector_from_segment_start_to_x(coils, i, x) result(dx_i)
     type(coils_t), intent(in) :: coils
     integer, intent(in) :: i
     real(dp), intent(in) :: x(3)
@@ -159,7 +159,7 @@ function get_vector_from_segment_start_to_x(coils, i, x) result(dx_i)
 end function get_vector_from_segment_start_to_x
 
 
-function get_vector_from_segment_end_to_x(coils, i, x) result(dx_f)
+recursive function get_vector_from_segment_end_to_x(coils, i, x) result(dx_f)
     type(coils_t), intent(in) :: coils
     integer, intent(in) :: i
     real(dp), intent(in) :: x(3)
@@ -172,7 +172,7 @@ function get_vector_from_segment_end_to_x(coils, i, x) result(dx_f)
 end function get_vector_from_segment_end_to_x
 
 
-function calc_norm(v) result(norm)
+recursive function calc_norm(v) result(norm)
     real(dp), intent(in) :: v(3)
     real(dp) :: norm
 
@@ -180,7 +180,7 @@ function calc_norm(v) result(norm)
 end function calc_norm
 
 
-function cross_product(a, b) result(c)
+recursive function cross_product(a, b) result(c)
     real(dp), intent(in) :: a(3), b(3)
     real(dp) :: c(3)
 

@@ -33,7 +33,7 @@ module batch_interpolate_2d
 
 contains
 
-   subroutine construct_batch_splines_2d(x_min, x_max, y_batch, order, periodic, spl)
+   recursive subroutine construct_batch_splines_2d(x_min, x_max, y_batch, order, periodic, spl)
       real(dp), intent(in) :: x_min(:), x_max(:)
       real(dp), intent(in) :: y_batch(:, :, :)  ! (n1, n2, n_quantities)
       integer, intent(in) :: order(:)
@@ -51,7 +51,7 @@ contains
 #endif
    end subroutine construct_batch_splines_2d
 
-   subroutine construct_batch_splines_2d_legacy(x_min, x_max, y_batch, order, periodic, spl)
+   recursive subroutine construct_batch_splines_2d_legacy(x_min, x_max, y_batch, order, periodic, spl)
       real(dp), intent(in) :: x_min(:), x_max(:)
       real(dp), intent(in) :: y_batch(:, :, :)  ! (n1, n2, n_quantities)
       integer, intent(in) :: order(:)
@@ -160,7 +160,7 @@ contains
 	      call construct_batch_splines_2d_legacy(x_min, x_max, y_batch, order, periodic, spl)
 	   end subroutine construct_batch_splines_2d_lines
 
-   subroutine construct_batch_splines_2d_resident(x_min, x_max, y_batch, order, &
+   recursive subroutine construct_batch_splines_2d_resident(x_min, x_max, y_batch, order, &
                                                   periodic, spl)
       real(dp), intent(in) :: x_min(:), x_max(:)
       real(dp), intent(in) :: y_batch(:, :, :)  ! (n1, n2, n_quantities)
@@ -171,7 +171,7 @@ contains
       call construct_batch_splines_2d(x_min, x_max, y_batch, order, periodic, spl)
    end subroutine construct_batch_splines_2d_resident
 
-   subroutine construct_batch_splines_2d_resident_device(x_min, x_max, y_batch, &
+   recursive subroutine construct_batch_splines_2d_resident_device(x_min, x_max, y_batch, &
                                                          order, periodic, spl, &
                                                          update_host, &
                                                          assume_y_present)
@@ -206,7 +206,7 @@ contains
 #endif
    end subroutine construct_batch_splines_2d_resident_device
 
-   subroutine construct_batch_splines_2d_resident_device_impl(x_min, x_max, n1, n2, &
+   recursive subroutine construct_batch_splines_2d_resident_device_impl(x_min, x_max, n1, n2, &
                                                               n_quantities, y_batch, &
                                                               order, periodic, spl, &
                                                               do_update, &
@@ -425,7 +425,7 @@ contains
       end if
    end subroutine construct_batch_splines_2d_resident_device_impl
 
-   subroutine destroy_batch_splines_2d(spl)
+   recursive subroutine destroy_batch_splines_2d(spl)
       type(BatchSplineData2D), intent(inout) :: spl
 
 #ifdef _OPENACC
@@ -438,7 +438,7 @@ contains
       if (allocated(spl%coeff)) deallocate (spl%coeff)
    end subroutine destroy_batch_splines_2d
 
-   subroutine evaluate_batch_splines_2d(spl, x, y_batch)
+   recursive subroutine evaluate_batch_splines_2d(spl, x, y_batch)
       type(BatchSplineData2D), intent(in) :: spl
       real(dp), intent(in) :: x(2)
       real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
@@ -451,7 +451,7 @@ contains
       y_batch(1:spl%num_quantities) = y_arr(:, 1)
    end subroutine evaluate_batch_splines_2d
 
-   subroutine evaluate_batch_splines_2d_many(spl, x, y_batch)
+   recursive subroutine evaluate_batch_splines_2d_many(spl, x, y_batch)
       type(BatchSplineData2D), intent(in) :: spl
       real(dp), intent(in) :: x(:, :)
       real(dp), intent(out) :: y_batch(:, :)  ! (n_quantities, n_points)
@@ -498,7 +498,7 @@ contains
       end do
    end subroutine evaluate_batch_splines_2d_many
 
-   subroutine evaluate_batch_splines_2d_many_resident(spl, x, y_batch)
+   recursive subroutine evaluate_batch_splines_2d_many_resident(spl, x, y_batch)
       type(BatchSplineData2D), intent(in) :: spl
       real(dp), intent(in) :: x(:, :)
       real(dp), intent(inout) :: y_batch(:, :)
@@ -540,7 +540,7 @@ contains
       !$acc end parallel loop
    end subroutine evaluate_batch_splines_2d_many_resident
 
-   subroutine evaluate_batch_splines_2d_many_der(spl, x, y_batch, dy_batch)
+   recursive subroutine evaluate_batch_splines_2d_many_der(spl, x, y_batch, dy_batch)
       type(BatchSplineData2D), intent(in) :: spl
       real(dp), intent(in) :: x(:, :)           ! (2, npts)
       real(dp), intent(out) :: y_batch(:, :)    ! (nq, npts)
@@ -620,7 +620,7 @@ contains
       deallocate (coeff_2, coeff_2_dx1)
    end subroutine evaluate_batch_splines_2d_many_der
 
-   subroutine evaluate_batch_splines_2d_der(spl, x, y_batch, dy_batch)
+   recursive subroutine evaluate_batch_splines_2d_der(spl, x, y_batch, dy_batch)
       type(BatchSplineData2D), intent(in) :: spl
       real(dp), intent(in) :: x(2)
       real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
