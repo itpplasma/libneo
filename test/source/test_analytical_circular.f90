@@ -30,6 +30,7 @@ program test_analytical_circular
     call test_shafranov_shift_circular()
     call test_divergence_free_circular()
     call test_divergence_free_shaped()
+    call test_field_t_interface()
 
     call generate_flux_csv(output_dir, "circular")
     call generate_flux_csv(output_dir, "shaped")
@@ -389,6 +390,58 @@ contains
         call eq%cleanup()
         print *, ""
     end subroutine test_divergence_free_shaped
+
+    subroutine test_field_t_interface()
+        !> Test field_t interface (for Poincare compatibility)
+        use neo_field_base, only: field_t
+        type(analytical_circular_eq_t), target :: eq
+        class(field_t), pointer :: field_ptr
+        real(dp) :: R0, epsilon, A_param, B0
+        real(dp) :: x(3), B(3), B_ref(3)
+        real(dp) :: R, phi, Z
+        real(dp) :: B_R, B_Z, B_phi, B_mod
+        real(dp) :: tol
+
+        print *, "Testing field_t interface (Poincare compatibility)..."
+
+        ! Initialize equilibrium
+        R0 = 6.2_dp
+        epsilon = 0.32_dp
+        A_param = -0.142_dp
+        B0 = 5.3_dp
+
+        call eq%init(R0, epsilon, kappa_in=1.0_dp, delta_in=0.0_dp, A_in=A_param, B0_in=B0)
+
+        ! Point to test as field_t
+        field_ptr => eq
+
+        ! Test point in plasma
+        R = R0
+        phi = 0.0_dp
+        Z = 0.0_dp
+
+        ! Compute via field_t interface
+        x(1) = R
+        x(2) = phi
+        x(3) = Z
+        call field_ptr%compute_bfield(x, B)
+
+        ! Compute via original interface for reference
+        call eq%eval_bfield_ripple(R, phi, Z, B_R, B_Z, B_phi, B_mod)
+        B_ref(1) = B_R
+        B_ref(2) = B_phi
+        B_ref(3) = B_Z
+
+        ! Verify they match
+        tol = 1.0e-12_dp
+        call assert_close(B(1), B_ref(1), tol, "field_t: B_R matches")
+        call assert_close(B(2), B_ref(2), tol, "field_t: B_phi matches")
+        call assert_close(B(3), B_ref(3), tol, "field_t: B_Z matches")
+
+        call eq%cleanup()
+        nullify(field_ptr)
+        print *, ""
+    end subroutine test_field_t_interface
 
     subroutine generate_flux_csv(output_dir, case_type)
         character(len=*), intent(in) :: output_dir, case_type
