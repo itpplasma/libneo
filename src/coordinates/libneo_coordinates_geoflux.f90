@@ -1,8 +1,13 @@
-submodule (libneo_coordinates) libneo_coordinates_geoflux
+module libneo_coordinates_geoflux
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use libneo_coordinates_base, only: coordinate_system_t
     use geoflux_coordinates, only: geoflux_to_cyl, assign_geoflux_to_cyl_jacobian, &
                                    cyl_to_geoflux
     use cylindrical_cartesian, only: cyl_to_cart
     implicit none
+    private
+
+    public :: geoflux_coordinate_system_t, make_geoflux_coordinate_system
 
     type, extends(coordinate_system_t) :: geoflux_coordinate_system_t
     contains
@@ -15,7 +20,7 @@ submodule (libneo_coordinates) libneo_coordinates_geoflux
 
 contains
 
-    module subroutine make_geoflux_coordinate_system(cs)
+    subroutine make_geoflux_coordinate_system(cs)
         class(coordinate_system_t), allocatable, intent(out) :: cs
         allocate(geoflux_coordinate_system_t :: cs)
     end subroutine make_geoflux_coordinate_system
@@ -24,6 +29,9 @@ contains
         class(geoflux_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: x(3)
+
+        associate(dummy => self)
+        end associate
 
         call geoflux_to_cyl(u, x)
     end subroutine geoflux_evaluate_cyl
@@ -42,13 +50,16 @@ contains
     subroutine geoflux_covariant_basis(self, u, e_cov)
         class(geoflux_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
-        real(dp), intent(out) :: e_cov(3,3)
+        real(dp), intent(out) :: e_cov(3, 3)
 
         real(dp) :: s, theta, phi
         real(dp) :: R, Z
-        real(dp) :: jac_cyl(3,3)
+        real(dp) :: jac_cyl(3, 3)
         real(dp) :: cos_phi, sin_phi
         real(dp) :: xgeo(3), xcyl(3)
+
+        associate(dummy => self)
+        end associate
 
         s = u(1)
         theta = u(2)
@@ -64,25 +75,25 @@ contains
         cos_phi = cos(phi)
         sin_phi = sin(phi)
 
-        e_cov(1, 1) = jac_cyl(1,1) * cos_phi
-        e_cov(2, 1) = jac_cyl(1,1) * sin_phi
-        e_cov(3, 1) = jac_cyl(3,1)
+        e_cov(1, 1) = jac_cyl(1, 1)*cos_phi
+        e_cov(2, 1) = jac_cyl(1, 1)*sin_phi
+        e_cov(3, 1) = jac_cyl(3, 1)
 
-        e_cov(1, 2) = jac_cyl(1,2) * cos_phi
-        e_cov(2, 2) = jac_cyl(1,2) * sin_phi
-        e_cov(3, 2) = jac_cyl(3,2)
+        e_cov(1, 2) = jac_cyl(1, 2)*cos_phi
+        e_cov(2, 2) = jac_cyl(1, 2)*sin_phi
+        e_cov(3, 2) = jac_cyl(3, 2)
 
-        e_cov(1, 3) = jac_cyl(1,3) * cos_phi - R * sin_phi
-        e_cov(2, 3) = jac_cyl(1,3) * sin_phi + R * cos_phi
-        e_cov(3, 3) = jac_cyl(3,3)
+        e_cov(1, 3) = jac_cyl(1, 3)*cos_phi - R*sin_phi
+        e_cov(2, 3) = jac_cyl(1, 3)*sin_phi + R*cos_phi
+        e_cov(3, 3) = jac_cyl(3, 3)
     end subroutine geoflux_covariant_basis
 
     subroutine geoflux_metric_tensor(self, u, g, ginv, sqrtg)
         class(geoflux_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
-        real(dp), intent(out) :: g(3,3), ginv(3,3), sqrtg
+        real(dp), intent(out) :: g(3, 3), ginv(3, 3), sqrtg
 
-        real(dp) :: e_cov(3,3)
+        real(dp) :: e_cov(3, 3)
         real(dp) :: det
         integer :: i, j
 
@@ -117,11 +128,11 @@ contains
         real(dp), intent(out) :: u(3)
         integer, intent(out) :: ierr
 
-        associate(unused => self)
+        associate(dummy => self)
         end associate
 
         call cyl_to_geoflux(xcyl, u)
         ierr = 0
     end subroutine geoflux_from_cyl
 
-end submodule libneo_coordinates_geoflux
+end module libneo_coordinates_geoflux
