@@ -1,5 +1,6 @@
 submodule (libneo_coordinates) libneo_coordinates_geoflux
-    use geoflux_coordinates, only: geoflux_to_cyl, assign_geoflux_to_cyl_jacobian
+    use geoflux_coordinates, only: geoflux_to_cyl, assign_geoflux_to_cyl_jacobian, &
+                                   cyl_to_geoflux
     use cylindrical_cartesian, only: cyl_to_cart
     implicit none
 
@@ -116,7 +117,11 @@ contains
         real(dp), intent(out) :: u(3)
         integer, intent(out) :: ierr
 
-        error stop "geoflux_from_cyl: not implemented"
+        associate(unused => self)
+        end associate
+
+        call cyl_to_geoflux(xcyl, u)
+        ierr = 0
     end subroutine geoflux_from_cyl
 
 end submodule libneo_coordinates_geoflux
