@@ -588,13 +588,16 @@ contains
                                   x_local*y_batch(iq, ipt)
             end do
          end do
-      end do
-   end subroutine evaluate_batch_splines_1d_many_der
+	   end do
+	   end subroutine evaluate_batch_splines_1d_many_der
 
-   subroutine evaluate_batch_splines_1d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
-      type(BatchSplineData1D), intent(in) :: spl
-      real(dp), intent(in) :: x(:)
-      real(dp), intent(out) :: y_batch(:, :), dy_batch(:, :), d2y_batch(:, :)
+	   subroutine evaluate_batch_splines_1d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
+#ifdef _OPENACC
+	      !$acc routine seq
+#endif
+	      type(BatchSplineData1D), intent(in) :: spl
+	      real(dp), intent(in) :: x(:)
+	      real(dp), intent(out) :: y_batch(:, :), dy_batch(:, :), d2y_batch(:, :)
 
       integer :: ipt, iq, k, idx, npts, nq, N
       real(dp) :: xj, x_norm, x_local, x_min, h_step, period
@@ -642,14 +645,17 @@ contains
                                   x_local*y_batch(iq, ipt)
             end do
          end do
-      end do
-   end subroutine evaluate_batch_splines_1d_many_der2
+	      end do
+	   end subroutine evaluate_batch_splines_1d_many_der2
 
-   subroutine evaluate_batch_splines_1d_many_der3(spl, x, y_batch, dy_batch, d2y_batch, &
-                                                  d3y_batch)
-      type(BatchSplineData1D), intent(in) :: spl
-      real(dp), intent(in) :: x(:)
-      real(dp), intent(out) :: y_batch(:, :), dy_batch(:, :), d2y_batch(:, :), d3y_batch(:, :)
+	   subroutine evaluate_batch_splines_1d_many_der3(spl, x, y_batch, dy_batch, d2y_batch, &
+	                                                  d3y_batch)
+#ifdef _OPENACC
+	      !$acc routine seq
+#endif
+	      type(BatchSplineData1D), intent(in) :: spl
+	      real(dp), intent(in) :: x(:)
+	      real(dp), intent(out) :: y_batch(:, :), dy_batch(:, :), d2y_batch(:, :), d3y_batch(:, :)
 
       integer :: ipt, iq, k, idx, npts, nq, N
       real(dp) :: xj, x_norm, x_local, x_min, h_step, period
@@ -705,8 +711,8 @@ contains
                                   x_local*y_batch(iq, ipt)
             end do
          end do
-      end do
-   end subroutine evaluate_batch_splines_1d_many_der3
+	      end do
+	   end subroutine evaluate_batch_splines_1d_many_der3
 
    subroutine evaluate_batch_splines_1d_der(spl, x, y_batch, dy_batch)
       type(BatchSplineData1D), intent(in) :: spl
@@ -721,12 +727,15 @@ contains
       call evaluate_batch_splines_1d_many_der(spl, x_arr, y_arr, dy_arr)
       y_batch(1:spl%num_quantities) = y_arr(:, 1)
       dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
-   end subroutine evaluate_batch_splines_1d_der
+	   end subroutine evaluate_batch_splines_1d_der
 
-   subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
-      type(BatchSplineData1D), intent(in) :: spl
-      real(dp), intent(in) :: x
-      real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:)
+	   subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
+#ifdef _OPENACC
+	      !$acc routine seq
+#endif
+	      type(BatchSplineData1D), intent(in) :: spl
+	      real(dp), intent(in) :: x
+	      real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:)
 
       integer :: iq, k, idx, nq, N
       real(dp) :: xj, x_norm, x_local, x_min, h_step, period
@@ -775,14 +784,17 @@ contains
             y_batch(iq) = spl%coeff(iq, k, idx) + &
                           x_local*y_batch(iq)
          end do
-      end do
-   end subroutine evaluate_batch_splines_1d_der2
+	      end do
+	   end subroutine evaluate_batch_splines_1d_der2
 
-   subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
-                                             d3y_batch)
-      type(BatchSplineData1D), intent(in) :: spl
-      real(dp), intent(in) :: x
-      real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:), d3y_batch(:)
+	   subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
+	                                             d3y_batch)
+#ifdef _OPENACC
+	      !$acc routine seq
+#endif
+	      type(BatchSplineData1D), intent(in) :: spl
+	      real(dp), intent(in) :: x
+	      real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:), d3y_batch(:)
 
       integer :: iq, k, idx, nq, N
       real(dp) :: xj, x_norm, x_local, x_min, h_step, period
