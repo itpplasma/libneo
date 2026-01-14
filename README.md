@@ -128,6 +128,15 @@ Convert STELLOPT coils format to simple biotsavart format:
 
 The simple format is compatible with libneo's `neo_biotsavart` module and SIMPLE code.
 
+### ASCOT5 helpers
+- `libneo.ascot5.field_from_vmec` – sample a VMEC equilibrium using the f2py-generated
+  `_magfie` wrappers and produce an ASCOT5-compatible `B_3DS` field (keeps CGS
+  internally; converts to SI during export).
+- `libneo.ascot5.field_from_mgrid` – convert an ASCOT5 mgrid NetCDF file into the same
+  `B3DSField` dataclass, enabling a unified write path.
+- `libneo.ascot5.write_b3ds_hdf5` – emit the field to HDF5 with the correct metadata
+  layout. See `doc/ascot5.md` for workflow details and troubleshooting.
+
 ## src
 Fortran source files for the library.
 Subfolders contain source for additional tools, also compiled into

@@ -28,3 +28,6 @@ from .vmec import VMECGeometry, vmec_to_cylindrical
 
 # Chartmap coordinate utilities
 from .chartmap import chartmap_to_rz, vmec_to_chartmap_coords
+
+# ASCOT5 utilities
+from .ascot5 import field_from_vmec, field_from_mgrid, write_b3ds_hdf5
