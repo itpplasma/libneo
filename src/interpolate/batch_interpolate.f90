@@ -5,6 +5,7 @@ module batch_interpolate
     use batch_interpolate_types, only: BatchSplineData1D, BatchSplineData2D, &
                                        BatchSplineData3D
     use batch_interpolate_1d, only: construct_batch_splines_1d, &
+                                    construct_batch_splines_1d_lsq, &
                                     construct_batch_splines_1d_lines, &
                                     construct_batch_splines_1d_resident, &
                                     construct_batch_splines_1d_resident_device, &
@@ -49,6 +50,7 @@ module batch_interpolate
 
     ! Re-export 1D routines from batch_interpolate_1d
     public :: construct_batch_splines_1d, destroy_batch_splines_1d
+    public :: construct_batch_splines_1d_lsq
     public :: construct_batch_splines_1d_lines
     public :: construct_batch_splines_1d_resident
     public :: construct_batch_splines_1d_resident_device
