@@ -288,7 +288,7 @@ jobs:
           fi
           cp -r docs-html/* site/
           echo "Site structure:"
-          find site -type f | head -20
+          find site -type f | head -20 || true
 
       - name: Configure Pages
         if: ${{ github.event_name == 'push' }}
