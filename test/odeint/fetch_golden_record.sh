@@ -16,9 +16,12 @@ fi
 
 echo "Fetching golden record from latest tag..."
 
-# Get the latest tag
-LATEST_TAG=$(git tag --sort=-v:refname | head -1)
+# Get the latest tag from remote (works even on shallow clones)
+LATEST_TAG=$(git ls-remote --tags --sort=-v:refname origin | head -1 | sed 's|.*refs/tags/||')
 echo "Latest tag: $LATEST_TAG"
+
+# Fetch only that tagged commit (no-op if already available locally)
+git fetch origin tag "$LATEST_TAG" --no-tags
 
 # Fetch the old implementation
 echo "Fetching odeint_allroutines.f90 from $LATEST_TAG..."
