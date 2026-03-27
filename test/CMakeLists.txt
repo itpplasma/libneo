@@ -5,11 +5,8 @@ set (HDF5_TOOLS_LIB ${HDF5_TOOLS_LIB} hdf5_tools)
 set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 include_directories(${PROJECT_SOURCE_DIR}/src/hdf5_tools)
-include_directories(${PROJECT_SOURCE_DIR}/extra/MyMPILib)
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
@@ -31,6 +28,16 @@ find_package(Python COMPONENTS Interpreter)
 if (NOT Python_FOUND)
   message(FATAL_ERROR "Python interpreter required for GEQDSK scripts")
 endif()
+
+set(LIBNEO_TEST_PYTHONPATH
+  "${CMAKE_SOURCE_DIR}/python:${CMAKE_BINARY_DIR}:${CMAKE_BINARY_DIR}/src/efit_to_boozer"
+)
+
+function(set_libneo_python_test_environment test_name)
+  set_tests_properties(${test_name} PROPERTIES
+    ENVIRONMENT "PYTHONPATH=${LIBNEO_TEST_PYTHONPATH}"
+  )
+endfunction()
 
 execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
@@ -57,8 +64,6 @@ target_link_libraries(test_collision_freqs.x
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 target_link_libraries(test_arnoldi.x
   ${COMMON_LIBS}
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
 )
 
 add_executable(test_binsrc.x source/test_binsrc.f90)
@@ -108,15 +113,6 @@ target_link_libraries(test_simpson.x
 add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
 target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
-)
-
-add_executable(test_mympilib.x
-  source/test_mympilib.f90
-  source/derived_scheduler_module.f90
-)
-target_link_libraries(test_mympilib.x
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
 )
 
 add_executable(test_system_utility.x
@@ -289,6 +285,7 @@ endif()
 add_test(NAME test_arnoldi_setup
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/source/setup_test_arnoldi.py)
 set_tests_properties(test_arnoldi_setup PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_libneo_python_test_environment(test_arnoldi_setup)
 
 add_test(NAME test_arnoldi COMMAND test_arnoldi.x)
 set_tests_properties(test_arnoldi PROPERTIES 
@@ -296,9 +293,6 @@ set_tests_properties(test_arnoldi PROPERTIES
   DEPENDS test_arnoldi_setup
   FAIL_REGULAR_EXPRESSION "STOP")
 
-add_test(NAME test_mympilib
-  COMMAND test_mympilib.x)
-set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
 add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
@@ -308,12 +302,14 @@ add_test(
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_chartmap_volume.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
+set_libneo_python_test_environment(setup_chartmap_volume)
 
 add_test(
   NAME setup_vmec_wout
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
+set_libneo_python_test_environment(setup_vmec_wout)
 
 add_test(
   NAME setup_vmec_chartmap_python
@@ -324,6 +320,7 @@ set_tests_properties(setup_vmec_chartmap_python PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout
 )
+set_libneo_python_test_environment(setup_vmec_chartmap_python)
 
 add_test(
   NAME validate_vmec_rho_lcfs_auto
@@ -334,6 +331,7 @@ set_tests_properties(validate_vmec_rho_lcfs_auto PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout
 )
+set_libneo_python_test_environment(validate_vmec_rho_lcfs_auto)
 
 add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_python
@@ -345,6 +343,7 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python
 )
+set_libneo_python_test_environment(validate_vmec_map2disc_chartmap_boundary_python)
 
 add_test(
   NAME plot_vmec_map2disc_chartmap_boundary_python
@@ -357,6 +356,7 @@ set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python
 )
+set_libneo_python_test_environment(plot_vmec_map2disc_chartmap_boundary_python)
 
 add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_cli
@@ -368,6 +368,7 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_cli PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python
 )
+set_libneo_python_test_environment(validate_vmec_map2disc_chartmap_boundary_cli)
 
 add_test(
   NAME plot_vmec_map2disc_chartmap_boundary_cli
@@ -380,6 +381,7 @@ set_tests_properties(plot_vmec_map2disc_chartmap_boundary_cli PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python
 )
+set_libneo_python_test_environment(plot_vmec_map2disc_chartmap_boundary_cli)
 
 add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_python_padded
@@ -392,6 +394,7 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python_padded PROP
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python
 )
+set_libneo_python_test_environment(validate_vmec_map2disc_chartmap_boundary_python_padded)
 
 add_test(
   NAME plot_vmec_map2disc_chartmap_boundary_python_padded
@@ -405,6 +408,7 @@ set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python_padded PROPERTI
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_chartmap_python
 )
+set_libneo_python_test_environment(plot_vmec_map2disc_chartmap_boundary_python_padded)
 
 add_test(NAME test_chartmap_coordinates
   COMMAND test_chartmap_coordinates.x)
