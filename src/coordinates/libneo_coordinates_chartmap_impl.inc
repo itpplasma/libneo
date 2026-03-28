@@ -403,9 +403,10 @@ subroutine initialize_chartmap(ccs, filename)
     ccs%rho_convention = rho_convention
     zeta_period = TWOPI/real(num_field_periods, dp)
 
-    if (zeta_convention /= CYL .and. zeta_convention /= VMEC) then
+    if (zeta_convention /= CYL .and. zeta_convention /= VMEC .and. &
+        zeta_convention /= BOOZER) then
         print *, "initialize_chartmap: unsupported zeta_convention"
-        print *, "  must be cyl or vmec"
+        print *, "  must be cyl, vmec, or boozer"
         error stop
     end if
 
@@ -448,11 +449,9 @@ subroutine initialize_chartmap(ccs, filename)
         call chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
                                    x_th, y_th, z_th)
 
-        allocate (zeta_spl(nzeta))
-        zeta_spl = zeta
-        call move_alloc(x_th, x_spl)
-        call move_alloc(y_th, y_spl)
-        call move_alloc(z_th, z_spl)
+        periodic_cart(3) = .true.
+        call chartmap_extend_zeta(nrho, ntheta + 1, nzeta, zeta, zeta_period, &
+                                  x_th, y_th, z_th, zeta_spl, x_spl, y_spl, z_spl)
 
         x_min = [rho(1), theta_spl(1), zeta_spl(1)]
         x_max = [rho(nrho), theta_spl(size(theta_spl)), zeta_spl(size(zeta_spl))]
@@ -608,6 +607,30 @@ subroutine chartmap_invert_cart(self, x_target, u, ierr)
     u = 0.0_dp
 
     zeta_period = TWOPI/real(self%num_field_periods, dp)
+    if (.not. self%has_spl_rz) then
+        trace = chartmap_trace_once_enabled()
+        call chartmap_initial_guess_cartesian_3d(self, x_target, u_try)
+        call chartmap_refine_cart_seed(self, x_target, zeta_period, u_try, &
+                                       res_norm, ierr)
+        if (ierr == chartmap_from_cyl_ok) then
+            call chartmap_solve_cart(self, x_target, u_try(1), u_try(2), u_try(3), &
+                                     ierr_try, trace)
+            if (ierr_try == chartmap_from_cyl_ok) then
+                ierr = chartmap_from_cyl_ok
+            end if
+        else
+            call chartmap_solve_cart(self, x_target, u_try(1), u_try(2), u_try(3), &
+                                     ierr_try, trace)
+            if (ierr_try == chartmap_from_cyl_ok) ierr = chartmap_from_cyl_ok
+        end if
+        if (ierr /= chartmap_from_cyl_ok) return
+        u = u_try
+        u(1) = min(max(u(1), 0.0_dp), 1.0_dp)
+        u(2) = modulo(u(2), TWOPI)
+        u(3) = modulo(u(3), zeta_period)
+        return
+    end if
+
     phi = atan2(x_target(2), x_target(1))
     zeta_seed = [modulo(phi, zeta_period), 0.0_dp, 0.25_dp*zeta_period, &
                  0.50_dp*zeta_period, 0.75_dp*zeta_period]
@@ -936,6 +959,11 @@ subroutine chartmap_initial_guess(self, x_target, zeta, rho, theta, ierr)
 
     ierr = chartmap_from_cyl_ok
 
+    if (.not. self%has_spl_rz) then
+        call chartmap_initial_guess_cartesian(self, x_target, zeta, rho, theta)
+        return
+    end if
+
     uvec = [0.0_dp, 0.0_dp, zeta]
     call chartmap_eval_cart(self, uvec, vals)
     axis_x = vals
@@ -960,6 +988,133 @@ subroutine chartmap_initial_guess(self, x_target, zeta, rho, theta, ierr)
     rho = sqrt(sum((x_target - axis_x)**2))/denom
     rho = min(max(rho, 0.0_dp), 1.0_dp)
 end subroutine chartmap_initial_guess
+
+subroutine chartmap_initial_guess_cartesian(self, x_target, zeta, rho, theta)
+    class(chartmap_coordinate_system_t), intent(in) :: self
+    real(dp), intent(in) :: x_target(3)
+    real(dp), intent(in) :: zeta
+    real(dp), intent(out) :: rho
+    real(dp), intent(out) :: theta
+
+    real(dp) :: uvec(3)
+    real(dp) :: x_try(3)
+    real(dp) :: best_dist2, dist2
+    integer :: nrho_probe, ntheta_probe
+    integer :: ir, it
+
+    nrho_probe = min(max(self%nrho, 5), 9)
+    ntheta_probe = min(max(self%ntheta, 16), 32)
+
+    best_dist2 = huge(1.0_dp)
+    rho = 0.0_dp
+    theta = 0.0_dp
+
+    do it = 1, ntheta_probe
+        uvec(2) = TWOPI*real(it - 1, dp)/real(ntheta_probe, dp)
+        uvec(3) = zeta
+        do ir = 1, nrho_probe
+            uvec(1) = real(ir - 1, dp)/real(nrho_probe - 1, dp)
+            call chartmap_eval_cart(self, uvec, x_try)
+            dist2 = sum((x_target - x_try)**2)
+            if (dist2 < best_dist2) then
+                best_dist2 = dist2
+                rho = uvec(1)
+                theta = uvec(2)
+            end if
+        end do
+    end do
+end subroutine chartmap_initial_guess_cartesian
+
+subroutine chartmap_initial_guess_cartesian_3d(self, x_target, u)
+    class(chartmap_coordinate_system_t), intent(in) :: self
+    real(dp), intent(in) :: x_target(3)
+    real(dp), intent(out) :: u(3)
+
+    real(dp) :: uvec(3)
+    real(dp) :: x_try(3)
+    real(dp) :: best_dist2, dist2
+    real(dp) :: zeta_period
+    integer :: nrho_probe, ntheta_probe, nzeta_probe
+    integer :: ir, it, iz
+
+    nrho_probe = min(max(self%nrho, 9), 17)
+    ntheta_probe = min(max(self%ntheta, 32), 64)
+    nzeta_probe = min(max(self%nzeta, 24), 48)
+    zeta_period = TWOPI/real(self%num_field_periods, dp)
+
+    best_dist2 = huge(1.0_dp)
+    u = 0.0_dp
+
+    do iz = 1, nzeta_probe
+        uvec(3) = zeta_period*real(iz - 1, dp)/real(nzeta_probe, dp)
+        do it = 1, ntheta_probe
+            uvec(2) = TWOPI*real(it - 1, dp)/real(ntheta_probe, dp)
+            do ir = 1, nrho_probe
+                uvec(1) = real(ir - 1, dp)/real(nrho_probe - 1, dp)
+                call chartmap_eval_cart(self, uvec, x_try)
+                dist2 = sum((x_target - x_try)**2)
+                if (dist2 < best_dist2) then
+                    best_dist2 = dist2
+                    u = uvec
+                end if
+            end do
+        end do
+    end do
+end subroutine chartmap_initial_guess_cartesian_3d
+
+subroutine chartmap_refine_cart_seed(self, x_target, zeta_period, u, res_norm, ierr)
+    class(chartmap_coordinate_system_t), intent(in) :: self
+    real(dp), intent(in) :: x_target(3)
+    real(dp), intent(in) :: zeta_period
+    real(dp), intent(inout) :: u(3)
+    real(dp), intent(out) :: res_norm
+    integer, intent(out) :: ierr
+
+    real(dp) :: trial(3), best_u(3), x_trial(3)
+    real(dp) :: step_rho, step_theta, step_zeta
+    real(dp) :: best_dist2, dist2
+    integer :: iter, ir, it, iz
+
+    ierr = chartmap_from_cyl_ok
+    step_rho = 1.0_dp/16.0_dp
+    step_theta = TWOPI/64.0_dp
+    step_zeta = zeta_period/48.0_dp
+
+    call chartmap_eval_cart(self, u, x_trial)
+    best_dist2 = sum((x_target - x_trial)**2)
+
+    do iter = 1, 64
+        best_u = u
+        do iz = -1, 1
+            trial(3) = modulo(u(3) + real(iz, dp)*step_zeta, zeta_period)
+            do it = -1, 1
+                trial(2) = modulo(u(2) + real(it, dp)*step_theta, TWOPI)
+                do ir = -1, 1
+                    trial(1) = min(max(u(1) + real(ir, dp)*step_rho, 0.0_dp), 1.0_dp)
+                    call chartmap_eval_cart(self, trial, x_trial)
+                    dist2 = sum((x_target - x_trial)**2)
+                    if (dist2 < best_dist2) then
+                        best_dist2 = dist2
+                        best_u = trial
+                    end if
+                end do
+            end do
+        end do
+
+        if (any(best_u /= u)) then
+            u = best_u
+        else
+            step_rho = 0.5_dp*step_rho
+            step_theta = 0.5_dp*step_theta
+            step_zeta = 0.5_dp*step_zeta
+            if (max(step_rho, max(step_theta, step_zeta)) < 1.0e-12_dp) exit
+        end if
+    end do
+
+    call chartmap_eval_cart(self, u, x_trial)
+    res_norm = sqrt(sum((x_target - x_trial)**2))
+    if (res_norm > 1.0e-4_dp) ierr = chartmap_from_cyl_err_max_iter
+end subroutine chartmap_refine_cart_seed
 
 subroutine chartmap_newton_delta(self, x_target, rho, theta, zeta, delta, &
                                  res_norm, &

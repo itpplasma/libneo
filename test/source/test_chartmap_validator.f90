@@ -21,6 +21,16 @@ program test_chartmap_validator
         print *, "  PASS: validator accepted a known-good chartmap file"
     end if
 
+    call write_good_boozer_file("chartmap_good_boozer.nc")
+    call validate_chartmap_file("chartmap_good_boozer.nc", ierr, message)
+    if (ierr /= 0) then
+        print *, "  FAIL: validator rejected a Boozer chartmap file"
+        print *, trim(message)
+        nerrors = nerrors + 1
+    else
+        print *, "  PASS: validator accepted a Boozer chartmap file"
+    end if
+
     call write_missing_x_file("chartmap_missing_x.nc")
     call validate_chartmap_file("chartmap_missing_x.nc", ierr, message)
     if (ierr == 0 .or. index(message, "missing variable x") == 0) then
@@ -188,6 +198,83 @@ contains
         call nc_check(nf90_put_var(ncid, var_num_field_periods, 1))
         call nc_check(nf90_close(ncid))
     end subroutine write_good_file
+
+    subroutine write_good_boozer_file(filename)
+        character(len=*), intent(in) :: filename
+        integer :: ncid
+        integer :: dim_rho, dim_theta, dim_zeta
+        integer :: var_rho, var_theta, var_zeta, var_x, var_y, var_z, &
+                   var_num_field_periods
+        integer, parameter :: nrho = 3, ntheta = 5, nzeta = 6, nfp = 2
+        real(dp), parameter :: r0 = 150.0_dp
+        real(dp), parameter :: a = 35.0_dp
+        real(dp) :: rho(nrho), theta(ntheta), zeta(nzeta)
+        real(dp) :: x(nrho, ntheta, nzeta), y(nrho, ntheta, nzeta), z(nrho, &
+                                                                      ntheta, nzeta)
+        real(dp) :: rho_val, theta_val, zeta_val
+        real(dp) :: phi_geom, rmaj, zpos, period
+        integer :: ir, it, iz
+
+        period = TWOPI/real(nfp, dp)
+        do ir = 1, nrho
+            rho(ir) = real(ir - 1, dp)/real(nrho - 1, dp)
+        end do
+        do it = 1, ntheta
+            theta(it) = TWOPI*real(it - 1, dp)/real(ntheta, dp)
+        end do
+        do iz = 1, nzeta
+            zeta(iz) = period*real(iz - 1, dp)/real(nzeta, dp)
+        end do
+
+        do iz = 1, nzeta
+            zeta_val = zeta(iz)
+            do it = 1, ntheta
+                theta_val = theta(it)
+                do ir = 1, nrho
+                    rho_val = rho(ir)
+                    phi_geom = zeta_val + 0.08_dp*rho_val*sin(theta_val) + &
+                               0.02_dp*sin(2.0_dp*zeta_val)
+                    rmaj = r0 + a*rho_val*cos(theta_val) + &
+                           0.04_dp*a*rho_val*cos(theta_val - 2.0_dp*zeta_val)
+                    zpos = a*rho_val*sin(theta_val) + &
+                           0.02_dp*a*rho_val*sin(zeta_val)
+                    x(ir, it, iz) = rmaj*cos(phi_geom)
+                    y(ir, it, iz) = rmaj*sin(phi_geom)
+                    z(ir, it, iz) = zpos
+                end do
+            end do
+        end do
+
+        call nc_check(nf90_create(trim(filename), NF90_NETCDF4, ncid))
+        call nc_check(nf90_put_att(ncid, NF90_GLOBAL, "zeta_convention", "boozer"))
+        call nc_check(nf90_def_dim(ncid, "rho", nrho, dim_rho))
+        call nc_check(nf90_def_dim(ncid, "theta", ntheta, dim_theta))
+        call nc_check(nf90_def_dim(ncid, "zeta", nzeta, dim_zeta))
+        call nc_check(nf90_def_var(ncid, "rho", NF90_DOUBLE, [dim_rho], var_rho))
+        call nc_check(nf90_def_var(ncid, "theta", NF90_DOUBLE, [dim_theta], var_theta))
+        call nc_check(nf90_def_var(ncid, "zeta", NF90_DOUBLE, [dim_zeta], var_zeta))
+        call nc_check(nf90_def_var(ncid, "x", NF90_DOUBLE, &
+                                   [dim_rho, dim_theta, dim_zeta], var_x))
+        call nc_check(nf90_def_var(ncid, "y", NF90_DOUBLE, &
+                                   [dim_rho, dim_theta, dim_zeta], var_y))
+        call nc_check(nf90_def_var(ncid, "z", NF90_DOUBLE, &
+                                   [dim_rho, dim_theta, dim_zeta], var_z))
+        call nc_check(nf90_def_var(ncid, "num_field_periods", NF90_INT, &
+                                   var_num_field_periods))
+        call nc_check(nf90_put_att(ncid, var_x, "units", "cm"))
+        call nc_check(nf90_put_att(ncid, var_y, "units", "cm"))
+        call nc_check(nf90_put_att(ncid, var_z, "units", "cm"))
+        call nc_check(nf90_enddef(ncid))
+
+        call nc_check(nf90_put_var(ncid, var_rho, rho))
+        call nc_check(nf90_put_var(ncid, var_theta, theta))
+        call nc_check(nf90_put_var(ncid, var_zeta, zeta))
+        call nc_check(nf90_put_var(ncid, var_x, x))
+        call nc_check(nf90_put_var(ncid, var_y, y))
+        call nc_check(nf90_put_var(ncid, var_z, z))
+        call nc_check(nf90_put_var(ncid, var_num_field_periods, nfp))
+        call nc_check(nf90_close(ncid))
+    end subroutine write_good_boozer_file
 
     subroutine write_missing_units_file(filename)
         character(len=*), intent(in) :: filename
