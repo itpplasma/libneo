@@ -25,7 +25,7 @@ module libneo_coordinates_base
         "  z(zeta,theta,rho)"//new_line('a')// &
         "- Optional: num_field_periods (integer >= 1)"//new_line('a')// &
         "- Required: zeta_convention (global attribute)"//new_line('a')// &
-        "  allowed: cyl, vmec"//new_line('a')// &
+        "  allowed: cyl, vmec, boozer"//new_line('a')// &
         "- Ranges:"//new_line('a')// &
         "  rho in [0,1]"//new_line('a')// &
         "  theta in [0,2pi)"//new_line('a')// &
@@ -34,7 +34,10 @@ module libneo_coordinates_base
         "- Storage order:"//new_line('a')// &
         "  file dims (zeta,theta,rho)"//new_line('a')// &
         "Fortran reads x(rho,theta,zeta)"//new_line('a')// &
-        "- Units: x,y,z in cm"
+        "- Units: x,y,z in cm"//new_line('a')// &
+        "- Contract:"//new_line('a')// &
+        "  cyl/vmec require atan2(y,x)=zeta"//new_line('a')// &
+        "  boozer stores true Cartesian geometry; zeta is a chart parameter"
 
     integer, parameter :: chartmap_from_cyl_ok = 0
     integer, parameter :: chartmap_from_cyl_err_max_iter = 1

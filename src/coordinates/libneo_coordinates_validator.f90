@@ -237,11 +237,11 @@ contains
         end if
 
         select case (trim(value))
-        case ("cyl", "vmec")
+        case ("cyl", "vmec", "boozer")
             value_out = trim(value)
         case default
             ierr = 5
-            message = "unsupported zeta_convention (must be cyl or vmec)"
+            message = "unsupported zeta_convention (must be cyl, vmec, or boozer)"
         end select
     end subroutine check_optional_zeta_convention
 
