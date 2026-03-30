@@ -140,8 +140,6 @@ Interface to hdf5, to simplify calls.
 
 ### MC
 
-### contrib
-
 ### MyMPILib
 Interface to MPI, so no actual mpi routines need to be called in
 programs.
