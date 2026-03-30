@@ -1,27 +1,5 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/field)
 
-add_library(util_for_test_jorek_field OBJECT util_for_test_jorek_field.f90)
-
-
-add_executable(setup_test_jorek_field.x setup_test_jorek_field.f90)
-target_link_libraries(setup_test_jorek_field.x PRIVATE neo
-                                                       hdf5_tools
-                                                       util_for_test
-                                                       util_for_test_jorek_field)
-add_test(NAME setup_test_jorek_field COMMAND setup_test_jorek_field.x)
-set_tests_properties(setup_test_jorek_field PROPERTIES 
-                     FIXTURES_SETUP "SetupTestFieldJorek")
-
-add_executable(cleanup_test_jorek_field.x cleanup_test_jorek_field.f90)
-target_link_libraries(cleanup_test_jorek_field.x PRIVATE neo
-                                                         hdf5_tools
-                                                         util_for_test
-                                                         util_for_test_jorek_field)
-add_test(NAME cleanup_test_jorek_field COMMAND cleanup_test_jorek_field.x)
-set_tests_properties(cleanup_test_jorek_field PROPERTIES 
-                     FIXTURES_CLEANUP "SetupTestFieldJorek")
-
-
 add_executable(test_biotsavart.x test_biotsavart.f90)
 target_link_libraries(test_biotsavart.x PRIVATE neo
                                                 util_for_test)
@@ -61,23 +39,10 @@ target_link_libraries(test_spline_field.x PRIVATE neo
                                               util_for_test)
 add_test(NAME test_spline_field COMMAND test_spline_field.x)
 
-add_executable(test_jorek_field.x test_jorek_field.f90)
-target_link_libraries(test_jorek_field.x PRIVATE neo
-                                                 hdf5_tools
-                                                 util_for_test
-                                                 util_for_test_field
-                                                 util_for_test_jorek_field)
-add_test(NAME test_jorek_field COMMAND test_jorek_field.x)
-set_tests_properties(test_jorek_field PROPERTIES 
-                     FIXTURES_REQUIRED "SetupTestFieldJorek")
-
 add_executable(test_field.x test_field.f90)
 target_link_libraries(test_field.x PRIVATE neo
-                                           util_for_test
-                                           util_for_test_jorek_field)
+                                           util_for_test)
 add_test(NAME test_field COMMAND test_field.x)
-set_tests_properties(test_field PROPERTIES 
-                     FIXTURES_REQUIRED "SetupTestFieldJorek")
 
 add_executable(test_stretch_coords.x test_stretch_coords.f90)
 target_link_libraries(test_stretch_coords.x PRIVATE neo
@@ -94,7 +59,6 @@ set_tests_properties(
     test_field_mesh
     test_polylag_field
     test_spline_field
-    test_jorek_field
     test_field
     test_stretch_coords
     PROPERTIES LABELS "field")

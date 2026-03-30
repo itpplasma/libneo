@@ -7,13 +7,11 @@ add_library(neo_field STATIC
     field_mesh.f90
     polylag_field.f90
     spline_field.f90
-    jorek_field.f90
     mesh.f90
     mesh_2d.f90
     field.f90)
 
 target_link_libraries(neo_field PRIVATE
-    hdf5_tools
     interpolate
     neo_polylag
 )
