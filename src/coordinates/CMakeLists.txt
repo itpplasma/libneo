@@ -2,6 +2,7 @@ add_library(coordinates STATIC
     cylindrical_cartesian.f90
     vmec_coordinates.f90
     geoflux_coordinates.f90
+    ../magfie/geqdsk_tools.f90
     libneo_coordinate_conventions.f90
     libneo_coordinates_base.f90
     libneo_coordinates_vmec.f90

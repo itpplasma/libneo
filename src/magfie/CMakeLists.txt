@@ -24,12 +24,12 @@ add_library(magfie STATIC
     ../fftw3.F90
     # Moved from neo core
     magfie_vmec.f90
-    geqdsk_tools.f90
 )
 target_link_libraries(magfie PRIVATE
     neo
     neo_util
     vmec_support
+    coordinates
     hdf5_tools
     BLAS::BLAS
     LAPACK::LAPACK
