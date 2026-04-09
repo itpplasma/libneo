@@ -120,7 +120,6 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
             message(FATAL_ERROR "Invalid OPENACC_OFFLOAD_TARGET='${OPENACC_OFFLOAD_TARGET}' (expected none|nvptx)")
         endif()
     endif()
-
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
         add_compile_options(-Og
