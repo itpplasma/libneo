@@ -22,15 +22,6 @@ target_link_libraries(coordinates PUBLIC
     interpolate
 )
 
-# Link NetCDF directly (chartmap uses netcdf module)
-if(TARGET netcdf::netcdff)
-    target_link_libraries(coordinates PRIVATE netcdf::netcdff)
-elseif(TARGET netcdf::netcdf)
-    target_link_libraries(coordinates PRIVATE netcdf::netcdf netcdff)
-else()
-    target_link_libraries(coordinates PRIVATE netcdf netcdff)
-endif()
-
 set_property(TARGET coordinates PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::coordinates ALIAS coordinates)
