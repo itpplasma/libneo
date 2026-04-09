@@ -25,6 +25,7 @@ add_library(magfie STATIC
 )
 target_link_libraries(magfie PRIVATE
     neo
+    neo_util
     hdf5_tools
     BLAS::BLAS
     LAPACK::LAPACK

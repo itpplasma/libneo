@@ -205,6 +205,7 @@ endif()
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
 # Libraries that libneo depends on
+add_subdirectory(src/util)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)

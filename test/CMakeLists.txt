@@ -106,8 +106,7 @@ target_link_libraries(test_hdf5_tools.x
 )
 
 add_executable(test_system_utility.x
-  source/test_system_utility.f90
-  ../src/local_rusage.c)
+  source/test_system_utility.f90)
 target_link_libraries(test_system_utility.x
   ${COMMON_LIBS}
 )
