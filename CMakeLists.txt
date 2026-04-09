@@ -138,8 +138,13 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
-            # Fast mode or ARM: use native architecture (no portable baseline for ARM)
-            add_compile_options(-march=native)
+            # Fast mode or ARM: use native architecture
+            # gfortran on ARM needs -mcpu=native, not -march=native
+            if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+                add_compile_options(-mcpu=native)
+            else()
+                add_compile_options(-march=native)
+            endif()
         else()
             # Release on x86-64: use v2 baseline for broad compatibility
             add_compile_options(-march=x86-64-v2 -mtune=generic)
