@@ -5,11 +5,8 @@ set (HDF5_TOOLS_LIB ${HDF5_TOOLS_LIB} hdf5_tools)
 set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 include_directories(${PROJECT_SOURCE_DIR}/src/hdf5_tools)
-include_directories(${PROJECT_SOURCE_DIR}/extra/MyMPILib)
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
@@ -57,8 +54,6 @@ target_link_libraries(test_collision_freqs.x
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 target_link_libraries(test_arnoldi.x
   ${COMMON_LIBS}
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
 )
 
 add_executable(test_binsrc.x source/test_binsrc.f90)
@@ -110,18 +105,8 @@ target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
 )
 
-add_executable(test_mympilib.x
-  source/test_mympilib.f90
-  source/derived_scheduler_module.f90
-)
-target_link_libraries(test_mympilib.x
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
-)
-
 add_executable(test_system_utility.x
-  source/test_system_utility.f90
-  ../src/local_rusage.c)
+  source/test_system_utility.f90)
 target_link_libraries(test_system_utility.x
   ${COMMON_LIBS}
 )
@@ -296,9 +281,6 @@ set_tests_properties(test_arnoldi PROPERTIES
   DEPENDS test_arnoldi_setup
   FAIL_REGULAR_EXPRESSION "STOP")
 
-add_test(NAME test_mympilib
-  COMMAND test_mympilib.x)
-set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
 add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")

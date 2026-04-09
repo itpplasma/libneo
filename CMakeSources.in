@@ -3,66 +3,21 @@
 
 # Main goal (of the created build file): creating the library file.
 add_library(neo STATIC
-    src/arnoldi.f90
-    src/libneo_kinds.f90
-    src/math_constants.f90
     src/poincare.f90
-    src/rusage_type.f90
-    src/system_utility.f90
-    src/util.f90
-
-    # VMEC
-    src/canonical_coordinates_mod.f90
-    src/nctools_module.f90
-    src/new_vmec_allocation_stuff.f90
-    src/coordinates/cylindrical_cartesian.f90
-    src/coordinates/vmec_coordinates.f90
-    src/coordinates/geoflux_coordinates.f90
-    src/coordinates/libneo_coordinate_conventions.f90
-    src/coordinates/libneo_coordinates_base.f90
-    src/coordinates/libneo_coordinates_vmec.f90
-    src/coordinates/libneo_coordinates_geoflux.f90
-    src/coordinates/libneo_coordinates_chartmap.f90
-    src/coordinates/libneo_coordinates_validator.f90
-    src/coordinates/libneo_coordinates_file_detection.f90
-    src/coordinates/libneo_coordinates.f90
-    src/coordinates/libneo_chartmap_vmec_generator.f90
-    src/coordinates/libneo_coordinates_mapping.f90
-    src/spline_vmec_data.f90
-    src/vmecinm_m.f90
-    src/vmec/vmec_field_tools.f90
-    src/plag_coeff.f90
-    src/binsrc.f90
-    src/magfie/geqdsk_tools.f90
-    src/magfie/magfie_vmec.f90
-    src/util/simpson_integration.f90
-
-    # For CPU time measurements
-    src/local_rusage.c
-
 )
 
 target_link_libraries(neo PUBLIC
     $<TARGET_OBJECTS:neo_polylag>
+    neo_util
+    nctools
+    vmec_support
+    coordinates
     interpolate
     hdf5_tools
     neo_field
     odeint
 )
 
-target_link_libraries(neo PRIVATE
-  BLAS::BLAS
-  LAPACK::LAPACK
-)
-
-# Link NetCDF - use built targets if available, otherwise system libraries
-if(TARGET netcdf::netcdff)
-    target_link_libraries(neo PRIVATE netcdf::netcdff)
-elseif(TARGET netcdf::netcdf)
-    target_link_libraries(neo PRIVATE netcdf::netcdf netcdff)
-else()
-    target_link_libraries(neo PRIVATE netcdf netcdff)
-endif()
 
 add_library(LIBNEO::neo ALIAS neo)
 set_target_properties(neo PROPERTIES

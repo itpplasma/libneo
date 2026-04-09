@@ -100,7 +100,6 @@ endif()
 
 find_program(BASH_PROGRAM bash)
 
-find_package(MPI REQUIRED COMPONENTS C Fortran)
 # Compiler-specific base flags and build profiles
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     # Base flags for all builds
@@ -139,8 +138,13 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
-            # Fast mode or ARM: use native architecture (no portable baseline for ARM)
-            add_compile_options(-march=native)
+            # Fast mode or ARM: use native architecture
+            # gfortran on ARM needs -mcpu=native, not -march=native
+            if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+                add_compile_options(-mcpu=native)
+            else()
+                add_compile_options(-march=native)
+            endif()
         else()
             # Release on x86-64: use v2 baseline for broad compatibility
             add_compile_options(-march=x86-64-v2 -mtune=generic)
@@ -200,32 +204,34 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-include_directories(${MPI_Fortran_INCLUDE_PATH})
-message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
-
 # Detect and configure external dependencies (HDF5, NetCDF, FFTW)
 # Uses smoke tests to verify ABI compatibility with current compiler.
 # Falls back to building from source if system libraries are incompatible.
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
-# Libraries that libneo depends on
-add_subdirectory(extra/MyMPILib)
+# Tier 0: no internal libneo dependencies
+add_subdirectory(src/util)
+add_subdirectory(src/nctools)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)
 add_subdirectory(src/odeint)
 add_subdirectory(src/field)
-add_subdirectory(src/collisions)
-add_subdirectory(src/transport)
+
+# Tier 1: depends on Tier 0
+add_subdirectory(src/vmec_support)
+add_subdirectory(src/coordinates)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
-# Sources for libneo core
+# Aggregate libneo core
 include(CMakeSources.in)
 
-# Libraries that depend on libneo
+# Tier 2+: depends on neo core
 add_subdirectory(src/species)
+add_subdirectory(src/collisions)
+add_subdirectory(src/transport)
 add_subdirectory(src/magfie)
 
 if(ENABLE_OPENMP)
