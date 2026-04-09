@@ -209,7 +209,6 @@ message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
 # Libraries that libneo depends on
-add_subdirectory(src/contrib)
 add_subdirectory(extra/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
