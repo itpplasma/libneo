@@ -7,7 +7,6 @@ add_library(neo STATIC
 
     # VMEC
     src/canonical_coordinates_mod.f90
-    src/nctools_module.f90
     src/new_vmec_allocation_stuff.f90
     src/coordinates/cylindrical_cartesian.f90
     src/coordinates/vmec_coordinates.f90
@@ -33,6 +32,7 @@ add_library(neo STATIC
 target_link_libraries(neo PUBLIC
     $<TARGET_OBJECTS:neo_polylag>
     neo_util
+    nctools
     interpolate
     hdf5_tools
     neo_field
