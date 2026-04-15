@@ -1278,6 +1278,126 @@ class BoozerFile:
     return [dR_dl, l]
 
 
+  def evaluate_metric(self, theta, phi=0.0, ind=-1):
+    """Evaluate position, covariant basis, and metric tensor at a point.
+
+    Computes R, Z and their derivatives w.r.t. Boozer theta and phi from
+    the stored Fourier harmonics, then assembles the 2x2 poloidal-toroidal
+    metric tensor and its inverse. All output lengths are in metres (matching
+    the stored Fourier harmonics).
+
+    Parameters
+    ----------
+    theta : float
+        Boozer poloidal angle [rad].
+    phi : float, optional
+        Boozer toroidal angle [rad]. Default 0.
+    ind : int, optional
+        Flux surface index. Default -1 (outermost).
+
+    Returns
+    -------
+    dict with keys:
+        R, Z : float
+            Cylindrical position [m].
+        dR_dth, dZ_dth : float
+            Poloidal derivatives [m/rad].
+        dR_dph, dZ_dph : float
+            Toroidal derivatives [m/rad].
+        g_thth, g_thph, g_phph : float
+            Covariant metric components [m^2].
+            g_thth = |e_theta|^2, g_phph = |e_phi|^2, g_thph = e_theta . e_phi.
+        guu_thth, guu_thph, guu_phph : float
+            Contravariant (inverse) metric components [1/m^2].
+        sqrtg_2d : float
+            2D Jacobian sqrt(g_thth * g_phph - g_thph^2) [m^2].
+    """
+    import numpy as np
+
+    m = np.asarray(self.m[ind], dtype=float)
+    n = np.asarray(self.n[ind], dtype=float)
+    rmnc = np.asarray(self.rmnc[ind], dtype=float)
+    rmns = np.asarray(self.rmns[ind], dtype=float)
+    zmnc = np.asarray(self.zmnc[ind], dtype=float)
+    zmns = np.asarray(self.zmns[ind], dtype=float)
+
+    angle = m * theta - self.nper * n * phi
+    cos_a = np.cos(angle)
+    sin_a = np.sin(angle)
+
+    R = float(np.dot(rmnc, cos_a) + np.dot(rmns, sin_a))
+    Z = float(np.dot(zmnc, cos_a) + np.dot(zmns, sin_a))
+
+    dR_dth = float(np.dot(-m * rmnc, sin_a) + np.dot(m * rmns, cos_a))
+    dZ_dth = float(np.dot(-m * zmnc, sin_a) + np.dot(m * zmns, cos_a))
+
+    nfp_n = self.nper * n
+    dR_dph = float(np.dot(nfp_n * rmnc, sin_a) + np.dot(-nfp_n * rmns, cos_a))
+    dZ_dph = float(np.dot(nfp_n * zmnc, sin_a) + np.dot(-nfp_n * zmns, cos_a))
+
+    # Covariant basis in the (R, Z) poloidal plane:
+    #   e_theta = (dR/dth, dZ/dth)   in poloidal plane
+    #   e_phi   = (dR/dph, dZ/dph)   in poloidal plane, plus R in toroidal direction
+    # Full 3D metric with cylindrical (R, phi_cyl, Z):
+    #   g_thth = dR_dth^2 + dZ_dth^2
+    #   g_phph = dR_dph^2 + dZ_dph^2 + R^2
+    #   g_thph = dR_dth*dR_dph + dZ_dth*dZ_dph
+    g_thth = dR_dth**2 + dZ_dth**2
+    g_phph = dR_dph**2 + dZ_dph**2 + R**2
+    g_thph = dR_dth * dR_dph + dZ_dth * dZ_dph
+
+    det = g_thth * g_phph - g_thph**2
+    sqrtg_2d = float(np.sqrt(abs(det)))
+
+    guu_thth = g_phph / det
+    guu_phph = g_thth / det
+    guu_thph = -g_thph / det
+
+    return {
+        'R': R, 'Z': Z,
+        'dR_dth': dR_dth, 'dZ_dth': dZ_dth,
+        'dR_dph': dR_dph, 'dZ_dph': dZ_dph,
+        'g_thth': g_thth, 'g_thph': g_thph, 'g_phph': g_phph,
+        'guu_thth': guu_thth, 'guu_thph': guu_thph, 'guu_phph': guu_phph,
+        'sqrtg_2d': sqrtg_2d,
+    }
+
+  def cov_to_phys(self, v_theta_cov, v_phi_cov, theta, phi=0.0, ind=-1):
+    """Convert covariant (theta, phi) components to physical cylindrical.
+
+    Uses the full inverse metric (including the off-diagonal g^{theta phi}
+    term) to raise the index, then projects onto cylindrical unit vectors.
+
+    Parameters
+    ----------
+    v_theta_cov, v_phi_cov : float
+        Covariant components in Boozer (theta, phi). For the magnetic field
+        these are bcovar_tht [G*cm] and bcovar_phi [G*cm] when using CGS
+        lengths (multiply the metric output by 100 for cm).
+    theta : float
+        Boozer poloidal angle [rad].
+    phi : float, optional
+        Boozer toroidal angle [rad]. Default 0.
+    ind : int, optional
+        Flux surface index. Default -1.
+
+    Returns
+    -------
+    v_R, v_Z, v_tor : float
+        Physical cylindrical components in the same units as the input
+        (divided by the metric length scale in metres).
+    """
+    met = self.evaluate_metric(theta, phi, ind)
+
+    v_theta_ctr = met['guu_thth'] * v_theta_cov + met['guu_thph'] * v_phi_cov
+    v_phi_ctr = met['guu_thph'] * v_theta_cov + met['guu_phph'] * v_phi_cov
+
+    v_R = v_theta_ctr * met['dR_dth'] + v_phi_ctr * met['dR_dph']
+    v_Z = v_theta_ctr * met['dZ_dth'] + v_phi_ctr * met['dZ_dph']
+    v_tor = v_phi_ctr * met['R']
+
+    return v_R, v_Z, v_tor
+
   def convert_vmec_to_boozer(self, filename: str, uv_grid_multiplicator: int = 6):
     """Intended to create a boozer file object from a vmec file.
 
