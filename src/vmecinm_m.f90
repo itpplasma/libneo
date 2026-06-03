@@ -73,8 +73,12 @@ contains
         lasym = (lasym_int == 1)
 
         call nc_get(ncid, 'phi', phi)
-        phi = -phi/(2*pi)  ! added by Christopher Albert, 2019-09-16 for correct normalization
-! TODO phi sign changed 2024-09-04, check further
+        ! VMEC is left-handed (phi_v = -cylindrical angle, signgs = -1), so the wout
+        ! stores a negative enclosed toroidal flux. SIMPLE works with a positive
+        ! internal psi_tor = -phi_vmec/(2*pi). This is the toroidal flux on the
+        ! poloidal covariant component, A_theta = torflux*s (see spline_vmec_data),
+        ! and the reader recovers iota = -dA_phi/dA_theta = +iota_vmec.
+        phi = -phi/(2*pi)
 
         flux = phi(kparb)
         flux = flux*fac_b*fac_r**2
