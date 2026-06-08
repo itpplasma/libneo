@@ -100,7 +100,6 @@ endif()
 
 find_program(BASH_PROGRAM bash)
 
-find_package(MPI REQUIRED COMPONENTS C Fortran)
 # Compiler-specific base flags and build profiles
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     # Base flags for all builds
@@ -200,16 +199,12 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-include_directories(${MPI_Fortran_INCLUDE_PATH})
-message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
-
 # Detect and configure external dependencies (HDF5, NetCDF, FFTW)
 # Uses smoke tests to verify ABI compatibility with current compiler.
 # Falls back to building from source if system libraries are incompatible.
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
 # Libraries that libneo depends on
-add_subdirectory(extra/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)

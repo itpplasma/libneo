@@ -1,7 +1,4 @@
 module test_arnoldi_mod
-#ifdef PARALLEL
-  use mpiprovider_module, only : mpro
-#endif
   use arnoldi, only: calc_ritz_eigenvalues, leigen,ngrow,tol,eigvecs
   use libneo_kinds, only : cdp
   implicit none
@@ -41,10 +38,6 @@ contains
 
   subroutine run_test()
     integer :: i, j
-
-#ifdef PARALLEL
-    call mpro%init()
-#endif
 
     open(1,file='amat.dat', action='read', status='old', iostat=ios)
     if (ios .ne. 0) stop 'Error while trying to open amat.dat'
