@@ -1216,7 +1216,7 @@ contains
     integer(HID_T), intent(in)                     :: h5id
     character(len=*), intent(in)                   :: dataset
     complex(kind=dcp), dimension(:), intent(inout) :: val
-#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+#if defined(__INTEL_COMPILER) || defined(__NVCOMPILER) || defined(__PGI) || (defined(__GNUC__) && (__GNUC__ < 9))
     real(kind=dpp), allocatable, dimension(:)      :: temp_re, temp_im
 #endif
     integer                                        :: lb1, ub1
@@ -1265,7 +1265,7 @@ contains
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
 
-#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+#if defined(__INTEL_COMPILER) || defined(__NVCOMPILER) || defined(__PGI) || (defined(__GNUC__) && (__GNUC__ < 9))
     if (allocated(temp_re)) deallocate(temp_re)
     if (allocated(temp_im)) deallocate(temp_im)
     allocate(temp_re(lbound(val,1):ubound(val,1)))
@@ -1295,7 +1295,7 @@ contains
     integer(HID_T), intent(in)                       :: h5id
     character(len=*), intent(in)                     :: dataset
     complex(kind=dcp), dimension(:,:), intent(inout) :: val
-#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+#if defined(__INTEL_COMPILER) || defined(__NVCOMPILER) || defined(__PGI) || (defined(__GNUC__) && (__GNUC__ < 9))
     real, allocatable, dimension(:,:) :: temp_re, temp_im
 #endif
     integer                                          :: lb1, ub1, lb2, ub2
@@ -1344,7 +1344,7 @@ contains
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
 
-#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+#if defined(__INTEL_COMPILER) || defined(__NVCOMPILER) || defined(__PGI) || (defined(__GNUC__) && (__GNUC__ < 9))
     if (allocated(temp_re)) deallocate(temp_re)
     if (allocated(temp_im)) deallocate(temp_im)
     allocate(temp_re(lbound(val, 1):ubound(val, 1), &
@@ -1376,7 +1376,7 @@ contains
     integer(HID_T), intent(in)                         :: h5id
     character(len=*), intent(in)                       :: dataset
     complex(kind=dcp), dimension(:,:,:), intent(inout) :: val
-#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+#if defined(__INTEL_COMPILER) || defined(__NVCOMPILER) || defined(__PGI) || (defined(__GNUC__) && (__GNUC__ < 9))
     real(kind=dpp), allocatable, dimension(:,:,:) :: temp_re, temp_im
 #endif
     integer                                          :: lb1, ub1, lb2, ub2, lb3, ub3
@@ -1425,7 +1425,7 @@ contains
     !**********************************************************
     call h5dopen_f(h5id, dataset, dset_id, h5error)
 
-#if defined(__INTEL_COMPILER) || (defined(__GNUC__) && (__GNUC__ < 9))
+#if defined(__INTEL_COMPILER) || defined(__NVCOMPILER) || defined(__PGI) || (defined(__GNUC__) && (__GNUC__ < 9))
     if (allocated(temp_re)) deallocate(temp_re)
     if (allocated(temp_im)) deallocate(temp_im)
     allocate(temp_re(lbound(val, 1):ubound(val, 1), &
