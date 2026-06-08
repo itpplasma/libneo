@@ -1,0 +1,82 @@
+# Reverse-dependency gate: on every libneo PR, build and fast-test each
+# downstream code against this PR's libneo and gate on green. Keeps libneo main
+# always working with the downstreams, with breakage attributed to the PR that
+# caused it.
+#
+# ci/downstreams is the gated set. Each downstream's workflow is dispatched with
+# `-f libneo_ref=<sha>`; with no `full` it runs only its fast (sub-minute) tests.
+# Label the libneo PR `full-ci` to also run each downstream's slow suite
+# (golden records, performance, PAR) before merge, dispatched with `-f full=true`.
+#
+# Needs RELEASE_BOT_TOKEN with actions:write on the downstreams (dispatch + read
+# their runs). Same-repo PRs only: a fork's head SHA is not on origin, so the
+# downstream's FetchContent could not resolve it.
+
+name: downstream-gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: downstream-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    # Skip drafts and forks. On a `labeled` event run only when the label is
+    # `full-ci`, so unrelated label changes do not re-dispatch the whole gate.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dispatch downstream CI against this PR's libneo and gate on green
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
+          REF: ${{ github.event.pull_request.head.sha }}
+          FULL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        run: |
+          set -u
+          # FULL=true (libneo PR labeled 'full-ci') runs each downstream's slow
+          # suite; otherwise only the sub-minute fast tier.
+          fail=0
+          while read -r repo wf blocking; do
+            [ -z "${repo:-}" ] && continue
+            if [ "${blocking:-yes}" != yes ]; then
+              echo "$repo ($wf): report-only, skipping"
+              continue
+            fi
+            echo "::group::$repo ($wf) against libneo $REF (full=$FULL)"
+            args=(-f "libneo_ref=$REF")
+            [ "$FULL" = true ] && args+=(-f full=true)
+            before=$(gh run list -R "itpplasma/$repo" --workflow "$wf" \
+                       --event workflow_dispatch --limit 1 --json databaseId \
+                       -q '.[0].databaseId // 0')
+            gh workflow run "$wf" -R "itpplasma/$repo" "${args[@]}"
+            # Wait for the dispatched run to register, then identify it.
+            run_id=0
+            for _ in $(seq 1 12); do
+              sleep 5
+              run_id=$(gh run list -R "itpplasma/$repo" --workflow "$wf" \
+                         --event workflow_dispatch --limit 1 --json databaseId \
+                         -q '.[0].databaseId // 0')
+              [ "$run_id" != "$before" ] && [ "$run_id" != 0 ] && break
+            done
+            if [ "$run_id" = "$before" ] || [ "$run_id" = 0 ]; then
+              echo "::error::could not find dispatched run for $repo ($wf)"; fail=1; echo "::endgroup::"; continue
+            fi
+            if gh run watch "$run_id" -R "itpplasma/$repo" --exit-status >/dev/null 2>&1; then
+              echo "$repo: green"
+            else
+              echo "::error::$repo CI red against libneo $REF (run $run_id)"; fail=1
+            fi
+            echo "::endgroup::"
+          done < <(grep -vE '^[[:space:]]*#|^[[:space:]]*$' ci/downstreams)
+          exit $fail

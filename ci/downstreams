@@ -1,0 +1,17 @@
+# Downstream codes gated on every libneo PR.
+#
+# Columns: <repo> <workflow> <blocking>
+#   workflow   dispatched with `-f libneo_ref=<sha>` to build + fast-test the
+#              downstream against this PR's libneo. Must accept that input on
+#              the downstream's default branch.
+#   blocking   yes = a red run fails the libneo PR. no = report-only.
+#
+# NEO-RT is report-only: it reaches libneo transitively through NEO-2 (already
+# gated), and its own build does not yet compile the candidate libneo, so a
+# direct gate would not exercise it. Promote once that propagation is wired.
+SIMPLE   main.yml         yes
+NEO-2    test-on-pr.yml   yes
+MEPHIT   main.yml         yes
+KAMEL    ci.yml           yes
+rabe     ci.yml           yes
+NEO-RT   test.yml         no
