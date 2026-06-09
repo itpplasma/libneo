@@ -40,7 +40,6 @@ jobs:
             cmake \
             gfortran \
             libfftw3-dev \
-            libgsl-dev \
             libhdf5-dev \
             libnetcdf-dev \
             libnetcdff-dev \

@@ -1,28 +1,9 @@
 module libneo_collisions
-   use, intrinsic :: iso_c_binding
    use libneo_species, only: species_t
 
    implicit none
 
    integer, parameter :: dp = kind(1.0d0)
-
-   interface
-      function gsl_sf_gamma(x) bind(c, name='gsl_sf_gamma')
-         import :: c_double
-         implicit none
-         real(c_double), value :: x
-         real(c_double) :: gsl_sf_gamma
-      end function gsl_sf_gamma
-   end interface
-
-   interface
-      function gsl_sf_gamma_inc_P(a, x) bind(c, name='gsl_sf_gamma_inc_P')
-         import :: c_double
-         implicit none
-         real(c_double), value :: a, x
-         real(c_double) :: gsl_sf_gamma_inc_P
-      end function gsl_sf_gamma_inc_P
-   end interface
 
 contains
 
@@ -153,10 +134,77 @@ contains
 
    end subroutine
 
-   function lower_incomplete_gamma(a, x) result(gamma)
-      real(dp), intent(in) :: a, x
-      real(dp) :: gamma
+   function lower_incomplete_gamma(a, x) result(inc_gamma)
+      ! regularized algorithms from DLMF 8.11.4 (series) and 8.9.2
+      ! (continued fraction); series converges fast for x < a + 1,
+      ! the continued fraction elsewhere
 
-      gamma = gsl_sf_gamma_inc_P(a, x)*gsl_sf_gamma(a)
+      real(dp), intent(in) :: a, x
+      real(dp) :: inc_gamma
+
+      if (a <= 0.0d0) stop "lower_incomplete_gamma: a must be positive"
+      if (x < 0.0d0) stop "lower_incomplete_gamma: x must be non-negative"
+
+      if (x == 0.0d0) then
+         inc_gamma = 0.0d0
+      else if (x < a + 1.0d0) then
+         inc_gamma = regularized_gamma_p_series(a, x)*gamma(a)
+      else
+         inc_gamma = (1.0d0 - regularized_gamma_q_contfrac(a, x))*gamma(a)
+      end if
    end function lower_incomplete_gamma
+
+   function regularized_gamma_p_series(a, x) result(p)
+      real(dp), intent(in) :: a, x
+      real(dp) :: p
+
+      integer, parameter :: max_iter = 500
+      real(dp) :: term, total
+      integer :: n
+
+      term = 1.0d0/a
+      total = term
+      do n = 1, max_iter
+         term = term*x/(a + n)
+         total = total + term
+         if (abs(term) < abs(total)*epsilon(1.0d0)) then
+            p = total*exp(-x + a*log(x) - log_gamma(a))
+            return
+         end if
+      end do
+      stop "lower_incomplete_gamma: series did not converge"
+   end function regularized_gamma_p_series
+
+   function regularized_gamma_q_contfrac(a, x) result(q)
+      ! modified Lentz evaluation of the continued fraction DLMF 8.9.2
+
+      real(dp), intent(in) :: a, x
+      real(dp) :: q
+
+      integer, parameter :: max_iter = 500
+      real(dp), parameter :: tiny_val = 1.0d-300
+      real(dp) :: b, c, d, h, an, del
+      integer :: n
+
+      b = x + 1.0d0 - a
+      c = 1.0d0/tiny_val
+      d = 1.0d0/max(b, tiny_val)
+      h = d
+      do n = 1, max_iter
+         an = -n*(n - a)
+         b = b + 2.0d0
+         d = an*d + b
+         if (abs(d) < tiny_val) d = tiny_val
+         c = b + an/c
+         if (abs(c) < tiny_val) c = tiny_val
+         d = 1.0d0/d
+         del = d*c
+         h = h*del
+         if (abs(del - 1.0d0) < epsilon(1.0d0)) then
+            q = h*exp(-x + a*log(x) - log_gamma(a))
+            return
+         end if
+      end do
+      stop "lower_incomplete_gamma: continued fraction did not converge"
+   end function regularized_gamma_q_contfrac
 end module

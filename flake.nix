@@ -50,7 +50,6 @@
           pkgs.openblas
           pkgs.lapack
           pkgs.fftw
-          pkgs.gsl
           hdf5-merged
           pkgs.netcdf
           pkgs.netcdffortran
@@ -86,7 +85,6 @@
 
           packages = nativeDeps ++ buildDeps ++ [
             pkgs.fftw.dev
-            pkgs.gsl.dev
             pkgs.git
             python
           ];

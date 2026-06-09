@@ -2,11 +2,12 @@ program test_collision_freqs
 
     use libneo_kinds, only : dp
     use libneo_collisions, only: calc_perp_coll_freq_slow_limit_ee, calc_perp_coll_freq_fast_limit_ee, &
-        calc_coulomb_log, calc_perp_coll_freq
+        calc_coulomb_log, calc_perp_coll_freq, lower_incomplete_gamma
     use util_for_test, only: print_test, print_ok, print_fail
 
     implicit none
 
+    call test_lower_incomplete_gamma
     call test_calc_coulomb_log
     call test_calc_perp_coll_freq
     !call test_calc_perp_coll_freq_slow_limit
@@ -14,6 +15,60 @@ program test_collision_freqs
     call test_fill_species_arr_coulomb_log
 
     contains
+
+    subroutine test_lower_incomplete_gamma
+
+        ! reference values from mpmath.gammainc(a, 0, x) at 40 digits
+
+        implicit none
+
+        integer, parameter :: n = 32
+        real(dp), dimension(n), parameter :: a_ref = [ &
+            0.5d0, 0.5d0, 0.5d0, 0.5d0, 0.5d0, 0.5d0, 0.5d0, 0.5d0, &
+            1.5d0, 1.5d0, 1.5d0, 1.5d0, 1.5d0, 1.5d0, 1.5d0, 1.5d0, &
+            2.5d0, 2.5d0, 2.5d0, 2.5d0, 2.5d0, 2.5d0, 2.5d0, 2.5d0, &
+            5.0d0, 5.0d0, 5.0d0, 5.0d0, 5.0d0, 5.0d0, 5.0d0, 5.0d0]
+        real(dp), dimension(n), parameter :: x_ref = [ &
+            1.0d-6, 0.1d0, 0.5d0, 1.0d0, 2.0d0, 5.0d0, 10.0d0, 50.0d0, &
+            1.0d-6, 0.1d0, 0.5d0, 1.0d0, 2.0d0, 5.0d0, 10.0d0, 50.0d0, &
+            1.0d-6, 0.1d0, 0.5d0, 1.0d0, 2.0d0, 5.0d0, 10.0d0, 50.0d0, &
+            1.0d-6, 0.1d0, 0.5d0, 1.0d0, 2.0d0, 5.0d0, 10.0d0, 50.0d0]
+        real(dp), dimension(n), parameter :: g_ref = [ &
+            0.0019999993333335333d0, 0.61199136611177178d0, &
+            1.2100356193111089d0, 1.4936482656248541d0, &
+            1.6918067329451983d0, 1.7696792476451032d0, &
+            1.7724401246392806d0, 1.7724538509055160d0, &
+            6.6666626666680952d-10, 0.019860967741930695d0, &
+            0.17613586717520105d0, 0.37894469164098470d0, &
+            0.65451037345177732d0, 0.86977311630380579d0, &
+            0.88607649513597917d0, 0.88622692545275801d0, &
+            3.9999971428582540d-16, 0.0011779800815005226d0, &
+            0.049762829522624881d0, 0.20053759629003473d0, &
+            0.59897957413602228d0, 1.2293271368619796d0, &
+            1.3276790708673576d0, 1.3293403881791370d0, &
+            1.9999983333340476d-31, 1.8402724046854341d-6, &
+            0.0041307751189401787d0, 0.087836323856249096d0, &
+            1.2636724162490678d0, 13.428161158434902d0, &
+            23.297935486152934d0, 23.999999999999999d0]
+        real(dp), parameter :: rel_tol = 1.0d-12
+
+        real(dp) :: g
+        integer :: i
+
+        call print_test("test_lower_incomplete_gamma")
+
+        do i = 1, n
+            g = lower_incomplete_gamma(a_ref(i), x_ref(i))
+            if (abs(g - g_ref(i)) > rel_tol*g_ref(i)) then
+                call print_fail
+                print *, "a = ", a_ref(i), ", x = ", x_ref(i)
+                print *, "got ", g, ", expected ", g_ref(i)
+                stop "lower_incomplete_gamma deviates from reference"
+            end if
+        end do
+        call print_ok
+
+    end subroutine
 
     subroutine test_calc_coulomb_log
 

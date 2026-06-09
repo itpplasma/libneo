@@ -51,6 +51,19 @@ target_link_libraries(test_collision_freqs.x
   util_for_test
 )
 
+find_package(GSL QUIET)
+if(GSL_FOUND)
+  add_executable(test_incomplete_gamma_gsl_oracle.x
+    collisions/test_incomplete_gamma_gsl_oracle.f90
+  )
+  target_link_libraries(test_incomplete_gamma_gsl_oracle.x
+    neo
+    collision_freqs
+    util_for_test
+    GSL::gsl
+  )
+endif()
+
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 target_link_libraries(test_arnoldi.x
   ${COMMON_LIBS}
@@ -210,6 +223,11 @@ add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracl
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)
 add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
+if(GSL_FOUND)
+  add_test(NAME test_incomplete_gamma_gsl_oracle
+    COMMAND test_incomplete_gamma_gsl_oracle.x
+  )
+endif()
 add_test(NAME test_transport COMMAND test_transport.x)
 add_test(NAME test_vmec_modules COMMAND test_vmec_modules.x)
 add_test(NAME test_coordinate_systems COMMAND test_coordinate_systems.x)
