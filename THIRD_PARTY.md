@@ -7,18 +7,6 @@ time, each with its license and the obligations it carries.
 
 ## Vendored code
 
-### `src/transport/gen_laguerre_rule.f90` (GNU LGPL)
-
-John Burkardt's Fortran 90 version of IQPACK (Sylvan Elhay and Jaroslav
-Kautsky, ACM TOMS Algorithm 655), distributed under the GNU LGPL per its
-header. It is compiled into the `transport` static library. The LGPL, not the
-MIT license, governs this file. Distributing a binary that contains `transport`
-obliges the distributor to let recipients replace and relink the LGPL part
-(LGPL section 4); distributing libneo in source form satisfies this.
-Replacement with an MIT-licensed implementation is tracked in
-[#288](https://github.com/itpplasma/libneo/issues/288). Keep the file's license
-header intact until then.
-
 ### `python/scripts/ninja_syntax.py` (Apache-2.0)
 
 Google's Ninja build-file writer, Apache License 2.0. Build tooling only; it is
