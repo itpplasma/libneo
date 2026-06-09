@@ -51,6 +51,43 @@ target_link_libraries(test_collision_freqs.x
   util_for_test
 )
 
+# Math kit tests check IEEE behavior (Inf, subnormals) broken by -ffast-math.
+function(add_math_test_options target)
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+    target_compile_options(${target} PRIVATE -fno-fast-math)
+  endif()
+endfunction()
+
+add_executable(test_bessel_i.x math/test_bessel_i.f90)
+target_link_libraries(test_bessel_i.x neo_math util_for_test)
+add_math_test_options(test_bessel_i.x)
+
+add_executable(test_bessel_k.x math/test_bessel_k.f90)
+target_link_libraries(test_bessel_k.x neo_math util_for_test)
+add_math_test_options(test_bessel_k.x)
+
+add_executable(test_dawson.x math/test_dawson.f90)
+target_link_libraries(test_dawson.x neo_math util_for_test)
+add_math_test_options(test_dawson.x)
+
+add_executable(test_gauss_kronrod.x math/test_gauss_kronrod.f90)
+target_link_libraries(test_gauss_kronrod.x neo_math util_for_test)
+add_math_test_options(test_gauss_kronrod.x)
+
+add_executable(test_gauss_quadrature.x math/test_gauss_quadrature.f90)
+target_link_libraries(test_gauss_quadrature.x neo_math util_for_test)
+add_math_test_options(test_gauss_quadrature.x)
+
+add_executable(test_fft.x math/test_fft.f90)
+target_link_libraries(test_fft.x neo_math util_for_test)
+add_math_test_options(test_fft.x)
+
+if(TARGET FFTW::Double)
+  add_executable(test_fft_oracle.x math/test_fft_oracle.f90)
+  target_link_libraries(test_fft_oracle.x neo_math util_for_test FFTW::Double)
+  add_math_test_options(test_fft_oracle.x)
+endif()
+
 find_package(GSL QUIET)
 if(GSL_FOUND)
   add_executable(test_incomplete_gamma_gsl_oracle.x
@@ -62,6 +99,34 @@ if(GSL_FOUND)
     util_for_test
     GSL::gsl
   )
+
+  add_executable(test_bessel_i_oracle.x math/test_bessel_i_oracle.f90)
+  target_link_libraries(test_bessel_i_oracle.x neo_math util_for_test GSL::gsl)
+  add_math_test_options(test_bessel_i_oracle.x)
+
+  add_executable(test_bessel_k_oracle.x math/test_bessel_k_oracle.f90)
+  target_link_libraries(test_bessel_k_oracle.x neo_math util_for_test GSL::gsl)
+  add_math_test_options(test_bessel_k_oracle.x)
+
+  add_executable(test_dawson_oracle.x math/test_dawson_oracle.f90)
+  target_link_libraries(test_dawson_oracle.x neo_math util_for_test GSL::gsl)
+  add_math_test_options(test_dawson_oracle.x)
+
+  add_executable(test_gauss_kronrod_oracle.x math/test_gauss_kronrod_oracle.f90)
+  target_link_libraries(test_gauss_kronrod_oracle.x
+    neo_math
+    util_for_test
+    GSL::gsl
+  )
+  add_math_test_options(test_gauss_kronrod_oracle.x)
+
+  add_executable(test_gauss_quadrature_oracle.x math/test_gauss_quadrature_oracle.f90)
+  target_link_libraries(test_gauss_quadrature_oracle.x
+    neo_math
+    util_for_test
+    GSL::gsl
+  )
+  add_math_test_options(test_gauss_quadrature_oracle.x)
 endif()
 
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
@@ -223,9 +288,25 @@ add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracl
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)
 add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
+add_test(NAME test_bessel_i COMMAND test_bessel_i.x)
+add_test(NAME test_bessel_k COMMAND test_bessel_k.x)
+add_test(NAME test_dawson COMMAND test_dawson.x)
+add_test(NAME test_gauss_kronrod COMMAND test_gauss_kronrod.x)
+add_test(NAME test_gauss_quadrature COMMAND test_gauss_quadrature.x)
+add_test(NAME test_fft COMMAND test_fft.x)
+if(TARGET FFTW::Double)
+  add_test(NAME test_fft_oracle COMMAND test_fft_oracle.x)
+endif()
 if(GSL_FOUND)
   add_test(NAME test_incomplete_gamma_gsl_oracle
     COMMAND test_incomplete_gamma_gsl_oracle.x
+  )
+  add_test(NAME test_bessel_i_oracle COMMAND test_bessel_i_oracle.x)
+  add_test(NAME test_bessel_k_oracle COMMAND test_bessel_k_oracle.x)
+  add_test(NAME test_dawson_oracle COMMAND test_dawson_oracle.x)
+  add_test(NAME test_gauss_kronrod_oracle COMMAND test_gauss_kronrod_oracle.x)
+  add_test(NAME test_gauss_quadrature_oracle
+    COMMAND test_gauss_quadrature_oracle.x
   )
 endif()
 add_test(NAME test_transport COMMAND test_transport.x)

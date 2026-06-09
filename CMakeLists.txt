@@ -216,6 +216,8 @@ add_subdirectory(src/transport)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
+add_subdirectory(src/math)
+
 # Sources for libneo core
 include(CMakeSources.in)
 
