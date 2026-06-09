@@ -12,7 +12,7 @@
 # After including, the following will be available:
 #   - HDF5 targets (hdf5::hdf5_fortran, etc.)
 #   - NetCDF linking via NETCDFINCLUDE_DIR and NETCDF_FLIBS_LIST, or netcdf::netcdff
-#   - FFTW targets (FFTW::Double, FFTW::DoubleThreads)
+#   - FFTW::Double, optional, only consumed by the FFT oracle test
 
 include(${CMAKE_CURRENT_LIST_DIR}/CheckFortranDependency.cmake)
 
@@ -28,7 +28,6 @@ endif()
 # Track what needs to be built from source
 set(NEED_BUILD_HDF5 FALSE)
 set(NEED_BUILD_NETCDF FALSE)
-set(NEED_BUILD_FFTW FALSE)
 
 #------------------------------------------------------------------------------
 # HDF5 Detection
@@ -116,25 +115,15 @@ macro(detect_netcdf)
 endmacro()
 
 #------------------------------------------------------------------------------
-# FFTW Detection
+# FFTW Detection (optional, only for the FFT oracle test)
 #------------------------------------------------------------------------------
 macro(detect_fftw)
-    set(FFTW_USABLE FALSE)
+    find_package(FFTW QUIET COMPONENTS DOUBLE_LIB)
 
-    if(NOT MUST_FETCH_FORTRAN_DEPS AND PREFER_SYSTEM_LIBS)
-        find_package(FFTW QUIET COMPONENTS DOUBLE_LIB DOUBLE_THREADS_LIB)
-
-        if(FFTW_FOUND)
-            message(STATUS "Found system FFTW: ${FFTW_LIBRARIES}")
-            set(FFTW_USABLE TRUE)
-            message(STATUS "  -> Using system FFTW (C ABI is stable)")
-        else()
-            message(STATUS "FFTW not found on system")
-        endif()
-    endif()
-
-    if(NOT FFTW_USABLE)
-        set(NEED_BUILD_FFTW TRUE)
+    if(FFTW_FOUND)
+        message(STATUS "Found system FFTW: ${FFTW_LIBRARIES} (FFT oracle test enabled)")
+    else()
+        message(STATUS "FFTW not found, skipping FFT oracle test")
     endif()
 endmacro()
 
@@ -161,7 +150,7 @@ detect_netcdf()
 detect_fftw()
 
 # If any dependencies need to be built from source, use the superbuild
-if(NEED_BUILD_HDF5 OR NEED_BUILD_NETCDF OR NEED_BUILD_FFTW)
+if(NEED_BUILD_HDF5 OR NEED_BUILD_NETCDF)
     message(STATUS "")
     message(STATUS "Some dependencies will be built from source:")
     if(NEED_BUILD_HDF5)
@@ -169,9 +158,6 @@ if(NEED_BUILD_HDF5 OR NEED_BUILD_NETCDF OR NEED_BUILD_FFTW)
     endif()
     if(NEED_BUILD_NETCDF)
         message(STATUS "  - NetCDF-C and NetCDF-Fortran")
-    endif()
-    if(NEED_BUILD_FFTW)
-        message(STATUS "  - FFTW")
     endif()
 
     # Include the superbuild module and build all needed dependencies

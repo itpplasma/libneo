@@ -25,22 +25,26 @@ Licenses of libraries that end up inside libneo binaries or are loaded by them:
 
 | Library | License | Linked into |
 |---|---|---|
-| FFTW3 | GPL-2.0-or-later | `magfie` |
 | HDF5 | BSD-3-Clause-style | `hdf5_tools` |
 | NetCDF-C, NetCDF-Fortran | BSD-3-Clause | `magfie`, field I/O |
 | OpenBLAS / reference LAPACK | BSD-3-Clause / modified BSD | linear algebra throughout |
 | Intel MKL (optional alternative) | Intel Simplified Software License | linear algebra, user-supplied |
 | GCC runtimes (libgfortran, libgomp, libquadmath) | GPL-3.0 with GCC Runtime Library Exception | all gfortran binaries |
 
-FFTW is the one entry that conflicts with MIT labeling: a conveyed binary
-containing `magfie` combines MIT code with GPL FFTW, so the GPL terms govern
-that distribution. Removal is tracked in
-[#287](https://github.com/itpplasma/libneo/issues/287); the GSL link with the
-same problem was removed in #286.
-
 The GCC runtime libraries are GPL but their Runtime Library Exception
 explicitly permits linking them into programs under any license; they impose no
 copyleft obligation here.
+
+## Test-only: FFTW3 (GPL-2.0-or-later)
+
+`magfie` formerly linked FFTW for the Fourier transforms in `coil_tools`; the
+in-tree `neo_fft` module replaced that link
+([#287](https://github.com/itpplasma/libneo/issues/287)), so no conveyed
+libneo binary contains FFTW code. FFTW remains an optional test oracle:
+`test/math/test_fft_oracle.f90` checks `neo_fft` against it, and CMake builds
+that executable only when it finds FFTW. The same reasoning as for GSL below
+applies: the oracle executable links GPL code, stays in the build tree, and is
+never installed or distributed, so no GPL obligation arises.
 
 ## Test-only: GSL (GPL-3.0-or-later)
 

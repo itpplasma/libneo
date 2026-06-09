@@ -49,7 +49,6 @@
           pkgs.openmpi
           pkgs.openblas
           pkgs.lapack
-          pkgs.fftw
           hdf5-merged
           pkgs.netcdf
           pkgs.netcdffortran
@@ -84,6 +83,7 @@
           name = "libneo-dev";
 
           packages = nativeDeps ++ buildDeps ++ [
+            pkgs.fftw
             pkgs.fftw.dev
             pkgs.git
             python
