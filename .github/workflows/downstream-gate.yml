@@ -59,7 +59,10 @@ jobs:
             before=$(gh run list -R "itpplasma/$repo" --workflow "$wf" \
                        --event workflow_dispatch --limit 1 --json databaseId \
                        -q '.[0].databaseId // 0')
-            gh workflow run "$wf" -R "itpplasma/$repo" "${args[@]}"
+            if ! gh workflow run "$wf" -R "itpplasma/$repo" "${args[@]}" 2>&1; then
+              echo "::error::failed to dispatch $repo ($wf) — workflow may lack workflow_dispatch trigger"
+              fail=1; echo "::endgroup::"; continue
+            fi
             # Wait for the dispatched run to register, then identify it.
             run_id=0
             for _ in $(seq 1 12); do
