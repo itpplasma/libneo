@@ -1,8 +1,63 @@
+module test_gauss_kronrod_callbacks
+
+    use libneo_kinds, only: dp
+
+    implicit none
+
+    integer :: neval
+
+contains
+
+    function f_exp(x) result(fx)
+        real(dp), intent(in) :: x
+        real(dp) :: fx
+        neval = neval + 1
+        fx = exp(x)
+    end function f_exp
+
+    function f_sin50(x) result(fx)
+        real(dp), intent(in) :: x
+        real(dp) :: fx
+        neval = neval + 1
+        fx = sin(50.0d0*x)
+    end function f_sin50
+
+    function f_sqrt(x) result(fx)
+        real(dp), intent(in) :: x
+        real(dp) :: fx
+        neval = neval + 1
+        fx = sqrt(x)
+    end function f_sqrt
+
+    function f_lorentz(x) result(fx)
+        real(dp), intent(in) :: x
+        real(dp) :: fx
+        neval = neval + 1
+        fx = 1.0d0/(x*x + 1.0d-8)
+    end function f_lorentz
+
+    function f_peak(x) result(fx)
+        real(dp), intent(in) :: x
+        real(dp) :: fx
+        neval = neval + 1
+        fx = exp(-400.0d0*(x - 0.3d0)**2)
+    end function f_peak
+
+    function f_invsqrt(x) result(fx)
+        real(dp), intent(in) :: x
+        real(dp) :: fx
+        neval = neval + 1
+        fx = 1.0d0/sqrt(x)
+    end function f_invsqrt
+
+end module test_gauss_kronrod_callbacks
+
 program test_gauss_kronrod
 
     use libneo_kinds, only: dp
     use neo_gauss_kronrod, only: integrate_gk
     use util_for_test, only: print_test, print_ok, print_fail
+    use test_gauss_kronrod_callbacks
 
     implicit none
 
@@ -15,8 +70,6 @@ program test_gauss_kronrod
     real(dp), parameter :: ref_invsqrt = 2.0d0
     real(dp), parameter :: epsrel = 1.0d-10
     integer, parameter :: keys(4) = [15, 21, 31, 61]
-
-    integer :: neval
 
     call test_smooth_exp_all_keys
     call test_oscillatory_sin50_all_keys
@@ -204,47 +257,5 @@ contains
         end if
         call print_ok
     end subroutine test_limit_exceeded
-
-    function f_exp(x) result(fx)
-        real(dp), intent(in) :: x
-        real(dp) :: fx
-        neval = neval + 1
-        fx = exp(x)
-    end function f_exp
-
-    function f_sin50(x) result(fx)
-        real(dp), intent(in) :: x
-        real(dp) :: fx
-        neval = neval + 1
-        fx = sin(50.0d0*x)
-    end function f_sin50
-
-    function f_sqrt(x) result(fx)
-        real(dp), intent(in) :: x
-        real(dp) :: fx
-        neval = neval + 1
-        fx = sqrt(x)
-    end function f_sqrt
-
-    function f_lorentz(x) result(fx)
-        real(dp), intent(in) :: x
-        real(dp) :: fx
-        neval = neval + 1
-        fx = 1.0d0/(x*x + 1.0d-8)
-    end function f_lorentz
-
-    function f_peak(x) result(fx)
-        real(dp), intent(in) :: x
-        real(dp) :: fx
-        neval = neval + 1
-        fx = exp(-400.0d0*(x - 0.3d0)**2)
-    end function f_peak
-
-    function f_invsqrt(x) result(fx)
-        real(dp), intent(in) :: x
-        real(dp) :: fx
-        neval = neval + 1
-        fx = 1.0d0/sqrt(x)
-    end function f_invsqrt
 
 end program test_gauss_kronrod
