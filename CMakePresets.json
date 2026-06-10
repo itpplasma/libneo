@@ -10,7 +10,10 @@
             "name": "default",
             "description": "Default build using Ninja generator",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build"
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_Fortran_COMPILER": "gfortran"
+            }
         }
     ],
     "buildPresets": [
