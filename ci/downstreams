@@ -1,17 +1,25 @@
 # Downstream codes gated on every libneo PR.
 #
-# Columns: <repo> <workflow> <blocking>
+# Columns: <repo> <workflow> <blocking> <full>
 #   workflow   dispatched with `-f libneo_ref=<sha>` to build + fast-test the
 #              downstream against this PR's libneo. Must accept that input on
 #              the downstream's default branch.
 #   blocking   yes = a red run fails the libneo PR. no = report-only.
+#   full       yes = also dispatch with `-f full=true` when the libneo PR is
+#              labeled `full-ci` (the workflow must accept a `full` input).
+#              no = always fast-only; the downstream's slow suite is not
+#              gate-triggered and runs on the downstream's own PRs instead.
+#
+# NEO-2 splits fast and slow CI: unit-tests.yml is the always-on fast tier the
+# gate triggers; its golden-record/performance/PAR suite stays on NEO-2's own
+# PRs, so NEO-2 is full=no here.
 #
 # NEO-RT is report-only: it reaches libneo transitively through NEO-2 (already
 # gated), and its own build does not yet compile the candidate libneo, so a
 # direct gate would not exercise it. Promote once that propagation is wired.
-SIMPLE   main.yml         yes
-NEO-2    test-on-pr.yml   yes
-MEPHIT   main.yml         yes
-KAMEL    ci.yml           yes
-rabe     ci.yml           yes
-NEO-RT   test.yml         no
+SIMPLE   main.yml         yes   yes
+NEO-2    unit-tests.yml   yes   no
+MEPHIT   main.yml         yes   yes
+KAMEL    ci.yml           yes   yes
+rabe     ci.yml           yes   yes
+NEO-RT   test.yml         no    no

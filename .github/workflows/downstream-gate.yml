@@ -5,8 +5,10 @@
 #
 # ci/downstreams is the gated set. Each downstream's workflow is dispatched with
 # `-f libneo_ref=<sha>`; with no `full` it runs only its fast (sub-minute) tests.
-# Label the libneo PR `full-ci` to also run each downstream's slow suite
-# (golden records, performance, PAR) before merge, dispatched with `-f full=true`.
+# Label the libneo PR `full-ci` to also run the slow suite (golden records,
+# performance, PAR) of each downstream whose `full` column is yes, dispatched
+# with `-f full=true`. Fast-only downstreams (full=no) keep their slow suite on
+# their own PRs and are never sent `-f full=true`.
 #
 # Needs RELEASE_BOT_TOKEN with actions:write on the downstreams (dispatch + read
 # their runs). Same-repo PRs only: a fork's head SHA is not on origin, so the
@@ -44,10 +46,11 @@ jobs:
           FULL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
         run: |
           set -u
-          # FULL=true (libneo PR labeled 'full-ci') runs each downstream's slow
-          # suite; otherwise only the sub-minute fast tier.
+          # FULL=true (libneo PR labeled 'full-ci') also runs the slow suite of
+          # each downstream that opts in via the ci/downstreams full column;
+          # otherwise only the sub-minute fast tier.
           fail=0
-          while read -r repo wf blocking; do
+          while read -r repo wf blocking full_ci; do
             [ -z "${repo:-}" ] && continue
             if [ "${blocking:-yes}" != yes ]; then
               echo "$repo ($wf): report-only, skipping"
@@ -55,7 +58,9 @@ jobs:
             fi
             echo "::group::$repo ($wf) against libneo $REF (full=$FULL)"
             args=(-f "libneo_ref=$REF")
-            [ "$FULL" = true ] && args+=(-f full=true)
+            if [ "$FULL" = true ] && [ "${full_ci:-yes}" = yes ]; then
+              args+=(-f full=true)
+            fi
             before=$(gh run list -R "itpplasma/$repo" --workflow "$wf" \
                        --event workflow_dispatch --limit 1 --json databaseId \
                        -q '.[0].databaseId // 0')
