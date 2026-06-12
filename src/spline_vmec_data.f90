@@ -178,16 +178,33 @@ contains
 
    subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
       use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                    axm, axn, nstrm, old_axis_healing_boundary
+                                    axm, axn, nstrm, old_axis_healing_boundary, &
+                                    axis_healing_power_law
       use vector_potentail_mod, only: ns
 
       real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
       real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
-      integer :: i, m, nrho, nheal, iunit_hs
+      integer :: i, m, nrho, nheal, iunit_hs, i_anchor
 
       nrho = ns
       allocate (almnc_rho(nstrm, 0:nrho - 1), rmnc_rho(nstrm, 0:nrho - 1), zmnc_rho(nstrm, 0:nrho - 1))
       allocate (almns_rho(nstrm, 0:nrho - 1), rmns_rho(nstrm, 0:nrho - 1), zmns_rho(nstrm, 0:nrho - 1))
+
+      if (axis_healing_power_law) then
+         i_anchor = axis_anchor_index(ns)
+         print *, 'VMEC axis healing: rho**m continuation below s = ', &
+            dble(i_anchor - 1)/dble(ns - 1)
+         do i = 1, nstrm
+            m = nint(abs(axm(i)))
+            call s_to_rho_power_law(m, ns, nrho, i_anchor, rmnc(i, :), rmnc_rho(i, :))
+            call s_to_rho_power_law(m, ns, nrho, i_anchor, zmnc(i, :), zmnc_rho(i, :))
+            call s_to_rho_power_law(m, ns, nrho, i_anchor, almnc(i, :), almnc_rho(i, :))
+            call s_to_rho_power_law(m, ns, nrho, i_anchor, rmns(i, :), rmns_rho(i, :))
+            call s_to_rho_power_law(m, ns, nrho, i_anchor, zmns(i, :), zmns_rho(i, :))
+            call s_to_rho_power_law(m, ns, nrho, i_anchor, almns(i, :), almns_rho(i, :))
+         end do
+         return
+      end if
 
       iunit_hs = 1357
       open (iunit_hs, file='healaxis.dat')
@@ -915,6 +932,89 @@ contains
       deallocate (splcoe)
 
    end subroutine s_to_rho_healaxis
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   function axis_anchor_index(ns) result(i_anchor)
+      !> Innermost reliable full-grid surface: the first surface at or
+      !> outside rho_axis_heal. VMEC full-grid harmonics inside this
+      !> radius violate the rho**|m| analyticity condition (the radial
+      !> startup layer), so they are discarded and replaced by the
+      !> power-law continuation.
+      use new_vmec_stuff_mod, only: rho_axis_heal, ns_s
+
+      integer, intent(in) :: ns
+      integer :: i_anchor
+
+      i_anchor = 1 + nint(rho_axis_heal**2*dble(ns - 1))
+      i_anchor = max(2, min(i_anchor, ns - ns_s - 1))
+   end function axis_anchor_index
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   subroutine s_to_rho_power_law(m, ns, nrho, i_anchor, arr_in, arr_out)
+      !> Resamples one Fourier amplitude from the uniform s grid to the
+      !> uniform rho = sqrt(s) grid, enforcing analytic regularity at the
+      !> axis. Surfaces below i_anchor are discarded: the amplitude is
+      !> continued to the axis as c(rho) = c_anchor*(rho/rho_anchor)**|m|
+      !> (m clamped at 50), anchored at the innermost reliable surface.
+      !> Outside the anchor the spline acts on c/rho**|m|, an even analytic
+      !> function of rho, built only from the reliable surfaces. This is the
+      !> booz_xform_to_boozer_chartmap continuation applied at the VMEC
+      !> harmonic level, so both the Boozer and canonical transforms inherit
+      !> a clean near-axis field from one place.
+      use new_vmec_stuff_mod, only: ns_s
+
+      integer, intent(in) :: m, ns, nrho, i_anchor
+      real(dp), dimension(ns), intent(in) :: arr_in
+      real(dp), dimension(nrho), intent(out) :: arr_out
+
+      integer, parameter :: m_clamp = 50
+
+      integer :: irho, is, k, mc, nsub
+      real(dp) :: hs, hrho, s, s_anchor, ds, rho, rho_anchor
+      real(dp), dimension(:, :), allocatable :: splcoe
+
+      hs = 1.d0/dble(ns - 1)
+      hrho = 1.d0/dble(nrho - 1)
+      mc = min(m, m_clamp)
+      s_anchor = hs*dble(i_anchor - 1)
+      rho_anchor = sqrt(s_anchor)
+      nsub = ns - i_anchor + 1
+
+      allocate (splcoe(0:ns_s, nsub))
+
+      if (mc > 0) then
+         do is = i_anchor, ns
+            rho = sqrt(hs*dble(is - 1))
+            splcoe(0, is - i_anchor + 1) = arr_in(is)/rho**mc
+         end do
+      else
+         splcoe(0, :) = arr_in(i_anchor:ns)
+      end if
+
+      call spl_reg(ns_s, nsub, hs, splcoe)
+
+      do irho = 1, nrho
+         rho = hrho*dble(irho - 1)
+         if (rho < rho_anchor) then
+            arr_out(irho) = splcoe(0, 1)*(rho/rho_anchor)**mc
+         else
+            s = rho**2
+            ds = (s - s_anchor)/hs
+            is = max(0, min(nsub - 1, int(ds)))
+            ds = (ds - dble(is))*hs
+            is = is + 1
+            arr_out(irho) = splcoe(ns_s, is)
+            do k = ns_s - 1, 0, -1
+               arr_out(irho) = splcoe(k, is) + ds*arr_out(irho)
+            end do
+            if (mc > 0) arr_out(irho) = arr_out(irho)*rho**mc
+         end if
+      end do
+
+      deallocate (splcoe)
+   end subroutine s_to_rho_power_law
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

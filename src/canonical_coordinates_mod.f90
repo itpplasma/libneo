@@ -26,6 +26,11 @@
 
     logical :: old_axis_healing = .True.
     logical :: old_axis_healing_boundary = .True.
+    ! rho**m power-law axis continuation below rho_axis_heal; enforces the
+    ! analytic regularity c_m(rho) ~ rho**|m| at the axis and overrides the two
+    ! legacy flags above when .true.
+    logical :: axis_healing_power_law = .True.
+    double precision :: rho_axis_heal = 0.1d0
   end module new_vmec_stuff_mod
 !
   module vector_potentail_mod
