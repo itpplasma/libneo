@@ -28,8 +28,10 @@
     logical :: old_axis_healing_boundary = .True.
     ! rho**m power-law axis continuation below rho_axis_heal; enforces the
     ! analytic regularity c_m(rho) ~ rho**|m| at the axis and overrides the two
-    ! legacy flags above when .true.
-    logical :: axis_healing_power_law = .True.
+    ! legacy flags above when .true. Opt-in: consumers that need it (SIMPLE
+    ! near-axis symplectic tracing) enable it via namelist. Default keeps the
+    ! legacy healing so existing chartmap/field consumers are unchanged.
+    logical :: axis_healing_power_law = .False.
     double precision :: rho_axis_heal = 0.1d0
   end module new_vmec_stuff_mod
 !
