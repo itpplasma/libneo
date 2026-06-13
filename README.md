@@ -140,9 +140,6 @@ Interface to hdf5, to simplify calls.
 
 ### MC
 
-### MyMPILib
-Interface to MPI, so no actual mpi routines need to be called in
-programs.
 
 ### poincare
 Poincare plot generation for magnetic field lines. Computes field line trajectories 
