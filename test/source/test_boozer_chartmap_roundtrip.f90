@@ -42,7 +42,7 @@ program test_boozer_chartmap_roundtrip
                                  A_theta, A_phi_val, dA_theta_dr, dA_phi_dr, &
                                  d2A_phi_dr2, d3A_phi_dr3, Bth, dBth, d2Bth, &
                                  Bph, dBph, d2Bph, Bmod, dBmod, d2Bmod, &
-                                 sqrt_g_ss, Br, dBr, d2Br)
+                                 Br, dBr, d2Br, sqrt_g_ss)
         bmod_ref(i) = Bmod
     end do
 
@@ -54,7 +54,7 @@ program test_boozer_chartmap_roundtrip
                                  A_theta, A_phi_val, dA_theta_dr, dA_phi_dr, &
                                  d2A_phi_dr2, d3A_phi_dr3, Bth, dBth, d2Bth, &
                                  Bph, dBph, d2Bph, Bmod, dBmod, d2Bmod, &
-                                 sqrt_g_ss, Br, dBr, d2Br)
+                                 Br, dBr, d2Br, sqrt_g_ss)
         bmod_new(i) = Bmod
     end do
 

@@ -102,8 +102,8 @@ contains
                                  d2A_phi_dr2, d3A_phi_dr3, &
                                  B_vartheta_B, dB_vartheta_B, d2B_vartheta_B, &
                                  B_varphi_B, dB_varphi_B, d2B_varphi_B, &
-                                 Bmod_B, dBmod_B, d2Bmod_B, sqrt_g_ss_B, &
-                                 B_r, dB_r, d2B_r)
+                                 Bmod_B, dBmod_B, d2Bmod_B, &
+                                 B_r, dB_r, d2B_r, sqrt_g_ss_B)
 
         aiota = -dA_phi_dr/dA_theta_dr
         bmod = Bmod_B

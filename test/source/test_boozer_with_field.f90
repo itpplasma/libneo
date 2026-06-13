@@ -80,7 +80,7 @@ contains
                                  A_theta, aphi, dA_theta_dr, dA_phi_dr, &
                                  d2A_phi_dr2, d3A_phi_dr3, bth, dBth, d2Bth, &
                                  bph, dBph, d2Bph, bmod, dBmod, d2Bmod, &
-                                 sqrt_g_ss, Br, dBr, d2Br)
+                                 Br, dBr, d2Br, sqrt_g_ss)
     end subroutine eval_point
 
     pure function rel_diff(a, b) result(d)

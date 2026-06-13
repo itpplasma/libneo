@@ -81,14 +81,25 @@ contains
         use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm
         use spline_vmec_sub, only: spline_vmec_data
         use new_vmec_stuff_mod, only: old_axis_healing_boundary
+        use field_vmec, only: vmec_field_t, create_vmec_field
 
-        character(len=*), intent(in) :: vmec_file
+        character(len=*), intent(in), optional :: vmec_file
         integer, intent(in), optional :: radial_spline_order, angular_spline_order, grid_refinment
 
         ! diagnostic file written by libneo's perform_axis_healing when splining VMEC data
         character(len=*), parameter :: healaxis_file = 'healaxis.dat'
         logical :: healaxis_exists
         integer :: iunit
+        type(vmec_field_t) :: vfield
+
+        if (.not. present(vmec_file)) then
+            ! No-argument entry: VMEC is assumed already splined by the caller.
+            ! Dispatch through a VMEC field object so the field-object path is used,
+            ! matching the historical SIMPLE no-arg get_boozer_coordinates.
+            call create_vmec_field(vfield)
+            call get_boozer_coordinates_with_field(vfield)
+            return
+        end if
 
         netcdffile = vmec_file
         if (present(radial_spline_order)) then
@@ -191,8 +202,7 @@ contains
                                    B_vartheta_B, dB_vartheta_B, d2B_vartheta_B, &
                                    B_varphi_B, dB_varphi_B, d2B_varphi_B, &
                                    Bmod_B, dBmod_B, d2Bmod_B, &
-                                   sqrt_g_ss_B, &
-                                   B_r, dB_r, d2B_r)
+                                   B_r, dB_r, d2B_r, sqrt_g_ss_B)
 
         use chamb_mod, only: rnegflag
         use diag_mod, only: dodiag, icounter
@@ -206,7 +216,8 @@ contains
         real(dp), intent(out) :: d2A_phi_dr2, d3A_phi_dr3
         real(dp), intent(out) :: B_vartheta_B, dB_vartheta_B, d2B_vartheta_B
         real(dp), intent(out) :: B_varphi_B, dB_varphi_B, d2B_varphi_B
-        real(dp), intent(out) :: Bmod_B, sqrt_g_ss_B, B_r
+        real(dp), intent(out) :: Bmod_B, B_r
+        real(dp), intent(out), optional :: sqrt_g_ss_B
         real(dp), intent(out) :: dBmod_B(3), dB_r(3)
         real(dp), intent(out) :: d2Bmod_B(6), d2B_r(6)
 
@@ -315,7 +326,7 @@ contains
             d2Bmod_B(5) = d2qua_dtdp
             d2Bmod_B(6) = d2qua_dp2
 
-            sqrt_g_ss_B = y_eval(2)
+            if (present(sqrt_g_ss_B)) sqrt_g_ss_B = y_eval(2)
 
             ! Extract B_r (if present)
             if (boozer_state%use_B_r) then
@@ -364,7 +375,7 @@ contains
             dBmod_B(2) = dy_eval(2, 1)
             dBmod_B(3) = dy_eval(3, 1)
 
-            sqrt_g_ss_B = y_eval(2)
+            if (present(sqrt_g_ss_B)) sqrt_g_ss_B = y_eval(2)
 
             d2Bmod_B = 0.0_dp
 
@@ -1367,7 +1378,7 @@ contains
                                      dA_phi_ds, d2A_phi_ds2, d3A_phi_ds3, &
                                      B_theta_val, dB_theta, d2B_theta, &
                                      B_phi_val, dB_phi, d2B_phi, &
-                                     Bmod_val, dBmod, d2Bmod, sqrt_g_ss_val, &
+                                     Bmod_val, dBmod, d2Bmod, &
                                      B_r_val, dB_r, d2B_r)
 
             s = rho_arr(i_rho)**2
@@ -1376,7 +1387,7 @@ contains
                                      dA_phi_ds, d2A_phi_ds2, d3A_phi_ds3, &
                                      B_theta_arr(i_rho), dB_theta, d2B_theta, &
                                      B_phi_arr(i_rho), dB_phi, d2B_phi, &
-                                     Bmod_val, dBmod, d2Bmod, sqrt_g_ss_val, &
+                                     Bmod_val, dBmod, d2Bmod, &
                                      B_r_val, dB_r, d2B_r)
         end do
 
@@ -1418,7 +1429,7 @@ contains
                                              B_theta_val, dB_theta, d2B_theta, &
                                              B_phi_val, dB_phi, d2B_phi, &
                                              bmod_arr(i_rho, i_theta, i_phi), &
-                                             dBmod, d2Bmod, sqrt_g_ss_val, &
+                                             dBmod, d2Bmod, &
                                              B_r_val, dB_r, d2B_r)
                 end do
             end do
