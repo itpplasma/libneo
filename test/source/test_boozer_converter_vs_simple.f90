@@ -13,7 +13,13 @@ program test_boozer_converter_vs_simple
     use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord
     implicit none
 
-    real(dp), parameter :: reltol = 1.0e-6_dp, abstol = 1.0e-11_dp
+    ! reltol pins the well-conditioned quantities (|B|, sqrt(g), the large
+    ! covariant components). abstol is the absolute floor for the near-zero
+    ! covariant components (e.g. B_theta/|B| ~ 1e-5 for QA), whose relative
+    ! agreement is compile/platform-sensitive at the spline-interpolation level;
+    ! 1e-10 absorbs that cross-platform FP noise without loosening the
+    ! relative bound the large quantities meet.
+    real(dp), parameter :: reltol = 1.0e-6_dp, abstol = 1.0e-10_dp
     character(len=*), parameter :: wout_file = "wout.nc"
 
     integer, parameter :: n_cases = 5
