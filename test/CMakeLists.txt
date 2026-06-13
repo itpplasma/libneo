@@ -68,6 +68,13 @@ target_link_libraries(test_boozer_coordinates_exports.x
   neo
 )
 
+add_executable(test_axis_power_law_regularization.x
+  source/test_axis_power_law_regularization.f90
+)
+target_link_libraries(test_axis_power_law_regularization.x
+  neo
+)
+
 add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
 target_link_libraries(test_geqdsk_tools.x
   ${MAIN_LIB}
@@ -190,6 +197,8 @@ target_link_libraries(test_nctools_nc_get3.x
 ## Standard tests according to standard libneo Fortran test convention.
 
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
+add_test(NAME test_axis_power_law_regularization
+  COMMAND test_axis_power_law_regularization.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )

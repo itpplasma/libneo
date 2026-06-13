@@ -998,7 +998,7 @@ contains
       do irho = 1, nrho
          rho = hrho*dble(irho - 1)
          if (rho < rho_anchor) then
-            arr_out(irho) = splcoe(0, 1)*(rho/rho_anchor)**mc
+            arr_out(irho) = splcoe(0, 1)*rho**mc
          else
             s = rho**2
             ds = (s - s_anchor)/hs
