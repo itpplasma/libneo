@@ -502,6 +502,15 @@ set_tests_properties(test_boozer_angle_roundtrip PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_boozer_chartmap_roundtrip.x source/test_boozer_chartmap_roundtrip.f90)
+target_link_libraries(test_boozer_chartmap_roundtrip.x neo)
+add_test(NAME test_boozer_chartmap_roundtrip
+  COMMAND test_boozer_chartmap_roundtrip.x)
+set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_chartmap_vmec_mapping.x source/test_chartmap_vmec_mapping.f90)
 target_link_libraries(test_chartmap_vmec_mapping.x neo)
 add_test(NAME test_chartmap_vmec_mapping
