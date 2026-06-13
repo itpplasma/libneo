@@ -7,22 +7,42 @@ module boozer_sub
                            evaluate_batch_splines_3d_der, &
                            evaluate_batch_splines_3d_der2, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
+    use field_base, only: magnetic_field_t
     use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
     private
 
     ! Public API
-    public :: get_boozer_coordinates
+    public :: get_boozer_coordinates, get_boozer_coordinates_with_field
     public :: splint_boozer_coord
     public :: reset_boozer_batch_splines
     public :: vmec_to_boozer, boozer_to_vmec
     public :: delthe_delphi_BV
     public :: export_boozer_chartmap, load_boozer_from_chartmap
+    public :: sync_boozer_state, boozer_state
 
     ! Constants
     real(dp), parameter :: TWOPI = 2.0_dp*3.14159265358979_dp
     integer, parameter :: MAX_FIELD3D_QUANTITIES = 3
+
+    ! Field object for the get_boozer_coordinates_with_field entry. The no-arg
+    ! get_boozer_coordinates leaves this unallocated so the global-VMEC path
+    ! (vmec_field_evaluate) stays byte-identical.
+    class(magnetic_field_t), allocatable, save :: current_field
+
+    ! Device-accessible Boozer runtime state shared by host and OpenACC code.
+    ! sync_boozer_state copies the libneo globals into this object so that
+    ! splint_boozer_coord can run device-resident.
+    type :: boozer_state_t
+        real(dp) :: torflux = 0.0_dp
+        integer :: nper = 1
+        logical :: use_B_r = .false.
+        integer :: num_quantities = 0
+    end type boozer_state_t
+
+    type(boozer_state_t), save :: boozer_state
+    !$acc declare create(boozer_state)
 
     ! Batch spline data for 3D field quantities (Bmod, sqrt_g_ss, optionally B_r)
     type(BatchSplineData3D), save :: field3d_batch_spline
@@ -95,10 +115,47 @@ contains
             close (iunit, status='delete')
         end if
 
+        ! No-arg entry uses the global VMEC path: current_field stays
+        ! unallocated so compute_boozer_data is byte-identical.
+        if (allocated(current_field)) deallocate (current_field)
+
         call reset_boozer_batch_splines()
         call get_boozer_coordinates_impl()
+        call sync_boozer_state()
 
     end subroutine get_boozer_coordinates
+
+    !> Initialize Boozer coordinates using a given magnetic field object.
+    !> Clones the field into the module variable current_field; compute_boozer_data
+    !> then dispatches its evaluation through vmec_field_evaluate_with_field.
+    subroutine get_boozer_coordinates_with_field(field)
+        class(magnetic_field_t), intent(in) :: field
+
+        ! Sourced allocation clones the dynamic type of field. nvfortran has a
+        ! known sourced-allocation caveat for polymorphic copies (SIMPLE issue 273).
+        if (allocated(current_field)) deallocate (current_field)
+        allocate (current_field, source=field)
+
+        call reset_boozer_batch_splines()
+        call get_boozer_coordinates_impl()
+        call sync_boozer_state()
+
+    end subroutine get_boozer_coordinates_with_field
+
+    !> Copy scalar Boozer field parameters and the field3d quantity count from
+    !> the libneo modules into the shared runtime state. Host-only; call after
+    !> field init and before any OpenACC tracing kernel.
+    subroutine sync_boozer_state()
+        use vector_potentail_mod, only: torflux
+        use new_vmec_stuff_mod, only: nper
+        use boozer_coordinates_mod, only: use_B_r
+
+        boozer_state%torflux = torflux
+        boozer_state%nper = nper
+        boozer_state%use_B_r = use_B_r
+        boozer_state%num_quantities = field3d_num_quantities
+        !$acc update device(boozer_state)
+    end subroutine sync_boozer_state
 
     subroutine get_boozer_coordinates_impl
 
@@ -137,9 +194,6 @@ contains
                                    sqrt_g_ss_B, &
                                    B_r, dB_r, d2B_r)
 
-        use boozer_coordinates_mod, only: use_B_r
-        use vector_potentail_mod, only: torflux
-        use new_vmec_stuff_mod, only: nper
         use chamb_mod, only: rnegflag
         use diag_mod, only: dodiag, icounter
 
@@ -178,8 +232,8 @@ contains
             r_eval = abs(r_eval)
         end if
 
-        A_theta = torflux*r_eval
-        dA_theta_dr = torflux
+        A_theta = boozer_state%torflux*r_eval
+        dA_theta_dr = boozer_state%torflux
 
         ! Interpolate A_phi over s (batch spline 1D)
         if (.not. aphi_batch_spline_ready) then
@@ -207,7 +261,7 @@ contains
         ! Interpolation of mod-B (and B_r if use_B_r)
         rho_tor = sqrt(r_eval)
         theta_wrapped = modulo(vartheta_B, TWOPI)
-        phi_wrapped = modulo(varphi_B, TWOPI/real(nper, dp))
+        phi_wrapped = modulo(varphi_B, TWOPI/real(boozer_state%nper, dp))
 
         if (.not. field3d_batch_spline_ready) then
             error stop "splint_boozer_coord: Bmod/Br batch spline not initialized"
@@ -264,7 +318,7 @@ contains
             sqrt_g_ss_B = y_eval(2)
 
             ! Extract B_r (if present)
-            if (use_B_r) then
+            if (boozer_state%use_B_r) then
                 qua = y_eval(i_br)
                 dqua_dr = dy_eval(1, i_br)
                 dqua_dt = dy_eval(2, i_br)
@@ -324,7 +378,7 @@ contains
                 d2Bmod_B(1) = d2y_eval(1, 1)*drhods2 - dy_eval(1, 1)*d2rhods2m
             end if
 
-            if (use_B_r) then
+            if (boozer_state%use_B_r) then
                 qua = y_eval(i_br)
                 dqua_dr = dy_eval(1, i_br)
                 dqua_dt = dy_eval(2, i_br)
@@ -509,6 +563,7 @@ contains
         use binsrc_sub, only: binsrc
         use plag_coeff_sub, only: plag_coeff
         use spline_vmec_sub
+        use vmec_field_eval, only: vmec_field_evaluate_with_field
 
         implicit none
 
@@ -626,15 +681,30 @@ contains
                 do i_phi = 1, n_phi_B
                     varphi = real(i_phi - 1, dp)*h_phi_B
 
-                    call vmec_field_evaluate(s, theta, varphi, &
-                                             A_theta, A_phi, dA_theta_ds, &
-                                             dA_phi_ds, aiota, &
-                                             sqg, alam, dl_ds, &
-                                             dl_dt, dl_dp, &
-                                             Bctrvr_vartheta, &
-                                             Bctrvr_varphi, &
-                                             Bcovar_r, Bcovar_vartheta, &
-                                             Bcovar_varphi)
+                    if (allocated(current_field)) then
+                        call vmec_field_evaluate_with_field(current_field, &
+                                                            s, theta, varphi, &
+                                                            A_theta, A_phi, &
+                                                            dA_theta_ds, &
+                                                            dA_phi_ds, aiota, &
+                                                            sqg, alam, dl_ds, &
+                                                            dl_dt, dl_dp, &
+                                                            Bctrvr_vartheta, &
+                                                            Bctrvr_varphi, &
+                                                            Bcovar_r, &
+                                                            Bcovar_vartheta, &
+                                                            Bcovar_varphi)
+                    else
+                        call vmec_field_evaluate(s, theta, varphi, &
+                                                 A_theta, A_phi, dA_theta_ds, &
+                                                 dA_phi_ds, aiota, &
+                                                 sqg, alam, dl_ds, &
+                                                 dl_dt, dl_dp, &
+                                                 Bctrvr_vartheta, &
+                                                 Bctrvr_varphi, &
+                                                 Bcovar_r, Bcovar_vartheta, &
+                                                 Bcovar_varphi)
+                    end if
 
                     alam_2D(i_theta, i_phi) = alam
                     bmod_Vg(i_theta, i_phi) = &
@@ -1216,6 +1286,8 @@ contains
         field3d_batch_spline_ready = .true.
         field3d_num_quantities = 2
         deallocate (y_bmod)
+
+        call sync_boozer_state
 
         print *, 'Loaded Boozer splines from chartmap: ', trim(filename)
         print *, '  nfp=', d%nfp, ' ns=', d%n_rho, ' ntheta_spline=', &
