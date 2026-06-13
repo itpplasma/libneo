@@ -476,6 +476,9 @@ set_tests_properties(test_chartmap_matches_vmec PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(bench_boozer_resolution.x source/bench_boozer_resolution.f90)
+target_link_libraries(bench_boozer_resolution.x neo)
+
 add_executable(test_boozer_converter_vs_simple.x source/test_boozer_converter_vs_simple.f90)
 target_link_libraries(test_boozer_converter_vs_simple.x neo)
 add_test(NAME test_boozer_converter_vs_simple

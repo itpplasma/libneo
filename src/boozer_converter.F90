@@ -115,7 +115,12 @@ contains
         if (present(grid_refinment)) then
             multharm = grid_refinment
         else
-            multharm = 3
+            ! Quintic splines on a multharm=5 angular grid put the interpolation
+            ! floor (~2e-6 relative for |B|) at the VMEC->Boozer transform-fidelity
+            ! level; finer grids are dominated by the transform difference, not the
+            ! spline. See test/source/bench_boozer_resolution.f90. Matches the
+            ! new_vmec_stuff_mod module default.
+            multharm = 5
         end if
 
         call spline_vmec_data()
