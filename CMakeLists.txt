@@ -204,6 +204,19 @@ endif()
 # Falls back to building from source if system libraries are incompatible.
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
+# fortnum: numerical core (special functions, quadrature, ODE). Guarded so a
+# repo that also pulls fortnum transitively via libneo does not double-declare
+# the target.
+if(NOT TARGET fortnum)
+    include(FetchContent)
+    FetchContent_Declare(
+        fortnum
+        GIT_REPOSITORY git@github.com:lazy-fortran/fortnum.git
+        GIT_TAG main
+    )
+    FetchContent_MakeAvailable(fortnum)
+endif()
+
 # Libraries that libneo depends on
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
