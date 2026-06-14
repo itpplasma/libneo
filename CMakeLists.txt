@@ -199,13 +199,13 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-# Detect and configure external dependencies (HDF5, NetCDF, FFTW)
+# Detect and configure external dependencies (HDF5, NetCDF)
 # Uses smoke tests to verify ABI compatibility with current compiler.
 # Falls back to building from source if system libraries are incompatible.
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
-# fortnum: numerical core (special functions, quadrature, ODE). Guarded so a
-# repo that also pulls fortnum transitively via libneo does not double-declare
+# fortnum: numerical core (special functions, quadrature, FFT, ODE). Guarded so
+# a repo that also pulls fortnum transitively via libneo does not double-declare
 # the target.
 if(NOT TARGET fortnum)
     include(FetchContent)
