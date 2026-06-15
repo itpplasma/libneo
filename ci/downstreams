@@ -21,5 +21,5 @@ SIMPLE   main.yml         yes   yes
 NEO-2    unit-tests.yml   yes   no
 MEPHIT   main.yml         yes   yes
 KAMEL    ci.yml           yes   yes
-rabe     ci.yml           yes   yes
+rabe     test.yml         yes   yes
 NEO-RT   test.yml         no    no
