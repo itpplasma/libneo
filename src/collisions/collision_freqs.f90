@@ -1,28 +1,9 @@
 module libneo_collisions
-   use, intrinsic :: iso_c_binding
    use libneo_species, only: species_t
 
    implicit none
 
    integer, parameter :: dp = kind(1.0d0)
-
-   interface
-      function gsl_sf_gamma(x) bind(c, name='gsl_sf_gamma')
-         import :: c_double
-         implicit none
-         real(c_double), value :: x
-         real(c_double) :: gsl_sf_gamma
-      end function gsl_sf_gamma
-   end interface
-
-   interface
-      function gsl_sf_gamma_inc_P(a, x) bind(c, name='gsl_sf_gamma_inc_P')
-         import :: c_double
-         implicit none
-         real(c_double), value :: a, x
-         real(c_double) :: gsl_sf_gamma_inc_P
-      end function gsl_sf_gamma_inc_P
-   end interface
 
 contains
 
@@ -154,9 +135,10 @@ contains
    end subroutine
 
    function lower_incomplete_gamma(a, x) result(gamma)
+      use fortnum_special, only: gamma_lower
       real(dp), intent(in) :: a, x
       real(dp) :: gamma
 
-      gamma = gsl_sf_gamma_inc_P(a, x)*gsl_sf_gamma(a)
+      gamma = gamma_lower(a, x)
    end function lower_incomplete_gamma
 end module
