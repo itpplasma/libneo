@@ -5,14 +5,23 @@
 #              downstream against this PR's libneo. Must accept that input on
 #              the downstream's default branch.
 #   blocking   yes = a red run fails the libneo PR. no = report-only.
-#   full       yes = also dispatch with `-f full=true` when the libneo PR is
-#              labeled `full-ci` (the workflow must accept a `full` input).
-#              no = always fast-only; the downstream's slow suite is not
-#              gate-triggered and runs on the downstream's own PRs instead.
+#   full       what to also run when the libneo PR is labeled `full-ci`. The
+#              downstream picks its own convention; the gate does not force one:
+#                no              fast-only; the slow suite runs on the
+#                                downstream's own PRs instead.
+#                yes             re-dispatch <workflow> with `-f full=true`
+#                                (the workflow carries its own slow tier).
+#                <wf>[,<wf>...]  also dispatch these extra workflows, each with
+#                                `-f libneo_ref=<sha>` (the downstream keeps its
+#                                slow suite in separate workflows).
 #
 # NEO-2 splits fast and slow CI: unit-tests.yml is the always-on fast tier the
 # gate triggers; its golden-record/performance/PAR suite stays on NEO-2's own
 # PRs, so NEO-2 is full=no here.
+#
+# rabe keeps its slow suite in its own golden.yml; on full-ci the gate dispatches
+# that against the candidate libneo. benchmark.yml is a rabe perf trend keyed to
+# rabe's own commits, so it stays on rabe's PRs and is not gate-triggered.
 #
 # NEO-RT is report-only: it reaches libneo transitively through NEO-2 (already
 # gated), and its own build does not yet compile the candidate libneo, so a
@@ -21,5 +30,5 @@ SIMPLE   main.yml         yes   yes
 NEO-2    unit-tests.yml   yes   no
 MEPHIT   main.yml         yes   yes
 KAMEL    ci.yml           yes   yes
-rabe     test.yml         yes   yes
+rabe     test.yml         yes   golden.yml
 NEO-RT   test.yml         no    no
