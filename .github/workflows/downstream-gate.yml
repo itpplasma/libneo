@@ -3,12 +3,12 @@
 # always working with the downstreams, with breakage attributed to the PR that
 # caused it.
 #
-# ci/downstreams is the gated set. Each downstream's workflow is dispatched with
-# `-f libneo_ref=<sha>`; with no `full` it runs only its fast (sub-minute) tests.
-# Label the libneo PR `full-ci` to also run the slow suite (golden records,
-# performance, PAR) of each downstream whose `full` column is yes, dispatched
-# with `-f full=true`. Fast-only downstreams (full=no) keep their slow suite on
-# their own PRs and are never sent `-f full=true`.
+# ci/downstreams is the single source of the gated set: one row per downstream.
+# Add a downstream by appending a row there; nothing in this file changes. Each
+# row's workflow is dispatched with `-f libneo_ref=<sha>` for the fast tier.
+# Label the libneo PR `full-ci` to also run each downstream's slow suite,
+# dispatched per that downstream's own convention (the row's `full` column, see
+# ci/downstreams). Fast-only downstreams keep their slow suite on their own PRs.
 #
 # Needs RELEASE_BOT_TOKEN with actions:write on the downstreams (dispatch + read
 # their runs). Same-repo PRs only: a fork's head SHA is not on origin, so the

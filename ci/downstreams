@@ -1,4 +1,6 @@
-# Downstream codes gated on every libneo PR.
+# Downstream codes gated on every libneo PR. This file is the single source of
+# the gated set: add a downstream by appending one row; the gate workflow needs
+# no edit. The chosen workflow must accept a `libneo_ref` input.
 #
 # Columns: <repo> <workflow> <blocking> <full>
 #   workflow   dispatched with `-f libneo_ref=<sha>` to build + fast-test the
