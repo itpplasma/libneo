@@ -33,6 +33,15 @@
     ! legacy healing so existing chartmap/field consumers are unchanged.
     logical :: axis_healing_power_law = .False.
     double precision :: rho_axis_heal = 0.1d0
+    ! rho**|m| * (least-squares polynomial in s) axis continuation below
+    ! rho_axis_heal. Same analytic regularity as the power-law path, but the
+    ! rescaled amplitude c_m/rho**|m| is extrapolated to the axis by a smooth
+    ! degree-axis_healing_polyfit_degree fit to the reliable surfaces and then
+    ! splined over the full grid, avoiding the noise amplification and anchor
+    ! roughness of the pure power-law continuation. Overrides the flags above
+    ! when .true.
+    logical :: axis_healing_polyfit = .False.
+    integer :: axis_healing_polyfit_degree = 3
   end module new_vmec_stuff_mod
 !
   module vector_potentail_mod
