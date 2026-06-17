@@ -103,6 +103,13 @@ target_link_libraries(test_coordinate_christoffel.x
   neo
 )
 
+add_executable(test_axis_healing_mode.x
+  source/test_axis_healing_mode.f90
+)
+target_link_libraries(test_axis_healing_mode.x
+  neo
+)
+
 add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
 target_link_libraries(test_geqdsk_tools.x
   ${MAIN_LIB}
@@ -238,6 +245,8 @@ add_test(NAME test_christoffel_symflux
   COMMAND test_christoffel_symflux.x)
 add_test(NAME test_coordinate_christoffel
   COMMAND test_coordinate_christoffel.x)
+add_test(NAME test_axis_healing_mode
+  COMMAND test_axis_healing_mode.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )
