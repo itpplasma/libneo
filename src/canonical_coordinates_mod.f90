@@ -24,24 +24,32 @@
 !
     double precision, dimension(:,:,:,:,:,:), allocatable :: sR,sZ,slam
 
+    ! Near-axis healing of the VMEC harmonics. Preferred selector:
+    !   axis_healing = 'legacy'   - skip the innermost unreliable surfaces and
+    !                               extrapolate the rescaled amplitude (old default).
+    !                  'powerlaw' - rho**|m| continuation below rho_axis_heal
+    !                               (analytic regularity, but amplifies near-axis
+    !                               noise; superseded by 'polyfit').
+    !                  'polyfit'  - rho**|m| * least-squares poly(s) continuation
+    !                               below rho_axis_heal: same regularity, smooth,
+    !                               no anchor noise. Recommended.
+    ! axis_healing_boundary selects the legacy reliability boundary (where the
+    ! VMEC data is no longer trusted near the axis):
+    !   'fixed'    - discard the innermost min(|m|,4) surfaces.
+    !   'adaptive' - detect the noisy surface via determine_nheal_for_axis.
+    ! Empty strings mean "unset": the deprecated logical switches below are
+    ! mapped to a mode with a one-time warning (see resolve_axis_healing_mode).
+    character(len=16) :: axis_healing = ''
+    character(len=16) :: axis_healing_boundary = ''
+    double precision :: rho_axis_heal = 0.1d0      ! anchor radius for powerlaw/polyfit
+    integer :: axis_healing_polyfit_degree = 3     ! polyfit polynomial degree in s
+    ! DEPRECATED boolean switches (use axis_healing / axis_healing_boundary). Kept
+    ! for back-compat and mapped to a mode with a deprecation warning; the next
+    ! SIMPLE release will remove them and default axis_healing to 'polyfit'.
     logical :: old_axis_healing = .True.
     logical :: old_axis_healing_boundary = .True.
-    ! rho**m power-law axis continuation below rho_axis_heal; enforces the
-    ! analytic regularity c_m(rho) ~ rho**|m| at the axis and overrides the two
-    ! legacy flags above when .true. Opt-in: consumers that need it (SIMPLE
-    ! near-axis symplectic tracing) enable it via namelist. Default keeps the
-    ! legacy healing so existing chartmap/field consumers are unchanged.
     logical :: axis_healing_power_law = .False.
-    double precision :: rho_axis_heal = 0.1d0
-    ! rho**|m| * (least-squares polynomial in s) axis continuation below
-    ! rho_axis_heal. Same analytic regularity as the power-law path, but the
-    ! rescaled amplitude c_m/rho**|m| is extrapolated to the axis by a smooth
-    ! degree-axis_healing_polyfit_degree fit to the reliable surfaces and then
-    ! splined over the full grid, avoiding the noise amplification and anchor
-    ! roughness of the pure power-law continuation. Overrides the flags above
-    ! when .true.
     logical :: axis_healing_polyfit = .False.
-    integer :: axis_healing_polyfit_degree = 3
   end module new_vmec_stuff_mod
 !
   module vector_potentail_mod

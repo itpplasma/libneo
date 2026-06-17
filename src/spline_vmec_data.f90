@@ -178,22 +178,24 @@ contains
 
    subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
       use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                    axm, axn, nstrm, old_axis_healing_boundary, &
-                                    axis_healing_power_law, axis_healing_polyfit, &
-                                    axis_healing_polyfit_degree
+                                    axm, axn, nstrm, axis_healing_polyfit_degree
       use vector_potentail_mod, only: ns
 
       real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
       real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
-      integer :: i, m, nrho, nheal, i_anchor
+      integer :: i, m, nrho, nheal, iunit_hs, i_anchor
+      character(len=16) :: mode, boundary
 
       nrho = ns
       allocate (almnc_rho(nstrm, 0:nrho - 1), rmnc_rho(nstrm, 0:nrho - 1), zmnc_rho(nstrm, 0:nrho - 1))
       allocate (almns_rho(nstrm, 0:nrho - 1), rmns_rho(nstrm, 0:nrho - 1), zmns_rho(nstrm, 0:nrho - 1))
 
-      if (axis_healing_polyfit) then
+      call resolve_axis_healing_mode(mode, boundary)
+
+      select case (trim(mode))
+      case ('polyfit')
          i_anchor = axis_anchor_index(ns)
-         print *, 'VMEC axis healing: rho**m * polyfit(s) continuation below s = ', &
+         print *, 'VMEC axis healing: polyfit, rho**m * poly(s) below s = ', &
             dble(i_anchor - 1)/dble(ns - 1), ' degree ', axis_healing_polyfit_degree
          do i = 1, nstrm
             m = nint(abs(axm(i)))
@@ -204,12 +206,10 @@ contains
             call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, zmns(i, :), zmns_rho(i, :))
             call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, almns(i, :), almns_rho(i, :))
          end do
-         return
-      end if
 
-      if (axis_healing_power_law) then
+      case ('powerlaw')
          i_anchor = axis_anchor_index(ns)
-         print *, 'VMEC axis healing: rho**m continuation below s = ', &
+         print *, 'VMEC axis healing: powerlaw, rho**m below s = ', &
             dble(i_anchor - 1)/dble(ns - 1)
          do i = 1, nstrm
             m = nint(abs(axm(i)))
@@ -220,26 +220,105 @@ contains
             call s_to_rho_power_law(m, ns, nrho, i_anchor, zmns(i, :), zmns_rho(i, :))
             call s_to_rho_power_law(m, ns, nrho, i_anchor, almns(i, :), almns_rho(i, :))
          end do
-         return
+
+      case ('legacy')
+         iunit_hs = 1357
+         open (iunit_hs, file='healaxis.dat')
+         do i = 1, nstrm
+            m = nint(abs(axm(i)))
+            if (trim(boundary) == 'fixed') then
+               nheal = min(m, 4)
+            else
+               call determine_nheal_for_axis(m, ns, rmnc(i, :), nheal)
+               write (iunit_hs, *) 'm = ', m, ' n = ', nint(abs(axn(i))), ' skipped ', nheal, ' / ', ns
+            end if
+            call s_to_rho_healaxis(m, ns, nrho, nheal, rmnc(i, :), rmnc_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, zmnc(i, :), zmnc_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, almnc(i, :), almnc_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, rmns(i, :), rmns_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, zmns(i, :), zmns_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, almns(i, :), almns_rho(i, :))
+         end do
+         close (iunit_hs)
+      end select
+   end subroutine perform_axis_healing
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   subroutine resolve_axis_healing_mode(mode, boundary)
+      !> Resolves the axis-healing selector. The preferred inputs are the strings
+      !> axis_healing ('legacy'|'powerlaw'|'polyfit') and axis_healing_boundary
+      !> ('fixed'|'adaptive'). When axis_healing is empty the deprecated logical
+      !> switches are mapped to a mode and a one-time deprecation warning is
+      !> emitted, together with a notice that a future release will default to
+      !> 'polyfit'. Unknown values stop the run.
+      use new_vmec_stuff_mod, only: axis_healing, axis_healing_boundary, &
+                                    old_axis_healing_boundary, &
+                                    axis_healing_power_law, axis_healing_polyfit
+
+      character(len=*), intent(out) :: mode, boundary
+      logical :: from_legacy
+
+      from_legacy = (len_trim(axis_healing) == 0)
+      if (from_legacy) then
+         if (axis_healing_polyfit) then
+            mode = 'polyfit'
+         else if (axis_healing_power_law) then
+            mode = 'powerlaw'
+         else
+            mode = 'legacy'
+         end if
+      else
+         mode = to_lower(adjustl(axis_healing))
       end if
 
-      do i = 1, nstrm
-         m = nint(abs(axm(i)))
-
+      if (len_trim(axis_healing_boundary) == 0) then
          if (old_axis_healing_boundary) then
-            nheal = min(m, 4)
+            boundary = 'fixed'
          else
-            call determine_nheal_for_axis(m, ns, rmnc(i, :), nheal)
+            boundary = 'adaptive'
          end if
+      else
+         boundary = to_lower(adjustl(axis_healing_boundary))
+      end if
 
-         call s_to_rho_healaxis(m, ns, nrho, nheal, rmnc(i, :), rmnc_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, zmnc(i, :), zmnc_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, almnc(i, :), almnc_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, rmns(i, :), rmns_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, zmns(i, :), zmns_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, almns(i, :), almns_rho(i, :))
+      select case (trim(mode))
+      case ('legacy', 'powerlaw', 'polyfit')
+      case default
+         print *, 'ERROR: unknown axis_healing = ''', trim(axis_healing), ''''
+         error stop 'unknown axis_healing mode (use legacy|powerlaw|polyfit)'
+      end select
+      select case (trim(boundary))
+      case ('fixed', 'adaptive')
+      case default
+         print *, 'ERROR: unknown axis_healing_boundary = ''', trim(axis_healing_boundary), ''''
+         error stop 'unknown axis_healing_boundary (use fixed|adaptive)'
+      end select
+
+      if (from_legacy) then
+         print *, 'WARNING: axis_healing not set; mapped legacy switches to axis_healing=''', &
+            trim(mode), '''. The old_axis_healing*/axis_healing_power_law/axis_healing_polyfit'
+         print *, '         switches are deprecated; set axis_healing (and axis_healing_boundary)'
+         print *, '         explicitly. A future SIMPLE release will default axis_healing to ''polyfit''.'
+      end if
+      if (trim(mode) /= 'polyfit') then
+         print *, 'NOTE: axis_healing=''', trim(mode), '''; ''polyfit'' is recommended and will', &
+            ' become the default. Please test it.'
+      end if
+   end subroutine resolve_axis_healing_mode
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   pure function to_lower(s) result(t)
+      character(len=*), intent(in) :: s
+      character(len=len(s)) :: t
+      integer :: i, c
+      t = s
+      do i = 1, len_trim(s)
+         c = iachar(s(i:i))
+         if (c >= iachar('A') .and. c <= iachar('Z')) t(i:i) = achar(c + 32)
       end do
-   end subroutine perform_axis_healing
+   end function to_lower
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
