@@ -7,7 +7,8 @@ program near_axis_field_diag
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm, &
                                   old_axis_healing, old_axis_healing_boundary, &
-                                  axis_healing_power_law, rho_axis_heal
+                                  axis_healing_power_law, rho_axis_heal, &
+                                  axis_healing_polyfit, axis_healing_polyfit_degree
     use spline_vmec_sub, only: spline_vmec_data, vmec_field
     implicit none
 
@@ -37,6 +38,10 @@ program near_axis_field_diag
     if (len_trim(arg) > 0) read (arg, *) rho_axis_heal
 
     select case (trim(variant))
+    case ('polyfit')
+        axis_healing_polyfit = .True.
+        axis_healing_polyfit_degree = 3
+        axis_healing_power_law = .False.
     case ('power')
         axis_healing_power_law = .True.
         old_axis_healing = .True.
