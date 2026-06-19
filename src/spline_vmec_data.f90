@@ -221,12 +221,12 @@ contains
             call s_to_rho_power_law(m, ns, nrho, i_anchor, almns(i, :), almns_rho(i, :))
          end do
 
-      case ('legacy')
+      case ('legacy', 'legacy_adaptive')
          iunit_hs = 1357
          open (iunit_hs, file='healaxis.dat')
          do i = 1, nstrm
             m = nint(abs(axm(i)))
-            if (trim(boundary) == 'fixed') then
+            if (trim(mode) == 'legacy') then
                nheal = min(m, 4)
             else
                call determine_nheal_for_axis(m, ns, rmnc(i, :), nheal)
@@ -247,13 +247,10 @@ contains
 
    subroutine resolve_axis_healing_mode(mode, boundary)
       !> Resolves the axis-healing selector. The preferred inputs are the strings
-      !> axis_healing ('legacy'|'powerlaw'|'polyfit') and axis_healing_boundary
-      !> ('fixed'|'adaptive'). When axis_healing is empty the deprecated logical
-      !> switches are mapped to a mode and a one-time deprecation warning is
-      !> emitted, together with a notice that a future release will default to
-      !> 'polyfit'. Unknown values stop the run.
-      use new_vmec_stuff_mod, only: axis_healing, axis_healing_boundary, &
-                                    old_axis_healing_boundary, &
+      !> axis_healing ('legacy'|'legacy_adaptive'|'powerlaw'|'polyfit').
+      !> When axis_healing is empty the deprecated logical switches are mapped to
+      !> a mode and a deprecation warning is emitted. Unknown values stop the run.
+      use new_vmec_stuff_mod, only: axis_healing, old_axis_healing_boundary, &
                                     axis_healing_power_law, axis_healing_polyfit
 
       character(len=*), intent(out) :: mode, boundary
@@ -265,45 +262,36 @@ contains
             mode = 'polyfit'
          else if (axis_healing_power_law) then
             mode = 'powerlaw'
-         else
+         else if (old_axis_healing_boundary) then
             mode = 'legacy'
+         else
+            mode = 'legacy_adaptive'
          end if
       else
          mode = to_lower(adjustl(axis_healing))
       end if
 
-      if (len_trim(axis_healing_boundary) == 0) then
-         if (old_axis_healing_boundary) then
-            boundary = 'fixed'
-         else
-            boundary = 'adaptive'
-         end if
-      else
-         boundary = to_lower(adjustl(axis_healing_boundary))
-      end if
-
       select case (trim(mode))
-      case ('legacy', 'powerlaw', 'polyfit')
+      case ('legacy')
+         boundary = 'fixed'
+      case ('legacy_adaptive')
+         boundary = 'adaptive'
+      case ('powerlaw', 'polyfit')
+         boundary = ''
       case default
          print *, 'ERROR: unknown axis_healing = ''', trim(axis_healing), ''''
-         error stop 'unknown axis_healing mode (use legacy|powerlaw|polyfit)'
-      end select
-      select case (trim(boundary))
-      case ('fixed', 'adaptive')
-      case default
-         print *, 'ERROR: unknown axis_healing_boundary = ''', trim(axis_healing_boundary), ''''
-         error stop 'unknown axis_healing_boundary (use fixed|adaptive)'
+         error stop 'unknown axis_healing mode (use legacy|legacy_adaptive|powerlaw|polyfit)'
       end select
 
       if (from_legacy) then
          print *, 'WARNING: axis_healing not set; mapped legacy switches to axis_healing=''', &
             trim(mode), '''. The old_axis_healing*/axis_healing_power_law/axis_healing_polyfit'
-         print *, '         switches are deprecated; set axis_healing (and axis_healing_boundary)'
-         print *, '         explicitly. A future SIMPLE release will default axis_healing to ''polyfit''.'
+         print *, '         switches are deprecated; set axis_healing=''', trim(mode), ''' instead.'
+         print *, '         These switches will become errors in the next SIMPLE release.'
       end if
       if (trim(mode) /= 'polyfit') then
-         print *, 'NOTE: axis_healing=''', trim(mode), '''; ''polyfit'' is recommended and will', &
-            ' become the default. Please test it.'
+         print *, 'NOTE: axis_healing=''', trim(mode), '''; ''polyfit'' is recommended and will'
+         print *, '      become the default. Please test it.'
       end if
    end subroutine resolve_axis_healing_mode
 
@@ -1583,16 +1571,28 @@ contains
 
    function axis_anchor_index(ns) result(i_anchor)
       !> Innermost reliable full-grid surface: the first surface at or
-      !> outside rho_axis_heal. VMEC full-grid harmonics inside this
-      !> radius violate the rho**|m| analyticity condition (the radial
-      !> startup layer), so they are discarded and replaced by the
-      !> power-law continuation.
-      use new_vmec_stuff_mod, only: rho_axis_heal, ns_s
+      !> outside s_axis_heal. VMEC full-grid harmonics inside this
+      !> startup layer can violate the rho**|m| analyticity condition, so
+      !> they are discarded and replaced by the selected continuation.
+      use new_vmec_stuff_mod, only: s_axis_heal, rho_axis_heal, ns_s, &
+                                    rho_axis_heal_warning_printed
 
       integer, intent(in) :: ns
       integer :: i_anchor
+      real(dp) :: s_heal
 
-      i_anchor = 1 + nint(rho_axis_heal**2*dble(ns - 1))
+      if (rho_axis_heal > 0.0d0) then
+         s_heal = rho_axis_heal**2
+         if (.not. rho_axis_heal_warning_printed) then
+            print *, 'WARNING: rho_axis_heal is deprecated; use s_axis_heal = ', s_heal
+            print *, '         This setting will become an error in the next SIMPLE release.'
+            rho_axis_heal_warning_printed = .True.
+         end if
+      else
+         s_heal = s_axis_heal
+      end if
+
+      i_anchor = 1 + nint(s_heal*dble(ns - 1))
       i_anchor = max(2, min(i_anchor, ns - ns_s - 1))
    end function axis_anchor_index
 

@@ -3,7 +3,6 @@ module efit_to_boozer
    use efit_to_boozer_mod, only: psimax, nlabel, ntheta, nspl, twopi, rbeg, &
                                  rsmall, qsaf, psi_pol, psi_tor_vac, psi_tor, C_const, R_spl, Z_spl, &
                                  bmod_spl, sqgnorm_spl, Gfunc_spl, rmn, rmx, zmn, zmx, raxis, zaxis
-   use input_files, only: gfile
    use field_mod, only: icall
    use field_c_mod, only: icall_c
    use field_eq_mod, only: reset_field_eq_state

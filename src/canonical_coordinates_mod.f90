@@ -25,27 +25,24 @@
     double precision, dimension(:,:,:,:,:,:), allocatable :: sR,sZ,slam
 
     ! Near-axis healing of the VMEC harmonics. Preferred selector:
-    !   axis_healing = 'legacy'   - skip the innermost unreliable surfaces and
-    !                               extrapolate the rescaled amplitude (old default).
-    !                  'powerlaw' - rho**|m| continuation below rho_axis_heal
-    !                               (analytic regularity, but amplifies near-axis
-    !                               noise; superseded by 'polyfit').
-    !                  'polyfit'  - rho**|m| * least-squares poly(s) continuation
-    !                               below rho_axis_heal: same regularity, smooth,
-    !                               no anchor noise. Recommended.
-    ! axis_healing_boundary selects the legacy reliability boundary (where the
-    ! VMEC data is no longer trusted near the axis):
-    !   'fixed'    - discard the innermost min(|m|,4) surfaces.
-    !   'adaptive' - detect the noisy surface via determine_nheal_for_axis.
-    ! Empty strings mean "unset": the deprecated logical switches below are
-    ! mapped to a mode with a one-time warning (see resolve_axis_healing_mode).
+    !   axis_healing = 'legacy'          - old default: discard min(|m|,4)
+    !                                      surfaces and extrapolate.
+    !                  'legacy_adaptive' - old adaptive boundary from
+    !                                      determine_nheal_for_axis.
+    !                  'powerlaw'        - rho**|m| continuation below
+    !                                      s_axis_heal.
+    !                  'polyfit'         - rho**|m| * least-squares poly(s)
+    !                                      below s_axis_heal. Recommended.
+    ! The empty string means "unset": deprecated logical switches below are
+    ! mapped to a mode with a warning (see resolve_axis_healing_mode).
     character(len=16) :: axis_healing = ''
-    character(len=16) :: axis_healing_boundary = ''
-    double precision :: rho_axis_heal = 0.1d0      ! anchor radius for powerlaw/polyfit
+    double precision :: s_axis_heal = 1.0d-2       ! anchor flux for powerlaw/polyfit
+    double precision :: rho_axis_heal = -1.0d0     ! deprecated; use s_axis_heal
     integer :: axis_healing_polyfit_degree = 3     ! polyfit polynomial degree in s
-    ! DEPRECATED boolean switches (use axis_healing / axis_healing_boundary). Kept
-    ! for back-compat and mapped to a mode with a deprecation warning; the next
-    ! SIMPLE release will remove them and default axis_healing to 'polyfit'.
+    logical :: rho_axis_heal_warning_printed = .False.
+    ! DEPRECATED boolean switches (use axis_healing). Kept for back-compat and
+    ! mapped to a mode with a deprecation warning; the next SIMPLE release will
+    ! remove them and default axis_healing to 'polyfit'.
     logical :: old_axis_healing = .True.
     logical :: old_axis_healing_boundary = .True.
     logical :: axis_healing_power_law = .False.
