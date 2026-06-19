@@ -500,8 +500,7 @@ add_test(NAME test_refcoords_file_detection
   COMMAND test_refcoords_file_detection.x)
 set_tests_properties(test_refcoords_file_detection PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "setup_vmec_wout;setup_chartmap_volume")
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)
