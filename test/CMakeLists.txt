@@ -75,6 +75,20 @@ target_link_libraries(test_flux_pseudocartesian.x
   neo
 )
 
+add_executable(test_christoffel_symflux.x
+  source/test_christoffel_symflux.f90
+)
+target_link_libraries(test_christoffel_symflux.x
+  neo
+)
+
+add_executable(test_coordinate_christoffel.x
+  source/test_coordinate_christoffel.f90
+)
+target_link_libraries(test_coordinate_christoffel.x
+  neo
+)
+
 add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
 target_link_libraries(test_geqdsk_tools.x
   ${MAIN_LIB}
@@ -199,6 +213,10 @@ target_link_libraries(test_nctools_nc_get3.x
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
 add_test(NAME test_flux_pseudocartesian
   COMMAND test_flux_pseudocartesian.x)
+add_test(NAME test_christoffel_symflux
+  COMMAND test_christoffel_symflux.x)
+add_test(NAME test_coordinate_christoffel
+  COMMAND test_coordinate_christoffel.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )

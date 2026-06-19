@@ -63,9 +63,11 @@ module libneo_coordinates_base
         procedure(evaluate_cyl_if), deferred :: evaluate_cyl
         procedure(covariant_basis_if), deferred :: covariant_basis
         procedure(metric_tensor_if), deferred :: metric_tensor
+        procedure(christoffel_if), deferred :: christoffel
         procedure(from_cyl_if), deferred :: from_cyl
         procedure :: cov_to_cart => coordinate_system_cov_to_cart
         procedure :: ctr_to_cart => coordinate_system_ctr_to_cart
+        procedure :: christoffel_fd => coordinate_system_christoffel_fd
     end type coordinate_system_t
 
     abstract interface
@@ -95,6 +97,13 @@ module libneo_coordinates_base
             class(coordinate_system_t), intent(in) :: self
             real(dp), intent(in) :: u(3)
             real(dp), intent(out) :: g(3, 3), ginv(3, 3), sqrtg
+        end subroutine
+
+        subroutine christoffel_if(self, u, Gamma)
+            import :: coordinate_system_t, dp
+            class(coordinate_system_t), intent(in) :: self
+            real(dp), intent(in) :: u(3)
+            real(dp), intent(out) :: Gamma(3, 3, 3)
         end subroutine
 
         subroutine from_cyl_if(self, xcyl, u, ierr)
@@ -134,5 +143,48 @@ contains
         call self%covariant_basis(u, e_cov)
         v_cart = matmul(e_cov, v_ctr)
     end subroutine coordinate_system_ctr_to_cart
+
+    subroutine coordinate_system_christoffel_fd(self, u, Gamma, h)
+        !> Christoffel symbols of the second kind from central differences of the
+        !> coordinate system's own metric_tensor. Self-consistent fallback for
+        !> charts without a closed-form metric derivative.
+        !> Gamma(i,m,n) = Gamma^i_{mn} = 0.5 g^{il}(d_m g_{ln}+d_n g_{lm}-d_l g_{mn}).
+        class(coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: Gamma(3, 3, 3)
+        real(dp), intent(in), optional :: h
+
+        real(dp) :: g(3, 3), ginv(3, 3), sqrtg
+        real(dp) :: gp(3, 3), gm(3, 3), dummy_inv(3, 3), dummy_det
+        real(dp) :: dg(3, 3, 3), up(3), um(3), hstep
+        integer :: i, m, n, l, k
+
+        hstep = 1.0e-5_dp
+        if (present(h)) hstep = h
+
+        call self%metric_tensor(u, g, ginv, sqrtg)
+
+        do k = 1, 3
+            up = u
+            um = u
+            up(k) = u(k) + hstep
+            um(k) = u(k) - hstep
+            call self%metric_tensor(up, gp, dummy_inv, dummy_det)
+            call self%metric_tensor(um, gm, dummy_inv, dummy_det)
+            dg(:, :, k) = (gp - gm)/(2.0_dp*hstep)
+        end do
+
+        Gamma = 0.0_dp
+        do i = 1, 3
+            do m = 1, 3
+                do n = 1, 3
+                    do l = 1, 3
+                        Gamma(i, m, n) = Gamma(i, m, n) + 0.5_dp*ginv(i, l)* &
+                            (dg(l, n, m) + dg(l, m, n) - dg(m, n, l))
+                    end do
+                end do
+            end do
+        end do
+    end subroutine coordinate_system_christoffel_fd
 
 end module libneo_coordinates_base

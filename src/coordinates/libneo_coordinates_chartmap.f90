@@ -35,6 +35,7 @@ module libneo_coordinates_chartmap
         procedure :: evaluate_cyl => chartmap_evaluate_cyl
         procedure :: covariant_basis => chartmap_covariant_basis
         procedure :: metric_tensor => chartmap_metric_tensor
+        procedure :: christoffel => chartmap_christoffel
         procedure :: from_cyl => chartmap_from_cyl
         procedure :: from_cart => chartmap_from_cart
     end type chartmap_coordinate_system_t
@@ -584,6 +585,16 @@ contains
         ginv(3, 2) = (g(1, 2)*g(3, 1) - g(1, 1)*g(3, 2))/det
         ginv(3, 3) = (g(1, 1)*g(2, 2) - g(1, 2)*g(2, 1))/det
     end subroutine chartmap_metric_tensor
+
+    subroutine chartmap_christoffel(self, u, Gamma)
+        !> Christoffel symbols of the second kind from central differences of
+        !> chartmap_metric_tensor; consistent with the splined chart metric.
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: Gamma(3, 3, 3)
+
+        call self%christoffel_fd(u, Gamma)
+    end subroutine chartmap_christoffel
 
     subroutine chartmap_from_cyl(self, xcyl, u, ierr)
         class(chartmap_coordinate_system_t), intent(in) :: self

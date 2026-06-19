@@ -15,6 +15,7 @@ module libneo_coordinates_geoflux
         procedure :: evaluate_cyl => geoflux_evaluate_cyl
         procedure :: covariant_basis => geoflux_covariant_basis
         procedure :: metric_tensor => geoflux_metric_tensor
+        procedure :: christoffel => geoflux_christoffel
         procedure :: from_cyl => geoflux_from_cyl
     end type geoflux_coordinate_system_t
 
@@ -121,6 +122,18 @@ contains
         ginv(3,2) = (g(1,2)*g(3,1) - g(1,1)*g(3,2))/det
         ginv(3,3) = (g(1,1)*g(2,2) - g(1,2)*g(2,1))/det
     end subroutine geoflux_metric_tensor
+
+    subroutine geoflux_christoffel(self, u, Gamma)
+        !> The geoflux chart maps through a GEQDSK flux-surface geometry whose
+        !> metric is built numerically, so the Christoffel symbols come from
+        !> central differences of geoflux_metric_tensor, self-consistent with
+        !> the metric the orbit push actually uses.
+        class(geoflux_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: Gamma(3, 3, 3)
+
+        call self%christoffel_fd(u, Gamma)
+    end subroutine geoflux_christoffel
 
     subroutine geoflux_from_cyl(self, xcyl, u, ierr)
         class(geoflux_coordinate_system_t), intent(in) :: self

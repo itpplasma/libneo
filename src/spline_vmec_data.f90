@@ -601,6 +601,146 @@ contains
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+   subroutine splint_vmec_data_d2(s, theta, varphi, A_phi, A_theta, &
+                                  dA_phi_ds, dA_theta_ds, aiota, R, Z, alam, &
+                                  dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp, &
+                                  dl_ds, dl_dt, dl_dp, d2R, d2Z, d2l)
+      !> Like splint_vmec_data but also returns the second derivatives of the
+      !> coordinate map (R, Z, lambda) with respect to (s, vartheta, varphi).
+      !> d2R, d2Z, d2l hold (ss, st, sp, tt, tp, pp) in that order.
+      !>
+      !> The 3D splines are stored in rho_tor = sqrt(s); first and second
+      !> s-derivatives apply the chain rule for that substitution.
+      use vector_potentail_mod, only: ns, hs
+      use new_vmec_stuff_mod, only: sR, sZ, slam, ns_s, ns_tp
+
+      real(dp), intent(in) :: s, theta, varphi
+      real(dp), intent(out) :: A_phi, A_theta, dA_phi_ds, dA_theta_ds, aiota
+      real(dp), intent(out) :: R, Z, alam, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
+      real(dp), intent(out) :: dl_ds, dl_dt, dl_dp
+      real(dp), intent(out) :: d2R(6), d2Z(6), d2l(6)
+
+      integer :: is, i_theta, i_phi, is_rho
+      integer :: ka, kb, kc, nrho, nt, np
+      real(dp) :: ds, dtheta, dphi, ds_rho, rho_tor
+      real(dp) :: pr, pt, pp, dpr, dpt, dpp, d2pr, d2pt, d2pp, w
+      real(dp) :: fld(3), df(3, 3), d2f(3, 6)
+      real(dp) :: drho, d2rho
+
+      call normalize_coordinates(s, theta, varphi, ds, is, dtheta, i_theta, dphi, i_phi)
+      call interpolate_vector_potential(s, ds, is, A_phi, A_theta, dA_phi_ds, dA_theta_ds)
+
+      aiota = -dA_phi_ds/dA_theta_ds
+
+      rho_tor = sqrt(s)
+      ds_rho = rho_tor/hs
+      is_rho = max(0, min(ns - 2, int(ds_rho)))
+      ds_rho = (ds_rho - dble(is_rho))*hs
+      is_rho = is_rho + 1
+
+      nrho = ns_s + 1
+      nt = ns_tp + 1
+      np = ns_tp + 1
+
+      fld = 0.d0
+      df = 0.d0
+      d2f = 0.d0
+
+      do ka = 1, nrho
+         pr = ds_rho**(ka - 1)
+         dpr = 0.d0
+         if (ka >= 2) dpr = dble(ka - 1)*ds_rho**(ka - 2)
+         d2pr = 0.d0
+         if (ka >= 3) d2pr = dble((ka - 1)*(ka - 2))*ds_rho**(ka - 3)
+
+         do kb = 1, nt
+            pt = dtheta**(kb - 1)
+            dpt = 0.d0
+            if (kb >= 2) dpt = dble(kb - 1)*dtheta**(kb - 2)
+            d2pt = 0.d0
+            if (kb >= 3) d2pt = dble((kb - 1)*(kb - 2))*dtheta**(kb - 3)
+
+            do kc = 1, np
+               pp = dphi**(kc - 1)
+               dpp = 0.d0
+               if (kc >= 2) dpp = dble(kc - 1)*dphi**(kc - 2)
+               d2pp = 0.d0
+               if (kc >= 3) d2pp = dble((kc - 1)*(kc - 2))*dphi**(kc - 3)
+
+               call accumulate_map_term(sR(ka, kb, kc, is_rho, i_theta, i_phi), 1)
+               call accumulate_map_term(sZ(ka, kb, kc, is_rho, i_theta, i_phi), 2)
+               call accumulate_map_term(slam(ka, kb, kc, is_rho, i_theta, i_phi), 3)
+            end do
+         end do
+      end do
+
+      R = fld(1)
+      Z = fld(2)
+      alam = fld(3)
+
+      ! Chain rule rho_tor = sqrt(s): d/ds = drho * d/drho with drho = 1/(2 rho).
+      drho = 0.5d0/rho_tor
+      d2rho = -0.25d0/(rho_tor**3)
+
+      dR_dt = df(1, 2)
+      dR_dp = df(1, 3)
+      dZ_dt = df(2, 2)
+      dZ_dp = df(2, 3)
+      dl_dt = df(3, 2)
+      dl_dp = df(3, 3)
+
+      dR_ds = df(1, 1)*drho
+      dZ_ds = df(2, 1)*drho
+      dl_ds = df(3, 1)*drho
+
+      ! d2 order (ss, st, sp, tt, tp, pp).
+      d2R(1) = d2f(1, 1)*drho*drho + df(1, 1)*d2rho
+      d2R(2) = d2f(1, 2)*drho
+      d2R(3) = d2f(1, 3)*drho
+      d2R(4) = d2f(1, 4)
+      d2R(5) = d2f(1, 5)
+      d2R(6) = d2f(1, 6)
+
+      d2Z(1) = d2f(2, 1)*drho*drho + df(2, 1)*d2rho
+      d2Z(2) = d2f(2, 2)*drho
+      d2Z(3) = d2f(2, 3)*drho
+      d2Z(4) = d2f(2, 4)
+      d2Z(5) = d2f(2, 5)
+      d2Z(6) = d2f(2, 6)
+
+      d2l(1) = d2f(3, 1)*drho*drho + df(3, 1)*d2rho
+      d2l(2) = d2f(3, 2)*drho
+      d2l(3) = d2f(3, 3)*drho
+      d2l(4) = d2f(3, 4)
+      d2l(5) = d2f(3, 5)
+      d2l(6) = d2f(3, 6)
+
+   contains
+
+      subroutine accumulate_map_term(coef, ifld)
+         real(dp), intent(in) :: coef
+         integer, intent(in) :: ifld
+
+         w = coef
+         fld(ifld) = fld(ifld) + w*pr*pt*pp
+
+         df(ifld, 1) = df(ifld, 1) + w*dpr*pt*pp
+         df(ifld, 2) = df(ifld, 2) + w*pr*dpt*pp
+         df(ifld, 3) = df(ifld, 3) + w*pr*pt*dpp
+
+         ! Second derivatives in rho/theta/phi, order (rr, rt, rp, tt, tp, pp).
+         d2f(ifld, 1) = d2f(ifld, 1) + w*d2pr*pt*pp
+         d2f(ifld, 2) = d2f(ifld, 2) + w*dpr*dpt*pp
+         d2f(ifld, 3) = d2f(ifld, 3) + w*dpr*pt*dpp
+         d2f(ifld, 4) = d2f(ifld, 4) + w*pr*d2pt*pp
+         d2f(ifld, 5) = d2f(ifld, 5) + w*pr*dpt*dpp
+         d2f(ifld, 6) = d2f(ifld, 6) + w*pr*pt*d2pp
+      end subroutine accumulate_map_term
+
+   end subroutine splint_vmec_data_d2
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
    subroutine vmec_field(s, theta, varphi, A_theta, A_phi, dA_theta_ds, dA_phi_ds, aiota, &
                          sqg, alam, dl_ds, dl_dt, dl_dp, Bctrvr_vartheta, Bctrvr_varphi, &
                          Bcovar_s, Bcovar_vartheta, Bcovar_varphi)
@@ -679,6 +819,130 @@ contains
 
       g = matmul(transpose(cmat), matmul(gV, cmat))
    end subroutine metric_tensor_symflux
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   subroutine christoffel_symflux(R, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp, &
+                                  dl_ds, dl_dt, dl_dp, d2R, d2Z, d2l, Gamma)
+      !> Christoffel symbols of the second kind in symmetry flux coordinates
+      !> (s, vartheta, varphi), Gamma(i,m,n) = Gamma^i_{mn}
+      !>   = 0.5 g^{il} (d_m g_{ln} + d_n g_{lm} - d_l g_{mn}).
+      !> The metric derivatives d_k g_{ij} are assembled algebraically from the
+      !> first and second derivatives of R, Z and lambda, using the same
+      !> g = C^T gV C construction as metric_tensor_symflux.
+
+      real(dp), intent(in) :: R, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
+      real(dp), intent(in) :: dl_ds, dl_dt, dl_dp, d2R(6), d2Z(6), d2l(6)
+      real(dp), intent(out) :: Gamma(3, 3, 3)
+
+      integer :: i, m, n, l, k
+      real(dp) :: g(3, 3), ginv(3, 3), dg(3, 3, 3), det
+      real(dp) :: cmat(3, 3), gV(3, 3), dcmat(3, 3, 3), dgV(3, 3, 3)
+      real(dp) :: cjac, dcjac(3), tmp(3, 3)
+      ! First derivatives of R and Z grouped as dR(k) = dR/dx_k.
+      real(dp) :: dR(3), dZ(3)
+      ! Second derivatives as 3x3 symmetric matrices, d2R(i,j)=d^2 R/dx_i dx_j.
+      real(dp) :: hR(3, 3), hZ(3, 3), hl(3, 3)
+      integer :: idx6(3, 3)
+
+      idx6 = reshape([1, 2, 3, 2, 4, 5, 3, 5, 6], [3, 3])
+
+      dR = [dR_ds, dR_dt, dR_dp]
+      dZ = [dZ_ds, dZ_dt, dZ_dp]
+      do i = 1, 3
+         do k = 1, 3
+            hR(i, k) = d2R(idx6(i, k))
+            hZ(i, k) = d2Z(idx6(i, k))
+            hl(i, k) = d2l(idx6(i, k))
+         end do
+      end do
+
+      ! VMEC metric and its derivatives.
+      gV(1, 1) = dR(1)**2 + dZ(1)**2
+      gV(1, 2) = dR(1)*dR(2) + dZ(1)*dZ(2)
+      gV(1, 3) = dR(1)*dR(3) + dZ(1)*dZ(3)
+      gV(2, 2) = dR(2)**2 + dZ(2)**2
+      gV(2, 3) = dR(2)*dR(3) + dZ(2)*dZ(3)
+      gV(3, 3) = R**2 + dR(3)**2 + dZ(3)**2
+      gV(2, 1) = gV(1, 2)
+      gV(3, 1) = gV(1, 3)
+      gV(3, 2) = gV(2, 3)
+
+      do k = 1, 3
+         dgV(1, 1, k) = 2.d0*(dR(1)*hR(1, k) + dZ(1)*hZ(1, k))
+         dgV(1, 2, k) = hR(1, k)*dR(2) + dR(1)*hR(2, k) &
+                        + hZ(1, k)*dZ(2) + dZ(1)*hZ(2, k)
+         dgV(1, 3, k) = hR(1, k)*dR(3) + dR(1)*hR(3, k) &
+                        + hZ(1, k)*dZ(3) + dZ(1)*hZ(3, k)
+         dgV(2, 2, k) = 2.d0*(dR(2)*hR(2, k) + dZ(2)*hZ(2, k))
+         dgV(2, 3, k) = hR(2, k)*dR(3) + dR(2)*hR(3, k) &
+                        + hZ(2, k)*dZ(3) + dZ(2)*hZ(3, k)
+         dgV(3, 3, k) = 2.d0*(dR(3)*hR(3, k) + dZ(3)*hZ(3, k))
+         if (k == 1) dgV(3, 3, k) = dgV(3, 3, k) + 2.d0*R*dR(1)
+         if (k == 2) dgV(3, 3, k) = dgV(3, 3, k) + 2.d0*R*dR(2)
+         if (k == 3) dgV(3, 3, k) = dgV(3, 3, k) + 2.d0*R*dR(3)
+         dgV(2, 1, k) = dgV(1, 2, k)
+         dgV(3, 1, k) = dgV(1, 3, k)
+         dgV(3, 2, k) = dgV(2, 3, k)
+      end do
+
+      ! Coordinate transform C from symflux to VMEC and its derivatives.
+      cjac = 1.d0/(1.d0 + dl_dt)
+      do k = 1, 3
+         dcjac(k) = -cjac*cjac*hl(2, k)
+      end do
+
+      cmat = 0.d0
+      cmat(1, 1) = 1.d0
+      cmat(3, 3) = 1.d0
+      cmat(2, 1) = -dl_ds*cjac
+      cmat(2, 2) = cjac
+      cmat(2, 3) = -dl_dp*cjac
+
+      dcmat = 0.d0
+      do k = 1, 3
+         dcmat(2, 1, k) = -(hl(1, k)*cjac + dl_ds*dcjac(k))
+         dcmat(2, 2, k) = dcjac(k)
+         dcmat(2, 3, k) = -(hl(3, k)*cjac + dl_dp*dcjac(k))
+      end do
+
+      g = matmul(transpose(cmat), matmul(gV, cmat))
+
+      ! d_k g = (d_k C)^T gV C + C^T (d_k gV) C + C^T gV (d_k C).
+      do k = 1, 3
+         tmp = matmul(transpose(dcmat(:, :, k)), matmul(gV, cmat)) &
+               + matmul(transpose(cmat), matmul(dgV(:, :, k), cmat)) &
+               + matmul(transpose(cmat), matmul(gV, dcmat(:, :, k)))
+         dg(:, :, k) = tmp
+      end do
+
+      det = g(1, 1)*(g(2, 2)*g(3, 3) - g(2, 3)*g(3, 2)) &
+            - g(1, 2)*(g(2, 1)*g(3, 3) - g(2, 3)*g(3, 1)) &
+            + g(1, 3)*(g(2, 1)*g(3, 2) - g(2, 2)*g(3, 1))
+
+      ginv(1, 1) = (g(2, 2)*g(3, 3) - g(2, 3)*g(3, 2))/det
+      ginv(1, 2) = (g(1, 3)*g(3, 2) - g(1, 2)*g(3, 3))/det
+      ginv(1, 3) = (g(1, 2)*g(2, 3) - g(1, 3)*g(2, 2))/det
+      ginv(2, 1) = (g(2, 3)*g(3, 1) - g(2, 1)*g(3, 3))/det
+      ginv(2, 2) = (g(1, 1)*g(3, 3) - g(1, 3)*g(3, 1))/det
+      ginv(2, 3) = (g(1, 3)*g(2, 1) - g(1, 1)*g(2, 3))/det
+      ginv(3, 1) = (g(2, 1)*g(3, 2) - g(2, 2)*g(3, 1))/det
+      ginv(3, 2) = (g(1, 2)*g(3, 1) - g(1, 1)*g(3, 2))/det
+      ginv(3, 3) = (g(1, 1)*g(2, 2) - g(1, 2)*g(2, 1))/det
+
+      Gamma = 0.d0
+      do i = 1, 3
+         do m = 1, 3
+            do n = 1, 3
+               do l = 1, 3
+                  Gamma(i, m, n) = Gamma(i, m, n) + 0.5d0*ginv(i, l)* &
+                                   (dg(l, n, m) + dg(l, m, n) - dg(m, n, l))
+               end do
+            end do
+         end do
+      end do
+
+   end subroutine christoffel_symflux
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
