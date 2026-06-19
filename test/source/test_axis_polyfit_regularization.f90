@@ -5,7 +5,7 @@ program test_axis_polyfit_regularization
     !> the continuation is continuous at the anchor, and unlike the pure power-law
     !> path it does not amplify noise into near-axis oscillations.
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use new_vmec_stuff_mod, only: ns_s, rho_axis_heal
+    use new_vmec_stuff_mod, only: ns_s, s_axis_heal, rho_axis_heal
     use spline_vmec_sub, only: s_to_rho_polyfit, axis_anchor_index
     implicit none
 
@@ -13,7 +13,8 @@ program test_axis_polyfit_regularization
     real(dp), parameter :: amp = 0.75_dp
 
     ns_s = 5
-    rho_axis_heal = 0.1_dp
+    s_axis_heal = 1.0e-2_dp
+    rho_axis_heal = -1.0_dp
 
     call test_axis_vanishing()
     call test_zernike_reproduction()

@@ -1,11 +1,10 @@
 program test_axis_healing_mode
-    !> resolve_axis_healing_mode maps the axis_healing / axis_healing_boundary
-    !> selectors and the deprecated boolean switches to a (mode, boundary) pair.
+    !> resolve_axis_healing_mode maps the axis_healing selector and the
+    !> deprecated boolean switches to a (mode, boundary) pair.
     !> Explicit selectors win and are case-insensitive; when axis_healing is empty
     !> the legacy booleans are mapped for back-compat.
-    use, intrinsic :: iso_fortran_env, only: dp => real64
-    use new_vmec_stuff_mod, only: axis_healing, axis_healing_boundary, &
-                                  old_axis_healing, old_axis_healing_boundary, &
+    use new_vmec_stuff_mod, only: axis_healing, old_axis_healing, &
+                                  old_axis_healing_boundary, &
                                   axis_healing_power_law, axis_healing_polyfit
     use spline_vmec_sub, only: resolve_axis_healing_mode
     implicit none
@@ -20,28 +19,28 @@ program test_axis_healing_mode
     ! Deprecated booleans map to the right mode.
     call reset(); axis_healing_power_law = .True.
     call resolve_axis_healing_mode(mode, boundary)
-    call expect(mode, 'powerlaw', boundary, 'fixed', 'legacy bool powerlaw')
+    call expect(mode, 'powerlaw', boundary, '', 'legacy bool powerlaw')
 
     call reset(); axis_healing_polyfit = .True.
     call resolve_axis_healing_mode(mode, boundary)
-    call expect(mode, 'polyfit', boundary, 'fixed', 'legacy bool polyfit')
+    call expect(mode, 'polyfit', boundary, '', 'legacy bool polyfit')
 
     call reset(); old_axis_healing_boundary = .False.
     call resolve_axis_healing_mode(mode, boundary)
-    call expect(mode, 'legacy', boundary, 'adaptive', 'legacy bool adaptive boundary')
+    call expect(mode, 'legacy_adaptive', boundary, 'adaptive', 'legacy bool adaptive boundary')
 
     ! Explicit selector overrides the booleans and is case-insensitive.
     call reset(); axis_healing = 'polyfit'; axis_healing_power_law = .True.
     call resolve_axis_healing_mode(mode, boundary)
-    call expect(mode, 'polyfit', boundary, 'fixed', 'explicit overrides bool')
+    call expect(mode, 'polyfit', boundary, '', 'explicit overrides bool')
 
     call reset(); axis_healing = 'POWERLAW'
     call resolve_axis_healing_mode(mode, boundary)
-    call expect(mode, 'powerlaw', boundary, 'fixed', 'case-insensitive')
+    call expect(mode, 'powerlaw', boundary, '', 'case-insensitive')
 
-    call reset(); axis_healing = 'legacy'; axis_healing_boundary = 'Adaptive'
+    call reset(); axis_healing = 'legacy_adaptive'; axis_healing_power_law = .True.
     call resolve_axis_healing_mode(mode, boundary)
-    call expect(mode, 'legacy', boundary, 'adaptive', 'explicit boundary')
+    call expect(mode, 'legacy_adaptive', boundary, 'adaptive', 'explicit adaptive legacy')
 
     print *, 'axis healing mode resolution: all checks passed'
 
@@ -49,7 +48,6 @@ contains
 
     subroutine reset()
         axis_healing = ''
-        axis_healing_boundary = ''
         old_axis_healing = .True.
         old_axis_healing_boundary = .True.
         axis_healing_power_law = .False.

@@ -1,6 +1,4 @@
 program test_rng
-    use, intrinsic :: iso_fortran_env, only: dp => real64
-
     implicit none
 
     logical :: all_passed

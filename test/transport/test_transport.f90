@@ -2,7 +2,7 @@ program test_transport
 
     use libneo_kinds, only: dp
     use libneo_transport, only: init_gauss_laguerre_integration, calc_D_one_over_nu, gauss_laguerre_order
-    use util_for_test, only: print_test, print_ok, print_fail
+    use util_for_test, only: print_ok, print_fail
 
     implicit none
 

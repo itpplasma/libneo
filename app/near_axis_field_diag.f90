@@ -6,9 +6,8 @@ program near_axis_field_diag
     !> Radial derivatives are taken in post from the fine rho grid.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm, &
-                                  old_axis_healing, old_axis_healing_boundary, &
-                                  axis_healing_power_law, rho_axis_heal, &
-                                  axis_healing_polyfit, axis_healing_polyfit_degree
+                                  axis_healing, s_axis_heal, rho_axis_heal, &
+                                  axis_healing_polyfit_degree
     use spline_vmec_sub, only: spline_vmec_data, vmec_field
     implicit none
 
@@ -25,7 +24,7 @@ program near_axis_field_diag
     call get_command_argument(2, variant)
     call get_command_argument(3, outfile)
     if (len_trim(wout_file) == 0 .or. len_trim(variant) == 0 .or. len_trim(outfile) == 0) then
-        print *, "Usage: near_axis_field_diag.x <wout.nc> <power|oldheal|oldbnd> <out.dat> [rho_axis_heal]"
+        print *, "Usage: near_axis_field_diag.x <wout.nc> <polyfit|powerlaw|legacy|legacy_adaptive> <out.dat> [s_axis_heal]"
         error stop 1
     end if
 
@@ -33,27 +32,21 @@ program near_axis_field_diag
     ns_s = 3
     ns_tp = 3
     multharm = 5
-    rho_axis_heal = 0.1d0
+    s_axis_heal = 1.0d-2
+    rho_axis_heal = -1.0d0
     call get_command_argument(4, arg)
-    if (len_trim(arg) > 0) read (arg, *) rho_axis_heal
+    if (len_trim(arg) > 0) read (arg, *) s_axis_heal
 
     select case (trim(variant))
     case ('polyfit')
-        axis_healing_polyfit = .True.
+        axis_healing = 'polyfit'
         axis_healing_polyfit_degree = 3
-        axis_healing_power_law = .False.
-    case ('power')
-        axis_healing_power_law = .True.
-        old_axis_healing = .True.
-        old_axis_healing_boundary = .True.
-    case ('oldheal')
-        axis_healing_power_law = .False.
-        old_axis_healing = .True.
-        old_axis_healing_boundary = .False.
-    case ('oldbnd')
-        axis_healing_power_law = .False.
-        old_axis_healing = .True.
-        old_axis_healing_boundary = .True.
+    case ('power', 'powerlaw')
+        axis_healing = 'powerlaw'
+    case ('oldbnd', 'legacy')
+        axis_healing = 'legacy'
+    case ('oldheal', 'legacy_adaptive')
+        axis_healing = 'legacy_adaptive'
     case default
         print *, "unknown variant: ", trim(variant)
         error stop 2
@@ -86,5 +79,5 @@ program near_axis_field_diag
         write (21, '(A)') ''
     end do
     close (21)
-    print *, 'wrote ', trim(outfile), ' variant=', trim(variant), ' rho_axis_heal=', rho_axis_heal
+    print *, 'wrote ', trim(outfile), ' variant=', trim(variant), ' s_axis_heal=', s_axis_heal
 end program near_axis_field_diag
