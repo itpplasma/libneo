@@ -724,13 +724,13 @@ contains
 
          call nc_check('def_var', nf90_def_var(ncid, name//'_real', NF90_DOUBLE, &
                                                [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
-         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Re))
+         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, real(var, dp)))
          call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
                                                'real part of toroidal Fourier mode of '//component// &
                                                ' component of vector potential'))
          call nc_check('def_var', nf90_def_var(ncid, name//'_imag', NF90_DOUBLE, &
                                                [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
-         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Im))
+         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, aimag(var)))
          call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
                                                'imaginary part of toroidal Fourier mode of '//component// &
                                                ' component of vector potential'))
@@ -796,12 +796,16 @@ contains
          complex(dp), dimension(:, :, :, :), allocatable, intent(inout) :: var
          character(len=*), intent(in) :: name
          integer :: varid_actual_data
+         real(dp), dimension(:, :, :, :), allocatable :: re, im
 
          allocate (var(0:nmax, nR, nZ, ncoil))
+         allocate (re(0:nmax, nR, nZ, ncoil), im(0:nmax, nR, nZ, ncoil))
          call nc_check('inq_varid', nf90_inq_varid(ncid, name//'_real', varid_actual_data))
-         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Re))
+         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, re))
          call nc_check('inq_varid', nf90_inq_varid(ncid, name//'_imag', varid_actual_data))
-         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Im))
+         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, im))
+         var = cmplx(re, im, dp)
+         deallocate (re, im)
       end subroutine read_actual_data
    end subroutine read_Anvac_fourier
 

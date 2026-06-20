@@ -68,6 +68,13 @@ target_link_libraries(test_boozer_coordinates_exports.x
   neo
 )
 
+add_executable(test_axis_power_law_regularization.x
+  source/test_axis_power_law_regularization.f90
+)
+target_link_libraries(test_axis_power_law_regularization.x
+  neo
+)
+
 add_executable(test_flux_pseudocartesian.x
   source/test_flux_pseudocartesian.f90
 )
@@ -211,6 +218,8 @@ target_link_libraries(test_nctools_nc_get3.x
 ## Standard tests according to standard libneo Fortran test convention.
 
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
+add_test(NAME test_axis_power_law_regularization
+  COMMAND test_axis_power_law_regularization.x)
 add_test(NAME test_flux_pseudocartesian
   COMMAND test_flux_pseudocartesian.x)
 add_test(NAME test_christoffel_symflux
@@ -490,6 +499,54 @@ target_link_libraries(test_chartmap_matches_vmec.x neo)
 add_test(NAME test_chartmap_matches_vmec
   COMMAND test_chartmap_matches_vmec.x)
 set_tests_properties(test_chartmap_matches_vmec PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(bench_boozer_resolution.x source/bench_boozer_resolution.f90)
+target_link_libraries(bench_boozer_resolution.x neo)
+
+add_executable(test_boozer_converter_vs_simple.x source/test_boozer_converter_vs_simple.f90)
+target_link_libraries(test_boozer_converter_vs_simple.x neo)
+add_test(NAME test_boozer_converter_vs_simple
+  COMMAND test_boozer_converter_vs_simple.x)
+set_tests_properties(test_boozer_converter_vs_simple PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_boozer_angle_roundtrip.x source/test_boozer_angle_roundtrip.f90)
+target_link_libraries(test_boozer_angle_roundtrip.x neo)
+add_test(NAME test_boozer_angle_roundtrip
+  COMMAND test_boozer_angle_roundtrip.x)
+set_tests_properties(test_boozer_angle_roundtrip PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_boozer_chartmap_roundtrip.x source/test_boozer_chartmap_roundtrip.f90)
+target_link_libraries(test_boozer_chartmap_roundtrip.x neo)
+add_test(NAME test_boozer_chartmap_roundtrip
+  COMMAND test_boozer_chartmap_roundtrip.x)
+set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_boozer_with_field.x source/test_boozer_with_field.f90)
+target_link_libraries(test_boozer_with_field.x neo)
+add_test(NAME test_boozer_with_field
+  COMMAND test_boozer_with_field.x)
+set_tests_properties(test_boozer_with_field PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_delthe_delphi_bv_d2.x source/test_delthe_delphi_bv_d2.f90)
+target_link_libraries(test_delthe_delphi_bv_d2.x neo)
+add_test(NAME test_delthe_delphi_bv_d2
+  COMMAND test_delthe_delphi_bv_d2.x)
+set_tests_properties(test_delthe_delphi_bv_d2 PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
