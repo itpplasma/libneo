@@ -476,6 +476,15 @@ set_tests_properties(test_chartmap_matches_vmec PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_boozer_converter_vs_simple.x source/test_boozer_converter_vs_simple.f90)
+target_link_libraries(test_boozer_converter_vs_simple.x neo)
+add_test(NAME test_boozer_converter_vs_simple
+  COMMAND test_boozer_converter_vs_simple.x)
+set_tests_properties(test_boozer_converter_vs_simple PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_chartmap_vmec_mapping.x source/test_chartmap_vmec_mapping.f90)
 target_link_libraries(test_chartmap_vmec_mapping.x neo)
 add_test(NAME test_chartmap_vmec_mapping

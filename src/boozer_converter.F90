@@ -1,0 +1,893 @@
+module boozer_sub
+    use spl_three_to_five_sub
+    use interpolate, only: BatchSplineData1D, BatchSplineData3D, &
+                           construct_batch_splines_1d, construct_batch_splines_3d, &
+                           evaluate_batch_splines_1d_der2, &
+                           evaluate_batch_splines_1d_der3, &
+                           evaluate_batch_splines_3d_der, &
+                           evaluate_batch_splines_3d_der2, &
+                           destroy_batch_splines_1d, destroy_batch_splines_3d
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+
+    implicit none
+    private
+
+    ! Public API
+    public :: get_boozer_coordinates
+    public :: splint_boozer_coord
+    public :: reset_boozer_batch_splines
+
+    ! Constants
+    real(dp), parameter :: TWOPI = 2.0_dp*3.14159265358979_dp
+    integer, parameter :: MAX_FIELD3D_QUANTITIES = 3
+
+    ! Batch spline data for 3D field quantities (Bmod, sqrt_g_ss, optionally B_r)
+    type(BatchSplineData3D), save :: field3d_batch_spline
+    logical, save :: field3d_batch_spline_ready = .false.
+    integer, save :: field3d_num_quantities = 0
+    real(dp), allocatable, save :: bmod_grid(:, :, :)
+    real(dp), allocatable, save :: br_grid(:, :, :)
+    real(dp), allocatable, save :: sqrt_g_ss_grid(:, :, :)
+
+    ! Batch spline for A_phi (vector potential)
+    type(BatchSplineData1D), save :: aphi_batch_spline
+    logical, save :: aphi_batch_spline_ready = .false.
+
+    ! Batch spline for B_theta, B_phi covariant components
+    type(BatchSplineData1D), save :: bcovar_tp_batch_spline
+    logical, save :: bcovar_tp_batch_spline_ready = .false.
+
+contains
+
+    !> Initialize Boozer coordinates using VMEC field (backward compatibility)
+    subroutine get_boozer_coordinates(vmec_file, &
+                                      radial_spline_order, &
+                                      angular_spline_order, &
+                                      grid_refinment)
+        use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm
+        use spline_vmec_sub, only: spline_vmec_data
+        use new_vmec_stuff_mod, only: old_axis_healing_boundary
+
+        character(len=*), intent(in) :: vmec_file
+        integer, intent(in), optional :: radial_spline_order, angular_spline_order, grid_refinment
+
+        ! diagnostic file written by libneo's perform_axis_healing when splining VMEC data
+        character(len=*), parameter :: healaxis_file = 'healaxis.dat'
+        logical :: healaxis_exists
+        integer :: iunit
+
+        netcdffile = vmec_file
+        if (present(radial_spline_order)) then
+            ns_s = radial_spline_order
+        else
+            ns_s = 5
+        end if
+        if (present(angular_spline_order)) then
+            ns_tp = angular_spline_order
+        else
+            ns_tp = 5
+        end if
+        if (present(grid_refinment)) then
+            multharm = grid_refinment
+        else
+            multharm = 3
+        end if
+
+        call spline_vmec_data()
+        ! if old_axis_healing_boundary, healaxis_file is not filled
+        inquire (file=healaxis_file, exist=healaxis_exists)
+        if (healaxis_exists .and. old_axis_healing_boundary) then
+            open (newunit=iunit, file=healaxis_file, status='old')
+            close (iunit, status='delete')
+        end if
+
+        call reset_boozer_batch_splines()
+        call get_boozer_coordinates_impl()
+
+    end subroutine get_boozer_coordinates
+
+    subroutine get_boozer_coordinates_impl
+
+        use vector_potentail_mod, only: ns, hs
+        use new_vmec_stuff_mod, only: n_theta, n_phi, h_theta, h_phi, ns_s, ns_tp
+        use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, n_theta_B, n_phi_B, &
+                                          hs_B, h_theta_B, h_phi_B, use_B_r
+
+        implicit none
+
+        ns_s_B = ns_s
+        ns_tp_B = ns_tp
+        ns_B = ns
+        n_theta_B = n_theta
+        n_phi_B = n_phi
+
+        hs_B = hs*real(ns - 1, dp)/real(ns_B - 1, dp)
+        h_theta_B = h_theta*real(n_theta - 1, dp)/real(n_theta_B - 1, dp)
+        h_phi_B = h_phi*real(n_phi - 1, dp)/real(n_phi_B - 1, dp)
+
+        call compute_boozer_data
+
+        call build_boozer_aphi_batch_spline
+        call build_boozer_bcovar_tp_batch_spline
+        call build_boozer_field3d_batch_spline
+
+    end subroutine get_boozer_coordinates_impl
+
+    subroutine splint_boozer_coord(r, vartheta_B, varphi_B, mode_secders, &
+                                   A_theta, A_phi, dA_theta_dr, dA_phi_dr, &
+                                   d2A_phi_dr2, d3A_phi_dr3, &
+                                   B_vartheta_B, dB_vartheta_B, d2B_vartheta_B, &
+                                   B_varphi_B, dB_varphi_B, d2B_varphi_B, &
+                                   Bmod_B, dBmod_B, d2Bmod_B, &
+                                   sqrt_g_ss_B, &
+                                   B_r, dB_r, d2B_r)
+
+        use boozer_coordinates_mod, only: use_B_r
+        use vector_potentail_mod, only: torflux
+        use new_vmec_stuff_mod, only: nper
+        use chamb_mod, only: rnegflag
+        use diag_mod, only: dodiag, icounter
+
+        implicit none
+
+        integer, intent(in) :: mode_secders
+
+        real(dp), intent(in) :: r, vartheta_B, varphi_B
+        real(dp), intent(out) :: A_phi, A_theta, dA_phi_dr, dA_theta_dr
+        real(dp), intent(out) :: d2A_phi_dr2, d3A_phi_dr3
+        real(dp), intent(out) :: B_vartheta_B, dB_vartheta_B, d2B_vartheta_B
+        real(dp), intent(out) :: B_varphi_B, dB_varphi_B, d2B_varphi_B
+        real(dp), intent(out) :: Bmod_B, sqrt_g_ss_B, B_r
+        real(dp), intent(out) :: dBmod_B(3), dB_r(3)
+        real(dp), intent(out) :: d2Bmod_B(6), d2B_r(6)
+
+        integer :: i_br
+        real(dp) :: r_eval, rho_tor, drhods, drhods2, d2rhods2m
+        real(dp) :: qua, dqua_dr, dqua_dt, dqua_dp
+        real(dp) :: d2qua_dr2, d2qua_drdt, d2qua_drdp, d2qua_dt2, &
+                    d2qua_dtdp, d2qua_dp2
+        real(dp) :: x_eval(3)
+        real(dp) :: y_eval(MAX_FIELD3D_QUANTITIES)
+        real(dp) :: dy_eval(3, MAX_FIELD3D_QUANTITIES)
+        real(dp) :: d2y_eval(6, MAX_FIELD3D_QUANTITIES)
+        real(dp) :: theta_wrapped, phi_wrapped
+        real(dp) :: y1d(2), dy1d(2), d2y1d(2)
+
+        if (dodiag) then
+!$omp atomic
+            icounter = icounter + 1
+        end if
+        r_eval = r
+        if (r_eval .le. 0.0_dp) then
+            rnegflag = .true.
+            r_eval = abs(r_eval)
+        end if
+
+        A_theta = torflux*r_eval
+        dA_theta_dr = torflux
+
+        ! Interpolate A_phi over s (batch spline 1D)
+        if (.not. aphi_batch_spline_ready) then
+            error stop "splint_boozer_coord: Aphi batch spline not initialized"
+        end if
+
+        if (mode_secders > 0) then
+            ! Need third derivative - use der3 which computes all in one pass
+            block
+                real(dp) :: d3y1d(1)
+                call evaluate_batch_splines_1d_der3(aphi_batch_spline, r_eval, &
+                                                    y1d(1:1), dy1d(1:1), &
+                                                    d2y1d(1:1), d3y1d)
+                d3A_phi_dr3 = d3y1d(1)
+            end block
+        else
+            call evaluate_batch_splines_1d_der2(aphi_batch_spline, r_eval, y1d(1:1), &
+                                                dy1d(1:1), d2y1d(1:1))
+            d3A_phi_dr3 = 0.0_dp
+        end if
+        A_phi = y1d(1)
+        dA_phi_dr = dy1d(1)
+        d2A_phi_dr2 = d2y1d(1)
+
+        ! Interpolation of mod-B (and B_r if use_B_r)
+        rho_tor = sqrt(r_eval)
+        theta_wrapped = modulo(vartheta_B, TWOPI)
+        phi_wrapped = modulo(varphi_B, TWOPI/real(nper, dp))
+
+        if (.not. field3d_batch_spline_ready) then
+            error stop "splint_boozer_coord: Bmod/Br batch spline not initialized"
+        end if
+
+        x_eval(1) = rho_tor
+        x_eval(2) = theta_wrapped
+        x_eval(3) = phi_wrapped
+
+        i_br = field3d_num_quantities
+
+        ! Chain rule coefficients for rho -> s conversion
+        drhods = 0.5_dp/rho_tor
+        drhods2 = drhods**2
+        d2rhods2m = drhods2/rho_tor  ! -d2rho/ds2 (negative of second derivative)
+
+        if (mode_secders == 2) then
+            call evaluate_batch_splines_3d_der2(field3d_batch_spline, x_eval, &
+                                                y_eval(1:field3d_num_quantities), &
+                                                dy_eval(:, 1:field3d_num_quantities), &
+                                                d2y_eval(:, 1:field3d_num_quantities))
+
+            ! Extract Bmod (quantity 1)
+            qua = y_eval(1)
+            dqua_dr = dy_eval(1, 1)
+            dqua_dt = dy_eval(2, 1)
+            dqua_dp = dy_eval(3, 1)
+
+            d2qua_dr2 = d2y_eval(1, 1)
+            d2qua_drdt = d2y_eval(2, 1)
+            d2qua_drdp = d2y_eval(3, 1)
+            d2qua_dt2 = d2y_eval(4, 1)
+            d2qua_dtdp = d2y_eval(5, 1)
+            d2qua_dp2 = d2y_eval(6, 1)
+
+            d2qua_dr2 = d2qua_dr2*drhods2 - dqua_dr*d2rhods2m
+            dqua_dr = dqua_dr*drhods
+            d2qua_drdt = d2qua_drdt*drhods
+            d2qua_drdp = d2qua_drdp*drhods
+
+            Bmod_B = qua
+
+            dBmod_B(1) = dqua_dr
+            dBmod_B(2) = dqua_dt
+            dBmod_B(3) = dqua_dp
+
+            d2Bmod_B(1) = d2qua_dr2
+            d2Bmod_B(2) = d2qua_drdt
+            d2Bmod_B(3) = d2qua_drdp
+            d2Bmod_B(4) = d2qua_dt2
+            d2Bmod_B(5) = d2qua_dtdp
+            d2Bmod_B(6) = d2qua_dp2
+
+            sqrt_g_ss_B = y_eval(2)
+
+            ! Extract B_r (if present)
+            if (use_B_r) then
+                qua = y_eval(i_br)
+                dqua_dr = dy_eval(1, i_br)
+                dqua_dt = dy_eval(2, i_br)
+                dqua_dp = dy_eval(3, i_br)
+
+                d2qua_dr2 = d2y_eval(1, i_br)
+                d2qua_drdt = d2y_eval(2, i_br)
+                d2qua_drdp = d2y_eval(3, i_br)
+                d2qua_dt2 = d2y_eval(4, i_br)
+                d2qua_dtdp = d2y_eval(5, i_br)
+                d2qua_dp2 = d2y_eval(6, i_br)
+
+                d2qua_dr2 = d2qua_dr2*drhods2 - dqua_dr*d2rhods2m
+                dqua_dr = dqua_dr*drhods
+                d2qua_drdt = d2qua_drdt*drhods
+                d2qua_drdp = d2qua_drdp*drhods
+
+                B_r = qua*drhods
+
+                dB_r(1) = dqua_dr*drhods - qua*d2rhods2m
+                dB_r(2) = dqua_dt*drhods
+                dB_r(3) = dqua_dp*drhods
+
+                d2B_r(1) = d2qua_dr2*drhods - 2.0_dp*dqua_dr*d2rhods2m + &
+                           qua*drhods*(3.0_dp/4.0_dp)/r_eval**2
+                d2B_r(2) = d2qua_drdt*drhods - dqua_dt*d2rhods2m
+                d2B_r(3) = d2qua_drdp*drhods - dqua_dp*d2rhods2m
+                d2B_r(4) = d2qua_dt2*drhods
+                d2B_r(5) = d2qua_dtdp*drhods
+                d2B_r(6) = d2qua_dp2*drhods
+            else
+                B_r = 0.0_dp
+                dB_r = 0.0_dp
+                d2B_r = 0.0_dp
+            end if
+        else
+            call evaluate_batch_splines_3d_der(field3d_batch_spline, x_eval, &
+                                               y_eval(1:field3d_num_quantities), &
+                                               dy_eval(:, 1:field3d_num_quantities))
+
+            Bmod_B = y_eval(1)
+            dBmod_B(1) = dy_eval(1, 1)*drhods
+            dBmod_B(2) = dy_eval(2, 1)
+            dBmod_B(3) = dy_eval(3, 1)
+
+            sqrt_g_ss_B = y_eval(2)
+
+            d2Bmod_B = 0.0_dp
+
+            if (mode_secders == 1) then
+                call evaluate_batch_splines_3d_der2(field3d_batch_spline, x_eval, &
+                                                    y_eval(1:field3d_num_quantities), &
+                                                    dy_eval(:, &
+                                                            1:field3d_num_quantities), &
+                                                    d2y_eval(:, &
+                                                             1:field3d_num_quantities))
+                d2Bmod_B(1) = d2y_eval(1, 1)*drhods2 - dy_eval(1, 1)*d2rhods2m
+            end if
+
+            if (use_B_r) then
+                qua = y_eval(i_br)
+                dqua_dr = dy_eval(1, i_br)
+                dqua_dt = dy_eval(2, i_br)
+                dqua_dp = dy_eval(3, i_br)
+
+                dqua_dr = dqua_dr*drhods
+                B_r = qua*drhods
+
+                dB_r(1) = dqua_dr*drhods - qua*d2rhods2m
+                dB_r(2) = dqua_dt*drhods
+                dB_r(3) = dqua_dp*drhods
+
+                d2B_r = 0.0_dp
+                if (mode_secders == 1) then
+                    d2qua_dr2 = d2y_eval(1, i_br)*drhods2 - dy_eval(1, i_br)*d2rhods2m
+                    d2B_r(1) = d2qua_dr2*drhods - 2.0_dp*dqua_dr*d2rhods2m + &
+                               qua*drhods*(3.0_dp/4.0_dp)/r_eval**2
+                end if
+            else
+                B_r = 0.0_dp
+                dB_r = 0.0_dp
+                d2B_r = 0.0_dp
+            end if
+        end if
+
+        ! Interpolation of B_\vartheta and B_\varphi (flux functions)
+        if (.not. bcovar_tp_batch_spline_ready) then
+            error stop "splint_boozer_coord: Bcovar_tp batch spline not initialized"
+        end if
+
+        call evaluate_batch_splines_1d_der2(bcovar_tp_batch_spline, rho_tor, y1d, &
+                                            dy1d, d2y1d)
+        B_vartheta_B = y1d(1)
+        dB_vartheta_B = dy1d(1)
+        B_varphi_B = y1d(2)
+        dB_varphi_B = dy1d(2)
+        dB_vartheta_B = dB_vartheta_B*drhods
+        dB_varphi_B = dB_varphi_B*drhods
+        if (mode_secders > 0) then
+            d2B_vartheta_B = d2y1d(1)*drhods2 - dy1d(1)*d2rhods2m
+            d2B_varphi_B = d2y1d(2)*drhods2 - dy1d(2)*d2rhods2m
+        else
+            d2B_vartheta_B = 0.0_dp
+            d2B_varphi_B = 0.0_dp
+        end if
+
+    end subroutine splint_boozer_coord
+
+    subroutine compute_boozer_data
+        ! Computes Boozer coordinate transformations and magnetic field data
+        use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, n_theta_B, n_phi_B, &
+                                          hs_B, h_theta_B, h_phi_B, &
+                                          s_Bcovar_tp_B, &
+                                          use_B_r
+        use binsrc_sub, only: binsrc
+        use plag_coeff_sub, only: plag_coeff
+        use spline_vmec_sub
+
+        implicit none
+
+        real(dp), parameter :: s_min = 1.0e-6_dp, rho_min = sqrt(s_min)
+
+        integer :: i, i_rho, i_theta, i_phi, npoilag, nder, nshift
+        integer :: ibeg, iend, nqua
+        real(dp) :: s, theta, varphi, A_theta, A_phi
+        real(dp) :: dA_theta_ds, dA_phi_ds, aiota
+        real(dp) :: sqg, alam, dl_ds, dl_dt, dl_dp
+        real(dp) :: Bctrvr_vartheta, Bctrvr_varphi
+        real(dp) :: Bcovar_r, Bcovar_vartheta, Bcovar_varphi
+        real(dp) :: Bcovar_vartheta_B, Bcovar_varphi_B
+        real(dp) :: denomjac, G00, Gbeg, aper
+        real(dp) :: per_theta, per_phi, gridcellnum
+        real(dp), allocatable :: wint_t(:), wint_p(:), theta_V(:), theta_B(:)
+        real(dp), allocatable :: phi_V(:), phi_B(:), aiota_arr(:), rho_tor(:)
+        real(dp), allocatable :: Bcovar_theta_V(:, :), Bcovar_varphi_V(:, :)
+        real(dp), allocatable :: bmod_Vg(:, :), alam_2D(:, :)
+        real(dp), allocatable :: sqrt_g_ss(:, :)
+        real(dp), allocatable :: deltheta_BV_Vg(:, :), delphi_BV_Vg(:, :)
+        real(dp), allocatable :: splcoe_t(:, :)
+        real(dp), allocatable :: splcoe_p(:, :), coef(:, :)
+        real(dp), allocatable :: perqua_t(:, :), perqua_p(:, :)
+        real(dp), allocatable :: perqua_2D(:, :, :), Gfunc(:, :, :)
+        real(dp), allocatable :: Bcovar_symfl(:, :, :, :)
+
+        nqua = 7
+        gridcellnum = real((n_theta_B - 1)*(n_phi_B - 1), dp)
+
+        npoilag = ns_tp_B + 1
+        nder = 0
+        nshift = npoilag/2
+
+        print *, 'Transforming to Boozer coordinates'
+
+        if (use_B_r) then
+            print *, 'B_r is computed'
+        else
+            print *, 'B_r is not computed'
+        end if
+
+        G00 = 0.0_dp
+
+        allocate (rho_tor(ns_B))
+        allocate (aiota_arr(1))
+        allocate (Gfunc(1, 1, 1))
+        allocate (Bcovar_symfl(1, 1, 1, 1))
+        if (use_B_r) then
+            deallocate (aiota_arr, Gfunc, Bcovar_symfl)
+            allocate (aiota_arr(ns_B))
+            allocate (Gfunc(ns_B, n_theta_B, n_phi_B))
+            allocate (Bcovar_symfl(3, ns_B, n_theta_B, n_phi_B))
+        end if
+
+        allocate (Bcovar_theta_V(n_theta_B, n_phi_B))
+        allocate (Bcovar_varphi_V(n_theta_B, n_phi_B))
+        allocate (bmod_Vg(n_theta_B, n_phi_B))
+        allocate (alam_2D(n_theta_B, n_phi_B))
+        allocate (sqrt_g_ss(n_theta_B, n_phi_B))
+        allocate (deltheta_BV_Vg(n_theta_B, n_phi_B))
+        allocate (delphi_BV_Vg(n_theta_B, n_phi_B))
+        allocate (wint_t(0:ns_tp_B), wint_p(0:ns_tp_B))
+        allocate (coef(0:nder, npoilag))
+        allocate (theta_V(2 - n_theta_B:2*n_theta_B - 1))
+        allocate (theta_B(2 - n_theta_B:2*n_theta_B - 1))
+        allocate (phi_V(2 - n_phi_B:2*n_phi_B - 1))
+        allocate (phi_B(2 - n_phi_B:2*n_phi_B - 1))
+        allocate (perqua_t(nqua, 2 - n_theta_B:2*n_theta_B - 1))
+        allocate (perqua_p(nqua, 2 - n_phi_B:2*n_phi_B - 1))
+        allocate (perqua_2D(nqua, n_theta_B, n_phi_B))
+
+        allocate (splcoe_t(0:ns_tp_B, n_theta_B))
+        allocate (splcoe_p(0:ns_tp_B, n_phi_B))
+
+! allocate data arrays for Boozer data:
+        if (.not. allocated(s_Bcovar_tp_B)) &
+            allocate (s_Bcovar_tp_B(2, ns_s_B + 1, ns_B))
+
+        ! Allocate module-level grids
+        call ensure_grid_3d(bmod_grid, ns_B, n_theta_B, n_phi_B)
+        call ensure_grid_3d(sqrt_g_ss_grid, ns_B, n_theta_B, n_phi_B)
+        if (use_B_r) call ensure_grid_3d(br_grid, ns_B, n_theta_B, n_phi_B)
+
+        do i = 0, ns_tp_B
+            wint_t(i) = h_theta_B**(i + 1)/real(i + 1, dp)
+            wint_p(i) = h_phi_B**(i + 1)/real(i + 1, dp)
+        end do
+
+        ! Set theta_V and phi_V linear, with value 0 at index 1 and stepsize h.
+        ! Then expand this in both directions beyond 1:n_theta_B.
+        do i_theta = 1, n_theta_B
+            theta_V(i_theta) = real(i_theta - 1, dp)*h_theta_B
+        end do
+        per_theta = real(n_theta_B - 1, dp)*h_theta_B
+        theta_V(2 - n_theta_B:0) = theta_V(1:n_theta_B - 1) - per_theta
+        theta_V(n_theta_B + 1:2*n_theta_B - 1) = theta_V(2:n_theta_B) + per_theta
+
+        do i_phi = 1, n_phi_B
+            phi_V(i_phi) = real(i_phi - 1, dp)*h_phi_B
+        end do
+        per_phi = real(n_phi_B - 1, dp)*h_phi_B
+        phi_V(2 - n_phi_B:0) = phi_V(1:n_phi_B - 1) - per_phi
+        phi_V(n_phi_B + 1:2*n_phi_B - 1) = phi_V(2:n_phi_B) + per_phi
+
+        do i_rho = 1, ns_B
+            rho_tor(i_rho) = max(real(i_rho - 1, dp)*hs_B, rho_min)
+            s = rho_tor(i_rho)**2
+
+            do i_theta = 1, n_theta_B
+                theta = real(i_theta - 1, dp)*h_theta_B
+                do i_phi = 1, n_phi_B
+                    varphi = real(i_phi - 1, dp)*h_phi_B
+
+                    call vmec_field_evaluate(s, theta, varphi, &
+                                             A_theta, A_phi, dA_theta_ds, &
+                                             dA_phi_ds, aiota, &
+                                             sqg, alam, dl_ds, &
+                                             dl_dt, dl_dp, &
+                                             Bctrvr_vartheta, &
+                                             Bctrvr_varphi, &
+                                             Bcovar_r, Bcovar_vartheta, &
+                                             Bcovar_varphi)
+
+                    alam_2D(i_theta, i_phi) = alam
+                    bmod_Vg(i_theta, i_phi) = &
+                        sqrt(Bctrvr_vartheta*Bcovar_vartheta &
+                             + Bctrvr_varphi*Bcovar_varphi)
+                    Bcovar_theta_V(i_theta, i_phi) = Bcovar_vartheta*(1.0_dp + dl_dt)
+                    Bcovar_varphi_V(i_theta, i_phi) = &
+                        Bcovar_varphi + Bcovar_vartheta*dl_dp
+                    sqrt_g_ss(i_theta, i_phi) = get_sqrt_g_ss_contravariant(s, &
+                                                                            theta, &
+                                                                            varphi)
+
+                    perqua_2D(4, i_theta, i_phi) = Bcovar_r
+                    perqua_2D(5, i_theta, i_phi) = Bcovar_vartheta
+                    perqua_2D(6, i_theta, i_phi) = Bcovar_varphi
+                end do
+            end do
+
+! covariant components $B_\vartheta$ and $B_\varphi$ of Boozer coordinates:
+            Bcovar_vartheta_B = sum(Bcovar_theta_V(2:n_theta_B, 2:n_phi_B))/gridcellnum
+            Bcovar_varphi_B = sum(Bcovar_varphi_V(2:n_theta_B, 2:n_phi_B))/gridcellnum
+            s_Bcovar_tp_B(1, 1, i_rho) = Bcovar_vartheta_B
+            s_Bcovar_tp_B(2, 1, i_rho) = Bcovar_varphi_B
+
+            denomjac = 1.0_dp/(aiota*Bcovar_vartheta_B + Bcovar_varphi_B)
+            Gbeg = G00 + Bcovar_vartheta_B*denomjac*alam_2D(1, 1)
+
+            splcoe_t(0, :) = Bcovar_theta_V(:, 1)
+
+            call spl_per(ns_tp_B, n_theta_B, h_theta_B, splcoe_t)
+
+            delphi_BV_Vg(1, 1) = 0.0_dp
+            do i_theta = 1, n_theta_B - 1
+                delphi_BV_Vg(i_theta + 1, 1) = &
+                    delphi_BV_Vg(i_theta, 1) &
+                    + sum(wint_t*splcoe_t(:, i_theta))
+            end do
+            ! Remove linear increasing component from delphi_BV_Vg
+            aper = (delphi_BV_Vg(n_theta_B, 1) &
+                    - delphi_BV_Vg(1, 1))/real(n_theta_B - 1, dp)
+            do i_theta = 2, n_theta_B
+                delphi_BV_Vg(i_theta, 1) = &
+                    delphi_BV_Vg(i_theta, 1) - aper*real(i_theta - 1, dp)
+            end do
+
+            do i_theta = 1, n_theta_B
+                splcoe_p(0, :) = Bcovar_varphi_V(i_theta, :)
+
+                call spl_per(ns_tp_B, n_phi_B, h_phi_B, splcoe_p)
+
+                do i_phi = 1, n_phi_B - 1
+                    delphi_BV_Vg(i_theta, i_phi + 1) = &
+                        delphi_BV_Vg(i_theta, i_phi) &
+                        + sum(wint_p*splcoe_p(:, i_phi))
+                end do
+                aper = (delphi_BV_Vg(i_theta, n_phi_B) &
+                        - delphi_BV_Vg(i_theta, 1))/real(n_phi_B - 1, dp)
+                do i_phi = 2, n_phi_B
+                    delphi_BV_Vg(i_theta, i_phi) = &
+                        delphi_BV_Vg(i_theta, i_phi) &
+                        - aper*real(i_phi - 1, dp)
+                end do
+            end do
+
+! difference between Boozer and VMEC toroidal angle,
+! $\Delta \varphi_{BV}=\varphi_B-\varphi=G$:
+            delphi_BV_Vg = denomjac*delphi_BV_Vg + Gbeg
+! difference between Boozer and VMEC poloidal angle,
+! $\Delta \vartheta_{BV}=\vartheta_B-\theta$:
+            deltheta_BV_Vg = aiota*delphi_BV_Vg + alam_2D
+
+! At this point, all quantities are specified on
+! equidistant grid in VMEC angles $(\theta,\varphi)$
+
+! Re-interpolate to equidistant grid in $(\vartheta_B,\varphi)$:
+
+            do i_phi = 1, n_phi_B
+                perqua_t(1, 1:n_theta_B) = deltheta_BV_Vg(:, i_phi)
+                perqua_t(2, 1:n_theta_B) = delphi_BV_Vg(:, i_phi)
+                perqua_t(3, 1:n_theta_B) = bmod_Vg(:, i_phi)
+                perqua_t(4:6, 1:n_theta_B) = perqua_2D(4:6, :, i_phi)
+                perqua_t(7, 1:n_theta_B) = sqrt_g_ss(:, i_phi)
+                ! Extend range of theta values
+                perqua_t(:, 2 - n_theta_B:0) = perqua_t(:, 1:n_theta_B - 1)
+                perqua_t(:, n_theta_B + 1:2*n_theta_B - 1) = perqua_t(:, 2:n_theta_B)
+                theta_B = theta_V + perqua_t(1, :)
+                do i_theta = 1, n_theta_B
+
+                    call binsrc(theta_B, 2 - n_theta_B, 2*n_theta_B - 1, &
+                                theta_V(i_theta), i)
+
+                    ibeg = i - nshift
+                    iend = ibeg + ns_tp_B
+
+                    call plag_coeff(npoilag, nder, theta_V(i_theta), &
+                                    theta_B(ibeg:iend), coef)
+
+                    perqua_2D(:, i_theta, i_phi) = matmul(perqua_t(:, ibeg:iend), &
+                                                          coef(0, :))
+                end do
+            end do
+
+! End re-interpolate to equidistant grid in $(\vartheta_B,\varphi)$
+
+! Re-interpolate to equidistant grid in $(\vartheta_B,\varphi_B)$:
+
+            do i_theta = 1, n_theta_B
+                perqua_p(:, 1:n_phi_B) = perqua_2D(:, i_theta, :)
+                perqua_p(:, 2 - n_phi_B:0) = perqua_p(:, 1:n_phi_B - 1)
+                ! Extend range of phi values
+                perqua_p(:, n_phi_B + 1:2*n_phi_B - 1) = perqua_p(:, 2:n_phi_B)
+                phi_B = phi_V + perqua_p(2, :)
+                do i_phi = 1, n_phi_B
+
+                    call binsrc(phi_B, 2 - n_phi_B, 2*n_phi_B - 1, phi_V(i_phi), i)
+
+                    ibeg = i - nshift
+                    iend = ibeg + ns_tp_B
+
+                    call plag_coeff(npoilag, nder, phi_V(i_phi), phi_B(ibeg:iend), coef)
+
+                    perqua_2D(:, i_theta, i_phi) = matmul(perqua_p(:, ibeg:iend), &
+                                                          coef(0, :))
+                end do
+            end do
+
+            bmod_grid(i_rho, :, :) = perqua_2D(3, :, :)
+            sqrt_g_ss_grid(i_rho, :, :) = perqua_2D(7, :, :)
+
+! End re-interpolate to equidistant grid in $(\vartheta_B,\varphi_B)$
+
+            if (use_B_r) then
+                aiota_arr(i_rho) = aiota
+                Gfunc(i_rho, :, :) = perqua_2D(2, :, :)
+! covariant components $B_k$ in symmetry flux coordinates on equidistant grid of
+! Boozer coordinates:
+                Bcovar_symfl(:, i_rho, :, :) = perqua_2D(4:6, :, :)
+            end if
+
+        end do
+
+        if (use_B_r) then
+            call compute_br_from_symflux(rho_tor, aiota_arr, Gfunc, Bcovar_symfl)
+            deallocate (aiota_arr, Gfunc, Bcovar_symfl)
+        end if
+
+        deallocate (Bcovar_theta_V, Bcovar_varphi_V, bmod_Vg, alam_2D, &
+                    sqrt_g_ss, deltheta_BV_Vg, delphi_BV_Vg, &
+                    wint_t, wint_p, coef, theta_V, theta_B, phi_V, phi_B, &
+                    perqua_t, perqua_p, perqua_2D)
+
+        print *, 'done'
+
+    end subroutine compute_boozer_data
+
+    !> Original VMEC field evaluation using global splines (boozer_converter interface)
+    subroutine vmec_field_evaluate(s, theta, varphi, &
+                                   A_theta, A_phi, dA_theta_ds, dA_phi_ds, aiota, &
+                                   sqg, alam, dl_ds, dl_dt, dl_dp, &
+                                   Bctrvr_vartheta, Bctrvr_varphi, &
+                                   Bcovar_r, Bcovar_vartheta, Bcovar_varphi)
+        use spline_vmec_sub, only: vmec_field
+        real(dp), intent(in) :: s, theta, varphi
+        real(dp), intent(out) :: A_theta, A_phi, dA_theta_ds, dA_phi_ds
+        real(dp), intent(out) :: aiota, sqg, alam
+        real(dp), intent(out) :: dl_ds, dl_dt, dl_dp
+        real(dp), intent(out) :: Bctrvr_vartheta, Bctrvr_varphi
+        real(dp), intent(out) :: Bcovar_r, Bcovar_vartheta, Bcovar_varphi
+
+        ! Call the existing VMEC routine
+        call vmec_field(s, theta, varphi, &
+                        A_theta, A_phi, dA_theta_ds, dA_phi_ds, aiota, &
+                        sqg, alam, dl_ds, dl_dt, dl_dp, &
+                        Bctrvr_vartheta, Bctrvr_varphi, &
+                        Bcovar_r, Bcovar_vartheta, Bcovar_varphi)
+    end subroutine vmec_field_evaluate
+
+    !> Computes sqrt(g^{ss}) which is the same for Boozer (s, theta_B, varphi_B)
+    !> and VMEC (s, theta, varphi) coordinates
+    function get_sqrt_g_ss_contravariant(s, theta, varphi) result(sqrt_g_ss)
+        use spline_vmec_sub, only: splint_vmec_data
+        use spline_vmec_sub, only: metric_tensor_vmec
+        real(dp), intent(in) :: s, theta, varphi
+        real(dp) :: sqrt_g_ss
+
+        real(dp) :: dummy(10)
+        real(dp) :: R, dR_ds, dR_dtheta, dR_dphi
+        real(dp) :: dZ_ds, dZ_dtheta, dZ_dphi
+
+        real(dp) :: g_vmec(3, 3), sqrt_g_vmec
+
+        call splint_vmec_data(s, theta, varphi, &
+                              dummy(1), dummy(2), dummy(3), dummy(4), dummy(5), &
+                              R, &
+                              dummy(6), dummy(7), &
+                              dR_ds, dR_dtheta, dR_dphi, &
+                              dZ_ds, dZ_dtheta, dZ_dphi, &
+                              dummy(8), dummy(9), dummy(10))
+        call metric_tensor_vmec(R, dR_ds, dR_dtheta, dR_dphi, &
+                                dZ_ds, dZ_dtheta, dZ_dphi, g_vmec, sqrt_g_vmec)
+
+        !> contravariant metric component g^{ss} via cofactors of covariant components
+        sqrt_g_ss = sqrt(g_vmec(2, 2)*g_vmec(3, 3) - g_vmec(2, 3)**2.0_dp) &
+                    /abs(sqrt_g_vmec)
+    end function get_sqrt_g_ss_contravariant
+
+    !> Compute radial covariant magnetic field B_rho from symmetry flux coordinates
+    subroutine compute_br_from_symflux(rho_tor, aiota_arr, Gfunc, Bcovar_symfl)
+        use boozer_coordinates_mod, only: ns_B, n_theta_B, n_phi_B
+        use plag_coeff_sub, only: plag_coeff
+
+        real(dp), intent(in) :: rho_tor(:)
+        real(dp), intent(in) :: aiota_arr(:)
+        real(dp), intent(in) :: Gfunc(:, :, :)
+        real(dp), intent(in) :: Bcovar_symfl(:, :, :, :)
+
+        integer, parameter :: NPOILAG = 5
+        integer, parameter :: NDER = 1
+
+        integer :: i_rho, i_phi, ibeg, iend, nshift
+        real(dp) :: coef(0:NDER, NPOILAG)
+
+        nshift = NPOILAG/2
+
+        do i_rho = 1, ns_B
+            ibeg = i_rho - nshift
+            iend = ibeg + NPOILAG - 1
+            if (ibeg < 1) then
+                ibeg = 1
+                iend = ibeg + NPOILAG - 1
+            else if (iend > ns_B) then
+                iend = ns_B
+                ibeg = iend - NPOILAG + 1
+            end if
+
+            call plag_coeff(NPOILAG, NDER, rho_tor(i_rho), rho_tor(ibeg:iend), coef)
+
+            ! Compute B_rho (we spline covariant component B_rho instead of B_s)
+            do i_phi = 1, n_phi_B
+                br_grid(i_rho, :, i_phi) = &
+                    2.0_dp*rho_tor(i_rho)*Bcovar_symfl(1, i_rho, :, i_phi) &
+                    - matmul(coef(1, :)*aiota_arr(ibeg:iend), Gfunc(ibeg:iend, &
+                                                                    :, i_phi)) &
+                    *Bcovar_symfl(2, i_rho, :, i_phi) &
+                    - matmul(coef(1, :), Gfunc(ibeg:iend, :, i_phi)) &
+                    *Bcovar_symfl(3, i_rho, :, i_phi)
+            end do
+        end do
+
+    end subroutine compute_br_from_symflux
+
+    !> Ensure 3D grid is allocated with correct dimensions
+    subroutine ensure_grid_3d(grid, n1, n2, n3)
+        real(dp), allocatable, intent(inout) :: grid(:, :, :)
+        integer, intent(in) :: n1, n2, n3
+
+        if (.not. allocated(grid)) then
+            allocate (grid(n1, n2, n3))
+        else if (any(shape(grid) /= [n1, n2, n3])) then
+            deallocate (grid)
+            allocate (grid(n1, n2, n3))
+        end if
+    end subroutine ensure_grid_3d
+
+    subroutine reset_boozer_batch_splines
+        if (aphi_batch_spline_ready) then
+            call destroy_batch_splines_1d(aphi_batch_spline)
+            aphi_batch_spline_ready = .false.
+        end if
+        if (bcovar_tp_batch_spline_ready) then
+            call destroy_batch_splines_1d(bcovar_tp_batch_spline)
+            bcovar_tp_batch_spline_ready = .false.
+        end if
+        if (field3d_batch_spline_ready) then
+            call destroy_batch_splines_3d(field3d_batch_spline)
+            field3d_batch_spline_ready = .false.
+            field3d_num_quantities = 0
+        end if
+        if (allocated(bmod_grid)) deallocate (bmod_grid)
+        if (allocated(sqrt_g_ss_grid)) deallocate (sqrt_g_ss_grid)
+        if (allocated(br_grid)) deallocate (br_grid)
+    end subroutine reset_boozer_batch_splines
+
+    subroutine build_boozer_aphi_batch_spline
+        use vector_potentail_mod, only: ns, hs, sA_phi
+        use new_vmec_stuff_mod, only: ns_A
+
+        integer :: order
+
+        if (aphi_batch_spline_ready) then
+            call destroy_batch_splines_1d(aphi_batch_spline)
+            aphi_batch_spline_ready = .false.
+        end if
+
+        order = ns_A
+        if (order < 3 .or. order > 5) then
+            error stop "build_boozer_aphi_batch_spline: spline order must be 3..5"
+        end if
+
+        aphi_batch_spline%order = order
+        aphi_batch_spline%num_points = ns
+        aphi_batch_spline%periodic = .false.
+        aphi_batch_spline%x_min = 0.0_dp
+        aphi_batch_spline%h_step = hs
+        aphi_batch_spline%num_quantities = 1
+
+        allocate (aphi_batch_spline%coeff(1, 0:order, ns))
+        aphi_batch_spline%coeff(1, 0:order, :) = sA_phi(1:order + 1, :)
+
+        aphi_batch_spline_ready = .true.
+    end subroutine build_boozer_aphi_batch_spline
+
+    subroutine build_boozer_bcovar_tp_batch_spline
+        use boozer_coordinates_mod, only: ns_s_B, ns_B, hs_B, s_Bcovar_tp_B
+
+        integer :: order
+        real(dp) :: x_min, x_max
+        real(dp), allocatable :: y_batch(:, :)
+
+        if (bcovar_tp_batch_spline_ready) then
+            call destroy_batch_splines_1d(bcovar_tp_batch_spline)
+            bcovar_tp_batch_spline_ready = .false.
+        end if
+
+        order = ns_s_B
+        if (order < 3 .or. order > 5) then
+            error stop "build_boozer_bcovar_tp_batch_spline: spline order must be 3..5"
+        end if
+
+        x_min = 0.0_dp
+        x_max = hs_B*real(ns_B - 1, dp)
+
+        allocate (y_batch(ns_B, 2))
+        y_batch(:, 1) = s_Bcovar_tp_B(1, 1, :)
+        y_batch(:, 2) = s_Bcovar_tp_B(2, 1, :)
+
+        call construct_batch_splines_1d(x_min, x_max, y_batch, order, .false., &
+                                        bcovar_tp_batch_spline)
+        bcovar_tp_batch_spline_ready = .true.
+        deallocate (y_batch)
+    end subroutine build_boozer_bcovar_tp_batch_spline
+
+    subroutine build_boozer_field3d_batch_spline
+        ! Combined 3D field batch spline: Bmod, sqrt_g_ss, optionally Br
+        use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, n_theta_B, n_phi_B, &
+                                          hs_B, h_theta_B, h_phi_B, use_B_r
+
+        real(dp) :: x_min(3), x_max(3)
+        real(dp), allocatable :: y_batch(:, :, :, :)
+        integer :: order(3), nq, i_br
+        logical :: periodic(3)
+
+        if (.not. allocated(bmod_grid)) then
+            error stop "build_boozer_field3d_batch_spline: bmod_grid not allocated"
+        end if
+        if (.not. allocated(sqrt_g_ss_grid)) then
+            error stop "build_boozer_field3d_batch_spline: sqrt_g_ss_grid not allocated"
+        end if
+        if (use_B_r .and. .not. allocated(br_grid)) then
+            error stop "build_boozer_field3d_batch_spline: br_grid not allocated"
+        end if
+
+        if (field3d_batch_spline_ready) then
+            call destroy_batch_splines_3d(field3d_batch_spline)
+            field3d_batch_spline_ready = .false.
+            field3d_num_quantities = 0
+        end if
+
+        order = [ns_s_B, ns_tp_B, ns_tp_B]
+        if (any(order < 3) .or. any(order > 5)) then
+            error stop "build_boozer_field3d_batch_spline: spline order must be 3..5"
+        end if
+
+        x_min = [0.0_dp, 0.0_dp, 0.0_dp]
+        x_max(1) = hs_B*real(ns_B - 1, dp)
+        x_max(2) = h_theta_B*real(n_theta_B - 1, dp)
+        x_max(3) = h_phi_B*real(n_phi_B - 1, dp)
+
+        periodic = [.false., .true., .true.]
+
+        nq = 2  ! Bmod, sqrt_g_ss
+        if (use_B_r) then
+            nq = nq + 1
+            i_br = nq
+        end if
+
+        allocate (y_batch(ns_B, n_theta_B, n_phi_B, nq))
+        y_batch(:, :, :, 1) = bmod_grid(:, :, :)
+        y_batch(:, :, :, 2) = sqrt_g_ss_grid(:, :, :)
+        if (use_B_r) then
+            y_batch(:, :, :, i_br) = br_grid(:, :, :)
+        end if
+
+        call construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, &
+                                        field3d_batch_spline)
+        field3d_batch_spline_ready = .true.
+        field3d_num_quantities = nq
+        deallocate (y_batch)
+    end subroutine build_boozer_field3d_batch_spline
+
+end module boozer_sub
