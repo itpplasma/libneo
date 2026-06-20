@@ -758,6 +758,138 @@ contains
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+   subroutine splint_vmec_data_d3(s, theta, varphi, d3R, d3Z, d3l)
+      !> Third derivatives of the coordinate map (R, Z, lambda) with respect to
+      !> (s, vartheta, varphi). Packed order (10 components):
+      !>   (sss, sst, ssp, stt, stp, spp, ttt, ttp, tpp, ppp).
+      !> Needed for the analytic second derivative of the curvilinear metric
+      !> (boozer_field_metric d2g_B pullback). Same rho_tor = sqrt(s) storage as
+      !> splint_vmec_data_d2; the s-direction applies the rho->s chain rule to
+      !> third order.
+      use vector_potentail_mod, only: ns, hs
+      use new_vmec_stuff_mod, only: sR, sZ, slam, ns_s, ns_tp
+
+      real(dp), intent(in) :: s, theta, varphi
+      real(dp), intent(out) :: d3R(10), d3Z(10), d3l(10)
+
+      integer :: is, i_theta, i_phi, is_rho
+      integer :: ka, kb, kc, nrho, nt, np
+      real(dp) :: ds, dtheta, dphi, ds_rho, rho_tor
+      real(dp) :: pr, pt, pp, dpr, dpt, dpp, d2pr, d2pt, d2pp, d3pr, d3pt, d3pp, w
+      real(dp) :: df(3, 3), d2f(3, 6), d3f(3, 10)
+      real(dp) :: drho, d2rho, d3rho
+
+      call normalize_coordinates(s, theta, varphi, ds, is, dtheta, i_theta, dphi, i_phi)
+
+      rho_tor = sqrt(s)
+      ds_rho = rho_tor/hs
+      is_rho = max(0, min(ns - 2, int(ds_rho)))
+      ds_rho = (ds_rho - dble(is_rho))*hs
+      is_rho = is_rho + 1
+
+      nrho = ns_s + 1
+      nt = ns_tp + 1
+      np = ns_tp + 1
+
+      df = 0.d0
+      d2f = 0.d0
+      d3f = 0.d0
+
+      do ka = 1, nrho
+         pr = ds_rho**(ka - 1)
+         dpr = 0.d0
+         if (ka >= 2) dpr = dble(ka - 1)*ds_rho**(ka - 2)
+         d2pr = 0.d0
+         if (ka >= 3) d2pr = dble((ka - 1)*(ka - 2))*ds_rho**(ka - 3)
+         d3pr = 0.d0
+         if (ka >= 4) d3pr = dble((ka - 1)*(ka - 2)*(ka - 3))*ds_rho**(ka - 4)
+
+         do kb = 1, nt
+            pt = dtheta**(kb - 1)
+            dpt = 0.d0
+            if (kb >= 2) dpt = dble(kb - 1)*dtheta**(kb - 2)
+            d2pt = 0.d0
+            if (kb >= 3) d2pt = dble((kb - 1)*(kb - 2))*dtheta**(kb - 3)
+            d3pt = 0.d0
+            if (kb >= 4) d3pt = dble((kb - 1)*(kb - 2)*(kb - 3))*dtheta**(kb - 4)
+
+            do kc = 1, np
+               pp = dphi**(kc - 1)
+               dpp = 0.d0
+               if (kc >= 2) dpp = dble(kc - 1)*dphi**(kc - 2)
+               d2pp = 0.d0
+               if (kc >= 3) d2pp = dble((kc - 1)*(kc - 2))*dphi**(kc - 3)
+               d3pp = 0.d0
+               if (kc >= 4) d3pp = dble((kc - 1)*(kc - 2)*(kc - 3))*dphi**(kc - 4)
+
+               call accumulate_d3_term(sR(ka, kb, kc, is_rho, i_theta, i_phi), 1)
+               call accumulate_d3_term(sZ(ka, kb, kc, is_rho, i_theta, i_phi), 2)
+               call accumulate_d3_term(slam(ka, kb, kc, is_rho, i_theta, i_phi), 3)
+            end do
+         end do
+      end do
+
+      ! Chain rule rho_tor = sqrt(s): drho = 1/(2 rho), d2rho = -1/(4 rho^3),
+      ! d3rho = 3/(8 rho^5).
+      drho = 0.5d0/rho_tor
+      d2rho = -0.25d0/(rho_tor**3)
+      d3rho = 0.375d0/(rho_tor**5)
+
+      call chain_d3(df(1, :), d2f(1, :), d3f(1, :), d3R)
+      call chain_d3(df(2, :), d2f(2, :), d3f(2, :), d3Z)
+      call chain_d3(df(3, :), d2f(3, :), d3f(3, :), d3l)
+
+   contains
+
+      subroutine accumulate_d3_term(coef, ifld)
+         real(dp), intent(in) :: coef
+         integer, intent(in) :: ifld
+
+         w = coef
+         ! rho first derivative and the rho-involving second derivatives that the
+         ! s-direction chain rule references.
+         df(ifld, 1) = df(ifld, 1) + w*dpr*pt*pp
+         d2f(ifld, 1) = d2f(ifld, 1) + w*d2pr*pt*pp        ! rr
+         d2f(ifld, 2) = d2f(ifld, 2) + w*dpr*dpt*pp        ! rt
+         d2f(ifld, 3) = d2f(ifld, 3) + w*dpr*pt*dpp        ! rp
+
+         ! Third derivatives in rho/theta/phi, order
+         ! (rrr, rrt, rrp, rtt, rtp, rpp, ttt, ttp, tpp, ppp).
+         d3f(ifld, 1) = d3f(ifld, 1) + w*d3pr*pt*pp
+         d3f(ifld, 2) = d3f(ifld, 2) + w*d2pr*dpt*pp
+         d3f(ifld, 3) = d3f(ifld, 3) + w*d2pr*pt*dpp
+         d3f(ifld, 4) = d3f(ifld, 4) + w*dpr*d2pt*pp
+         d3f(ifld, 5) = d3f(ifld, 5) + w*dpr*dpt*dpp
+         d3f(ifld, 6) = d3f(ifld, 6) + w*dpr*pt*d2pp
+         d3f(ifld, 7) = d3f(ifld, 7) + w*pr*d3pt*pp
+         d3f(ifld, 8) = d3f(ifld, 8) + w*pr*d2pt*dpp
+         d3f(ifld, 9) = d3f(ifld, 9) + w*pr*dpt*d2pp
+         d3f(ifld, 10) = d3f(ifld, 10) + w*pr*pt*d3pp
+      end subroutine accumulate_d3_term
+
+      subroutine chain_d3(df1, d2f1, d3f1, out)
+         !> Convert rho/theta/phi derivatives to s/theta/phi. df1 holds the rho
+         !> first derivative in slot 1; d2f1 holds (rr, rt, rp) in slots 1..3;
+         !> d3f1 holds the 10 rho-space third derivatives.
+         real(dp), intent(in) :: df1(3), d2f1(6), d3f1(10)
+         real(dp), intent(out) :: out(10)
+
+         out(1) = d3f1(1)*drho**3 + 3.d0*drho*d2rho*d2f1(1) + d3rho*df1(1)  ! sss
+         out(2) = d3f1(2)*drho*drho + d2rho*d2f1(2)                          ! sst
+         out(3) = d3f1(3)*drho*drho + d2rho*d2f1(3)                          ! ssp
+         out(4) = d3f1(4)*drho                                               ! stt
+         out(5) = d3f1(5)*drho                                               ! stp
+         out(6) = d3f1(6)*drho                                               ! spp
+         out(7) = d3f1(7)                                                    ! ttt
+         out(8) = d3f1(8)                                                    ! ttp
+         out(9) = d3f1(9)                                                    ! tpp
+         out(10) = d3f1(10)                                                  ! ppp
+      end subroutine chain_d3
+
+   end subroutine splint_vmec_data_d3
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
    subroutine vmec_field(s, theta, varphi, A_theta, A_phi, dA_theta_ds, dA_phi_ds, aiota, &
                          sqg, alam, dl_ds, dl_dt, dl_dp, Bctrvr_vartheta, Bctrvr_varphi, &
                          Bcovar_s, Bcovar_vartheta, Bcovar_varphi)

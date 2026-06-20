@@ -473,6 +473,15 @@ set_tests_properties(test_vmec_coordinate_system PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_splint_vmec_data_d3.x source/test_splint_vmec_data_d3.f90)
+target_link_libraries(test_splint_vmec_data_d3.x neo)
+add_test(NAME test_splint_vmec_data_d3
+  COMMAND test_splint_vmec_data_d3.x)
+set_tests_properties(test_splint_vmec_data_d3 PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_vmec_from_cyl.x source/test_vmec_from_cyl.f90)
 target_link_libraries(test_vmec_from_cyl.x neo)
 add_test(NAME test_vmec_from_cyl
