@@ -140,9 +140,6 @@ Interface to hdf5, to simplify calls.
 
 ### MC
 
-### MyMPILib
-Interface to MPI, so no actual mpi routines need to be called in
-programs.
 
 ### poincare
 Poincare plot generation for magnetic field lines. Computes field line trajectories 
@@ -151,3 +148,8 @@ chaos regions, and flux surface structure.
 
 ## tests
 Contains resources for tests of the library.
+
+## License
+Original libneo code is MIT-licensed, see `LICENSE`. Vendored third-party
+code and linked libraries carry their own licenses with their own obligations;
+`THIRD_PARTY.md` lists them.

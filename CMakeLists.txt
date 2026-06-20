@@ -100,7 +100,6 @@ endif()
 
 find_program(BASH_PROGRAM bash)
 
-find_package(MPI REQUIRED COMPONENTS C Fortran)
 # Compiler-specific base flags and build profiles
 if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     # Base flags for all builds
@@ -200,16 +199,25 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-include_directories(${MPI_Fortran_INCLUDE_PATH})
-message(STATUS "The MPI_Fortran_INCLUDE_PATH is ${MPI_Fortran_INCLUDE_PATH}")
-
-# Detect and configure external dependencies (HDF5, NetCDF, FFTW)
+# Detect and configure external dependencies (HDF5, NetCDF)
 # Uses smoke tests to verify ABI compatibility with current compiler.
 # Falls back to building from source if system libraries are incompatible.
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 
+# fortnum: numerical core (special functions, quadrature, FFT, ODE). Guarded so
+# a repo that also pulls fortnum transitively via libneo does not double-declare
+# the target.
+if(NOT TARGET fortnum)
+    include(FetchContent)
+    FetchContent_Declare(
+        fortnum
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
+    )
+    FetchContent_MakeAvailable(fortnum)
+endif()
+
 # Libraries that libneo depends on
-add_subdirectory(extra/MyMPILib)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)

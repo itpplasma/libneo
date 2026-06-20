@@ -5,11 +5,8 @@ set (HDF5_TOOLS_LIB ${HDF5_TOOLS_LIB} hdf5_tools)
 set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 include_directories(${PROJECT_SOURCE_DIR}/src/hdf5_tools)
-include_directories(${PROJECT_SOURCE_DIR}/extra/MyMPILib)
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
@@ -57,8 +54,6 @@ target_link_libraries(test_collision_freqs.x
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 target_link_libraries(test_arnoldi.x
   ${COMMON_LIBS}
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
 )
 
 add_executable(test_binsrc.x source/test_binsrc.f90)
@@ -70,6 +65,13 @@ add_executable(test_boozer_coordinates_exports.x
   source/test_boozer_coordinates_exports.f90
 )
 target_link_libraries(test_boozer_coordinates_exports.x
+  neo
+)
+
+add_executable(test_flux_pseudocartesian.x
+  source/test_flux_pseudocartesian.f90
+)
+target_link_libraries(test_flux_pseudocartesian.x
   neo
 )
 
@@ -108,15 +110,6 @@ target_link_libraries(test_simpson.x
 add_executable(test_hdf5_tools.x source/test_hdf5_tools.f90)
 target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
-)
-
-add_executable(test_mympilib.x
-  source/test_mympilib.f90
-  source/derived_scheduler_module.f90
-)
-target_link_libraries(test_mympilib.x
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
 )
 
 add_executable(test_system_utility.x
@@ -204,6 +197,8 @@ target_link_libraries(test_nctools_nc_get3.x
 ## Standard tests according to standard libneo Fortran test convention.
 
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
+add_test(NAME test_flux_pseudocartesian
+  COMMAND test_flux_pseudocartesian.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )
@@ -296,9 +291,6 @@ set_tests_properties(test_arnoldi PROPERTIES
   DEPENDS test_arnoldi_setup
   FAIL_REGULAR_EXPRESSION "STOP")
 
-add_test(NAME test_mympilib
-  COMMAND test_mympilib.x)
-set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
 add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
@@ -511,6 +503,15 @@ set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_delthe_delphi_bv_d2.x source/test_delthe_delphi_bv_d2.f90)
+target_link_libraries(test_delthe_delphi_bv_d2.x neo)
+add_test(NAME test_delthe_delphi_bv_d2
+  COMMAND test_delthe_delphi_bv_d2.x)
+set_tests_properties(test_delthe_delphi_bv_d2 PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_chartmap_vmec_mapping.x source/test_chartmap_vmec_mapping.f90)
 target_link_libraries(test_chartmap_vmec_mapping.x neo)
 add_test(NAME test_chartmap_vmec_mapping
@@ -535,8 +536,7 @@ add_test(NAME test_refcoords_file_detection
   COMMAND test_refcoords_file_detection.x)
 set_tests_properties(test_refcoords_file_detection PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "setup_vmec_wout;setup_chartmap_volume")
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)

@@ -18,6 +18,7 @@ module boozer_sub
     public :: reset_boozer_batch_splines
     public :: vmec_to_boozer, boozer_to_vmec
     public :: delthe_delphi_BV
+    public :: delthe_delphi_BV_d2
     public :: export_boozer_chartmap, load_boozer_from_chartmap
 
     ! Constants
@@ -432,6 +433,62 @@ contains
         ddelphi_BV(2) = dy_eval(3, 2)
 
     end subroutine delthe_delphi_BV
+
+    !> Boozer-side angle-map deltas with first AND second derivatives w.r.t.
+    !> (s, vartheta_B, varphi_B). Returns the full 3-component gradient and the
+    !> packed Hessian (ss, st, sp, tt, tp, pp). Used by the curvilinear 6D
+    !> metric (boozer_field_metric) for the analytic dg_B/d2g_B pullback.
+    subroutine delthe_delphi_BV_d2(s, vartheta_B, varphi_B, deltheta_BV, delphi_BV, &
+                                   ddeltheta_BV, ddelphi_BV, &
+                                   d2deltheta_BV, d2delphi_BV)
+        use boozer_coordinates_mod, only: use_del_tp_B
+
+        real(dp), intent(in) :: s, vartheta_B, varphi_B
+        real(dp), intent(out) :: deltheta_BV, delphi_BV
+        real(dp), dimension(3), intent(out) :: ddeltheta_BV, ddelphi_BV
+        real(dp), dimension(6), intent(out) :: d2deltheta_BV, d2delphi_BV
+
+        real(dp) :: r_eval, rho_tor, drhods, d2rhods2
+        real(dp) :: x_eval(3), y_eval(2), dy_eval(3, 2), d2y_eval(6, 2)
+        integer :: q
+
+        if (.not. use_del_tp_B) then
+            error stop "delthe_delphi_BV_d2: requires use_del_tp_B = .true."
+        end if
+        if (.not. delt_delp_B_batch_spline_ready) then
+            error stop "delthe_delphi_BV_d2: B batch spline not initialized"
+        end if
+
+        r_eval = abs(s)
+        rho_tor = sqrt(r_eval)
+        x_eval(1) = rho_tor
+        x_eval(2) = vartheta_B
+        x_eval(3) = varphi_B
+
+        ! drho/ds = 0.5/rho,  d2rho/ds2 = -0.25/rho**3
+        drhods = 0.5_dp/rho_tor
+        d2rhods2 = -0.25_dp/rho_tor**3
+
+        call evaluate_batch_splines_3d_der2(delt_delp_B_batch_spline, x_eval, &
+                                            y_eval, dy_eval, d2y_eval)
+
+        ! Convert the radial slots (rho -> s) for each quantity. The packed index
+        ! convention from der2 is (rr, rt, rp, tt, tp, pp); slots 1,2,3 touch rho.
+        do q = 1, 2
+            ! Second derivatives first (they reference the rho first derivative).
+            d2y_eval(1, q) = d2y_eval(1, q)*drhods**2 + dy_eval(1, q)*d2rhods2
+            d2y_eval(2, q) = d2y_eval(2, q)*drhods
+            d2y_eval(3, q) = d2y_eval(3, q)*drhods
+            dy_eval(1, q) = dy_eval(1, q)*drhods
+        end do
+
+        deltheta_BV = y_eval(1)
+        delphi_BV = y_eval(2)
+        ddeltheta_BV = dy_eval(:, 1)
+        ddelphi_BV = dy_eval(:, 2)
+        d2deltheta_BV = d2y_eval(:, 1)
+        d2delphi_BV = d2y_eval(:, 2)
+    end subroutine delthe_delphi_BV_d2
 
     !> Convert VMEC angles (r, theta, varphi) to Boozer angles (vartheta_B, varphi_B)
     subroutine vmec_to_boozer(r, theta, varphi, vartheta_B, varphi_B)
