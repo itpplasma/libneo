@@ -1358,7 +1358,7 @@ contains
         !> Populate module-level Boozer batch splines from an extended chartmap
         !> NetCDF file, bypassing the VMEC-based compute_boozer_data path.
         use vector_potentail_mod, only: torflux, ns, hs
-        use new_vmec_stuff_mod, only: nper, rmajor, ns_A
+        use new_vmec_stuff_mod, only: nper, rmajor, ns_A, vmec_B_scale, vmec_RZ_scale
         use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, n_theta_B, &
                                           n_phi_B, hs_B, h_theta_B, h_phi_B, &
                                           use_B_r, use_del_tp_B
@@ -1369,6 +1369,7 @@ contains
         type(boozer_chartmap_data_t) :: d
         real(dp), allocatable :: y_aphi(:, :), y_bcovar(:, :), y_bmod(:, :, :, :)
         real(dp) :: s_min, s_max
+        real(dp) :: b_scale, rz_scale, covar_scale, flux_scale
         integer :: spline_order
         integer :: order_3d(3)
         logical :: periodic_3d(3)
@@ -1379,11 +1380,23 @@ contains
         ! Single shared parse: base-unit arrays plus internal periodic endpoints.
         call read_boozer_chartmap(filename, d)
 
-        ! Set global parameters used by splint_boozer_coord. Base chartmap files
-        ! are exported at VMEC scale 1, so no extra scaling is applied here.
-        torflux = d%torflux
+        ! Apply the VMEC scaling knobs so a chartmap behaves like a VMEC run
+        ! (matches boozer_chartmap_field_t and test_chartmap_scaling). Base files
+        ! are exported at scale 1, so this is a no-op by default. A_theta scales
+        ! with the toroidal flux below.
+        b_scale = vmec_B_scale
+        rz_scale = vmec_RZ_scale
+        covar_scale = b_scale*rz_scale
+        flux_scale = covar_scale*rz_scale
+        d%A_phi = flux_scale*d%A_phi
+        d%B_theta = covar_scale*d%B_theta
+        d%B_phi = covar_scale*d%B_phi
+        d%Bmod = b_scale*d%Bmod
+
+        ! Set global parameters used by splint_boozer_coord.
+        torflux = flux_scale*d%torflux
         nper = d%nfp
-        rmajor = d%rmajor
+        rmajor = d%rmajor*rz_scale
 
         ! Set boozer_coordinates_mod parameters
         ns_s_B = 5
