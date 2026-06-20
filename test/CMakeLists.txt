@@ -564,6 +564,15 @@ set_tests_properties(test_delthe_delphi_bv_d2 PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_delthe_delphi_bv_d3.x source/test_delthe_delphi_bv_d3.f90)
+target_link_libraries(test_delthe_delphi_bv_d3.x neo)
+add_test(NAME test_delthe_delphi_bv_d3
+  COMMAND test_delthe_delphi_bv_d3.x)
+set_tests_properties(test_delthe_delphi_bv_d3 PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_chartmap_vmec_mapping.x source/test_chartmap_vmec_mapping.f90)
 target_link_libraries(test_chartmap_vmec_mapping.x neo)
 add_test(NAME test_chartmap_vmec_mapping

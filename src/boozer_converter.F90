@@ -6,6 +6,7 @@ module boozer_sub
                            evaluate_batch_splines_1d_der3, &
                            evaluate_batch_splines_3d_der, &
                            evaluate_batch_splines_3d_der2, &
+                           evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
     use field_base, only: magnetic_field_t
     use, intrinsic :: iso_fortran_env, only: dp => real64
@@ -20,6 +21,7 @@ module boozer_sub
     public :: vmec_to_boozer, boozer_to_vmec
     public :: delthe_delphi_BV
     public :: delthe_delphi_BV_d2
+    public :: delthe_delphi_BV_d3
     public :: export_boozer_chartmap, load_boozer_from_chartmap
     public :: sync_boozer_state, boozer_state
 
@@ -559,6 +561,86 @@ contains
         d2deltheta_BV = d2y_eval(:, 1)
         d2delphi_BV = d2y_eval(:, 2)
     end subroutine delthe_delphi_BV_d2
+
+    !> Boozer-side angle-map deltas with first, second AND third derivatives
+    !> w.r.t. (s, vartheta_B, varphi_B). d3 packed
+    !> (sss, sst, ssp, stt, stp, spp, ttt, ttp, tpp, ppp). Feeds the analytic
+    !> d2g_B pullback in boozer_field_metric (the angle Jacobian's second
+    !> derivative).
+    subroutine delthe_delphi_BV_d3(s, vartheta_B, varphi_B, deltheta_BV, delphi_BV, &
+                                   ddeltheta_BV, ddelphi_BV, &
+                                   d2deltheta_BV, d2delphi_BV, &
+                                   d3deltheta_BV, d3delphi_BV)
+        use boozer_coordinates_mod, only: use_del_tp_B
+
+        real(dp), intent(in) :: s, vartheta_B, varphi_B
+        real(dp), intent(out) :: deltheta_BV, delphi_BV
+        real(dp), dimension(3), intent(out) :: ddeltheta_BV, ddelphi_BV
+        real(dp), dimension(6), intent(out) :: d2deltheta_BV, d2delphi_BV
+        real(dp), dimension(10), intent(out) :: d3deltheta_BV, d3delphi_BV
+
+        real(dp) :: r_eval, rho_tor, drhods, d2rhods2, d3rhods3
+        real(dp) :: x_eval(3), y_eval(2), dy_eval(3, 2), d2y_eval(6, 2), d3y_eval(10, 2)
+        real(dp) :: d3out(10, 2)
+        integer :: q
+
+        if (.not. use_del_tp_B) then
+            error stop "delthe_delphi_BV_d3: requires use_del_tp_B = .true."
+        end if
+        if (.not. delt_delp_B_batch_spline_ready) then
+            error stop "delthe_delphi_BV_d3: B batch spline not initialized"
+        end if
+
+        r_eval = abs(s)
+        rho_tor = sqrt(r_eval)
+        x_eval(1) = rho_tor
+        x_eval(2) = vartheta_B
+        x_eval(3) = varphi_B
+
+        ! rho = sqrt(s): drho/ds = 0.5/rho, d2rho/ds2 = -0.25/rho**3,
+        ! d3rho/ds3 = 0.375/rho**5.
+        drhods = 0.5_dp/rho_tor
+        d2rhods2 = -0.25_dp/rho_tor**3
+        d3rhods3 = 0.375_dp/rho_tor**5
+
+        call evaluate_batch_splines_3d_der3(delt_delp_B_batch_spline, x_eval, &
+                                            y_eval, dy_eval, d2y_eval, d3y_eval)
+
+        ! Chain rho -> s for the third derivatives FIRST: they reference the
+        ! rho-space first and second derivatives, which the d2/d1 chain overwrites.
+        ! d3 packed in (sss,sst,ssp,stt,stp,spp,ttt,ttp,tpp,ppp); the rho-space
+        ! d3y is (rrr,rrt,rrp,rtt,rtp,rpp,ttt,ttp,tpp,ppp), d2y is (rr,rt,rp,...).
+        do q = 1, 2
+            d3out(1, q) = d3y_eval(1, q)*drhods**3 &
+                          + 3.0_dp*drhods*d2rhods2*d2y_eval(1, q) &
+                          + d3rhods3*dy_eval(1, q)
+            d3out(2, q) = d3y_eval(2, q)*drhods**2 + d2rhods2*d2y_eval(2, q)
+            d3out(3, q) = d3y_eval(3, q)*drhods**2 + d2rhods2*d2y_eval(3, q)
+            d3out(4, q) = d3y_eval(4, q)*drhods
+            d3out(5, q) = d3y_eval(5, q)*drhods
+            d3out(6, q) = d3y_eval(6, q)*drhods
+            d3out(7, q) = d3y_eval(7, q)
+            d3out(8, q) = d3y_eval(8, q)
+            d3out(9, q) = d3y_eval(9, q)
+            d3out(10, q) = d3y_eval(10, q)
+        end do
+
+        do q = 1, 2
+            d2y_eval(1, q) = d2y_eval(1, q)*drhods**2 + dy_eval(1, q)*d2rhods2
+            d2y_eval(2, q) = d2y_eval(2, q)*drhods
+            d2y_eval(3, q) = d2y_eval(3, q)*drhods
+            dy_eval(1, q) = dy_eval(1, q)*drhods
+        end do
+
+        deltheta_BV = y_eval(1)
+        delphi_BV = y_eval(2)
+        ddeltheta_BV = dy_eval(:, 1)
+        ddelphi_BV = dy_eval(:, 2)
+        d2deltheta_BV = d2y_eval(:, 1)
+        d2delphi_BV = d2y_eval(:, 2)
+        d3deltheta_BV = d3out(:, 1)
+        d3delphi_BV = d3out(:, 2)
+    end subroutine delthe_delphi_BV_d3
 
     !> Convert VMEC angles (r, theta, varphi) to Boozer angles (vartheta_B, varphi_B)
     subroutine vmec_to_boozer(r, theta, varphi, vartheta_B, varphi_B)
