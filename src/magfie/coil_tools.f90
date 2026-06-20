@@ -399,11 +399,7 @@ contains
 
    subroutine biot_savart_fourier(coils, nmax, &
                                   Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
-      use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
-!$    use omp_lib, only: omp_get_max_threads
-      use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
-                       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
-                       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
+      use fortnum_fft, only: fft_r2c, fortnum_fft_plan_t, fft_plan_init
       type(coil_t), intent(in), dimension(:) :: coils
       integer, intent(in) :: nmax
       real(dp), intent(in) :: Rmin, Rmax, Zmin, Zmax
@@ -412,9 +408,9 @@ contains
       integer :: nfft, ncoil, kc, ks, kR, kphi, kZ
       real(dp), dimension(nphi) :: phi, cosphi, sinphi
       real(dp) :: R(nR), Z(nZ), XYZ_r(3), XYZ_i(3), XYZ_f(3), dist_i, dist_f, BXYZ(3)
-      type(c_ptr) :: plan_nphi, p_BR, p_Bphi, p_BZ, p_BnR, p_Bnphi, p_BnZ
-      real(c_double), dimension(:), pointer :: BR, Bphi, BZ
-      complex(c_double_complex), dimension(:), pointer :: BnR, Bnphi, BnZ
+      type(fortnum_fft_plan_t) :: plan_nphi
+      real(dp), dimension(nphi) :: BR, Bphi, BZ
+      complex(dp), dimension(nphi/2 + 1) :: BnR, Bnphi, BnZ
 
       if (nmax > nphi/4) then
          write (error_unit, '("biot_savart_fourier: requested nmax = ", '// &
@@ -427,22 +423,7 @@ contains
       sinphi(:) = sin(phi)
       ncoil = size(coils)
       allocate (Bn(0:nmax, 3, nR, nZ, ncoil))
-      ! prepare FFTW
-!$    if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
-!$    call fftw_plan_with_nthreads(omp_get_max_threads())
-      p_BR = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_BR, BR, [nphi])
-      p_Bphi = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_Bphi, Bphi, [nphi])
-      p_BZ = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_BZ, BZ, [nphi])
-      p_BnR = fftw_alloc_complex(int(nfft, c_size_t))
-      call c_f_pointer(p_BnR, BnR, [nfft])
-      p_Bnphi = fftw_alloc_complex(int(nfft, c_size_t))
-      call c_f_pointer(p_Bnphi, Bnphi, [nfft])
-      p_BnZ = fftw_alloc_complex(int(nfft, c_size_t))
-      call c_f_pointer(p_BnZ, BnZ, [nfft])
-      plan_nphi = fftw_plan_dft_r2c_1d(nphi, BR, BnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
+      call fft_plan_init(plan_nphi, nphi)
       do kc = 1, ncoil
          do kZ = 1, nZ
             do kR = 1, nR
@@ -469,33 +450,20 @@ contains
                   BZ(kphi) = BXYZ(3)
                end do
 !$omp end parallel do
-               call fftw_execute_dft_r2c(plan_nphi, BR, BnR)
-               call fftw_execute_dft_r2c(plan_nphi, Bphi, Bnphi)
-               call fftw_execute_dft_r2c(plan_nphi, BZ, BnZ)
+               call fft_r2c(BR, BnR, plan_nphi)
+               call fft_r2c(Bphi, Bnphi, plan_nphi)
+               call fft_r2c(BZ, BnZ, plan_nphi)
                Bn(0:nmax, 1, kR, kZ, kc) = BnR(1:nmax + 1)/dble(nphi)
                Bn(0:nmax, 2, kR, kZ, kc) = Bnphi(1:nmax + 1)/dble(nphi)
                Bn(0:nmax, 3, kR, kZ, kc) = BnZ(1:nmax + 1)/dble(nphi)
             end do
          end do
       end do
-      call fftw_destroy_plan(plan_nphi)
-      call fftw_free(p_BR)
-      call fftw_free(p_Bphi)
-      call fftw_free(p_BZ)
-      call fftw_free(p_BnR)
-      call fftw_free(p_Bnphi)
-      call fftw_free(p_BnZ)
-!$    call fftw_cleanup_threads()
-      ! nullify pointers past this point
    end subroutine biot_savart_fourier
 
    subroutine vector_potential_biot_savart_fourier(coils, nmax, min_distance, max_eccentricity, use_convex_wall, &
                                                    Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ)
-      use iso_c_binding, only: c_ptr, c_double, c_double_complex, c_size_t, c_f_pointer
-!$    use omp_lib, only: omp_get_max_threads
-      use FFTW3, only: fftw_init_threads, fftw_plan_with_nthreads, fftw_cleanup_threads, &
-                       fftw_alloc_real, fftw_alloc_complex, fftw_plan_dft_r2c_1d, FFTW_PATIENT, &
-                       FFTW_DESTROY_INPUT, fftw_execute_dft_r2c, fftw_destroy_plan, fftw_free
+      use fortnum_fft, only: fft_r2c, fortnum_fft_plan_t, fft_plan_init
       use field_sub, only: read_field_input, stretch_coords
 
       type(coil_t), intent(in), dimension(:) :: coils
@@ -510,9 +478,9 @@ contains
       real(dp), dimension(nphi) :: phi, cosphi, sinphi
       real(dp) :: R(nR), Z(nZ), actual_R, actual_Z, XYZ_r(3), XYZ_i(3), XYZ_f(3), XYZ_if(3), dist_i, dist_f, dist_if, &
                   AXYZ(3), grad_AX(3), grad_AY(3), eccentricity, common_gradient_term(3)
-      type(c_ptr) :: plan_nphi, p_AR, p_Aphi, p_AZ, p_dAphi_dR, p_dAphi_dZ, p_fft_output
-      real(c_double), dimension(:), pointer :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
-      complex(c_double_complex), dimension(:), pointer :: fft_output
+      type(fortnum_fft_plan_t) :: plan_nphi
+      real(dp), dimension(nphi) :: AR, Aphi, AZ, dAphi_dR, dAphi_dZ
+      complex(dp), dimension(nphi/2 + 1) :: fft_output
 
       if (nmax > nphi/4) then
          write (error_unit, '("biot_savart_fourier: requested nmax = ", '// &
@@ -529,22 +497,7 @@ contains
       allocate (AnZ(0:nmax, nR, nZ, ncoil))
       allocate (dAnphi_dR(0:nmax, nR, nZ, ncoil))
       allocate (dAnphi_dZ(0:nmax, nR, nZ, ncoil))
-      ! prepare FFTW
-!$    if (fftw_init_threads() == 0) error stop 'OpenMP support in FFTW could not be initialized'
-!$    call fftw_plan_with_nthreads(omp_get_max_threads())
-      p_AR = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_AR, AR, [nphi])
-      p_Aphi = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_Aphi, Aphi, [nphi])
-      p_AZ = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_AZ, AZ, [nphi])
-      p_dAphi_dR = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_dAphi_dR, dAphi_dR, [nphi])
-      p_dAphi_dZ = fftw_alloc_real(int(nphi, c_size_t))
-      call c_f_pointer(p_dAphi_dZ, dAphi_dZ, [nphi])
-      p_fft_output = fftw_alloc_complex(int(nfft, c_size_t))
-      call c_f_pointer(p_fft_output, fft_output, [nfft])
-      plan_nphi = fftw_plan_dft_r2c_1d(nphi, AR, AnR, ior(FFTW_PATIENT, FFTW_DESTROY_INPUT))
+      call fft_plan_init(plan_nphi, nphi)
 
       if (use_convex_wall) then
          call read_field_input  ! read convex wall
@@ -595,28 +548,19 @@ contains
                   dAphi_dZ(kphi) = grad_AY(3)*cosphi(kphi) - grad_AX(3)*sinphi(kphi)
                end do
 !$omp end parallel do
-               call fftw_execute_dft_r2c(plan_nphi, AR, fft_output)
+               call fft_r2c(AR, fft_output, plan_nphi)
                AnR(0:nmax, kR, kZ, kc) = fft_output(1:nmax + 1)/dble(nphi)
-               call fftw_execute_dft_r2c(plan_nphi, Aphi, fft_output)
+               call fft_r2c(Aphi, fft_output, plan_nphi)
                Anphi(0:nmax, kR, kZ, kc) = fft_output(1:nmax + 1)/dble(nphi)
-               call fftw_execute_dft_r2c(plan_nphi, AZ, fft_output)
+               call fft_r2c(AZ, fft_output, plan_nphi)
                AnZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax + 1)/dble(nphi)
-               call fftw_execute_dft_r2c(plan_nphi, dAphi_dR, fft_output)
+               call fft_r2c(dAphi_dR, fft_output, plan_nphi)
                dAnphi_dR(0:nmax, kR, kZ, kc) = fft_output(1:nmax + 1)/dble(nphi)
-               call fftw_execute_dft_r2c(plan_nphi, dAphi_dZ, fft_output)
+               call fft_r2c(dAphi_dZ, fft_output, plan_nphi)
                dAnphi_dZ(0:nmax, kR, kZ, kc) = fft_output(1:nmax + 1)/dble(nphi)
             end do
          end do
       end do
-      call fftw_destroy_plan(plan_nphi)
-      call fftw_free(p_AR)
-      call fftw_free(p_Aphi)
-      call fftw_free(p_AZ)
-      call fftw_free(p_dAphi_dR)
-      call fftw_free(p_dAphi_dZ)
-      call fftw_free(p_fft_output)
-!$    call fftw_cleanup_threads()
-      ! nullify pointers past this point
    end subroutine vector_potential_biot_savart_fourier
 
    subroutine sum_coils_gauge_single_mode_Anvac(AnR, Anphi, AnZ, dAnphi_dR, dAnphi_dZ, &
@@ -780,13 +724,13 @@ contains
 
          call nc_check('def_var', nf90_def_var(ncid, name//'_real', NF90_DOUBLE, &
                                                [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
-         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Re))
+         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, real(var, dp)))
          call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
                                                'real part of toroidal Fourier mode of '//component// &
                                                ' component of vector potential'))
          call nc_check('def_var', nf90_def_var(ncid, name//'_imag', NF90_DOUBLE, &
                                                [dimid_tor, dimid_R, dimid_Z, dimid_coil], varid_actual_data))
-         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, var%Im))
+         call nc_check('put_var', nf90_put_var(ncid, varid_actual_data, aimag(var)))
          call nc_check('put_att', nf90_put_att(ncid, varid_actual_data, 'comment', &
                                                'imaginary part of toroidal Fourier mode of '//component// &
                                                ' component of vector potential'))
@@ -852,12 +796,16 @@ contains
          complex(dp), dimension(:, :, :, :), allocatable, intent(inout) :: var
          character(len=*), intent(in) :: name
          integer :: varid_actual_data
+         real(dp), dimension(:, :, :, :), allocatable :: re, im
 
          allocate (var(0:nmax, nR, nZ, ncoil))
+         allocate (re(0:nmax, nR, nZ, ncoil), im(0:nmax, nR, nZ, ncoil))
          call nc_check('inq_varid', nf90_inq_varid(ncid, name//'_real', varid_actual_data))
-         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Re))
+         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, re))
          call nc_check('inq_varid', nf90_inq_varid(ncid, name//'_imag', varid_actual_data))
-         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, var%Im))
+         call nc_check('get_var', nf90_get_var(ncid, varid_actual_data, im))
+         var = cmplx(re, im, dp)
+         deallocate (re, im)
       end subroutine read_actual_data
    end subroutine read_Anvac_fourier
 

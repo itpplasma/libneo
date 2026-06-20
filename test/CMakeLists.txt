@@ -75,6 +75,13 @@ target_link_libraries(test_axis_power_law_regularization.x
   neo
 )
 
+add_executable(test_flux_pseudocartesian.x
+  source/test_flux_pseudocartesian.f90
+)
+target_link_libraries(test_flux_pseudocartesian.x
+  neo
+)
+
 add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
 target_link_libraries(test_geqdsk_tools.x
   ${MAIN_LIB}
@@ -199,6 +206,8 @@ target_link_libraries(test_nctools_nc_get3.x
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
 add_test(NAME test_axis_power_law_regularization
   COMMAND test_axis_power_law_regularization.x)
+add_test(NAME test_flux_pseudocartesian
+  COMMAND test_flux_pseudocartesian.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )
@@ -515,6 +524,15 @@ set_tests_properties(test_boozer_with_field PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_delthe_delphi_bv_d2.x source/test_delthe_delphi_bv_d2.f90)
+target_link_libraries(test_delthe_delphi_bv_d2.x neo)
+add_test(NAME test_delthe_delphi_bv_d2
+  COMMAND test_delthe_delphi_bv_d2.x)
+set_tests_properties(test_delthe_delphi_bv_d2 PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_chartmap_vmec_mapping.x source/test_chartmap_vmec_mapping.f90)
 target_link_libraries(test_chartmap_vmec_mapping.x neo)
 add_test(NAME test_chartmap_vmec_mapping
@@ -539,8 +557,7 @@ add_test(NAME test_refcoords_file_detection
   COMMAND test_refcoords_file_detection.x)
 set_tests_properties(test_refcoords_file_detection PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "setup_vmec_wout;setup_chartmap_volume")
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)
