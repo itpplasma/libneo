@@ -164,6 +164,9 @@ target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate.x source/test_batch_interpolate.f90)
 target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_der3.x source/test_batch_interpolate_der3.f90)
+target_link_libraries(test_batch_interpolate_der3.x ${COMMON_LIBS})
+
 add_executable(test_batch_interpolate_many.x source/test_batch_interpolate_many.f90)
 target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 
@@ -240,6 +243,7 @@ add_test(NAME test_rng COMMAND test_rng.x)
 add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
+add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)

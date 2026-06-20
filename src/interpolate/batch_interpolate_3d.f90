@@ -33,6 +33,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d
     public :: evaluate_batch_splines_3d_der
     public :: evaluate_batch_splines_3d_der2
+    public :: evaluate_batch_splines_3d_der3
     public :: evaluate_batch_splines_3d_der2_rmix
     public :: evaluate_batch_splines_3d_many
     public :: evaluate_batch_splines_3d_many_resident
@@ -1245,6 +1246,109 @@ contains
         real(dp), intent(out) :: d2y_batch(:, :)  ! (6, n_quantities)
         call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_3d_der2
+
+    recursive subroutine evaluate_batch_splines_3d_der3(spl, x, y_batch, dy_batch, &
+                                                        d2y_batch, d3y_batch)
+        !$acc routine seq
+        !> Value, first, second and third derivatives of a 3D tensor-product
+        !> batch spline. d2y packed (11,12,13,22,23,33); d3y packed
+        !> (111,112,113,122,123,133,222,223,233,333) in the spline's own
+        !> coordinates. General per-order basis-derivative evaluation (not the
+        !> optimized Horner cores); used off the hot path for third-derivative
+        !> needs such as the curvilinear metric d2g pullback.
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)       ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:, :)    ! (3, n_quantities)
+        real(dp), intent(out) :: d2y_batch(:, :)   ! (6, n_quantities)
+        real(dp), intent(out) :: d3y_batch(:, :)   ! (10, n_quantities)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
+        real(dp) :: x1, x2, x3
+        real(dp) :: b0(0:MAX_ORDER, 3), b1(0:MAX_ORDER, 3)
+        real(dp) :: b2(0:MAX_ORDER, 3), b3(0:MAX_ORDER, 3)
+        integer :: interval_index(3), i1, i2, i3, j, q, nq
+        integer :: N1, N2, N3, k1, k2, k3
+        real(dp) :: c
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        inv_h_step = spl%inv_h_step
+        period = spl%period
+
+        include "spline3d_o555_point_setup.inc"
+
+        N1 = spl%order(1); N2 = spl%order(2); N3 = spl%order(3)
+        nq = spl%num_quantities
+
+        ! Per-dimension monomial basis and its first three derivatives at x_local.
+        call basis_d3(x1, N1, b0(:, 1), b1(:, 1), b2(:, 1), b3(:, 1))
+        call basis_d3(x2, N2, b0(:, 2), b1(:, 2), b2(:, 2), b3(:, 2))
+        call basis_d3(x3, N3, b0(:, 3), b1(:, 3), b2(:, 3), b3(:, 3))
+
+        y_batch(1:nq) = 0.0_dp
+        dy_batch(:, 1:nq) = 0.0_dp
+        d2y_batch(:, 1:nq) = 0.0_dp
+        d3y_batch(:, 1:nq) = 0.0_dp
+
+        do k3 = 0, N3
+            do k2 = 0, N2
+                do k1 = 0, N1
+                    do q = 1, nq
+                        c = spl%coeff(q, k1, k2, k3, i1, i2, i3)
+                        if (c == 0.0_dp) cycle
+                        y_batch(q) = y_batch(q) + c*b0(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        dy_batch(1, q) = dy_batch(1, q) + c*b1(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        dy_batch(2, q) = dy_batch(2, q) + c*b0(k1, 1)*b1(k2, 2)*b0(k3, 3)
+                        dy_batch(3, q) = dy_batch(3, q) + c*b0(k1, 1)*b0(k2, 2)*b1(k3, 3)
+                        d2y_batch(1, q) = d2y_batch(1, q) + c*b2(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        d2y_batch(2, q) = d2y_batch(2, q) + c*b1(k1, 1)*b1(k2, 2)*b0(k3, 3)
+                        d2y_batch(3, q) = d2y_batch(3, q) + c*b1(k1, 1)*b0(k2, 2)*b1(k3, 3)
+                        d2y_batch(4, q) = d2y_batch(4, q) + c*b0(k1, 1)*b2(k2, 2)*b0(k3, 3)
+                        d2y_batch(5, q) = d2y_batch(5, q) + c*b0(k1, 1)*b1(k2, 2)*b1(k3, 3)
+                        d2y_batch(6, q) = d2y_batch(6, q) + c*b0(k1, 1)*b0(k2, 2)*b2(k3, 3)
+                        d3y_batch(1, q) = d3y_batch(1, q) + c*b3(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        d3y_batch(2, q) = d3y_batch(2, q) + c*b2(k1, 1)*b1(k2, 2)*b0(k3, 3)
+                        d3y_batch(3, q) = d3y_batch(3, q) + c*b2(k1, 1)*b0(k2, 2)*b1(k3, 3)
+                        d3y_batch(4, q) = d3y_batch(4, q) + c*b1(k1, 1)*b2(k2, 2)*b0(k3, 3)
+                        d3y_batch(5, q) = d3y_batch(5, q) + c*b1(k1, 1)*b1(k2, 2)*b1(k3, 3)
+                        d3y_batch(6, q) = d3y_batch(6, q) + c*b1(k1, 1)*b0(k2, 2)*b2(k3, 3)
+                        d3y_batch(7, q) = d3y_batch(7, q) + c*b0(k1, 1)*b3(k2, 2)*b0(k3, 3)
+                        d3y_batch(8, q) = d3y_batch(8, q) + c*b0(k1, 1)*b2(k2, 2)*b1(k3, 3)
+                        d3y_batch(9, q) = d3y_batch(9, q) + c*b0(k1, 1)*b1(k2, 2)*b2(k3, 3)
+                        d3y_batch(10, q) = d3y_batch(10, q) + c*b0(k1, 1)*b0(k2, 2)*b3(k3, 3)
+                    end do
+                end do
+            end do
+        end do
+
+    contains
+
+        subroutine basis_d3(xv, nord, vb0, vb1, vb2, vb3)
+            !$acc routine seq
+            real(dp), intent(in) :: xv
+            integer, intent(in) :: nord
+            real(dp), intent(out) :: vb0(0:MAX_ORDER), vb1(0:MAX_ORDER)
+            real(dp), intent(out) :: vb2(0:MAX_ORDER), vb3(0:MAX_ORDER)
+            integer :: kk
+
+            vb0 = 0.0_dp; vb1 = 0.0_dp; vb2 = 0.0_dp; vb3 = 0.0_dp
+            vb0(0) = 1.0_dp
+            do kk = 1, nord
+                vb0(kk) = xv*vb0(kk - 1)
+            end do
+            do kk = 1, nord
+                vb1(kk) = real(kk, dp)*vb0(kk - 1)
+            end do
+            do kk = 2, nord
+                vb2(kk) = real(kk*(kk - 1), dp)*vb0(kk - 2)
+            end do
+            do kk = 3, nord
+                vb3(kk) = real(kk*(kk - 1)*(kk - 2), dp)*vb0(kk - 3)
+            end do
+        end subroutine basis_d3
+    end subroutine evaluate_batch_splines_3d_der3
 
     recursive subroutine evaluate_batch_splines_3d_der2_rmix(spl, x, y_batch, dy_batch, &
                                                    d2y_batch_rmix)
