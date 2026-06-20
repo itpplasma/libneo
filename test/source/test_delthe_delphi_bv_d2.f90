@@ -82,7 +82,10 @@ contains
         real(dp) :: vth_pp, vph_pp, vth_pm, vph_pm, vth_mp, vph_mp, vth_mm, vph_mm
         integer :: k, l, m
 
-        hstep = [1.0e-3_dp, 1.0e-3_dp, 1.0e-3_dp]
+        ! Small step: the second-difference truncation on the rho=sqrt(s)
+        ! composed s-derivatives scales with h^2, so 2e-4 keeps the FD reference
+        ! accurate to ~1e-4 (well inside reltol) while roundoff stays negligible.
+        hstep = [2.0e-4_dp, 2.0e-4_dp, 2.0e-4_dp]
         q0 = [s, t, p]
 
         call delthe_delphi_BV_d2(s, t, p, dth0, dph0, g1, g2, h1, h2)
