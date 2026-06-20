@@ -63,8 +63,11 @@ module libneo_coordinates_base
         procedure(evaluate_cyl_if), deferred :: evaluate_cyl
         procedure(covariant_basis_if), deferred :: covariant_basis
         procedure(metric_tensor_if), deferred :: metric_tensor
-        procedure(christoffel_if), deferred :: christoffel
         procedure(from_cyl_if), deferred :: from_cyl
+        ! christoffel defaults to the finite-difference fallback so coordinate
+        ! systems without an analytic form (e.g. flat Cartesian) need not override
+        ! it; analytic charts (VMEC, geoflux, chartmap) override as before.
+        procedure :: christoffel => coordinate_system_christoffel_default
         procedure :: cov_to_cart => coordinate_system_cov_to_cart
         procedure :: ctr_to_cart => coordinate_system_ctr_to_cart
         procedure :: christoffel_fd => coordinate_system_christoffel_fd
@@ -186,5 +189,15 @@ contains
             end do
         end do
     end subroutine coordinate_system_christoffel_fd
+
+    subroutine coordinate_system_christoffel_default(self, u, Gamma)
+        !> Default christoffel binding: the finite-difference fallback. Matches the
+        !> christoffel_if signature so analytic charts override it unchanged.
+        class(coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: Gamma(3, 3, 3)
+
+        call self%christoffel_fd(u, Gamma)
+    end subroutine coordinate_system_christoffel_default
 
 end module libneo_coordinates_base
