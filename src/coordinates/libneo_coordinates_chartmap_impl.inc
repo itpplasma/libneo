@@ -297,6 +297,9 @@ subroutine chartmap_eval_cart_der(self, u, vals, dvals)
         dvals(3, 3) = drz(3, 2)            ! dZ/dphi = dZ/dphi
     else
         call evaluate_batch_splines_3d_der(self%spl_cart, u_eval, vals, dvals)
+        ! batch der returns dvals(deriv_dim, quantity); transpose to the documented
+        ! dvals(cart_component, coord_index) = d x_i / d u_k (see the .f90 twin).
+        dvals = transpose(dvals)
     end if
 end subroutine chartmap_eval_cart_der
 
