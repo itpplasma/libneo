@@ -98,7 +98,7 @@ contains
         real(dp) :: A_theta, A_phi, dA_theta_dr, dA_phi_dr, d2A_phi_dr2, d3A_phi_dr3
         real(dp) :: B_vartheta_B, dB_vartheta_B, d2B_vartheta_B
         real(dp) :: B_varphi_B, dB_varphi_B, d2B_varphi_B
-        real(dp) :: Bmod_B, sqrt_g_ss_B, B_r
+        real(dp) :: Bmod_B, B_r
         real(dp) :: dBmod_B(3), dB_r(3), d2Bmod_B(6), d2B_r(6)
         real(dp) :: aiota, Bctrvr_theta, Bctrvr_phi, sqrtgbmod
         integer, parameter :: mode_secders = 0
@@ -109,7 +109,7 @@ contains
                                  B_vartheta_B, dB_vartheta_B, d2B_vartheta_B, &
                                  B_varphi_B, dB_varphi_B, d2B_varphi_B, &
                                  Bmod_B, dBmod_B, d2Bmod_B, &
-                                 B_r, dB_r, d2B_r, sqrt_g_ss_B)
+                                 B_r, dB_r, d2B_r)
 
         aiota = -dA_phi_dr/dA_theta_dr
         bmod = Bmod_B

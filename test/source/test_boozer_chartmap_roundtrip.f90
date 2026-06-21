@@ -26,7 +26,7 @@ program test_boozer_chartmap_roundtrip
     real(dp) :: A_theta, A_phi_val, dA_theta_dr, dA_phi_dr
     real(dp) :: d2A_phi_dr2, d3A_phi_dr3
     real(dp) :: Bth, dBth, d2Bth, Bph, dBph, d2Bph
-    real(dp) :: Bmod, dBmod(3), d2Bmod(6), sqrt_g_ss, Br, dBr(3), d2Br(6)
+    real(dp) :: Bmod, dBmod(3), d2Bmod(6), Br, dBr(3), d2Br(6)
     real(dp) :: phi_period, rel_err, max_err_bmod
     integer :: i
 
@@ -42,7 +42,7 @@ program test_boozer_chartmap_roundtrip
                                  A_theta, A_phi_val, dA_theta_dr, dA_phi_dr, &
                                  d2A_phi_dr2, d3A_phi_dr3, Bth, dBth, d2Bth, &
                                  Bph, dBph, d2Bph, Bmod, dBmod, d2Bmod, &
-                                 Br, dBr, d2Br, sqrt_g_ss)
+                                 Br, dBr, d2Br)
         bmod_ref(i) = Bmod
     end do
 
@@ -54,7 +54,7 @@ program test_boozer_chartmap_roundtrip
                                  A_theta, A_phi_val, dA_theta_dr, dA_phi_dr, &
                                  d2A_phi_dr2, d3A_phi_dr3, Bth, dBth, d2Bth, &
                                  Bph, dBph, d2Bph, Bmod, dBmod, d2Bmod, &
-                                 Br, dBr, d2Br, sqrt_g_ss)
+                                 Br, dBr, d2Br)
         bmod_new(i) = Bmod
     end do
 

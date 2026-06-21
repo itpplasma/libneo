@@ -74,13 +74,13 @@ contains
         real(dp) :: A_theta, dA_theta_dr, dA_phi_dr
         real(dp) :: d2A_phi_dr2, d3A_phi_dr3
         real(dp) :: dBth, d2Bth, dBph, d2Bph
-        real(dp) :: dBmod(3), d2Bmod(6), sqrt_g_ss, Br, dBr(3), d2Br(6)
+        real(dp) :: dBmod(3), d2Bmod(6), Br, dBr(3), d2Br(6)
 
         call splint_boozer_coord(s, th, ph, 0, &
                                  A_theta, aphi, dA_theta_dr, dA_phi_dr, &
                                  d2A_phi_dr2, d3A_phi_dr3, bth, dBth, d2Bth, &
                                  bph, dBph, d2Bph, bmod, dBmod, d2Bmod, &
-                                 Br, dBr, d2Br, sqrt_g_ss)
+                                 Br, dBr, d2Br)
     end subroutine eval_point
 
     pure function rel_diff(a, b) result(d)
