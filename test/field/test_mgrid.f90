@@ -11,6 +11,7 @@ real(dp), parameter :: twopi = 8.0_dp*atan(1.0_dp)
 
 call test_roundtrip_b_cyl
 call test_raw_multigroup
+call test_unknown_mode
 call test_curl_cyl_factory
 call test_curl_cart_factory
 call test_curl_order5
@@ -181,8 +182,8 @@ subroutine test_raw_multigroup
     real(dp) :: dev
 
     call print_test("test_raw_multigroup")
-    call build_raw_mgrid(fname, nfp, ir, jz, kp, c1, c2)
-    call read_mgrid(fname, mesh, nfp_in)
+    call build_raw_mgrid(fname, nfp, ir, jz, kp, c1, c2, 'R')
+    call read_mgrid(fname, mesh, nfp_in, verbose=.true.)
     call unlink(fname)
 
     dev = maxval(abs(mesh%B1%value - (c1*1.0_dp + c2*2.0_dp))) &
@@ -197,6 +198,34 @@ subroutine test_raw_multigroup
     end if
     call print_ok
 end subroutine test_raw_multigroup
+
+! An unrecognized mgrid_mode tag must fall back to direct group sum (no current
+! scaling) and not crash; it only warns on stderr.
+subroutine test_unknown_mode
+    character(*), parameter :: fname = "test_mgrid_unknown.nc"
+    integer, parameter :: nfp = 3, ir = 5, jz = 4, kp = 6
+    real(dp), parameter :: c1 = 2.0_dp, c2 = -3.0_dp
+    type(field_mesh_t) :: mesh
+    integer :: nfp_in
+    real(dp) :: dev
+
+    call print_test("test_unknown_mode")
+    call build_raw_mgrid(fname, nfp, ir, jz, kp, c1, c2, 'Z')
+    call read_mgrid(fname, mesh, nfp_in)
+    call unlink(fname)
+
+    ! unknown mode -> direct sum: total = field_1 + field_2, currents ignored
+    dev = maxval(abs(mesh%B1%value - 3.0_dp)) &
+        + maxval(abs(mesh%B2%value - 30.0_dp)) &
+        + maxval(abs(mesh%B3%value - 300.0_dp))
+
+    if (dev > 1.0e-12_dp) then
+        print *, "dev=", dev
+        call print_fail
+        error stop
+    end if
+    call print_ok
+end subroutine test_unknown_mode
 
 ! A-only cylindrical mgrid through the factory: B = curl A.
 subroutine test_curl_cyl_factory
@@ -316,10 +345,11 @@ function disk_dim(fname, name) result(n)
     stat = nf90_close(ncid)
 end function disk_dim
 
-subroutine build_raw_mgrid(fname, nfp, ir, jz, kp, c1, c2)
+subroutine build_raw_mgrid(fname, nfp, ir, jz, kp, c1, c2, mode)
     character(*), intent(in) :: fname
     integer, intent(in) :: nfp, ir, jz, kp
     real(dp), intent(in) :: c1, c2
+    character(len=1), intent(in) :: mode
 
     integer :: ncid, d_r, d_z, d_p, d1, d2, v
     real(dp) :: f(ir,jz,kp)
@@ -351,7 +381,7 @@ subroutine build_raw_mgrid(fname, nfp, ir, jz, kp, c1, c2)
     call put_i(ncid, 'nfp', nfp); call put_i(ncid, 'nextcur', 2)
     call put_d(ncid, 'rmin', 0.8_dp); call put_d(ncid, 'rmax', 1.6_dp)
     call put_d(ncid, 'zmin', -0.5_dp); call put_d(ncid, 'zmax', 0.5_dp)
-    mode_c = 'R'
+    mode_c = mode
     call nc(nf90_inq_varid(ncid, 'mgrid_mode', v)); call nc(nf90_put_var(ncid, v, mode_c))
     call nc(nf90_inq_varid(ncid, 'raw_coil_cur', v)); call nc(nf90_put_var(ncid, v, [c1, c2]))
     f = 1.0_dp;   call put_grp(ncid, 'br_001', f)

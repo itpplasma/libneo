@@ -17,6 +17,7 @@ module neo_mgrid
 ! sin to store a H(div) field independently). A cartesian variant
 ! (coordinate_system = "cartesian", components ax/ay/az, bx/by/bz on a linear
 ! x/y/z grid with an extra ymin/ymax) shares all the I/O below.
+use, intrinsic :: iso_fortran_env, only: error_unit
 use netcdf
 use neo_mesh, only: mesh_t
 use neo_field_mesh, only: field_mesh_t
@@ -30,18 +31,19 @@ public :: read_mgrid, write_mgrid, is_mgrid_file
 
 contains
 
-subroutine read_mgrid(filename, field_mesh, nfp, coordinate_system, has_a, has_b)
+subroutine read_mgrid(filename, field_mesh, nfp, coordinate_system, has_a, has_b, verbose)
     character(*), intent(in) :: filename
     type(field_mesh_t), intent(out) :: field_mesh
     integer, intent(out) :: nfp
     integer, intent(out), optional :: coordinate_system
     logical, intent(out), optional :: has_a, has_b
+    logical, intent(in), optional :: verbose
 
     integer :: ncid, vid, ir, jz, kp, nextcur, cs, np2, k
     real(dp) :: rmin, rmax, zmin, zmax, ymin, ymax
     character(len=1) :: mode_c
     character(len=2) :: aname(3), bname(3)
-    logical :: per(3), got_a, got_b
+    logical :: per(3), got_a, got_b, is_raw, do_report
     real(dp), allocatable :: cur(:)
     real(dp), allocatable :: ax(:,:,:), ay(:,:,:), az(:,:,:)
     real(dp), allocatable :: bx(:,:,:), by(:,:,:), bz(:,:,:)
@@ -61,6 +63,8 @@ subroutine read_mgrid(filename, field_mesh, nfp, coordinate_system, has_a, has_b
     call get_dbl(ncid, 'zmin', zmin); call get_dbl(ncid, 'zmax', zmax)
     call nc_check('mode', nf90_inq_varid(ncid, 'mgrid_mode', vid))
     call nc_check('mode', nf90_get_var(ncid, vid, mode_c))
+    call warn_unknown_mode(mode_c)
+    is_raw = mode_is_raw(mode_c)
     allocate(cur(nextcur))
     call nc_check('cur', nf90_inq_varid(ncid, 'raw_coil_cur', vid))
     call nc_check('cur', nf90_get_var(ncid, vid, cur))
@@ -71,8 +75,12 @@ subroutine read_mgrid(filename, field_mesh, nfp, coordinate_system, has_a, has_b
     allocate(ax(ir,jz,kp), ay(ir,jz,kp), az(ir,jz,kp))
     allocate(bx(ir,jz,kp), by(ir,jz,kp), bz(ir,jz,kp))
     ax = 0; ay = 0; az = 0; bx = 0; by = 0; bz = 0
-    if (got_a) call sum_groups(ncid, aname, nextcur, mode_c, cur, ax, ay, az)
-    if (got_b) call sum_groups(ncid, bname, nextcur, mode_c, cur, bx, by, bz)
+    if (got_a) call sum_groups(ncid, aname, nextcur, is_raw, cur, ax, ay, az)
+    if (got_b) call sum_groups(ncid, bname, nextcur, is_raw, cur, bx, by, bz)
+
+    do_report = .false.
+    if (present(verbose)) do_report = verbose
+    if (do_report .and. got_b) call report_scaling(ncid, bname, nextcur, mode_c, cur, bx, by, bz)
 
     if (cs == COORD_CYLINDRICAL) then
         np2 = kp + 1                ! append wrap plane for the periodic phi spline
@@ -232,10 +240,10 @@ subroutine to_mesh(g, v, kp, cs)
     end if
 end subroutine to_mesh
 
-subroutine sum_groups(ncid, base, nextcur, mode_c, cur, c1, c2, c3)
+subroutine sum_groups(ncid, base, nextcur, apply_current, cur, c1, c2, c3)
     integer, intent(in) :: ncid, nextcur
     character(len=2), intent(in) :: base(3)
-    character(len=1), intent(in) :: mode_c
+    logical, intent(in) :: apply_current
     real(dp), intent(in) :: cur(:)
     real(dp), intent(inout) :: c1(:,:,:), c2(:,:,:), c3(:,:,:)
 
@@ -246,7 +254,7 @@ subroutine sum_groups(ncid, base, nextcur, mode_c, cur, c1, c2, c3)
     allocate(gb(size(c1,1), size(c1,2), size(c1,3)))
     do g = 1, nextcur
         scale = 1.0_dp
-        if (mode_c == 'R' .or. mode_c == 'r') scale = cur(g)
+        if (apply_current) scale = cur(g)
         call nc_check('g', nf90_inq_varid(ncid, group_var_name(base(1), g), vid))
         call nc_check('g', nf90_get_var(ncid, vid, gb)); c1 = c1 + scale*gb
         call nc_check('g', nf90_inq_varid(ncid, group_var_name(base(2), g), vid))
@@ -295,6 +303,62 @@ subroutine put_group(ncid, base, m1, m2, m3, kp)
     call nc_check('v', nf90_inq_varid(ncid, group_var_name(base(3), 1), vid))
     call nc_check('p', nf90_put_var(ncid, vid, g3))
 end subroutine put_group
+
+function mode_is_raw(mode_c) result(raw)
+    character(len=1), intent(in) :: mode_c
+    logical :: raw
+
+    raw = mode_c == 'R' .or. mode_c == 'r'
+end function mode_is_raw
+
+! Standard makegrid tags: 'R' raw (scale by raw_coil_cur), 'S' scaled (sum
+! directly). 'N' (no scaling) is read as direct-sum. Anything else is treated
+! as direct-sum and warned about: the convention cannot be inferred from the
+! field (it is invariant under a global current scale), so the tag is trusted.
+subroutine warn_unknown_mode(mode_c)
+    character(len=1), intent(in) :: mode_c
+
+    select case (mode_c)
+    case ('R', 'r', 'S', 's', 'N', 'n')
+    case default
+        write(error_unit, '(3a)') 'neo_mgrid WARNING: unrecognized mgrid_mode "', &
+            mode_c, '"; treating as already scaled (direct group sum).'
+    end select
+end subroutine warn_unknown_mode
+
+! Diagnostic only: report peak |B| as read versus under the opposite scaling, so
+! a mislabelled mode is visible. Never changes the field that is returned.
+subroutine report_scaling(ncid, base, nextcur, mode_c, cur, c1, c2, c3)
+    integer, intent(in) :: ncid, nextcur
+    character(len=2), intent(in) :: base(3)
+    character(len=1), intent(in) :: mode_c
+    real(dp), intent(in) :: cur(:)
+    real(dp), intent(in) :: c1(:,:,:), c2(:,:,:), c3(:,:,:)
+
+    real(dp), allocatable :: a1(:,:,:), a2(:,:,:), a3(:,:,:)
+
+    allocate(a1(size(c1,1), size(c1,2), size(c1,3)), &
+             a2(size(c1,1), size(c1,2), size(c1,3)), &
+             a3(size(c1,1), size(c1,2), size(c1,3)))
+    a1 = 0; a2 = 0; a3 = 0
+    call sum_groups(ncid, base, nextcur, .not. mode_is_raw(mode_c), cur, a1, a2, a3)
+
+    write(error_unit, '(3a)') &
+        'neo_mgrid scaling diagnostic (mgrid_mode = "', mode_c, '"):'
+    write(error_unit, '(a,es12.4)') &
+        '  max|B| as read                = ', field_norm_max(c1, c2, c3)
+    write(error_unit, '(a,es12.4)') &
+        '  max|B| under opposite scaling = ', field_norm_max(a1, a2, a3)
+    write(error_unit, '(a)') &
+        '  verify the intended mode (raw scales by raw_coil_cur, scaled does not).'
+end subroutine report_scaling
+
+function field_norm_max(c1, c2, c3) result(m)
+    real(dp), intent(in) :: c1(:,:,:), c2(:,:,:), c3(:,:,:)
+    real(dp) :: m
+
+    m = sqrt(maxval(c1**2 + c2**2 + c3**2))
+end function field_norm_max
 
 subroutine comp_names(cs, aname, bname)
     integer, intent(in) :: cs
