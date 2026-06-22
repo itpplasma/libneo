@@ -24,32 +24,48 @@ end type spline_field_t
 
 contains
 
-subroutine spline_field_init(self, field_mesh)
+subroutine spline_field_init(self, field_mesh, order)
     class(spline_field_t), intent(out) :: self
     type(field_mesh_t), intent(in) :: field_mesh
+    integer, intent(in), optional :: order
 
-    call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
-    call make_spline_from_mesh(field_mesh%A2, self%A2_spline)
-    call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
-    call make_spline_from_mesh(field_mesh%B1, self%B1_spline)
-    call make_spline_from_mesh(field_mesh%B2, self%B2_spline)
-    call make_spline_from_mesh(field_mesh%B3, self%B3_spline)
+    integer :: ord(3)
+
+    ord = spline_order(order)
+    call make_spline_from_mesh(field_mesh%A1, self%A1_spline, ord)
+    call make_spline_from_mesh(field_mesh%A2, self%A2_spline, ord)
+    call make_spline_from_mesh(field_mesh%A3, self%A3_spline, ord)
+    call make_spline_from_mesh(field_mesh%B1, self%B1_spline, ord)
+    call make_spline_from_mesh(field_mesh%B2, self%B2_spline, ord)
+    call make_spline_from_mesh(field_mesh%B3, self%B3_spline, ord)
 end subroutine spline_field_init
 
-subroutine spline_field_init_acurl(self, field_mesh, coordinate_system)
+subroutine spline_field_init_acurl(self, field_mesh, coordinate_system, order)
     ! Spline only A; reconstruct B = curl A from the A-spline. The stored B
     ! arrays are ignored, so div B = 0 holds to spline precision regardless of
     ! grid resolution.
     class(spline_field_t), intent(out) :: self
     type(field_mesh_t), intent(in) :: field_mesh
     integer, intent(in) :: coordinate_system
+    integer, intent(in), optional :: order
 
-    call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
-    call make_spline_from_mesh(field_mesh%A2, self%A2_spline)
-    call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
+    integer :: ord(3)
+
+    ord = spline_order(order)
+    call make_spline_from_mesh(field_mesh%A1, self%A1_spline, ord)
+    call make_spline_from_mesh(field_mesh%A2, self%A2_spline, ord)
+    call make_spline_from_mesh(field_mesh%A3, self%A3_spline, ord)
     self%coordinate_system = coordinate_system
     self%b_from_curl = .true.
 end subroutine spline_field_init_acurl
+
+function spline_order(order) result(ord)
+    integer, intent(in), optional :: order
+    integer :: ord(3)
+
+    ord = 3
+    if (present(order)) ord = order
+end function spline_order
 
 subroutine make_spline_from_mesh(mesh, spline, order_in)
     use neo_mesh, only: mesh_t

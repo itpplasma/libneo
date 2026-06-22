@@ -13,6 +13,7 @@ call test_roundtrip_b_cyl
 call test_raw_multigroup
 call test_curl_cyl_factory
 call test_curl_cart_factory
+call test_curl_order5
 
 contains
 
@@ -256,6 +257,54 @@ subroutine test_curl_cart_factory
     end if
     call print_ok
 end subroutine test_curl_cart_factory
+
+! Both coordinate variants through the factory at quintic spline order: the
+! cylindrical case exercises the periodic phi spline (spl_per), the cartesian
+! case the regular spline (spl_reg), both with order-5 derivatives in the curl.
+subroutine test_curl_order5
+    use neo_field, only: create_field
+    use neo_field_base, only: field_t
+
+    character(*), parameter :: fcyl = "test_mgrid_o5_cyl.nc"
+    character(*), parameter :: fcart = "test_mgrid_o5_cart.nc"
+    integer, parameter :: nfp = 4
+    real(dp), parameter :: tol = 1.0e-7_dp
+    type(field_mesh_t) :: mesh
+    class(field_t), allocatable :: field
+    real(dp) :: x(3), B(3), A_ref(3), B_ref(3)
+
+    call print_test("test_curl_order5")
+
+    call build_cyl_mesh(mesh, nfp, 40, 12, 40, store_a=.true.)
+    call write_mgrid(fcyl, mesh, nfp, coordinate_system=COORD_CYLINDRICAL, &
+        write_a=.true., write_b=.false.)
+    call create_field(field, "spline", filename=fcyl, order=5)
+    call unlink(fcyl)
+    x = [1.13_dp, 0.37_dp*twopi/real(nfp, dp), 0.21_dp]
+    call field%compute_bfield(x, B)
+    call analytic_a_cyl(x, A_ref, B_ref)
+    if (maxval(abs(B - B_ref)) > tol) then
+        print *, "cyl order5 B=", B, " ref=", B_ref
+        call print_fail
+        error stop
+    end if
+    deallocate(field)
+
+    call build_cart_a_mesh(mesh, 40)
+    call write_mgrid(fcart, mesh, 1, coordinate_system=COORD_CARTESIAN, &
+        write_a=.true., write_b=.false.)
+    call create_field(field, "spline", filename=fcart, order=5)
+    call unlink(fcart)
+    x = [1.37_dp, 1.51_dp, 1.62_dp]
+    call field%compute_bfield(x, B)
+    call analytic_a_cart(x, A_ref, B_ref)
+    if (maxval(abs(B - B_ref)) > tol) then
+        print *, "cart order5 B=", B, " ref=", B_ref
+        call print_fail
+        error stop
+    end if
+    call print_ok
+end subroutine test_curl_order5
 
 function disk_dim(fname, name) result(n)
     character(*), intent(in) :: fname, name
