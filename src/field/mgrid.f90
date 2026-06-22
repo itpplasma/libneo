@@ -9,11 +9,14 @@ module neo_mgrid
 ! memory so the phi spline is periodic, and returns a field_mesh on (R, phi, Z).
 !
 ! The same schema is reused for the generalized form: optional vector-potential
-! groups ar, ap, az (physical components). Storing only A is the reduced form;
-! the splined field then reconstructs B = curl A, divergence-free by
-! construction (it is a sin to store a H(div) field independently). A cartesian
-! variant (coordinate_system = "cartesian", components ax/ay/az, bx/by/bz on a
-! linear x/y/z grid with an extra ymin/ymax) shares all the I/O below.
+! groups ar, ap, az. These are makegrid's own potential variables and use the
+! same convention as the field: physical components in the orthonormal (R, phi,
+! Z) basis (a_p = A . phi_hat, NOT the covariant R*A_phi). Storing only A is the
+! reduced form; the splined field then reconstructs B = curl A with the
+! physical-component cylindrical curl, divergence-free by construction (it is a
+! sin to store a H(div) field independently). A cartesian variant
+! (coordinate_system = "cartesian", components ax/ay/az, bx/by/bz on a linear
+! x/y/z grid with an extra ymin/ymax) shares all the I/O below.
 use netcdf
 use neo_mesh, only: mesh_t
 use neo_field_mesh, only: field_mesh_t
