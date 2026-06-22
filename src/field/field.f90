@@ -5,6 +5,7 @@ module neo_field
     use neo_polylag_field, only: polylag_field_t
     use neo_spline_field, only: spline_field_t
     use neo_field_mesh, only: field_mesh_t
+    use neo_field_netcdf, only: read_field_mesh_netcdf
     implicit none
     integer, parameter :: dp = kind(1.0d0)
 
@@ -97,10 +98,39 @@ module neo_field
 
         type(field_mesh_t) :: field_mesh
 
+        if (has_netcdf_suffix(filename)) then
+            allocate(spline_field_from_file, source=create_spline_field_from_netcdf(filename))
+            return
+        end if
         call field_mesh%field_mesh_init_with_file(filename)
         allocate(spline_field_from_file, source=create_spline_field_from_mesh(field_mesh))
 
     end function create_spline_field_from_file
+
+
+    function create_spline_field_from_netcdf(filename) result(spline_field)
+        character(*), intent(in) :: filename
+        class(spline_field_t), allocatable :: spline_field
+
+        type(field_mesh_t) :: field_mesh
+        integer :: coordinate_system
+        logical :: has_b
+
+        call read_field_mesh_netcdf(filename, field_mesh, coordinate_system, has_b)
+        allocate(spline_field)
+        call spline_field%spline_field_init_acurl(field_mesh, coordinate_system)
+    end function create_spline_field_from_netcdf
+
+
+    function has_netcdf_suffix(filename) result(is_nc)
+        character(*), intent(in) :: filename
+        logical :: is_nc
+        integer :: n
+
+        n = len_trim(filename)
+        is_nc = n >= 3
+        if (is_nc) is_nc = filename(n-2:n) == '.nc'
+    end function has_netcdf_suffix
 
 
     function create_spline_field_from_mesh(field_mesh) result(spline_field)

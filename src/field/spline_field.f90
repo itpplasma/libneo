@@ -6,11 +6,16 @@ use interpolate, only: evaluate_splines_3d, evaluate_splines_3d_der
 implicit none
 integer, parameter :: dp = kind(1.0d0)
 
+integer, parameter :: COORD_CARTESIAN = 0, COORD_CYLINDRICAL = 1
+
 type, extends(field_t) :: spline_field_t
     type(SplineData3D) :: A1_spline, A2_spline, A3_spline, &
                           B1_spline, B2_spline, B3_spline
+    integer :: coordinate_system = COORD_CARTESIAN
+    logical :: b_from_curl = .false.
     contains
         procedure :: spline_field_init
+        procedure :: spline_field_init_acurl
         procedure :: compute_abfield
         procedure :: compute_afield
         procedure :: compute_bfield
@@ -30,6 +35,21 @@ subroutine spline_field_init(self, field_mesh)
     call make_spline_from_mesh(field_mesh%B2, self%B2_spline)
     call make_spline_from_mesh(field_mesh%B3, self%B3_spline)
 end subroutine spline_field_init
+
+subroutine spline_field_init_acurl(self, field_mesh, coordinate_system)
+    ! Spline only A; reconstruct B = curl A from the A-spline. The stored B
+    ! arrays are ignored, so div B = 0 holds to spline precision regardless of
+    ! grid resolution.
+    class(spline_field_t), intent(out) :: self
+    type(field_mesh_t), intent(in) :: field_mesh
+    integer, intent(in) :: coordinate_system
+
+    call make_spline_from_mesh(field_mesh%A1, self%A1_spline)
+    call make_spline_from_mesh(field_mesh%A2, self%A2_spline)
+    call make_spline_from_mesh(field_mesh%A3, self%A3_spline)
+    self%coordinate_system = coordinate_system
+    self%b_from_curl = .true.
+end subroutine spline_field_init_acurl
 
 subroutine make_spline_from_mesh(mesh, spline, order_in)
     use neo_mesh, only: mesh_t
@@ -75,10 +95,37 @@ subroutine compute_bfield(self, x, B)
     real(dp), intent(in) :: x(3)
     real(dp), intent(out) :: B(3)
 
+    if (self%b_from_curl) then
+        call curl_a(self, x, B)
+        return
+    end if
     call evaluate_splines_3d(self%B1_spline, x, B(1))
     call evaluate_splines_3d(self%B2_spline, x, B(2))
     call evaluate_splines_3d(self%B3_spline, x, B(3))
 end subroutine compute_bfield
+
+subroutine curl_a(self, x, B)
+    ! B = curl A from the A-spline, in the field's coordinate system. x1 = R for
+    ! the cylindrical case (physical components).
+    class(spline_field_t), intent(in) :: self
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: B(3)
+
+    real(dp) :: A(3), dA_dx(3,3), R
+
+    call self%compute_afield_derivatives(x, dA_dx)
+    if (self%coordinate_system == COORD_CYLINDRICAL) then
+        call self%compute_afield(x, A)
+        R = x(1)
+        B(1) = dA_dx(3,2)/R - dA_dx(2,3)
+        B(2) = dA_dx(1,3) - dA_dx(3,1)
+        B(3) = (A(2) + R*dA_dx(2,1) - dA_dx(1,2))/R
+    else
+        B(1) = dA_dx(3,2) - dA_dx(2,3)
+        B(2) = dA_dx(1,3) - dA_dx(3,1)
+        B(3) = dA_dx(2,1) - dA_dx(1,2)
+    end if
+end subroutine curl_a
 
 subroutine compute_afield_derivatives(self, x, dA_dx)
     class(spline_field_t), intent(in) :: self

@@ -44,6 +44,11 @@ target_link_libraries(test_field.x PRIVATE neo
                                            util_for_test)
 add_test(NAME test_field COMMAND test_field.x)
 
+add_executable(test_field_netcdf.x test_field_netcdf.f90)
+target_link_libraries(test_field_netcdf.x PRIVATE neo
+                                                  util_for_test)
+add_test(NAME test_field_netcdf COMMAND test_field_netcdf.x)
+
 add_executable(test_stretch_coords.x test_stretch_coords.f90)
 target_link_libraries(test_stretch_coords.x PRIVATE neo
                                                    magfie
@@ -60,5 +65,6 @@ set_tests_properties(
     test_polylag_field
     test_spline_field
     test_field
+    test_field_netcdf
     test_stretch_coords
     PROPERTIES LABELS "field")
