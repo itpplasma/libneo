@@ -7,6 +7,7 @@ add_library(neo_field STATIC
     field_mesh.f90
     polylag_field.f90
     spline_field.f90
+    mgrid.f90
     mesh.f90
     mesh_2d.f90
     field.f90)
@@ -15,6 +16,13 @@ target_link_libraries(neo_field PRIVATE
     interpolate
     neo_polylag
 )
+if(TARGET netcdf::netcdff)
+    target_link_libraries(neo_field PRIVATE netcdf::netcdff)
+elseif(TARGET netcdf::netcdf)
+    target_link_libraries(neo_field PRIVATE netcdf::netcdf netcdff)
+else()
+    target_link_libraries(neo_field PRIVATE netcdf netcdff)
+endif()
 set_property(TARGET neo_field PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::field ALIAS neo_field)
