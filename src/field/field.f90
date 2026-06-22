@@ -5,7 +5,6 @@ module neo_field
     use neo_polylag_field, only: polylag_field_t
     use neo_spline_field, only: spline_field_t
     use neo_field_mesh, only: field_mesh_t
-    use neo_field_netcdf, only: read_field_mesh_netcdf
     implicit none
     integer, parameter :: dp = kind(1.0d0)
 
@@ -109,16 +108,24 @@ module neo_field
 
 
     function create_spline_field_from_netcdf(filename) result(spline_field)
+        use neo_mgrid, only: read_mgrid
+
         character(*), intent(in) :: filename
         class(spline_field_t), allocatable :: spline_field
 
         type(field_mesh_t) :: field_mesh
-        integer :: coordinate_system
-        logical :: has_b
+        integer :: coordinate_system, nfp
+        logical :: has_a, has_b
 
-        call read_field_mesh_netcdf(filename, field_mesh, coordinate_system, has_b)
+        call read_mgrid(filename, field_mesh, nfp, coordinate_system, has_a, has_b)
         allocate(spline_field)
-        call spline_field%spline_field_init_acurl(field_mesh, coordinate_system)
+        if (has_a) then
+            ! Vector potential present: B = curl A, divergence-free by construction.
+            call spline_field%spline_field_init_acurl(field_mesh, coordinate_system)
+        else
+            ! Standard mgrid stores B only: spline B directly.
+            call spline_field%spline_field_init(field_mesh)
+        end if
     end function create_spline_field_from_netcdf
 
 

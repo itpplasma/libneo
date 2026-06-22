@@ -7,7 +7,7 @@ add_library(neo_field STATIC
     field_mesh.f90
     polylag_field.f90
     spline_field.f90
-    field_netcdf.f90
+    mgrid.f90
     mesh.f90
     mesh_2d.f90
     field.f90)
