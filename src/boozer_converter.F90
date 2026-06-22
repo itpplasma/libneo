@@ -459,7 +459,16 @@ contains
 
         if (isw .eq. 0) then
             if (.not. delt_delp_V_batch_spline_ready) then
-                error stop "delthe_delphi_BV: V batch spline not initialized"
+                ! No VMEC<->Boozer angle map loaded -- the field is Boozer-native
+                ! (e.g. loaded from a Boozer chartmap, which stores no VMEC angles).
+                ! The theta_B-theta_V / phi_B-phi_V correction is then identically
+                ! zero, so return it instead of aborting (the chartmap CP/CPP path
+                ! reaches here for near-axis points).
+                deltheta_BV = 0.0_dp
+                delphi_BV = 0.0_dp
+                ddeltheta_BV = 0.0_dp
+                ddelphi_BV = 0.0_dp
+                return
             end if
             call evaluate_batch_splines_3d_der(delt_delp_V_batch_spline, x_eval, &
                                                y_eval, dy_eval)
