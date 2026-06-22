@@ -333,6 +333,12 @@ contains
             dvals(3, 3) = drz(3, 2)
         else
             call evaluate_batch_splines_3d_der(self%spl_cart, u_eval, vals, dvals)
+            ! evaluate_batch_splines_3d_der returns dvals(deriv_dim, quantity) =
+            ! d x_quantity / d u_dim. Transpose to the documented covariant-basis
+            ! convention dvals(cart_component, coord_index) = d x_i / d u_k, matching
+            ! the spl_rz branch above; without this the Cartesian Jacobian (and the
+            ! metric built from it) is returned transposed for cart-spline charts.
+            dvals = transpose(dvals)
         end if
     end subroutine chartmap_eval_cart_der
 
