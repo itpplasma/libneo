@@ -75,6 +75,13 @@ target_link_libraries(test_axis_power_law_regularization.x
   neo
 )
 
+add_executable(test_axis_polyfit_regularization.x
+  source/test_axis_polyfit_regularization.f90
+)
+target_link_libraries(test_axis_polyfit_regularization.x
+  neo
+)
+
 add_executable(test_flux_pseudocartesian.x
   source/test_flux_pseudocartesian.f90
 )
@@ -93,6 +100,13 @@ add_executable(test_coordinate_christoffel.x
   source/test_coordinate_christoffel.f90
 )
 target_link_libraries(test_coordinate_christoffel.x
+  neo
+)
+
+add_executable(test_axis_healing_mode.x
+  source/test_axis_healing_mode.f90
+)
+target_link_libraries(test_axis_healing_mode.x
   neo
 )
 
@@ -223,12 +237,16 @@ target_link_libraries(test_nctools_nc_get3.x
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
 add_test(NAME test_axis_power_law_regularization
   COMMAND test_axis_power_law_regularization.x)
+add_test(NAME test_axis_polyfit_regularization
+  COMMAND test_axis_polyfit_regularization.x)
 add_test(NAME test_flux_pseudocartesian
   COMMAND test_flux_pseudocartesian.x)
 add_test(NAME test_christoffel_symflux
   COMMAND test_christoffel_symflux.x)
 add_test(NAME test_coordinate_christoffel
   COMMAND test_coordinate_christoffel.x)
+add_test(NAME test_axis_healing_mode
+  COMMAND test_axis_healing_mode.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )

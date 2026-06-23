@@ -1026,7 +1026,7 @@ contains
                                 dZ_ds, dZ_dtheta, dZ_dphi, g_vmec, sqrt_g_vmec)
 
         !> contravariant metric component g^{ss} via cofactors of covariant components
-        sqrt_g_ss = sqrt(g_vmec(2, 2)*g_vmec(3, 3) - g_vmec(2, 3)**2.0_dp) &
+        sqrt_g_ss = sqrt(g_vmec(2, 2)*g_vmec(3, 3) - g_vmec(2, 3)**2) &
                     /abs(sqrt_g_vmec)
     end function get_sqrt_g_ss_contravariant
 

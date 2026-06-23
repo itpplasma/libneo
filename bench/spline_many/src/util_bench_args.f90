@@ -25,4 +25,3 @@ contains
     end function get_env_int
 
 end module util_bench_args
-

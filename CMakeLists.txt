@@ -258,6 +258,11 @@ add_executable(vmec_to_chartmap.x
 )
 target_link_libraries(vmec_to_chartmap.x neo)
 
+add_executable(near_axis_field_diag.x
+    app/near_axis_field_diag.f90
+)
+target_link_libraries(near_axis_field_diag.x neo)
+
 
 if(LIBNEO_BUILD_TESTING)
     add_subdirectory(test)

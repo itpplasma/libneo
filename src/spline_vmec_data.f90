@@ -178,21 +178,50 @@ contains
 
    subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
       use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                    axm, nstrm, old_axis_healing_boundary, &
-                                    axis_healing_power_law
+                                    axm, axn, nstrm, nper, axis_healing_polyfit_degree, &
+                                    raxis_cc, zaxis_cs, raxis_cs, zaxis_cc, ntor_axis
       use vector_potentail_mod, only: ns
 
       real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
       real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
-      integer :: i, m, nrho, nheal, i_anchor
+      integer :: i, m, nrho, nheal, i_anchor, n_idx
+      real(dp) :: anc_rc, anc_zs, anc_rs, anc_zc
+      character(len=16) :: mode, boundary
 
       nrho = ns
       allocate (almnc_rho(nstrm, 0:nrho - 1), rmnc_rho(nstrm, 0:nrho - 1), zmnc_rho(nstrm, 0:nrho - 1))
       allocate (almns_rho(nstrm, 0:nrho - 1), rmns_rho(nstrm, 0:nrho - 1), zmns_rho(nstrm, 0:nrho - 1))
 
-      if (axis_healing_power_law) then
+      call resolve_axis_healing_mode(mode, boundary)
+
+      select case (trim(mode))
+      case ('polyfit')
          i_anchor = axis_anchor_index(ns)
-         print *, 'VMEC axis healing: rho**m continuation below s = ', &
+         print *, 'VMEC axis healing: polyfit, rho**m * poly(s) below s = ', &
+            dble(i_anchor - 1)/dble(ns - 1), ' degree ', axis_healing_polyfit_degree
+         do i = 1, nstrm
+            m = nint(abs(axm(i)))
+            ! Pin the m=0 geometry amplitudes to the exact magnetic axis
+            ! (raxis_cc/zaxis_cs); lambda has no axis value, m/=0 ignores it.
+            anc_rc = 0.0d0; anc_zs = 0.0d0; anc_rs = 0.0d0; anc_zc = 0.0d0
+            if (m == 0 .and. allocated(raxis_cc)) then
+               n_idx = nint(axn(i))/nper
+               if (n_idx >= 0 .and. n_idx <= ntor_axis) then
+                  anc_rc = raxis_cc(n_idx); anc_zs = zaxis_cs(n_idx)
+                  anc_rs = raxis_cs(n_idx); anc_zc = zaxis_cc(n_idx)
+               end if
+            end if
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, rmnc(i, :), rmnc_rho(i, :), anchor=anc_rc)
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, zmnc(i, :), zmnc_rho(i, :), anchor=anc_zc)
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, almnc(i, :), almnc_rho(i, :))
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, rmns(i, :), rmns_rho(i, :), anchor=anc_rs)
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, zmns(i, :), zmns_rho(i, :), anchor=anc_zs)
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, almns(i, :), almns_rho(i, :))
+         end do
+
+      case ('powerlaw')
+         i_anchor = axis_anchor_index(ns)
+         print *, 'VMEC axis healing: powerlaw, rho**m below s = ', &
             dble(i_anchor - 1)/dble(ns - 1)
          do i = 1, nstrm
             m = nint(abs(axm(i)))
@@ -203,26 +232,89 @@ contains
             call s_to_rho_power_law(m, ns, nrho, i_anchor, zmns(i, :), zmns_rho(i, :))
             call s_to_rho_power_law(m, ns, nrho, i_anchor, almns(i, :), almns_rho(i, :))
          end do
-         return
+
+      case ('legacy', 'legacy_adaptive')
+         do i = 1, nstrm
+            m = nint(abs(axm(i)))
+            if (trim(mode) == 'legacy') then
+               nheal = min(m, 4)
+            else
+               call determine_nheal_for_axis(m, ns, rmnc(i, :), nheal)
+            end if
+            call s_to_rho_healaxis(m, ns, nrho, nheal, rmnc(i, :), rmnc_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, zmnc(i, :), zmnc_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, almnc(i, :), almnc_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, rmns(i, :), rmns_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, zmns(i, :), zmns_rho(i, :))
+            call s_to_rho_healaxis(m, ns, nrho, nheal, almns(i, :), almns_rho(i, :))
+         end do
+      end select
+   end subroutine perform_axis_healing
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   subroutine resolve_axis_healing_mode(mode, boundary)
+      !> Resolves the axis-healing selector. The preferred inputs are the strings
+      !> axis_healing ('legacy'|'legacy_adaptive'|'powerlaw'|'polyfit').
+      !> When axis_healing is empty the deprecated logical switches are mapped to
+      !> a mode and a deprecation warning is emitted. Unknown values stop the run.
+      use new_vmec_stuff_mod, only: axis_healing, old_axis_healing_boundary, &
+                                    axis_healing_power_law, axis_healing_polyfit
+
+      character(len=*), intent(out) :: mode, boundary
+      logical :: from_legacy
+
+      from_legacy = (len_trim(axis_healing) == 0)
+      if (from_legacy) then
+         if (axis_healing_polyfit) then
+            mode = 'polyfit'
+         else if (axis_healing_power_law) then
+            mode = 'powerlaw'
+         else if (old_axis_healing_boundary) then
+            mode = 'legacy'
+         else
+            mode = 'legacy_adaptive'
+         end if
+      else
+         mode = to_lower(adjustl(axis_healing))
       end if
 
-      do i = 1, nstrm
-         m = nint(abs(axm(i)))
+      select case (trim(mode))
+      case ('legacy')
+         boundary = 'fixed'
+      case ('legacy_adaptive')
+         boundary = 'adaptive'
+      case ('powerlaw', 'polyfit')
+         boundary = ''
+      case default
+         print *, 'ERROR: unknown axis_healing = ''', trim(axis_healing), ''''
+         error stop 'unknown axis_healing mode (use legacy|legacy_adaptive|powerlaw|polyfit)'
+      end select
 
-         if (old_axis_healing_boundary) then
-            nheal = min(m, 4)
-         else
-            call determine_nheal_for_axis(m, ns, rmnc(i, :), nheal)
-         end if
+      if (from_legacy) then
+         print *, 'WARNING: axis_healing not set; mapped legacy switches to axis_healing=''', &
+            trim(mode), '''. The old_axis_healing*/axis_healing_power_law/axis_healing_polyfit'
+         print *, '         switches are deprecated; set axis_healing=''', trim(mode), ''' instead.'
+         print *, '         These switches will become errors in the next SIMPLE release.'
+      end if
+      if (trim(mode) /= 'polyfit') then
+         print *, 'NOTE: axis_healing=''', trim(mode), '''; ''polyfit'' is recommended and will'
+         print *, '      become the default. Please test it.'
+      end if
+   end subroutine resolve_axis_healing_mode
 
-         call s_to_rho_healaxis(m, ns, nrho, nheal, rmnc(i, :), rmnc_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, zmnc(i, :), zmnc_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, almnc(i, :), almnc_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, rmns(i, :), rmns_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, zmns(i, :), zmns_rho(i, :))
-         call s_to_rho_healaxis(m, ns, nrho, nheal, almns(i, :), almns_rho(i, :))
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   pure function to_lower(s) result(t)
+      character(len=*), intent(in) :: s
+      character(len=len(s)) :: t
+      integer :: i, c
+      t = s
+      do i = 1, len_trim(s)
+         c = iachar(s(i:i))
+         if (c >= iachar('A') .and. c <= iachar('Z')) t(i:i) = achar(c + 32)
       end do
-   end subroutine perform_axis_healing
+   end function to_lower
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -1325,18 +1417,206 @@ contains
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+   subroutine s_to_rho_polyfit(m, ns, nrho, i_anchor, ndeg, arr_in, arr_out, anchor)
+      !> Resamples one Fourier amplitude from the uniform s grid to the uniform
+      !> rho = sqrt(s) grid, enforcing analytic axis regularity without the noise
+      !> amplification of the pure power-law continuation. The rescaled amplitude
+      !> g(s) = c(s)/rho**|m| is even-analytic in rho, hence smooth in s. Surfaces
+      !> inside i_anchor are unreliable; g there is replaced by a least-squares
+      !> polynomial in s (a Zernike radial polynomial once rho**|m| is restored)
+      !> fitted to a window of reliable surfaces just outside i_anchor. g is then
+      !> splined over the full grid and rho**|m| restored: c(rho) = rho**|m|*P(s),
+      !> exact rho**|m| at the axis, smooth across the match, reproducing the
+      !> reliable surfaces.
+      use new_vmec_stuff_mod, only: ns_s
+
+      integer, intent(in) :: m, ns, nrho, i_anchor, ndeg
+      real(dp), dimension(ns), intent(in) :: arr_in
+      real(dp), dimension(nrho), intent(out) :: arr_out
+      !> anchor: exact s=0 value of the m=0 amplitude (the magnetic axis,
+      !> raxis_cc/zaxis_cs). When present and m=0, the inward extrapolation is
+      !> pinned to it so the healed interior meets the exact axis with no kink.
+      real(dp), intent(in), optional :: anchor
+
+      integer, parameter :: m_clamp = 50
+      integer :: irho, is, k, mc, nwin, d, j
+      real(dp) :: hs, hrho, s, ds, rho, u, s_c, s_scale, s_anchor, delta
+      real(dp), dimension(:), allocatable :: g, swin, gwin, coef
+      real(dp), dimension(:, :), allocatable :: splcoe
+
+      hs = 1.d0/dble(ns - 1)
+      hrho = 1.d0/dble(nrho - 1)
+      mc = min(m, m_clamp)
+
+      allocate (g(ns))
+      if (mc > 0) then
+         do is = i_anchor, ns
+            rho = sqrt(hs*dble(is - 1))
+            g(is) = arr_in(is)/rho**mc
+         end do
+      else
+         g(i_anchor:ns) = arr_in(i_anchor:ns)
+      end if
+
+      ! Least-squares polynomial in s through a window of reliable surfaces,
+      ! used to extrapolate g smoothly inward to the axis.
+      d = max(0, min(ndeg, ns - i_anchor))
+      nwin = min(ns - i_anchor + 1, 2*(d + 1) + 2)
+      allocate (swin(nwin), gwin(nwin), coef(0:d))
+      do j = 1, nwin
+         swin(j) = hs*dble(i_anchor - 1 + j - 1)
+         gwin(j) = g(i_anchor + j - 1)
+      end do
+      call polyfit_s(swin, gwin, nwin, d, coef, s_c, s_scale)
+      do is = 1, i_anchor - 1
+         s = hs*dble(is - 1)
+         u = (s - s_c)/s_scale
+         g(is) = coef(d)
+         do k = d - 1, 0, -1
+            g(is) = coef(k) + u*g(is)
+         end do
+      end do
+
+      ! Pin the m=0 axis amplitude to the exact magnetic axis value, blended
+      ! smoothly (vanishes at the reliable-window edge i_anchor) so the healed
+      ! interior reaches the exact axis at s=0 with no kink.
+      if (mc == 0 .and. present(anchor) .and. i_anchor > 1) then
+         s_anchor = hs*dble(i_anchor - 1)
+         delta = anchor - g(1)
+         do is = 1, i_anchor - 1
+            s = hs*dble(is - 1)
+            g(is) = g(is) + delta*(1.0_dp - s/s_anchor)**2
+         end do
+      end if
+
+      allocate (splcoe(0:ns_s, ns))
+      splcoe(0, :) = g
+      call spl_reg(ns_s, ns, hs, splcoe)
+      do irho = 1, nrho
+         rho = hrho*dble(irho - 1)
+         s = rho**2
+         ds = s/hs
+         is = max(0, min(ns - 1, int(ds)))
+         ds = (ds - dble(is))*hs
+         is = is + 1
+         arr_out(irho) = splcoe(ns_s, is)
+         do k = ns_s - 1, 0, -1
+            arr_out(irho) = splcoe(k, is) + ds*arr_out(irho)
+         end do
+         if (mc > 0) arr_out(irho) = arr_out(irho)*rho**mc
+      end do
+
+      deallocate (g, swin, gwin, coef, splcoe)
+   end subroutine s_to_rho_polyfit
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   subroutine polyfit_s(s, g, n, d, coef, s_c, s_scale)
+      !> Least-squares fit g(j) ~ sum_k coef(k)*u**k with u=(s-s_c)/s_scale,
+      !> degree d, via the normal equations. Centering and scaling keep the
+      !> Vandermonde well conditioned for the small near-axis s window.
+      integer, intent(in) :: n, d
+      real(dp), intent(in) :: s(n), g(n)
+      real(dp), intent(out) :: coef(0:d), s_c, s_scale
+
+      integer :: i, k, l
+      real(dp) :: u
+      real(dp), allocatable :: mat(:, :), rhs(:), upow(:)
+
+      s_c = sum(s)/dble(n)
+      s_scale = 0.5d0*(maxval(s) - minval(s))
+      if (s_scale <= 0.d0) s_scale = 1.d0
+
+      allocate (mat(0:d, 0:d), rhs(0:d), upow(0:2*d))
+      mat = 0.d0
+      rhs = 0.d0
+      do i = 1, n
+         u = (s(i) - s_c)/s_scale
+         upow(0) = 1.d0
+         do k = 1, 2*d
+            upow(k) = upow(k - 1)*u
+         end do
+         do k = 0, d
+            do l = 0, d
+               mat(k, l) = mat(k, l) + upow(k + l)
+            end do
+            rhs(k) = rhs(k) + upow(k)*g(i)
+         end do
+      end do
+      call solve_small(mat, rhs, coef, d + 1)
+      deallocate (mat, rhs, upow)
+   end subroutine polyfit_s
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+   subroutine solve_small(a, b, x, n)
+      !> Dense solve a x = b (n small) by Gaussian elimination with partial
+      !> pivoting. a and b are consumed.
+      integer, intent(in) :: n
+      real(dp), intent(inout) :: a(n, n), b(n)
+      real(dp), intent(out) :: x(n)
+
+      integer :: i, j, k, ip
+      real(dp) :: piv, factor, tmp
+
+      do k = 1, n - 1
+         ip = k
+         piv = abs(a(k, k))
+         do i = k + 1, n
+            if (abs(a(i, k)) > piv) then
+               piv = abs(a(i, k))
+               ip = i
+            end if
+         end do
+         if (ip /= k) then
+            do j = k, n
+               tmp = a(k, j); a(k, j) = a(ip, j); a(ip, j) = tmp
+            end do
+            tmp = b(k); b(k) = b(ip); b(ip) = tmp
+         end if
+         do i = k + 1, n
+            factor = a(i, k)/a(k, k)
+            do j = k, n
+               a(i, j) = a(i, j) - factor*a(k, j)
+            end do
+            b(i) = b(i) - factor*b(k)
+         end do
+      end do
+      do i = n, 1, -1
+         x(i) = b(i)
+         do j = i + 1, n
+            x(i) = x(i) - a(i, j)*x(j)
+         end do
+         x(i) = x(i)/a(i, i)
+      end do
+   end subroutine solve_small
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
    function axis_anchor_index(ns) result(i_anchor)
       !> Innermost reliable full-grid surface: the first surface at or
-      !> outside rho_axis_heal. VMEC full-grid harmonics inside this
-      !> radius violate the rho**|m| analyticity condition (the radial
-      !> startup layer), so they are discarded and replaced by the
-      !> power-law continuation.
-      use new_vmec_stuff_mod, only: rho_axis_heal, ns_s
+      !> outside s_axis_heal. VMEC full-grid harmonics inside this
+      !> startup layer can violate the rho**|m| analyticity condition, so
+      !> they are discarded and replaced by the selected continuation.
+      use new_vmec_stuff_mod, only: s_axis_heal, rho_axis_heal, ns_s, &
+                                    rho_axis_heal_warning_printed
 
       integer, intent(in) :: ns
       integer :: i_anchor
+      real(dp) :: s_heal
 
-      i_anchor = 1 + nint(rho_axis_heal**2*dble(ns - 1))
+      if (rho_axis_heal > 0.0d0) then
+         s_heal = rho_axis_heal**2
+         if (.not. rho_axis_heal_warning_printed) then
+            print *, 'WARNING: rho_axis_heal is deprecated; use s_axis_heal = ', s_heal
+            print *, '         This setting will become an error in the next SIMPLE release.'
+            rho_axis_heal_warning_printed = .True.
+         end if
+      else
+         s_heal = s_axis_heal
+      end if
+
+      i_anchor = 1 + nint(s_heal*dble(ns - 1))
       i_anchor = max(2, min(i_anchor, ns - ns_s - 1))
    end function axis_anchor_index
 

@@ -38,7 +38,8 @@ contains
 
         use libneo_kinds, only: dp
         !use math_constants, only: PI
-        use new_vmec_stuff_mod, only: netcdffile, vmec_B_scale, vmec_RZ_scale, rmajor
+        use new_vmec_stuff_mod, only: netcdffile, vmec_B_scale, vmec_RZ_scale, rmajor, &
+                                      raxis_cc, zaxis_cs, raxis_cs, zaxis_cc
         use nctools_module, only: nc_open, nc_close, nc_get
 
         real(dp), parameter :: fac_b0 = 1d4, fac_r0 = 1d2, EPS = 1d-10, pi=3.14159265358979d0
@@ -91,14 +92,28 @@ contains
         call nc_get(ncid, 'rmnc', rmnc)
         call nc_get(ncid, 'zmns', zmns)
         call nc_get(ncid, 'lmns', lmns)
+        ! Exact magnetic axis harmonics (n=0..ntor), independent of the flux
+        ! surfaces. Used for the analytic near-axis chartmap limit at s=0.
+        if (allocated(raxis_cc)) then
+            call nc_get(ncid, 'raxis_cc', raxis_cc)
+            call nc_get(ncid, 'zaxis_cs', zaxis_cs)
+        end if
         if (lasym) then
             call nc_get(ncid, 'rmns', rmns)
             call nc_get(ncid, 'zmnc', zmnc)
             call nc_get(ncid, 'lmnc', lmnc)
+            if (allocated(raxis_cs)) then
+                call nc_get(ncid, 'raxis_cs', raxis_cs)
+                call nc_get(ncid, 'zaxis_cc', zaxis_cc)
+            end if
         else
             rmns = 0d0
             zmnc = 0d0
             lmnc = 0d0
+            if (allocated(raxis_cs)) then
+                raxis_cs = 0d0
+                zaxis_cc = 0d0
+            end if
         end if
         ! Convert half-mesh to full mesh for lambda
         ! added by Christopher Albert, 2020-02-11
@@ -120,6 +135,12 @@ contains
         zmnc = zmnc*fac_r
         rmns = rmns*fac_r
         zmns = zmns*fac_r
+        if (allocated(raxis_cc)) then
+            raxis_cc = raxis_cc*fac_r
+            zaxis_cs = zaxis_cs*fac_r
+            raxis_cs = raxis_cs*fac_r
+            zaxis_cc = zaxis_cc*fac_r
+        end if
 
         call nc_close(ncid)
 

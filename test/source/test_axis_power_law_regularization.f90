@@ -1,6 +1,6 @@
 program test_axis_power_law_regularization
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use new_vmec_stuff_mod, only: ns_s, rho_axis_heal
+    use new_vmec_stuff_mod, only: ns_s, s_axis_heal, rho_axis_heal
     use spline_vmec_sub, only: s_to_rho_power_law, axis_anchor_index
     implicit none
 
@@ -20,17 +20,24 @@ contains
 
     !> The innermost reliable surface index used by the rho**|m| continuation.
     subroutine test_anchor_index()
-        rho_axis_heal = 0.1_dp
+        s_axis_heal = 1.0e-2_dp
+        rho_axis_heal = -1.0_dp
         if (axis_anchor_index(ns) /= 2) then
-            print *, 'i_anchor(rho_heal=0.1) =', axis_anchor_index(ns), 'expected 2'
-            error stop 'axis_anchor_index mismatch for rho_axis_heal=0.1'
+            print *, 'i_anchor(s_axis_heal=0.01) =', axis_anchor_index(ns), 'expected 2'
+            error stop 'axis_anchor_index mismatch for s_axis_heal=0.01'
+        end if
+        s_axis_heal = 9.0e-2_dp
+        if (axis_anchor_index(ns) /= 10) then
+            print *, 'i_anchor(s_axis_heal=0.09) =', axis_anchor_index(ns), 'expected 10'
+            error stop 'axis_anchor_index mismatch for s_axis_heal=0.09'
         end if
         rho_axis_heal = 0.3_dp
         if (axis_anchor_index(ns) /= 10) then
-            print *, 'i_anchor(rho_heal=0.3) =', axis_anchor_index(ns), 'expected 10'
-            error stop 'axis_anchor_index mismatch for rho_axis_heal=0.3'
+            print *, 'i_anchor(rho_axis_heal=0.3) =', axis_anchor_index(ns), 'expected 10'
+            error stop 'deprecated rho_axis_heal conversion mismatch'
         end if
-        rho_axis_heal = 0.1_dp
+        s_axis_heal = 1.0e-2_dp
+        rho_axis_heal = -1.0_dp
     end subroutine test_anchor_index
 
     !> A harmonic with m>0 must vanish at the magnetic axis (rho=0).
@@ -38,7 +45,8 @@ contains
         integer :: i_anchor
         real(dp) :: arr_in(ns), arr_out(nrho)
 
-        rho_axis_heal = 0.1_dp
+        s_axis_heal = 1.0e-2_dp
+        rho_axis_heal = -1.0_dp
         i_anchor = axis_anchor_index(ns)
         call fill_power_law(2, arr_in)
         call s_to_rho_power_law(2, ns, nrho, i_anchor, arr_in, arr_out)
@@ -57,7 +65,8 @@ contains
         real(dp) :: arr_in(ns), arr_out(nrho)
         real(dp) :: rho, expected, err, max_err
 
-        rho_axis_heal = 0.1_dp
+        s_axis_heal = 1.0e-2_dp
+        rho_axis_heal = -1.0_dp
         i_anchor = axis_anchor_index(ns)
         do im = 1, size(ms)
             m = ms(im)
@@ -83,7 +92,8 @@ contains
         real(dp) :: arr_in(ns), arr_out(nrho)
         real(dp) :: rho, rho_anchor, jump
 
-        rho_axis_heal = 0.1_dp
+        s_axis_heal = 1.0e-2_dp
+        rho_axis_heal = -1.0_dp
         i_anchor = axis_anchor_index(ns)
         rho_anchor = sqrt(real(i_anchor - 1, dp)/real(ns - 1, dp))
         call fill_power_law(2, arr_in)
