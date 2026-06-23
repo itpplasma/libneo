@@ -178,12 +178,12 @@ contains
 
    subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
       use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                    axm, axn, nstrm, axis_healing_polyfit_degree
+                                    axm, nstrm, axis_healing_polyfit_degree
       use vector_potentail_mod, only: ns
 
       real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
       real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
-      integer :: i, m, nrho, nheal, iunit_hs, i_anchor
+      integer :: i, m, nrho, nheal, i_anchor
       character(len=16) :: mode, boundary
 
       nrho = ns
@@ -222,15 +222,12 @@ contains
          end do
 
       case ('legacy', 'legacy_adaptive')
-         iunit_hs = 1357
-         open (iunit_hs, file='healaxis.dat')
          do i = 1, nstrm
             m = nint(abs(axm(i)))
             if (trim(mode) == 'legacy') then
                nheal = min(m, 4)
             else
                call determine_nheal_for_axis(m, ns, rmnc(i, :), nheal)
-               write (iunit_hs, *) 'm = ', m, ' n = ', nint(abs(axn(i))), ' skipped ', nheal, ' / ', ns
             end if
             call s_to_rho_healaxis(m, ns, nrho, nheal, rmnc(i, :), rmnc_rho(i, :))
             call s_to_rho_healaxis(m, ns, nrho, nheal, zmnc(i, :), zmnc_rho(i, :))
@@ -239,7 +236,6 @@ contains
             call s_to_rho_healaxis(m, ns, nrho, nheal, zmns(i, :), zmns_rho(i, :))
             call s_to_rho_healaxis(m, ns, nrho, nheal, almns(i, :), almns_rho(i, :))
          end do
-         close (iunit_hs)
       end select
    end subroutine perform_axis_healing
 
