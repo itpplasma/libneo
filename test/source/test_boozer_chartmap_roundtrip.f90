@@ -9,8 +9,8 @@ program test_boozer_chartmap_roundtrip
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use boozer_coordinates_mod, only: use_B_r
     use new_vmec_stuff_mod, only: nper
-    use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord, &
-                          export_boozer_chartmap, load_boozer_from_chartmap
+    use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord
+    use boozer_chartmap, only: export_boozer_chartmap, load_boozer_from_chartmap
     implicit none
 
     real(dp), parameter :: PI = 3.14159265358979_dp
