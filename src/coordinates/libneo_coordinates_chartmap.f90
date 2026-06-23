@@ -179,6 +179,8 @@ contains
         real(dp), allocatable, intent(out) :: zeta_spl(:)
         real(dp), allocatable, intent(out) :: x2(:, :, :), y2(:, :, :), z2(:, :, :)
 
+        real(dp) :: ca, sa
+
         allocate (zeta_spl(nzeta + 1))
         zeta_spl(1:nzeta) = zeta
         zeta_spl(nzeta + 1) = zeta(1) + zeta_period
@@ -189,8 +191,14 @@ contains
         x2(:, :, 1:nzeta) = x
         y2(:, :, 1:nzeta) = y
         z2(:, :, 1:nzeta) = z
-        x2(:, :, nzeta + 1) = x(:, :, 1)
-        y2(:, :, nzeta + 1) = y(:, :, 1)
+        ! The closing slice one field period ahead is NOT a copy of the first slice:
+        ! the stored quantity is the full Cartesian position, and the device is
+        ! nfp-symmetric, so x(zeta + 2*pi/nfp) = Rot_z(2*pi/nfp) x(zeta). Rotate the
+        ! first slice by one field period; a plain copy puts a 72 deg kink at the seam.
+        ca = cos(zeta_period)
+        sa = sin(zeta_period)
+        x2(:, :, nzeta + 1) = ca*x(:, :, 1) - sa*y(:, :, 1)
+        y2(:, :, nzeta + 1) = sa*x(:, :, 1) + ca*y(:, :, 1)
         z2(:, :, nzeta + 1) = z(:, :, 1)
     end subroutine chartmap_extend_zeta
 
@@ -247,6 +255,8 @@ contains
         real(dp) :: zeta_period
         real(dp) :: u_eval(3)
         real(dp) :: x_min(3), x_max(3)
+        real(dp) :: ang, ca, sa, vx, vy
+        integer :: nper
 
         if (self%has_spl_rz) then
             x_min = self%spl_rz%x_min
@@ -262,7 +272,10 @@ contains
         u_eval(1) = max(x_min(1), min(u_eval(1), x_max(1)))
         u_eval(2) = modulo(u_eval(2) - x_min(2), TWOPI) + x_min(2)
         zeta_period = TWOPI/real(self%num_field_periods, dp)
-        u_eval(3) = modulo(u_eval(3) - x_min(3), zeta_period) + x_min(3)
+        ! nper = how many field periods u(3) lies outside the stored wedge; reduce
+        ! zeta into the wedge and remember nper for the field-period rotation below.
+        nper = floor((u_eval(3) - x_min(3))/zeta_period)
+        u_eval(3) = u_eval(3) - real(nper, dp)*zeta_period
 
         if (self%has_spl_rz) then
             phi = u_eval(3)
@@ -274,6 +287,16 @@ contains
             vals(3) = rz(2)
         else
             call evaluate_batch_splines_3d(self%spl_cart, u_eval, vals)
+            ! The wedge spline holds one field period of full Cartesian (x,y,z); a
+            ! point nper periods out is the wedge position rotated by nper*zeta_period
+            ! about Z. This keeps the forward map continuous across a seam.
+            if (nper /= 0) then
+                ang = real(nper, dp)*zeta_period
+                ca = cos(ang); sa = sin(ang)
+                vx = vals(1); vy = vals(2)
+                vals(1) = ca*vx - sa*vy
+                vals(2) = sa*vx + ca*vy
+            end if
         end if
     end subroutine chartmap_eval_cart
 
@@ -291,6 +314,8 @@ contains
         real(dp) :: zeta_period
         real(dp) :: u_eval(3)
         real(dp) :: x_min(3), x_max(3)
+        real(dp) :: ang, ca, sa, rx, ry
+        integer :: nper, k
 
         if (self%has_spl_rz) then
             x_min = self%spl_rz%x_min
@@ -306,7 +331,8 @@ contains
         u_eval(1) = max(x_min(1), min(u_eval(1), x_max(1)))
         u_eval(2) = modulo(u_eval(2) - x_min(2), TWOPI) + x_min(2)
         zeta_period = TWOPI/real(self%num_field_periods, dp)
-        u_eval(3) = modulo(u_eval(3) - x_min(3), zeta_period) + x_min(3)
+        nper = floor((u_eval(3) - x_min(3))/zeta_period)
+        u_eval(3) = u_eval(3) - real(nper, dp)*zeta_period
 
         if (self%has_spl_rz) then
             phi = u_eval(3)
@@ -339,6 +365,22 @@ contains
             ! the spl_rz branch above; without this the Cartesian Jacobian (and the
             ! metric built from it) is returned transposed for cart-spline charts.
             dvals = transpose(dvals)
+            ! Field-period rotation for out-of-wedge zeta (see chartmap_eval_cart):
+            ! rotate the Cartesian (x,y) of the position and of every basis column by
+            ! nper*zeta_period about Z. The rotation is constant in u, so it applies to
+            ! the value and each derivative column alike.
+            if (nper /= 0) then
+                ang = real(nper, dp)*zeta_period
+                ca = cos(ang); sa = sin(ang)
+                rx = vals(1); ry = vals(2)
+                vals(1) = ca*rx - sa*ry
+                vals(2) = sa*rx + ca*ry
+                do k = 1, 3
+                    rx = dvals(1, k); ry = dvals(2, k)
+                    dvals(1, k) = ca*rx - sa*ry
+                    dvals(2, k) = sa*rx + ca*ry
+                end do
+            end if
         end if
     end subroutine chartmap_eval_cart_der
 
@@ -493,7 +535,11 @@ contains
             call chartmap_extend_theta(nrho, ntheta, nzeta, theta, x, y, z, theta_spl, &
                                        x_th, y_th, z_th)
 
-            periodic_cart(3) = .true.
+            ! Cartesian (x,y,z) are periodic in zeta only up to the field-period
+            ! rotation (chartmap_extend_zeta stores the rotated closing slice), so the
+            ! spline is NOT naively periodic in zeta; the eval applies the rotation for
+            ! out-of-wedge zeta. theta stays periodic.
+            periodic_cart(3) = .false.
             call chartmap_extend_zeta(nrho, ntheta + 1, nzeta, zeta, zeta_period, &
                                       x_th, y_th, z_th, zeta_spl, x_spl, y_spl, z_spl)
 
