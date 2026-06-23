@@ -4,7 +4,7 @@ program test_chartmap_coordinates
                                   make_chartmap_coordinate_system, &
                                   chartmap_coordinate_system_t
     use math_constants, only: TWOPI
-    use nctools_module, only: nc_close, nc_get, nc_inq_dim, nc_open
+    use nctools_module, only: nc_close, nc_get, nc_open
     use netcdf
     implicit none
 

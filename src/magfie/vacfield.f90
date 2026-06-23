@@ -4,7 +4,7 @@ program vacfield
   use ieee_arithmetic, only: ieee_value, ieee_quiet_nan
   use hdf5_tools, only: h5_init, h5_deinit, h5overwrite
   use math_constants, only: current_si_to_cgs, C
-  use coil_tools, only: coil_t, coil_init, coil_deinit, coils_append, &
+  use coil_tools, only: coil_t, coil_deinit, coils_append, &
     process_fixed_number_of_args, check_number_of_args, &
     coils_read_AUG, coils_read_nemov, coils_read_GPEC, &
     read_currents, biot_savart_sum_coils, write_Bvac_nemov, &
