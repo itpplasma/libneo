@@ -57,7 +57,7 @@ contains
         real(dp) :: dBmod(3), d2Bmod(6), dB_r(3), d2B_r(6)
         real(dp) :: dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
         real(dp) :: dl_ds, dl_dt, dl_dp
-        real(dp) :: R_axis, Z_axis, phi_V0, axis_geom_err, bmod_axis
+        real(dp) :: R_axis, Z_axis, phi_V0, axis_geom_err, bmod_axis, axis_pos_scale
         ! Chartmap now reaches the exact magnetic axis (rho=0, s=0). The axis is
         ! the m=0 limit: theta-independent geometry from the exact VMEC axis
         ! curve raxis_cc/zaxis_cs (no flux surface exists at s=0). boozer_to_vmec
@@ -126,6 +126,7 @@ contains
         ! full-period grid), leaving phi_V0 to O(rho**2). The axis position is
         ! the exact VMEC axis curve, identical for every theta -> regular at rho=0.
         axis_geom_err = 0.0_dp
+        axis_pos_scale = 0.0_dp
         do i_phi = 1, n_phi_out
             phi_B = zeta_arr(i_phi)
             phi_V0 = 0.0_dp
@@ -148,6 +149,7 @@ contains
                                   R, Zval, alam, dR_ds, dR_dt, dR_dp, &
                                   dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
             axis_geom_err = max(axis_geom_err, abs(R - R_axis) + abs(Zval - Z_axis))
+            axis_pos_scale = max(axis_pos_scale, abs(R_axis) + abs(Z_axis))
         end do
 
         ! Interior (rho>0): Boozer angles -> VMEC angles -> VMEC geometry.
@@ -171,6 +173,18 @@ contains
         end do
         print *, 'export_boozer_chartmap: axis vs VMEC m=0 limit max|dR|+|dZ| =', &
             axis_geom_err
+        ! Gross-mismatch gate: a wrong axis sign/convention (a flipped Z gives an
+        ! error of order the axis magnitude itself, ratio ~0.5-1) writes a chartmap
+        ! whose innermost surface does not meet the interior. Abort on that. The
+        ! residual of a legitimate healing stays orders of magnitude below 1% of the
+        ! axis scale (anchored ~1e-7 cm, legacy ~1e-1 cm on a ~1e2 cm axis = ~1e-3),
+        ! so 1% catches a convention regression without rejecting any valid mode.
+        if (axis_geom_err > 1.0e-2_dp*max(axis_pos_scale, 1.0e-30_dp)) then
+            print *, 'export_boozer_chartmap: s=0 axis disagrees with the VMEC m=0 ', &
+                'limit by', axis_geom_err, 'vs position scale', axis_pos_scale, &
+                '-- wrong axis convention or healing mode'
+            error stop 'export_boozer_chartmap: axis geometry gate failed'
+        end if
 
         ! Bmod axis slice (rho=0): theta-independent m=0 axis field strength,
         ! the theta-average at s_axis_eval (the m=1 mean is zero on the grid).
@@ -318,6 +332,8 @@ contains
             real(dp), intent(out) :: R_axis_out, Z_axis_out
             integer :: nm
             real(dp) :: ang
+            if (ntor_axis >= 0 .and. .not. allocated(raxis_cc)) &
+                error stop 'eval_vmec_axis: raxis_cc not allocated for ntor_axis >= 0'
             R_axis_out = 0.0_dp
             Z_axis_out = 0.0_dp
             ! VMEC convention R = sum rmnc cos(m u - n v), Z = sum zmns sin(m u - n v).

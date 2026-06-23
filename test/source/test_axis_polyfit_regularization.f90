@@ -20,6 +20,7 @@ program test_axis_polyfit_regularization
     call test_zernike_reproduction()
     call test_anchor_continuity()
     call test_no_noise_oscillation()
+    call test_axis_anchor_pinning()
 
     print *, 'axis polyfit regularization: all checks passed'
 
@@ -114,6 +115,38 @@ contains
             error stop 'polyfit continuation oscillates near the axis'
         end if
     end subroutine test_no_noise_oscillation
+
+    !> The m=0 axis pin: with an explicit anchor, s_to_rho_polyfit forces the
+    !> healed amplitude at rho=0 to equal the supplied axis value (raxis_cc /
+    !> zaxis_cs in production), regardless of what the bare polyfit extrapolates.
+    !> For m/=0 the anchor is ignored (the amplitude still vanishes at the axis).
+    subroutine test_axis_anchor_pinning()
+        integer :: i_anchor
+        real(dp) :: arr_in(ns), arr_out(nrho), arr_ref(nrho), anchor
+        i_anchor = axis_anchor_index(ns)
+
+        ! m=0: the bare polyfit yields some axis value; pin it to a different one.
+        call fill_zernike(0, arr_in)
+        call s_to_rho_polyfit(0, ns, nrho, i_anchor, ndeg, arr_in, arr_ref)
+        anchor = arr_ref(1) + 0.3_dp
+        call s_to_rho_polyfit(0, ns, nrho, i_anchor, ndeg, arr_in, arr_out, anchor=anchor)
+        if (abs(arr_out(1) - anchor) > 1.0e-12_dp) then
+            print *, 'arr_out(1) =', arr_out(1), ' anchor =', anchor
+            error stop 'm=0 anchor not pinned at rho=0'
+        end if
+        ! The pin must actually move the axis value, not silently no-op.
+        if (abs(arr_out(1) - arr_ref(1)) < 1.0e-3_dp) then
+            error stop 'anchor had no effect on the axis value'
+        end if
+
+        ! m/=0: the anchor must be ignored; the amplitude still vanishes at rho=0.
+        call fill_zernike(2, arr_in)
+        call s_to_rho_polyfit(2, ns, nrho, i_anchor, ndeg, arr_in, arr_out, anchor=anchor)
+        if (abs(arr_out(1)) > 1.0e-13_dp) then
+            print *, 'm=2 arr_out(1) with anchor =', arr_out(1)
+            error stop 'anchor wrongly applied to m/=0 harmonic'
+        end if
+    end subroutine test_axis_anchor_pinning
 
     subroutine fill_zernike(m, arr_in)
         integer, intent(in) :: m
