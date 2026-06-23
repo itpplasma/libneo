@@ -20,11 +20,18 @@ program test_boozer_converter_vs_simple
     ! 1e-10 absorbs that cross-platform FP noise without loosening the
     ! relative bound the large quantities meet.
     real(dp), parameter :: reltol = 1.0e-6_dp, abstol = 1.0e-10_dp
+    ! sqrt(g^ss) comes back from the field3d spline (the use_B_r quantity). The
+    ! cross-check evaluates the VMEC metric at the Boozer->VMEC back-mapped angles,
+    ! so the gap carries both the spline and the angle-map interpolation error at
+    ! this coarse grid_refinment=3 grid (~1e-2). 2e-2 confirms it is the right
+    ! quantity without pinning that grid-resolution floor.
+    real(dp), parameter :: reltol_gss = 2.0e-2_dp
     character(len=*), parameter :: wout_file = "wout.nc"
 
     integer, parameter :: n_cases = 5
     real(dp) :: stor(n_cases), theta(n_cases), phi(n_cases)
     real(dp) :: bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
+    real(dp) :: sqrt_g_ss_B, sqrt_g_ss_ref
     real(dp) :: bmod_ref(n_cases), sqrtg_ref(n_cases)
     real(dp) :: bder_ref(n_cases, 3), hcovar_ref(n_cases, 3)
     real(dp) :: hctrvr_ref(n_cases, 3), hcurl_ref(n_cases, 3)
@@ -74,13 +81,24 @@ program test_boozer_converter_vs_simple
     test_failed = .false.
     do case = 1, n_cases
         call evaluate_boozer(stor(case), theta(case), phi(case), &
-                             bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+                             bmod, sqrtg, bder, hcovar, hctrvr, hcurl, sqrt_g_ss_B)
         call check("bmod", case, [bmod], [bmod_ref(case)], test_failed)
         call check("sqrtg", case, [sqrtg], [sqrtg_ref(case)], test_failed)
         call check("bder", case, bder, bder_ref(case, :), test_failed)
         call check("hcovar", case, hcovar, hcovar_ref(case, :), test_failed)
         call check("hctrvr", case, hctrvr, hctrvr_ref(case, :), test_failed)
         call check("hcurl", case, hcurl, hcurl_ref(case, :), test_failed)
+
+        ! sqrt(g^ss) is exposed only on the use_B_r path; cross-check it against
+        ! the VMEC metric evaluated at the back-mapped VMEC angles.
+        sqrt_g_ss_ref = metric_nabla_s(stor(case), theta(case), phi(case))
+        if (abs(sqrt_g_ss_B - sqrt_g_ss_ref) > reltol_gss*abs(sqrt_g_ss_ref)) then
+            print *, "---------------------------------------------------"
+            print *, "mismatch in sqrt_g_ss case ", case
+            print *, "spline : ", sqrt_g_ss_B
+            print *, "metric : ", sqrt_g_ss_ref
+            test_failed = .true.
+        end if
     end do
 
     if (test_failed) error stop "boozer converter differs from SIMPLE reference"
@@ -91,9 +109,10 @@ contains
     !> Assemble |B|, sqrt(g) and field components from splint_boozer_coord,
     !> following the SIMPLE/rabe Boozer field convention, in native CGS units.
     subroutine evaluate_boozer(s, vartheta_B, varphi_B, &
-                               bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+                               bmod, sqrtg, bder, hcovar, hctrvr, hcurl, sqrt_g_ss_B)
         real(dp), intent(in) :: s, vartheta_B, varphi_B
         real(dp), intent(out) :: bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), intent(out) :: sqrt_g_ss_B
 
         real(dp) :: A_theta, A_phi, dA_theta_dr, dA_phi_dr, d2A_phi_dr2, d3A_phi_dr3
         real(dp) :: B_vartheta_B, dB_vartheta_B, d2B_vartheta_B
@@ -109,7 +128,7 @@ contains
                                  B_vartheta_B, dB_vartheta_B, d2B_vartheta_B, &
                                  B_varphi_B, dB_varphi_B, d2B_varphi_B, &
                                  Bmod_B, dBmod_B, d2Bmod_B, &
-                                 B_r, dB_r, d2B_r)
+                                 B_r, dB_r, d2B_r, sqrt_g_ss_B)
 
         aiota = -dA_phi_dr/dA_theta_dr
         bmod = Bmod_B
@@ -126,6 +145,29 @@ contains
         hcurl(2) = (B_varphi_B*bder(1) - B_r*bder(3) + dB_r(3) - dB_varphi_B)/sqrtgbmod
         hcurl(3) = (B_r*bder(2) - B_vartheta_B*bder(1) + dB_vartheta_B - dB_r(2))/sqrtgbmod
     end subroutine evaluate_boozer
+
+    !> Reference |nabla s| = sqrt(g^ss) from the VMEC metric, independent of the
+    !> Boozer field3d spline: back-map the Boozer angles to VMEC and evaluate.
+    function metric_nabla_s(s, vartheta_B, varphi_B) result(sqrt_g_ss)
+        use boozer_sub, only: boozer_to_vmec
+        use spline_vmec_sub, only: splint_vmec_data, metric_tensor_vmec
+        real(dp), intent(in) :: s, vartheta_B, varphi_B
+        real(dp) :: sqrt_g_ss
+
+        real(dp) :: theta_V, varphi_V, dummy(10)
+        real(dp) :: R, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
+        real(dp) :: g_vmec(3, 3), sqrt_g_vmec
+
+        call boozer_to_vmec(s, vartheta_B, varphi_B, theta_V, varphi_V)
+        call splint_vmec_data(s, theta_V, varphi_V, &
+                              dummy(1), dummy(2), dummy(3), dummy(4), dummy(5), &
+                              R, dummy(6), dummy(7), &
+                              dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp, &
+                              dummy(8), dummy(9), dummy(10))
+        call metric_tensor_vmec(R, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp, &
+                                g_vmec, sqrt_g_vmec)
+        sqrt_g_ss = sqrt(g_vmec(2, 2)*g_vmec(3, 3) - g_vmec(2, 3)**2)/abs(sqrt_g_vmec)
+    end function metric_nabla_s
 
     subroutine check(name, case, val, ref, test_failed)
         character(len=*), intent(in) :: name
