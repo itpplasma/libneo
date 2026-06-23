@@ -178,12 +178,14 @@ contains
 
    subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
       use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                    axm, nstrm, axis_healing_polyfit_degree
+                                    axm, axn, nstrm, nper, axis_healing_polyfit_degree, &
+                                    raxis_cc, zaxis_cs, raxis_cs, zaxis_cc, ntor_axis
       use vector_potentail_mod, only: ns
 
       real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
       real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
-      integer :: i, m, nrho, nheal, i_anchor
+      integer :: i, m, nrho, nheal, i_anchor, n_idx
+      real(dp) :: anc_rc, anc_zs, anc_rs, anc_zc
       character(len=16) :: mode, boundary
 
       nrho = ns
@@ -199,11 +201,21 @@ contains
             dble(i_anchor - 1)/dble(ns - 1), ' degree ', axis_healing_polyfit_degree
          do i = 1, nstrm
             m = nint(abs(axm(i)))
-            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, rmnc(i, :), rmnc_rho(i, :))
-            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, zmnc(i, :), zmnc_rho(i, :))
+            ! Pin the m=0 geometry amplitudes to the exact magnetic axis
+            ! (raxis_cc/zaxis_cs); lambda has no axis value, m/=0 ignores it.
+            anc_rc = 0.0d0; anc_zs = 0.0d0; anc_rs = 0.0d0; anc_zc = 0.0d0
+            if (m == 0 .and. allocated(raxis_cc)) then
+               n_idx = nint(axn(i))/nper
+               if (n_idx >= 0 .and. n_idx <= ntor_axis) then
+                  anc_rc = raxis_cc(n_idx); anc_zs = zaxis_cs(n_idx)
+                  anc_rs = raxis_cs(n_idx); anc_zc = zaxis_cc(n_idx)
+               end if
+            end if
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, rmnc(i, :), rmnc_rho(i, :), anchor=anc_rc)
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, zmnc(i, :), zmnc_rho(i, :), anchor=anc_zc)
             call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, almnc(i, :), almnc_rho(i, :))
-            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, rmns(i, :), rmns_rho(i, :))
-            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, zmns(i, :), zmns_rho(i, :))
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, rmns(i, :), rmns_rho(i, :), anchor=anc_rs)
+            call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, zmns(i, :), zmns_rho(i, :), anchor=anc_zs)
             call s_to_rho_polyfit(m, ns, nrho, i_anchor, axis_healing_polyfit_degree, almns(i, :), almns_rho(i, :))
          end do
 
@@ -1405,7 +1417,7 @@ contains
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-   subroutine s_to_rho_polyfit(m, ns, nrho, i_anchor, ndeg, arr_in, arr_out)
+   subroutine s_to_rho_polyfit(m, ns, nrho, i_anchor, ndeg, arr_in, arr_out, anchor)
       !> Resamples one Fourier amplitude from the uniform s grid to the uniform
       !> rho = sqrt(s) grid, enforcing analytic axis regularity without the noise
       !> amplification of the pure power-law continuation. The rescaled amplitude
@@ -1421,10 +1433,14 @@ contains
       integer, intent(in) :: m, ns, nrho, i_anchor, ndeg
       real(dp), dimension(ns), intent(in) :: arr_in
       real(dp), dimension(nrho), intent(out) :: arr_out
+      !> anchor: exact s=0 value of the m=0 amplitude (the magnetic axis,
+      !> raxis_cc/zaxis_cs). When present and m=0, the inward extrapolation is
+      !> pinned to it so the healed interior meets the exact axis with no kink.
+      real(dp), intent(in), optional :: anchor
 
       integer, parameter :: m_clamp = 50
       integer :: irho, is, k, mc, nwin, d, j
-      real(dp) :: hs, hrho, s, ds, rho, u, s_c, s_scale
+      real(dp) :: hs, hrho, s, ds, rho, u, s_c, s_scale, s_anchor, delta
       real(dp), dimension(:), allocatable :: g, swin, gwin, coef
       real(dp), dimension(:, :), allocatable :: splcoe
 
@@ -1460,6 +1476,18 @@ contains
             g(is) = coef(k) + u*g(is)
          end do
       end do
+
+      ! Pin the m=0 axis amplitude to the exact magnetic axis value, blended
+      ! smoothly (vanishes at the reliable-window edge i_anchor) so the healed
+      ! interior reaches the exact axis at s=0 with no kink.
+      if (mc == 0 .and. present(anchor) .and. i_anchor > 1) then
+         s_anchor = hs*dble(i_anchor - 1)
+         delta = anchor - g(1)
+         do is = 1, i_anchor - 1
+            s = hs*dble(is - 1)
+            g(is) = g(is) + delta*(1.0_dp - s/s_anchor)**2
+         end do
+      end if
 
       allocate (splcoe(0:ns_s, ns))
       splcoe(0, :) = g
