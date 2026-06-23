@@ -8,14 +8,13 @@ module boozer_sub
                            evaluate_batch_splines_3d_der2, &
                            evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
-    use field_base, only: magnetic_field_t
     use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
     private
 
     ! Public API
-    public :: get_boozer_coordinates, get_boozer_coordinates_with_field
+    public :: get_boozer_coordinates
     public :: splint_boozer_coord
     public :: reset_boozer_batch_splines
     public :: vmec_to_boozer, boozer_to_vmec
@@ -29,10 +28,6 @@ module boozer_sub
     real(dp), parameter :: TWOPI = 2.0_dp*3.14159265358979_dp
     integer, parameter :: MAX_FIELD3D_QUANTITIES = 3
 
-    ! Field object for the get_boozer_coordinates_with_field entry. The no-arg
-    ! get_boozer_coordinates leaves this unallocated so the global-VMEC path
-    ! (vmec_field_evaluate) stays byte-identical.
-    class(magnetic_field_t), allocatable, save :: current_field
 
     ! Device-accessible Boozer runtime state shared by host and OpenACC code.
     ! sync_boozer_state copies the libneo globals into this object so that
@@ -83,19 +78,15 @@ contains
                                       grid_refinment)
         use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm
         use spline_vmec_sub, only: spline_vmec_data
-        use field_vmec, only: vmec_field_t, create_vmec_field
 
         character(len=*), intent(in), optional :: vmec_file
         integer, intent(in), optional :: radial_spline_order, angular_spline_order, grid_refinment
 
-        type(vmec_field_t) :: vfield
-
         if (.not. present(vmec_file)) then
             ! No-argument entry: VMEC is assumed already splined by the caller.
-            ! Dispatch through a VMEC field object so the field-object path is used,
-            ! matching the historical SIMPLE no-arg get_boozer_coordinates.
-            call create_vmec_field(vfield)
-            call get_boozer_coordinates_with_field(vfield)
+            call reset_boozer_batch_splines()
+            call get_boozer_coordinates_impl()
+            call sync_boozer_state()
             return
         end if
 
@@ -123,32 +114,11 @@ contains
 
         call spline_vmec_data()
 
-        ! No-arg entry uses the global VMEC path: current_field stays
-        ! unallocated so compute_boozer_data is byte-identical.
-        if (allocated(current_field)) deallocate (current_field)
-
         call reset_boozer_batch_splines()
         call get_boozer_coordinates_impl()
         call sync_boozer_state()
 
     end subroutine get_boozer_coordinates
-
-    !> Initialize Boozer coordinates using a given magnetic field object.
-    !> Clones the field into the module variable current_field; compute_boozer_data
-    !> then dispatches its evaluation through vmec_field_evaluate_with_field.
-    subroutine get_boozer_coordinates_with_field(field)
-        class(magnetic_field_t), intent(in) :: field
-
-        ! Sourced allocation clones the dynamic type of field. nvfortran has a
-        ! known sourced-allocation caveat for polymorphic copies (SIMPLE issue 273).
-        if (allocated(current_field)) deallocate (current_field)
-        allocate (current_field, source=field)
-
-        call reset_boozer_batch_splines()
-        call get_boozer_coordinates_impl()
-        call sync_boozer_state()
-
-    end subroutine get_boozer_coordinates_with_field
 
     !> Copy scalar Boozer field parameters and the field3d quantity count from
     !> the libneo modules into the shared runtime state. Host-only; call after
@@ -718,7 +688,6 @@ contains
         use binsrc_sub, only: binsrc
         use plag_coeff_sub, only: plag_coeff
         use spline_vmec_sub
-        use vmec_field_eval, only: vmec_field_evaluate_with_field
 
         implicit none
 
@@ -839,30 +808,15 @@ contains
                 do i_phi = 1, n_phi_B
                     varphi = real(i_phi - 1, dp)*h_phi_B
 
-                    if (allocated(current_field)) then
-                        call vmec_field_evaluate_with_field(current_field, &
-                                                            s, theta, varphi, &
-                                                            A_theta, A_phi, &
-                                                            dA_theta_ds, &
-                                                            dA_phi_ds, aiota, &
-                                                            sqg, alam, dl_ds, &
-                                                            dl_dt, dl_dp, &
-                                                            Bctrvr_vartheta, &
-                                                            Bctrvr_varphi, &
-                                                            Bcovar_r, &
-                                                            Bcovar_vartheta, &
-                                                            Bcovar_varphi)
-                    else
-                        call vmec_field_evaluate(s, theta, varphi, &
-                                                 A_theta, A_phi, dA_theta_ds, &
-                                                 dA_phi_ds, aiota, &
-                                                 sqg, alam, dl_ds, &
-                                                 dl_dt, dl_dp, &
-                                                 Bctrvr_vartheta, &
-                                                 Bctrvr_varphi, &
-                                                 Bcovar_r, Bcovar_vartheta, &
-                                                 Bcovar_varphi)
-                    end if
+                    call vmec_field_evaluate(s, theta, varphi, &
+                                             A_theta, A_phi, dA_theta_ds, &
+                                             dA_phi_ds, aiota, &
+                                             sqg, alam, dl_ds, &
+                                             dl_dt, dl_dp, &
+                                             Bctrvr_vartheta, &
+                                             Bctrvr_varphi, &
+                                             Bcovar_r, Bcovar_vartheta, &
+                                             Bcovar_varphi)
 
                     alam_2D(i_theta, i_phi) = alam
                     bmod_Vg(i_theta, i_phi) = &
