@@ -747,7 +747,7 @@ contains
         logical, intent(in) :: trace
 
         real(dp) :: delta(3)
-        real(dp) :: rho_new, theta_new, zeta_new
+        real(dp) :: xw, yw, xw_new, yw_new, zeta_new
         real(dp) :: res_norm, res_norm_new
         real(dp) :: tol_res, tol_step
         real(dp) :: step_norm
@@ -755,78 +755,134 @@ contains
         integer :: iter
         logical :: success
 
+        ! Iterate in the pseudo-Cartesian chart (X, Y) = (rho cos theta,
+        ! rho sin theta), not polar (rho, theta). The polar Gauss-Newton is singular
+        ! at the magnetic axis: the poloidal column dx/dtheta ~ rho, so the
+        ! normal-matrix entry |dx/dtheta|^2 -> 0 and the step stalls (err_max_iter)
+        ! for any orbit whose particle reaches rho -> 0. (X, Y) carries the same
+        ! information with a Jacobian regular through rho = 0 (the standard near-axis
+        ! chart, cf. flux_pseudocartesian and Pfefferle et al. arXiv:1412.5464).
         ierr = chartmap_from_cyl_ok
         zeta_period = TWOPI/real(self%num_field_periods, dp)
         zeta = modulo(zeta, zeta_period)
         tol_res = max(1.0e-10_dp, self%tol_newton)
         tol_step = max(1.0e-10_dp, self%tol_newton)
+        xw = rho*cos(theta)
+        yw = rho*sin(theta)
         do iter = 1, 60
-            call chartmap_newton_delta_cart(self, x_target, rho, theta, zeta, delta, &
-                                            res_norm, ierr)
-            if (ierr /= chartmap_from_cyl_ok) return
-            if (res_norm < tol_res) return
+            call chartmap_newton_delta_xy(self, x_target, xw, yw, zeta, delta, &
+                                          res_norm, ierr)
+            if (ierr /= chartmap_from_cyl_ok) exit
+            if (res_norm < tol_res) exit
             step_norm = sqrt(sum(delta**2))
             if (step_norm < tol_step) then
                 ierr = chartmap_from_cyl_err_max_iter
-                return
+                exit
             end if
-            call chartmap_line_search_cart(self, x_target, rho, theta, zeta, &
-                                           zeta_period, &
-                                           delta, res_norm, rho_new, theta_new, &
-                                           zeta_new, &
-                                           res_norm_new, success)
+            call chartmap_line_search_xy(self, x_target, xw, yw, zeta, &
+                                         zeta_period, delta, res_norm, xw_new, &
+                                         yw_new, zeta_new, res_norm_new, success)
             if (.not. success) then
                 ierr = chartmap_from_cyl_err_max_iter
-                return
+                exit
             end if
             if (trace) print *, "chartmap_from_cart iter=", iter, " res=", res_norm, &
                 " step=", step_norm
-            rho = rho_new
-            theta = theta_new
+            xw = xw_new
+            yw = yw_new
             zeta = zeta_new
+            if (iter == 60) ierr = chartmap_from_cyl_err_max_iter
         end do
-        ierr = chartmap_from_cyl_err_max_iter
+        rho = sqrt(xw**2 + yw**2)
+        theta = modulo(atan2(yw, xw), TWOPI)
     end subroutine chartmap_solve_cart
 
-    subroutine chartmap_newton_delta_cart(self, x_target, rho, theta, zeta, delta, &
-                                          res_norm, ierr)
+    ! Gauss-Newton step in the pseudo-Cartesian chart (X, Y, zeta). The Cartesian
+    ! partials dx/dX, dx/dY come from the polar partials by the chain rule of
+    ! X = rho cos theta, Y = rho sin theta: dx/dX = cos theta dx/drho
+    ! - (sin theta / rho) dx/dtheta, dx/dY = sin theta dx/drho
+    ! + (cos theta / rho) dx/dtheta. dx/dtheta ~ rho cancels the 1/rho, so both
+    ! columns stay finite at the axis.
+    subroutine chartmap_newton_delta_xy(self, x_target, xw, yw, zeta, delta, &
+                                        res_norm, ierr)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: x_target(3)
-        real(dp), intent(in) :: rho
-        real(dp), intent(in) :: theta
-        real(dp), intent(in) :: zeta
+        real(dp), intent(in) :: xw, yw, zeta
         real(dp), intent(out) :: delta(3)
         real(dp), intent(out) :: res_norm
         integer, intent(out) :: ierr
 
-        real(dp) :: residual(3)
-        real(dp) :: dx_drho(3), dx_dtheta(3), dx_dzeta(3)
+        real(dp) :: rho, theta, cth, sth, rsafe
+        real(dp) :: residual(3), dx_drho(3), dx_dtheta(3), dx_dzeta(3)
+        real(dp) :: dx_dxw(3), dx_dyw(3)
         real(dp) :: jtj(3, 3), jtr(3)
 
-        ierr = chartmap_from_cyl_ok
-        delta = 0.0_dp
+        rho = sqrt(xw**2 + yw**2)
+        theta = atan2(yw, xw)
+        call chartmap_eval_residual_and_partials_cart(self, x_target, rho, theta, &
+                                                      zeta, residual, res_norm, &
+                                                      dx_drho, dx_dtheta, dx_dzeta)
+        rsafe = max(rho, 1.0e-30_dp)
+        cth = xw/rsafe
+        sth = yw/rsafe
+        dx_dxw = cth*dx_drho - (sth/rsafe)*dx_dtheta
+        dx_dyw = sth*dx_drho + (cth/rsafe)*dx_dtheta
 
-        call chartmap_eval_residual_and_partials_cart(self, x_target, rho, &
-                                                      theta, zeta, &
-                                                      residual, res_norm, dx_drho, &
-                                                      dx_dtheta, dx_dzeta)
-
-        jtj(1, 1) = dot_product(dx_drho, dx_drho)
-        jtj(1, 2) = dot_product(dx_drho, dx_dtheta)
-        jtj(1, 3) = dot_product(dx_drho, dx_dzeta)
+        jtj(1, 1) = dot_product(dx_dxw, dx_dxw)
+        jtj(1, 2) = dot_product(dx_dxw, dx_dyw)
+        jtj(1, 3) = dot_product(dx_dxw, dx_dzeta)
         jtj(2, 1) = jtj(1, 2)
-        jtj(2, 2) = dot_product(dx_dtheta, dx_dtheta)
-        jtj(2, 3) = dot_product(dx_dtheta, dx_dzeta)
+        jtj(2, 2) = dot_product(dx_dyw, dx_dyw)
+        jtj(2, 3) = dot_product(dx_dyw, dx_dzeta)
         jtj(3, 1) = jtj(1, 3)
         jtj(3, 2) = jtj(2, 3)
         jtj(3, 3) = dot_product(dx_dzeta, dx_dzeta)
 
-        jtr(1) = dot_product(dx_drho, residual)
-        jtr(2) = dot_product(dx_dtheta, residual)
+        jtr(1) = dot_product(dx_dxw, residual)
+        jtr(2) = dot_product(dx_dyw, residual)
         jtr(3) = dot_product(dx_dzeta, residual)
 
         call chartmap_solve_normal_eq3(jtj, jtr, delta, ierr)
-    end subroutine chartmap_newton_delta_cart
+    end subroutine chartmap_newton_delta_xy
+
+    ! Backtracking line search in (X, Y, zeta). rho = sqrt(X^2 + Y^2) >= 0 is
+    ! automatic, so only the outer bound needs a guard.
+    subroutine chartmap_line_search_xy(self, x_target, xw, yw, zeta, zeta_period, &
+                                       delta, res_norm, xw_new, yw_new, zeta_new, &
+                                       res_norm_new, success)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x_target(3)
+        real(dp), intent(in) :: xw, yw, zeta, zeta_period
+        real(dp), intent(in) :: delta(3), res_norm
+        real(dp), intent(out) :: xw_new, yw_new, zeta_new, res_norm_new
+        logical, intent(out) :: success
+
+        real(dp) :: alpha, rho_t, theta_t, uvec(3), x_trial(3)
+        integer :: k
+
+        success = .false.
+        xw_new = xw; yw_new = yw; zeta_new = zeta; res_norm_new = res_norm
+        alpha = 1.0_dp
+        do k = 1, 12
+            xw_new = xw + alpha*delta(1)
+            yw_new = yw + alpha*delta(2)
+            rho_t = sqrt(xw_new**2 + yw_new**2)
+            if (rho_t > 1.02_dp) then
+                alpha = 0.5_dp*alpha
+                cycle
+            end if
+            theta_t = atan2(yw_new, xw_new)
+            zeta_new = modulo(zeta + alpha*delta(3), zeta_period)
+            uvec = [rho_t, theta_t, zeta_new]
+            call chartmap_eval_cart(self, uvec, x_trial)
+            res_norm_new = sqrt(sum((x_target - x_trial)**2))
+            if (res_norm_new < res_norm) then
+                success = .true.
+                return
+            end if
+            alpha = 0.5_dp*alpha
+        end do
+    end subroutine chartmap_line_search_xy
 
     subroutine chartmap_eval_residual_and_partials_cart(self, x_target, rho, &
                                                         theta, zeta, &
@@ -938,57 +994,6 @@ contains
         end do
         x = b
     end subroutine chartmap_solve_3x3
-
-    subroutine chartmap_line_search_cart(self, x_target, rho, theta, zeta, &
-                                         zeta_period, &
-                                         delta, res_norm, rho_new, theta_new, &
-                                         zeta_new, &
-                                         res_norm_new, success)
-        class(chartmap_coordinate_system_t), intent(in) :: self
-        real(dp), intent(in) :: x_target(3)
-        real(dp), intent(in) :: rho
-        real(dp), intent(in) :: theta
-        real(dp), intent(in) :: zeta
-        real(dp), intent(in) :: zeta_period
-        real(dp), intent(in) :: delta(3)
-        real(dp), intent(in) :: res_norm
-        real(dp), intent(out) :: rho_new
-        real(dp), intent(out) :: theta_new
-        real(dp), intent(out) :: zeta_new
-        real(dp), intent(out) :: res_norm_new
-        logical, intent(out) :: success
-
-        real(dp) :: alpha
-        real(dp) :: uvec(3)
-        real(dp) :: x_trial(3)
-        real(dp) :: residual(3)
-        integer :: k
-
-        success = .false.; rho_new = rho; theta_new = theta; zeta_new = zeta
-        res_norm_new = res_norm
-        alpha = 1.0_dp
-        do k = 1, 12
-            rho_new = rho + alpha*delta(1)
-            if (rho_new < -0.02_dp .or. rho_new > 1.02_dp) then
-                alpha = 0.5_dp*alpha
-                cycle
-            end if
-
-            theta_new = modulo(theta + alpha*delta(2), TWOPI)
-            zeta_new = modulo(zeta + alpha*delta(3), zeta_period)
-            uvec = [rho_new, theta_new, zeta_new]
-            call chartmap_eval_cart(self, uvec, x_trial)
-            residual = x_target - x_trial
-            res_norm_new = sqrt(sum(residual**2))
-
-            if (res_norm_new < res_norm) then
-                success = .true.
-                return
-            end if
-
-            alpha = 0.5_dp*alpha
-        end do
-    end subroutine chartmap_line_search_cart
 
     subroutine chartmap_initial_guess(self, x_target, zeta, rho, theta, ierr)
         class(chartmap_coordinate_system_t), intent(in) :: self
