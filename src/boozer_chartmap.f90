@@ -34,7 +34,7 @@ contains
         !> get_boozer_coordinates() and while VMEC splines are still active
         !> (needed for X, Y, Z geometry evaluation).
         use vector_potentail_mod, only: torflux
-        use new_vmec_stuff_mod, only: nper
+        use new_vmec_stuff_mod, only: nper, raxis_cc, zaxis_cs, ntor_axis
         use boozer_coordinates_mod, only: ns_B, n_theta_B, n_phi_B, &
                                           h_theta_B, h_phi_B
         use spline_vmec_sub, only: splint_vmec_data
@@ -49,16 +49,23 @@ contains
         integer :: var_aphi, var_btheta, var_bphi, var_bmod, var_nfp
         integer :: i_rho, i_theta, i_phi
         integer :: n_theta_out, n_phi_out
-        real(dp) :: rho_tor, s, theta_B, phi_B, theta_V, phi_V
+        real(dp) :: s, theta_B, phi_B, theta_V, phi_V
         real(dp) :: R, Zval, alam
         real(dp) :: A_phi_dum, A_theta_dum, dA_phi_ds, dA_theta_ds, aiota
         real(dp) :: d2A_phi_ds2, d3A_phi_ds3, B_theta_val, B_phi_val
         real(dp) :: dB_theta, d2B_theta, dB_phi, d2B_phi, Bmod_val, B_r_val
-        real(dp) :: sqrt_g_ss_val
         real(dp) :: dBmod(3), d2Bmod(6), dB_r(3), d2B_r(6)
         real(dp) :: dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
         real(dp) :: dl_ds, dl_dt, dl_dp
-        real(dp), parameter :: rho_min = sqrt(1.0e-6_dp)
+        real(dp) :: R_axis, Z_axis, phi_V0, axis_geom_err, bmod_axis
+        ! Chartmap now reaches the exact magnetic axis (rho=0, s=0). The axis is
+        ! the m=0 limit: theta-independent geometry from the exact VMEC axis
+        ! curve raxis_cc/zaxis_cs (no flux surface exists at s=0). boozer_to_vmec
+        ! and splint_boozer_coord are singular at s=0, so the toroidal angle and
+        ! the field profiles are taken at the regular limit s_axis_eval (the
+        ! Boozer-data spline floor), while the axis position is exact.
+        real(dp), parameter :: rho_min = 0.0_dp
+        real(dp), parameter :: s_axis_eval = 1.0e-6_dp
         real(dp), allocatable :: rho_arr(:), s_arr(:), theta_arr(:), zeta_arr(:)
         real(dp), allocatable :: A_phi_arr(:), B_theta_arr(:), B_phi_arr(:)
         real(dp), allocatable :: x_arr(:, :, :), y_arr(:, :, :), z_arr(:, :, :)
@@ -95,15 +102,14 @@ contains
 
         ! A_phi is a flux profile on s. B_theta/B_phi stay on rho for now.
         do i_rho = 1, ns_B
-            call splint_boozer_coord(s_arr(i_rho), 0.0_dp, 0.0_dp, 0, &
+            call splint_boozer_coord(max(s_arr(i_rho), s_axis_eval), 0.0_dp, 0.0_dp, 0, &
                                      A_theta_dum, A_phi_arr(i_rho), dA_theta_ds, &
                                      dA_phi_ds, d2A_phi_ds2, d3A_phi_ds3, &
                                      B_theta_val, dB_theta, d2B_theta, &
                                      B_phi_val, dB_phi, d2B_phi, &
                                      Bmod_val, dBmod, d2Bmod, &
                                      B_r_val, dB_r, d2B_r)
-
-            s = rho_arr(i_rho)**2
+            s = max(rho_arr(i_rho)**2, s_axis_eval)
             call splint_boozer_coord(s, 0.0_dp, 0.0_dp, 0, &
                                      A_theta_dum, A_phi_dum, dA_theta_ds, &
                                      dA_phi_ds, d2A_phi_ds2, d3A_phi_ds3, &
@@ -113,37 +119,83 @@ contains
                                      B_r_val, dB_r, d2B_r)
         end do
 
-        ! Compute X, Y, Z geometry on the Boozer grid (endpoint-excluded)
+        ! Axis slice (rho=0): the exact magnetic axis is m=0, theta-independent.
+        ! boozer_to_vmec degenerates poloidally at s=0, so take the regular
+        ! toroidal limit phi_V0(phi_B) at s_axis_eval and average over theta to
+        ! cancel the O(rho) poloidal contamination (the m=1 mean is zero on the
+        ! full-period grid), leaving phi_V0 to O(rho**2). The axis position is
+        ! the exact VMEC axis curve, identical for every theta -> regular at rho=0.
+        axis_geom_err = 0.0_dp
+        do i_phi = 1, n_phi_out
+            phi_B = zeta_arr(i_phi)
+            phi_V0 = 0.0_dp
+            do i_theta = 1, n_theta_out
+                call boozer_to_vmec(s_axis_eval, theta_arr(i_theta), phi_B, theta_V, phi_V)
+                phi_V0 = phi_V0 + phi_V
+            end do
+            phi_V0 = phi_V0/real(n_theta_out, dp)
+            call eval_vmec_axis(phi_V0, R_axis, Z_axis)
+            x_arr(1, :, i_phi) = R_axis*cos(phi_V0)
+            y_arr(1, :, i_phi) = R_axis*sin(phi_V0)
+            z_arr(1, :, i_phi) = Z_axis
+
+            ! Convention + smoothness gate: at s=0 splint_vmec_data returns the
+            ! m=0 (theta-independent) limit; with the m=0 healing anchored to
+            ! the exact axis it must equal the exact axis.
+            call splint_vmec_data(0.0_dp, 0.0_dp, phi_V0, &
+                                  A_phi_dum, A_theta_dum, dA_phi_ds, &
+                                  dA_theta_ds, aiota, &
+                                  R, Zval, alam, dR_ds, dR_dt, dR_dp, &
+                                  dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
+            axis_geom_err = max(axis_geom_err, abs(R - R_axis) + abs(Zval - Z_axis))
+        end do
+
+        ! Interior (rho>0): Boozer angles -> VMEC angles -> VMEC geometry.
         do i_phi = 1, n_phi_out
             do i_theta = 1, n_theta_out
-                do i_rho = 1, ns_B
-                    rho_tor = rho_arr(i_rho)
-                    s = rho_tor**2
+                do i_rho = 2, ns_B
+                    s = rho_arr(i_rho)**2
                     theta_B = theta_arr(i_theta)
                     phi_B = zeta_arr(i_phi)
-
-                    ! Convert Boozer angles to VMEC angles
                     call boozer_to_vmec(s, theta_B, phi_B, theta_V, phi_V)
-
-                    ! Evaluate VMEC geometry at (s, theta_V, phi_V)
                     call splint_vmec_data(s, theta_V, phi_V, &
                                           A_phi_dum, A_theta_dum, dA_phi_ds, &
                                           dA_theta_ds, aiota, &
                                           R, Zval, alam, dR_ds, dR_dt, dR_dp, &
                                           dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
-
                     x_arr(i_rho, i_theta, i_phi) = R*cos(phi_V)
                     y_arr(i_rho, i_theta, i_phi) = R*sin(phi_V)
                     z_arr(i_rho, i_theta, i_phi) = Zval
                 end do
             end do
         end do
+        print *, 'export_boozer_chartmap: axis vs VMEC m=0 limit max|dR|+|dZ| =', &
+            axis_geom_err
 
+        ! Bmod axis slice (rho=0): theta-independent m=0 axis field strength,
+        ! the theta-average at s_axis_eval (the m=1 mean is zero on the grid).
+        do i_phi = 1, n_phi_out
+            phi_B = zeta_arr(i_phi)
+            bmod_axis = 0.0_dp
+            do i_theta = 1, n_theta_out
+                call splint_boozer_coord(s_axis_eval, theta_arr(i_theta), phi_B, 0, &
+                                         A_theta_dum, A_phi_dum, dA_theta_ds, &
+                                         dA_phi_ds, d2A_phi_ds2, d3A_phi_ds3, &
+                                         B_theta_val, dB_theta, d2B_theta, &
+                                         B_phi_val, dB_phi, d2B_phi, &
+                                         Bmod_val, dBmod, d2Bmod, &
+                                         B_r_val, dB_r, d2B_r)
+                bmod_axis = bmod_axis + Bmod_val
+            end do
+            bmod_arr(1, :, i_phi) = bmod_axis/real(n_theta_out, dp)
+        end do
+
+        ! Bmod interior (rho>0)
         do i_phi = 1, n_phi_out
             phi_B = real(i_phi - 1, dp)*h_phi_B
             do i_theta = 1, n_theta_out
                 theta_B = real(i_theta - 1, dp)*h_theta_B
-                do i_rho = 1, ns_B
+                do i_rho = 2, ns_B
                     s = rho_arr(i_rho)**2
                     call splint_boozer_coord(s, theta_B, phi_B, 0, &
                                              A_theta_dum, A_phi_dum, dA_theta_ds, &
@@ -256,6 +308,26 @@ contains
                 error stop
             end if
         end subroutine nc_assert
+
+        !> Exact VMEC magnetic axis (m=0) at the VMEC toroidal angle phi_V.
+        !> Stellarator-symmetric: R = sum_n raxis_cc(n) cos(n nfp phi_V),
+        !> Z = sum_n zaxis_cs(n) sin(n nfp phi_V). Sign convention is checked
+        !> against the s=0 limit of splint_vmec_data (axis_geom_err).
+        subroutine eval_vmec_axis(phi_V, R_axis_out, Z_axis_out)
+            real(dp), intent(in) :: phi_V
+            real(dp), intent(out) :: R_axis_out, Z_axis_out
+            integer :: nm
+            real(dp) :: ang
+            R_axis_out = 0.0_dp
+            Z_axis_out = 0.0_dp
+            ! VMEC convention R = sum rmnc cos(m u - n v), Z = sum zmns sin(m u - n v).
+            ! At m=0: cos(-n v) = cos(n v), sin(-n v) = -sin(n v), hence the Z sign.
+            do nm = 0, ntor_axis
+                ang = real(nm, dp)*real(nper, dp)*phi_V
+                R_axis_out = R_axis_out + raxis_cc(nm)*cos(ang)
+                Z_axis_out = Z_axis_out - zaxis_cs(nm)*sin(ang)
+            end do
+        end subroutine eval_vmec_axis
 
     end subroutine export_boozer_chartmap
 

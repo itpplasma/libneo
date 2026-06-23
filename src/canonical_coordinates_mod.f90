@@ -21,6 +21,14 @@
     double precision, dimension(:),     allocatable :: aiota,s,sps,phi
     double precision, dimension(:,:),   allocatable :: almnc,rmnc,zmnc
     double precision, dimension(:,:),   allocatable :: almns,rmns,zmns
+    ! Exact magnetic axis (VMEC wout raxis_cc/zaxis_cs), indexed n=0..ntor:
+    !   R_axis(phi) = sum_n raxis_cc(n) cos(n*nfp*phi) + raxis_cs(n) sin(...)
+    !   Z_axis(phi) = sum_n zaxis_cc(n) cos(n*nfp*phi) + zaxis_cs(n) sin(...)
+    ! The exact axis curve (no flux surface at s=0), used for the analytic
+    ! near-axis chartmap limit. raxis_cs/zaxis_cc are zero unless lasym.
+    integer :: ntor_axis = -1
+    double precision, dimension(:), allocatable :: raxis_cc, zaxis_cs
+    double precision, dimension(:), allocatable :: raxis_cs, zaxis_cc
 !
     double precision, dimension(:,:,:,:,:,:), allocatable :: sR,sZ,slam
 
