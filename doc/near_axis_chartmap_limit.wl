@@ -9,7 +9,25 @@
    Stellarator-symmetric VMEC map with near-axis (VMEC / Garren-Boozer)
    regularity R_m(rho) ~ rho^|m|: only m=0 survives at the axis (the axis curve),
    m=1 gives the limiting ellipse. Position in cylindrical (R, phi, Z), then
-   Cartesian x = R Cos[phi], y = R Sin[phi], z = Z. *)
+   Cartesian x = R Cos[phi], y = R Sin[phi], z = Z.
+
+   References (near-axis expansion, NAE):
+   - Garren & Boozer, Phys. Fluids B 3, 2822 (1991): existence/expansion.
+   - Landreman & Sengupta, JPP 84, 905840616 (2018), arXiv:1809.10233:
+     cylindrical-coordinate NAE, R=R0(phi)+r R1(theta,phi)+..., r ~ Sqrt[Phi_tor]
+     ~ Sqrt[s] = rho; axis from raxis_cc/zaxis_cs; m!=0 coeffs vanish at the axis.
+   - Rodriguez/Landreman et al., arXiv:1911.02659: arbitrary-order NAE.
+   - Generalized (signed) Frenet "G-frame", arXiv:2410.17595, Eq.(14):
+       x = X0(zeta) + q1 N(zeta) + q2 B(zeta),
+     axis X0 plus periodic cross-section coords (q1,q2) in a frame that stays
+     smooth where curvature vanishes (rotation Gamma(zeta) removes the Frenet
+     sign flip). This is the GVEC hmap_axisNB. The chartmap co-rotating frame
+     (libneo PR #332) is the special case X0=0 with uniform rotation; the exact
+     axis slice below is q1=q2=0 -> x=X0(zeta), the same axis curve.
+
+   Smooth VMEC match: store the rho=0 slice as X0(zeta) (theta-INDEPENDENT, the
+   m=0 regularity), let the rho>0 slices carry the m=1 ellipse = dx/drho|0; the
+   spline through rho=0 then reproduces the VMEC harmonics to leading orders. *)
 
 ClearAll["Global`*"];
 
