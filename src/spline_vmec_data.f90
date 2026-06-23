@@ -178,13 +178,13 @@ contains
 
    subroutine perform_axis_healing(almnc_rho, rmnc_rho, zmnc_rho, almns_rho, rmns_rho, zmns_rho)
       use new_vmec_stuff_mod, only: rmnc, zmns, almns, rmns, zmnc, almnc, &
-                                    axm, axn, nstrm, old_axis_healing_boundary, &
+                                    axm, nstrm, old_axis_healing_boundary, &
                                     axis_healing_power_law
       use vector_potentail_mod, only: ns
 
       real(dp), dimension(:, :), allocatable, intent(out) :: almnc_rho, rmnc_rho, zmnc_rho
       real(dp), dimension(:, :), allocatable, intent(out) :: almns_rho, rmns_rho, zmns_rho
-      integer :: i, m, nrho, nheal, iunit_hs, i_anchor
+      integer :: i, m, nrho, nheal, i_anchor
 
       nrho = ns
       allocate (almnc_rho(nstrm, 0:nrho - 1), rmnc_rho(nstrm, 0:nrho - 1), zmnc_rho(nstrm, 0:nrho - 1))
@@ -206,9 +206,6 @@ contains
          return
       end if
 
-      iunit_hs = 1357
-      open (iunit_hs, file='healaxis.dat')
-
       do i = 1, nstrm
          m = nint(abs(axm(i)))
 
@@ -216,7 +213,6 @@ contains
             nheal = min(m, 4)
          else
             call determine_nheal_for_axis(m, ns, rmnc(i, :), nheal)
-            write (iunit_hs, *) 'm = ', m, ' n = ', nint(abs(axn(i))), ' skipped ', nheal, ' / ', ns
          end if
 
          call s_to_rho_healaxis(m, ns, nrho, nheal, rmnc(i, :), rmnc_rho(i, :))
@@ -226,8 +222,6 @@ contains
          call s_to_rho_healaxis(m, ns, nrho, nheal, zmns(i, :), zmns_rho(i, :))
          call s_to_rho_healaxis(m, ns, nrho, nheal, almns(i, :), almns_rho(i, :))
       end do
-
-      close (iunit_hs)
    end subroutine perform_axis_healing
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

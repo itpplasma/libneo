@@ -82,16 +82,11 @@ contains
                                       grid_refinment)
         use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm
         use spline_vmec_sub, only: spline_vmec_data
-        use new_vmec_stuff_mod, only: old_axis_healing_boundary
         use field_vmec, only: vmec_field_t, create_vmec_field
 
         character(len=*), intent(in), optional :: vmec_file
         integer, intent(in), optional :: radial_spline_order, angular_spline_order, grid_refinment
 
-        ! diagnostic file written by libneo's perform_axis_healing when splining VMEC data
-        character(len=*), parameter :: healaxis_file = 'healaxis.dat'
-        logical :: healaxis_exists
-        integer :: iunit
         type(vmec_field_t) :: vfield
 
         if (.not. present(vmec_file)) then
@@ -126,12 +121,6 @@ contains
         end if
 
         call spline_vmec_data()
-        ! if old_axis_healing_boundary, healaxis_file is not filled
-        inquire (file=healaxis_file, exist=healaxis_exists)
-        if (healaxis_exists .and. old_axis_healing_boundary) then
-            open (newunit=iunit, file=healaxis_file, status='old')
-            close (iunit, status='delete')
-        end if
 
         ! No-arg entry uses the global VMEC path: current_field stays
         ! unallocated so compute_boozer_data is byte-identical.
