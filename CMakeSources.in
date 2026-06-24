@@ -56,6 +56,7 @@ target_link_libraries(neo PUBLIC
     hdf5_tools
     neo_field
     odeint
+    fortnum
 )
 
 target_link_libraries(neo PRIVATE
