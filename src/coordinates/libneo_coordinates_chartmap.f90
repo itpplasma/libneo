@@ -6,7 +6,10 @@ module libneo_coordinates_chartmap
                                        chartmap_from_cyl_ok, chartmap_from_cyl_err_max_iter, &
                                        chartmap_from_cyl_err_singular, &
                                        chartmap_from_cyl_err_out_of_bounds, &
-                                       chartmap_from_cyl_err_invalid
+                                       chartmap_from_cyl_err_invalid, &
+                                       CHARTMAP_LOCATED, CHARTMAP_CLAMPED_EDGE, &
+                                       CHARTMAP_OUTSIDE, CHARTMAP_NO_ROOT, &
+                                       coord_invert_edge_frac, coord_invert_accept_tol
     use interpolate, only: BatchSplineData3D, construct_batch_splines_3d, &
                            evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
     use nctools_module, only: nc_open, nc_close, nc_inq_dim, nc_get
@@ -21,29 +24,13 @@ module libneo_coordinates_chartmap
     public :: chartmap_coordinate_system_t
     public :: make_chartmap_coordinate_system
 
-    ! Geometric status of the Cartesian inverse cs%invert_cart. These describe the
-    ! geometry of the located root ONLY; they carry no confinement-loss meaning. A
-    ! caller that needs a loss decision (e.g. SIMPLE's full-orbit pusher) keys it on
-    ! its own guiding-centre test, not on this status.
-    !   LOCATED      converged interior root, residual at chart tolerance.
-    !   CLAMPED_EDGE solver pinned rho to 1 and could not reduce the residual below
-    !                tolerance, but the residual is still a small fraction of a
-    !                radial cell: the target sits essentially on the last surface.
-    !   OUTSIDE      best root has rho clamped to 1 with a residual that is a large
-    !                fraction of a radial cell: the target is past the last surface,
-    !                where the forward map cannot represent it.
-    !   NO_ROOT      singular Jacobian or no convergence from any seed.
-    integer, parameter, public :: CHARTMAP_LOCATED = 0
-    integer, parameter, public :: CHARTMAP_CLAMPED_EDGE = 1
-    integer, parameter, public :: CHARTMAP_OUTSIDE = 2
-    integer, parameter, public :: CHARTMAP_NO_ROOT = 3
+    ! The geometric status enum (CHARTMAP_LOCATED / CLAMPED_EDGE / OUTSIDE / NO_ROOT)
+    ! and the residual-classification tolerances (coord_invert_edge_frac,
+    ! coord_invert_accept_tol) live in libneo_coordinates_base, shared with the generic
+    ! base inverse so both report identical codes; re-exported here.
+    public :: CHARTMAP_LOCATED, CHARTMAP_CLAMPED_EDGE
+    public :: CHARTMAP_OUTSIDE, CHARTMAP_NO_ROOT
 
-    ! A located root has residual below an absolute tolerance OR below this fraction
-    ! of a radial cell |dx/drho| (scale-correct near the axis and on reactor-size
-    ! charts where the absolute floor is meaningless). A clamped-edge root within the
-    ! same fraction is CLAMPED_EDGE; a larger residual at rho=1 is OUTSIDE.
-    real(dp), parameter :: chartmap_invert_edge_frac = 0.05_dp
-    real(dp), parameter :: chartmap_invert_accept_tol = 1.0e-6_dp
     ! Warm guesses with rho this close to 1 take the bracketed 1-D edge solve, which
     ! cannot overshoot rho=1 (bracket [rho_lo, 1]); interior guesses take the 3-D
     ! pseudo-Cartesian multiroot solve.
@@ -856,7 +843,7 @@ contains
                               max_iter=30, ctx=ctx)
 
         u = [min(max(rho(1), 0.0_dp), 1.0_dp), ctx%theta, ctx%zeta]
-        call chartmap_eval_cart(self, u, xc)
+        call self%evaluate_cart(u, xc)
         res_norm = sqrt(sum((x - xc)**2))
         ! Converged only when the residual is genuinely small along this fixed ray.
         ! A point whose true (theta, phi) differ from the guess cannot be reached on
@@ -897,7 +884,7 @@ contains
                               max_iter=60, ctx=ctx)
 
         call chartmap_w_to_u(w, u)
-        call chartmap_eval_cart(self, u, xc)
+        call self%evaluate_cart(u, xc)
         res_norm = sqrt(sum((x - xc)**2))
         ! Converged when the residual is at the chart tolerance or a small fraction of
         ! a radial cell; a larger residual (a genuine stall or a past-edge target the
@@ -916,18 +903,49 @@ contains
         real(dp), intent(out) :: res_norm
         logical, intent(out) :: converged
 
-        real(dp) :: xc(3)
+        real(dp) :: xc(3), x_unscaled(3), scale
         integer :: ierr
 
         converged = .false.
         res_norm = huge(1.0_dp)
         u = 0.0_dp
-        call chartmap_invert_cart(self, x, u, ierr)
+        ! The cold multi-seed Gauss-Newton works on the internal UNSCALED spline. A
+        ! scaled subclass passes a SCALED target through the inherited warm invert_cart,
+        ! so descale the target by the map scale before the unscaled solve; the returned
+        ! logical u is scale-invariant. scale = 1 for a plain chartmap (no-op).
+        scale = chartmap_map_scale(self)
+        x_unscaled = x/scale
+        call chartmap_invert_cart(self, x_unscaled, u, ierr)
         if (ierr /= chartmap_from_cyl_ok) return
-        call chartmap_eval_cart(self, u, xc)
+        ! Residual and classification on the POLYMORPHIC (scaled) map for the caller.
+        call self%evaluate_cart(u, xc)
         res_norm = sqrt(sum((x - xc)**2))
         converged = chartmap_root_located(self, u, res_norm)
     end subroutine chartmap_invert_cold
+
+    ! Ratio of the polymorphic (possibly scaled) forward map to the internal unscaled
+    ! spline at a mid-radius reference, i.e. the uniform Cartesian scale a subclass
+    ! applies. 1 for a plain chartmap. Measured from the axis so a constant Z-offset
+    ! (none here) would not bias it; mid-radius keeps both magnitudes well away from 0.
+    real(dp) function chartmap_map_scale(self) result(scale)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp) :: u_axis(3), u_ref(3), x_axis(3), x_ref(3)
+        real(dp) :: xi_axis(3), xi_ref(3), d_poly, d_int
+
+        u_axis = [0.0_dp, 0.0_dp, 0.0_dp]
+        u_ref = [0.5_dp, 0.0_dp, 0.0_dp]
+        call self%evaluate_cart(u_axis, x_axis)
+        call self%evaluate_cart(u_ref, x_ref)
+        call chartmap_eval_cart(self, u_axis, xi_axis)
+        call chartmap_eval_cart(self, u_ref, xi_ref)
+        d_poly = sqrt(sum((x_ref - x_axis)**2))
+        d_int = sqrt(sum((xi_ref - xi_axis)**2))
+        if (d_int > 1.0e-30_dp) then
+            scale = d_poly/d_int
+        else
+            scale = 1.0_dp
+        end if
+    end function chartmap_map_scale
 
     ! A root is located when its Cartesian residual is at the absolute tolerance or a
     ! small fraction of the local radial cell |dx/drho|. The relative test is what
@@ -938,8 +956,8 @@ contains
         real(dp), intent(in) :: res_norm
         real(dp) :: rscale
         rscale = chartmap_radial_scale(self, u)
-        located = res_norm < chartmap_invert_accept_tol .or. &
-                  (rscale > 0.0_dp .and. res_norm < chartmap_invert_edge_frac*rscale)
+        located = res_norm < coord_invert_accept_tol .or. &
+                  (rscale > 0.0_dp .and. res_norm < coord_invert_edge_frac*rscale)
     end function chartmap_root_located
 
     ! fortnum multiroot callback: F(w) = x(w) - x_target with the analytic Jacobian
@@ -977,9 +995,12 @@ contains
                 f(1) = edge_penalty*(rho - 1.0_dp)
                 return
             end if
-            call chartmap_eval_cart(ctx%self, u, xc)
+            ! Evaluate the forward map and basis through the POLYMORPHIC bindings so a
+            ! scaled subclass (scaled_chartmap, with vmec_RZ_scale) inverts the SCALED
+            ! map the caller passes, not the unscaled internal spline.
+            call ctx%self%evaluate_cart(u, xc)
             f = xc - ctx%x_target
-            call chartmap_covariant_basis(ctx%self, u, e_cov)
+            call ctx%self%covariant_basis(u, e_cov)
             call chartmap_pseudocart_basis(u, e_cov, jw, cth, sth)
             jac = jw
         end select
@@ -1014,8 +1035,9 @@ contains
             end if
             rho = max(rho, ctx%rho_lo)
             u = [rho, ctx%theta, ctx%zeta]
-            call chartmap_eval_cart(ctx%self, u, xc)
-            call chartmap_covariant_basis(ctx%self, u, e_cov)
+            ! Polymorphic forward map and basis: scale-correct for scaled subclasses.
+            call ctx%self%evaluate_cart(u, xc)
+            call ctx%self%covariant_basis(u, e_cov)
             e_rho = e_cov(:, 1)
             e_norm = sqrt(sum(e_rho**2))
             if (e_norm < 1.0e-30_dp) then
@@ -1069,7 +1091,9 @@ contains
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp) :: e_cov(3, 3)
-        call chartmap_covariant_basis(self, u, e_cov)
+        ! Polymorphic basis: the radial cell of a scaled subclass is the scaled
+        ! |dx/drho|, so the residual classification matches the scaled map.
+        call self%covariant_basis(u, e_cov)
         s = sqrt(e_cov(1, 1)**2 + e_cov(2, 1)**2 + e_cov(3, 1)**2)
     end function chartmap_radial_scale
 
@@ -1080,9 +1104,9 @@ contains
         real(dp), intent(in) :: rho, res_norm, rscale
         logical :: located, at_edge
 
-        located = res_norm < chartmap_invert_accept_tol .or. &
-                  (rscale > 0.0_dp .and. res_norm < chartmap_invert_edge_frac*rscale)
-        at_edge = rho >= 1.0_dp - chartmap_invert_edge_frac
+        located = res_norm < coord_invert_accept_tol .or. &
+                  (rscale > 0.0_dp .and. res_norm < coord_invert_edge_frac*rscale)
+        at_edge = rho >= 1.0_dp - coord_invert_edge_frac
 
         if (located .and. .not. at_edge) then
             status = CHARTMAP_LOCATED

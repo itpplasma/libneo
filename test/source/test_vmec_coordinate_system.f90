@@ -1,6 +1,7 @@
 program test_vmec_coordinate_system
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use libneo_coordinates, only: vmec_coordinate_system_t
+    use libneo_coordinates, only: vmec_coordinate_system_t, &
+        CHARTMAP_LOCATED, CHARTMAP_CLAMPED_EDGE
     use cylindrical_cartesian, only: cyl_to_cart
     use math_constants, only: TWOPI
     use new_vmec_stuff_mod, only: netcdffile, nper
@@ -26,6 +27,7 @@ program test_vmec_coordinate_system
     call test_evaluate_cart_consistency(vmec, zeta_period, nerrors)
     call test_covariant_basis_fd(vmec, zeta_period, nerrors)
     call test_metric_tensor_properties(vmec, zeta_period, nerrors)
+    call test_invert_cart_roundtrip(vmec, zeta_period, nerrors)
 
     if (nerrors > 0) then
         print *, "FAILED: ", nerrors, " error(s) in VMEC coordinate system test"
@@ -222,6 +224,55 @@ contains
             nerrors = nerrors + 1
         end if
     end subroutine test_metric_tensor_properties
+
+    ! Generic base inverse on the VMEC chart: evaluate_cart(u0) -> invert_cart from an
+    ! offset guess must recover u0 = (s, theta, varphi) to tolerance and report
+    ! LOCATED. This exercises the non-deferred coordinate_system_t%invert_cart that the
+    ! VMEC system inherits (no chartmap override), in the pseudo-Cartesian chart with
+    ! the (X, Y) axis regularization. The guess is offset from u0 so the damped Newton
+    ! does real work.
+    subroutine test_invert_cart_roundtrip(vmec, zeta_period, nerrors)
+        type(vmec_coordinate_system_t), intent(in) :: vmec
+        real(dp), intent(in) :: zeta_period
+        integer, intent(inout) :: nerrors
+
+        real(dp) :: u0(3), x(3), u(3), u_guess(3), dth
+        real(dp), parameter :: tol_s = 1.0e-6_dp, tol_ang = 1.0e-5_dp
+        integer :: i, status, n_passed
+        real(dp) :: test_points(3, 4)
+
+        n_passed = 0
+
+        test_points(:, 1) = [0.25_dp, 0.5_dp, 0.2_dp*zeta_period]
+        test_points(:, 2) = [0.50_dp, 2.5_dp, 0.4_dp*zeta_period]
+        test_points(:, 3) = [0.75_dp, 4.2_dp, 0.7_dp*zeta_period]
+        test_points(:, 4) = [0.40_dp, 1.0_dp, 0.0_dp]
+
+        do i = 1, 4
+            u0 = test_points(:, i)
+            call vmec%evaluate_cart(u0, x)
+            u_guess = [u0(1) + 0.08_dp, u0(2) + 0.20_dp, u0(3)]
+            call vmec%invert_cart(x, u_guess, u, status)
+
+            dth = abs(modulo(u(2) - u0(2) + TWOPI, TWOPI))
+            if (dth > TWOPI - dth) dth = TWOPI - dth
+            if ((status == CHARTMAP_LOCATED .or. status == CHARTMAP_CLAMPED_EDGE) .and. &
+                abs(u(1) - u0(1)) < tol_s .and. dth < tol_ang .and. &
+                abs(u(3) - u0(3)) < tol_ang) then
+                n_passed = n_passed + 1
+            else
+                print *, "  invert_cart roundtrip fail u0=", u0
+                print *, "    u=", u, " status=", status
+            end if
+        end do
+
+        if (n_passed == 4) then
+            print *, "  PASS: base invert_cart recovers VMEC u0, LOCATED (4 points)"
+        else
+            print *, "  FAIL: base invert_cart roundtrip", 4 - n_passed, "/4"
+            nerrors = nerrors + 1
+        end if
+    end subroutine test_invert_cart_roundtrip
 
 end program test_vmec_coordinate_system
 

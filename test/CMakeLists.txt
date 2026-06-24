@@ -222,6 +222,9 @@ target_link_libraries(test_chartmap_boozer_coordinates.x neo ${MAGFIE_LIB})
 add_executable(test_chartmap_invert_cart.x source/test_chartmap_invert_cart.f90)
 target_link_libraries(test_chartmap_invert_cart.x neo ${MAGFIE_LIB})
 
+add_executable(test_chartmap_invert_scaled.x source/test_chartmap_invert_scaled.f90)
+target_link_libraries(test_chartmap_invert_scaled.x neo ${MAGFIE_LIB})
+
 # TODO: Update test for new psi_1..psi_7 interface
 # add_executable(test_analytical_gs_circular.x source/test_analytical_gs_circular.f90)
 # target_link_libraries(test_analytical_gs_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
@@ -471,6 +474,12 @@ set_tests_properties(test_chartmap_boozer_coordinates PROPERTIES
 add_test(NAME test_chartmap_invert_cart
   COMMAND test_chartmap_invert_cart.x)
 set_tests_properties(test_chartmap_invert_cart PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_test(NAME test_chartmap_invert_scaled
+  COMMAND test_chartmap_invert_scaled.x)
+set_tests_properties(test_chartmap_invert_scaled PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
