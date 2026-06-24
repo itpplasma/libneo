@@ -28,8 +28,12 @@ module field_eq_mod
    ! Field variables for POTATO integration
    real(dp) :: psif, dpsidr, dpsidz, d2psidr2, d2psidrdz, d2psidz2
 
-   ! Make temporary variables threadprivate
-   !$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2)
+   ! Make per-evaluation field state threadprivate. ierrfield is the field-eval
+   ! domain-error flag: magfie sets it on each evaluation and the caller reads it
+   ! immediately after, so with allow_sol=.false. (an out-of-domain point sets
+   ! ierrfield=1) a shared flag races across OpenMP threads. Each thread needs its
+   ! own copy.
+   !$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierrfield)
 
 contains
 
