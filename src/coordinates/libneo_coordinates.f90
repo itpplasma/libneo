@@ -20,6 +20,8 @@ module libneo_coordinates
     public :: vmec_coordinate_system_t, make_vmec_coordinate_system
     public :: geoflux_coordinate_system_t, make_geoflux_coordinate_system
     public :: chartmap_coordinate_system_t, make_chartmap_coordinate_system
+    public :: CHARTMAP_LOCATED, CHARTMAP_CLAMPED_EDGE
+    public :: CHARTMAP_OUTSIDE, CHARTMAP_NO_ROOT
 
     public :: validate_chartmap_file
     public :: detect_refcoords_file_type

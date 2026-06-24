@@ -13,11 +13,41 @@ module libneo_coordinates_chartmap
     use math_constants, only: TWOPI
     use netcdf, only: NF90_CHAR, NF90_GLOBAL, NF90_NOERR, nf90_get_att, nf90_get_var, &
                       nf90_inq_varid, nf90_inquire_attribute
+    use fortnum_status, only: fortnum_status_t
+    use fortnum_multiroot, only: multiroot_hybrid
     implicit none
     private
 
     public :: chartmap_coordinate_system_t
     public :: make_chartmap_coordinate_system
+
+    ! Geometric status of the Cartesian inverse cs%invert_cart. These describe the
+    ! geometry of the located root ONLY; they carry no confinement-loss meaning. A
+    ! caller that needs a loss decision (e.g. SIMPLE's full-orbit pusher) keys it on
+    ! its own guiding-centre test, not on this status.
+    !   LOCATED      converged interior root, residual at chart tolerance.
+    !   CLAMPED_EDGE solver pinned rho to 1 and could not reduce the residual below
+    !                tolerance, but the residual is still a small fraction of a
+    !                radial cell: the target sits essentially on the last surface.
+    !   OUTSIDE      best root has rho clamped to 1 with a residual that is a large
+    !                fraction of a radial cell: the target is past the last surface,
+    !                where the forward map cannot represent it.
+    !   NO_ROOT      singular Jacobian or no convergence from any seed.
+    integer, parameter, public :: CHARTMAP_LOCATED = 0
+    integer, parameter, public :: CHARTMAP_CLAMPED_EDGE = 1
+    integer, parameter, public :: CHARTMAP_OUTSIDE = 2
+    integer, parameter, public :: CHARTMAP_NO_ROOT = 3
+
+    ! A located root has residual below an absolute tolerance OR below this fraction
+    ! of a radial cell |dx/drho| (scale-correct near the axis and on reactor-size
+    ! charts where the absolute floor is meaningless). A clamped-edge root within the
+    ! same fraction is CLAMPED_EDGE; a larger residual at rho=1 is OUTSIDE.
+    real(dp), parameter :: chartmap_invert_edge_frac = 0.05_dp
+    real(dp), parameter :: chartmap_invert_accept_tol = 1.0e-6_dp
+    ! Warm guesses with rho this close to 1 take the bracketed 1-D edge solve, which
+    ! cannot overshoot rho=1 (bracket [rho_lo, 1]); interior guesses take the 3-D
+    ! pseudo-Cartesian multiroot solve.
+    real(dp), parameter :: chartmap_invert_edge_band = 0.1_dp
 
     type, extends(coordinate_system_t) :: chartmap_coordinate_system_t
         type(BatchSplineData3D) :: spl_cart
@@ -38,7 +68,21 @@ module libneo_coordinates_chartmap
         procedure :: christoffel => chartmap_christoffel
         procedure :: from_cyl => chartmap_from_cyl
         procedure :: from_cart => chartmap_from_cart
+        procedure :: invert_cart => chartmap_invert_cart_warm
     end type chartmap_coordinate_system_t
+
+    ! Read-only context threaded through the fortnum callbacks: the chart and the
+    ! Cartesian target. The solvers never inspect it (they pass it back to the
+    ! callback unchanged); it is the active parameter for the implicit-rule
+    ! sensitivity and the only state the callbacks need.
+    type :: chartmap_invert_ctx_t
+        class(chartmap_coordinate_system_t), pointer :: self => null()
+        real(dp) :: x_target(3) = 0.0_dp
+        real(dp) :: zeta = 0.0_dp
+        real(dp) :: theta = 0.0_dp
+        real(dp) :: rho_lo = 0.0_dp
+        real(dp) :: zeta_period = TWOPI
+    end type chartmap_invert_ctx_t
 
 contains
 
@@ -699,6 +743,357 @@ contains
 
         call chartmap_invert_cart(self, x, u, ierr)
     end subroutine chartmap_from_cart
+
+    ! Warm Cartesian inverse x -> logical u = (rho, theta, phi) from a carried guess,
+    ! the single-point inverse the full-orbit pusher needs. The iteration runs in the
+    ! pseudo-Cartesian chart w = (X, Y, phi) = (rho cos theta, rho sin theta, phi),
+    ! which is regular through the magnetic axis (the polar column dx/dtheta ~ rho
+    ! makes det(Jc) -> 0 at rho = 0; the (X, Y) Jacobian stays finite). Two solver
+    ! paths, both fortnum:
+    !   - warm guess near the edge (rho_guess within an edge band of 1): a bracketed
+    !     1-D radial solve on [rho_lo, 1], so the radius cannot overshoot past 1.
+    !   - otherwise: a 3-D multiroot_hybrid in w with the analytic Jacobian built
+    !     from covariant_basis. The callback rejects any rho > 1 trial (large
+    !     residual) so the line search cannot accept a clamped-edge point.
+    ! On warm-path failure, fall back to the cold multi-seed chartmap_invert_cart.
+    ! geom_status is GEOMETRIC ONLY (located / clamped-edge / outside / no-root); it
+    ! never encodes a confinement loss.
+    subroutine chartmap_invert_cart_warm(self, x, u_guess, u, geom_status)
+        class(chartmap_coordinate_system_t), intent(in), target :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(in) :: u_guess(3)
+        real(dp), intent(out) :: u(3)
+        integer, intent(out) :: geom_status
+
+        real(dp) :: u_try(3), res_try, res_best, rscale, zeta_period
+        logical :: converged, have_root
+
+        zeta_period = TWOPI/real(self%num_field_periods, dp)
+        res_best = huge(1.0_dp)
+        have_root = .false.
+
+        ! Try each solver in turn; keep the lowest-residual root seen so far. A path
+        ! that does not converge still contributes its best clamped root (e.g. a
+        ! past-edge target pinned at rho=1), so classification can report OUTSIDE
+        ! rather than a spurious no-root. Stop early once a path truly converges.
+        ! The toroidal coordinate is seeded from the in-wedge geometric angle inside
+        ! each solver: the carried Boozer phi goes a full period stale across a
+        ! field-period seam, whereas atan2(y, x) is always in-wedge and differs from
+        ! logical phi only by the Boozer shift O(0.1 rad). For the cyl/vmec charts
+        ! zeta IS the geometric angle, so the seed is exact.
+        if (u_guess(1) >= 1.0_dp - chartmap_invert_edge_band) then
+            call chartmap_invert_edge_1d(self, x, u_guess, u_try, res_try, converged)
+            call keep_best(u_try, res_try, u, res_best, have_root)
+            if (converged) go to 100
+        end if
+
+        call chartmap_invert_interior_3d(self, x, u_guess, u_try, res_try, converged)
+        call keep_best(u_try, res_try, u, res_best, have_root)
+        if (converged) go to 100
+
+        call chartmap_invert_cold(self, x, u_try, res_try, converged)
+        call keep_best(u_try, res_try, u, res_best, have_root)
+
+100     continue
+        if (.not. have_root) then
+            u = 0.0_dp
+            geom_status = CHARTMAP_NO_ROOT
+            return
+        end if
+
+        u(1) = min(max(u(1), 0.0_dp), 1.0_dp)
+        u(2) = modulo(u(2), TWOPI)
+        u(3) = modulo(u(3), zeta_period)
+
+        rscale = chartmap_radial_scale(self, u)
+        geom_status = chartmap_classify_root(u(1), res_best, rscale)
+    end subroutine chartmap_invert_cart_warm
+
+    ! Retain the lower-residual root. A finite-residual candidate sets have_root so a
+    ! non-converged clamped-edge root still survives for OUTSIDE classification.
+    pure subroutine keep_best(u_try, res_try, u_best, res_best, have_root)
+        real(dp), intent(in) :: u_try(3), res_try
+        real(dp), intent(inout) :: u_best(3), res_best
+        logical, intent(inout) :: have_root
+        if (res_try == res_try .and. res_try < res_best) then
+            u_best = u_try
+            res_best = res_try
+            have_root = .true.
+        end if
+    end subroutine keep_best
+
+    ! Bracketed 1-D edge solve along the seeded ray: hold (theta, phi) at the
+    ! warm-guess values and solve the scalar radial residual for rho with the bracket
+    ! [rho_lo, 1] enforced so the radius cannot overshoot past 1. The driver is
+    ! fortnum's multiroot_hybrid at n = 1 (Newton + line search on the single radial
+    ! variable); the analytic 1x1 Jacobian is the outward radial sensitivity from one
+    ! covariant_basis call (no finite differences). The bracket lives in the
+    ! callback: a trial rho > 1 is penalized (large outward residual) so the line
+    ! search backtracks, and rho < rho_lo is clamped, so a marker leaving the plasma
+    ! stalls cleanly on the clamped edge instead of running away.
+    subroutine chartmap_invert_edge_1d(self, x, u_guess, u, res_norm, converged)
+        class(chartmap_coordinate_system_t), intent(in), target :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(in) :: u_guess(3)
+        real(dp), intent(out) :: u(3)
+        real(dp), intent(out) :: res_norm
+        logical, intent(out) :: converged
+
+        type(chartmap_invert_ctx_t) :: ctx
+        type(fortnum_status_t) :: status
+        real(dp) :: rho0(1), rho(1), xc(3)
+
+        ctx%self => self
+        ctx%x_target = x
+        ctx%theta = u_guess(2)
+        ctx%zeta = u_guess(3)
+        if (self%has_spl_rz) ctx%zeta = atan2(x(2), x(1))
+        ctx%rho_lo = max(0.0_dp, u_guess(1) - chartmap_invert_edge_band)
+
+        rho0(1) = min(max(u_guess(1), ctx%rho_lo), 1.0_dp)
+        call multiroot_hybrid(chartmap_radial_fdf, 1, rho0, rho, status, &
+                              xtol=self%tol_newton, ftol=self%tol_newton, &
+                              max_iter=30, ctx=ctx)
+
+        u = [min(max(rho(1), 0.0_dp), 1.0_dp), ctx%theta, ctx%zeta]
+        call chartmap_eval_cart(self, u, xc)
+        res_norm = sqrt(sum((x - xc)**2))
+        ! Converged only when the residual is genuinely small along this fixed ray.
+        ! A point whose true (theta, phi) differ from the guess cannot be reached on
+        ! the held ray; its residual stays large and the caller falls to the 3-D
+        ! solve. The clamped-edge root is still returned for OUTSIDE classification.
+        converged = chartmap_root_located(self, u, res_norm)
+    end subroutine chartmap_invert_edge_1d
+
+    ! Interior 3-D solve in the pseudo-Cartesian chart w = (X, Y, phi). The callback
+    ! returns F = x(w) - x_target and the analytic Jacobian dF/dw built from
+    ! covariant_basis; multiroot_hybrid's Newton + line search drives it to a root.
+    ! Seed w from the warm guess with phi reseeded to the in-wedge geometric angle.
+    subroutine chartmap_invert_interior_3d(self, x, u_guess, u, res_norm, converged)
+        class(chartmap_coordinate_system_t), intent(in), target :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(in) :: u_guess(3)
+        real(dp), intent(out) :: u(3)
+        real(dp), intent(out) :: res_norm
+        logical, intent(out) :: converged
+
+        type(chartmap_invert_ctx_t) :: ctx
+        type(fortnum_status_t) :: status
+        real(dp) :: w0(3), w(3), phi_seed, xc(3)
+
+        phi_seed = u_guess(3)
+        if (self%has_spl_rz) phi_seed = atan2(x(2), x(1))
+
+        ctx%self => self
+        ctx%x_target = x
+        ctx%zeta_period = TWOPI/real(self%num_field_periods, dp)
+
+        w0(1) = u_guess(1)*cos(u_guess(2))
+        w0(2) = u_guess(1)*sin(u_guess(2))
+        w0(3) = phi_seed
+
+        call multiroot_hybrid(chartmap_invert_fdf, 3, w0, w, status, &
+                              xtol=self%tol_newton, ftol=self%tol_newton, &
+                              max_iter=60, ctx=ctx)
+
+        call chartmap_w_to_u(w, u)
+        call chartmap_eval_cart(self, u, xc)
+        res_norm = sqrt(sum((x - xc)**2))
+        ! Converged when the residual is at the chart tolerance or a small fraction of
+        ! a radial cell; a larger residual (a genuine stall or a past-edge target the
+        ! line search pinned at rho=1) falls through to the cold multi-seed, while the
+        ! best root is still returned for classification.
+        converged = chartmap_root_located(self, u, res_norm)
+    end subroutine chartmap_invert_interior_3d
+
+    ! Cold multi-seed fallback: reuse the robust zeta-swept chartmap_invert_cart so a
+    ! warm guess stale across a seam still locates. Returns the residual for
+    ! classification; converged flags a genuine locate.
+    subroutine chartmap_invert_cold(self, x, u, res_norm, converged)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: u(3)
+        real(dp), intent(out) :: res_norm
+        logical, intent(out) :: converged
+
+        real(dp) :: xc(3)
+        integer :: ierr
+
+        converged = .false.
+        res_norm = huge(1.0_dp)
+        u = 0.0_dp
+        call chartmap_invert_cart(self, x, u, ierr)
+        if (ierr /= chartmap_from_cyl_ok) return
+        call chartmap_eval_cart(self, u, xc)
+        res_norm = sqrt(sum((x - xc)**2))
+        converged = chartmap_root_located(self, u, res_norm)
+    end subroutine chartmap_invert_cold
+
+    ! A root is located when its Cartesian residual is at the absolute tolerance or a
+    ! small fraction of the local radial cell |dx/drho|. The relative test is what
+    ! keeps this scale-correct near the axis and on reactor-size charts.
+    logical function chartmap_root_located(self, u, res_norm) result(located)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(in) :: res_norm
+        real(dp) :: rscale
+        rscale = chartmap_radial_scale(self, u)
+        located = res_norm < chartmap_invert_accept_tol .or. &
+                  (rscale > 0.0_dp .and. res_norm < chartmap_invert_edge_frac*rscale)
+    end function chartmap_root_located
+
+    ! fortnum multiroot callback: F(w) = x(w) - x_target with the analytic Jacobian
+    ! dF/dw = pseudo-Cartesian Jacobian Jw built from covariant_basis. A trial with
+    ! rho = sqrt(X^2 + Y^2) > 1 is past the chart edge, where the forward map clamps
+    ! rho and would report a spuriously small residual on the flat clamped region; we
+    ! penalize it (large outward F) so the line search backtracks instead of
+    ! accepting the clamped-edge point. This replicates the over-edge rejection the
+    ! full-orbit Newton hand-rolled.
+    subroutine chartmap_invert_fdf(w, f, jac, ctx)
+        real(dp), intent(in) :: w(:)
+        real(dp), intent(out) :: f(:)
+        real(dp), intent(out) :: jac(:, :)
+        class(*), intent(in), optional :: ctx
+
+        real(dp) :: u(3), e_cov(3, 3), jw(3, 3), xc(3), cth, sth, rho
+        real(dp), parameter :: edge_penalty = 1.0e6_dp
+        integer :: i
+
+        f = 0.0_dp
+        jac = 0.0_dp
+        do i = 1, 3
+            jac(i, i) = 1.0_dp
+        end do
+        if (.not. present(ctx)) return
+
+        select type (ctx)
+        type is (chartmap_invert_ctx_t)
+            call chartmap_w_to_u(w, u)
+            rho = u(1)
+            if (rho > 1.0_dp) then
+                ! Penalize past-edge trials along the outward radial direction so the
+                ! Armijo step shrinks; keep the identity Jacobian as a safe descent.
+                f = 0.0_dp
+                f(1) = edge_penalty*(rho - 1.0_dp)
+                return
+            end if
+            call chartmap_eval_cart(ctx%self, u, xc)
+            f = xc - ctx%x_target
+            call chartmap_covariant_basis(ctx%self, u, e_cov)
+            call chartmap_pseudocart_basis(u, e_cov, jw, cth, sth)
+            jac = jw
+        end select
+    end subroutine chartmap_invert_fdf
+
+    ! fortnum n=1 multiroot callback for the bracketed edge solve: the residual
+    ! projected on the outward radial direction along the fixed (theta, phi) ray and
+    ! its 1x1 Jacobian. f = (x(rho) - x_target) . rhat, rhat = e_rho/|e_rho|, with
+    ! e_rho = dx/drho the covariant radial column (analytic); jac(1,1) = e_rho . rhat
+    ! is the dominant radial sensitivity, the off-ray curvature being second order.
+    ! The bracket [rho_lo, 1] is enforced here: rho > 1 is penalized (large outward
+    ! residual) so the line search backtracks, replicating the upper bracket bound.
+    subroutine chartmap_radial_fdf(w, f, jac, ctx)
+        real(dp), intent(in) :: w(:)
+        real(dp), intent(out) :: f(:)
+        real(dp), intent(out) :: jac(:, :)
+        class(*), intent(in), optional :: ctx
+
+        real(dp) :: u(3), xc(3), e_cov(3, 3), e_rho(3), rhat(3), e_norm, rho
+        real(dp), parameter :: edge_penalty = 1.0e6_dp
+
+        f = 0.0_dp
+        jac(1, 1) = 1.0_dp
+        if (.not. present(ctx)) return
+
+        select type (ctx)
+        type is (chartmap_invert_ctx_t)
+            rho = w(1)
+            if (rho > 1.0_dp) then
+                f(1) = edge_penalty*(rho - 1.0_dp)
+                return
+            end if
+            rho = max(rho, ctx%rho_lo)
+            u = [rho, ctx%theta, ctx%zeta]
+            call chartmap_eval_cart(ctx%self, u, xc)
+            call chartmap_covariant_basis(ctx%self, u, e_cov)
+            e_rho = e_cov(:, 1)
+            e_norm = sqrt(sum(e_rho**2))
+            if (e_norm < 1.0e-30_dp) then
+                rhat = 0.0_dp
+            else
+                rhat = e_rho/e_norm
+            end if
+            f(1) = dot_product(xc - ctx%x_target, rhat)
+            jac(1, 1) = dot_product(e_rho, rhat)
+        end select
+    end subroutine chartmap_radial_fdf
+
+    ! Pseudo-Cartesian near-axis chart basis. w = (X, Y, phi) = (rho cos theta,
+    ! rho sin theta, phi). The polar covariant column e_cov(:,2) = dx/dtheta ~ rho
+    ! vanishes at the axis (det -> 0); the (X, Y) columns built by the chain rule of
+    ! X, Y stay finite because dx/dtheta ~ rho cancels the 1/rho. Returns the regular
+    ! chart Jacobian jw(a,i) = dx_a/dw_i and the trig used to map field components.
+    ! Map geometry shared by the inverse solve and the field assembly.
+    subroutine chartmap_pseudocart_basis(u, e_cov, jw, cth, sth)
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(in) :: e_cov(3, 3)
+        real(dp), intent(out) :: jw(3, 3)
+        real(dp), intent(out) :: cth, sth
+        real(dp) :: rho
+        integer :: a
+
+        rho = max(u(1), 1.0e-30_dp)
+        cth = cos(u(2))
+        sth = sin(u(2))
+        do a = 1, 3
+            jw(a, 1) = e_cov(a, 1)*cth - e_cov(a, 2)*(sth/rho)   ! dx/dX
+            jw(a, 2) = e_cov(a, 1)*sth + e_cov(a, 2)*(cth/rho)   ! dx/dY
+            jw(a, 3) = e_cov(a, 3)                               ! dx/dphi
+        end do
+    end subroutine chartmap_pseudocart_basis
+
+    ! Pseudo-Cartesian w = (X, Y, phi) -> logical u = (rho, theta, phi). rho >= 0 and
+    ! the atan2 branch make the axis an ordinary point (no reflect hack).
+    pure subroutine chartmap_w_to_u(w, u)
+        real(dp), intent(in) :: w(3)
+        real(dp), intent(out) :: u(3)
+        u(1) = sqrt(w(1)**2 + w(2)**2)
+        u(2) = atan2(w(2), w(1))
+        u(3) = w(3)
+    end subroutine chartmap_w_to_u
+
+    ! Length of one unit-rho radial step |dx/drho| = |e_cov(:,1)|, the chart scale
+    ! that sizes a residual: a residual a small fraction of a radial cell means the
+    ! target is essentially located; a large fraction is an interior stall.
+    real(dp) function chartmap_radial_scale(self, u) result(s)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp) :: e_cov(3, 3)
+        call chartmap_covariant_basis(self, u, e_cov)
+        s = sqrt(e_cov(1, 1)**2 + e_cov(2, 1)**2 + e_cov(3, 1)**2)
+    end function chartmap_radial_scale
+
+    ! Classify a converged root from its radius and residual against the local
+    ! radial cell. Interior at tolerance -> LOCATED; an edge-clamped root within a
+    ! cell fraction -> CLAMPED_EDGE; a larger residual at rho = 1 -> OUTSIDE.
+    pure integer function chartmap_classify_root(rho, res_norm, rscale) result(status)
+        real(dp), intent(in) :: rho, res_norm, rscale
+        logical :: located, at_edge
+
+        located = res_norm < chartmap_invert_accept_tol .or. &
+                  (rscale > 0.0_dp .and. res_norm < chartmap_invert_edge_frac*rscale)
+        at_edge = rho >= 1.0_dp - chartmap_invert_edge_frac
+
+        if (located .and. .not. at_edge) then
+            status = CHARTMAP_LOCATED
+        else if (located .and. at_edge) then
+            status = CHARTMAP_CLAMPED_EDGE
+        else if (at_edge) then
+            status = CHARTMAP_OUTSIDE
+        else
+            status = CHARTMAP_NO_ROOT
+        end if
+    end function chartmap_classify_root
 
     subroutine chartmap_invert_cart(self, x_target, u, ierr)
         class(chartmap_coordinate_system_t), intent(in) :: self
