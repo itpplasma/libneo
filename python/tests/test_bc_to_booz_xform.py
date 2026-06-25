@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 TESTS_DIR = Path(__file__).parent
-CIRC_BC = Path("/home/ert/code/NEO-RT/examples/circ.bc")
+CIRC_BC = Path(__file__).resolve().parent / "circ.bc"
 
 R0_expected = 1.64377  # m, from circ.bc header
 A_expected = 0.46      # m

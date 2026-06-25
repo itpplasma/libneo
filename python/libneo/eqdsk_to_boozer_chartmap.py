@@ -79,7 +79,7 @@ def _write_field_divB0_inp(path, gfile, *, convexfile="'unused'"):
         f"0\n"              # ipert: 0=eq only
         f"1\n"              # iequil: 1=with equilibrium
         f"1.00\n"           # ampl
-        f"0\n"              # ntor
+        f"72\n"             # ntor
         f"0.99\n"           # cutoff
         f"4\n"              # icftype
         f"'{gfile}'\n"      # gfile
@@ -122,8 +122,8 @@ def convert_eqdsk_to_chartmap(
     nstep=3600,
     nlabel=500,
     ntheta_int=500,
-    nsurfmax=200,
-    nsurf=500,
+    nsurfmax=10000,
+    nsurf=2000,
     convexwall=None,
 ):
     """Read an EQDSK g-file and write a libneo Boozer chartmap.
@@ -155,16 +155,9 @@ def convert_eqdsk_to_chartmap(
     with tempfile.TemporaryDirectory() as tmpdir:
         os.chdir(tmpdir)
         try:
-            from libneo.eqdsk_base import read_eqdsk
-            eq = read_eqdsk(gfile)
-            # psimax in CGS (G*cm^2): stop the surface scan ~1% INSIDE the LCFS.
-            # Scanning to or past psi_edge can place the outermost surface in the
-            # flat-psi SOL of a limiter equilibrium, where B_pol -> 0 and the
-            # field-line transit time -> infinity, stalling the ODE integrator
-            # (Maximum steps exceeded). Staying inside keeps every scanned surface
-            # on a well-defined flux surface. The magnitude matches psif inside
-            # field_divB0, which normalises psi to zero at the axis.
-            psi_edge_cgs = abs(eq["PsiedgeVs"] - eq["PsiaxisVs"]) * 0.99e8
+            # Drive efit_to_boozer with its standard settings: psimax defaults to
+            # 1e10 and the separatrix is located by the field-line integration,
+            # exactly as the existing efit_to_boozer.inp does.
             _write_inp(
                 "efit_to_boozer.inp",
                 gfile,
@@ -173,9 +166,10 @@ def convert_eqdsk_to_chartmap(
                 ntheta_int=ntheta_int,
                 nsurfmax=nsurfmax,
                 nsurf=nsurf,
-                psimax=psi_edge_cgs,
             )
             if convexwall is None:
+                from libneo.eqdsk_base import read_eqdsk
+                eq = read_eqdsk(gfile)
                 lcfs = eq["Lcfs"]
                 _write_convex_wall_from_lcfs(
                     "convexwall.dat", lcfs[:, 0], lcfs[:, 1]
@@ -319,9 +313,9 @@ def main(argv=None):
     parser.add_argument("--ntheta-int", type=int, default=500,
                         dest="ntheta_int",
                         help="poloidal grid in efit_to_boozer integration")
-    parser.add_argument("--nsurfmax", type=int, default=200,
+    parser.add_argument("--nsurfmax", type=int, default=10000,
                         help="starting points for separatrix search")
-    parser.add_argument("--nsurf", type=int, default=500,
+    parser.add_argument("--nsurf", type=int, default=2000,
                         help="flux surfaces in Boozer file")
     args = parser.parse_args(argv)
 

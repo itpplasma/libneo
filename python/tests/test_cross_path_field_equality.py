@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from scipy.interpolate import CubicSpline
 
-CIRC_BC = Path("/home/ert/code/NEO-RT/examples/circ.bc")
+CIRC_BC = Path(__file__).resolve().parent / "circ.bc"
 
 TWOPI = 2.0 * np.pi
 
