@@ -46,7 +46,6 @@ def _bc_to_mode_arrays(bc):
     lasym = False
     rmns = np.zeros((nsurf, nmn)) if lasym else None
     zmnc = np.zeros((nsurf, nmn)) if lasym else None
-    pmns_s = np.zeros((nsurf, nmn)) if lasym else None
     bmns = np.zeros((nsurf, nmn)) if lasym else None
 
     for k in range(nsurf):
@@ -74,7 +73,7 @@ def _bc_to_mode_arrays(bc):
     return m0, n0, rmnc, zmns, pmns, bmnc, rmns, zmnc, bmns, lasym
 
 
-def write_boozmn(bc, output):
+def write_boozmn(bc, output, source=None):
     """Write a boozmn NetCDF from a BoozerFile object.
 
     Parameters
@@ -83,6 +82,8 @@ def write_boozmn(bc, output):
         Parsed .bc file.
     output : path-like
         Destination NetCDF path.
+    source : path-like, optional
+        Original .bc path recorded in the bc2boozmn_source provenance attribute.
     """
     import netCDF4
 
@@ -164,7 +165,7 @@ def write_boozmn(bc, output):
             _var("rmns_b", "f8", ("comput_surfs", "mn_mode"), rmns_h)
             _var("zmnc_b", "f8", ("comput_surfs", "mn_mode"), zmnc_h)
 
-        ds.bc2boozmn_source = str(output)
+        ds.bc2boozmn_source = str(source if source is not None else output)
 
 
 def convert_bc_to_boozmn(bc_file, output):
@@ -172,7 +173,7 @@ def convert_bc_to_boozmn(bc_file, output):
     from libneo.boozer import BoozerFile
 
     bc = BoozerFile(str(bc_file))
-    write_boozmn(bc, output)
+    write_boozmn(bc, output, source=bc_file)
 
 
 def main(argv=None):
