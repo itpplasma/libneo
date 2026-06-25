@@ -91,8 +91,14 @@ def test_boozmn_structure(boozmn_path):
     assert d["ns"] == 65, f"expected ns=63+2=65, got {d['ns']}"
     assert d["nfp"] == 1, f"expected nfp=1, got {d['nfp']}"
     assert len(d["jlist"]) == 63, f"expected 63 half-grid surfaces"
-    assert d["jlist"][0] == 2, f"jlist[0]={d['jlist'][0]}, expected 2"
-    assert d["jlist"][-1] == 64, f"jlist[-1]={d['jlist'][-1]}, expected 64"
+    assert d["jlist"][0] == 3, f"jlist[0]={d['jlist'][0]}, expected 3"
+    assert d["jlist"][-1] == 65, f"jlist[-1]={d['jlist'][-1]}, expected 65"
+    # The reconstructed half-grid must land on the .bc surface labels, otherwise
+    # the chartmap is radially shifted by a fraction of a cell (off-by-one guard).
+    s_half = (d["jlist"] - 1.5) / (d["ns"] - 1)
+    assert abs(s_half[0] - 0.023438) < 1e-4 and abs(s_half[-1] - 0.992188) < 1e-4, (
+        f"s_half {s_half[0]:.6f}..{s_half[-1]:.6f} does not match the .bc surfaces"
+    )
 
 
 def test_boozmn_iota_range(boozmn_path):
