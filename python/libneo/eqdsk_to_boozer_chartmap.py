@@ -157,12 +157,14 @@ def convert_eqdsk_to_chartmap(
         try:
             from libneo.eqdsk_base import read_eqdsk
             eq = read_eqdsk(gfile)
-            # psimax in CGS (G*cm^2): set 1% above |psi_edge| so the separatrix
-            # scan terminates at the LCFS for limiter-bounded equilibria without
-            # an X-point. The sign must match psif inside field_divB0 (which
-            # adds psib to normalise psi to zero at the axis), so we use the
-            # magnitude plus a large tolerance.
-            psi_edge_cgs = abs(eq["PsiedgeVs"] - eq["PsiaxisVs"]) * 1.01e8
+            # psimax in CGS (G*cm^2): stop the surface scan ~1% INSIDE the LCFS.
+            # Scanning to or past psi_edge can place the outermost surface in the
+            # flat-psi SOL of a limiter equilibrium, where B_pol -> 0 and the
+            # field-line transit time -> infinity, stalling the ODE integrator
+            # (Maximum steps exceeded). Staying inside keeps every scanned surface
+            # on a well-defined flux surface. The magnitude matches psif inside
+            # field_divB0, which normalises psi to zero at the axis.
+            psi_edge_cgs = abs(eq["PsiedgeVs"] - eq["PsiaxisVs"]) * 0.99e8
             _write_inp(
                 "efit_to_boozer.inp",
                 gfile,
