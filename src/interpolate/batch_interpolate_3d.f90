@@ -70,7 +70,6 @@ contains
         type(BatchSplineData3D), intent(inout) :: spl
 
         real(dp), dimension(:, :), allocatable  :: splcoe
-        real(dp), dimension(:, :, :, :, :, :), allocatable :: temp_coeff
         integer :: i1, i2, i3, iq  ! Loop indices
         integer :: k2, k3          ! Loop indices for polynomial order
         integer :: n1, n2, n3, n_quantities, istat
@@ -136,13 +135,9 @@ contains
             end if
         end if
 
-        allocate (temp_coeff(0:N1_order, 0:N2_order, 0:N3_order, n1, n2, n3), &
-                  stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_3d: Allocation failed for temp_coeff"
-        end if
-
-        ! Process each quantity
+        ! Build each quantity in place, directly into spl%coeff(iq,...), so no
+        ! full-size temporary coefficient array is held (it doubled peak memory:
+        ! ~24 GB for the reactor chartmap and caused OOM during field loading).
         do iq = 1, n_quantities
             ! Spline over x3 first
             allocate (splcoe(0:N3_order, n3), stat=istat)
@@ -158,7 +153,7 @@ contains
                     else
                         call spl_reg(N3_order, n3, spl%h_step(3), splcoe)
                     end if
-                    temp_coeff(0, 0, :, i1, i2, :) = splcoe
+                    spl%coeff(iq, 0, 0, :, i1, i2, :) = splcoe
                 end do
             end do
             deallocate (splcoe)
@@ -172,13 +167,13 @@ contains
             do i3 = 1, n3
                 do i1 = 1, n1
                     do k3 = 0, N3_order
-                        splcoe(0, :) = temp_coeff(0, 0, k3, i1, :, i3)
+                        splcoe(0, :) = spl%coeff(iq, 0, 0, k3, i1, :, i3)
                         if (periodic(2)) then
                             call spl_per(N2_order, n2, spl%h_step(2), splcoe)
                         else
                             call spl_reg(N2_order, n2, spl%h_step(2), splcoe)
                         end if
-                        temp_coeff(0, :, k3, i1, :, i3) = splcoe
+                        spl%coeff(iq, 0, :, k3, i1, :, i3) = splcoe
                     end do
                 end do
             end do
@@ -194,25 +189,19 @@ contains
                 do i2 = 1, n2
                     do k3 = 0, N3_order
                         do k2 = 0, N2_order
-                            splcoe(0, :) = temp_coeff(0, k2, k3, :, i2, i3)
+                            splcoe(0, :) = spl%coeff(iq, 0, k2, k3, :, i2, i3)
                             if (periodic(1)) then
                                 call spl_per(N1_order, n1, spl%h_step(1), splcoe)
                             else
                                 call spl_reg(N1_order, n1, spl%h_step(1), splcoe)
                             end if
-                            ! Store in STANDARD order for consistency and clarity
-                            temp_coeff(:, k2, k3, :, i2, i3) = splcoe
+                            spl%coeff(iq, :, k2, k3, :, i2, i3) = splcoe
                         end do
                     end do
                 end do
             end do
             deallocate (splcoe)
-
-            ! Copy to final coefficient array
-            spl%coeff(iq, :, :, :, :, :, :) = temp_coeff
         end do
-
-        deallocate (temp_coeff)
     end subroutine construct_batch_splines_3d_legacy
 
     recursive subroutine construct_batch_splines_3d_lines(x_min, x_max, y_batch, order, &
