@@ -70,12 +70,12 @@ def chartmap_path(tmp_path_factory):
 
 
 def test_bmod_cross_path(chartmap_path):
-    """Bmod from .bc Fourier sum matches chartmap interpolation to 5e-3 relative.
+    """Bmod from .bc Fourier sum matches chartmap interpolation to 1e-4 relative.
 
-    The error budget: the booz_xform_to_boozer_chartmap spline in rho introduces
-    ~1-3e-3 error at mid-radius and up to 1% near the axis (s < 0.1) due to the
-    near-axis power-law extrapolation for non-zero poloidal modes.  Test points
-    are restricted to 0.2 < s < 0.9 where the error is bounded by 5e-3.
+    The radial grids are aligned to the .bc surfaces (bc_to_booz_xform chooses
+    jlist/ns so the reader's s_half reproduces bc.s), so the only residual is
+    plain interpolation plus the .bc's ~1e-5 s-storage precision.  Test points
+    are restricted to 0.2 < s < 0.9 where the error is below 1e-4.
     """
     import netCDF4
     from scipy.interpolate import RegularGridInterpolator
@@ -118,7 +118,7 @@ def test_bmod_cross_path(chartmap_path):
 
     for i in range(n_test):
         rel_err = abs(bmod_direct[i] - bmod_chartmap[i]) / abs(bmod_direct[i])
-        assert rel_err < 5e-3, (
+        assert rel_err < 1e-4, (
             f"point {i}: s={s_test[i]:.3f}, theta={theta_b_test[i]:.3f} rad; "
             f"|B|_direct={bmod_direct[i]:.5f} T, |B|_chartmap={bmod_chartmap[i]:.5f} T, "
             f"rel_err={rel_err:.2e}"

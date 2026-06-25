@@ -6,8 +6,10 @@ passed directly to convert_boozmn_to_chartmap.
 
 Radial staggering convention (matches booz_xform output):
   Full grid (ns points):  iota_b, buco_b, bvco_b, phi_b
-  Half grid (ns-2 points): bmnc_b, rmnc_b, zmns_b, pmns_b
-  jlist[k] = k+2  (1-based, half-grid surface k sits between full-grid k+1 and k+2)
+  Half grid (nsurf points): bmnc_b, rmnc_b, zmns_b, pmns_b
+  jlist and ns are chosen so the reader's reconstructed half-grid
+  s_half = (jlist - 1.5)/(ns - 1) reproduces the .bc surface labels bc.s
+  exactly, with each surface function placed at full-grid index jlist - 1.
 
 Unit conversions:
   .bc curr_pol/nper [A] -> bvco_b [T*m] = curr_pol/nper * nfp * mu_0 / (2*pi)
@@ -89,10 +91,31 @@ def write_boozmn(bc, output, source=None):
 
     nsurf = bc.nsurf
     nfp = bc.nper
-    ns = nsurf + 2  # axis (j=1) + nsurf half-grid + LCFS (j=ns)
 
-    # Half-grid surface indices (1-based): 2 .. ns-1
-    jlist = np.arange(2, ns, dtype=int)  # shape (nsurf,)
+    # The booz_xform reader reconstructs each half-grid surface as
+    # s_half = (jlist - 1.5)/(ns - 1) and samples the radial surface functions
+    # at full-grid index jlist - 1. Choose ns and jlist so that reconstruction
+    # reproduces the .bc surface labels bc.s exactly (no half/full-grid offset),
+    # and place the .bc surface-function values at jlist - 1 so the reader reads
+    # them back without resampling. This keeps the chartmap radially aligned with
+    # the .bc; any residual is plain interpolation error that shrinks with the
+    # chartmap grid, not a fixed off-by-one shift.
+    # .bc files store s to finite precision, so test uniformity and integer
+    # alignment within that rounding rather than to machine epsilon.
+    s_bc = np.array(bc.s, dtype=float)
+    ds = np.diff(s_bc)
+    ns = int(round(1.0 / np.mean(ds))) + 1
+    jlist_f = s_bc * (ns - 1) + 1.5
+    jlist = np.rint(jlist_f).astype(int)
+    if (np.ptp(ds) > 1e-2 * np.mean(ds)
+            or np.max(np.abs(jlist - jlist_f)) > 0.25
+            or jlist[0] < 2 or jlist[-1] > ns
+            or np.any(np.diff(jlist) != 1)):
+        raise ValueError(
+            "bc_to_booz_xform requires a uniform .bc s-grid that lands on the "
+            "booz_xform half-grid; resampling a non-uniform grid is not "
+            "implemented."
+        )
 
     # Build mode arrays from .bc.
     m0, n0, rmnc_h, zmns_h, pmns_h, bmnc_h, rmns_h, zmnc_h, bmns_h, lasym = (
@@ -101,26 +124,24 @@ def write_boozmn(bc, output, source=None):
     ixm = m0.astype(np.int32)
     ixn = (n0 * nfp).astype(np.int32)  # booz_xform stores n*nfp in ixn_b
 
-    # Surface functions on half grid from .bc.
-    s_half = np.array(bc.s, dtype=float)  # shape (nsurf,)
+    # Surface functions, defined on the .bc surfaces (= s_half).
     iota_h = np.array(bc.iota, dtype=float)
     bvco_h = np.array(bc.Jpol_divided_by_nper, dtype=float) * nfp * MU0 / TWOPI
     buco_h = np.array(bc.Itor, dtype=float) * MU0 / TWOPI
 
-    # Full-grid arrays by linear extrapolation from half grid (axis + LCFS).
+    # Full-grid arrays: put the true .bc value at jlist - 1 (where the reader
+    # samples it); fill the axis side by spline extrapolation (those entries are
+    # not read for the half-grid surfaces).
     from scipy.interpolate import CubicSpline
 
-    spl_iota = CubicSpline(s_half, iota_h, extrapolate=True)
-    spl_bvco = CubicSpline(s_half, bvco_h, extrapolate=True)
-    spl_buco = CubicSpline(s_half, buco_h, extrapolate=True)
-
-    # Full-grid s: 0, 1/(ns-1), 2/(ns-1), ..., 1
     s_full = np.linspace(0.0, 1.0, ns)
-    iota_full = spl_iota(s_full)
-    bvco_full = spl_bvco(s_full)
-    buco_full = spl_buco(s_full)
-    iota_full[0] = spl_iota(0.0)
-    bvco_full[0] = spl_bvco(0.0)
+    iota_full = CubicSpline(s_bc, iota_h, extrapolate=True)(s_full)
+    bvco_full = CubicSpline(s_bc, bvco_h, extrapolate=True)(s_full)
+    buco_full = CubicSpline(s_bc, buco_h, extrapolate=True)(s_full)
+    idx = jlist - 1
+    iota_full[idx] = iota_h
+    bvco_full[idx] = bvco_h
+    buco_full[idx] = buco_h
     buco_full[0] = 0.0   # zero poloidal current at axis
 
     # Toroidal flux: bc.flux is the edge value in T*m^2.
