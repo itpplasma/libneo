@@ -161,8 +161,12 @@ contains
         phi_in = xfrom(2)
         Z_val = clamp(xfrom(3), ctx%Z_min, ctx%Z_max)
 
-        s_val = s_from_position(R_val, Z_val)
-        theta_val = atan2(Z_val - ctx%Z_axis, R_val - ctx%R_axis)
+        if (ctx%cache_built) then
+            call invert_cached_surface(R_val, Z_val, s_val, theta_val)
+        else
+            s_val = s_from_position(R_val, Z_val)
+            theta_val = atan2(Z_val - ctx%Z_axis, R_val - ctx%R_axis)
+        end if
 
         xto(1) = s_val
         xto(2) = theta_val
@@ -781,12 +785,65 @@ contains
         real(dp), intent(out) :: xto(3)
 
         real(dp) :: s_val, theta_val
-        s_val = s_from_position(xfrom(1), xfrom(3))
-        theta_val = atan2(xfrom(3) - ctx%Z_axis, xfrom(1) - ctx%R_axis)
+
+        if (ctx%cache_built) then
+            call invert_cached_surface(xfrom(1), xfrom(3), s_val, theta_val)
+        else
+            s_val = s_from_position(xfrom(1), xfrom(3))
+            theta_val = atan2(xfrom(3) - ctx%Z_axis, xfrom(1) - ctx%R_axis)
+        end if
         xto(1) = s_val
         xto(2) = theta_val
         xto(3) = xfrom(2)
     end subroutine cyl_to_geoflux_internal
+
+    subroutine invert_cached_surface(R_target, Z_target, s_out, theta_out)
+        real(dp), intent(in) :: R_target, Z_target
+        real(dp), intent(out) :: s_out, theta_out
+
+        real(dp) :: s_cur, theta_cur, R_cur, Z_cur
+        real(dp) :: dR_ds, dR_dt, dZ_ds, dZ_dt
+        real(dp) :: err_R, err_Z, det, ds, dt
+        real(dp), parameter :: h = 1.0d-6
+        real(dp), parameter :: tol_inv = 1.0d-10
+        integer, parameter :: max_iter = 20
+        integer :: iter
+        real(dp) :: R_sp, Z_sp, R_sm, Z_sm, R_tp, Z_tp, R_tm, Z_tm
+
+        s_cur = s_from_position(R_target, Z_target)
+        theta_cur = atan2(Z_target - ctx%Z_axis, R_target - ctx%R_axis)
+
+        do iter = 1, max_iter
+            call interpolate_cached_surface(s_cur, theta_cur, R_cur, Z_cur)
+
+            err_R = R_cur - R_target
+            err_Z = Z_cur - Z_target
+
+            if (max(abs(err_R), abs(err_Z)) < tol_inv) exit
+
+            call interpolate_cached_surface(clamp01(s_cur + h), theta_cur, R_sp, Z_sp)
+            call interpolate_cached_surface(clamp01(s_cur - h), theta_cur, R_sm, Z_sm)
+            dR_ds = (R_sp - R_sm) / (2.0_dp * h)
+            dZ_ds = (Z_sp - Z_sm) / (2.0_dp * h)
+
+            call interpolate_cached_surface(s_cur, theta_cur + h, R_tp, Z_tp)
+            call interpolate_cached_surface(s_cur, theta_cur - h, R_tm, Z_tm)
+            dR_dt = (R_tp - R_tm) / (2.0_dp * h)
+            dZ_dt = (Z_tp - Z_tm) / (2.0_dp * h)
+
+            det = dR_ds * dZ_dt - dR_dt * dZ_ds
+            if (abs(det) < 1.0d-14) exit
+
+            ds = (dZ_dt * err_R - dR_dt * err_Z) / det
+            dt = (-dZ_ds * err_R + dR_ds * err_Z) / det
+
+            s_cur = clamp01(s_cur - ds)
+            theta_cur = theta_cur - dt
+        end do
+
+        s_out = s_cur
+        theta_out = wrap_theta(theta_cur)
+    end subroutine invert_cached_surface
 
     subroutine geoflux_get_axis(R_axis, Z_axis)
         real(dp), intent(out) :: R_axis, Z_axis

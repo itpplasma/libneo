@@ -9,6 +9,13 @@ module field_eq_mod
    integer :: nrad, nzet, icp, nwindow_r, nwindow_z
    integer :: ierrfield
 
+   ! When .true., magfie accepts guiding-center points outside the separatrix
+   ! (scrape-off layer) instead of flagging ierrfield=1. The equilibrium field
+   ! is splined over the whole EQDSK box and F is frozen to its vacuum value
+   ! there, so it stays valid. Default .false. keeps the historic domain bound
+   ! for all other consumers; edge-orbit tracing (POTATO) sets it .true.
+   logical :: allow_sol = .false.
+
    real(dp) :: psib, btf, rtf, hrad, hzet
    real(dp) :: psi_axis, psi_sep, hfpol                            !<=18.12.18
    real(dp), dimension(:, :), allocatable :: psi, psi0
@@ -21,8 +28,12 @@ module field_eq_mod
    ! Field variables for POTATO integration
    real(dp) :: psif, dpsidr, dpsidz, d2psidr2, d2psidrdz, d2psidz2
 
-   ! Make temporary variables threadprivate
-   !$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2)
+   ! Make per-evaluation field state threadprivate. ierrfield is the field-eval
+   ! domain-error flag: magfie sets it on each evaluation and the caller reads it
+   ! immediately after, so with allow_sol=.false. (an out-of-domain point sets
+   ! ierrfield=1) a shared flag races across OpenMP threads. Each thread needs its
+   ! own copy.
+   !$omp threadprivate(psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierrfield)
 
 contains
 

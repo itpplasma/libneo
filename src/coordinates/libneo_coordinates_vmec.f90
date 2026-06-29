@@ -1,12 +1,27 @@
-submodule (libneo_coordinates) libneo_coordinates_vmec
+module libneo_coordinates_vmec
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use libneo_coordinates_base, only: coordinate_system_t
     use spline_vmec_sub, only: splint_vmec_data
     use cylindrical_cartesian, only: cyl_to_cart
     use math_constants, only: TWOPI
     implicit none
+    private
+
+    public :: vmec_coordinate_system_t, make_vmec_coordinate_system
+
+    type, extends(coordinate_system_t) :: vmec_coordinate_system_t
+    contains
+        procedure :: evaluate_cart => vmec_evaluate_cart
+        procedure :: evaluate_cyl => vmec_evaluate_cyl
+        procedure :: covariant_basis => vmec_covariant_basis
+        procedure :: metric_tensor => vmec_metric_tensor
+        procedure :: christoffel => vmec_christoffel
+        procedure :: from_cyl => vmec_from_cyl
+    end type vmec_coordinate_system_t
 
 contains
 
-    module subroutine make_vmec_coordinate_system(cs)
+    subroutine make_vmec_coordinate_system(cs)
         class(coordinate_system_t), allocatable, intent(out) :: cs
         allocate(vmec_coordinate_system_t :: cs)
     end subroutine make_vmec_coordinate_system
@@ -20,6 +35,9 @@ contains
         real(dp) :: A_phi, A_theta, dA_phi_ds, dA_theta_ds, aiota
         real(dp) :: R, Z, alam, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
         real(dp) :: dl_ds, dl_dt, dl_dp
+
+        associate(dummy => self)
+        end associate
 
         s = u(1)
         theta = u(2)
@@ -48,13 +66,16 @@ contains
     subroutine vmec_covariant_basis(self, u, e_cov)
         class(vmec_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
-        real(dp), intent(out) :: e_cov(3,3)
+        real(dp), intent(out) :: e_cov(3, 3)
 
         real(dp) :: s, theta, varphi
         real(dp) :: A_phi, A_theta, dA_phi_ds, dA_theta_ds, aiota
         real(dp) :: R, Z, alam, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
         real(dp) :: dl_ds, dl_dt, dl_dp
         real(dp) :: cos_phi, sin_phi
+
+        associate(dummy => self)
+        end associate
 
         s = u(1)
         theta = u(2)
@@ -83,9 +104,9 @@ contains
     subroutine vmec_metric_tensor(self, u, g, ginv, sqrtg)
         class(vmec_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
-        real(dp), intent(out) :: g(3,3), ginv(3,3), sqrtg
+        real(dp), intent(out) :: g(3, 3), ginv(3, 3), sqrtg
 
-        real(dp) :: e_cov(3,3)
+        real(dp) :: e_cov(3, 3)
         real(dp) :: det
         integer :: i, j
 
@@ -113,6 +134,19 @@ contains
         ginv(3,2) = (g(1,2)*g(3,1) - g(1,1)*g(3,2))/det
         ginv(3,3) = (g(1,1)*g(2,2) - g(1,2)*g(2,1))/det
     end subroutine vmec_metric_tensor
+
+    subroutine vmec_christoffel(self, u, Gamma)
+        !> Christoffel symbols of the second kind for the VMEC chart embedded in
+        !> physical (R, varphi, Z) geometry. Built from central differences of
+        !> vmec_metric_tensor so the result is consistent with the embedded
+        !> metric used elsewhere; the analytic symmetry-flux engine
+        !> (splint_vmec_data_d2 + christoffel_symflux) is validated separately.
+        class(vmec_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: Gamma(3, 3, 3)
+
+        call self%christoffel_fd(u, Gamma)
+    end subroutine vmec_christoffel
 
     subroutine vmec_from_cyl(self, xcyl, u, ierr)
         class(vmec_coordinate_system_t), intent(in) :: self
@@ -221,4 +255,4 @@ contains
         u = [s, theta, varphi]
     end subroutine vmec_from_cyl
 
-end submodule libneo_coordinates_vmec
+end module libneo_coordinates_vmec

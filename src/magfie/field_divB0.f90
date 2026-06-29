@@ -814,38 +814,21 @@ subroutine stretch_coords(r,z,rm,zm)
   integer :: i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrhotht=360
   integer :: iflag, unit_convex, ios
-  logical :: reload_needed
   real(dp) :: Rw, Zw, a, b, rho, tht, rho_c, dummy
   real(dp), save :: R0 = 0.0_dp, htht = 0.0_dp
   real(dp), dimension(:), allocatable, save :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable, save :: rho_w, tht_w
   real(dp), dimension(nrhotht), save :: rho_wall, tht_wall ! polar coords of CW
-  character(:), allocatable, save :: cached_convexfile
-  character(:), allocatable :: filename_trim
   real(dp), save :: delta = 1.0_dp
-  !----------- 1st call --------------------------------------------------------
+  !----------- load the convex wall once (lazy init) ---------------------------
+  ! stretch_coords runs on every field evaluation (the hot path), so the convex
+  ! wall -- read once and unchanged during a run -- must NOT be re-checked here.
+  ! Double-checked locking: the critical section and the file read execute only
+  ! on the first call; afterwards icall/=0 short-circuits with no lock, no string
+  ! work and no allocation.  (To force a reload after changing convexfile, reset
+  ! icall via the field reinit path, not by polling the filename in this loop.)
+  if(icall .eq. 0) then
   !$omp critical
-  reload_needed = .false.
-  if(allocated(filename_trim)) deallocate(filename_trim)
-  allocate(character(len=len_trim(convexfile)) :: filename_trim)
-  filename_trim = trim(convexfile)
-  if(.not. allocated(cached_convexfile)) then
-    allocate(character(len=len(filename_trim)) :: cached_convexfile)
-    cached_convexfile = filename_trim
-    reload_needed = .true.
-  else if (len(cached_convexfile) /= len(filename_trim)) then
-    deallocate(cached_convexfile)
-    allocate(character(len=len(filename_trim)) :: cached_convexfile)
-    cached_convexfile = filename_trim
-    reload_needed = .true.
-  else if (cached_convexfile /= filename_trim) then
-    cached_convexfile = filename_trim
-    reload_needed = .true.
-  end if
-  if(reload_needed) then
-    icall = 0
-  end if
-  if(allocated(filename_trim)) deallocate(filename_trim)
   if(icall .eq. 0) then
     icall = 1
     nrz = count_data_points()
@@ -910,6 +893,7 @@ subroutine stretch_coords(r,z,rm,zm)
 
   end if
   !$omp end critical
+  end if
   !----------- end of the 1st call --------------------------------------------
   rm = r
   zm = z

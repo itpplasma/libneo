@@ -28,3 +28,6 @@ from .vmec import VMECGeometry, vmec_to_cylindrical
 
 # Chartmap coordinate utilities
 from .chartmap import chartmap_to_rz, vmec_to_chartmap_coords
+
+# Boozer chartmap writer (libneo-defined extended chartmap format)
+from .boozer_chartmap_writer import write_boozer_chartmap, apply_left_handed_flip

@@ -1,8 +1,132 @@
 class eqdsk_file:
 
-  def __init__ (self, filename:str):
+  def __init__(self, filename: str):
     self.verbose = False
+    self._psi_interpolator = None
     self.generate_from_file(filename)
+
+  def _build_psi_interpolator(self):
+    from scipy.interpolate import RegularGridInterpolator
+    import numpy as np
+    self._psi_interpolator = RegularGridInterpolator(
+        (self.Z, self.R), self.PsiVs, method='cubic', bounds_error=False
+    )
+    i_r_axis = np.argmin(np.abs(self.R - self.Rpsi0))
+    i_z_axis = np.argmin(np.abs(self.Z - self.Zpsi0))
+    self._psi_at_axis = self.PsiVs[i_z_axis, i_r_axis]
+    self._psi_at_edge = self.PsiedgeVs
+    if np.sign(self._psi_at_axis) != np.sign(self.PsiaxisVs):
+      self._psi_at_edge = -self.PsiedgeVs
+
+  def psi_at_rz(self, R, Z, grid=False):
+    """
+    Interpolate poloidal flux psi at arbitrary (R, Z) coordinates.
+
+    Parameters
+    ----------
+    R : float or array_like
+        Major radius coordinate(s) in meters.
+    Z : float or array_like
+        Vertical coordinate(s) in meters.
+    grid : bool, optional
+        If True, evaluate on the grid formed by R and Z arrays.
+        If False (default), evaluate at corresponding pairs (R[i], Z[i]).
+
+    Returns
+    -------
+    psi : float or ndarray
+        Poloidal flux value(s) at the given coordinates.
+    """
+    import numpy as np
+    if self._psi_interpolator is None:
+      self._build_psi_interpolator()
+
+    R = np.atleast_1d(R)
+    Z = np.atleast_1d(Z)
+
+    if grid:
+      ZZ, RR = np.meshgrid(Z, R, indexing='ij')
+      points = np.column_stack([ZZ.ravel(), RR.ravel()])
+      result = self._psi_interpolator(points).reshape(ZZ.shape)
+    else:
+      points = np.column_stack([Z, R])
+      result = self._psi_interpolator(points)
+      if result.size == 1:
+        result = result.item()
+
+    return result
+
+  def spol_at_rz(self, R, Z):
+    """
+    Compute normalized poloidal flux coordinate s_pol at (R, Z).
+
+    s_pol = (psi - psi_axis) / (psi_edge - psi_axis)
+
+    Parameters
+    ----------
+    R : float or array_like
+        Major radius coordinate(s) in meters.
+    Z : float or array_like
+        Vertical coordinate(s) in meters.
+
+    Returns
+    -------
+    s_pol : float or ndarray
+        Normalized poloidal flux, 0 at axis, 1 at separatrix.
+    """
+    if self._psi_interpolator is None:
+      self._build_psi_interpolator()
+    psi = self.psi_at_rz(R, Z)
+    return (psi - self._psi_at_axis) / (self._psi_at_edge - self._psi_at_axis)
+
+  def theta_geometric_at_rz(self, R, Z):
+    """
+    Compute geometric poloidal angle at (R, Z) relative to magnetic axis.
+
+    theta = atan2(Z - Z_axis, R - R_axis)
+
+    Parameters
+    ----------
+    R : float or array_like
+        Major radius coordinate(s) in meters.
+    Z : float or array_like
+        Vertical coordinate(s) in meters.
+
+    Returns
+    -------
+    theta : float or ndarray
+        Geometric poloidal angle in radians, range (-pi, pi].
+        theta=0 at outboard midplane, theta=pi/2 at top.
+    """
+    import numpy as np
+    R = np.atleast_1d(R)
+    Z = np.atleast_1d(Z)
+    theta = np.arctan2(Z - self.Zpsi0, R - self.Rpsi0)
+    if theta.size == 1:
+      return theta.item()
+    return theta
+
+  def rz_to_flux_coords(self, R, Z):
+    """
+    Convert (R, Z) cylindrical coordinates to flux coordinates (s_pol, theta).
+
+    Parameters
+    ----------
+    R : float or array_like
+        Major radius coordinate(s) in meters.
+    Z : float or array_like
+        Vertical coordinate(s) in meters.
+
+    Returns
+    -------
+    s_pol : float or ndarray
+        Normalized poloidal flux coordinate.
+    theta : float or ndarray
+        Geometric poloidal angle in radians.
+    """
+    s_pol = self.spol_at_rz(R, Z)
+    theta = self.theta_geometric_at_rz(R, Z)
+    return s_pol, theta
 
 
   def generate_from_file(self, filename:str):
@@ -171,19 +295,20 @@ class eqdsk_file:
       self.DZcond = self.PFcoilData[:,3]
       self.Icond = self.PFcoilData[:,4]
 
-      # Read Brn
-      self.Brn = np.empty(self.nrgr*self.nzgr)
-      for k in range(self.nrgr*self.nzgr):
-        self.Brn[k] = readblock(f)
+      try:
+        # Read Brn (optional)
+        self.Brn = np.empty(self.nrgr*self.nzgr)
+        for k in range(self.nrgr*self.nzgr):
+          self.Brn[k] = readblock(f)
+        self.Brn = self.Brn.reshape(self.nzgr, self.nrgr)
 
-      self.Brn = self.Brn.reshape(self.nzgr, self.nrgr)
-
-      # Read Bzn
-      self.Bzn = np.empty(self.nrgr*self.nzgr)
-      for k in range(self.nrgr*self.nzgr):
-        self.Bzn[k] = readblock(f)
-
-      self.Bzn = self.Bzn.reshape(self.nzgr, self.nrgr)
+        # Read Bzn (optional)
+        self.Bzn = np.empty(self.nrgr*self.nzgr)
+        for k in range(self.nrgr*self.nzgr):
+          self.Bzn[k] = readblock(f)
+        self.Bzn = self.Bzn.reshape(self.nzgr, self.nrgr)
+      except (ValueError, IndexError):
+        pass  # Brn/Bzn data not available
 
 
   def sort_into_coilgroups(self, indices_coilgroupstarts:list, coilgroups:list, coiltags:list):
