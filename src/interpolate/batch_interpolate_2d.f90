@@ -28,8 +28,10 @@ module batch_interpolate_2d
    public :: evaluate_batch_splines_2d
    public :: evaluate_batch_splines_2d_der
    public :: evaluate_batch_splines_2d_many
+   public :: evaluate_batch_splines_2d_many_mask
    public :: evaluate_batch_splines_2d_many_resident
    public :: evaluate_batch_splines_2d_many_der
+   public :: evaluate_batch_splines_2d_many_der_mask
 
 contains
 
@@ -619,6 +621,135 @@ contains
 
       deallocate (coeff_2, coeff_2_dx1)
    end subroutine evaluate_batch_splines_2d_many_der
+
+   recursive subroutine evaluate_batch_splines_2d_many_mask(spl, x, mask, y_batch)
+      type(BatchSplineData2D), intent(in) :: spl
+      real(dp), intent(in) :: x(:, :)
+      logical, intent(in) :: mask(:)
+      real(dp), intent(inout) :: y_batch(:, :)  ! (nq, npts); masked-out entries untouched
+
+      integer :: ipt, iq, k1, k2, i1, i2, k_wrap
+      integer :: nq, order1, order2
+      integer :: num_points(2)
+      logical :: periodic(2)
+      real(dp) :: xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
+      real(dp) :: x_min(2), h_step(2), period(2)
+      real(dp) :: t, w, v, yq
+
+      if (size(x, 1) /= 2) then
+         error stop "evaluate_batch_splines_2d_many_mask: First dimension of x must be 2"
+      end if
+      if (size(y_batch, 1) < spl%num_quantities) then
+         error stop "evaluate_batch_splines_2d_many_mask: First dimension too small"
+      end if
+      if (size(y_batch, 2) /= size(x, 2)) then
+         error stop "evaluate_batch_splines_2d_many_mask: y_batch second dim mismatch"
+      end if
+      if (size(mask) /= size(x, 2)) then
+         error stop "evaluate_batch_splines_2d_many_mask: mask size mismatch"
+      end if
+
+      nq = spl%num_quantities
+      num_points = spl%num_points
+      order1 = spl%order(1)
+      order2 = spl%order(2)
+      periodic = spl%periodic
+      x_min = spl%x_min
+      h_step = spl%h_step
+      period(1) = h_step(1)*real(num_points(1) - 1, dp)
+      period(2) = h_step(2)*real(num_points(2) - 1, dp)
+
+      do ipt = 1, size(x, 2)
+         if (.not. mask(ipt)) cycle
+         include "spline2d_many_point_body.inc"
+      end do
+   end subroutine evaluate_batch_splines_2d_many_mask
+
+   recursive subroutine evaluate_batch_splines_2d_many_der_mask(spl, x, mask, &
+                                                                y_batch, dy_batch)
+      type(BatchSplineData2D), intent(in) :: spl
+      real(dp), intent(in) :: x(:, :)            ! (2, npts)
+      logical, intent(in) :: mask(:)             ! (npts)
+      real(dp), intent(inout) :: y_batch(:, :)    ! (nq, npts); masked-out untouched
+      real(dp), intent(inout) :: dy_batch(:, :, :) ! (2, nq, npts); masked-out untouched
+
+      integer :: ipt, iq, k1, k2, j, idx(2), npts, nq, N1, N2
+      real(dp) :: xj, x_norm(2), x_local(2), period(2)
+      real(dp), allocatable :: coeff_2(:, :), coeff_2_dx1(:, :)
+
+      npts = size(x, 2)
+      if (size(mask) /= npts) then
+         error stop "evaluate_batch_splines_2d_many_der_mask: mask size mismatch"
+      end if
+      nq = spl%num_quantities
+      N1 = spl%order(1)
+      N2 = spl%order(2)
+      period = spl%h_step*real(spl%num_points - 1, dp)
+
+      allocate (coeff_2(nq, 0:N2), coeff_2_dx1(nq, 0:N2))
+
+      do ipt = 1, npts
+         if (.not. mask(ipt)) cycle
+         do j = 1, 2
+            if (spl%periodic(j)) then
+               xj = modulo(x(j, ipt) - spl%x_min(j), period(j)) + spl%x_min(j)
+            else
+               xj = x(j, ipt)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            idx(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j)))) + 1
+            x_local(j) = (x_norm(j) - real(idx(j) - 1, dp))*spl%h_step(j)
+         end do
+
+         do iq = 1, nq
+            do k2 = 0, N2
+               coeff_2(iq, k2) = spl%coeff(iq, N1, k2, idx(1), idx(2))
+               coeff_2_dx1(iq, k2) = N1*spl%coeff(iq, N1, k2, idx(1), idx(2))
+            end do
+         end do
+
+         do k1 = N1 - 1, 0, -1
+            do iq = 1, nq
+               do k2 = 0, N2
+                  coeff_2(iq, k2) = spl%coeff(iq, k1, k2, idx(1), idx(2)) + &
+                                    x_local(1)*coeff_2(iq, k2)
+               end do
+            end do
+         end do
+
+         do k1 = N1 - 1, 1, -1
+            do iq = 1, nq
+               do k2 = 0, N2
+                  coeff_2_dx1(iq, k2) = k1*spl%coeff(iq, k1, k2, idx(1), idx(2)) + &
+                                        x_local(1)*coeff_2_dx1(iq, k2)
+               end do
+            end do
+         end do
+
+         do iq = 1, nq
+            y_batch(iq, ipt) = coeff_2(iq, N2)
+            dy_batch(1, iq, ipt) = coeff_2_dx1(iq, N2)
+            dy_batch(2, iq, ipt) = N2*coeff_2(iq, N2)
+         end do
+
+         do k2 = N2 - 1, 0, -1
+            do iq = 1, nq
+               y_batch(iq, ipt) = coeff_2(iq, k2) + x_local(2)*y_batch(iq, ipt)
+               dy_batch(1, iq, ipt) = coeff_2_dx1(iq, k2) + &
+                                      x_local(2)*dy_batch(1, iq, ipt)
+            end do
+         end do
+
+         do k2 = N2 - 1, 1, -1
+            do iq = 1, nq
+               dy_batch(2, iq, ipt) = k2*coeff_2(iq, k2) + &
+                                      x_local(2)*dy_batch(2, iq, ipt)
+            end do
+         end do
+      end do
+
+      deallocate (coeff_2, coeff_2_dx1)
+   end subroutine evaluate_batch_splines_2d_many_der_mask
 
    recursive subroutine evaluate_batch_splines_2d_der(spl, x, y_batch, dy_batch)
       type(BatchSplineData2D), intent(in) :: spl
