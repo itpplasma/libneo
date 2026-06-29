@@ -16,6 +16,7 @@ add_library(neo STATIC
     src/nctools_module.f90
     src/new_vmec_allocation_stuff.f90
     src/coordinates/cylindrical_cartesian.f90
+    src/coordinates/flux_pseudocartesian.f90
     src/coordinates/vmec_coordinates.f90
     src/coordinates/geoflux_coordinates.f90
     src/coordinates/libneo_coordinate_conventions.f90
@@ -29,6 +30,13 @@ add_library(neo STATIC
     src/coordinates/libneo_chartmap_vmec_generator.f90
     src/coordinates/libneo_coordinates_mapping.f90
     src/spline_vmec_data.f90
+    src/boozer_chartmap_types.f90
+    src/field/boozer_chartmap_io.f90
+    src/field/magnetic_field_base.f90
+    src/field/field_vmec.f90
+    src/field/vmec_field_eval.f90
+    src/boozer_converter.F90
+    src/boozer_chartmap.f90
     src/vmecinm_m.f90
     src/vmec/vmec_field_tools.f90
     src/plag_coeff.f90
@@ -48,6 +56,7 @@ target_link_libraries(neo PUBLIC
     hdf5_tools
     neo_field
     odeint
+    fortnum
 )
 
 target_link_libraries(neo PRIVATE
@@ -83,8 +92,6 @@ target_link_libraries(standardise_geqdsk.x magfie)
 
 add_executable(vacfield.x src/magfie/vacfield.f90)
 add_executable(coil_convert.x src/magfie/coil_convert.f90)
-
-# FFTW is detected in cmake/DetectDependencies.cmake
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
