@@ -88,7 +88,7 @@ end subroutine test_create_spline_field
 
 
 subroutine test_create_spline_field_from_mesh
-    use neo_field, only: field_t, create_spline_field_from_mesh
+    use neo_field, only: field_t
     use neo_field, only: field_mesh_t
 
     class(field_t), allocatable :: field

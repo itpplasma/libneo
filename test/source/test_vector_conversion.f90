@@ -3,7 +3,6 @@ program test_vector_conversion
     use libneo_coordinates, only: coordinate_system_t, &
                                   make_chartmap_coordinate_system, &
                                   chartmap_coordinate_system_t
-    use math_constants, only: TWOPI
     implicit none
 
     integer :: nerrors

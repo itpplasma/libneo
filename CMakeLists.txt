@@ -29,6 +29,12 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     set(LIBNEO_IS_STANDALONE ON)
 endif()
 
+# Standalone builds run libneo's own Python tests and f2py; resolve Python from
+# the uv-managed project venv so their dependencies are available.
+if(LIBNEO_IS_STANDALONE)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
+endif()
+
 option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
 
 # Allow BUILD_TESTING to override (for subproject compatibility)
@@ -204,10 +210,23 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-# Detect and configure external dependencies (HDF5, NetCDF, FFTW)
+# Detect and configure external dependencies (HDF5, NetCDF)
 # Uses smoke tests to verify ABI compatibility with current compiler.
 # Falls back to building from source if system libraries are incompatible.
 include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
+
+# fortnum: numerical core (special functions, quadrature, FFT, ODE). Guarded so
+# a repo that also pulls fortnum transitively via libneo does not double-declare
+# the target.
+if(NOT TARGET fortnum)
+    include(FetchContent)
+    FetchContent_Declare(
+        fortnum
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
+    )
+    FetchContent_MakeAvailable(fortnum)
+endif()
 
 # Tier 0: no internal libneo dependencies
 add_subdirectory(src/util)
@@ -255,6 +274,11 @@ add_executable(vmec_to_chartmap.x
     app/vmec_to_chartmap.f90
 )
 target_link_libraries(vmec_to_chartmap.x neo)
+
+add_executable(near_axis_field_diag.x
+    app/near_axis_field_diag.f90
+)
+target_link_libraries(near_axis_field_diag.x neo)
 
 
 if(LIBNEO_BUILD_TESTING)

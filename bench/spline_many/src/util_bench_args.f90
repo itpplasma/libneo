@@ -1,5 +1,4 @@
 module util_bench_args
-    use, intrinsic :: iso_fortran_env, only: int64
     implicit none
     private
 
@@ -26,4 +25,3 @@ contains
     end function get_env_int
 
 end module util_bench_args
-

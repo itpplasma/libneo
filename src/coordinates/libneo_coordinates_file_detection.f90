@@ -1,5 +1,4 @@
 module libneo_coordinates_file_detection
-    use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_coordinates_base, only: refcoords_file_unknown, refcoords_file_chartmap, &
                                        refcoords_file_vmec_wout
     use libneo_coordinates_validator, only: validate_chartmap_file

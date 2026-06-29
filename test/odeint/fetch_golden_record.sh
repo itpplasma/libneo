@@ -23,9 +23,10 @@ echo "Latest tag: $LATEST_TAG"
 # Fetch only that tagged commit (no-op if already available locally)
 git fetch origin tag "$LATEST_TAG" --no-tags
 
-# Fetch the old implementation
+# Fetch the old implementation. odeint moved to src/odeint/ before v2026.04.13,
+# so read it from the current path (the old top-level path is gone from the tag).
 echo "Fetching odeint_allroutines.f90 from $LATEST_TAG..."
-git show "$LATEST_TAG:src/odeint_allroutines.f90" > "$GOLDEN_FILE"
+git show "$LATEST_TAG:src/odeint/odeint_allroutines.f90" > "$GOLDEN_FILE"
 
 # Rename modules to avoid conflicts
 echo "Adapting golden record for testing..."

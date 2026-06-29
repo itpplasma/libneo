@@ -1,5 +1,6 @@
 add_library(coordinates STATIC
     cylindrical_cartesian.f90
+    flux_pseudocartesian.f90
     vmec_coordinates.f90
     geoflux_coordinates.f90
     ../magfie/geqdsk_tools.f90
@@ -20,6 +21,7 @@ target_link_libraries(coordinates PUBLIC
     nctools
     vmec_support
     interpolate
+    fortnum
 )
 
 set_property(TARGET coordinates PROPERTY

@@ -21,7 +21,6 @@ add_library(magfie STATIC
     coil_tools.f90
     analytical_gs_solver.f90
     analytical_tokamak_field.f90
-    ../fftw3.F90
     # Moved from neo core
     magfie_vmec.f90
 )
@@ -33,8 +32,7 @@ target_link_libraries(magfie PRIVATE
     hdf5_tools
     BLAS::BLAS
     LAPACK::LAPACK
-    FFTW::DoubleThreads
-    FFTW::Double
+    fortnum
 )
 
 # Link NetCDF - use built targets if available, otherwise system libraries

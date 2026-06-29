@@ -15,6 +15,7 @@ module libneo_coordinates_vmec
         procedure :: evaluate_cyl => vmec_evaluate_cyl
         procedure :: covariant_basis => vmec_covariant_basis
         procedure :: metric_tensor => vmec_metric_tensor
+        procedure :: christoffel => vmec_christoffel
         procedure :: from_cyl => vmec_from_cyl
     end type vmec_coordinate_system_t
 
@@ -133,6 +134,19 @@ contains
         ginv(3,2) = (g(1,2)*g(3,1) - g(1,1)*g(3,2))/det
         ginv(3,3) = (g(1,1)*g(2,2) - g(1,2)*g(2,1))/det
     end subroutine vmec_metric_tensor
+
+    subroutine vmec_christoffel(self, u, Gamma)
+        !> Christoffel symbols of the second kind for the VMEC chart embedded in
+        !> physical (R, varphi, Z) geometry. Built from central differences of
+        !> vmec_metric_tensor so the result is consistent with the embedded
+        !> metric used elsewhere; the analytic symmetry-flux engine
+        !> (splint_vmec_data_d2 + christoffel_symflux) is validated separately.
+        class(vmec_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: Gamma(3, 3, 3)
+
+        call self%christoffel_fd(u, Gamma)
+    end subroutine vmec_christoffel
 
     subroutine vmec_from_cyl(self, xcyl, u, ierr)
         class(vmec_coordinate_system_t), intent(in) :: self
