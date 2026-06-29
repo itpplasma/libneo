@@ -696,9 +696,18 @@ contains
                                      R, Z, alam, dR_ds, dZ_ds, dl_ds, &
                                      dR_dt, dZ_dt, dl_dt, dR_dp, dZ_dp, dl_dp)
 
-      dR_ds = 0.5d0*dR_ds/rho_tor
-      dZ_ds = 0.5d0*dZ_ds/rho_tor
-      dl_ds = 0.5d0*dl_ds/rho_tor
+      if (rho_tor > 0.0d0) then
+         dR_ds = 0.5d0*dR_ds/rho_tor
+         dZ_ds = 0.5d0*dZ_ds/rho_tor
+         dl_ds = 0.5d0*dl_ds/rho_tor
+      else
+         ! Magnetic axis (s=0): d/ds carries the 1/(2*sqrt(s)) coordinate
+         ! singularity and is undefined here. R, Z and lambda above are the exact
+         ! axis position; callers that evaluate the axis use only those values.
+         dR_ds = 0.0d0
+         dZ_ds = 0.0d0
+         dl_ds = 0.0d0
+      end if
 
    end subroutine splint_vmec_data
 
