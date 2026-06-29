@@ -6,13 +6,15 @@ maintainer = "albert@tugraz.at"
 copyright = "Copyright 2025, Plasma Physics at TU Graz"
 
 [dependencies]
-openmp = "*"
-mpi = "*"
-hdf5 = "*"
-netcdf = "*"
+# System libraries (openmp, mpi, hdf5, netcdf) handled via compiler flags
 
 [build]
-external-modules = ["fftw3.f03"]
+external-modules = [
+    "fftw3", "fftw3.f03",
+    "netcdf", "hdf5", "h5lt",
+    "omp_lib", "mpi", "mpi_f08",
+    "openacc"
+]
 auto-executables = true
 auto-tests = true
 auto-examples = true

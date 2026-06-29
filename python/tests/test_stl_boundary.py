@@ -242,3 +242,39 @@ def test_write_chartmap_from_stl_torus(tmp_path) -> None:
         R = np.sqrt(x**2 + y**2)
         assert R.min() > 0.0
         assert np.abs(z).max() < (a + 0.1) * 100.0
+
+
+def test_extract_boundary_slices_stl_units_mm(tmp_path) -> None:
+    import numpy as np
+    import trimesh
+
+    from libneo.stl_boundary import extract_boundary_slices
+
+    mesh_m = trimesh.creation.torus(
+        major_radius=1.7,
+        minor_radius=0.35,
+        major_sections=48,
+        minor_sections=36,
+    )
+
+    stl_m = tmp_path / "torus_m.stl"
+    mesh_m.export(stl_m)
+
+    mesh_mm = mesh_m.copy()
+    mesh_mm.apply_scale(1000.0)
+    stl_mm = tmp_path / "torus_mm.stl"
+    mesh_mm.export(stl_mm)
+
+    slices_m = extract_boundary_slices(stl_m, n_phi=4, n_boundary_points=128)
+    slices_mm = extract_boundary_slices(
+        stl_mm, n_phi=4, n_boundary_points=128, stl_units="mm"
+    )
+
+    assert len(slices_m) == len(slices_mm)
+    assert np.allclose(slices_m[0].axis_xy, slices_mm[0].axis_xy, atol=1.0e-8)
+    assert np.allclose(
+        slices_m[0].outer_filled,
+        slices_mm[0].outer_filled,
+        atol=1.0e-7,
+        rtol=0.0,
+    )

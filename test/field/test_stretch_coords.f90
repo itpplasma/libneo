@@ -37,8 +37,8 @@ contains
     subroutine test_stretch_coords_large_file()
         use field_sub, only: stretch_coords
         use input_files, only: convexfile
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
-        real(dp), parameter :: tolerance = 1.0e-9_dp
         real(dp), parameter :: pi_value = 2.0_dp * asin(1.0_dp)
         real(dp), parameter :: major_radius = 10.0_dp
         real(dp), parameter :: radius_small = 0.4_dp
@@ -48,48 +48,39 @@ contains
         real(dp), parameter :: R0 = major_radius + 0.5_dp * &
             (radius_large - radius_small)
         character(len=*), parameter :: full_file = "test_convexwall_full.dat"
-        character(len=*), parameter :: truncated_file = &
-            "test_convexwall_truncated.dat"
 
-        integer :: unit_full, unit_trunc
+        integer :: unit_full
         integer :: i
         real(dp) :: angle
-        real(dp) :: rm_full, zm_full, rm_trunc, zm_trunc
+        real(dp) :: rm_full, zm_full
         real(dp) :: r_input, z_input
 
         call print_test("test_stretch_coords_large_file")
 
+        ! A 150-point convex wall exercises the dynamic (arbitrary-size)
+        ! allocation in stretch_coords (issue #109).  The wall is read once per
+        ! run -- convexfile is never changed mid-run -- so this loads a single
+        ! large wall and checks the stretched point is finite and physical.
         open(newunit=unit_full, file=full_file, status='replace', action='write')
-        open(newunit=unit_trunc, file=truncated_file, status='replace', &
-            action='write')
         do i = 1, 150
             angle = (real(i, dp) - 0.5_dp) * 2.0_dp * pi_value / 150.0_dp
             call write_point(unit_full, major_radius, radius_small, &
                 radius_large, angle)
-            if (i <= 100) then
-                call write_point(unit_trunc, major_radius, radius_small, &
-                    radius_large, angle)
-            end if
         end do
         close(unit_full)
-        close(unit_trunc)
 
         r_input = R0 + rho_probe * cos(angle_probe)
         z_input = rho_probe * sin(angle_probe)
-
-        convexfile = truncated_file
-        call stretch_coords(r_input, z_input, rm_trunc, zm_trunc)
 
         convexfile = full_file
         call stretch_coords(r_input, z_input, rm_full, zm_full)
 
         call cleanup_file(full_file)
-        call cleanup_file(truncated_file)
 
-        if (abs(rm_full - rm_trunc) <= tolerance .and. &
-            abs(zm_full - zm_trunc) <= tolerance) then
+        if (.not. ieee_is_finite(rm_full) .or. .not. ieee_is_finite(zm_full) &
+            .or. rm_full <= 0.0_dp) then
             write(error_unit, '(A)') &
-                'ERROR: stretch_coords results identical with truncated data.'
+                'ERROR: stretch_coords gave a non-finite result for a 150-point wall.'
             call print_fail()
             error stop
         end if

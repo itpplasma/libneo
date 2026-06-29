@@ -1,0 +1,26 @@
+=== Position x = (R Cos phi, R Sin phi, Z), near-axis expansion ===
+x  = SeriesData[rho, 0, {Cos[p0[ze]]*r0[ze], Cos[p0[ze]]*(Cos[th]*r1c[ze] + r1s[ze]*Sin[th]) - r0[ze]*(Cos[th]*p1c[ze] + p1s[ze]*Sin[th])*Sin[p0[ze]]}, 0, 2, 1]
+
+=== Covariant basis at the axis (rho=0) ===
+dx/drho |0   = {Cos[p0[ze]]*(Cos[th]*r1c[ze] + r1s[ze]*Sin[th]) - r0[ze]*(Cos[th]*p1c[ze] + p1s[ze]*Sin[th])*Sin[p0[ze]], Cos[p0[ze]]*r0[ze]*(Cos[th]*p1c[ze] + p1s[ze]*Sin[th]) + (Cos[th]*r1c[ze] + r1s[ze]*Sin[th])*Sin[p0[ze]], Cos[th]*z1c[ze] + Sin[th]*z1s[ze]}   (m=1 ellipse vectors; NONZERO)
+dx/dtheta|0  = {0, 0, 0}   (vanishes ~rho: degenerate)
+dx/dzeta |0  = {-(r0[ze]*Sin[p0[ze]]*Derivative[1][p0][ze]) + Cos[p0[ze]]*Derivative[1][r0][ze], Cos[p0[ze]]*r0[ze]*Derivative[1][p0][ze] + Sin[p0[ze]]*Derivative[1][r0][ze], Derivative[1][z0][ze]}   (axis tangent)
+
+=== Metric / Jacobian leading order in rho ===
+g_rho_rho(0) = (Cos[p0[ze]]*(Cos[th]*r1c[ze] + r1s[ze]*Sin[th]) - r0[ze]*(Cos[th]*p1c[ze] + p1s[ze]*Sin[th])*Sin[p0[ze]])^2 + (Cos[p0[ze]]*r0[ze]*(Cos[th]*p1c[ze] + p1s[ze]*Sin[th]) + (Cos[th]*r1c[ze] + r1s[ze]*Sin[th])*Sin[p0[ze]])^2 + (Cos[th]*z1c[ze] + Sin[th]*z1s[ze])^2   (finite)
+g_theta_theta = rho^2*((Cos[th]*Cos[p0[ze]]*r1s[ze] - Cos[p0[ze]]*r1c[ze]*Sin[th] + r0[ze]*(-(Cos[th]*p1s[ze]) + p1c[ze]*Sin[th])*Sin[p0[ze]])^2 + (Cos[p0[ze]]*r0[ze]*(Cos[th]*p1s[ze] - p1c[ze]*Sin[th]) + (Cos[th]*r1s[ze] - r1c[ze]*Sin[th])*Sin[p0[ze]])^2 + (Sin[th]*z1c[ze] - Cos[th]*z1s[ze])^2)   (O(rho^2) -> 0)
+det[J_polar]  = rho*r0[ze]*((-(p1s[ze]*z1c[ze]) + p1c[ze]*z1s[ze])*Derivative[1][r0][ze] + r1s[ze]*(z1c[ze]*Derivative[1][p0][ze] - p1c[ze]*Derivative[1][z0][ze]) + r1c[ze]*(-(z1s[ze]*Derivative[1][p0][ze]) + p1s[ze]*Derivative[1][z0][ze]))   (O(rho): sqrt(g) ~ rho, vanishes at axis)
+
+=== Pseudo-Cartesian (X,Y) basis at axis (regular) ===
+dx/dX|0 = {Cos[p0[ze]]*r1c[ze] - p1c[ze]*r0[ze]*Sin[p0[ze]], Cos[p0[ze]]*p1c[ze]*r0[ze] + r1c[ze]*Sin[p0[ze]], z1c[ze]}
+dx/dY|0 = {Cos[p0[ze]]*r1s[ze] - p1s[ze]*r0[ze]*Sin[p0[ze]], Cos[p0[ze]]*p1s[ze]*r0[ze] + r1s[ze]*Sin[p0[ze]], z1s[ze]}
+det[J_(X,Y,ze)]|0 = r0[ze]*((-(p1s[ze]*z1c[ze]) + p1c[ze]*z1s[ze])*Derivative[1][r0][ze] + r1s[ze]*(z1c[ze]*Derivative[1][p0][ze] - p1c[ze]*Derivative[1][z0][ze]) + r1c[ze]*(-(z1s[ze]*Derivative[1][p0][ze]) + p1s[ze]*Derivative[1][z0][ze]))   (finite, nonzero -> chart regular through the axis)
+
+=== Identification with VMEC data ===
+axis (m=0): R0(ze)=p? no -> r0 = Sum_n raxis_cc(n) Cos[n nfp ze],
+            Z0(ze) = Sum_n zaxis_cs(n) Sin[n nfp ze]  (exact, from wout).
+x_axis = (r0 Cos[p0], r0 Sin[p0], z0),  p0 = cyl toroidal angle limit.
+ellipse (dx/drho|0): r1c,r1s,z1c,z1s = the m=1 harmonics' rho-slope.
+A_phi(0)=0 (no enclosed flux); |B|,B_theta,B_phi from healed m=0 at rho=0.
+
+DONE

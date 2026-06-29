@@ -4,7 +4,7 @@ implicit none
 
 contains
 
-subroutine spl_five_reg(n,h,a,b,c,d,e,f)
+recursive subroutine spl_five_reg(n,h,a,b,c,d,e,f)
   implicit none
 
   integer, parameter :: dp = kind(1.0d0)
@@ -144,7 +144,7 @@ subroutine spl_five_reg(n,h,a,b,c,d,e,f)
 end subroutine spl_five_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine spl_five_per(n,h,a,b,c,d,e,f)
+recursive subroutine spl_five_per(n,h,a,b,c,d,e,f)
   implicit none
 
   integer, parameter :: dp = kind(1.0d0)
@@ -260,7 +260,7 @@ subroutine spl_five_per(n,h,a,b,c,d,e,f)
 end subroutine spl_five_per
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine spl_four_reg(n,h,a,b,c,d,e)
+recursive subroutine spl_four_reg(n,h,a,b,c,d,e)
   implicit none
 
   integer, parameter :: dp = kind(1.0d0)
@@ -330,7 +330,7 @@ subroutine spl_four_reg(n,h,a,b,c,d,e)
 end subroutine spl_four_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine spl_four_per(n,h,a,b,c,d,e)
+recursive subroutine spl_four_per(n,h,a,b,c,d,e)
   implicit none
 
   integer, parameter :: dp = kind(1.0d0)
@@ -415,7 +415,7 @@ subroutine spl_four_per(n,h,a,b,c,d,e)
 end subroutine spl_four_per
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-SUBROUTINE splreg(n,h,y,bi,ci,di)
+RECURSIVE SUBROUTINE splreg(n,h,y,bi,ci,di)
   ! Makes a cubic spline of function y(x)
   !
   ! Input:  n                   number of values in y
@@ -470,7 +470,7 @@ SUBROUTINE splreg(n,h,y,bi,ci,di)
 END SUBROUTINE splreg
 
 !=====================================================
-SUBROUTINE splper(n,h,y,bi,ci,di)
+RECURSIVE SUBROUTINE splper(n,h,y,bi,ci,di)
   ! Makes a cubic spline of periodic function y(x)
   !
   ! Input:  n                   number of values in y
@@ -544,7 +544,7 @@ SUBROUTINE splper(n,h,y,bi,ci,di)
 END SUBROUTINE splper
 
 !=====================================================
-SUBROUTINE spfper(np1,amx1,amx2,amx3)
+RECURSIVE SUBROUTINE spfper(np1,amx1,amx2,amx3)
   ! Helper routine for splfi
 
   IMPLICIT NONE
@@ -584,7 +584,7 @@ SUBROUTINE spfper(np1,amx1,amx2,amx3)
 END SUBROUTINE spfper
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine spl_reg(ns,n,h,splcoe)
+recursive subroutine spl_reg(ns,n,h,splcoe)
   ! Generic routine for equidistant regular spline of order 3,4,5
   !
   ! Input/output parameters:
@@ -636,7 +636,7 @@ subroutine spl_reg(ns,n,h,splcoe)
 end subroutine spl_reg
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine spl_per(ns,n,h,splcoe)
+recursive subroutine spl_per(ns,n,h,splcoe)
   ! Generic routine for equidistant periodic spline of order 3,4,5
   !
   ! Input/output parameters:

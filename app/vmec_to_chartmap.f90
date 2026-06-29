@@ -1,5 +1,4 @@
 program vmec_to_chartmap
-    use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_chartmap_vmec_generator, only: write_chartmap_from_vmec
     implicit none
 

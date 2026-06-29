@@ -21,11 +21,40 @@
     double precision, dimension(:),     allocatable :: aiota,s,sps,phi
     double precision, dimension(:,:),   allocatable :: almnc,rmnc,zmnc
     double precision, dimension(:,:),   allocatable :: almns,rmns,zmns
+    ! Exact magnetic axis (VMEC wout raxis_cc/zaxis_cs), indexed n=0..ntor:
+    !   R_axis(phi) = sum_n raxis_cc(n) cos(n*nfp*phi) + raxis_cs(n) sin(...)
+    !   Z_axis(phi) = sum_n zaxis_cc(n) cos(n*nfp*phi) + zaxis_cs(n) sin(...)
+    ! The exact axis curve (no flux surface at s=0), used for the analytic
+    ! near-axis chartmap limit. raxis_cs/zaxis_cc are zero unless lasym.
+    integer :: ntor_axis = -1
+    double precision, dimension(:), allocatable :: raxis_cc, zaxis_cs
+    double precision, dimension(:), allocatable :: raxis_cs, zaxis_cc
 !
     double precision, dimension(:,:,:,:,:,:), allocatable :: sR,sZ,slam
 
+    ! Near-axis healing of the VMEC harmonics. Preferred selector:
+    !   axis_healing = 'legacy'          - old default: discard min(|m|,4)
+    !                                      surfaces and extrapolate.
+    !                  'legacy_adaptive' - old adaptive boundary from
+    !                                      determine_nheal_for_axis.
+    !                  'powerlaw'        - rho**|m| continuation below
+    !                                      s_axis_heal.
+    !                  'polyfit'         - rho**|m| * least-squares poly(s)
+    !                                      below s_axis_heal. Recommended.
+    ! The empty string means "unset": deprecated logical switches below are
+    ! mapped to a mode with a warning (see resolve_axis_healing_mode).
+    character(len=16) :: axis_healing = ''
+    double precision :: s_axis_heal = 1.0d-2       ! anchor flux for powerlaw/polyfit
+    double precision :: rho_axis_heal = -1.0d0     ! deprecated; use s_axis_heal
+    integer :: axis_healing_polyfit_degree = 3     ! polyfit polynomial degree in s
+    logical :: rho_axis_heal_warning_printed = .False.
+    ! DEPRECATED boolean switches (use axis_healing). Kept for back-compat and
+    ! mapped to a mode with a deprecation warning; the next SIMPLE release will
+    ! remove them and default axis_healing to 'polyfit'.
     logical :: old_axis_healing = .True.
     logical :: old_axis_healing_boundary = .True.
+    logical :: axis_healing_power_law = .False.
+    logical :: axis_healing_polyfit = .False.
   end module new_vmec_stuff_mod
 !
   module vector_potentail_mod

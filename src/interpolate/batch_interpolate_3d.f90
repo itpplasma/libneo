@@ -33,6 +33,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d
     public :: evaluate_batch_splines_3d_der
     public :: evaluate_batch_splines_3d_der2
+    public :: evaluate_batch_splines_3d_der3
     public :: evaluate_batch_splines_3d_der2_rmix
     public :: evaluate_batch_splines_3d_many
     public :: evaluate_batch_splines_3d_many_resident
@@ -41,7 +42,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d_many_der2_mask
 contains
 
-    subroutine construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
+    recursive subroutine construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min(:), x_max(:)
         real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
         integer, intent(in) :: order(3)
@@ -60,7 +61,7 @@ contains
 #endif
     end subroutine construct_batch_splines_3d
 
-    subroutine construct_batch_splines_3d_legacy(x_min, x_max, y_batch, order, &
+    recursive subroutine construct_batch_splines_3d_legacy(x_min, x_max, y_batch, order, &
                                                  periodic, spl)
         real(dp), intent(in) :: x_min(:), x_max(:)
         real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
@@ -69,7 +70,6 @@ contains
         type(BatchSplineData3D), intent(inout) :: spl
 
         real(dp), dimension(:, :), allocatable  :: splcoe
-        real(dp), dimension(:, :, :, :, :, :), allocatable :: temp_coeff
         integer :: i1, i2, i3, iq  ! Loop indices
         integer :: k2, k3          ! Loop indices for polynomial order
         integer :: n1, n2, n3, n_quantities, istat
@@ -135,13 +135,9 @@ contains
             end if
         end if
 
-        allocate (temp_coeff(0:N1_order, 0:N2_order, 0:N3_order, n1, n2, n3), &
-                  stat=istat)
-        if (istat /= 0) then
-            error stop "construct_batch_splines_3d: Allocation failed for temp_coeff"
-        end if
-
-        ! Process each quantity
+        ! Build each quantity in place, directly into spl%coeff(iq,...), so no
+        ! full-size temporary coefficient array is held (it doubled peak memory:
+        ! ~24 GB for the reactor chartmap and caused OOM during field loading).
         do iq = 1, n_quantities
             ! Spline over x3 first
             allocate (splcoe(0:N3_order, n3), stat=istat)
@@ -157,7 +153,7 @@ contains
                     else
                         call spl_reg(N3_order, n3, spl%h_step(3), splcoe)
                     end if
-                    temp_coeff(0, 0, :, i1, i2, :) = splcoe
+                    spl%coeff(iq, 0, 0, :, i1, i2, :) = splcoe
                 end do
             end do
             deallocate (splcoe)
@@ -171,13 +167,13 @@ contains
             do i3 = 1, n3
                 do i1 = 1, n1
                     do k3 = 0, N3_order
-                        splcoe(0, :) = temp_coeff(0, 0, k3, i1, :, i3)
+                        splcoe(0, :) = spl%coeff(iq, 0, 0, k3, i1, :, i3)
                         if (periodic(2)) then
                             call spl_per(N2_order, n2, spl%h_step(2), splcoe)
                         else
                             call spl_reg(N2_order, n2, spl%h_step(2), splcoe)
                         end if
-                        temp_coeff(0, :, k3, i1, :, i3) = splcoe
+                        spl%coeff(iq, 0, :, k3, i1, :, i3) = splcoe
                     end do
                 end do
             end do
@@ -193,28 +189,22 @@ contains
                 do i2 = 1, n2
                     do k3 = 0, N3_order
                         do k2 = 0, N2_order
-                            splcoe(0, :) = temp_coeff(0, k2, k3, :, i2, i3)
+                            splcoe(0, :) = spl%coeff(iq, 0, k2, k3, :, i2, i3)
                             if (periodic(1)) then
                                 call spl_per(N1_order, n1, spl%h_step(1), splcoe)
                             else
                                 call spl_reg(N1_order, n1, spl%h_step(1), splcoe)
                             end if
-                            ! Store in STANDARD order for consistency and clarity
-                            temp_coeff(:, k2, k3, :, i2, i3) = splcoe
+                            spl%coeff(iq, :, k2, k3, :, i2, i3) = splcoe
                         end do
                     end do
                 end do
             end do
             deallocate (splcoe)
-
-            ! Copy to final coefficient array
-            spl%coeff(iq, :, :, :, :, :, :) = temp_coeff
         end do
-
-        deallocate (temp_coeff)
     end subroutine construct_batch_splines_3d_legacy
 
-    subroutine construct_batch_splines_3d_lines(x_min, x_max, y_batch, order, &
+    recursive subroutine construct_batch_splines_3d_lines(x_min, x_max, y_batch, order, &
                                                 periodic, spl)
         real(dp), intent(in) :: x_min(3), x_max(3)
         real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
@@ -539,7 +529,7 @@ contains
         deallocate (work3)
     end subroutine construct_batch_splines_3d_lines
 
-    subroutine construct_batch_splines_3d_resident(x_min, x_max, y_batch, order, &
+    recursive subroutine construct_batch_splines_3d_resident(x_min, x_max, y_batch, order, &
                                                    periodic, spl)
         real(dp), intent(in) :: x_min(:), x_max(:)
         real(dp), intent(in) :: y_batch(:, :, :, :)  ! (n1, n2, n3, n_quantities)
@@ -550,7 +540,7 @@ contains
         call construct_batch_splines_3d(x_min, x_max, y_batch, order, periodic, spl)
     end subroutine construct_batch_splines_3d_resident
 
-    subroutine construct_batch_splines_3d_resident_device(x_min, x_max, y_batch, &
+    recursive subroutine construct_batch_splines_3d_resident_device(x_min, x_max, y_batch, &
                                                           order, periodic, spl, &
                                                           update_host, &
                                                           assume_y_present)
@@ -589,7 +579,7 @@ contains
 #endif
     end subroutine construct_batch_splines_3d_resident_device
 
-    subroutine construct_batch_splines_3d_resident_device_impl(x_min, x_max, n1, n2, &
+    recursive subroutine construct_batch_splines_3d_resident_device_impl(x_min, x_max, n1, n2, &
                                                                n3, n_quantities, &
                                                                y_batch, &
                                                                order, periodic, &
@@ -894,7 +884,7 @@ contains
         end if
     end subroutine construct_batch_splines_3d_resident_device_impl
 
-    subroutine destroy_batch_splines_3d(spl)
+    recursive subroutine destroy_batch_splines_3d(spl)
         type(BatchSplineData3D), intent(inout) :: spl
 
 #ifdef _OPENACC
@@ -907,7 +897,7 @@ contains
         if (allocated(spl%coeff)) deallocate (spl%coeff)
     end subroutine destroy_batch_splines_3d
 
-    subroutine destroy_batch_splines_3d_device_only(spl)
+    recursive subroutine destroy_batch_splines_3d_device_only(spl)
         type(BatchSplineData3D), intent(inout) :: spl
 
 #ifdef _OPENACC
@@ -919,7 +909,7 @@ contains
 #endif
     end subroutine destroy_batch_splines_3d_device_only
 
-    subroutine evaluate_batch_splines_3d(spl, x, y_batch)
+    recursive subroutine evaluate_batch_splines_3d(spl, x, y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
@@ -932,7 +922,7 @@ contains
         y_batch(1:spl%num_quantities) = y_arr(:, 1)
     end subroutine evaluate_batch_splines_3d
 
-    subroutine evaluate_batch_splines_3d_many(spl, x, y_batch)
+    recursive subroutine evaluate_batch_splines_3d_many(spl, x, y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(out) :: y_batch(:, :)  ! (n_quantities, n_points)
@@ -983,7 +973,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_3d_many
 
-    subroutine evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
+    recursive subroutine evaluate_batch_splines_3d_many_resident(spl, x, y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(inout) :: y_batch(:, :)
@@ -1030,7 +1020,8 @@ contains
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_3d_many_resident
 
-    subroutine evaluate_batch_splines_3d_many_der(spl, x, y_batch, dy_batch)
+    recursive subroutine evaluate_batch_splines_3d_many_der(spl, x, y_batch, dy_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)           ! (3, npts)
         real(dp), intent(out) :: y_batch(:, :)    ! (nq, npts)
@@ -1046,7 +1037,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_3d_many_der
 
-    subroutine evaluate_batch_splines_3d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
+    recursive subroutine evaluate_batch_splines_3d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)            ! (3, npts)
         real(dp), intent(out) :: y_batch(:, :)     ! (nq, npts)
@@ -1086,7 +1077,8 @@ contains
         end do
     end subroutine evaluate_batch_splines_3d_many_der2_mask
 
-    subroutine evaluate_batch_splines_3d_der(spl, x, y_batch, dy_batch)
+    recursive subroutine evaluate_batch_splines_3d_der(spl, x, y_batch, dy_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
@@ -1102,7 +1094,8 @@ contains
         dy_batch(1:3, 1:spl%num_quantities) = dy_arr(:, :, 1)
     end subroutine evaluate_batch_splines_3d_der
 
-    subroutine evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
+    recursive subroutine evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
@@ -1255,7 +1248,8 @@ contains
 
     end subroutine evaluate_batch_splines_3d_der_core
 
-    subroutine evaluate_batch_splines_3d_der2(spl, x, y_batch, dy_batch, d2y_batch)
+    recursive subroutine evaluate_batch_splines_3d_der2(spl, x, y_batch, dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
@@ -1264,7 +1258,110 @@ contains
         call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_3d_der2
 
-    subroutine evaluate_batch_splines_3d_der2_rmix(spl, x, y_batch, dy_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der3(spl, x, y_batch, dy_batch, &
+                                                        d2y_batch, d3y_batch)
+        !$acc routine seq
+        !> Value, first, second and third derivatives of a 3D tensor-product
+        !> batch spline. d2y packed (11,12,13,22,23,33); d3y packed
+        !> (111,112,113,122,123,133,222,223,233,333) in the spline's own
+        !> coordinates. General per-order basis-derivative evaluation (not the
+        !> optimized Horner cores); used off the hot path for third-derivative
+        !> needs such as the curvilinear metric d2g pullback.
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)       ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:, :)    ! (3, n_quantities)
+        real(dp), intent(out) :: d2y_batch(:, :)   ! (6, n_quantities)
+        real(dp), intent(out) :: d3y_batch(:, :)   ! (10, n_quantities)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
+        real(dp) :: x1, x2, x3
+        real(dp) :: b0(0:MAX_ORDER, 3), b1(0:MAX_ORDER, 3)
+        real(dp) :: b2(0:MAX_ORDER, 3), b3(0:MAX_ORDER, 3)
+        integer :: interval_index(3), i1, i2, i3, j, q, nq
+        integer :: N1, N2, N3, k1, k2, k3
+        real(dp) :: c
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        inv_h_step = spl%inv_h_step
+        period = spl%period
+
+        include "spline3d_o555_point_setup.inc"
+
+        N1 = spl%order(1); N2 = spl%order(2); N3 = spl%order(3)
+        nq = spl%num_quantities
+
+        ! Per-dimension monomial basis and its first three derivatives at x_local.
+        call basis_d3(x1, N1, b0(:, 1), b1(:, 1), b2(:, 1), b3(:, 1))
+        call basis_d3(x2, N2, b0(:, 2), b1(:, 2), b2(:, 2), b3(:, 2))
+        call basis_d3(x3, N3, b0(:, 3), b1(:, 3), b2(:, 3), b3(:, 3))
+
+        y_batch(1:nq) = 0.0_dp
+        dy_batch(:, 1:nq) = 0.0_dp
+        d2y_batch(:, 1:nq) = 0.0_dp
+        d3y_batch(:, 1:nq) = 0.0_dp
+
+        do k3 = 0, N3
+            do k2 = 0, N2
+                do k1 = 0, N1
+                    do q = 1, nq
+                        c = spl%coeff(q, k1, k2, k3, i1, i2, i3)
+                        if (c == 0.0_dp) cycle
+                        y_batch(q) = y_batch(q) + c*b0(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        dy_batch(1, q) = dy_batch(1, q) + c*b1(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        dy_batch(2, q) = dy_batch(2, q) + c*b0(k1, 1)*b1(k2, 2)*b0(k3, 3)
+                        dy_batch(3, q) = dy_batch(3, q) + c*b0(k1, 1)*b0(k2, 2)*b1(k3, 3)
+                        d2y_batch(1, q) = d2y_batch(1, q) + c*b2(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        d2y_batch(2, q) = d2y_batch(2, q) + c*b1(k1, 1)*b1(k2, 2)*b0(k3, 3)
+                        d2y_batch(3, q) = d2y_batch(3, q) + c*b1(k1, 1)*b0(k2, 2)*b1(k3, 3)
+                        d2y_batch(4, q) = d2y_batch(4, q) + c*b0(k1, 1)*b2(k2, 2)*b0(k3, 3)
+                        d2y_batch(5, q) = d2y_batch(5, q) + c*b0(k1, 1)*b1(k2, 2)*b1(k3, 3)
+                        d2y_batch(6, q) = d2y_batch(6, q) + c*b0(k1, 1)*b0(k2, 2)*b2(k3, 3)
+                        d3y_batch(1, q) = d3y_batch(1, q) + c*b3(k1, 1)*b0(k2, 2)*b0(k3, 3)
+                        d3y_batch(2, q) = d3y_batch(2, q) + c*b2(k1, 1)*b1(k2, 2)*b0(k3, 3)
+                        d3y_batch(3, q) = d3y_batch(3, q) + c*b2(k1, 1)*b0(k2, 2)*b1(k3, 3)
+                        d3y_batch(4, q) = d3y_batch(4, q) + c*b1(k1, 1)*b2(k2, 2)*b0(k3, 3)
+                        d3y_batch(5, q) = d3y_batch(5, q) + c*b1(k1, 1)*b1(k2, 2)*b1(k3, 3)
+                        d3y_batch(6, q) = d3y_batch(6, q) + c*b1(k1, 1)*b0(k2, 2)*b2(k3, 3)
+                        d3y_batch(7, q) = d3y_batch(7, q) + c*b0(k1, 1)*b3(k2, 2)*b0(k3, 3)
+                        d3y_batch(8, q) = d3y_batch(8, q) + c*b0(k1, 1)*b2(k2, 2)*b1(k3, 3)
+                        d3y_batch(9, q) = d3y_batch(9, q) + c*b0(k1, 1)*b1(k2, 2)*b2(k3, 3)
+                        d3y_batch(10, q) = d3y_batch(10, q) + c*b0(k1, 1)*b0(k2, 2)*b3(k3, 3)
+                    end do
+                end do
+            end do
+        end do
+
+    contains
+
+        subroutine basis_d3(xv, nord, vb0, vb1, vb2, vb3)
+            !$acc routine seq
+            real(dp), intent(in) :: xv
+            integer, intent(in) :: nord
+            real(dp), intent(out) :: vb0(0:MAX_ORDER), vb1(0:MAX_ORDER)
+            real(dp), intent(out) :: vb2(0:MAX_ORDER), vb3(0:MAX_ORDER)
+            integer :: kk
+
+            vb0 = 0.0_dp; vb1 = 0.0_dp; vb2 = 0.0_dp; vb3 = 0.0_dp
+            vb0(0) = 1.0_dp
+            do kk = 1, nord
+                vb0(kk) = xv*vb0(kk - 1)
+            end do
+            do kk = 1, nord
+                vb1(kk) = real(kk, dp)*vb0(kk - 1)
+            end do
+            do kk = 2, nord
+                vb2(kk) = real(kk*(kk - 1), dp)*vb0(kk - 2)
+            end do
+            do kk = 3, nord
+                vb3(kk) = real(kk*(kk - 1)*(kk - 2), dp)*vb0(kk - 3)
+            end do
+        end subroutine basis_d3
+    end subroutine evaluate_batch_splines_3d_der3
+
+    recursive subroutine evaluate_batch_splines_3d_der2_rmix(spl, x, y_batch, dy_batch, &
                                                    d2y_batch_rmix)
         ! Evaluate a 3D batch spline at point x, returning:
         ! - y_batch: value
@@ -1307,7 +1404,7 @@ contains
         end if
     end subroutine evaluate_batch_splines_3d_der2_rmix
 
-    subroutine evaluate_batch_splines_3d_der2_core_rmix_general(spl, x, y_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_general(spl, x, y_batch, &
                                                                 dy_batch, &
                                                                 d2y_rmix)
         type(BatchSplineData3D), intent(in) :: spl
@@ -1498,8 +1595,9 @@ contains
         end do
     end subroutine evaluate_batch_splines_3d_der2_core_rmix_general
 
-    subroutine evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, &
                                                    d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
@@ -1522,8 +1620,9 @@ contains
                                                          dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_3d_der2_core
 
-    subroutine evaluate_batch_splines_3d_der2_core_nq1(spl, x, y_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_nq1(spl, x, y_batch, &
                                                        dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
@@ -1705,7 +1804,7 @@ contains
         d2y_batch(4, 1) = coeff_3_dx2x2(k3) + x3*d2y_batch(4, 1)
     end subroutine evaluate_batch_splines_3d_der2_core_nq1
 
-    subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1(spl, x, y_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1(spl, x, y_batch, &
                                                             dy_batch, d2y_rmix)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
@@ -1872,7 +1971,7 @@ contains
         d2y_rmix(2, 1) = coeff_3_dx1x2(k3) + x3*d2y_rmix(2, 1)
     end subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1
 
-    subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o555( &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o555( &
         spl, x, y_batch, dy_batch, d2y_rmix)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
@@ -1921,7 +2020,7 @@ contains
 #undef D2_13
     end subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o555
 
-    subroutine evaluate_batch_splines_3d_der2_core_rmix_o555(spl, x, y_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_o555(spl, x, y_batch, &
                                                              dy_batch, d2y_rmix)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
@@ -1973,8 +2072,9 @@ contains
 #undef D2_13
     end subroutine evaluate_batch_splines_3d_der2_core_rmix_o555
 
-    subroutine evaluate_batch_splines_3d_der2_core_nq1_o555(spl, x, y_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_nq1_o555(spl, x, y_batch, &
                                                             dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
@@ -2031,8 +2131,9 @@ contains
 #undef D2_33
     end subroutine evaluate_batch_splines_3d_der2_core_nq1_o555
 
-    subroutine evaluate_batch_splines_3d_der2_core_o555(spl, x, y_batch, dy_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_o555(spl, x, y_batch, dy_batch, &
                                                         d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
@@ -2092,8 +2193,9 @@ contains
 #undef D2_33
     end subroutine evaluate_batch_splines_3d_der2_core_o555
 
-    subroutine evaluate_batch_splines_3d_der2_core_general(spl, x, y_batch, &
+    recursive subroutine evaluate_batch_splines_3d_der2_core_general(spl, x, y_batch, &
                                                            dy_batch, d2y_batch)
+        !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y_batch(:)      ! (n_quantities)
