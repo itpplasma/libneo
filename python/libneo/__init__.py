@@ -29,8 +29,11 @@ from .vmec import VMECGeometry, vmec_to_cylindrical
 # Chartmap coordinate utilities
 from .chartmap import chartmap_to_rz, vmec_to_chartmap_coords
 
-# ASCOT5 utilities
-from .ascot5 import field_from_vmec, field_from_mgrid, write_b3ds_hdf5
+# ASCOT5 utilities (optional: needs h5py and the built _magfie extension)
+try:
+    from .ascot5 import field_from_vmec, field_from_mgrid, write_b3ds_hdf5
+except (ImportError, RuntimeError):
+    pass
 
 # Boozer chartmap writer (libneo-defined extended chartmap format)
 from .boozer_chartmap_writer import write_boozer_chartmap, apply_left_handed_flip
