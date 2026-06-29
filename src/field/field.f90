@@ -5,7 +5,6 @@ module neo_field
     use neo_polylag_field, only: polylag_field_t
     use neo_spline_field, only: spline_field_t
     use neo_field_mesh, only: field_mesh_t
-    use neo_jorek_field, only: jorek_field_t
     implicit none
     integer, parameter :: dp = kind(1.0d0)
 
@@ -15,7 +14,7 @@ module neo_field
                                                coils_file, &
                                                limits, field_to_interpolate, n_points, &
                                                field_mesh, &
-                                               filename)
+                                               filename, order)
         class(field_t), allocatable, intent(inout) :: field
         character(*), intent(in) :: field_type
         real(dp), intent(in), optional :: ampl, ampl2
@@ -25,6 +24,7 @@ module neo_field
         integer, dimension(3), intent(in), optional :: n_points
         class(field_mesh_t), intent(in), optional :: field_mesh
         character(*), intent(in), optional :: filename
+        integer, intent(in), optional :: order
 
         select case(field_type)
             case("example")
@@ -36,15 +36,13 @@ module neo_field
                             create_polylag_field(limits, field_to_interpolate, n_points))
             case("spline")
                 if (present(filename)) then
-                    allocate(field, source=create_spline_field_from_file(filename))
+                    allocate(field, source=create_spline_field_from_file(filename, order))
                 else if (present(field_mesh)) then
-                    allocate(field, source=create_spline_field_from_mesh(field_mesh))
+                    allocate(field, source=create_spline_field_from_mesh(field_mesh, order))
                 else
                     allocate(field, source= &
                             create_spline_field(limits, field_to_interpolate, n_points))
                 end if
-            case("jorek")
-                allocate(field, source=create_jorek_field(filename))
             case default
                 print *, "Invalid field type"
                 error stop
@@ -94,33 +92,64 @@ module neo_field
     end function create_spline_field
 
 
-    function create_spline_field_from_file(filename) result(spline_field_from_file)
+    function create_spline_field_from_file(filename, order) result(spline_field_from_file)
         character(*), intent(in) :: filename
+        integer, intent(in), optional :: order
         class(spline_field_t), allocatable :: spline_field_from_file
 
         type(field_mesh_t) :: field_mesh
 
+        if (has_netcdf_suffix(filename)) then
+            allocate(spline_field_from_file, source=create_spline_field_from_netcdf(filename, order))
+            return
+        end if
         call field_mesh%field_mesh_init_with_file(filename)
-        allocate(spline_field_from_file, source=create_spline_field_from_mesh(field_mesh))
+        allocate(spline_field_from_file, source=create_spline_field_from_mesh(field_mesh, order))
 
     end function create_spline_field_from_file
 
 
-    function create_spline_field_from_mesh(field_mesh) result(spline_field)
+    function create_spline_field_from_netcdf(filename, order) result(spline_field)
+        use neo_mgrid, only: read_mgrid
+
+        character(*), intent(in) :: filename
+        integer, intent(in), optional :: order
+        class(spline_field_t), allocatable :: spline_field
+
+        type(field_mesh_t) :: field_mesh
+        integer :: coordinate_system, nfp
+        logical :: has_a, has_b
+
+        call read_mgrid(filename, field_mesh, nfp, coordinate_system, has_a, has_b)
+        allocate(spline_field)
+        if (has_a) then
+            ! Vector potential present: B = curl A, divergence-free by construction.
+            call spline_field%spline_field_init_acurl(field_mesh, coordinate_system, order)
+        else
+            ! Standard mgrid stores B only: spline B directly.
+            call spline_field%spline_field_init(field_mesh, order)
+        end if
+    end function create_spline_field_from_netcdf
+
+
+    function has_netcdf_suffix(filename) result(is_nc)
+        character(*), intent(in) :: filename
+        logical :: is_nc
+        integer :: n
+
+        n = len_trim(filename)
+        is_nc = n >= 3
+        if (is_nc) is_nc = filename(n-2:n) == '.nc'
+    end function has_netcdf_suffix
+
+
+    function create_spline_field_from_mesh(field_mesh, order) result(spline_field)
         type(field_mesh_t), intent(in) :: field_mesh
+        integer, intent(in), optional :: order
         class(spline_field_t), allocatable :: spline_field
 
         allocate(spline_field)
-        call spline_field%spline_field_init(field_mesh)
+        call spline_field%spline_field_init(field_mesh, order)
     end function create_spline_field_from_mesh
-
-
-    function create_jorek_field(filename) result(jorek_field)
-        character(*), intent(in) :: filename
-        class(jorek_field_t), allocatable :: jorek_field
-
-        allocate(jorek_field)
-        call jorek_field%jorek_field_init(filename)
-    end function create_jorek_field
 
 end module neo_field

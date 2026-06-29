@@ -30,6 +30,7 @@ module interpolate
     use batch_interpolate, only: evaluate_batch_splines_3d, &
                                  evaluate_batch_splines_3d_der, &
                                  evaluate_batch_splines_3d_der2, &
+                                 evaluate_batch_splines_3d_der3, &
                                  evaluate_batch_splines_3d_der2_rmix, &
                                  evaluate_batch_splines_3d_many, &
                                  evaluate_batch_splines_3d_many_resident, &
@@ -58,7 +59,8 @@ module interpolate
     public :: evaluate_batch_splines_2d, evaluate_batch_splines_2d_der
     public :: evaluate_batch_splines_2d_many, evaluate_batch_splines_2d_many_resident
     public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &
-              evaluate_batch_splines_3d_der2, evaluate_batch_splines_3d_der2_rmix
+              evaluate_batch_splines_3d_der2, evaluate_batch_splines_3d_der3, &
+              evaluate_batch_splines_3d_der2_rmix
     public :: evaluate_batch_splines_3d_many, evaluate_batch_splines_3d_many_resident
     public :: evaluate_batch_splines_3d_many_der, evaluate_batch_splines_3d_many_der2
 
@@ -108,7 +110,7 @@ module interpolate
 
 contains
 
-    subroutine construct_splines_1d(x_min, x_max, y, order, periodic, spl)
+    recursive subroutine construct_splines_1d(x_min, x_max, y, order, periodic, spl)
         real(dp), intent(in) :: x_min, x_max, y(:)
         integer, intent(in) :: order
         logical, intent(in) :: periodic
@@ -132,13 +134,13 @@ contains
         end if
     end subroutine construct_splines_1d
 
-    subroutine destroy_splines_1d(spl)
+    recursive subroutine destroy_splines_1d(spl)
         type(SplineData1D), intent(inout) :: spl
 
         if (allocated(spl%coeff)) deallocate (spl%coeff)
     end subroutine destroy_splines_1d
 
-    subroutine evaluate_splines_1d(spl, x, y)
+    recursive subroutine evaluate_splines_1d(spl, x, y)
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y
@@ -150,7 +152,7 @@ contains
         y = y_arr(1)
     end subroutine evaluate_splines_1d
 
-    subroutine evaluate_splines_1d_der(spl, x, y, dy)
+    recursive subroutine evaluate_splines_1d_der(spl, x, y, dy)
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy
@@ -163,7 +165,7 @@ contains
         dy = dy_arr(1)
     end subroutine evaluate_splines_1d_der
 
-    subroutine evaluate_splines_1d_der2(spl, x, y, dy, d2y)
+    recursive subroutine evaluate_splines_1d_der2(spl, x, y, dy, d2y)
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y, dy, d2y
@@ -177,7 +179,7 @@ contains
         d2y = d2y_arr(1)
     end subroutine evaluate_splines_1d_der2
 
-    subroutine evaluate_splines_1d_many(spl, x, y)
+    recursive subroutine evaluate_splines_1d_many(spl, x, y)
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y(:)
@@ -204,7 +206,7 @@ contains
         end do
     end subroutine evaluate_splines_1d_many
 
-    subroutine evaluate_splines_1d_many_der(spl, x, y, dy)
+    recursive subroutine evaluate_splines_1d_many_der(spl, x, y, dy)
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y(:), dy(:)
@@ -235,7 +237,7 @@ contains
         end do
     end subroutine evaluate_splines_1d_many_der
 
-    subroutine evaluate_splines_1d_many_der2(spl, x, y, dy, d2y)
+    recursive subroutine evaluate_splines_1d_many_der2(spl, x, y, dy, d2y)
         type(SplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y(:), dy(:), d2y(:)
@@ -271,7 +273,7 @@ contains
         end do
     end subroutine evaluate_splines_1d_many_der2
 
-    subroutine construct_splines_2d(x_min, x_max, y, order, periodic, spl)
+    recursive subroutine construct_splines_2d(x_min, x_max, y, order, periodic, spl)
         real(dp), intent(in) :: x_min(:), x_max(:), y(:, :)
         integer, intent(in) :: order(:)
         logical, intent(in) :: periodic(:)
@@ -323,7 +325,7 @@ contains
 
     end subroutine construct_splines_2d
 
-    subroutine evaluate_splines_2d(spl, x, y)
+    recursive subroutine evaluate_splines_2d(spl, x, y)
         type(SplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y
@@ -335,7 +337,7 @@ contains
         y = y_arr(1)
     end subroutine evaluate_splines_2d
 
-    subroutine evaluate_splines_2d_der(spl, x, y, dy)
+    recursive subroutine evaluate_splines_2d_der(spl, x, y, dy)
         type(SplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(2)
         real(dp), intent(out) :: y
@@ -349,7 +351,7 @@ contains
         dy = dy_arr(:, 1)
     end subroutine evaluate_splines_2d_der
 
-    subroutine evaluate_splines_2d_many(spl, x, y)
+    recursive subroutine evaluate_splines_2d_many(spl, x, y)
         type(SplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(out) :: y(:)
@@ -386,7 +388,7 @@ contains
         end do
     end subroutine evaluate_splines_2d_many
 
-    subroutine evaluate_splines_2d_many_der(spl, x, y, dy)
+    recursive subroutine evaluate_splines_2d_many_der(spl, x, y, dy)
         type(SplineData2D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(out) :: y(:)
@@ -444,13 +446,13 @@ contains
         end do
     end subroutine evaluate_splines_2d_many_der
 
-    subroutine destroy_splines_2d(spl)
+    recursive subroutine destroy_splines_2d(spl)
         type(SplineData2D), intent(inout) :: spl
 
         if (allocated(spl%coeff)) deallocate (spl%coeff)
     end subroutine destroy_splines_2d
 
-    subroutine construct_splines_3d(x_min, x_max, y, order, periodic, spl)
+    recursive subroutine construct_splines_3d(x_min, x_max, y, order, periodic, spl)
         real(dp), intent(in) :: x_min(:), x_max(:), y(:, :, :)
         integer, intent(in) :: order(3)
         logical, intent(in) :: periodic(3)
@@ -528,7 +530,7 @@ contains
         deallocate (splcoe)
     end subroutine construct_splines_3d
 
-    subroutine evaluate_splines_3d(spl, x, y)
+    recursive subroutine evaluate_splines_3d(spl, x, y)
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y
@@ -540,7 +542,7 @@ contains
         y = y_arr(1)
     end subroutine evaluate_splines_3d
 
-    subroutine evaluate_splines_3d_der(spl, x, y, dy)
+    recursive subroutine evaluate_splines_3d_der(spl, x, y, dy)
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y, dy(3)
@@ -553,7 +555,7 @@ contains
         dy = dy_arr(:, 1)
     end subroutine evaluate_splines_3d_der
 
-    subroutine evaluate_splines_3d_der2(spl, x, y, dy, d2y)
+    recursive subroutine evaluate_splines_3d_der2(spl, x, y, dy, d2y)
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: y, dy(3), d2y(6)
@@ -567,7 +569,7 @@ contains
         d2y = d2y_arr(:, 1)
     end subroutine evaluate_splines_3d_der2
 
-    subroutine evaluate_splines_3d_many(spl, x, y)
+    recursive subroutine evaluate_splines_3d_many(spl, x, y)
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(out) :: y(:)
@@ -612,7 +614,7 @@ contains
         end do
     end subroutine evaluate_splines_3d_many
 
-    subroutine evaluate_splines_3d_many_der(spl, x, y, dy)
+    recursive subroutine evaluate_splines_3d_many_der(spl, x, y, dy)
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(out) :: y(:), dy(:, :)
@@ -701,7 +703,7 @@ contains
         end do
     end subroutine evaluate_splines_3d_many_der
 
-    subroutine evaluate_splines_3d_many_der2(spl, x, y, dy, d2y)
+    recursive subroutine evaluate_splines_3d_many_der2(spl, x, y, dy, d2y)
         type(SplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(out) :: y(:), dy(:, :), d2y(:, :)
@@ -836,13 +838,13 @@ contains
         end do
     end subroutine evaluate_splines_3d_many_der2
 
-    subroutine destroy_splines_3d(spl)
+    recursive subroutine destroy_splines_3d(spl)
         type(SplineData3D), intent(inout) :: spl
 
         if (allocated(spl%coeff)) deallocate (spl%coeff)
     end subroutine destroy_splines_3d
 
-    subroutine disp_3d(spl)
+    recursive subroutine disp_3d(spl)
         type(SplineData3D), intent(in) :: spl
         print *, "SplineData3D"
         print *, "  order = ", spl%order

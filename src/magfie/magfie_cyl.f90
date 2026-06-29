@@ -23,7 +23,7 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
   !
   !  Called routines:  field
 
-  use field_eq_mod, only : psi_axis,psi_sep,ierrfield
+  use field_eq_mod, only : psi_axis,psi_sep,ierrfield,allow_sol
   use field_sub, only : psif
   use libneo_kinds, only : dp
   use field_sub,    only : field
@@ -40,7 +40,9 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
   CALL field(x(1),x(2),x(3),br,bf,bz,BRR,BRF,BRZ,BFR,BFF,BFZ,BZR,BZF,BZZ)
 
-  if((psif-psi_axis)/(psi_sep-psi_axis).gt.1d0) then
+  if(allow_sol) then
+    ierrfield=0
+  else if((psif-psi_axis)/(psi_sep-psi_axis).gt.1d0) then
     print *,'magfie: point is outside separatrix, (R,Z) = ',x(1),x(3)
     ierrfield=1
   else

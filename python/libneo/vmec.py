@@ -379,6 +379,141 @@ class VMECGeometry:
         Z_out = np.interp(s_query, s_coords, coords[:, 1])
         return R_out, Z_out, float(zeta)
 
+    def find_theta(
+        self,
+        R_target: float | np.ndarray,
+        Z_target: float | np.ndarray,
+        zeta: float | np.ndarray,
+        s: float = 1.0,
+        *,
+        theta_guess: float | np.ndarray | None = None,
+        max_iter: int = 20,
+        tol: float = 1.0e-10,
+        n_starts: int = 12,
+        use_asym: bool = True,
+    ) -> np.ndarray:
+        """
+        Find VMEC poloidal angle theta for given (R, Z) at fixed (s, zeta).
+
+        Uses Newton-Raphson iteration with analytic Jacobian from Fourier
+        derivatives. Falls back to multi-start if no initial guess is provided.
+
+        Parameters
+        ----------
+        R_target : target cylindrical R coordinate(s) in meters
+        Z_target : target cylindrical Z coordinate(s) in meters
+        zeta : toroidal angle(s) in radians
+        s : normalized toroidal flux coordinate (default 1.0 = LCFS)
+        theta_guess : initial guess for theta (radians), or None for multi-start
+        max_iter : maximum Newton iterations per start
+        tol : convergence tolerance (squared error in R, Z)
+        n_starts : number of initial guesses for multi-start (if no guess given)
+        use_asym : include asymmetric Fourier terms if available
+
+        Returns
+        -------
+        theta : VMEC poloidal angle(s) in [0, 2*pi)
+        """
+        R_arr = np.atleast_1d(np.asarray(R_target, dtype=float)).flatten()
+        Z_arr = np.atleast_1d(np.asarray(Z_target, dtype=float)).flatten()
+        zeta_arr = np.atleast_1d(np.asarray(zeta, dtype=float)).flatten()
+
+        if not (R_arr.shape == Z_arr.shape == zeta_arr.shape):
+            raise ValueError("R_target, Z_target, zeta must have the same shape")
+
+        n = R_arr.size
+        theta_out = np.zeros(n, dtype=float)
+        s_val = float(s)
+        TWOPI = 2.0 * np.pi
+
+        # Precompute coefficients at surface s for efficiency
+        ns = self.ns
+        if ns == 1:
+            rmnc_s = self.rmnc[:, 0]
+            zmns_s = self.zmns[:, 0]
+            rmns_s = self.rmns[:, 0] if self.rmns is not None else None
+            zmnc_s = self.zmnc[:, 0] if self.zmnc is not None else None
+        else:
+            x = s_val * float(ns - 1)
+            i0 = int(np.floor(x))
+            i0 = max(0, min(ns - 2, i0))
+            i1 = i0 + 1
+            alpha = x - float(i0)
+            rmnc_s = (1.0 - alpha) * self.rmnc[:, i0] + alpha * self.rmnc[:, i1]
+            zmns_s = (1.0 - alpha) * self.zmns[:, i0] + alpha * self.zmns[:, i1]
+            if use_asym and self.rmns is not None and self.zmnc is not None:
+                rmns_s = (1.0 - alpha) * self.rmns[:, i0] + alpha * self.rmns[:, i1]
+                zmnc_s = (1.0 - alpha) * self.zmnc[:, i0] + alpha * self.zmnc[:, i1]
+            else:
+                rmns_s = None
+                zmnc_s = None
+
+        def _eval_rz(th: float, z: float) -> Tuple[float, float, float, float]:
+            """Evaluate (R, Z, dR/dtheta, dZ/dtheta) at single point."""
+            angle = self.xm * th - self.xn * z
+            cos_a = np.cos(angle)
+            sin_a = np.sin(angle)
+            R = float(np.dot(rmnc_s, cos_a))
+            Z = float(np.dot(zmns_s, sin_a))
+            dR_dth = float(np.dot(-self.xm * rmnc_s, sin_a))
+            dZ_dth = float(np.dot(self.xm * zmns_s, cos_a))
+            if rmns_s is not None and zmnc_s is not None:
+                R += float(np.dot(rmns_s, sin_a))
+                Z += float(np.dot(zmnc_s, cos_a))
+                dR_dth += float(np.dot(self.xm * rmns_s, cos_a))
+                dZ_dth += float(np.dot(-self.xm * zmnc_s, sin_a))
+            return R, Z, dR_dth, dZ_dth
+
+        def _newton(th0: float, z: float, R_t: float, Z_t: float) -> Tuple[float, float]:
+            """Newton iteration from initial guess, returns (theta, error)."""
+            th = th0
+            for _ in range(max_iter):
+                R, Z, dR, dZ = _eval_rz(th, z)
+                err_R = R - R_t
+                err_Z = Z - Z_t
+                err2 = err_R * err_R + err_Z * err_Z
+                if err2 < tol:
+                    return th % TWOPI, err2
+                # Gauss-Newton step: minimize ||f||^2
+                grad = 2.0 * (err_R * dR + err_Z * dZ)
+                hess = 2.0 * (dR * dR + dZ * dZ)
+                if abs(hess) < 1.0e-14:
+                    break
+                th -= grad / hess
+            R, Z, _, _ = _eval_rz(th, z)
+            err2 = (R - R_t) ** 2 + (Z - Z_t) ** 2
+            return th % TWOPI, err2
+
+        # Process each point
+        if theta_guess is not None:
+            guess_arr = np.atleast_1d(np.asarray(theta_guess, dtype=float)).flatten()
+            if guess_arr.size == 1:
+                guess_arr = np.full(n, guess_arr[0], dtype=float)
+            elif guess_arr.size != n:
+                raise ValueError("theta_guess must be scalar or match input size")
+        else:
+            guess_arr = None
+
+        for i in range(n):
+            R_t, Z_t, z = float(R_arr[i]), float(Z_arr[i]), float(zeta_arr[i])
+            if guess_arr is not None:
+                # Single Newton from provided guess
+                th, _ = _newton(float(guess_arr[i]), z, R_t, Z_t)
+                theta_out[i] = th
+            else:
+                # Multi-start: try n_starts initial guesses
+                best_th = 0.0
+                best_err = float("inf")
+                for k in range(n_starts):
+                    th0 = TWOPI * k / n_starts
+                    th, err2 = _newton(th0, z, R_t, Z_t)
+                    if err2 < best_err:
+                        best_err = err2
+                        best_th = th
+                theta_out[i] = best_th
+
+        return theta_out
+
 
 def vmec_to_cylindrical(nc_path: str, s_index: int, theta: np.ndarray, zeta: float, use_asym: bool = True) -> Tuple[np.ndarray, np.ndarray, float]:
     geom = VMECGeometry.from_file(nc_path)
