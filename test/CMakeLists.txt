@@ -5,11 +5,8 @@ set (HDF5_TOOLS_LIB ${HDF5_TOOLS_LIB} hdf5_tools)
 set (MAGFIE_LIB ${MAGFIE_LIB} magfie)
 
 set(PROJLIBS /proj/plasma/Libs/ CACHE STRING "Common library path")
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 include_directories(${PROJECT_SOURCE_DIR}/src/hdf5_tools)
-include_directories(${PROJECT_SOURCE_DIR}/extra/MyMPILib)
-include_directories(${MPI_Fortran_INCLUDE_PATH})
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 include_directories(${HDF5_INCLUDE_DIRS})
@@ -57,8 +54,6 @@ target_link_libraries(test_collision_freqs.x
 add_executable(test_arnoldi.x source/test_arnoldi.f90)
 target_link_libraries(test_arnoldi.x
   ${COMMON_LIBS}
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
 )
 
 add_executable(test_binsrc.x source/test_binsrc.f90)
@@ -70,6 +65,48 @@ add_executable(test_boozer_coordinates_exports.x
   source/test_boozer_coordinates_exports.f90
 )
 target_link_libraries(test_boozer_coordinates_exports.x
+  neo
+)
+
+add_executable(test_axis_power_law_regularization.x
+  source/test_axis_power_law_regularization.f90
+)
+target_link_libraries(test_axis_power_law_regularization.x
+  neo
+)
+
+add_executable(test_axis_polyfit_regularization.x
+  source/test_axis_polyfit_regularization.f90
+)
+target_link_libraries(test_axis_polyfit_regularization.x
+  neo
+)
+
+add_executable(test_flux_pseudocartesian.x
+  source/test_flux_pseudocartesian.f90
+)
+target_link_libraries(test_flux_pseudocartesian.x
+  neo
+)
+
+add_executable(test_christoffel_symflux.x
+  source/test_christoffel_symflux.f90
+)
+target_link_libraries(test_christoffel_symflux.x
+  neo
+)
+
+add_executable(test_coordinate_christoffel.x
+  source/test_coordinate_christoffel.f90
+)
+target_link_libraries(test_coordinate_christoffel.x
+  neo
+)
+
+add_executable(test_axis_healing_mode.x
+  source/test_axis_healing_mode.f90
+)
+target_link_libraries(test_axis_healing_mode.x
   neo
 )
 
@@ -110,15 +147,6 @@ target_link_libraries(test_hdf5_tools.x
   ${HDF5_TOOLS_LIB}
 )
 
-add_executable(test_mympilib.x
-  source/test_mympilib.f90
-  source/derived_scheduler_module.f90
-)
-target_link_libraries(test_mympilib.x
-  MyMPILib
-  ${MPI_Fortran_LIBRARIES}
-)
-
 add_executable(test_system_utility.x
   source/test_system_utility.f90
   ../src/local_rusage.c)
@@ -156,6 +184,9 @@ target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate.x source/test_batch_interpolate.f90)
 target_link_libraries(test_batch_interpolate.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_der3.x source/test_batch_interpolate_der3.f90)
+target_link_libraries(test_batch_interpolate_der3.x ${COMMON_LIBS})
+
 add_executable(test_batch_interpolate_many.x source/test_batch_interpolate_many.f90)
 target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 
@@ -191,6 +222,12 @@ target_link_libraries(test_chartmap_basis_debug.x neo ${MAGFIE_LIB})
 add_executable(test_chartmap_validator.x source/test_chartmap_validator.f90)
 target_link_libraries(test_chartmap_validator.x neo)
 
+add_executable(test_chartmap_boozer_coordinates.x source/test_chartmap_boozer_coordinates.f90)
+target_link_libraries(test_chartmap_boozer_coordinates.x neo ${MAGFIE_LIB})
+
+add_executable(test_chartmap_invert_cart.x source/test_chartmap_invert_cart.f90)
+target_link_libraries(test_chartmap_invert_cart.x neo ${MAGFIE_LIB})
+
 # TODO: Update test for new psi_1..psi_7 interface
 # add_executable(test_analytical_gs_circular.x source/test_analytical_gs_circular.f90)
 # target_link_libraries(test_analytical_gs_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
@@ -210,6 +247,18 @@ target_link_libraries(bench_neo_bspline_vs_interpolate.x ${COMMON_LIBS})
 ## Standard tests according to standard libneo Fortran test convention.
 
 add_test(NAME test_binsrc COMMAND test_binsrc.x)
+add_test(NAME test_axis_power_law_regularization
+  COMMAND test_axis_power_law_regularization.x)
+add_test(NAME test_axis_polyfit_regularization
+  COMMAND test_axis_polyfit_regularization.x)
+add_test(NAME test_flux_pseudocartesian
+  COMMAND test_flux_pseudocartesian.x)
+add_test(NAME test_christoffel_symflux
+  COMMAND test_christoffel_symflux.x)
+add_test(NAME test_coordinate_christoffel
+  COMMAND test_coordinate_christoffel.x)
+add_test(NAME test_axis_healing_mode
+  COMMAND test_axis_healing_mode.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )
@@ -227,6 +276,7 @@ add_test(NAME test_neo_bspline_2d COMMAND test_neo_bspline_2d.x)
 add_test(NAME test_neo_bspline_3d COMMAND test_neo_bspline_3d.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
+add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
@@ -276,6 +326,16 @@ if(LIBNEO_TESTING_ENABLED)
             --basename geoflux
   )
   set_tests_properties(test_geoflux_plot PROPERTIES DEPENDS test_geoflux)
+
+  add_test(
+    NAME test_geoflux_coordinate_system
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/run_geoflux_test.py
+            --exe $<TARGET_FILE:test_geoflux_coordinate_system.x>
+            --data-dir ${TEST_OUTPUT_DIR}/scripts
+  )
+  set_tests_properties(test_geoflux_coordinate_system PROPERTIES
+    FAIL_REGULAR_EXPRESSION "STOP"
+    DEPENDS test_geoflux)
 endif()
 
 ## Custom tests
@@ -295,9 +355,6 @@ set_tests_properties(test_arnoldi PROPERTIES
   DEPENDS test_arnoldi_setup
   FAIL_REGULAR_EXPRESSION "STOP")
 
-add_test(NAME test_mympilib
-  COMMAND test_mympilib.x)
-set_tests_properties(test_mympilib PROPERTIES  PASS_REGULAR_EXPRESSION "Derived initMaster")
 add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
 set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WARNING: resource usage could not be determined.")
@@ -417,6 +474,18 @@ set_tests_properties(test_chartmap_validator PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+add_test(NAME test_chartmap_boozer_coordinates
+  COMMAND test_chartmap_boozer_coordinates.x)
+set_tests_properties(test_chartmap_boozer_coordinates PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_test(NAME test_chartmap_invert_cart
+  COMMAND test_chartmap_invert_cart.x)
+set_tests_properties(test_chartmap_invert_cart PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_library(chartmap_test_utils STATIC source/chartmap_test_utils.f90)
 target_link_libraries(chartmap_test_utils PUBLIC neo)
 
@@ -447,6 +516,15 @@ set_tests_properties(test_vmec_coordinate_system PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_splint_vmec_data_d3.x source/test_splint_vmec_data_d3.f90)
+target_link_libraries(test_splint_vmec_data_d3.x neo)
+add_test(NAME test_splint_vmec_data_d3
+  COMMAND test_splint_vmec_data_d3.x)
+set_tests_properties(test_splint_vmec_data_d3 PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_vmec_from_cyl.x source/test_vmec_from_cyl.f90)
 target_link_libraries(test_vmec_from_cyl.x neo)
 add_test(NAME test_vmec_from_cyl
@@ -456,11 +534,71 @@ set_tests_properties(test_vmec_from_cyl PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_vector_conversion.x source/test_vector_conversion.f90)
+target_link_libraries(test_vector_conversion.x neo ${MAGFIE_LIB})
+add_test(NAME test_vector_conversion
+  COMMAND test_vector_conversion.x)
+set_tests_properties(test_vector_conversion PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_chartmap_volume)
+
+add_executable(test_geoflux_coordinate_system.x source/test_geoflux_coordinate_system.f90)
+target_link_libraries(test_geoflux_coordinate_system.x neo ${MAGFIE_LIB})
+
 add_executable(test_chartmap_matches_vmec.x source/test_chartmap_matches_vmec.f90)
 target_link_libraries(test_chartmap_matches_vmec.x neo)
 add_test(NAME test_chartmap_matches_vmec
   COMMAND test_chartmap_matches_vmec.x)
 set_tests_properties(test_chartmap_matches_vmec PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(bench_boozer_resolution.x source/bench_boozer_resolution.f90)
+target_link_libraries(bench_boozer_resolution.x neo)
+
+add_executable(test_boozer_converter_vs_simple.x source/test_boozer_converter_vs_simple.f90)
+target_link_libraries(test_boozer_converter_vs_simple.x neo)
+add_test(NAME test_boozer_converter_vs_simple
+  COMMAND test_boozer_converter_vs_simple.x)
+set_tests_properties(test_boozer_converter_vs_simple PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_boozer_angle_roundtrip.x source/test_boozer_angle_roundtrip.f90)
+target_link_libraries(test_boozer_angle_roundtrip.x neo)
+add_test(NAME test_boozer_angle_roundtrip
+  COMMAND test_boozer_angle_roundtrip.x)
+set_tests_properties(test_boozer_angle_roundtrip PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_boozer_chartmap_roundtrip.x source/test_boozer_chartmap_roundtrip.f90)
+target_link_libraries(test_boozer_chartmap_roundtrip.x neo)
+add_test(NAME test_boozer_chartmap_roundtrip
+  COMMAND test_boozer_chartmap_roundtrip.x)
+set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_delthe_delphi_bv_d2.x source/test_delthe_delphi_bv_d2.f90)
+target_link_libraries(test_delthe_delphi_bv_d2.x neo)
+add_test(NAME test_delthe_delphi_bv_d2
+  COMMAND test_delthe_delphi_bv_d2.x)
+set_tests_properties(test_delthe_delphi_bv_d2 PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
+add_executable(test_delthe_delphi_bv_d3.x source/test_delthe_delphi_bv_d3.f90)
+target_link_libraries(test_delthe_delphi_bv_d3.x neo)
+add_test(NAME test_delthe_delphi_bv_d3
+  COMMAND test_delthe_delphi_bv_d3.x)
+set_tests_properties(test_delthe_delphi_bv_d3 PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
@@ -489,8 +627,7 @@ add_test(NAME test_refcoords_file_detection
   COMMAND test_refcoords_file_detection.x)
 set_tests_properties(test_refcoords_file_detection PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "setup_vmec_wout;setup_chartmap_volume")
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_subdirectory(util_for_test)
 add_subdirectory(util_for_test_field)

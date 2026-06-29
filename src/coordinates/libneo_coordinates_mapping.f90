@@ -19,6 +19,7 @@ contains
         character(len=*), intent(out) :: message
 
         real(dp) :: xcyl(3)
+        real(dp) :: xcart(3)
 
         ierr = 0
         message = ""
@@ -35,8 +36,20 @@ contains
             return
         end if
 
-        ierr = 1
-        message = "unsupported zeta_convention for vmec mapping"
+        call cyl_to_cart(xcyl, xcart)
+        call ccs%from_cart(xcart, u_chart, ierr)
+        if (ierr /= 0) then
+            write (message, '(a,i0)') "chartmap from_cart failed ierr=", ierr
+        end if
     end subroutine map_vmec_u_to_chartmap_u
+
+    pure subroutine cyl_to_cart(xcyl, xcart)
+        real(dp), intent(in) :: xcyl(3)
+        real(dp), intent(out) :: xcart(3)
+
+        xcart(1) = xcyl(1)*cos(xcyl(2))
+        xcart(2) = xcyl(1)*sin(xcyl(2))
+        xcart(3) = xcyl(3)
+    end subroutine cyl_to_cart
 
 end module libneo_coordinates_mapping

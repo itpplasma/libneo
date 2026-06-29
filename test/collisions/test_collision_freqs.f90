@@ -1,7 +1,7 @@
 program test_collision_freqs
 
     use libneo_kinds, only : dp
-    use libneo_collisions, only: calc_perp_coll_freq_slow_limit_ee, calc_perp_coll_freq_fast_limit_ee, &
+    use libneo_collisions, only: calc_perp_coll_freq_fast_limit_ee, &
         calc_coulomb_log, calc_perp_coll_freq
     use util_for_test, only: print_test, print_ok, print_fail
 
