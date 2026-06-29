@@ -45,6 +45,7 @@ function(build_hdf5)
         SOURCE_DIR ${DEPS_SOURCE_DIR}/hdf5
         BINARY_DIR ${DEPS_BUILD_DIR}/hdf5
         INSTALL_DIR ${DEPS_PREFIX}
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         CMAKE_ARGS
             ${COMMON_CMAKE_ARGS}
             -DHDF5_BUILD_FORTRAN=ON
@@ -68,12 +69,25 @@ function(build_hdf5)
 
     # Create imported targets that the main build can use
     # HDF5 creates separate C stub libraries for Fortran bindings
-    add_library(hdf5::hdf5 STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_hl STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_f90cstub STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_hl_f90cstub STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_fortran STATIC IMPORTED GLOBAL)
-    add_library(hdf5::hdf5_hl_fortran STATIC IMPORTED GLOBAL)
+    # Use if(NOT TARGET) guards in case find_package already created these targets
+    if(NOT TARGET hdf5::hdf5)
+        add_library(hdf5::hdf5 STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_hl)
+        add_library(hdf5::hdf5_hl STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_f90cstub)
+        add_library(hdf5::hdf5_f90cstub STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_hl_f90cstub)
+        add_library(hdf5::hdf5_hl_f90cstub STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_fortran)
+        add_library(hdf5::hdf5_fortran STATIC IMPORTED GLOBAL)
+    endif()
+    if(NOT TARGET hdf5::hdf5_hl_fortran)
+        add_library(hdf5::hdf5_hl_fortran STATIC IMPORTED GLOBAL)
+    endif()
 
     # For static linking, specify all dependencies explicitly to ensure correct link order
     set_target_properties(hdf5::hdf5 PROPERTIES
@@ -206,51 +220,7 @@ function(build_netcdf_fortran)
 endfunction()
 
 #------------------------------------------------------------------------------
-# FFTW (C library - no Fortran ABI issues, but include for completeness)
-#------------------------------------------------------------------------------
-function(build_fftw)
-    message(STATUS "Will build FFTW 3.3.10 from source")
-
-    ExternalProject_Add(fftw_external
-        URL http://www.fftw.org/fftw-3.3.10.tar.gz
-        URL_HASH MD5=8ccbf6a5ea78a16dbc3e1306e234cc5c
-        DOWNLOAD_DIR ${DEPS_SOURCE_DIR}
-        SOURCE_DIR ${DEPS_SOURCE_DIR}/fftw
-        BINARY_DIR ${DEPS_BUILD_DIR}/fftw
-        INSTALL_DIR ${DEPS_PREFIX}
-        CMAKE_ARGS
-            ${COMMON_CMAKE_ARGS}
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-            -DENABLE_THREADS=ON
-            -DENABLE_OPENMP=ON
-            -DBUILD_TESTS=OFF
-        BUILD_BYPRODUCTS
-            ${DEPS_PREFIX}/lib/libfftw3.a
-            ${DEPS_PREFIX}/lib/libfftw3_threads.a
-    )
-
-    add_library(FFTW::Double STATIC IMPORTED GLOBAL)
-    add_library(FFTW::DoubleThreads STATIC IMPORTED GLOBAL)
-
-    set_target_properties(FFTW::Double PROPERTIES
-        IMPORTED_LOCATION ${DEPS_PREFIX}/lib/libfftw3.a
-        INTERFACE_INCLUDE_DIRECTORIES ${DEPS_PREFIX}/include
-    )
-    set_target_properties(FFTW::DoubleThreads PROPERTIES
-        IMPORTED_LOCATION ${DEPS_PREFIX}/lib/libfftw3_threads.a
-        INTERFACE_INCLUDE_DIRECTORIES ${DEPS_PREFIX}/include
-        INTERFACE_LINK_LIBRARIES FFTW::Double
-    )
-
-    add_dependencies(FFTW::Double fftw_external)
-    add_dependencies(FFTW::DoubleThreads fftw_external)
-
-    set(FFTW_FOUND TRUE CACHE BOOL "" FORCE)
-    set(FFTW_FETCHED TRUE CACHE BOOL "" FORCE)
-endfunction()
-
-#------------------------------------------------------------------------------
-# Build all dependencies in order
+# Build all dependencies in order (only those that are needed)
 #------------------------------------------------------------------------------
 function(build_all_external_dependencies)
     message(STATUS "")
@@ -258,10 +228,13 @@ function(build_all_external_dependencies)
     message(STATUS "Installation prefix: ${DEPS_PREFIX}")
     message(STATUS "")
 
-    build_hdf5()
-    build_netcdf_c()
-    build_netcdf_fortran()
-    build_fftw()
+    if(NEED_BUILD_HDF5)
+        build_hdf5()
+    endif()
+    if(NEED_BUILD_NETCDF)
+        build_netcdf_c()
+        build_netcdf_fortran()
+    endif()
 
     message(STATUS "")
     message(STATUS "=== External Dependencies Configured ===")

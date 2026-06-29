@@ -1,6 +1,5 @@
 program benchmark_poincare
     use neo_poincare
-    use neo_field_base, only: field_t
     use neo_example_field, only: example_field_t
     use libneo_kinds, only: dp
     implicit none
