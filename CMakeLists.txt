@@ -31,7 +31,7 @@ endif()
 
 # Standalone builds run libneo's own Python tests and f2py; resolve Python from
 # the uv-managed project venv so their dependencies are available.
-if(LIBNEO_IS_STANDALONE)
+if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
 endif()
 
