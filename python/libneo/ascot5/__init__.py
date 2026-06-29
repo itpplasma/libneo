@@ -22,7 +22,7 @@ try:  # pragma: no cover - exercised in integration tests
 except (ImportError, AttributeError) as exc:  # pragma: no cover
     raise RuntimeError(
         "_magfie extension with VMEC wrappers is required. "
-        "Ensure libneo is built with the Fortran interface." 
+        "Ensure libneo is built with the Fortran interface."
     ) from exc
 
 
