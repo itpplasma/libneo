@@ -8,6 +8,15 @@ from netCDF4 import Dataset
 
 
 TWOPI = 2.0 * np.pi
+SOURCE_NOTES = (
+    "NEMEC manual and readnemec.f90 in the Strumberger output bundle: "
+    "R/Z and all field components use phase m*theta - n*zeta*nfp, with "
+    "left-handed flux coordinates and hphip=(1/2*pi)*dPhi/ds. "
+    "VMEC/STELLOPT wout stores xn=n*nfp and uses cos/sin(m*theta - xn*zeta); "
+    "DESC's VMEC reader/writer uses the same phase and signgs=-1. "
+    "SFINCS read_NEMEC_file.f90 flips n and several signs for its own "
+    "downstream convention; those flips are not applied for VMEC wout output."
+)
 
 
 @dataclass(frozen=True)
@@ -124,6 +133,7 @@ def read_nemec(path: str | Path) -> NemecData:
 def write_vmec_wout(data: NemecData, path: str | Path) -> None:
     out = Path(path)
     with Dataset(out, "w") as ds:
+        ds.source_conventions = SOURCE_NOTES
         ds.createDimension("dim_00100", 100)
         ds.createDimension("dim_00200", 200)
         ds.createDimension("dim_00020", 20)
@@ -168,11 +178,11 @@ def write_vmec_wout(data: NemecData, path: str | Path) -> None:
         _array(ds, "zmnc", ("radius", "mn_mode"), data.zmnc)
         _array(ds, "lmnc", ("radius", "mn_mode"), data.lmnc)
 
-        zeros = np.zeros_like(data.rmnc)
-        _array(ds, "gmnc", ("radius", "mn_mode_nyq"), zeros)
-        _array(ds, "gmns", ("radius", "mn_mode_nyq"), zeros)
-        _array(ds, "bmnc", ("radius", "mn_mode_nyq"), zeros)
-        _array(ds, "bmns", ("radius", "mn_mode_nyq"), zeros)
+        bmnc, bmns, gmnc, gmns = _magnetic_spectra(data)
+        _array(ds, "gmnc", ("radius", "mn_mode_nyq"), gmnc)
+        _array(ds, "gmns", ("radius", "mn_mode_nyq"), gmns)
+        _array(ds, "bmnc", ("radius", "mn_mode_nyq"), bmnc)
+        _array(ds, "bmns", ("radius", "mn_mode_nyq"), bmns)
         _array(ds, "bsubumnc", ("radius", "mn_mode_nyq"), data.bsubumnc)
         _array(ds, "bsubvmnc", ("radius", "mn_mode_nyq"), data.bsubvmnc)
         _array(ds, "bsubsmns", ("radius", "mn_mode_nyq"), data.bsubsmns)
@@ -192,6 +202,68 @@ def _mode_numbers(nfp: int, mpol: int, ntor: int) -> np.ndarray:
         for n in range(n_min, ntor + 1):
             modes.append((m, n * nfp))
     return np.asarray(modes, dtype=int)
+
+
+def _magnetic_spectra(data: NemecData) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    cos_phase, sin_phase = _projection_grid(data)
+    bmnc = np.zeros_like(data.rmnc)
+    bmns = np.zeros_like(data.rmnc)
+    gmnc = np.zeros_like(data.rmnc)
+    gmns = np.zeros_like(data.rmnc)
+
+    for js in range(data.ns):
+        bsupu = _series(data.bsupumnc[js], data.bsupumns[js], cos_phase, sin_phase)
+        bsupv = _series(data.bsupvmnc[js], data.bsupvmns[js], cos_phase, sin_phase)
+        bsubu = _series(data.bsubumnc[js], data.bsubumns[js], cos_phase, sin_phase)
+        bsubv = _series(data.bsubvmnc[js], data.bsubvmns[js], cos_phase, sin_phase)
+        bdotb = np.maximum(bsupu * bsubu + bsupv * bsubv, 0.0)
+        bmnc[js], bmns[js] = _project(np.sqrt(bdotb), cos_phase, sin_phase, data.xm, data.xn)
+
+        lamu = _lambda_theta(data, js, cos_phase, sin_phase)
+        numerator = (1.0 + lamu) * data.phipf[js]
+        sqrtg = np.zeros_like(bsupv)
+        np.divide(numerator, bsupv, out=sqrtg, where=np.abs(bsupv) > 1.0e-14)
+        gmnc[js], gmns[js] = _project(sqrtg, cos_phase, sin_phase, data.xm, data.xn)
+
+    return bmnc, bmns, gmnc, gmns
+
+
+def _projection_grid(data: NemecData) -> tuple[np.ndarray, np.ndarray]:
+    ntheta = max(64, 4 * data.mpol + 1)
+    nzeta = max(64, 4 * data.ntor + 1)
+    theta = np.linspace(0.0, TWOPI, ntheta, endpoint=False)
+    zeta = np.linspace(0.0, TWOPI / max(data.nfp, 1), nzeta, endpoint=False)
+    angle = (
+        data.xm[:, None, None] * theta[None, :, None]
+        - data.xn[:, None, None] * zeta[None, None, :]
+    )
+    return np.cos(angle), np.sin(angle)
+
+
+def _series(cos_coeff: np.ndarray, sin_coeff: np.ndarray, cos_phase: np.ndarray, sin_phase: np.ndarray) -> np.ndarray:
+    return np.tensordot(cos_coeff, cos_phase, axes=(0, 0)) + np.tensordot(sin_coeff, sin_phase, axes=(0, 0))
+
+
+def _lambda_theta(data: NemecData, js: int, cos_phase: np.ndarray, sin_phase: np.ndarray) -> np.ndarray:
+    return (
+        np.tensordot(data.xm * data.lmns[js], cos_phase, axes=(0, 0))
+        - np.tensordot(data.xm * data.lmnc[js], sin_phase, axes=(0, 0))
+    )
+
+
+def _project(
+    values: np.ndarray,
+    cos_phase: np.ndarray,
+    sin_phase: np.ndarray,
+    xm: np.ndarray,
+    xn: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    cos_coeff = 2.0 * np.mean(values[None, :, :] * cos_phase, axis=(1, 2))
+    sin_coeff = 2.0 * np.mean(values[None, :, :] * sin_phase, axis=(1, 2))
+    axis = (xm == 0.0) & (xn == 0.0)
+    cos_coeff[axis] *= 0.5
+    sin_coeff[axis] = 0.0
+    return cos_coeff, sin_coeff
 
 
 def _with_axis(values: np.ndarray, first_value: float = 0.0) -> np.ndarray:

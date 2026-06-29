@@ -34,13 +34,17 @@ def _write_tiny_nemec(path):
             records[j, k, 1] = 0.1 * base
             records[j, k, 2] = -0.03 * base
             records[j, k, 3] = 0.07 * base
+            records[j, k, 4] = 0.02 * base
+            records[j, k, 5] = 2.0 if (m, n) == (0, 0) else 0.01 * base
+            records[j, k, 6] = -0.01 * base
+            records[j, k, 7] = 0.005 * base
             records[j, k, 8] = -0.02 * base
             records[j, k, 9] = 0.04 * base
             records[j, k, 10] = 0.2 * base
-            records[j, k, 11] = -0.3 * base
+            records[j, k, 11] = 0.3 * base
             records[j, k, 12] = 0.4 * base
             records[j, k, 13] = -0.5 * base
-            records[j, k, 14] = 0.6 * base
+            records[j, k, 14] = 0.06 * base
             records[j, k, 15] = -0.7 * base
 
     profiles = np.array(
@@ -70,6 +74,14 @@ def _evaluate_z(parsed, surface, theta, zeta):
     for mode, coeff in enumerate(parsed.zmns[surface]):
         angle = parsed.xm[mode] * theta - parsed.xn[mode] * zeta
         out += coeff * np.sin(angle) + parsed.zmnc[surface, mode] * np.cos(angle)
+    return out
+
+
+def _evaluate_pair(cos_coeff, sin_coeff, xm, xn, theta, zeta):
+    out = np.zeros_like(theta, dtype=float)
+    for mode, coeff in enumerate(cos_coeff):
+        angle = xm[mode] * theta - xn[mode] * zeta
+        out += coeff * np.cos(angle) + sin_coeff[mode] * np.sin(angle)
     return out
 
 
@@ -121,9 +133,14 @@ def test_write_vmec_wout_preserves_geometry_signs(tmp_path):
         raxis_cc = np.array(ds.variables["raxis_cc"][:])
         zaxis_cs = np.array(ds.variables["zaxis_cs"][:])
         zaxis_cc = np.array(ds.variables["zaxis_cc"][:])
+        bmnc = np.array(ds.variables["bmnc"][:])
+        bmns = np.array(ds.variables["bmns"][:])
+        gmnc = np.array(ds.variables["gmnc"][:])
+        gmns = np.array(ds.variables["gmns"][:])
         rmax_surf = float(ds.variables["rmax_surf"][...])
         rmin_surf = float(ds.variables["rmin_surf"][...])
         zmax_surf = float(ds.variables["zmax_surf"][...])
+        assert "m*theta - n*zeta*nfp" in ds.source_conventions
     np.testing.assert_allclose(raxis_cc, parsed.rmnc[0, :2])
     np.testing.assert_allclose(zaxis_cs, parsed.zmns[0, :2])
 
@@ -142,6 +159,40 @@ def test_write_vmec_wout_preserves_geometry_signs(tmp_path):
         + parsed.zmnc[0, :2] * np.cos(-axis_xn * zeta)
     )
     assert stored_axis_z == pytest.approx(expected_axis_z)
+
+    theta_grid = np.linspace(0.1, 1.4, 4)
+    zeta_grid = np.linspace(0.2, 0.9, 4)
+    bsupu = _evaluate_pair(
+        parsed.bsupumnc[surface], parsed.bsupumns[surface], parsed.xm, parsed.xn, theta_grid, zeta_grid
+    )
+    bsupv = _evaluate_pair(
+        parsed.bsupvmnc[surface], parsed.bsupvmns[surface], parsed.xm, parsed.xn, theta_grid, zeta_grid
+    )
+    bsubu = _evaluate_pair(
+        parsed.bsubumnc[surface], parsed.bsubumns[surface], parsed.xm, parsed.xn, theta_grid, zeta_grid
+    )
+    bsubv = _evaluate_pair(
+        parsed.bsubvmnc[surface], parsed.bsubvmns[surface], parsed.xm, parsed.xn, theta_grid, zeta_grid
+    )
+    bmod_expected = np.sqrt(np.maximum(bsupu * bsubu + bsupv * bsubv, 0.0))
+    bmod_stored = _evaluate_pair(
+        bmnc[surface], bmns[surface], parsed.xm, parsed.xn, theta_grid, zeta_grid
+    )
+    np.testing.assert_allclose(bmod_stored, bmod_expected, atol=0.8)
+
+    lam_theta = _evaluate_pair(
+        parsed.xm * parsed.lmns[surface],
+        -parsed.xm * parsed.lmnc[surface],
+        parsed.xm,
+        parsed.xn,
+        theta_grid,
+        zeta_grid,
+    )
+    sqrtg_expected = (1.0 + lam_theta) * parsed.phipf[surface] / bsupv
+    sqrtg_stored = _evaluate_pair(
+        gmnc[surface], gmns[surface], parsed.xm, parsed.xn, theta_grid, zeta_grid
+    )
+    np.testing.assert_allclose(sqrtg_stored, sqrtg_expected, atol=0.4)
 
 
 def test_nemec2vmec_cli_refuses_overwrite(tmp_path):
