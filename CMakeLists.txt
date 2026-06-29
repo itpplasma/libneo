@@ -132,7 +132,9 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
                           -Wall -Wextra
                           -Wno-unused-function)
         add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-error=cast-function-type>)
-        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fcheck=all>)
+        # no-recursion: gfortran < 14 emits an undefined reference to the
+        # is_recursive guard for deferred-TBP targets under -Og -fcheck=recursion.
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fcheck=all,no-recursion>)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-Wno-external-argument-mismatch>)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffpe-trap=invalid,zero,overflow>)
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
