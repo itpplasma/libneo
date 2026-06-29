@@ -1035,7 +1035,7 @@ contains
         type(coil_t), allocatable :: coils(:)
         complex(dp), allocatable :: Bn(:, :, :, :, :)
         real(dp), allocatable :: Bvac(:, :, :, :), Ic(:)
-        real(dp), parameter :: Rmin = 0.8_dp, Rmax = 1.2_dp  ! Centered around R=1
+        real(dp), parameter :: Rmin = 0.85_dp, Rmax = 1.25_dp  ! Offset so no grid node lands on the R=1 coil filament
         real(dp), parameter :: Zmin = -0.2_dp, Zmax = 0.2_dp  ! Small Z range
         integer, parameter :: nR = 5, nZ = 5, nseg = 16
         real(dp) :: phi_test, R_test, Z_test
@@ -1083,7 +1083,13 @@ contains
         write(*,'(A)') '  FIELD COMPONENT COMPARISON at test point (R~1.0, Z=0, phi=0):'
         write(*,'(A,3ES12.4)') '    Fourier (BR, Bphi, BZ): ', BR_fourier, Bphi_fourier, BZ_fourier
         write(*,'(A,3ES12.4)') '    Direct  (BR, Bphi, BZ): ', BR_direct, Bphi_direct, BZ_direct
-        write(*,'(A,3ES12.4)') '    Ratios  (F/D): ', BR_fourier/BR_direct, Bphi_fourier/Bphi_direct, BZ_fourier/BZ_direct
+        write(*,'(A)') '    Ratios  (F/D, only where the direct component is nonzero):'
+        if (abs(BR_direct) > 1.0e-12_dp) &
+            write(*,'(A,ES12.4)') '      BR  : ', BR_fourier/BR_direct
+        if (abs(Bphi_direct) > 1.0e-12_dp) &
+            write(*,'(A,ES12.4)') '      Bphi: ', Bphi_fourier/Bphi_direct
+        if (abs(BZ_direct) > 1.0e-12_dp) &
+            write(*,'(A,ES12.4)') '      BZ  : ', BZ_fourier/BZ_direct
         
         ! Check if there is a consistent scaling factor
         if (abs(BR_direct) > 1.0e-12_dp) then
@@ -1099,7 +1105,7 @@ contains
         type(coil_t), allocatable :: coils_test1(:), coils_test2(:)
         complex(dp), allocatable :: Bn1(:, :, :, :, :), Bn2(:, :, :, :, :)
         real(dp), allocatable :: Bvac1(:, :, :, :), Bvac2(:, :, :, :), Ic1(:), Ic2(:)
-        real(dp), parameter :: Rmin = 0.5_dp, Rmax = 1.5_dp
+        real(dp), parameter :: Rmin = 0.55_dp, Rmax = 1.55_dp  ! Offset so no grid node lands on the R=1 coil filament
         real(dp), parameter :: Zmin = -0.5_dp, Zmax = 0.5_dp
         integer, parameter :: nR = 5, nZ = 5, nseg = 16
         real(dp) :: scale_factor, field_ratio_fourier, field_ratio_direct
@@ -1130,8 +1136,12 @@ contains
                                   nR, nphi, nZ, Bvac2)
                                   
         ! Check scaling at a test point
-        field_ratio_fourier = real(Bn2(0, 1, 3, 3, 1), dp) / real(Bn1(0, 1, 3, 3, 1), dp)
-        field_ratio_direct = Bvac2(1, 3, 1, 3) / Bvac1(1, 3, 1, 3)
+        field_ratio_fourier = 0.0_dp
+        if (abs(real(Bn1(0, 1, 3, 3, 1), dp)) > 1.0e-12_dp) &
+            field_ratio_fourier = real(Bn2(0, 1, 3, 3, 1), dp) / real(Bn1(0, 1, 3, 3, 1), dp)
+        field_ratio_direct = 0.0_dp
+        if (abs(Bvac1(1, 3, 1, 3)) > 1.0e-12_dp) &
+            field_ratio_direct = Bvac2(1, 3, 1, 3) / Bvac1(1, 3, 1, 3)
         
         write(*,'(A,ES12.4)') '  Expected scaling factor: ', Ic2(1) / Ic1(1)
         write(*,'(A,ES12.4)') '  Fourier method scaling: ', field_ratio_fourier
@@ -1165,7 +1175,7 @@ contains
         real(dp), parameter :: Rmin = 0.5_dp, Rmax = 1.5_dp  ! Same as working circular test
         real(dp), parameter :: Zmin = -0.5_dp, Zmax = 0.5_dp  ! Same as working circular test
         integer, parameter :: nR = 8, nZ = 8, nseg = 32  ! Same as working circular test  
-        integer, parameter :: nphi_test = nphi  ! Use SAME nphi as working test
+        integer, parameter :: nphi_test = 2*nphi  ! 256: allows a valid nmax=64 reference (nphi/4)
         real(dp) :: B_fourier_4, B_fourier_16, B_fourier_32, B_direct
         real(dp) :: error_4, error_16, error_32, max_error_4, max_error_16, max_error_32
         real(dp) :: sum_B_n1, sum_B_n2, sum_B_n4, sum_B_n8  ! Check higher mode content
@@ -1195,8 +1205,8 @@ contains
         call biot_savart_fourier(coils_fourier, 32, Rmin, Rmax, Zmin, Zmax, &
                                 nR, nphi_test, nZ, Bn_32)
         
-        write(*,'(A)') '  Computing Fourier reference (nmax=16, same as working test)...'
-        call biot_savart_fourier(coils_direct, nmax, Rmin, Rmax, Zmin, Zmax, &
+        write(*,'(A)') '  Computing high-resolution Fourier reference (nmax=64)...'
+        call biot_savart_fourier(coils_direct, 64, Rmin, Rmax, Zmin, Zmax, &
                                 nR, nphi_test, nZ, Bn_64)
         
         write(*,'(A)') '  Computing direct Biot-Savart for comparison...'
@@ -1273,7 +1283,7 @@ contains
         do n = 0, 64
             B_direct = B_direct + real(Bn_64(n, 1, kR, kZ, 1), dp)
         end do
-        
+
         B_fourier_4 = 0.0_dp
         B_fourier_16 = 0.0_dp  
         B_fourier_32 = 0.0_dp
