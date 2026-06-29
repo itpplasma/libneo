@@ -1055,7 +1055,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_3d_many_der2
 
-    subroutine evaluate_batch_splines_3d_many_der2_mask(spl, x, mask, y_batch, dy_batch, d2y_batch)
+    recursive subroutine evaluate_batch_splines_3d_many_der2_mask(spl, x, mask, y_batch, dy_batch, d2y_batch)
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(:,:)             ! (3, npts)
         logical, intent(in) :: mask(:)

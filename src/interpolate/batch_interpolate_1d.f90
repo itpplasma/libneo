@@ -39,7 +39,7 @@ module batch_interpolate_1d
 
 contains
 
-    subroutine evaluate_batch_splines_1d_der2_core(spl, x, y, dy, d2y)
+    recursive subroutine evaluate_batch_splines_1d_der2_core(spl, x, y, dy, d2y)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y(:), dy(:), d2y(:)
@@ -91,7 +91,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_1d_der2_core
 
-    subroutine evaluate_batch_splines_1d_der3_core(spl, x, y, dy, d2y, d3y)
+    recursive subroutine evaluate_batch_splines_1d_der3_core(spl, x, y, dy, d2y, d3y)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y(:), dy(:), d2y(:), d3y(:)
@@ -152,7 +152,7 @@ contains
     end subroutine evaluate_batch_splines_1d_der3_core
 
 #ifdef _OPENACC
-    subroutine evaluate_batch_splines_1d_many_der2_resident(spl, x, y_batch, dy_batch, &
+    recursive subroutine evaluate_batch_splines_1d_many_der2_resident(spl, x, y_batch, dy_batch, &
                                                             d2y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
@@ -170,7 +170,7 @@ contains
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_1d_many_der2_resident
 
-    subroutine evaluate_batch_splines_1d_many_der2_mask_resident(spl, x, &
+    recursive subroutine evaluate_batch_splines_1d_many_der2_mask_resident(spl, x, &
                                                                  mask, y_batch, &
                                                                  dy_batch, d2y_batch)
         type(BatchSplineData1D), intent(in) :: spl
@@ -191,7 +191,7 @@ contains
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_1d_many_der2_mask_resident
 
-    subroutine evaluate_batch_splines_1d_many_der3_resident(spl, x, y_batch, dy_batch, &
+    recursive subroutine evaluate_batch_splines_1d_many_der3_resident(spl, x, y_batch, dy_batch, &
                                                             d2y_batch, d3y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
@@ -212,7 +212,7 @@ contains
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_1d_many_der3_resident
 
-    subroutine evaluate_batch_splines_1d_many_der3_mask_resident(spl, x, &
+    recursive subroutine evaluate_batch_splines_1d_many_der3_mask_resident(spl, x, &
                                                                  mask, y_batch, &
                                                                  dy_batch, d2y_batch, &
                                                                  d3y_batch)
@@ -815,7 +815,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_1d_many_der2
 
-    subroutine evaluate_batch_splines_1d_many_der2_mask(spl, x, mask, y_batch, &
+    recursive subroutine evaluate_batch_splines_1d_many_der2_mask(spl, x, mask, y_batch, &
                                                         dy_batch, d2y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
@@ -877,7 +877,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_1d_many_der3
 
-    subroutine evaluate_batch_splines_1d_many_der3_mask(spl, x, mask, y_batch, &
+    recursive subroutine evaluate_batch_splines_1d_many_der3_mask(spl, x, mask, y_batch, &
                                                         dy_batch, &
                                                         d2y_batch, d3y_batch)
         type(BatchSplineData1D), intent(in) :: spl
