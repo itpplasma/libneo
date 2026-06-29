@@ -18,10 +18,14 @@ concurrency:
 jobs:
   GNU:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release, Debug]
     env:
       LIBNEO_TESTING: "1"
 
-    name: Build and test
+    name: Build and test (${{ matrix.build_type }})
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +63,12 @@ jobs:
 
       - name: Build
         run: |
-          make
+          if [ "${{ matrix.build_type }}" = "Release" ]; then
+            make
+          else
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+            cmake --build build --parallel
+          fi
 
       - name: Install Python dependencies for tests
         run: |
@@ -70,6 +79,7 @@ jobs:
           cd build && ctest --output-on-failure
 
       - name: Upload GEQDSK plots
+        if: matrix.build_type == 'Release'
         uses: actions/upload-artifact@v4
         with:
           name: geqdsk-plots
@@ -77,10 +87,12 @@ jobs:
           if-no-files-found: ignore
 
       - name: Editable install of libneo
+        if: matrix.build_type == 'Release'
         run: |
           python -m pip install -e .
 
       - name: Run Python tests (pytest)
+        if: matrix.build_type == 'Release'
         env:
           PYTHONFAULTHANDLER: "1"
           LIBNEO_DEBUG_BOOZER: "1"
@@ -89,19 +101,21 @@ jobs:
           python -m pytest python/tests -vv -s
 
       - name: Build ASCOT5 and install a5py
+        if: matrix.build_type == 'Release'
         run: |
           git clone --depth 1 --branch 5.6.1 https://github.com/ascot4fusion/ascot5.git build/test/ascot5_compare/ascot5
           make -C build/test/ascot5_compare/ascot5 libascot
           python -m pip install --force-reinstall build/test/ascot5_compare/ascot5
 
       - name: Compare with ASCOT5 reference
+        if: matrix.build_type == 'Release'
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/build/test/ascot5_compare/ascot5/build
         run: |
           python test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
 
       - name: Upload test image artifacts
-        if: always()
+        if: always() && matrix.build_type == 'Release'
         uses: actions/upload-artifact@v4
         with:
           name: test-images
