@@ -17,10 +17,11 @@ classifiers = [
 [project.optional-dependencies]
 chartmap = [
     "netCDF4",
-    "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
+    "map2disc @ git+https://github.com/itpplasma/map2disc.git",
     "shapely",
     "scipy",
     "trimesh",
+    "matplotlib",
 ]
 dev = [
   "scipy",
@@ -30,7 +31,12 @@ dev = [
   "h5py",
   "trimesh",
   "pytest",
-  "map2disc @ git+https://gitlab.mpcdf.mpg.de/gvec-group/map2disc.git",
+  "map2disc @ git+https://github.com/itpplasma/map2disc.git",
+]
+docs = [
+  "sphinx",
+  "sphinx-rtd-theme",
+  "scipy",
 ]
 
 [project.scripts]

@@ -17,8 +17,14 @@ endif()
 # Apply OpenACC to interpolate library only (avoids nvfortran bugs in other modules)
 # Link options must be INTERFACE so executables linking this library get -acc flag
 if(ENABLE_OPENACC AND CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
-    target_compile_options(interpolate PRIVATE -acc -gpu=ccnative)
-    target_link_options(interpolate INTERFACE -acc -gpu=ccnative)
+    # Memory model: "managed" keeps allocatable derived-type components such as
+    # BatchSplineData%coeff coherent host<->device. Without it nvfortran does not
+    # transfer the deep coeff array on "update self", so the host copy stays zero.
+    # Must match the value used by consuming executables (e.g. SIMPLE).
+    set(LIBNEO_OPENACC_MEM "managed" CACHE STRING
+        "OpenACC memory model: managed|unified|separate")
+    target_compile_options(interpolate PRIVATE -acc -gpu=ccnative,mem:${LIBNEO_OPENACC_MEM})
+    target_link_options(interpolate INTERFACE -acc -gpu=ccnative,mem:${LIBNEO_OPENACC_MEM})
 endif()
 
 set_property(TARGET interpolate PROPERTY

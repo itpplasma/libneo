@@ -49,6 +49,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p_stl.add_argument("--M", type=int, default=16)
     p_stl.add_argument("--Nt", type=int, default=256)
     p_stl.add_argument("--Ng", type=int, nargs=2, default=(256, 256))
+    p_stl.add_argument("--stl-units", choices=["m", "mm"], default=None)
+    p_stl.add_argument("--stl-scale", type=float, default=1.0)
 
     p_ext = sub.add_parser(
         "from-vmec-extended",
@@ -105,6 +107,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=1.0e-6,
         help="Tolerance for stitching open contours",
     )
+    p_wall.add_argument("--stl-units", choices=["m", "mm"], default=None)
+    p_wall.add_argument("--stl-scale", type=float, default=1.0)
     p_wall.add_argument("--num-field-periods", type=int)
 
     return p.parse_args(argv)
@@ -147,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
             num_field_periods=int(args.num_field_periods),
             n_boundary_points=int(args.n_boundary_points),
             stitch_tol=float(args.stitch_tol),
+            stl_units=None if args.stl_units is None else str(args.stl_units),
+            stl_scale=float(args.stl_scale),
             M=int(args.M),
             Nt=int(args.Nt),
             Ng=(int(args.Ng[0]), int(args.Ng[1])),
@@ -178,6 +184,8 @@ def main(argv: list[str] | None = None) -> int:
             rho_lcfs=None if args.rho_lcfs is None else float(args.rho_lcfs),
             n_boundary_points=int(args.n_boundary_points),
             stitch_tol=float(args.stitch_tol),
+            stl_units=None if args.stl_units is None else str(args.stl_units),
+            stl_scale=float(args.stl_scale),
             num_field_periods=None if args.num_field_periods is None else int(args.num_field_periods),
         )
         return 0

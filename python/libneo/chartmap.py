@@ -974,6 +974,8 @@ def write_chartmap_from_vmec_and_stl(
     rho_lcfs: float | None = None,
     n_boundary_points: int = 512,
     stitch_tol: float = 1.0e-6,
+    stl_units: str | None = None,
+    stl_scale: float = 1.0,
     num_field_periods: int | None = None,
     use_asym: bool = True,
 ) -> None:
@@ -1022,6 +1024,8 @@ def write_chartmap_from_vmec_and_stl(
         n_boundary_points=n_boundary_points,
         stitch_tol=stitch_tol,
         phi_vals=phi_vals,
+        stl_units=stl_units,
+        stl_scale=stl_scale,
     )
 
     wall_rz = []
@@ -1252,6 +1256,8 @@ def write_chartmap_from_stl(
     num_field_periods: int = 1,
     n_boundary_points: int = 512,
     stitch_tol: float = 1.0e-6,
+    stl_units: str | None = None,
+    stl_scale: float = 1.0,
     M: int = 16,
     Nt: int = 256,
     Ng: tuple[int, int] = (256, 256),
@@ -1279,6 +1285,8 @@ def write_chartmap_from_stl(
         axis_xy=axis_xy,
         stitch_tol=float(stitch_tol),
         phi_vals=phi_vals,
+        stl_units=stl_units,
+        stl_scale=stl_scale,
     )
     _write_from_slices(
         slices,
