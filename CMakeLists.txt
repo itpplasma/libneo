@@ -241,6 +241,38 @@ add_subdirectory(src/field)
 add_subdirectory(src/vmec_support)
 add_subdirectory(src/coordinates)
 
+# Tier 2: VMEC magnetic-field evaluation (depends on coordinates + vmec_support).
+# magnetic_field_base.f90 provides the `field_base` module used by the VMEC field
+# evaluators; keep it with them rather than in the generic neo_field interface.
+add_library(vmec_field STATIC
+    src/field/magnetic_field_base.f90
+    src/field/field_vmec.f90
+    src/field/vmec_field_eval.f90
+)
+target_link_libraries(vmec_field PUBLIC coordinates vmec_support interpolate)
+set_property(TARGET vmec_field PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+add_library(LIBNEO::vmec_field ALIAS vmec_field)
+
+# Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
+add_library(boozer STATIC
+    src/boozer_chartmap_types.f90
+    src/boozer_converter.F90
+    src/boozer_chartmap.f90
+    src/field/boozer_chartmap_io.f90
+)
+target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
+if(TARGET netcdf::netcdff)
+    target_link_libraries(boozer PRIVATE netcdf::netcdff)
+elseif(TARGET netcdf::netcdf)
+    target_link_libraries(boozer PRIVATE netcdf::netcdf netcdff)
+else()
+    target_link_libraries(boozer PRIVATE netcdf netcdff)
+endif()
+set_property(TARGET boozer PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+add_library(LIBNEO::boozer ALIAS boozer)
+
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
