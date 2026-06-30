@@ -31,7 +31,7 @@ endif()
 
 # Standalone builds run libneo's own Python tests and f2py; resolve Python from
 # the uv-managed project venv so their dependencies are available.
-if(LIBNEO_IS_STANDALONE)
+if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
 endif()
 
@@ -132,7 +132,9 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
                           -Wall -Wextra
                           -Wno-unused-function)
         add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-error=cast-function-type>)
-        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fcheck=all>)
+        # no-recursion: gfortran < 14 emits an undefined reference to the
+        # is_recursive guard for deferred-TBP targets under -Og -fcheck=recursion.
+        add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fcheck=all,no-recursion>)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-Wno-external-argument-mismatch>)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffpe-trap=invalid,zero,overflow>)
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
