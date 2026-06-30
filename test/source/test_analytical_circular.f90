@@ -30,7 +30,9 @@ program test_analytical_circular
     call test_shafranov_shift_circular()
     call test_divergence_free_circular()
     call test_divergence_free_shaped()
+    call test_divergence_free_ripple()
     call test_field_t_interface()
+    call test_compute_abfield_curl_consistency()
 
     call generate_flux_csv(output_dir, "circular")
     call generate_flux_csv(output_dir, "shaped")
@@ -391,6 +393,78 @@ contains
         print *, ""
     end subroutine test_divergence_free_shaped
 
+    subroutine test_divergence_free_ripple()
+        !> Test div(B) = 0 for the TF-ripple-perturbed field, including the
+        !> toroidal (phi) derivative of B_phi induced by the ripple modulation.
+        type(analytical_circular_eq_t) :: eq
+        real(dp) :: R0, epsilon, A_param, B0
+        real(dp) :: R, Z, phi, dR, dZ, dphi
+        real(dp) :: B_R, B_Z, B_phi, B_mod
+        real(dp) :: B_R_p, B_Z_p, B_phi_p, B_mod_p
+        real(dp) :: B_R_m, B_Z_m, B_phi_m, B_mod_m
+        real(dp) :: dBR_dR, dBZ_dZ, dBphi_dphi
+        real(dp) :: div_B, tol
+        integer :: i, j, k
+        real(dp) :: r_min, r_max, z_max
+        real(dp), parameter :: pi = 4.0_dp * atan(1.0_dp)
+        real(dp), parameter :: phis(4) = [0.0_dp, 0.35_dp, 1.0_dp, 2.3_dp]
+
+        print *, "Testing divergence-free B-field (TF ripple)..."
+
+        R0 = 6.2_dp
+        epsilon = 0.32_dp
+        A_param = -0.142_dp
+        B0 = 5.3_dp
+
+        call eq%init(R0, epsilon, kappa_in=1.0_dp, delta_in=0.0_dp, A_in=A_param, B0_in=B0, &
+                     Nripple_in=9, a0_in=R0 * epsilon, alpha0_in=2.0_dp, delta0_in=0.10_dp, &
+                     z0_in=0.0_dp)
+
+        dR = 1.0e-6_dp
+        dZ = 1.0e-6_dp
+        dphi = 1.0e-6_dp
+        tol = 2.0e-10_dp
+
+        r_min = R0 * (1.0_dp - 0.5_dp * epsilon)
+        r_max = R0 * (1.0_dp + 0.5_dp * epsilon)
+        z_max = R0 * 0.5_dp * epsilon
+
+        ! Half-step grid offset avoids the (R0, z0) point where the local
+        ! polar envelope delta(R,Z) has a coordinate (angular) singularity
+        ! that finite differences cannot resolve.
+        do i = 1, 4
+            do j = 1, 4
+                do k = 1, size(phis)
+                    R = r_min + (r_max - r_min) * (i - 0.5_dp) / 4.0_dp
+                    Z = -z_max + 2.0_dp * z_max * (j - 0.5_dp) / 4.0_dp
+                    phi = phis(k)
+
+                    call eq%eval_bfield_ripple(R, phi, Z, B_R, B_Z, B_phi, B_mod)
+
+                    call eq%eval_bfield_ripple(R + dR, phi, Z, B_R_p, B_Z_p, B_phi_p, B_mod_p)
+                    call eq%eval_bfield_ripple(R - dR, phi, Z, B_R_m, B_Z_m, B_phi_m, B_mod_m)
+                    dBR_dR = (B_R_p - B_R_m) / (2.0_dp * dR)
+
+                    call eq%eval_bfield_ripple(R, phi, Z + dZ, B_R_p, B_Z_p, B_phi_p, B_mod_p)
+                    call eq%eval_bfield_ripple(R, phi, Z - dZ, B_R_m, B_Z_m, B_phi_m, B_mod_m)
+                    dBZ_dZ = (B_Z_p - B_Z_m) / (2.0_dp * dZ)
+
+                    call eq%eval_bfield_ripple(R, phi + dphi, Z, B_R_p, B_Z_p, B_phi_p, B_mod_p)
+                    call eq%eval_bfield_ripple(R, phi - dphi, Z, B_R_m, B_Z_m, B_phi_m, B_mod_m)
+                    dBphi_dphi = (B_phi_p - B_phi_m) / (2.0_dp * dphi)
+
+                    div_B = dBR_dR + B_R / R + dBphi_dphi / R + dBZ_dZ
+                    div_B = div_B / B_mod
+
+                    call assert_close(div_B, 0.0_dp, tol, "div(B)=0 (TF ripple)")
+                end do
+            end do
+        end do
+
+        call eq%cleanup()
+        print *, ""
+    end subroutine test_divergence_free_ripple
+
     subroutine test_field_t_interface()
         !> Test field_t interface (for Poincare compatibility)
         use neo_field_base, only: field_t
@@ -442,6 +516,95 @@ contains
         nullify(field_ptr)
         print *, ""
     end subroutine test_field_t_interface
+
+    subroutine test_compute_abfield_curl_consistency()
+        !> compute_abfield must not crash, and the returned A must satisfy
+        !> B = curl(A) (checked via finite differences), for both Nripple=0
+        !> and Nripple>0.
+        use neo_field_base, only: field_t
+        type(analytical_circular_eq_t), target :: eq
+        class(field_t), pointer :: field_ptr
+        real(dp) :: R0, epsilon, A_param, B0
+        real(dp) :: x(3), A(3), B(3)
+        real(dp) :: B_R_curl, B_phi_curl, B_Z_curl
+        real(dp) :: tol, h
+        integer :: n
+
+        print *, "Testing compute_abfield (B = curl A) consistency..."
+
+        R0 = 6.2_dp
+        epsilon = 0.32_dp
+        A_param = -0.142_dp
+        B0 = 5.3_dp
+
+        tol = 1.0e-6_dp
+        h = 1.0e-6_dp
+
+        do n = 1, 2
+            if (n == 1) then
+                call eq%init(R0, epsilon, A_in=A_param, B0_in=B0)
+            else
+                call eq%init(R0, epsilon, A_in=A_param, B0_in=B0, &
+                             Nripple_in=9, a0_in=2.0_dp, alpha0_in=2.0_dp, &
+                             delta0_in=0.10_dp, z0_in=0.0_dp)
+            end if
+            field_ptr => eq
+
+            x(1) = R0 + 1.0_dp
+            x(2) = 0.8_dp
+            x(3) = 0.4_dp
+
+            call field_ptr%compute_abfield(x, A, B)
+            call curl_a_fd(field_ptr, x, h, B_R_curl, B_phi_curl, B_Z_curl)
+
+            call assert_close(B(1), B_R_curl, tol, "curl(A)_R matches B_R")
+            call assert_close(B(2), B_phi_curl, tol, "curl(A)_phi matches B_phi")
+            call assert_close(B(3), B_Z_curl, tol, "curl(A)_Z matches B_Z")
+
+            call eq%cleanup()
+            nullify(field_ptr)
+        end do
+
+        print *, ""
+    end subroutine test_compute_abfield_curl_consistency
+
+    subroutine curl_a_fd(field_ptr, x, h, B_R, B_phi, B_Z)
+        use neo_field_base, only: field_t
+        class(field_t), pointer, intent(in) :: field_ptr
+        real(dp), intent(in) :: x(3), h
+        real(dp), intent(out) :: B_R, B_phi, B_Z
+
+        real(dp) :: xp(3), xm(3), Ap(3), Am(3)
+        real(dp) :: dAZ_dphi, dAphi_dZ, dAR_dZ, dAZ_dR, dRAphi_dR, dAR_dphi
+        real(dp) :: R
+
+        R = x(1)
+
+        xp = x; xm = x
+        xp(2) = x(2) + h; xm(2) = x(2) - h
+        call field_ptr%compute_afield(xp, Ap)
+        call field_ptr%compute_afield(xm, Am)
+        dAZ_dphi = (Ap(3) - Am(3)) / (2.0_dp * h)
+        dAR_dphi = (Ap(1) - Am(1)) / (2.0_dp * h)
+
+        xp = x; xm = x
+        xp(3) = x(3) + h; xm(3) = x(3) - h
+        call field_ptr%compute_afield(xp, Ap)
+        call field_ptr%compute_afield(xm, Am)
+        dAphi_dZ = (Ap(2) - Am(2)) / (2.0_dp * h)
+        dAR_dZ = (Ap(1) - Am(1)) / (2.0_dp * h)
+
+        xp = x; xm = x
+        xp(1) = x(1) + h; xm(1) = x(1) - h
+        call field_ptr%compute_afield(xp, Ap)
+        call field_ptr%compute_afield(xm, Am)
+        dAZ_dR = (Ap(3) - Am(3)) / (2.0_dp * h)
+        dRAphi_dR = ((xp(1) * Ap(2)) - (xm(1) * Am(2))) / (2.0_dp * h)
+
+        B_R = (1.0_dp / R) * dAZ_dphi - dAphi_dZ
+        B_phi = dAR_dZ - dAZ_dR
+        B_Z = (1.0_dp / R) * dRAphi_dR - (1.0_dp / R) * dAR_dphi
+    end subroutine curl_a_fd
 
     subroutine generate_flux_csv(output_dir, case_type)
         character(len=*), intent(in) :: output_dir, case_type

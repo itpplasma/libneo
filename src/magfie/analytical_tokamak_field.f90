@@ -286,7 +286,49 @@ contains
         B_mod = sqrt(B_R**2 + B_Z**2 + B_phi**2)
     end subroutine evaluate_bfield
 
+    !> Ripple envelope delta(R,Z) and its R-derivative
+    !>
+    !> delta(R,Z) = delta0 * exp(-theta^2/2) * (radius/a0)^alpha0, with
+    !> radius, theta the polar coordinates around (R0, z0). Returns
+    !> ddelta_dR = d(delta)/dR at fixed Z, regularized to zero at radius=0
+    !> where the (radius, theta) parametrization is singular but delta and
+    !> its gradient vanish in the limit for alpha0 > 1.
+    subroutine ripple_envelope(self, R, Z, delta_ripple, ddelta_dR)
+        class(analytical_circular_eq_t), intent(in) :: self
+        real(dp), intent(in) :: R, Z
+        real(dp), intent(out) :: delta_ripple, ddelta_dR
+
+        real(dp) :: dR0, dZ0, radius, theta, gauss_theta, ripple_prefactor
+        real(dp), parameter :: radius_floor = 1.0e-12_dp
+
+        dR0 = R - self%R0
+        dZ0 = Z - self%z0
+        radius = sqrt(dR0**2 + dZ0**2)
+        theta = atan2(dZ0, dR0)
+        gauss_theta = exp(-0.5_dp * theta**2)
+        delta_ripple = self%delta0 * gauss_theta * (radius / self%a0)**self%alpha0
+
+        if (radius > radius_floor * self%a0) then
+            ripple_prefactor = self%delta0 * gauss_theta &
+                              * radius**(self%alpha0 - 2.0_dp) / self%a0**self%alpha0
+            ddelta_dR = ripple_prefactor * (self%alpha0 * dR0 + theta * dZ0)
+        else
+            ddelta_dR = 0.0_dp
+        end if
+    end subroutine ripple_envelope
+
     !> Evaluate magnetic field components with TF ripple
+    !>
+    !> The ripple is added as curl(A_ripple) with A_ripple = A_Z_ripple(R,Z,phi)
+    !> e_Z, A_Z_ripple = -(B0*R0/Nripple) * delta(R,Z) * cos(N*phi), so the
+    !> resulting field is divergence-free by construction (curl is always
+    !> solenoidal), for any envelope delta(R,Z):
+    !>   B_R   += (B0*R0/R)        * delta(R,Z)      * sin(N*phi)
+    !>   B_phi += (B0*R0/Nripple)  * d(delta)/dR     * cos(N*phi)
+    !>   B_Z   unchanged
+    !> This differs from a naive "B_phi *= 1 + delta*cos(N*phi)" model (which
+    !> violates div(B)=0) but keeps the same N-fold periodicity and the same
+    !> order-delta0 modulation amplitude.
     !>
     !> Parameters:
     !>   R   - Major radius coordinate [m]
@@ -304,8 +346,8 @@ contains
         real(dp), intent(out) :: B_R, B_Z, B_phi, B_mod
 
         real(dp) :: dpsi_dR, dpsi_dZ
-        real(dp) :: F_psi
-        real(dp) :: radius, theta, delta_ripple
+        real(dp) :: F_psi, Nphi_dp
+        real(dp) :: delta_ripple, ddelta_dR
 
         if (.not. self%initialized) then
             error stop "analytical_circular_eq_t not initialized"
@@ -320,11 +362,11 @@ contains
         B_phi = F_psi / R
 
         if (self%Nripple > 0) then
-            radius = sqrt((R - self%R0)**2 + (Z - self%z0)**2)
-            theta = atan2(Z - self%z0, R - self%R0)
-            delta_ripple = self%delta0 * exp(-0.5_dp * theta**2) &
-                         * (radius / self%a0)**self%alpha0
-            B_phi = B_phi * (1.0_dp + delta_ripple * cos(real(self%Nripple, dp) * phi))
+            call ripple_envelope(self, R, Z, delta_ripple, ddelta_dR)
+            Nphi_dp = real(self%Nripple, dp) * phi
+
+            B_R = B_R + (F_psi / R) * delta_ripple * sin(Nphi_dp)
+            B_phi = B_phi + (F_psi / real(self%Nripple, dp)) * ddelta_dR * cos(Nphi_dp)
         end if
 
         B_mod = sqrt(B_R**2 + B_Z**2 + B_phi**2)
@@ -363,12 +405,39 @@ contains
 
     !> field_t interface: compute vector potential
     !> x(3) = (R, phi, Z) in cylindrical coordinates
+    !>
+    !> A = (0, psi(R,Z)/R, A_Z(R,Z,phi)) with
+    !> A_Z = -B0*R0*ln(R) - (B0*R0/Nripple)*delta(R,Z)*cos(Nripple*phi),
+    !> which is exactly consistent with compute_bfield/eval_bfield_ripple
+    !> (B = curl(A)) for both Nripple=0 and Nripple>0.
     subroutine compute_afield(self, x, A)
         class(analytical_circular_eq_t), intent(in) :: self
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: A(3)
 
-        error stop 'analytical_circular_eq_t: compute_afield not implemented'
+        real(dp) :: R, phi, Z, psi, F_psi
+        real(dp) :: delta_ripple, ddelta_dR
+
+        if (.not. self%initialized) then
+            error stop "analytical_circular_eq_t not initialized"
+        end if
+
+        R = x(1)
+        phi = x(2)
+        Z = x(3)
+
+        psi = self%eval_psi(R, Z)
+        F_psi = self%B0 * self%R0
+
+        A(1) = 0.0_dp
+        A(2) = psi / R
+        A(3) = -F_psi * log(R)
+
+        if (self%Nripple > 0) then
+            call ripple_envelope(self, R, Z, delta_ripple, ddelta_dR)
+            A(3) = A(3) - (F_psi / real(self%Nripple, dp)) * delta_ripple &
+                 * cos(real(self%Nripple, dp) * phi)
+        end if
     end subroutine compute_afield
 
     !> field_t interface: compute magnetic field

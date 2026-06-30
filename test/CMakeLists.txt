@@ -290,19 +290,7 @@ set_tests_properties(test_geqdsk_tools PROPERTIES
 # test_ascot5_compare is run separately in CI workflow (not in ctest)
 # because a5py requires libascot.so at import time, which the test builds
 
-add_test(
-  NAME test_ripple_field_data
-  COMMAND test_ripple_field.x
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test
-)
-
-add_test(
-  NAME test_ripple_field_plot
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_ripple_comparison.py
-          --data-dir ${CMAKE_BINARY_DIR}/test
-          --output-dir ${CMAKE_BINARY_DIR}/test
-)
-set_tests_properties(test_ripple_field_plot PROPERTIES DEPENDS test_ripple_field_data)
+add_test(NAME test_ripple_field COMMAND test_ripple_field.x)
 
 if(LIBNEO_TESTING_ENABLED)
   add_test(
