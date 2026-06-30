@@ -30,6 +30,7 @@ module batch_interpolate_2d
    public :: evaluate_batch_splines_2d_many
    public :: evaluate_batch_splines_2d_many_mask
    public :: evaluate_batch_splines_2d_many_resident
+   public :: evaluate_batch_splines_2d_many_mask_resident
    public :: evaluate_batch_splines_2d_many_der
    public :: evaluate_batch_splines_2d_many_der_mask
 
@@ -649,6 +650,15 @@ contains
          error stop "evaluate_batch_splines_2d_many_mask: mask size mismatch"
       end if
 
+#ifdef _OPENACC
+      if (acc_is_present(spl%coeff)) then
+         !$acc data copyin(x, mask) copy(y_batch)
+         call evaluate_batch_splines_2d_many_mask_resident(spl, x, mask, y_batch)
+         !$acc end data
+         return
+      end if
+#endif
+
       nq = spl%num_quantities
       num_points = spl%num_points
       order1 = spl%order(1)
@@ -664,6 +674,53 @@ contains
          include "spline2d_many_point_body.inc"
       end do
    end subroutine evaluate_batch_splines_2d_many_mask
+
+   recursive subroutine evaluate_batch_splines_2d_many_mask_resident(spl, x, mask, y_batch)
+      type(BatchSplineData2D), intent(in) :: spl
+      real(dp), intent(in) :: x(:, :)
+      logical, intent(in) :: mask(:)
+      real(dp), intent(inout) :: y_batch(:, :)
+
+      integer :: ipt, iq, k1, k2, i1, i2, k_wrap
+      integer :: nq, order1, order2
+      integer :: num_points(2)
+      logical :: periodic(2)
+      real(dp) :: xj1, xj2, x_norm1, x_norm2, x_local1, x_local2
+      real(dp) :: x_min(2), h_step(2), period(2)
+      real(dp) :: t, w, v, yq
+
+      if (size(x, 1) /= 2) then
+         error stop "evaluate_batch_splines_2d_many_mask_resident: x first dim must be 2"
+      end if
+      if (size(y_batch, 1) < spl%num_quantities) then
+         error stop "evaluate_batch_splines_2d_many_mask_resident: y_batch dim1 too small"
+      end if
+      if (size(y_batch, 2) /= size(x, 2)) then
+         error stop "evaluate_batch_splines_2d_many_mask_resident: y_batch dim2 mismatch"
+      end if
+      if (size(mask) /= size(x, 2)) then
+         error stop "evaluate_batch_splines_2d_many_mask_resident: mask size mismatch"
+      end if
+
+      nq = spl%num_quantities
+      num_points = spl%num_points
+      order1 = spl%order(1)
+      order2 = spl%order(2)
+      periodic = spl%periodic
+      x_min = spl%x_min
+      h_step = spl%h_step
+      period(1) = h_step(1)*real(num_points(1) - 1, dp)
+      period(2) = h_step(2)*real(num_points(2) - 1, dp)
+
+      !$acc parallel loop present(spl%coeff, x, mask, y_batch) &
+      !$acc& private(ipt, iq, k1, k2, i1, i2, k_wrap) &
+      !$acc& private(xj1, xj2, x_norm1, x_norm2, x_local1, x_local2, t, w, v, yq)
+      do ipt = 1, size(x, 2)
+         if (.not. mask(ipt)) cycle
+         include "spline2d_many_point_body.inc"
+      end do
+      !$acc end parallel loop
+   end subroutine evaluate_batch_splines_2d_many_mask_resident
 
    recursive subroutine evaluate_batch_splines_2d_many_der_mask(spl, x, mask, &
                                                                 y_batch, dy_batch)

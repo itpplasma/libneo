@@ -13,6 +13,7 @@ program test_batch_interpolate_mask
     use batch_interpolate, only: evaluate_batch_splines_1d_many_der2_mask
     use batch_interpolate, only: evaluate_batch_splines_1d_many_der3_mask
     use batch_interpolate, only: evaluate_batch_splines_2d_many_mask
+    use batch_interpolate, only: evaluate_batch_splines_2d_many_mask_resident
     use batch_interpolate, only: evaluate_batch_splines_2d_many_der_mask
     use batch_interpolate, only: evaluate_batch_splines_3d_many_der2_mask
     implicit none
@@ -194,6 +195,17 @@ contains
                 call assert_unchanged("2d_dy_sentinel", reshape(dy_mask(:, :, &
                                                                         ip), [2*nq]), &
                                       sentinel)
+            end if
+        end do
+
+        y_mask = sentinel
+        call evaluate_batch_splines_2d_many_mask_resident(spl, x_eval, mask, y_mask)
+
+        do ip = 1, npts
+            if (mask(ip)) then
+                call assert_close("2d_y_resident", y_full(:, ip), y_mask(:, ip), tol)
+            else
+                call assert_unchanged("2d_y_resident_sentinel", y_mask(:, ip), sentinel)
             end if
         end do
 

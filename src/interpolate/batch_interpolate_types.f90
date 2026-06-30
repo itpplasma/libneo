@@ -5,10 +5,6 @@ module batch_interpolate_types
 
     ! Export batch spline types
     public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
-    public :: MAX_BATCH_QUANTITIES, MAX_BATCH_ORDER
-
-    integer, parameter :: MAX_BATCH_QUANTITIES = 8
-    integer, parameter :: MAX_BATCH_ORDER = 8
 
     ! Batch spline types for multiple quantities on shared grid
     type :: BatchSplineData1D

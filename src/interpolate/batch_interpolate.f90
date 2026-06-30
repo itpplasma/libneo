@@ -31,6 +31,7 @@ module batch_interpolate
                                     evaluate_batch_splines_2d_many, &
                                     evaluate_batch_splines_2d_many_mask, &
                                     evaluate_batch_splines_2d_many_resident, &
+                                    evaluate_batch_splines_2d_many_mask_resident, &
                                     evaluate_batch_splines_2d_many_der, &
                                     evaluate_batch_splines_2d_many_der_mask
     use batch_interpolate_3d, only: construct_batch_splines_3d, &
@@ -76,6 +77,7 @@ module batch_interpolate
     public :: evaluate_batch_splines_2d, evaluate_batch_splines_2d_der
     public :: evaluate_batch_splines_2d_many, evaluate_batch_splines_2d_many_mask
     public :: evaluate_batch_splines_2d_many_resident
+    public :: evaluate_batch_splines_2d_many_mask_resident
     public :: evaluate_batch_splines_2d_many_der, &
               evaluate_batch_splines_2d_many_der_mask
 

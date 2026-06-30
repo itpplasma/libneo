@@ -238,7 +238,7 @@ contains
     end subroutine evaluate_batch_splines_1d_many_der3_mask_resident
 #endif
 
-   recursive subroutine construct_batch_splines_1d(x_min, x_max, y_batch, order, periodic, spl)
+    recursive subroutine construct_batch_splines_1d(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min, x_max
         real(dp), intent(in) :: y_batch(:, :)  ! (n_points, n_quantities)
         integer, intent(in) :: order
@@ -255,7 +255,7 @@ contains
 #endif
     end subroutine construct_batch_splines_1d
 
-   recursive subroutine construct_batch_splines_1d_legacy(x_min, x_max, y_batch, order, periodic, spl)
+    recursive subroutine construct_batch_splines_1d_legacy(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min, x_max
         real(dp), intent(in) :: y_batch(:, :)  ! (n_points, n_quantities)
         integer, intent(in) :: order
@@ -318,7 +318,7 @@ contains
         deallocate (splcoe_temp)
     end subroutine construct_batch_splines_1d_legacy
 
-   recursive subroutine construct_batch_splines_1d_lines(x_min, x_max, y_batch, order, periodic, spl)
+    recursive subroutine construct_batch_splines_1d_lines(x_min, x_max, y_batch, order, periodic, spl)
         real(dp), intent(in) :: x_min, x_max
         real(dp), intent(in) :: y_batch(:, :)  ! (n_points, n_quantities)
         integer, intent(in) :: order
@@ -427,7 +427,7 @@ contains
         deallocate (work)
     end subroutine construct_batch_splines_1d_lines
 
-   recursive subroutine construct_batch_splines_1d_resident(x_min, x_max, y_batch, order, &
+    recursive subroutine construct_batch_splines_1d_resident(x_min, x_max, y_batch, order, &
                                                    periodic, spl)
         real(dp), intent(in) :: x_min, x_max
         real(dp), intent(in) :: y_batch(:, :)  ! (n_points, n_quantities)
@@ -438,7 +438,7 @@ contains
         call construct_batch_splines_1d(x_min, x_max, y_batch, order, periodic, spl)
     end subroutine construct_batch_splines_1d_resident
 
-   recursive subroutine construct_batch_splines_1d_resident_device(x_min, x_max, y_batch, &
+    recursive subroutine construct_batch_splines_1d_resident_device(x_min, x_max, y_batch, &
                                                           order, periodic, spl, &
                                                           update_host, &
                                                           assume_y_present)
@@ -473,7 +473,7 @@ contains
 #endif
     end subroutine construct_batch_splines_1d_resident_device
 
-   recursive subroutine construct_batch_splines_1d_resident_device_impl(x_min, x_max, n_points, &
+    recursive subroutine construct_batch_splines_1d_resident_device_impl(x_min, x_max, n_points, &
                                                                n_quantities, y_batch, &
                                                                order, periodic, spl, &
                                                                do_update, &
@@ -606,7 +606,7 @@ contains
         end if
     end subroutine construct_batch_splines_1d_resident_device_impl
 
-   recursive subroutine store_coeff_1d(n_points, n_quantities, order, work, coeff)
+    recursive subroutine store_coeff_1d(n_points, n_quantities, order, work, coeff)
         integer, intent(in) :: n_points, n_quantities, order
         real(dp), intent(in) :: work(n_points, n_quantities, 0:order)
         real(dp), intent(out) :: coeff(n_quantities, 0:order, n_points)
@@ -628,7 +628,7 @@ contains
         end do
     end subroutine store_coeff_1d
 
-   recursive subroutine destroy_batch_splines_1d(spl)
+    recursive subroutine destroy_batch_splines_1d(spl)
         type(BatchSplineData1D), intent(inout) :: spl
 
 #ifdef _OPENACC
@@ -641,7 +641,7 @@ contains
         if (allocated(spl%coeff)) deallocate (spl%coeff)
     end subroutine destroy_batch_splines_1d
 
-   recursive subroutine evaluate_batch_splines_1d(spl, x, y_batch)
+    recursive subroutine evaluate_batch_splines_1d(spl, x, y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:)  ! (n_quantities)
@@ -654,7 +654,7 @@ contains
         y_batch(1:spl%num_quantities) = y_arr(:, 1)
     end subroutine evaluate_batch_splines_1d
 
-   recursive subroutine evaluate_batch_splines_1d_single(spl, x, iq, y)
+    recursive subroutine evaluate_batch_splines_1d_single(spl, x, iq, y)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         integer, intent(in) :: iq  ! quantity index
@@ -670,7 +670,7 @@ contains
         y = y_all(iq)
     end subroutine evaluate_batch_splines_1d_single
 
-   recursive subroutine evaluate_batch_splines_1d_many(spl, x, y_batch)
+    recursive subroutine evaluate_batch_splines_1d_many(spl, x, y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y_batch(:, :)  ! (n_quantities, n_points)
@@ -709,7 +709,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_1d_many
 
-   recursive subroutine evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
+    recursive subroutine evaluate_batch_splines_1d_many_resident(spl, x, y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(inout) :: y_batch(:, :)
@@ -742,7 +742,7 @@ contains
         !$acc end parallel loop
     end subroutine evaluate_batch_splines_1d_many_resident
 
-   recursive subroutine evaluate_batch_splines_1d_many_der(spl, x, y_batch, dy_batch)
+    recursive subroutine evaluate_batch_splines_1d_many_der(spl, x, y_batch, dy_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y_batch(:, :)   ! (nq, npts)
@@ -789,7 +789,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_1d_many_der
 
-   recursive subroutine evaluate_batch_splines_1d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
+    recursive subroutine evaluate_batch_splines_1d_many_der2(spl, x, y_batch, dy_batch, d2y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
         real(dp), intent(out) :: y_batch(:, :), dy_batch(:, :), d2y_batch(:, :)
@@ -848,7 +848,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_1d_many_der2_mask
 
-   recursive subroutine evaluate_batch_splines_1d_many_der3(spl, x, y_batch, dy_batch, d2y_batch, &
+    recursive subroutine evaluate_batch_splines_1d_many_der3(spl, x, y_batch, dy_batch, d2y_batch, &
                                                    d3y_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x(:)
@@ -912,7 +912,7 @@ contains
         end do
     end subroutine evaluate_batch_splines_1d_many_der3_mask
 
-   recursive subroutine evaluate_batch_splines_1d_der(spl, x, y_batch, dy_batch)
+    recursive subroutine evaluate_batch_splines_1d_der(spl, x, y_batch, dy_batch)
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:)   ! (n_quantities)
@@ -927,7 +927,7 @@ contains
         dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
     end subroutine evaluate_batch_splines_1d_der
 
-   recursive subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
+    recursive subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
        !$acc routine seq
         type(BatchSplineData1D), intent(in) :: spl
         real(dp), intent(in) :: x
@@ -945,7 +945,7 @@ contains
         d2y_batch(1:spl%num_quantities) = d2y_arr(:, 1)
     end subroutine evaluate_batch_splines_1d_der2
 
-   recursive subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
+    recursive subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
                                               d3y_batch)
        !$acc routine seq
         type(BatchSplineData1D), intent(in) :: spl
