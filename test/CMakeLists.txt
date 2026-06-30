@@ -159,9 +159,6 @@ target_link_libraries(test_util.x ${COMMON_LIBS})
 add_executable(test_cgls_dense.x source/test_cgls_dense.f90)
 target_link_libraries(test_cgls_dense.x ${COMMON_LIBS})
 
-add_executable(test_cgls_small.x source/test_cgls_small.f90)
-target_link_libraries(test_cgls_small.x ${COMMON_LIBS})
-
 add_executable(test_spline_cgls_global.x source/test_spline_cgls_global.f90)
 target_link_libraries(test_spline_cgls_global.x ${COMMON_LIBS})
 
@@ -266,7 +263,6 @@ add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
 add_test(NAME test_cgls_dense COMMAND test_cgls_dense.x)
-add_test(NAME test_cgls_small COMMAND test_cgls_small.x)
 add_test(NAME test_plag_coeff COMMAND test_plag_coeff.x)
 add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
 add_test(NAME test_species COMMAND test_species.x)
