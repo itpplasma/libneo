@@ -1,6 +1,7 @@
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -27,6 +28,30 @@ def _store_artifacts(*paths: Path) -> None:
     os.makedirs(target, exist_ok=True)
     for path in paths:
         shutil.copy(path, Path(target) / path.name)
+
+
+def test_field_from_vmec_local_fixture():
+    repo_root = Path(__file__).resolve().parents[2]
+    wout_path = repo_root / "build" / "test" / "wout.nc"
+    if not wout_path.exists():
+        pytest.skip(
+            "local VMEC wout fixture not built; run ctest target setup_vmec_wout"
+        )
+
+    start = time.monotonic()
+    field = field_from_vmec(wout_path, nr=8, nz=8, nphi=4)
+    elapsed = time.monotonic() - start
+    assert elapsed < 30.0
+
+    bmag = np.sqrt(field.br**2 + field.bphi**2 + field.bz**2)
+    finite_mask = np.isfinite(bmag)
+    assert finite_mask.any(), "no finite magnetic field samples"
+    assert finite_mask.mean() > 0.3
+
+    bmag_tesla = bmag[finite_mask] * GAUSS_TO_TESLA
+    assert np.all(bmag_tesla >= 0.0)
+    assert np.median(bmag_tesla) > 1.0e-3
+    assert np.max(bmag_tesla) < 100.0
 
 
 @pytest.mark.network
