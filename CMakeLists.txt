@@ -42,6 +42,12 @@ if(DEFINED BUILD_TESTING)
     set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
 endif()
 
+# Numerics-heavy components (neo core, magfie, collisions, transport,
+# coordinates, vmec_field, efit_to_boozer) pull fortnum and require BLAS/LAPACK.
+# Consumers that only link the light targets (interpolate, vmec_support, boozer,
+# field, nctools, util, ...) set this OFF to skip those dependencies entirely.
+option(LIBNEO_BUILD_NUMERICS "Build numerics-heavy components requiring BLAS/LAPACK and fortnum" ON)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
@@ -220,7 +226,7 @@ include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
 # fortnum: numerical core (special functions, quadrature, FFT, ODE). Guarded so
 # a repo that also pulls fortnum transitively via libneo does not double-declare
 # the target.
-if(NOT TARGET fortnum)
+if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
     include(FetchContent)
     FetchContent_Declare(
         fortnum
@@ -230,10 +236,21 @@ if(NOT TARGET fortnum)
     FetchContent_MakeAvailable(fortnum)
 endif()
 
+# Light consumers get NetCDF as a shared library via pkg-config. The
+# netcdf-fortran shared object pulls HDF5/curl/zlib through DT_NEEDED, so nctools
+# and boozer need only -lnetcdff, not nf-config's full static --flibs.
+if(NOT LIBNEO_BUILD_NUMERICS AND NOT TARGET netcdf::netcdff)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBNEO_NETCDF_FORTRAN REQUIRED IMPORTED_TARGET GLOBAL netcdf-fortran)
+    add_library(netcdf::netcdff ALIAS PkgConfig::LIBNEO_NETCDF_FORTRAN)
+endif()
+
 # Tier 0: no internal libneo dependencies
 add_subdirectory(src/util)
 add_subdirectory(src/nctools)
-add_subdirectory(src/hdf5_tools)
+if(LIBNEO_BUILD_NUMERICS)
+    add_subdirectory(src/hdf5_tools)
+endif()
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)
 add_subdirectory(src/odeint)
@@ -241,20 +258,23 @@ add_subdirectory(src/field)
 
 # Tier 1: depends on Tier 0
 add_subdirectory(src/vmec_support)
-add_subdirectory(src/coordinates)
 
-# Tier 2: VMEC magnetic-field evaluation (depends on coordinates + vmec_support).
-# magnetic_field_base.f90 provides the `field_base` module used by the VMEC field
-# evaluators; keep it with them rather than in the generic neo_field interface.
-add_library(vmec_field STATIC
-    src/field/magnetic_field_base.f90
-    src/field/field_vmec.f90
-    src/field/vmec_field_eval.f90
-)
-target_link_libraries(vmec_field PUBLIC coordinates vmec_support interpolate)
-set_property(TARGET vmec_field PROPERTY
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
-add_library(LIBNEO::vmec_field ALIAS vmec_field)
+if(LIBNEO_BUILD_NUMERICS)
+    add_subdirectory(src/coordinates)
+
+    # Tier 2: VMEC magnetic-field evaluation (depends on coordinates + vmec_support).
+    # magnetic_field_base.f90 provides the `field_base` module used by the VMEC field
+    # evaluators; keep it with them rather than in the generic neo_field interface.
+    add_library(vmec_field STATIC
+        src/field/magnetic_field_base.f90
+        src/field/field_vmec.f90
+        src/field/vmec_field_eval.f90
+    )
+    target_link_libraries(vmec_field PUBLIC coordinates vmec_support interpolate)
+    set_property(TARGET vmec_field PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::vmec_field ALIAS vmec_field)
+endif()
 
 # Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
 add_library(boozer STATIC
@@ -274,6 +294,13 @@ endif()
 set_property(TARGET boozer PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::boozer ALIAS boozer)
+
+# Everything below is numerics-heavy (neo core, magfie, collisions, transport,
+# efit_to_boozer, apps, tests, Python bindings) and needs BLAS/LAPACK + fortnum.
+# Light consumers stop here.
+if(NOT LIBNEO_BUILD_NUMERICS)
+    return()
+endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
