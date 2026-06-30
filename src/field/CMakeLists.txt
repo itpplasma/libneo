@@ -1,5 +1,15 @@
-add_library(neo_field STATIC
+# field_base: abstract field interface (neo_field_base) and mesh containers.
+# No internal libneo deps, so it sits at Tier 0 with the other leaves.
+add_library(field_base STATIC
     field_base.f90
+    mesh.f90
+    mesh_2d.f90)
+set_property(TARGET field_base PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+add_library(LIBNEO::field_base ALIAS field_base)
+
+# neo_field: concrete field implementations built on field_base.
+add_library(neo_field STATIC
     example_field.f90
     circular_tokamak_field.f90
     biotsavart.f90
@@ -8,10 +18,9 @@ add_library(neo_field STATIC
     polylag_field.f90
     spline_field.f90
     mgrid.f90
-    mesh.f90
-    mesh_2d.f90
     field.f90)
 
+target_link_libraries(neo_field PUBLIC field_base)
 target_link_libraries(neo_field PRIVATE
     interpolate
     neo_polylag
