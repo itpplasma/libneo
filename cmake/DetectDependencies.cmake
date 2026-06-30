@@ -131,8 +131,15 @@ message(STATUS "")
 message(STATUS "=== Detecting External Dependencies ===")
 message(STATUS "")
 
-detect_hdf5()
-detect_netcdf()
+# Light consumers (LIBNEO_BUILD_NUMERICS=OFF) link no HDF5-backed target and get
+# NetCDF via a pkg-config imported target (set up in the top-level CMakeLists),
+# so skip the nf-config detection here: it never triggers the HDF5/NetCDF
+# from-source superbuild and never injects nf-config's full static --flibs
+# (-lhdf5 -lz -lcurl, no -L) globally onto consumer executables.
+if(NOT DEFINED LIBNEO_BUILD_NUMERICS OR LIBNEO_BUILD_NUMERICS)
+    detect_hdf5()
+    detect_netcdf()
+endif()
 
 # If any dependencies need to be built from source, use the superbuild
 if(NEED_BUILD_HDF5 OR NEED_BUILD_NETCDF)
