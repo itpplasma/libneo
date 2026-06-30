@@ -48,31 +48,68 @@ jobs:
           set -u
           fail=0
 
+          # Latest workflow_dispatch run id for a downstream workflow, or empty
+          # on a transient gh/API error (caller treats empty as "unknown", not 0).
+          latest_dispatch_id() {
+            gh run list -R "itpplasma/$1" --workflow "$2" --event workflow_dispatch \
+              --limit 1 --json databaseId -q '.[0].databaseId // empty' 2>/dev/null
+          }
+
+          # Block until a dispatched run reaches a terminal state and return its
+          # TRUE verdict. gh run watch is best-effort: it can exit nonzero on a
+          # transient API hiccup while the run is still in progress, so its exit
+          # status is never trusted. The run's own status/conclusion is
+          # authoritative, re-queried with tolerance for transient read failures
+          # so a watch or query glitch is never mistaken for a failed run.
+          await_run() {
+            local repo=$1 run_id=$2 deadline=$((SECONDS + 5400)) misses=0 state
+            while [ "$SECONDS" -lt "$deadline" ]; do
+              gh run watch "$run_id" -R "itpplasma/$repo" >/dev/null 2>&1 || true
+              state=$(gh run view "$run_id" -R "itpplasma/$repo" \
+                        --json status,conclusion \
+                        -q '"\(.status) \(.conclusion)"' 2>/dev/null)
+              if [ -z "$state" ]; then
+                misses=$((misses + 1))
+                [ "$misses" -ge 10 ] && {
+                  echo "::error::$repo run $run_id: cannot read status after retries"
+                  return 1
+                }
+                sleep 15; continue
+              fi
+              misses=0
+              case "$state" in
+                "completed success") return 0 ;;
+                "completed "*)
+                  echo "::error::$repo run $run_id concluded ${state#completed }"
+                  return 1 ;;
+              esac
+              sleep 15
+            done
+            echo "::error::$repo run $run_id did not finish within timeout"
+            return 1
+          }
+
           # Dispatch one workflow against this PR's libneo and wait for its run.
           # Always passes -f libneo_ref=$REF; extra -f args are appended. Returns
-          # non-zero if dispatch, discovery, or the run itself fails.
+          # non-zero only on a dispatch failure, a run that never appears, or a
+          # genuine non-success conclusion.
           run_wf() {
             local repo=$1 wf=$2; shift 2
-            local before run_id
-            before=$(gh run list -R "itpplasma/$repo" --workflow "$wf" \
-                       --event workflow_dispatch --limit 1 --json databaseId \
-                       -q '.[0].databaseId // 0')
-            if ! gh workflow run "$wf" -R "itpplasma/$repo" -f "libneo_ref=$REF" "$@" 2>&1; then
+            local before run_id=""
+            before=$(latest_dispatch_id "$repo" "$wf")
+            if ! gh workflow run "$wf" -R "itpplasma/$repo" -f "libneo_ref=$REF" "$@"; then
               echo "::error::failed to dispatch $repo ($wf) — workflow may lack workflow_dispatch trigger"
               return 1
             fi
-            run_id=0
-            for _ in $(seq 1 12); do
+            for _ in $(seq 1 24); do
               sleep 5
-              run_id=$(gh run list -R "itpplasma/$repo" --workflow "$wf" \
-                         --event workflow_dispatch --limit 1 --json databaseId \
-                         -q '.[0].databaseId // 0')
-              [ "$run_id" != "$before" ] && [ "$run_id" != 0 ] && break
+              run_id=$(latest_dispatch_id "$repo" "$wf")
+              [ -n "$run_id" ] && [ "$run_id" != "$before" ] && break
             done
-            if [ "$run_id" = "$before" ] || [ "$run_id" = 0 ]; then
+            if [ -z "$run_id" ] || [ "$run_id" = "$before" ]; then
               echo "::error::could not find dispatched run for $repo ($wf)"; return 1
             fi
-            gh run watch "$run_id" -R "itpplasma/$repo" --exit-status >/dev/null 2>&1
+            await_run "$repo" "$run_id"
           }
 
           # FULL=true (libneo PR labeled 'full-ci') also runs each downstream's
