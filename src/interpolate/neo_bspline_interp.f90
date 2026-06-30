@@ -28,7 +28,7 @@ contains
         real(dp), intent(in) :: f_data(:)
         real(dp), intent(out) :: coeff(:)
 
-        integer :: n, p, i, j, span, info, kl, ku, ldab
+        integer :: n, p, i, j, col, span, info, kl, ku, ldab
         real(dp), allocatable :: ab(:,:), work_f(:), Nvals(:)
         integer, allocatable :: ipiv(:)
 
@@ -44,7 +44,8 @@ contains
             call find_span(spl, x_data(i), span)
             call basis_funs(spl, span, x_data(i), Nvals)
             do j = 0, p
-                ab(kl + ku + 1 + j, span - p + j) = Nvals(j)
+                col = span - p + j
+                ab(kl + ku + 1 + i - col, col) = Nvals(j)
             end do
         end do
 
@@ -61,78 +62,86 @@ contains
     subroutine bspline_2d_interp(spl, x1, x2, f_grid, coeff)
         !! Direct 2D B-spline interpolation using separable tensor product.
         !! Solves dimension-by-dimension: first along x1, then along x2.
+        !! Each collocation system is banded (bandwidth = degree), so dgbsv
+        !! solves it in O(n) instead of the O(n^3) dense dgetrf/dgetrs.
         type(bspline_2d), intent(in) :: spl
         real(dp), intent(in) :: x1(:), x2(:)
         real(dp), intent(in) :: f_grid(:,:)
         real(dp), intent(out) :: coeff(:,:)
 
-        integer :: n1, n2, i, j, span, p1, p2, info, pmax
-        real(dp), allocatable :: A1(:,:), A2(:,:), temp(:,:), work(:), Nvals(:)
+        integer :: n1, n2, i, j, col, span, info
+        integer :: p1, p2, kl1, ku1, ldab1, kl2, ku2, ldab2
+        real(dp), allocatable :: ab1(:,:), ab2(:,:), temp(:,:), temp_t(:,:)
+        real(dp), allocatable :: Nvals(:)
         integer, allocatable :: ipiv(:)
 
         n1 = size(x1)
         n2 = size(x2)
         p1 = spl%sx%degree
         p2 = spl%sy%degree
-        pmax = max(p1, p2)
-        allocate(A1(n1, n1), A2(n2, n2), temp(n1, n2), ipiv(max(n1, n2)))
-        allocate(work(max(n1, n2)), Nvals(0:pmax))
+        kl1 = p1
+        ku1 = p1
+        ldab1 = 2*kl1 + ku1 + 1
+        kl2 = p2
+        ku2 = p2
+        ldab2 = 2*kl2 + ku2 + 1
+        allocate(ab1(ldab1, n1), ab2(ldab2, n2))
+        allocate(temp(n1, n2), temp_t(n2, n1))
+        allocate(ipiv(max(n1, n2)), Nvals(0:max(p1, p2)))
 
-        A1 = 0.0_dp
+        ab1 = 0.0_dp
         do i = 1, n1
             call find_span(spl%sx, x1(i), span)
             call basis_funs(spl%sx, span, x1(i), Nvals(0:p1))
             do j = 0, p1
-                A1(i, span - p1 + j) = Nvals(j)
+                col = span - p1 + j
+                ab1(kl1 + ku1 + 1 + i - col, col) = Nvals(j)
             end do
         end do
 
-        A2 = 0.0_dp
+        ab2 = 0.0_dp
         do i = 1, n2
             call find_span(spl%sy, x2(i), span)
             call basis_funs(spl%sy, span, x2(i), Nvals(0:p2))
             do j = 0, p2
-                A2(i, span - p2 + j) = Nvals(j)
+                col = span - p2 + j
+                ab2(kl2 + ku2 + 1 + i - col, col) = Nvals(j)
             end do
         end do
 
         temp = f_grid
-        call dgetrf(n1, n1, A1, n1, ipiv, info)
+        call dgbsv(n1, kl1, ku1, n2, ab1, ldab1, ipiv(1:n1), temp, n1, info)
         if (info /= 0) then
             coeff = 0.0_dp
             return
         end if
-        do j = 1, n2
-            work(1:n1) = temp(:, j)
-            call dgetrs('N', n1, 1, A1, n1, ipiv, work, n1, info)
-            temp(:, j) = work(1:n1)
-        end do
 
-        call dgetrf(n2, n2, A2, n2, ipiv, info)
+        temp_t = transpose(temp)
+        call dgbsv(n2, kl2, ku2, n1, ab2, ldab2, ipiv(1:n2), temp_t, n2, info)
         if (info /= 0) then
             coeff = 0.0_dp
             return
         end if
-        do i = 1, n1
-            work(1:n2) = temp(i, :)
-            call dgetrs('N', n2, 1, A2, n2, ipiv, work, n2, info)
-            coeff(i, :) = work(1:n2)
-        end do
+
+        coeff = transpose(temp_t)
     end subroutine bspline_2d_interp
 
 
     subroutine bspline_3d_interp(spl, x1, x2, x3, f_grid, coeff)
         !! Direct 3D B-spline interpolation using separable tensor product.
         !! Solves dimension-by-dimension: x1 -> x2 -> x3.
+        !! Each collocation system is banded (bandwidth = degree), so dgbsv
+        !! solves it in O(n) instead of the O(n^3) dense dgetrf/dgetrs.
         type(bspline_3d), intent(in) :: spl
         real(dp), intent(in) :: x1(:), x2(:), x3(:)
         real(dp), intent(in) :: f_grid(:,:,:)
         real(dp), intent(out) :: coeff(:,:,:)
 
-        integer :: n1, n2, n3, i, j, k, span, p1, p2, p3, info, pmax, nmax
-        real(dp), allocatable :: A1(:,:), A2(:,:), A3(:,:), temp(:,:,:)
-        real(dp), allocatable :: Nvals(:)
-        integer, allocatable :: ipiv1(:), ipiv2(:), ipiv3(:)
+        integer :: n1, n2, n3, i, j, k, col, span, info
+        integer :: p1, p2, p3, kl1, ku1, ldab1, kl2, ku2, ldab2, kl3, ku3, ldab3
+        real(dp), allocatable :: ab1(:,:), ab2(:,:), ab3(:,:)
+        real(dp), allocatable :: temp(:,:,:), perm(:,:,:), Nvals(:)
+        integer, allocatable :: ipiv(:)
 
         n1 = size(x1)
         n2 = size(x2)
@@ -140,79 +149,81 @@ contains
         p1 = spl%sx%degree
         p2 = spl%sy%degree
         p3 = spl%sz%degree
-        pmax = max(p1, p2, p3)
-        nmax = max(n1, n2, n3)
-        allocate(A1(n1, n1), A2(n2, n2), A3(n3, n3))
-        allocate(temp(n1, n2, n3), ipiv1(n1), ipiv2(n2), ipiv3(n3))
-        allocate(Nvals(0:pmax))
+        kl1 = p1; ku1 = p1; ldab1 = 2*kl1 + ku1 + 1
+        kl2 = p2; ku2 = p2; ldab2 = 2*kl2 + ku2 + 1
+        kl3 = p3; ku3 = p3; ldab3 = 2*kl3 + ku3 + 1
+        allocate(ab1(ldab1, n1), ab2(ldab2, n2), ab3(ldab3, n3))
+        allocate(temp(n1, n2, n3))
+        allocate(ipiv(max(n1, n2, n3)), Nvals(0:max(p1, p2, p3)))
 
-        A1 = 0.0_dp
+        ab1 = 0.0_dp
         do i = 1, n1
             call find_span(spl%sx, x1(i), span)
             call basis_funs(spl%sx, span, x1(i), Nvals(0:p1))
             do j = 0, p1
-                A1(i, span - p1 + j) = Nvals(j)
+                col = span - p1 + j
+                ab1(kl1 + ku1 + 1 + i - col, col) = Nvals(j)
             end do
         end do
 
-        A2 = 0.0_dp
+        ab2 = 0.0_dp
         do i = 1, n2
             call find_span(spl%sy, x2(i), span)
             call basis_funs(spl%sy, span, x2(i), Nvals(0:p2))
             do j = 0, p2
-                A2(i, span - p2 + j) = Nvals(j)
+                col = span - p2 + j
+                ab2(kl2 + ku2 + 1 + i - col, col) = Nvals(j)
             end do
         end do
 
-        A3 = 0.0_dp
+        ab3 = 0.0_dp
         do i = 1, n3
             call find_span(spl%sz, x3(i), span)
             call basis_funs(spl%sz, span, x3(i), Nvals(0:p3))
             do j = 0, p3
-                A3(i, span - p3 + j) = Nvals(j)
+                col = span - p3 + j
+                ab3(kl3 + ku3 + 1 + i - col, col) = Nvals(j)
             end do
         end do
 
         temp = f_grid
 
-        call dgetrf(n1, n1, A1, n1, ipiv1, info)
-        if (info /= 0) then
-            coeff = 0.0_dp
-            return
-        end if
-        call dgetrf(n2, n2, A2, n2, ipiv2, info)
-        if (info /= 0) then
-            coeff = 0.0_dp
-            return
-        end if
-        call dgetrf(n3, n3, A3, n3, ipiv3, info)
+        call dgbsv(n1, kl1, ku1, n2*n3, ab1, ldab1, ipiv(1:n1), temp, n1, info)
         if (info /= 0) then
             coeff = 0.0_dp
             return
         end if
 
-        !$omp parallel do collapse(2) private(j, k) schedule(static)
+        allocate(perm(n2, n1, n3))
         do k = 1, n3
-            do j = 1, n2
-                call dgetrs('N', n1, 1, A1, n1, ipiv1, temp(:, j, k), n1, info)
-            end do
+            perm(:, :, k) = transpose(temp(:, :, k))
         end do
-
-        !$omp parallel do collapse(2) private(i, k) schedule(static)
+        call dgbsv(n2, kl2, ku2, n1*n3, ab2, ldab2, ipiv(1:n2), perm, n2, info)
+        if (info /= 0) then
+            coeff = 0.0_dp
+            return
+        end if
         do k = 1, n3
-            do i = 1, n1
-                call dgetrs('N', n2, 1, A2, n2, ipiv2, temp(i, :, k), n2, info)
-            end do
+            temp(:, :, k) = transpose(perm(:, :, k))
         end do
+        deallocate(perm)
 
-        !$omp parallel do collapse(2) private(i, j) schedule(static)
+        allocate(perm(n3, n1, n2))
         do j = 1, n2
             do i = 1, n1
-                call dgetrs('N', n3, 1, A3, n3, ipiv3, temp(i, j, :), n3, info)
+                perm(:, i, j) = temp(i, j, :)
             end do
         end do
-
-        coeff = temp
+        call dgbsv(n3, kl3, ku3, n1*n2, ab3, ldab3, ipiv(1:n3), perm, n3, info)
+        if (info /= 0) then
+            coeff = 0.0_dp
+            return
+        end if
+        do j = 1, n2
+            do i = 1, n1
+                coeff(i, j, :) = perm(:, i, j)
+            end do
+        end do
     end subroutine bspline_3d_interp
 
 end module neo_bspline_interp

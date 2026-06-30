@@ -117,7 +117,7 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: N(0:)
         integer :: p, j, r
-        real(dp) :: left(0:spl%degree), right(0:spl%degree), saved, temp
+        real(dp) :: left(0:spl%degree), right(0:spl%degree), saved, temp, denom
 
         p = spl%degree
         N(0) = 1.0_dp
@@ -126,7 +126,12 @@ contains
             right(j) = spl%knots(span + j) - x
             saved = 0.0_dp
             do r = 0, j - 1
-                temp = N(r)/(right(r + 1) + left(j - r))
+                denom = right(r + 1) + left(j - r)
+                if (denom == 0.0_dp) then
+                    temp = 0.0_dp
+                else
+                    temp = N(r)/denom
+                end if
                 N(r) = saved + right(r + 1)*temp
                 saved = left(j - r)*temp
             end do

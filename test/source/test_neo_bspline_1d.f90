@@ -1,4 +1,5 @@
 program test_neo_bspline_1d
+    use, intrinsic :: iso_fortran_env, only : int64
     use libneo_kinds, only : dp
     use math_constants
     use libneo_util,  only : linspace
@@ -11,8 +12,10 @@ program test_neo_bspline_1d
     real(dp), parameter :: X_MAX = TWOPI + 1.23d0
 
     call test_bspline_1d_partition_unity()
+    call test_bspline_1d_interp_exact()
     call test_bspline_1d_lsq_cos()
     call test_bspline_1d_lsq_batch()
+    call test_basis_funs_repeated_knot()
 
 contains
 
@@ -53,6 +56,52 @@ contains
         end if
 
     end subroutine test_bspline_1d_partition_unity
+
+
+    subroutine test_bspline_1d_interp_exact()
+        !! A cubic spline space contains all cubic polynomials, so direct
+        !! collocation interpolation must reproduce one exactly.
+        type(bspline_1d) :: spl
+        integer, parameter :: DEGREE = 3
+        integer, parameter :: N = 16
+
+        real(dp) :: x_data(N), f_data(N), coeff(N)
+        real(dp) :: x, f_true, f_fit, err_max
+        integer :: i
+
+        print *, "Testing neo_bspline 1D direct interpolation (collocation)"
+
+        call bspline_1d_init_uniform(spl, DEGREE, N, X_MIN, X_MAX)
+        call linspace(X_MIN, X_MAX, N, x_data)
+
+        do i = 1, N
+            f_data(i) = cubic(x_data(i))
+        end do
+
+        call bspline_1d_interp(spl, x_data, f_data, coeff)
+
+        err_max = 0.0d0
+        do i = 1, N
+            x = x_data(i)
+            f_true = cubic(x)
+            call bspline_1d_eval(spl, coeff, x, f_fit)
+            err_max = max(err_max, abs(f_fit - f_true))
+        end do
+
+        print *, "  1D direct interp max error =", err_max
+        if (err_max > 1.0d-10) then
+            error stop "neo_bspline 1D direct interpolation error too large"
+        end if
+
+    end subroutine test_bspline_1d_interp_exact
+
+
+    function cubic(x) result(f)
+        real(dp), intent(in) :: x
+        real(dp) :: f
+
+        f = 1.0d0 - 0.5d0*x + 0.3d0*x**2 - 0.1d0*x**3
+    end function cubic
 
 
     subroutine test_bspline_1d_lsq_cos()
@@ -161,6 +210,49 @@ contains
         end do
 
     end subroutine test_bspline_1d_lsq_batch
+
+
+    subroutine test_basis_funs_repeated_knot()
+        !! An interior knot of multiplicity degree+1 makes the Cox-de Boor
+        !! recursion divide 0/0 unless that term is guarded to zero.
+        type(bspline_1d) :: spl
+        integer, parameter :: DEGREE = 2
+        real(dp) :: N(0:DEGREE)
+        integer :: span, i
+
+        print *, "Testing neo_bspline basis_funs at repeated interior knot"
+
+        spl%degree = DEGREE
+        spl%n_ctrl = 4
+        allocate(spl%knots(7))
+        spl%knots = [0.0d0, 0.0d0, 1.0d0, 1.0d0, 1.0d0, 2.0d0, 2.0d0]
+        spl%x_min = 0.0d0
+        spl%x_max = 2.0d0
+
+        call find_span(spl, 1.0d0, span)
+        call basis_funs(spl, span, 1.0d0, N)
+
+        do i = 0, DEGREE
+            if (is_nan(N(i))) then
+                error stop "neo_bspline basis_funs produced NaN at repeated knot"
+            end if
+        end do
+
+    end subroutine test_basis_funs_repeated_knot
+
+
+    logical function is_nan(x)
+        !! Bit-pattern NaN test: a floating compare (x /= x) is unreliable
+        !! under -ffast-math, which this project's Release build enables.
+        real(dp), intent(in) :: x
+        integer(int64), parameter :: EXP_MASK = int(z'7FF0000000000000', int64)
+        integer(int64), parameter :: MANT_MASK = int(z'000FFFFFFFFFFFFF', int64)
+        integer(int64) :: bits
+
+        bits = transfer(x, bits)
+        is_nan = (iand(bits, EXP_MASK) == EXP_MASK) .and. &
+            (iand(bits, MANT_MASK) /= 0_int64)
+    end function is_nan
 
 
     subroutine write_plot_data(fname, n, x, f_true, f_fit)

@@ -12,6 +12,7 @@ program test_neo_bspline_3d
 
     call test_bspline_3d_lsq_full_grid()
     call test_bspline_3d_lsq_batch()
+    call test_bspline_3d_interp_exact()
 
 contains
 
@@ -151,5 +152,68 @@ contains
         end do
 
     end subroutine test_bspline_3d_lsq_batch
+
+
+    subroutine test_bspline_3d_interp_exact()
+        !! A tensor-product cubic spline space contains all separable cubic
+        !! polynomials, so direct collocation interpolation must reproduce
+        !! one exactly.
+        type(bspline_3d) :: spl
+        integer, parameter :: DEGREE(3) = [3, 3, 3]
+        integer, parameter :: N1 = 10
+        integer, parameter :: N2 = 9
+        integer, parameter :: N3 = 8
+
+        real(dp) :: x1(N1), x2(N2), x3(N3)
+        real(dp) :: f_grid(N1, N2, N3)
+        real(dp) :: coeff(N1, N2, N3)
+        real(dp) :: x(3), f_true, f_fit, err_max
+        integer :: i1, i2, i3
+
+        print *, "Testing neo_bspline 3D direct interpolation (collocation)"
+
+        call bspline_3d_init_uniform(spl, DEGREE, [N1, N2, N3], &
+            [X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX])
+
+        call linspace(X_MIN, X_MAX, N1, x1)
+        call linspace(X_MIN, X_MAX, N2, x2)
+        call linspace(X_MIN, X_MAX, N3, x3)
+
+        do i3 = 1, N3
+            do i2 = 1, N2
+                do i1 = 1, N1
+                    f_grid(i1, i2, i3) = cubic(x1(i1))*cubic(x2(i2))*cubic(x3(i3))
+                end do
+            end do
+        end do
+
+        call bspline_3d_interp(spl, x1, x2, x3, f_grid, coeff)
+
+        err_max = 0.0d0
+        do i3 = 1, N3
+            do i2 = 1, N2
+                do i1 = 1, N1
+                    x = [x1(i1), x2(i2), x3(i3)]
+                    f_true = cubic(x(1))*cubic(x(2))*cubic(x(3))
+                    call bspline_3d_eval(spl, coeff, x, f_fit)
+                    err_max = max(err_max, abs(f_fit - f_true))
+                end do
+            end do
+        end do
+
+        print *, "  3D direct interp max error =", err_max
+        if (err_max > 1.0d-9) then
+            error stop "neo_bspline 3D direct interpolation error too large"
+        end if
+
+    end subroutine test_bspline_3d_interp_exact
+
+
+    function cubic(x) result(f)
+        real(dp), intent(in) :: x
+        real(dp) :: f
+
+        f = 1.0d0 - 0.5d0*x + 0.3d0*x**2 - 0.1d0*x**3
+    end function cubic
 
 end program test_neo_bspline_3d
