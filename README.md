@@ -83,6 +83,30 @@ For the magnetic axis, VMEC stores `zaxis_cs` but uses the same phase convention
 
 - `Z_axis(zeta) = sum_n zaxis_cs(n) * sin(-n*nfp*zeta)` (using `sin(-x) = -sin(x)`).
 
+#### NEMEC to VMEC conversion
+
+`nemec2vmec` converts text NEMEC `wout.*` files to VMEC-style NetCDF `wout.nc`
+files:
+
+    nemec2vmec wout.nemec wout.nc
+
+The converter targets VMEC wout conventions. The NEMEC output manual distributed
+with Strumberger/Tichmann data defines the same geometric phase:
+
+- `R` and `Z` use `cos(m*theta - n*zeta*nfp)` and
+  `sin(m*theta - n*zeta*nfp)`.
+- The output stores `hphip = (1 / (2*pi)) * dPhi/ds`; VMEC `phipf` and `phips`
+  store `dPhi/ds`, so `nemec2vmec` writes `-2*pi*hphip` for AUG-like NEMEC
+  equilibria where `Phi` decreases from axis to edge.
+- `signgs` is written as `-1`, matching VMEC's negative Jacobian convention.
+
+The VMEC-side convention is cross-checked against [STELLOPT `read_wout_mod.f90`][stellopt-wout]
+and [DESC `vmec.py`][desc-vmec]:
+`xn` includes `nfp`, and real-space evaluation uses `m*theta - xn*zeta`.
+
+[stellopt-wout]: https://github.com/PrincetonUniversity/STELLOPT/blob/develop/LIBSTELL/Sources/Modules/read_wout_mod.f90
+[desc-vmec]: https://github.com/PlasmaControl/DESC/blob/master/desc/vmec.py
+
 Install dependencies:
 
     pip install -e ".[chartmap]"
