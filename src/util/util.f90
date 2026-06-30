@@ -13,6 +13,11 @@ contains
         real(dp) :: dx
         integer :: i
 
+        if (n <= 1) then
+            if (n == 1) x(1) = a
+            return
+        end if
+
         dx = (b - a) / (n - 1)
         do i = 1, n
             x(i) = a + (i - 1) * dx

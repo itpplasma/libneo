@@ -8,6 +8,6 @@ add_library(LIBNEO::collision_freqs ALIAS collision_freqs)
 
 target_link_libraries(collision_freqs PUBLIC
     fortnum
-    neo
+    neo_util
     species
 )
