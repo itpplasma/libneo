@@ -297,6 +297,7 @@ name = "libneo"
 version = "0.0.3"
 source = { editable = "." }
 dependencies = [
+    { name = "netcdf4" },
     { name = "numpy" },
 ]
 
@@ -332,6 +333,7 @@ requires-dist = [
     { name = "map2disc", marker = "extra == 'dev'", git = "https://github.com/itpplasma/map2disc.git" },
     { name = "matplotlib", marker = "extra == 'chartmap'" },
     { name = "matplotlib", marker = "extra == 'dev'" },
+    { name = "netcdf4" },
     { name = "netcdf4", marker = "extra == 'chartmap'" },
     { name = "netcdf4", marker = "extra == 'dev'" },
     { name = "numpy" },
