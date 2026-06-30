@@ -21,9 +21,14 @@ add_library(magfie STATIC
     coil_tools.f90
     analytical_gs_solver.f90
     analytical_tokamak_field.f90
+    # Moved from neo core
+    magfie_vmec.f90
 )
 target_link_libraries(magfie PRIVATE
     neo
+    neo_util
+    vmec_support
+    coordinates
     hdf5_tools
     BLAS::BLAS
     LAPACK::LAPACK
@@ -38,6 +43,6 @@ elseif(TARGET netcdf::netcdf)
 else()
     target_link_libraries(magfie PRIVATE netcdf netcdff)
 endif()
-set_property(TARGET neo_field PROPERTY
+set_property(TARGET magfie PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::magfie ALIAS magfie)
