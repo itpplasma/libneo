@@ -146,8 +146,13 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
-            # Fast mode or ARM: use native architecture (no portable baseline for ARM)
-            add_compile_options(-march=native)
+            # Fast mode or ARM: use native architecture
+            # gfortran on ARM needs -mcpu=native, not -march=native
+            if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+                add_compile_options(-mcpu=native)
+            else()
+                add_compile_options(-march=native)
+            endif()
         else()
             # Release on x86-64: use v2 baseline for broad compatibility
             add_compile_options(-march=x86-64-v2 -mtune=generic)
@@ -225,23 +230,61 @@ if(NOT TARGET fortnum)
     FetchContent_MakeAvailable(fortnum)
 endif()
 
-# Libraries that libneo depends on
+# Tier 0: no internal libneo dependencies
+add_subdirectory(src/util)
+add_subdirectory(src/nctools)
 add_subdirectory(src/hdf5_tools)
 add_subdirectory(src/polylag)
 add_subdirectory(src/interpolate)
 add_subdirectory(src/odeint)
 add_subdirectory(src/field)
-add_subdirectory(src/collisions)
-add_subdirectory(src/transport)
+
+# Tier 1: depends on Tier 0
+add_subdirectory(src/vmec_support)
+add_subdirectory(src/coordinates)
+
+# Tier 2: VMEC magnetic-field evaluation (depends on coordinates + vmec_support).
+# magnetic_field_base.f90 provides the `field_base` module used by the VMEC field
+# evaluators; keep it with them rather than in the generic neo_field interface.
+add_library(vmec_field STATIC
+    src/field/magnetic_field_base.f90
+    src/field/field_vmec.f90
+    src/field/vmec_field_eval.f90
+)
+target_link_libraries(vmec_field PUBLIC coordinates vmec_support interpolate)
+set_property(TARGET vmec_field PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+add_library(LIBNEO::vmec_field ALIAS vmec_field)
+
+# Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
+add_library(boozer STATIC
+    src/boozer_chartmap_types.f90
+    src/boozer_converter.F90
+    src/boozer_chartmap.f90
+    src/field/boozer_chartmap_io.f90
+)
+target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
+if(TARGET netcdf::netcdff)
+    target_link_libraries(boozer PRIVATE netcdf::netcdff)
+elseif(TARGET netcdf::netcdf)
+    target_link_libraries(boozer PRIVATE netcdf::netcdf netcdff)
+else()
+    target_link_libraries(boozer PRIVATE netcdf netcdff)
+endif()
+set_property(TARGET boozer PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+add_library(LIBNEO::boozer ALIAS boozer)
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
-# Sources for libneo core
+# Aggregate libneo core
 include(CMakeSources.in)
 
-# Libraries that depend on libneo
+# Tier 2+: depends on neo core
 add_subdirectory(src/species)
+add_subdirectory(src/collisions)
+add_subdirectory(src/transport)
 add_subdirectory(src/magfie)
 
 if(ENABLE_OPENMP)
