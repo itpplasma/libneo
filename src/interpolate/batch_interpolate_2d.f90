@@ -221,15 +221,15 @@ contains
       logical, intent(in) :: do_assume_present
 
       integer :: istat
-	      integer :: N1_order, N2_order
-	      integer :: order1, order2
-	      integer :: i1, i2, iq, k1, k2
-	      integer :: line, line2
-	      ! Work arrays - allocated fresh each call to avoid GCC OpenACC memory issues
-	      real(dp), allocatable :: work2(:, :, :)
-	      real(dp), allocatable :: work1(:, :, :)
-	      real(dp) :: h1, h2
-	      logical :: periodic1, periodic2
+      integer :: N1_order, N2_order
+      integer :: order1, order2
+      integer :: i1, i2, iq, k1, k2
+      integer :: line, line2
+      ! Work arrays - allocated fresh each call to avoid GCC OpenACC memory issues
+      real(dp), allocatable :: work2(:, :, :)
+      real(dp), allocatable :: work1(:, :, :)
+      real(dp) :: h1, h2
+      logical :: periodic1, periodic2
 
       N1_order = order(1)
       N2_order = order(2)
@@ -293,42 +293,42 @@ contains
       spl%x_min = x_min
       spl%num_quantities = n_quantities
 
-	      ! Always allocate fresh - no reuse to avoid GCC OpenACC memory issues
+      ! Always allocate fresh - no reuse to avoid GCC OpenACC memory issues
 #ifdef _OPENACC
-	      if (allocated(spl%coeff)) then
-	         if (acc_is_present(spl%coeff)) then
-	            !$acc exit data delete(spl%coeff)
-	            !$acc wait
-	         end if
-	         deallocate (spl%coeff)
-	      end if
+      if (allocated(spl%coeff)) then
+         if (acc_is_present(spl%coeff)) then
+            !$acc exit data delete(spl%coeff)
+            !$acc wait
+         end if
+         deallocate (spl%coeff)
+      end if
 #else
-	      if (allocated(spl%coeff)) deallocate (spl%coeff)
+      if (allocated(spl%coeff)) deallocate (spl%coeff)
 #endif
-	      allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
-	      if (istat /= 0) then
-	         error stop "construct_batch_splines_2d_resident_device:"// &
-	            " Allocation failed for coeff"
-	      end if
-	      !$acc enter data create(spl%coeff)
+      allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, n1, n2), stat=istat)
+      if (istat /= 0) then
+         error stop "construct_batch_splines_2d_resident_device:"// &
+            " Allocation failed for coeff"
+      end if
+      !$acc enter data create(spl%coeff)
 
-	      allocate (work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
-	      if (istat /= 0) then
-	         error stop "construct_batch_splines_2d_resident_device:"// &
-	            " Allocation failed for work2"
-	      end if
-	      allocate (work1(n1, n2*n_quantities, 0:N1_order), stat=istat)
-	      if (istat /= 0) then
-	         error stop "construct_batch_splines_2d_resident_device:"// &
-	            " Allocation failed for work1"
-	      end if
+      allocate (work2(n2, n1*n_quantities, 0:N2_order), stat=istat)
+      if (istat /= 0) then
+         error stop "construct_batch_splines_2d_resident_device:"// &
+            " Allocation failed for work2"
+      end if
+      allocate (work1(n1, n2*n_quantities, 0:N1_order), stat=istat)
+      if (istat /= 0) then
+         error stop "construct_batch_splines_2d_resident_device:"// &
+            " Allocation failed for work1"
+      end if
 
       h1 = spl%h_step(1)
       h2 = spl%h_step(2)
 
-	#ifdef _OPENACC
-	      block
-	         !$acc enter data create(work2, work1)
+#ifdef _OPENACC
+      block
+         !$acc enter data create(work2, work1)
 
          ! GCC OpenACC bug workaround: first parallel loop MUST write to spl%coeff
          !$acc parallel loop collapse(3) gang present(work2, spl%coeff) &
@@ -382,27 +382,27 @@ contains
             end do
          end do
 
-	         !$acc exit data delete(work2, work1)
-	         !$acc wait
-	      end block
-	#endif
+         !$acc exit data delete(work2, work1)
+         !$acc wait
+      end block
+#endif
 
-	      if (do_update) then
-	         !$acc update self(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, 1:n1, 1:n2))
-	      end if
-	   end subroutine construct_batch_splines_2d_resident_device_impl
+      if (do_update) then
+         !$acc update self(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, 1:n1, 1:n2))
+      end if
+   end subroutine construct_batch_splines_2d_resident_device_impl
 
    recursive subroutine destroy_batch_splines_2d(spl)
       type(BatchSplineData2D), intent(inout) :: spl
 
-	#ifdef _OPENACC
-	      if (allocated(spl%coeff)) then
-	         if (acc_is_present(spl%coeff)) then
-	            !$acc exit data delete(spl%coeff)
-	            !$acc wait
-	         end if
-	      end if
-	#endif
+#ifdef _OPENACC
+      if (allocated(spl%coeff)) then
+         if (acc_is_present(spl%coeff)) then
+            !$acc exit data delete(spl%coeff)
+            !$acc wait
+         end if
+      end if
+#endif
       if (allocated(spl%coeff)) deallocate (spl%coeff)
    end subroutine destroy_batch_splines_2d
 

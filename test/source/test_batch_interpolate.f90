@@ -22,13 +22,15 @@ program test_batch_interpolate
     call test_batch_spline_2d_evaluation()
     call test_batch_spline_2d_derivatives()
     call test_batch_spline_2d_mixed_periodic()
-    
+    call test_batch_spline_2d_repeated_construct_destroy()
+
     ! Test 3D batch splines
     call test_batch_spline_3d_construction()
     call test_batch_spline_3d_evaluation()
     call test_batch_spline_3d_derivatives()
     call test_batch_spline_3d_second_derivatives()
     call test_batch_spline_3d_field_components()
+    call test_batch_spline_3d_repeated_construct_destroy()
     call bench_batch_vs_individual_3d_der2()
     
     print *, "All batch spline tests passed!"
@@ -626,6 +628,93 @@ contains
         print *, "  PASSED: 2D batch construction matches individual splines"
 
     end subroutine test_batch_spline_2d_construction
+
+
+    subroutine test_batch_spline_2d_repeated_construct_destroy()
+        use interpolate
+
+        type(BatchSplineData2D) :: batch_spl
+
+        print *, "Testing 2D batch spline repeated construct/destroy with different grid sizes..."
+
+        call check_batch_spline_2d_case(batch_spl, 30, 35)
+        call check_batch_spline_2d_case(batch_spl, 45, 50)
+
+        print *, "  PASSED: 2D batch repeated construct/destroy across grid sizes"
+
+    end subroutine test_batch_spline_2d_repeated_construct_destroy
+
+
+    subroutine check_batch_spline_2d_case(batch_spl, n1, n2)
+        use interpolate
+
+        type(BatchSplineData2D), intent(inout) :: batch_spl
+        integer, intent(in) :: n1, n2
+
+        integer, parameter :: N_QUANTITIES = 2
+        integer, parameter :: ORDER(2) = [5, 3]
+        logical, parameter :: PERIODIC(2) = [.false., .false.]
+        real(dp), parameter :: REL_TOL = 1.0d-13
+        integer, parameter :: N_EVAL = 20
+
+        real(dp), allocatable :: y_batch(:, :, :), y_single(:, :)
+        real(dp), allocatable :: x1(:), x2(:)
+        type(SplineData2D) :: single_spls(N_QUANTITIES)
+        real(dp) :: x_eval(2)
+        real(dp) :: y_batch_result(N_QUANTITIES), y_single_result
+        real(dp) :: rel_err, scale_val
+        integer :: iq, i1, i2, ie
+
+        allocate (y_batch(n1, n2, N_QUANTITIES), y_single(n1, n2))
+        allocate (x1(n1), x2(n2))
+
+        call linspace(X_MIN, X_MAX, n1, x1)
+        call linspace(X_MIN, X_MAX, n2, x2)
+
+        do iq = 1, N_QUANTITIES
+            do i2 = 1, n2
+                do i1 = 1, n1
+                    y_batch(i1, i2, iq) = exp(0.2d0*cos(x1(i1)*real(iq, dp))) * &
+                                          (1.5d0 + 0.5d0*sin(x2(i2)))
+                end do
+            end do
+        end do
+
+        call construct_batch_splines_2d([X_MIN, X_MIN], [X_MAX, X_MAX], y_batch, ORDER, PERIODIC, batch_spl)
+
+        do iq = 1, N_QUANTITIES
+            y_single(:, :) = y_batch(:, :, iq)
+            call construct_splines_2d([X_MIN, X_MIN], [X_MAX, X_MAX], y_single, ORDER, PERIODIC, single_spls(iq))
+        end do
+
+        if (any(batch_spl%num_points /= [n1, n2])) error stop "Wrong num_points in repeated 2D construct"
+
+        do ie = 1, N_EVAL
+            x_eval(1) = X_MIN + (X_MAX - X_MIN) * real(ie, dp) / real(N_EVAL + 1, dp)
+            x_eval(2) = X_MIN + (X_MAX - X_MIN) * real(ie + 3, dp) / real(N_EVAL + 7, dp)
+
+            call evaluate_batch_splines_2d(batch_spl, x_eval, y_batch_result)
+
+            do iq = 1, N_QUANTITIES
+                call evaluate_splines_2d(single_spls(iq), x_eval, y_single_result)
+                scale_val = max(abs(y_batch_result(iq)), abs(y_single_result))
+                if (scale_val < 1.0d-100) error stop "Repeated 2D test data too close to zero"
+                rel_err = abs(y_batch_result(iq) - y_single_result) / scale_val
+                if (rel_err > REL_TOL) then
+                    print *, "Repeated 2D construct/destroy mismatch n1=", n1, " n2=", n2
+                    error stop "Repeated 2D construct/destroy: evaluation mismatch"
+                end if
+            end do
+        end do
+
+        call destroy_batch_splines_2d(batch_spl)
+        do iq = 1, N_QUANTITIES
+            call destroy_splines_2d(single_spls(iq))
+        end do
+
+        deallocate (y_batch, y_single, x1, x2)
+
+    end subroutine check_batch_spline_2d_case
     
     
     subroutine test_batch_spline_2d_evaluation()
@@ -885,8 +974,101 @@ contains
         call destroy_batch_splines_3d(batch_spl)
         
         print *, "  PASSED: 3D batch construction completed successfully"
-        
+
     end subroutine test_batch_spline_3d_construction
+
+
+    subroutine test_batch_spline_3d_repeated_construct_destroy()
+        use interpolate
+
+        type(BatchSplineData3D) :: batch_spl
+
+        print *, "Testing 3D batch spline repeated construct/destroy with different grid sizes..."
+
+        call check_batch_spline_3d_case(batch_spl, 20, 25, 30)
+        call check_batch_spline_3d_case(batch_spl, 24, 18, 22)
+
+        print *, "  PASSED: 3D batch repeated construct/destroy across grid sizes"
+
+    end subroutine test_batch_spline_3d_repeated_construct_destroy
+
+
+    subroutine check_batch_spline_3d_case(batch_spl, n1, n2, n3)
+        use interpolate
+
+        type(BatchSplineData3D), intent(inout) :: batch_spl
+        integer, intent(in) :: n1, n2, n3
+
+        integer, parameter :: N_QUANTITIES = 2
+        integer, parameter :: ORDER(3) = [3, 5, 3]
+        logical, parameter :: PERIODIC(3) = [.false., .false., .false.]
+        real(dp), parameter :: REL_TOL = 1.0d-12
+        integer, parameter :: N_EVAL = 10
+
+        real(dp), allocatable :: y_batch(:, :, :, :), y_single(:, :, :)
+        real(dp), allocatable :: x1(:), x2(:), x3(:)
+        type(SplineData3D) :: single_spls(N_QUANTITIES)
+        real(dp) :: x_eval(3)
+        real(dp) :: y_batch_result(N_QUANTITIES), y_single_result
+        real(dp) :: rel_err, scale_val
+        integer :: iq, i1, i2, i3, ie
+
+        allocate (y_batch(n1, n2, n3, N_QUANTITIES), y_single(n1, n2, n3))
+        allocate (x1(n1), x2(n2), x3(n3))
+
+        call linspace(X_MIN, X_MAX, n1, x1)
+        call linspace(X_MIN, X_MAX, n2, x2)
+        call linspace(X_MIN, X_MAX, n3, x3)
+
+        do iq = 1, N_QUANTITIES
+            do i3 = 1, n3
+                do i2 = 1, n2
+                    do i1 = 1, n1
+                        y_batch(i1, i2, i3, iq) = sin(x1(i1)) * cos(x2(i2)) * &
+                                                  exp(-x3(i3)*real(iq, dp)/10.0d0)
+                    end do
+                end do
+            end do
+        end do
+
+        call construct_batch_splines_3d([X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX], &
+                                       y_batch, ORDER, PERIODIC, batch_spl)
+
+        do iq = 1, N_QUANTITIES
+            y_single(:, :, :) = y_batch(:, :, :, iq)
+            call construct_splines_3d([X_MIN, X_MIN, X_MIN], [X_MAX, X_MAX, X_MAX], &
+                                    y_single, ORDER, PERIODIC, single_spls(iq))
+        end do
+
+        if (any(batch_spl%num_points /= [n1, n2, n3])) error stop "Wrong num_points in repeated 3D construct"
+
+        do ie = 1, N_EVAL
+            x_eval(1) = X_MIN + (X_MAX - X_MIN) * real(ie, dp) / real(N_EVAL + 1, dp)
+            x_eval(2) = X_MIN + (X_MAX - X_MIN) * real(ie + 2, dp) / real(N_EVAL + 5, dp)
+            x_eval(3) = X_MIN + (X_MAX - X_MIN) * real(ie + 4, dp) / real(N_EVAL + 9, dp)
+
+            call evaluate_batch_splines_3d(batch_spl, x_eval, y_batch_result)
+
+            do iq = 1, N_QUANTITIES
+                call evaluate_splines_3d(single_spls(iq), x_eval, y_single_result)
+                scale_val = max(abs(y_batch_result(iq)), abs(y_single_result))
+                if (scale_val < 1.0d-100) error stop "Repeated 3D test data too close to zero"
+                rel_err = abs(y_batch_result(iq) - y_single_result) / scale_val
+                if (rel_err > REL_TOL) then
+                    print *, "Repeated 3D construct/destroy mismatch n1=", n1, " n2=", n2, " n3=", n3
+                    error stop "Repeated 3D construct/destroy: evaluation mismatch"
+                end if
+            end do
+        end do
+
+        call destroy_batch_splines_3d(batch_spl)
+        do iq = 1, N_QUANTITIES
+            call destroy_splines_3d(single_spls(iq))
+        end do
+
+        deallocate (y_batch, y_single, x1, x2, x3)
+
+    end subroutine check_batch_spline_3d_case
     
     
     subroutine test_batch_spline_3d_evaluation()
