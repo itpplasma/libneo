@@ -1,15 +1,27 @@
 """Tests for bc_to_booz_xform: .bc -> boozmn -> chartmap conversion."""
 
+from contextlib import redirect_stdout
+import io
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.request import urlopen
 import numpy as np
 import pytest
 
 TESTS_DIR = Path(__file__).parent
 CIRC_BC = Path(__file__).resolve().parent / "circ.bc"
+LSP_WOUT_URL = (
+    "https://raw.githubusercontent.com/hiddenSymmetries/simsopt/master/"
+    "tests/test_files/wout_LandremanSenguptaPlunk_section5p3_reference.nc"
+)
 
 R0_expected = 1.64377  # m, from circ.bc header
 A_expected = 0.46      # m
+
+
+def _download(url: str, out_path: Path) -> None:
+    with urlopen(url, timeout=60) as resp, open(out_path, "wb") as f:
+        f.write(resp.read())
 
 
 @pytest.fixture(scope="module")
@@ -56,6 +68,9 @@ def _read_boozmn(path):
         d["jlist"] = np.asarray(ds.variables["jlist"][:])
         d["ixm"] = np.asarray(ds.variables["ixm_b"][:])
         d["ixn"] = np.asarray(ds.variables["ixn_b"][:])
+        d["lasym"] = int(np.asarray(ds.variables["lasym__logical__"][:]))
+        d["mboz"] = int(np.asarray(ds.variables["mboz_b"][:]))
+        d["nboz"] = int(np.asarray(ds.variables["nboz_b"][:]))
         d["iota"] = np.asarray(ds.variables["iota_b"][:])
         d["bvco"] = np.asarray(ds.variables["bvco_b"][:])
         d["buco"] = np.asarray(ds.variables["buco_b"][:])
@@ -64,6 +79,8 @@ def _read_boozmn(path):
         d["rmnc"] = np.asarray(ds.variables["rmnc_b"][:])
         d["zmns"] = np.asarray(ds.variables["zmns_b"][:])
         d["pmns"] = np.asarray(ds.variables["pmns_b"][:])
+        if d["lasym"]:
+            d["pmnc"] = np.asarray(ds.variables["pmnc_b"][:])
     return d
 
 
@@ -185,6 +202,59 @@ def test_asymmetric_bc_writes_pmnc_b(tmp_path):
             ds.variables["pmnc_b"][:, 1],
             np.array([0.6, 0.9]) * 2.0 * np.pi / bc.nper,
         )
+
+
+def test_asymmetric_vmec_bc_to_boozmn_matches_booz_xform_mode_signs(tmp_path):
+    pytest.importorskip("booz_xform")
+    pytest.importorskip("scipy")
+    pytest.importorskip("netCDF4")
+
+    from booz_xform import Booz_xform
+    from libneo.bc_to_booz_xform import convert_bc_to_boozmn
+    from libneo.boozer import BoozerFile
+
+    wout = tmp_path / "wout_lsp_section5p3.nc"
+    booz_xform_path = tmp_path / "boozmn_booz_xform.nc"
+    bc_path = tmp_path / "libneo.bc"
+    libneo_path = tmp_path / "boozmn_libneo.nc"
+
+    _download(LSP_WOUT_URL, wout)
+
+    with redirect_stdout(io.StringIO()):
+        bx = Booz_xform()
+        bx.read_wout(str(wout), True)
+        bx.mboz = 6
+        bx.nboz = 8
+        bx.run()
+        bx.write_boozmn(str(booz_xform_path))
+
+        bc = BoozerFile(filename="")
+        bc.convert_vmec_to_boozer(str(wout), uv_grid_multiplicator=1)
+        bc.write(str(bc_path))
+        convert_bc_to_boozmn(bc_path, libneo_path)
+
+    booz_xform_boozmn = _read_boozmn(booz_xform_path)
+    libneo_boozmn = _read_boozmn(libneo_path)
+
+    assert booz_xform_boozmn["lasym"] == 1
+    assert libneo_boozmn["lasym"] == 1
+    assert "pmnc" in libneo_boozmn
+    assert booz_xform_boozmn["nfp"] == libneo_boozmn["nfp"] == 3
+
+    booz_xform_modes = set(zip(booz_xform_boozmn["ixm"], booz_xform_boozmn["ixn"]))
+    libneo_modes = set(zip(libneo_boozmn["ixm"], libneo_boozmn["ixn"]))
+    missing_modes = sorted(booz_xform_modes - libneo_modes)
+    sign_flipped_modes = [
+        (m, n) for (m, n) in missing_modes if n != 0 and (m, -n) in libneo_modes
+    ]
+
+    assert not sign_flipped_modes
+    assert not missing_modes
+
+    booz_xform_m0_n = sorted(n for m, n in booz_xform_modes if m == 0 and n > 0)
+    assert booz_xform_m0_n
+    assert all((0, n) in libneo_modes for n in booz_xform_m0_n)
+    assert not any((0, -n) in libneo_modes for n in booz_xform_m0_n)
 
 
 def test_chartmap_from_bc_structure(chartmap_path):
