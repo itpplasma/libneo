@@ -25,6 +25,15 @@ wheels = [
 ]
 
 [[package]]
+name = "booz-xform"
+version = "0.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/c5/8551d16ce47bde9087d4f8fd7794e0f42c196da58ccd4c1039966ba669f5/booz_xform-0.0.9.tar.gz", hash = "sha256:d650c5fcbd668cbccea50fbfd6e5c507225eb07218acd4991875804aaeb574d7", size = 1075083, upload-time = "2025-07-29T13:15:02.503Z" }
+
+[[package]]
 name = "certifi"
 version = "2026.6.17"
 source = { registry = "https://pypi.org/simple" }
@@ -311,6 +320,7 @@ chartmap = [
     { name = "trimesh" },
 ]
 dev = [
+    { name = "booz-xform" },
     { name = "h5py" },
     { name = "map2disc" },
     { name = "matplotlib" },
@@ -328,6 +338,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
+    { name = "booz-xform", marker = "extra == 'dev'" },
     { name = "h5py", marker = "extra == 'dev'" },
     { name = "map2disc", marker = "extra == 'chartmap'", git = "https://github.com/itpplasma/map2disc.git" },
     { name = "map2disc", marker = "extra == 'dev'", git = "https://github.com/itpplasma/map2disc.git" },
