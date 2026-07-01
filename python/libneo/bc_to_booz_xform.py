@@ -14,7 +14,8 @@ Radial staggering convention (matches booz_xform output):
 Unit conversions:
   .bc curr_pol/nper [A] -> bvco_b [T*m] = curr_pol/nper * nfp * mu_0 / (2*pi)
   .bc curr_tor [A]      -> buco_b [T*m] = curr_tor * mu_0 / (2*pi)
-  .bc vmns (phase) = (phib-phi)*nper/(2*pi) -> pmns_b [rad] = vmns * 2*pi/nfp
+  .bc vmnc/vmns (phase) = (phib-phi)*nper/(2*pi)
+                     -> pmnc_b/pmns_b [rad] = vmnc/vmns * 2*pi/nfp
   .bc bmnc [T]          -> bmnc_b [T]  (no conversion needed)
   .bc rmnc, zmns [m]    -> rmnc_b, zmns_b [m] (no conversion needed)
 """
@@ -45,6 +46,7 @@ def _bc_to_mode_arrays(bc):
     zmns = np.zeros((nsurf, nmn))
     pmns = np.zeros((nsurf, nmn))
     bmnc = np.zeros((nsurf, nmn))
+    pmnc = np.zeros((nsurf, nmn))
     lasym = False
     rmns = np.zeros((nsurf, nmn)) if lasym else None
     zmnc = np.zeros((nsurf, nmn)) if lasym else None
@@ -59,8 +61,11 @@ def _bc_to_mode_arrays(bc):
 
         r_s = np.array(bc.rmns[k], dtype=float)
         z_c = np.array(bc.zmnc[k], dtype=float)
+        p_c = np.array(bc.vmnc[k], dtype=float) * TWOPI / bc.nper
         b_s = np.array(bc.bmns[k], dtype=float)
-        if np.any(r_s != 0.0) or np.any(z_c != 0.0) or np.any(b_s != 0.0):
+        pmnc[k] = p_c
+        if (np.any(r_s != 0.0) or np.any(z_c != 0.0)
+                or np.any(p_c != 0.0) or np.any(b_s != 0.0)):
             lasym = True
 
     if lasym:
@@ -72,7 +77,7 @@ def _bc_to_mode_arrays(bc):
             zmnc[k] = np.array(bc.zmnc[k], dtype=float)
             bmns[k] = np.array(bc.bmns[k], dtype=float)
 
-    return m0, n0, rmnc, zmns, pmns, bmnc, rmns, zmnc, bmns, lasym
+    return m0, n0, rmnc, zmns, pmns, bmnc, rmns, zmnc, pmnc, bmns, lasym
 
 
 def write_boozmn(bc, output, source=None):
@@ -118,7 +123,7 @@ def write_boozmn(bc, output, source=None):
         )
 
     # Build mode arrays from .bc.
-    m0, n0, rmnc_h, zmns_h, pmns_h, bmnc_h, rmns_h, zmnc_h, bmns_h, lasym = (
+    m0, n0, rmnc_h, zmns_h, pmns_h, bmnc_h, rmns_h, zmnc_h, pmnc_h, bmns_h, lasym = (
         _bc_to_mode_arrays(bc)
     )
     ixm = m0.astype(np.int32)
@@ -185,6 +190,7 @@ def write_boozmn(bc, output, source=None):
             _var("bmns_b", "f8", ("comput_surfs", "mn_mode"), bmns_h)
             _var("rmns_b", "f8", ("comput_surfs", "mn_mode"), rmns_h)
             _var("zmnc_b", "f8", ("comput_surfs", "mn_mode"), zmnc_h)
+            _var("pmnc_b", "f8", ("comput_surfs", "mn_mode"), pmnc_h)
 
         ds.bc2boozmn_source = str(source if source is not None else output)
 

@@ -1,6 +1,7 @@
 """Tests for bc_to_booz_xform: .bc -> boozmn -> chartmap conversion."""
 
 from pathlib import Path
+from types import SimpleNamespace
 import numpy as np
 import pytest
 
@@ -143,6 +144,47 @@ def test_boozmn_R0_from_rmnc(boozmn_path):
     assert abs(R0_computed - R0_expected) < 0.1, (
         f"R0={R0_computed:.4f} m, expected {R0_expected:.4f} m"
     )
+
+
+def test_asymmetric_bc_writes_pmnc_b(tmp_path):
+    """Asymmetric .bc phase cosine coefficients are preserved as pmnc_b."""
+    pytest.importorskip("netCDF4")
+    from libneo.bc_to_booz_xform import write_boozmn
+
+    modes = [np.array([0, 1], dtype=int), np.array([0, 1], dtype=int)]
+    zeros = [np.zeros(2), np.zeros(2)]
+    bc = SimpleNamespace(
+        nsurf=2,
+        nper=3,
+        s=np.array([0.25, 0.75]),
+        flux=1.0,
+        iota=np.array([0.4, 0.5]),
+        Jpol_divided_by_nper=np.array([1.0, 2.0]),
+        Itor=np.array([3.0, 4.0]),
+        m=modes,
+        n=modes,
+        rmnc=[np.array([1.0, 0.1]), np.array([1.1, 0.2])],
+        zmns=zeros,
+        vmns=zeros,
+        bmnc=[np.array([1.5, 0.3]), np.array([1.6, 0.4])],
+        rmns=zeros,
+        zmnc=zeros,
+        vmnc=[np.array([0.0, 0.6]), np.array([0.0, 0.9])],
+        bmns=zeros,
+    )
+
+    out = tmp_path / "asym.nc"
+    write_boozmn(bc, out)
+
+    import netCDF4
+
+    with netCDF4.Dataset(out) as ds:
+        assert int(np.asarray(ds.variables["lasym__logical__"][:])) == 1
+        assert "pmnc_b" in ds.variables
+        np.testing.assert_allclose(
+            ds.variables["pmnc_b"][:, 1],
+            np.array([0.6, 0.9]) * 2.0 * np.pi / bc.nper,
+        )
 
 
 def test_chartmap_from_bc_structure(chartmap_path):
