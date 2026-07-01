@@ -24,6 +24,7 @@ chartmap = [
     "matplotlib",
 ]
 dev = [
+  "booz-xform",
   "scipy",
   "shapely",
   "matplotlib",

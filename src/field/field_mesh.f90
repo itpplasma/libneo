@@ -70,6 +70,7 @@ subroutine field_mesh_init_with_field(self, limits, field, n_points, is_periodic
     integer, dimension(3), intent(in), optional :: n_points
     logical, intent(in), optional :: is_periodic(3)
 
+    integer, parameter :: n_points_default = 10
     integer :: i, j, k
     real(dp), dimension(:), allocatable :: x1, x2, x3
     real(dp), dimension(3) :: x, A, B
@@ -80,10 +81,10 @@ subroutine field_mesh_init_with_field(self, limits, field, n_points, is_periodic
         x2 = linspace(limits(2,1), limits(2,2), n_points(2))
         x3 = linspace(limits(3,1), limits(3,2), n_points(3))
     else
-        allocate(x1(10), x2(10), x3(10))
-        x1 = linspace(limits(1,1), limits(1,2), 10)
-        x2 = linspace(limits(2,1), limits(2,2), 10)
-        x3 = linspace(limits(3,1), limits(3,2), 10)
+        allocate(x1(n_points_default), x2(n_points_default), x3(n_points_default))
+        x1 = linspace(limits(1,1), limits(1,2), n_points_default)
+        x2 = linspace(limits(2,1), limits(2,2), n_points_default)
+        x3 = linspace(limits(3,1), limits(3,2), n_points_default)
     end if
 
     call self%A1%mesh_init(x1, x2, x3, is_periodic=is_periodic)

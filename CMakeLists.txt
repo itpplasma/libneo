@@ -1,5 +1,4 @@
 # This file is intended for configuration of libneo.
-# List of source files are in CMakeSources.in.
 
 # Basic cmake settings/requirements
 cmake_minimum_required(VERSION 3.22)
@@ -262,15 +261,24 @@ add_subdirectory(src/vmec_support)
 if(LIBNEO_BUILD_NUMERICS)
     add_subdirectory(src/coordinates)
 
-    # Tier 2: VMEC magnetic-field evaluation (depends on coordinates + vmec_support).
-    # magnetic_field_base.f90 provides the `field_base` module used by the VMEC field
-    # evaluators; keep it with them rather than in the generic neo_field interface.
-    add_library(vmec_field STATIC
+    # Tier 1: abstract magnetic-field interface. magnetic_field_base.f90 provides
+    # the `field_base` module (magnetic_field_t) used by the VMEC evaluators and
+    # by downstream codes; a standalone target so consumers link it instead of
+    # recompiling the source. Needs coordinates for coordinate_system_t.
+    add_library(magnetic_field_base STATIC
         src/field/magnetic_field_base.f90
+    )
+    target_link_libraries(magnetic_field_base PUBLIC coordinates)
+    set_property(TARGET magnetic_field_base PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::magnetic_field_base ALIAS magnetic_field_base)
+
+    # Tier 2: VMEC magnetic-field evaluation.
+    add_library(vmec_field STATIC
         src/field/field_vmec.f90
         src/field/vmec_field_eval.f90
     )
-    target_link_libraries(vmec_field PUBLIC coordinates vmec_support interpolate)
+    target_link_libraries(vmec_field PUBLIC magnetic_field_base coordinates vmec_support interpolate)
     set_property(TARGET vmec_field PROPERTY
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
     add_library(LIBNEO::vmec_field ALIAS vmec_field)
@@ -305,8 +313,51 @@ endif()
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
-# Aggregate libneo core
-include(CMakeSources.in)
+# Aggregate libneo core. neo owns only poincare and re-exports every decomposed
+# sub-target so monolithic consumers can keep linking LIBNEO::neo.
+add_library(neo STATIC
+    src/poincare.f90
+)
+target_link_libraries(neo PUBLIC
+    $<TARGET_OBJECTS:neo_polylag>
+    neo_util
+    nctools
+    vmec_support
+    coordinates
+    interpolate
+    hdf5_tools
+    field_base
+    neo_field
+    magnetic_field_base
+    vmec_field
+    boozer
+    odeint
+    fortnum
+)
+add_library(LIBNEO::neo ALIAS neo)
+set_target_properties(neo PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+add_library(mc_efit STATIC
+    src/MC/chamb_divB0.f90
+    src/MC/rng.f90
+)
+target_link_libraries(mc_efit neo magfie)
+
+add_executable(standardise_geqdsk.x
+    src/magfie/standardise_geqdsk.f90
+)
+target_link_libraries(standardise_geqdsk.x magfie)
+
+add_executable(vacfield.x src/magfie/vacfield.f90)
+add_executable(coil_convert.x src/magfie/coil_convert.f90)
+
+# Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
+set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
+
+target_link_libraries(vacfield.x magfie)
+target_link_libraries(coil_convert.x magfie)
 
 # Tier 2+: depends on neo core
 add_subdirectory(src/species)
