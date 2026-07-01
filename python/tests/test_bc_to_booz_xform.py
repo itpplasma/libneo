@@ -1,14 +1,27 @@
 """Tests for bc_to_booz_xform: .bc -> boozmn -> chartmap conversion."""
 
+from contextlib import redirect_stdout
+import io
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.request import urlopen
 import numpy as np
 import pytest
 
 TESTS_DIR = Path(__file__).parent
 CIRC_BC = Path(__file__).resolve().parent / "circ.bc"
+LSP_WOUT_URL = (
+    "https://raw.githubusercontent.com/hiddenSymmetries/simsopt/master/"
+    "tests/test_files/wout_LandremanSenguptaPlunk_section5p3_reference.nc"
+)
 
 R0_expected = 1.64377  # m, from circ.bc header
 A_expected = 0.46      # m
+
+
+def _download(url: str, out_path: Path) -> None:
+    with urlopen(url, timeout=60) as resp, open(out_path, "wb") as f:
+        f.write(resp.read())
 
 
 @pytest.fixture(scope="module")
@@ -55,6 +68,9 @@ def _read_boozmn(path):
         d["jlist"] = np.asarray(ds.variables["jlist"][:])
         d["ixm"] = np.asarray(ds.variables["ixm_b"][:])
         d["ixn"] = np.asarray(ds.variables["ixn_b"][:])
+        d["lasym"] = int(np.asarray(ds.variables["lasym__logical__"][:]))
+        d["mboz"] = int(np.asarray(ds.variables["mboz_b"][:]))
+        d["nboz"] = int(np.asarray(ds.variables["nboz_b"][:]))
         d["iota"] = np.asarray(ds.variables["iota_b"][:])
         d["bvco"] = np.asarray(ds.variables["bvco_b"][:])
         d["buco"] = np.asarray(ds.variables["buco_b"][:])
@@ -63,6 +79,9 @@ def _read_boozmn(path):
         d["rmnc"] = np.asarray(ds.variables["rmnc_b"][:])
         d["zmns"] = np.asarray(ds.variables["zmns_b"][:])
         d["pmns"] = np.asarray(ds.variables["pmns_b"][:])
+        if d["lasym"]:
+            d["bmns"] = np.asarray(ds.variables["bmns_b"][:])
+            d["pmnc"] = np.asarray(ds.variables["pmnc_b"][:])
     return d
 
 
@@ -143,6 +162,204 @@ def test_boozmn_R0_from_rmnc(boozmn_path):
     assert abs(R0_computed - R0_expected) < 0.1, (
         f"R0={R0_computed:.4f} m, expected {R0_expected:.4f} m"
     )
+
+
+def test_symmetric_bc_writes_modes_with_booz_xform_signs(tmp_path):
+    """Symmetric .bc coefficients keep booz_xform cos(m theta - n zeta)."""
+    pytest.importorskip("netCDF4")
+    from libneo.bc_to_booz_xform import write_boozmn
+
+    mode_m = np.array([0, 1, 1, 2], dtype=int)
+    mode_n = np.array([0, 1, -1, -2], dtype=int)
+    zeros = [np.zeros(4), np.zeros(4)]
+    bmnc = [
+        np.array([1.5, 0.12, -0.19, 0.08]),
+        np.array([1.6, -0.21, 0.15, -0.11]),
+    ]
+    vmns = [
+        np.array([0.0, -0.14, 0.22, 0.07]),
+        np.array([0.0, 0.18, -0.25, 0.09]),
+    ]
+    bc = SimpleNamespace(
+        nsurf=2,
+        nper=4,
+        s=np.array([0.25, 0.75]),
+        flux=1.0,
+        iota=np.array([0.4, 0.5]),
+        Jpol_divided_by_nper=np.array([1.0, 2.0]),
+        Itor=np.array([3.0, 4.0]),
+        m=[mode_m, mode_m],
+        n=[mode_n, mode_n],
+        rmnc=[np.ones(4), np.ones(4)],
+        zmns=zeros,
+        vmns=vmns,
+        bmnc=bmnc,
+        rmns=zeros,
+        zmnc=zeros,
+        vmnc=zeros,
+        bmns=zeros,
+    )
+
+    out = tmp_path / "sym.nc"
+    write_boozmn(bc, out)
+
+    d = _read_boozmn(out)
+    assert d["lasym"] == 0
+    assert d["mboz"] == 2
+    assert d["nboz"] == 2
+    np.testing.assert_array_equal(d["ixm"], mode_m)
+    np.testing.assert_array_equal(d["ixn"], mode_n * bc.nper)
+
+    surface = 1
+    theta = 0.37
+    zeta = 0.21
+    scale = 2.0 * np.pi / bc.nper
+    angle = mode_m * theta - d["ixn"] * zeta
+    np.testing.assert_allclose(
+        np.sum(d["bmnc"][surface] * np.cos(angle)),
+        np.sum(bmnc[surface] * np.cos(angle)),
+    )
+    np.testing.assert_allclose(
+        np.sum(d["pmns"][surface] * np.sin(angle)),
+        np.sum(vmns[surface] * scale * np.sin(angle)),
+    )
+
+
+def test_asymmetric_bc_writes_phase_coefficients_with_booz_xform_signs(tmp_path):
+    """Asymmetric .bc phase coefficients keep booz_xform cos(m theta - n zeta)."""
+    pytest.importorskip("netCDF4")
+    from libneo.bc_to_booz_xform import write_boozmn
+
+    mode_m = np.array([0, 0, 1, 1, 2], dtype=int)
+    mode_n = np.array([0, 1, -1, 1, -2], dtype=int)
+    zeros = [np.zeros(5), np.zeros(5)]
+    bmnc = [
+        np.array([1.5, 0.21, -0.13, 0.34, -0.08]),
+        np.array([1.6, -0.17, 0.22, 0.41, 0.19]),
+    ]
+    bmns = [
+        np.array([0.0, -0.12, 0.07, 0.18, -0.03]),
+        np.array([0.0, 0.09, -0.16, 0.25, 0.11]),
+    ]
+    vmns = [
+        np.array([0.0, 0.31, -0.23, 0.14, -0.05]),
+        np.array([0.0, -0.27, 0.19, 0.33, 0.08]),
+    ]
+    vmnc = [
+        np.array([0.0, -0.18, 0.26, -0.07, 0.16]),
+        np.array([0.0, 0.24, -0.11, 0.29, -0.21]),
+    ]
+    bc = SimpleNamespace(
+        nsurf=2,
+        nper=3,
+        s=np.array([0.25, 0.75]),
+        flux=1.0,
+        iota=np.array([0.4, 0.5]),
+        Jpol_divided_by_nper=np.array([1.0, 2.0]),
+        Itor=np.array([3.0, 4.0]),
+        m=[mode_m, mode_m],
+        n=[mode_n, mode_n],
+        rmnc=[
+            np.array([1.0, 0.1, 0.2, 0.3, 0.4]),
+            np.array([1.1, 0.2, 0.3, 0.4, 0.5]),
+        ],
+        zmns=zeros,
+        vmns=vmns,
+        bmnc=bmnc,
+        rmns=zeros,
+        zmnc=zeros,
+        vmnc=vmnc,
+        bmns=bmns,
+    )
+
+    out = tmp_path / "asym.nc"
+    write_boozmn(bc, out)
+
+    d = _read_boozmn(out)
+    assert d["lasym"] == 1
+    assert d["mboz"] == 2
+    assert d["nboz"] == 2
+    np.testing.assert_array_equal(d["ixm"], mode_m)
+    np.testing.assert_array_equal(d["ixn"], mode_n * bc.nper)
+
+    scale = 2.0 * np.pi / bc.nper
+    np.testing.assert_allclose(d["pmns"], np.asarray(vmns) * scale)
+    np.testing.assert_allclose(d["pmnc"], np.asarray(vmnc) * scale)
+
+    surface = 1
+    theta = 0.37
+    zeta = 0.21
+    angle = mode_m * theta - d["ixn"] * zeta
+    np.testing.assert_allclose(
+        np.sum(
+            d["bmnc"][surface] * np.cos(angle)
+            + d["bmns"][surface] * np.sin(angle)
+        ),
+        np.sum(bmnc[surface] * np.cos(angle) + bmns[surface] * np.sin(angle)),
+    )
+    np.testing.assert_allclose(
+        np.sum(
+            d["pmnc"][surface] * np.cos(angle)
+            + d["pmns"][surface] * np.sin(angle)
+        ),
+        np.sum(
+            vmnc[surface] * scale * np.cos(angle)
+            + vmns[surface] * scale * np.sin(angle)
+        ),
+    )
+
+
+def test_asymmetric_vmec_bc_to_boozmn_matches_booz_xform_mode_signs(tmp_path):
+    pytest.importorskip("booz_xform")
+    pytest.importorskip("scipy")
+    pytest.importorskip("netCDF4")
+
+    from booz_xform import Booz_xform
+    from libneo.bc_to_booz_xform import convert_bc_to_boozmn
+    from libneo.boozer import BoozerFile
+
+    wout = tmp_path / "wout_lsp_section5p3.nc"
+    booz_xform_path = tmp_path / "boozmn_booz_xform.nc"
+    bc_path = tmp_path / "libneo.bc"
+    libneo_path = tmp_path / "boozmn_libneo.nc"
+
+    _download(LSP_WOUT_URL, wout)
+
+    with redirect_stdout(io.StringIO()):
+        bx = Booz_xform()
+        bx.read_wout(str(wout), True)
+        bx.mboz = 6
+        bx.nboz = 8
+        bx.run()
+        bx.write_boozmn(str(booz_xform_path))
+
+        bc = BoozerFile(filename="")
+        bc.convert_vmec_to_boozer(str(wout), uv_grid_multiplicator=1)
+        bc.write(str(bc_path))
+        convert_bc_to_boozmn(bc_path, libneo_path)
+
+    booz_xform_boozmn = _read_boozmn(booz_xform_path)
+    libneo_boozmn = _read_boozmn(libneo_path)
+
+    assert booz_xform_boozmn["lasym"] == 1
+    assert libneo_boozmn["lasym"] == 1
+    assert "pmnc" in libneo_boozmn
+    assert booz_xform_boozmn["nfp"] == libneo_boozmn["nfp"] == 3
+
+    booz_xform_modes = set(zip(booz_xform_boozmn["ixm"], booz_xform_boozmn["ixn"]))
+    libneo_modes = set(zip(libneo_boozmn["ixm"], libneo_boozmn["ixn"]))
+    missing_modes = sorted(booz_xform_modes - libneo_modes)
+    sign_flipped_modes = [
+        (m, n) for (m, n) in missing_modes if n != 0 and (m, -n) in libneo_modes
+    ]
+
+    assert not sign_flipped_modes
+    assert not missing_modes
+
+    booz_xform_m0_n = sorted(n for m, n in booz_xform_modes if m == 0 and n > 0)
+    assert booz_xform_m0_n
+    assert all((0, n) in libneo_modes for n in booz_xform_m0_n)
+    assert not any((0, -n) in libneo_modes for n in booz_xform_m0_n)
 
 
 def test_chartmap_from_bc_structure(chartmap_path):
