@@ -61,6 +61,8 @@ jobs:
           # status is never trusted. The run's own status/conclusion is
           # authoritative, re-queried with tolerance for transient read failures
           # so a watch or query glitch is never mistaken for a failed run.
+          # Returns 0 success, 2 cancelled (retryable by the caller), 1 any
+          # other terminal state or timeout.
           await_run() {
             local repo=$1 run_id=$2 deadline=$((SECONDS + 5400)) misses=0 state
             while [ "$SECONDS" -lt "$deadline" ]; do
@@ -79,6 +81,9 @@ jobs:
               misses=0
               case "$state" in
                 "completed success") return 0 ;;
+                "completed cancelled")
+                  echo "::warning::$repo run $run_id was cancelled (likely superseded by a concurrent dispatch)"
+                  return 2 ;;
                 "completed "*)
                   echo "::error::$repo run $run_id concluded ${state#completed }"
                   return 1 ;;
@@ -93,23 +98,37 @@ jobs:
           # Always passes -f libneo_ref=$REF; extra -f args are appended. Returns
           # non-zero only on a dispatch failure, a run that never appears, or a
           # genuine non-success conclusion.
+          #
+          # Downstream workflow_dispatch runs can share a concurrency group
+          # keyed only on the workflow name (not on libneo_ref or PR), so two
+          # libneo PRs dispatching the same downstream at nearly the same time
+          # can cancel each other's run. That cancellation says nothing about
+          # this PR's libneo — retry a few times with backoff before giving up.
           run_wf() {
             local repo=$1 wf=$2; shift 2
-            local before run_id=""
-            before=$(latest_dispatch_id "$repo" "$wf")
-            if ! gh workflow run "$wf" -R "itpplasma/$repo" -f "libneo_ref=$REF" "$@"; then
-              echo "::error::failed to dispatch $repo ($wf) — workflow may lack workflow_dispatch trigger"
-              return 1
-            fi
-            for _ in $(seq 1 24); do
-              sleep 5
-              run_id=$(latest_dispatch_id "$repo" "$wf")
-              [ -n "$run_id" ] && [ "$run_id" != "$before" ] && break
+            local before run_id="" attempt rc
+            for attempt in 1 2 3; do
+              before=$(latest_dispatch_id "$repo" "$wf")
+              if ! gh workflow run "$wf" -R "itpplasma/$repo" -f "libneo_ref=$REF" "$@"; then
+                echo "::error::failed to dispatch $repo ($wf) — workflow may lack workflow_dispatch trigger"
+                return 1
+              fi
+              run_id=""
+              for _ in $(seq 1 24); do
+                sleep 5
+                run_id=$(latest_dispatch_id "$repo" "$wf")
+                [ -n "$run_id" ] && [ "$run_id" != "$before" ] && break
+              done
+              if [ -z "$run_id" ] || [ "$run_id" = "$before" ]; then
+                echo "::error::could not find dispatched run for $repo ($wf)"; return 1
+              fi
+              await_run "$repo" "$run_id"; rc=$?
+              [ "$rc" -eq 2 ] || return "$rc"
+              echo "::warning::$repo ($wf) retry $attempt/3 after cancellation"
+              sleep $((attempt * 20))
             done
-            if [ -z "$run_id" ] || [ "$run_id" = "$before" ]; then
-              echo "::error::could not find dispatched run for $repo ($wf)"; return 1
-            fi
-            await_run "$repo" "$run_id"
+            echo "::error::$repo ($wf) cancelled on every retry"
+            return 1
           }
 
           # FULL=true (libneo PR labeled 'full-ci') also runs each downstream's
