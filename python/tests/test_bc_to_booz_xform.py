@@ -80,6 +80,7 @@ def _read_boozmn(path):
         d["zmns"] = np.asarray(ds.variables["zmns_b"][:])
         d["pmns"] = np.asarray(ds.variables["pmns_b"][:])
         if d["lasym"]:
+            d["bmns"] = np.asarray(ds.variables["bmns_b"][:])
             d["pmnc"] = np.asarray(ds.variables["pmnc_b"][:])
     return d
 
@@ -163,13 +164,91 @@ def test_boozmn_R0_from_rmnc(boozmn_path):
     )
 
 
-def test_asymmetric_bc_writes_pmnc_b(tmp_path):
-    """Asymmetric .bc phase cosine coefficients are preserved as pmnc_b."""
+def test_symmetric_bc_writes_modes_with_booz_xform_signs(tmp_path):
+    """Symmetric .bc coefficients keep booz_xform cos(m theta - n zeta)."""
     pytest.importorskip("netCDF4")
     from libneo.bc_to_booz_xform import write_boozmn
 
-    modes = [np.array([0, 1], dtype=int), np.array([0, 1], dtype=int)]
-    zeros = [np.zeros(2), np.zeros(2)]
+    mode_m = np.array([0, 1, 1, 2], dtype=int)
+    mode_n = np.array([0, 1, -1, -2], dtype=int)
+    zeros = [np.zeros(4), np.zeros(4)]
+    bmnc = [
+        np.array([1.5, 0.12, -0.19, 0.08]),
+        np.array([1.6, -0.21, 0.15, -0.11]),
+    ]
+    vmns = [
+        np.array([0.0, -0.14, 0.22, 0.07]),
+        np.array([0.0, 0.18, -0.25, 0.09]),
+    ]
+    bc = SimpleNamespace(
+        nsurf=2,
+        nper=4,
+        s=np.array([0.25, 0.75]),
+        flux=1.0,
+        iota=np.array([0.4, 0.5]),
+        Jpol_divided_by_nper=np.array([1.0, 2.0]),
+        Itor=np.array([3.0, 4.0]),
+        m=[mode_m, mode_m],
+        n=[mode_n, mode_n],
+        rmnc=[np.ones(4), np.ones(4)],
+        zmns=zeros,
+        vmns=vmns,
+        bmnc=bmnc,
+        rmns=zeros,
+        zmnc=zeros,
+        vmnc=zeros,
+        bmns=zeros,
+    )
+
+    out = tmp_path / "sym.nc"
+    write_boozmn(bc, out)
+
+    d = _read_boozmn(out)
+    assert d["lasym"] == 0
+    assert d["mboz"] == 2
+    assert d["nboz"] == 2
+    np.testing.assert_array_equal(d["ixm"], mode_m)
+    np.testing.assert_array_equal(d["ixn"], mode_n * bc.nper)
+
+    surface = 1
+    theta = 0.37
+    zeta = 0.21
+    scale = 2.0 * np.pi / bc.nper
+    angle = mode_m * theta - d["ixn"] * zeta
+    np.testing.assert_allclose(
+        np.sum(d["bmnc"][surface] * np.cos(angle)),
+        np.sum(bmnc[surface] * np.cos(angle)),
+    )
+    np.testing.assert_allclose(
+        np.sum(d["pmns"][surface] * np.sin(angle)),
+        np.sum(vmns[surface] * scale * np.sin(angle)),
+    )
+
+
+def test_asymmetric_bc_writes_phase_coefficients_with_booz_xform_signs(tmp_path):
+    """Asymmetric .bc phase coefficients keep booz_xform cos(m theta - n zeta)."""
+    pytest.importorskip("netCDF4")
+    from libneo.bc_to_booz_xform import write_boozmn
+
+    mode_m = np.array([0, 0, 1, 1, 2], dtype=int)
+    mode_n = np.array([0, 1, -1, 1, -2], dtype=int)
+    zeros = [np.zeros(5), np.zeros(5)]
+    bmnc = [
+        np.array([1.5, 0.21, -0.13, 0.34, -0.08]),
+        np.array([1.6, -0.17, 0.22, 0.41, 0.19]),
+    ]
+    bmns = [
+        np.array([0.0, -0.12, 0.07, 0.18, -0.03]),
+        np.array([0.0, 0.09, -0.16, 0.25, 0.11]),
+    ]
+    vmns = [
+        np.array([0.0, 0.31, -0.23, 0.14, -0.05]),
+        np.array([0.0, -0.27, 0.19, 0.33, 0.08]),
+    ]
+    vmnc = [
+        np.array([0.0, -0.18, 0.26, -0.07, 0.16]),
+        np.array([0.0, 0.24, -0.11, 0.29, -0.21]),
+    ]
     bc = SimpleNamespace(
         nsurf=2,
         nper=3,
@@ -178,30 +257,56 @@ def test_asymmetric_bc_writes_pmnc_b(tmp_path):
         iota=np.array([0.4, 0.5]),
         Jpol_divided_by_nper=np.array([1.0, 2.0]),
         Itor=np.array([3.0, 4.0]),
-        m=modes,
-        n=modes,
-        rmnc=[np.array([1.0, 0.1]), np.array([1.1, 0.2])],
+        m=[mode_m, mode_m],
+        n=[mode_n, mode_n],
+        rmnc=[
+            np.array([1.0, 0.1, 0.2, 0.3, 0.4]),
+            np.array([1.1, 0.2, 0.3, 0.4, 0.5]),
+        ],
         zmns=zeros,
-        vmns=zeros,
-        bmnc=[np.array([1.5, 0.3]), np.array([1.6, 0.4])],
+        vmns=vmns,
+        bmnc=bmnc,
         rmns=zeros,
         zmnc=zeros,
-        vmnc=[np.array([0.0, 0.6]), np.array([0.0, 0.9])],
-        bmns=zeros,
+        vmnc=vmnc,
+        bmns=bmns,
     )
 
     out = tmp_path / "asym.nc"
     write_boozmn(bc, out)
 
-    import netCDF4
+    d = _read_boozmn(out)
+    assert d["lasym"] == 1
+    assert d["mboz"] == 2
+    assert d["nboz"] == 2
+    np.testing.assert_array_equal(d["ixm"], mode_m)
+    np.testing.assert_array_equal(d["ixn"], mode_n * bc.nper)
 
-    with netCDF4.Dataset(out) as ds:
-        assert int(np.asarray(ds.variables["lasym__logical__"][:])) == 1
-        assert "pmnc_b" in ds.variables
-        np.testing.assert_allclose(
-            ds.variables["pmnc_b"][:, 1],
-            np.array([0.6, 0.9]) * 2.0 * np.pi / bc.nper,
-        )
+    scale = 2.0 * np.pi / bc.nper
+    np.testing.assert_allclose(d["pmns"], np.asarray(vmns) * scale)
+    np.testing.assert_allclose(d["pmnc"], np.asarray(vmnc) * scale)
+
+    surface = 1
+    theta = 0.37
+    zeta = 0.21
+    angle = mode_m * theta - d["ixn"] * zeta
+    np.testing.assert_allclose(
+        np.sum(
+            d["bmnc"][surface] * np.cos(angle)
+            + d["bmns"][surface] * np.sin(angle)
+        ),
+        np.sum(bmnc[surface] * np.cos(angle) + bmns[surface] * np.sin(angle)),
+    )
+    np.testing.assert_allclose(
+        np.sum(
+            d["pmnc"][surface] * np.cos(angle)
+            + d["pmns"][surface] * np.sin(angle)
+        ),
+        np.sum(
+            vmnc[surface] * scale * np.cos(angle)
+            + vmns[surface] * scale * np.sin(angle)
+        ),
+    )
 
 
 def test_asymmetric_vmec_bc_to_boozmn_matches_booz_xform_mode_signs(tmp_path):
