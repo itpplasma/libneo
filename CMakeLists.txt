@@ -292,6 +292,7 @@ add_library(boozer STATIC
     src/field/boozer_chartmap_io.f90
     src/field/boozmn_file.f90
     src/field/boozmn_reader.f90
+    src/field/bc_file.f90
 )
 target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
 target_link_libraries(boozer PRIVATE nctools)

@@ -580,6 +580,14 @@ set_tests_properties(test_boozmn_reader PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+add_executable(test_bc_file.x source/test_bc_file.f90)
+target_link_libraries(test_bc_file.x neo)
+add_test(NAME test_bc_file
+  COMMAND test_bc_file.x)
+set_tests_properties(test_bc_file PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(test_delthe_delphi_bv_d2.x source/test_delthe_delphi_bv_d2.f90)
 target_link_libraries(test_delthe_delphi_bv_d2.x neo)
 add_test(NAME test_delthe_delphi_bv_d2
