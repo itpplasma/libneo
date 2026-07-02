@@ -36,4 +36,7 @@ elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   install (DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/ifort/include)
 endif ()
 
+set_property(TARGET hdf5_tools PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+
 add_library(LIBNEO::hdf5_tools ALIAS hdf5_tools)
