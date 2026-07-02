@@ -572,6 +572,14 @@ set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_boozmn_reader.x source/test_boozmn_reader.f90)
+target_link_libraries(test_boozmn_reader.x neo)
+add_test(NAME test_boozmn_reader
+  COMMAND test_boozmn_reader.x)
+set_tests_properties(test_boozmn_reader PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(test_bc_file.x source/test_bc_file.f90)
 target_link_libraries(test_bc_file.x neo)
 add_test(NAME test_bc_file
