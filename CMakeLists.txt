@@ -290,8 +290,11 @@ add_library(boozer STATIC
     src/boozer_converter.F90
     src/boozer_chartmap.f90
     src/field/boozer_chartmap_io.f90
+    src/field/boozmn_file.f90
+    src/field/boozmn_reader.f90
 )
 target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
+target_link_libraries(boozer PRIVATE nctools)
 if(TARGET netcdf::netcdff)
     target_link_libraries(boozer PRIVATE netcdf::netcdff)
 elseif(TARGET netcdf::netcdf)
