@@ -1,13 +1,12 @@
-!> Pin the boozmn NetCDF reader and the boozmn -> Boozer-spline loader.
+!> Pin the boozmn NetCDF writer/reader and the boozmn -> Boozer-spline loader.
 !>
-!> Writes synthetic booz_xform boozmn files (symmetric and asymmetric),
-!> checks the raw fields read_boozmn returns, then loads the symmetric file
-!> via load_boozer_from_boozmn and compares |B| from splint_boozer_coord
-!> against the analytic Fourier sum of the fixture modes.
+!> Writes synthetic booz_xform boozmn files (symmetric and asymmetric) via
+!> write_boozmn, checks the raw fields read_boozmn returns (round trip), then
+!> loads the symmetric file via load_boozer_from_boozmn and compares |B| from
+!> splint_boozer_coord against the analytic Fourier sum of the fixture modes.
 program test_boozmn_reader
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use netcdf
-    use boozmn_file, only: boozmn_data_t, read_boozmn
+    use boozmn_file, only: boozmn_data_t, read_boozmn, write_boozmn
     use boozmn_reader, only: load_boozer_from_boozmn
     use boozer_sub, only: splint_boozer_coord
 
@@ -123,114 +122,40 @@ contains
         character(len=*), intent(in) :: path
         logical, intent(in) :: asym
 
-        integer :: ncid, dim_radius, dim_mode, dim_surf
-        integer :: var_ns, var_nfp, var_lasym
-        integer :: var_jlist, var_ixm, var_ixn
-        integer :: var_iota, var_buco, var_bvco, var_phi
-        integer :: var_bmnc, var_rmnc, var_zmns, var_pmns
-        integer :: var_bmns, var_rmns, var_zmnc, var_pmnc
-        integer :: lasym_int
-        real(dp), dimension(ns_full) :: buco, bvco
-        real(dp), dimension(nmode, nsurf) :: coeff
+        type(boozmn_data_t) :: b
 
-        call check_nc(nf90_create(path, nf90_clobber, ncid), 'create boozmn')
-        call check_nc(nf90_def_dim(ncid, 'radius', ns_full, dim_radius), &
-                      'define radius')
-        call check_nc(nf90_def_dim(ncid, 'mn_mode', nmode, dim_mode), &
-                      'define mn_mode')
-        call check_nc(nf90_def_dim(ncid, 'comput_surfs', nsurf, dim_surf), &
-                      'define comput_surfs')
-
-        call check_nc(nf90_def_var(ncid, 'ns_b', nf90_int, varid=var_ns), &
-                      'define ns_b')
-        call check_nc(nf90_def_var(ncid, 'nfp_b', nf90_int, varid=var_nfp), &
-                      'define nfp_b')
-        call check_nc(nf90_def_var(ncid, 'lasym__logical__', nf90_int, &
-                                   varid=var_lasym), 'define lasym')
-        call check_nc(nf90_def_var(ncid, 'jlist', nf90_int, [dim_surf], &
-                                   var_jlist), 'define jlist')
-        call check_nc(nf90_def_var(ncid, 'ixm_b', nf90_int, [dim_mode], &
-                                   var_ixm), 'define ixm_b')
-        call check_nc(nf90_def_var(ncid, 'ixn_b', nf90_int, [dim_mode], &
-                                   var_ixn), 'define ixn_b')
-        call check_nc(nf90_def_var(ncid, 'iota_b', nf90_double, [dim_radius], &
-                                   var_iota), 'define iota_b')
-        call check_nc(nf90_def_var(ncid, 'buco_b', nf90_double, [dim_radius], &
-                                   var_buco), 'define buco_b')
-        call check_nc(nf90_def_var(ncid, 'bvco_b', nf90_double, [dim_radius], &
-                                   var_bvco), 'define bvco_b')
-        call check_nc(nf90_def_var(ncid, 'phi_b', nf90_double, [dim_radius], &
-                                   var_phi), 'define phi_b')
-        call check_nc(nf90_def_var(ncid, 'bmnc_b', nf90_double, &
-                                   [dim_mode, dim_surf], var_bmnc), 'define bmnc_b')
-        call check_nc(nf90_def_var(ncid, 'rmnc_b', nf90_double, &
-                                   [dim_mode, dim_surf], var_rmnc), 'define rmnc_b')
-        call check_nc(nf90_def_var(ncid, 'zmns_b', nf90_double, &
-                                   [dim_mode, dim_surf], var_zmns), 'define zmns_b')
-        call check_nc(nf90_def_var(ncid, 'pmns_b', nf90_double, &
-                                   [dim_mode, dim_surf], var_pmns), 'define pmns_b')
+        b%ns = ns_full
+        b%nfp = 1
+        b%nmodes = nmode
+        b%nsurf = nsurf
+        b%asym = asym
+        allocate (b%jlist(nsurf), b%ixm(nmode), b%ixn(nmode))
+        allocate (b%iota(ns_full), b%buco(ns_full), b%bvco(ns_full), &
+                  b%phi(ns_full))
+        allocate (b%bmnc(nmode, nsurf), b%zmns(nmode, nsurf), &
+                  b%pmns(nmode, nsurf))
+        allocate (b%rmnc(nmode, nsurf), source=0.0_dp)
+        b%jlist = jlist
+        b%ixm = ixm
+        b%ixn = ixn
+        b%iota = iota_full
+        b%buco = [0.01_dp, 0.02_dp, 0.03_dp, 0.04_dp, 0.05_dp]
+        b%bvco = [0.2_dp, 0.21_dp, 0.22_dp, 0.23_dp, 0.24_dp]
+        b%phi = phi_full
+        b%bmnc = spread(bmn, dim=2, ncopies=nsurf)
+        b%rmnc(1, :) = [1.8_dp, 1.9_dp, 2.0_dp]
+        b%zmns = 0.1_dp*b%bmnc
+        b%pmns = 0.2_dp*b%bmnc
         if (asym) then
-            call check_nc(nf90_def_var(ncid, 'bmns_b', nf90_double, &
-                                       [dim_mode, dim_surf], var_bmns), &
-                          'define bmns_b')
-            call check_nc(nf90_def_var(ncid, 'rmns_b', nf90_double, &
-                                       [dim_mode, dim_surf], var_rmns), &
-                          'define rmns_b')
-            call check_nc(nf90_def_var(ncid, 'zmnc_b', nf90_double, &
-                                       [dim_mode, dim_surf], var_zmnc), &
-                          'define zmnc_b')
-            call check_nc(nf90_def_var(ncid, 'pmnc_b', nf90_double, &
-                                       [dim_mode, dim_surf], var_pmnc), &
-                          'define pmnc_b')
+            allocate (b%bmns(nmode, nsurf), b%rmns(nmode, nsurf), &
+                      b%zmnc(nmode, nsurf), b%pmnc(nmode, nsurf))
+            b%bmns = 0.5_dp*b%bmnc
+            b%rmns = 0.3_dp*b%bmnc
+            b%zmnc = 0.4_dp*b%bmnc
+            b%pmnc = 0.25_dp*b%bmnc
         end if
-        call check_nc(nf90_enddef(ncid), 'end definitions')
 
-        buco = [0.01_dp, 0.02_dp, 0.03_dp, 0.04_dp, 0.05_dp]
-        bvco = [0.2_dp, 0.21_dp, 0.22_dp, 0.23_dp, 0.24_dp]
-        lasym_int = 0
-        if (asym) lasym_int = 1
-
-        call check_nc(nf90_put_var(ncid, var_ns, ns_full), 'write ns_b')
-        call check_nc(nf90_put_var(ncid, var_nfp, 1), 'write nfp_b')
-        call check_nc(nf90_put_var(ncid, var_lasym, lasym_int), 'write lasym')
-        call check_nc(nf90_put_var(ncid, var_jlist, jlist), 'write jlist')
-        call check_nc(nf90_put_var(ncid, var_ixm, ixm), 'write ixm_b')
-        call check_nc(nf90_put_var(ncid, var_ixn, ixn), 'write ixn_b')
-        call check_nc(nf90_put_var(ncid, var_iota, iota_full), 'write iota_b')
-        call check_nc(nf90_put_var(ncid, var_buco, buco), 'write buco_b')
-        call check_nc(nf90_put_var(ncid, var_bvco, bvco), 'write bvco_b')
-        call check_nc(nf90_put_var(ncid, var_phi, phi_full), 'write phi_b')
-
-        coeff = spread(bmn, dim=2, ncopies=nsurf)
-        call check_nc(nf90_put_var(ncid, var_bmnc, coeff), 'write bmnc_b')
-        coeff = 0.0_dp
-        coeff(1, :) = [1.8_dp, 1.9_dp, 2.0_dp]
-        call check_nc(nf90_put_var(ncid, var_rmnc, coeff), 'write rmnc_b')
-        coeff = 0.1_dp*spread(bmn, dim=2, ncopies=nsurf)
-        call check_nc(nf90_put_var(ncid, var_zmns, coeff), 'write zmns_b')
-        coeff = 0.2_dp*spread(bmn, dim=2, ncopies=nsurf)
-        call check_nc(nf90_put_var(ncid, var_pmns, coeff), 'write pmns_b')
-        if (asym) then
-            coeff = 0.5_dp*spread(bmn, dim=2, ncopies=nsurf)
-            call check_nc(nf90_put_var(ncid, var_bmns, coeff), 'write bmns_b')
-            coeff = 0.3_dp*spread(bmn, dim=2, ncopies=nsurf)
-            call check_nc(nf90_put_var(ncid, var_rmns, coeff), 'write rmns_b')
-            coeff = 0.4_dp*spread(bmn, dim=2, ncopies=nsurf)
-            call check_nc(nf90_put_var(ncid, var_zmnc, coeff), 'write zmnc_b')
-            coeff = 0.25_dp*spread(bmn, dim=2, ncopies=nsurf)
-            call check_nc(nf90_put_var(ncid, var_pmnc, coeff), 'write pmnc_b')
-        end if
-        call check_nc(nf90_close(ncid), 'close boozmn')
+        call write_boozmn(path, b)
     end subroutine write_boozmn_fixture
-
-    subroutine check_nc(status, context)
-        integer, intent(in) :: status
-        character(len=*), intent(in) :: context
-
-        if (status /= nf90_noerr) then
-            print *, trim(context), ': ', trim(nf90_strerror(status))
-            error stop 'boozmn fixture NetCDF error'
-        end if
-    end subroutine check_nc
 
 end program test_boozmn_reader
