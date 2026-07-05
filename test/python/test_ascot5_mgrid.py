@@ -2,6 +2,7 @@ import os
 import shutil
 from pathlib import Path
 
+import h5py
 import numpy as np
 import matplotlib
 
@@ -65,6 +66,16 @@ def test_field_from_mgrid(tmp_path):
     gname = write_b3ds_hdf5(output, field, desc="mgrid-test")
     assert output.exists()
     assert gname.startswith("B_3DS")
+
+    nr, nz, nphi = 6, 5, 4
+    with h5py.File(output, "r") as h5:
+        g = h5["bfield"][gname]
+        assert g["psi"].shape == (nz, nr)
+        assert g["br"].shape == (nz, nphi, nr)
+        assert int(g["psi_nr"][0]) == nr
+        assert int(g["psi_nz"][0]) == nz
+        assert float(g["psi_rmin"][0]) == float(g["b_rmin"][0])
+        assert float(g["psi_zmax"][0]) == float(g["b_zmax"][0])
 
     bmag = (
         np.sqrt(

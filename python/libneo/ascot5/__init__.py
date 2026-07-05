@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Tuple
 
 import math
 import time
@@ -72,10 +72,10 @@ def _load_vmec_metadata(wout_path: Path) -> Tuple[int, float, float, np.ndarray]
     with netCDF4.Dataset(wout_path) as ds:
         nfp = int(ds.variables["nfp"][()])
         axis_r = float(ds.variables["raxis_cc"][0])
-        if "zaxis_cs" in ds.variables:
-            axis_z = float(ds.variables["zaxis_cs"][0])
-        else:
+        if "zaxis_cc" in ds.variables:
             axis_z = float(ds.variables["zaxis_cc"][0])
+        else:
+            axis_z = 0.0
         iota = np.array(ds.variables["iotaf"][...], dtype=float)
     return nfp, axis_r, axis_z, iota
 
@@ -557,7 +557,13 @@ def write_b3ds_hdf5(path: str | Path, field: B3DSField, desc: str | None = None,
         g.create_dataset("axisz", data=(data["axisz"],), dtype="f8")
         g.create_dataset("psi0", data=(data["psi0"],), dtype="f8")
         g.create_dataset("psi1", data=(data["psi1"],), dtype="f8")
-        g.create_dataset("psi", data=data["psi"], dtype="f8")
+        g.create_dataset("psi_rmin", data=(data["b_rmin"],), dtype="f8")
+        g.create_dataset("psi_rmax", data=(data["b_rmax"],), dtype="f8")
+        g.create_dataset("psi_nr", data=(data["b_nr"],), dtype="i4")
+        g.create_dataset("psi_zmin", data=(data["b_zmin"],), dtype="f8")
+        g.create_dataset("psi_zmax", data=(data["b_zmax"],), dtype="f8")
+        g.create_dataset("psi_nz", data=(data["b_nz"],), dtype="i4")
+        g.create_dataset("psi", data=np.transpose(data["psi"]), dtype="f8")
         br_si = np.transpose(field.br, (2, 1, 0)) * GAUSS_TO_TESLA
         bphi_si = np.transpose(field.bphi, (2, 1, 0)) * GAUSS_TO_TESLA
         bz_si = np.transpose(field.bz, (2, 1, 0)) * GAUSS_TO_TESLA
