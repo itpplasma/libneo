@@ -3,7 +3,8 @@ program test_ripple_field
     !> the perturbation must be N-fold periodic in phi, have a peak-to-peak
     !> amplitude of the same order as delta0, and scale linearly with delta0.
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use analytical_tokamak_field, only: analytical_circular_eq_t
+    use analytical_tokamak_field, only: analytical_circular_eq_t, &
+                                        compute_analytical_field_cylindrical
     implicit none
 
     integer :: test_count, pass_count
@@ -18,6 +19,7 @@ program test_ripple_field
     call test_ripple_amplitude_order_delta0()
     call test_ripple_amplitude_scales_with_delta0()
     call test_zero_ripple_recovers_axisymmetric()
+    call test_cylindrical_wrapper_matches_method()
 
     print *, ""
     print *, "===================="
@@ -82,22 +84,24 @@ contains
 
     subroutine test_ripple_amplitude_order_delta0()
         !> Peak-to-peak ripple modulation of B_phi, scanned over phi at a
-        !> fixed (R, Z), should be the same order of magnitude as delta0
-        !> relative to the axisymmetric B_phi (within a generous factor,
-        !> since the divergence-free correction trades the naive
-        !> "B_phi *= 1 + delta0*cos(N*phi)" model for an exact one).
+        !> fixed (R, Z) on the midplane, must match the closed-form
+        !> divergence-free amplitude. At Z = z0 the envelope has theta = 0, so
+        !>   d(delta)/dR = delta0 * alpha0 * radius^(alpha0-1) / a0^alpha0,
+        !> and B_phi = B0*R0/R + (B0*R0/N) * d(delta)/dR * cos(N*phi) has
+        !> peak-to-peak fraction (relative to B0*R0/R) of
+        !>   2 * R * d(delta)/dR / N.
         type(analytical_circular_eq_t) :: eq
-        real(dp) :: R_flux, Z_flux, delta0
+        real(dp) :: R_flux, Z_flux
         real(dp) :: B_R, B_Z, B_phi, B_mod
         real(dp) :: phi, Bphi_min, Bphi_max, Bphi_axisym
-        real(dp) :: peak_to_peak_fraction
+        real(dp) :: peak_to_peak_fraction, expected_fraction
+        real(dp) :: radius, ddelta_dR
         integer :: i, nphi
 
         call init_default_ripple(eq, 0.10_dp)
-        delta0 = eq%delta0
 
         R_flux = eq%R0 + 1.0_dp
-        Z_flux = 0.0_dp
+        Z_flux = eq%z0
         nphi = 360
 
         Bphi_min = huge(1.0_dp)
@@ -112,15 +116,13 @@ contains
         Bphi_axisym = eq%B0 * eq%R0 / R_flux
         peak_to_peak_fraction = (Bphi_max - Bphi_min) / Bphi_axisym
 
-        test_count = test_count + 1
-        if (peak_to_peak_fraction > 0.3_dp * delta0 .and. &
-            peak_to_peak_fraction < 3.0_dp * delta0) then
-            pass_count = pass_count + 1
-        else
-            print *, "  FAIL: peak-to-peak B_phi ripple fraction order delta0"
-            print *, "    delta0:                  ", delta0
-            print *, "    peak-to-peak fraction:    ", peak_to_peak_fraction
-        end if
+        radius = R_flux - eq%R0
+        ddelta_dR = eq%delta0 * eq%alpha0 * radius**(eq%alpha0 - 1.0_dp) &
+                    / eq%a0**eq%alpha0
+        expected_fraction = 2.0_dp * R_flux * ddelta_dR / real(eq%Nripple, dp)
+
+        call assert_close(peak_to_peak_fraction, expected_fraction, 1.0e-9_dp, &
+            "peak-to-peak B_phi ripple matches divergence-free amplitude")
 
         call eq%cleanup()
         print *, ""
@@ -197,6 +199,34 @@ contains
         call eq%cleanup()
         print *, ""
     end subroutine test_zero_ripple_recovers_axisymmetric
+
+    subroutine test_cylindrical_wrapper_matches_method()
+        !> compute_analytical_field_cylindrical must return exactly what the
+        !> type-bound eval_bfield_ripple produces, for a rippled equilibrium.
+        type(analytical_circular_eq_t) :: eq
+        real(dp) :: R, phi, Z
+        real(dp) :: B_R, B_Z, B_phi, B_mod
+        real(dp) :: B_R_w, B_Z_w, B_phi_w, B_mod_w
+        real(dp), parameter :: tol = 1.0e-14_dp
+
+        call init_default_ripple(eq, 0.10_dp)
+
+        R = eq%R0 + 1.0_dp
+        phi = 0.7_dp
+        Z = 0.3_dp
+
+        call eq%eval_bfield_ripple(R, phi, Z, B_R, B_Z, B_phi, B_mod)
+        call compute_analytical_field_cylindrical(eq, R, phi, Z, &
+                                                  B_R_w, B_Z_w, B_phi_w, B_mod_w)
+
+        call assert_close(B_R_w, B_R, tol, "cyl wrapper: B_R matches method")
+        call assert_close(B_Z_w, B_Z, tol, "cyl wrapper: B_Z matches method")
+        call assert_close(B_phi_w, B_phi, tol, "cyl wrapper: B_phi matches method")
+        call assert_close(B_mod_w, B_mod, tol, "cyl wrapper: B_mod matches method")
+
+        call eq%cleanup()
+        print *, ""
+    end subroutine test_cylindrical_wrapper_matches_method
 
     subroutine assert_close(actual, expected, tolerance, test_name)
         real(dp), intent(in) :: actual, expected, tolerance

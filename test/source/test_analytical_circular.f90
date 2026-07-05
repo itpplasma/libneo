@@ -499,17 +499,20 @@ contains
         x(3) = Z
         call field_ptr%compute_bfield(x, B)
 
-        ! Compute via original interface for reference
-        call eq%eval_bfield_ripple(R, phi, Z, B_R, B_Z, B_phi, B_mod)
+        ! Reference from the independent axisymmetric routine (no ripple here),
+        ! and the closed-form toroidal field B_phi = B0*R0/R. This checks that
+        ! compute_bfield returns physically correct values in the documented
+        ! B = (B_R, B_phi, B_Z) order, not merely that it delegates.
+        call eq%eval_bfield(R, Z, B_R, B_Z, B_phi, B_mod)
         B_ref(1) = B_R
         B_ref(2) = B_phi
         B_ref(3) = B_Z
 
-        ! Verify they match
         tol = 1.0e-12_dp
         call assert_close(B(1), B_ref(1), tol, "field_t: B_R matches")
         call assert_close(B(2), B_ref(2), tol, "field_t: B_phi matches")
         call assert_close(B(3), B_ref(3), tol, "field_t: B_Z matches")
+        call assert_close(B(2), B0 * R0 / R, tol, "field_t: B_phi equals B0*R0/R")
 
         call eq%cleanup()
         nullify(field_ptr)

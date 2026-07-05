@@ -129,6 +129,15 @@ contains
             self%z0 = 0.0_dp
         end if
 
+        if (self%Nripple > 0) then
+            if (self%a0 <= 0.0_dp) then
+                error stop "analytical_circular_eq_t: ripple radius a0 must be > 0"
+            end if
+            if (self%alpha0 <= 1.0_dp) then
+                error stop "analytical_circular_eq_t: ripple alpha0 must be > 1"
+            end if
+        end if
+
         call solve_coefficients(self%epsilon, self%kappa, self%delta, self%A_param, self%coeffs)
 
         self%initialized = .true.
@@ -290,13 +299,15 @@ contains
     !>
     !> delta(R,Z) = delta0 * exp(-theta^2/2) * (radius/a0)^alpha0, with
     !> radius, theta the polar coordinates around (R0, z0). Returns
-    !> ddelta_dR = d(delta)/dR at fixed Z, regularized to zero at radius=0
-    !> where the (radius, theta) parametrization is singular but delta and
-    !> its gradient vanish in the limit for alpha0 > 1.
+    !> Optional ddelta_dR = d(delta)/dR at fixed Z, regularized to zero at
+    !> radius=0 where the (radius, theta) parametrization is singular but delta
+    !> and its gradient vanish in the limit for alpha0 > 1. Callers that only
+    !> need the envelope (e.g. compute_afield) omit ddelta_dR.
     subroutine ripple_envelope(self, R, Z, delta_ripple, ddelta_dR)
         class(analytical_circular_eq_t), intent(in) :: self
         real(dp), intent(in) :: R, Z
-        real(dp), intent(out) :: delta_ripple, ddelta_dR
+        real(dp), intent(out) :: delta_ripple
+        real(dp), intent(out), optional :: ddelta_dR
 
         real(dp) :: dR0, dZ0, radius, theta, gauss_theta, ripple_prefactor
         real(dp), parameter :: radius_floor = 1.0e-12_dp
@@ -308,12 +319,14 @@ contains
         gauss_theta = exp(-0.5_dp * theta**2)
         delta_ripple = self%delta0 * gauss_theta * (radius / self%a0)**self%alpha0
 
-        if (radius > radius_floor * self%a0) then
-            ripple_prefactor = self%delta0 * gauss_theta &
-                              * radius**(self%alpha0 - 2.0_dp) / self%a0**self%alpha0
-            ddelta_dR = ripple_prefactor * (self%alpha0 * dR0 + theta * dZ0)
-        else
-            ddelta_dR = 0.0_dp
+        if (present(ddelta_dR)) then
+            if (radius > radius_floor * self%a0) then
+                ripple_prefactor = self%delta0 * gauss_theta &
+                    * radius**(self%alpha0 - 2.0_dp) / self%a0**self%alpha0
+                ddelta_dR = ripple_prefactor * (self%alpha0 * dR0 + theta * dZ0)
+            else
+                ddelta_dR = 0.0_dp
+            end if
         end if
     end subroutine ripple_envelope
 
@@ -345,31 +358,20 @@ contains
         real(dp), intent(in) :: R, phi, Z
         real(dp), intent(out) :: B_R, B_Z, B_phi, B_mod
 
-        real(dp) :: dpsi_dR, dpsi_dZ
         real(dp) :: F_psi, Nphi_dp
         real(dp) :: delta_ripple, ddelta_dR
 
-        if (.not. self%initialized) then
-            error stop "analytical_circular_eq_t not initialized"
-        end if
-
-        call self%eval_psi_derivatives(R, Z, dpsi_dR, dpsi_dZ)
-
-        B_R = -(1.0_dp / R) * dpsi_dZ
-        B_Z = (1.0_dp / R) * dpsi_dR
-
-        F_psi = self%B0 * self%R0
-        B_phi = F_psi / R
+        call self%eval_bfield(R, Z, B_R, B_Z, B_phi, B_mod)
 
         if (self%Nripple > 0) then
             call ripple_envelope(self, R, Z, delta_ripple, ddelta_dR)
+            F_psi = self%B0 * self%R0
             Nphi_dp = real(self%Nripple, dp) * phi
 
             B_R = B_R + (F_psi / R) * delta_ripple * sin(Nphi_dp)
             B_phi = B_phi + (F_psi / real(self%Nripple, dp)) * ddelta_dR * cos(Nphi_dp)
+            B_mod = sqrt(B_R**2 + B_Z**2 + B_phi**2)
         end if
-
-        B_mod = sqrt(B_R**2 + B_Z**2 + B_phi**2)
     end subroutine eval_bfield_ripple
 
     !> Cleanup
@@ -416,7 +418,7 @@ contains
         real(dp), intent(out) :: A(3)
 
         real(dp) :: R, phi, Z, psi, F_psi
-        real(dp) :: delta_ripple, ddelta_dR
+        real(dp) :: delta_ripple
 
         if (.not. self%initialized) then
             error stop "analytical_circular_eq_t not initialized"
@@ -434,7 +436,7 @@ contains
         A(3) = -F_psi * log(R)
 
         if (self%Nripple > 0) then
-            call ripple_envelope(self, R, Z, delta_ripple, ddelta_dR)
+            call ripple_envelope(self, R, Z, delta_ripple)
             A(3) = A(3) - (F_psi / real(self%Nripple, dp)) * delta_ripple &
                  * cos(real(self%Nripple, dp) * phi)
         end if
