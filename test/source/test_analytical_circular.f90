@@ -406,7 +406,6 @@ contains
         real(dp) :: div_B, tol
         integer :: i, j, k
         real(dp) :: r_min, r_max, z_max
-        real(dp), parameter :: pi = 4.0_dp * atan(1.0_dp)
         real(dp), parameter :: phis(4) = [0.0_dp, 0.35_dp, 1.0_dp, 2.3_dp]
 
         print *, "Testing divergence-free B-field (TF ripple)..."
