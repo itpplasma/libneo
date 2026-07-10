@@ -263,6 +263,7 @@ if(LIBNEO_BUILD_NUMERICS)
     # Tier 1: SPECTRE equilibrium HDF5 reader (depends on hdf5_tools only).
     add_library(spectre_support STATIC
         src/spectre/spectre_reader.f90
+        src/spectre/spectre_basis.f90
     )
     target_link_libraries(spectre_support PUBLIC LIBNEO::hdf5_tools)
     set_property(TARGET spectre_support PROPERTY
