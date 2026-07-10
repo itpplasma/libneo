@@ -5,6 +5,7 @@ module libneo_coordinates
     use libneo_coordinates_chartmap
     use libneo_coordinates_validator
     use libneo_coordinates_file_detection
+    use libneo_coordinates_spectre
     implicit none
 
     public :: coordinate_system_t
@@ -22,6 +23,7 @@ module libneo_coordinates
     public :: chartmap_coordinate_system_t, make_chartmap_coordinate_system
     public :: CHARTMAP_LOCATED, CHARTMAP_CLAMPED_EDGE
     public :: CHARTMAP_OUTSIDE, CHARTMAP_NO_ROOT
+    public :: spectre_coordinate_system_t, make_spectre_coordinate_system
 
     public :: validate_chartmap_file
     public :: detect_refcoords_file_type
