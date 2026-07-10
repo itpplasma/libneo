@@ -259,6 +259,15 @@ add_subdirectory(src/field)
 add_subdirectory(src/vmec_support)
 
 if(LIBNEO_BUILD_NUMERICS)
+    # Tier 1: SPECTRE equilibrium HDF5 reader (depends on hdf5_tools only).
+    add_library(spectre_support STATIC
+        src/spectre/spectre_reader.f90
+    )
+    target_link_libraries(spectre_support PUBLIC LIBNEO::hdf5_tools)
+    set_property(TARGET spectre_support PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre ALIAS spectre_support)
+
     add_subdirectory(src/coordinates)
 
     # Tier 1: abstract magnetic-field interface. magnetic_field_base.f90 provides
