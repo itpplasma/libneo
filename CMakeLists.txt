@@ -47,6 +47,12 @@ endif()
 # field, nctools, util, ...) set this OFF to skip those dependencies entirely.
 option(LIBNEO_BUILD_NUMERICS "Build numerics-heavy components requiring BLAS/LAPACK and fortnum" ON)
 option(LIBNEO_BUILD_JOREK "Build the HDF5-backed JOREK restart component" ${LIBNEO_BUILD_NUMERICS})
+option(LIBNEO_DETERMINISTIC_FP
+    "Disable value-changing floating-point optimizations in GNU Release and Fast builds" OFF)
+
+if(LIBNEO_DETERMINISTIC_FP)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
@@ -87,6 +93,10 @@ set(libneo_VERSION_PATCH 20)
 include(${PROJECT_SOURCE_DIR}/cmake/SetupNVHPCCuda.cmake)
 
 enable_language(C Fortran)
+if(LIBNEO_DETERMINISTIC_FP AND NOT CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    message(FATAL_ERROR
+        "LIBNEO_DETERMINISTIC_FP currently supports only the GNU Fortran compiler")
+endif()
 if(LIBNEO_BUILD_TESTING)
     include(CTest)
 endif()
@@ -121,6 +131,9 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fmax-errors=1>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fbacktrace>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffree-line-length-132>)
+    if(LIBNEO_DETERMINISTIC_FP)
+        add_compile_options(-fno-fast-math -ffp-contract=off)
+    endif()
     if(ENABLE_OPENACC)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fopenacc>)
         add_link_options($<$<LINK_LANGUAGE:Fortran>:-fopenacc>)
@@ -146,9 +159,11 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
         # Common optimization flags for Release and Fast builds
         add_compile_options(-O3 -DNDEBUG
-                          -ffast-math -ffp-contract=fast
                           -funroll-loops
                           -ftree-vectorize)
+        if(NOT LIBNEO_DETERMINISTIC_FP)
+            add_compile_options(-ffast-math -ffp-contract=fast)
+        endif()
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
