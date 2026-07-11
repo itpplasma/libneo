@@ -45,6 +45,7 @@ module libneo_coordinates_spectre
         procedure :: metric_tensor => spectre_metric_tensor
         procedure :: metric_tensor_der => spectre_metric_tensor_der
         procedure :: from_cyl => spectre_from_cyl
+        procedure :: from_cyl_warm => spectre_from_cyl_warm
     end type spectre_coordinate_system_t
 
 contains
@@ -469,7 +470,7 @@ contains
 
         do lvol = 1, self%Mvol
             theta0 = spectre_seed_theta(self, lvol, xcyl(1), xcyl(3), zeta)
-            call newton_volume(self, lvol, xcyl(1), xcyl(3), zeta, theta0, &
+            call newton_volume(self, lvol, xcyl(1), xcyl(3), zeta, 0.0_dp, theta0, &
                                tol_res, tol_det, s, theta, converged)
             if (converged) then
                 if (s >= -1.0_dp - s_slack) then
@@ -485,6 +486,37 @@ contains
             end if
         end do
     end subroutine spectre_from_cyl
+
+    subroutine spectre_from_cyl_warm(self, xcyl, u, lvol, ierr)
+        class(spectre_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: xcyl(3)
+        real(dp), intent(inout) :: u(3)
+        integer, intent(in) :: lvol
+        integer, intent(out) :: ierr
+
+        real(dp), parameter :: tol_res = 1.0e-11_dp
+        real(dp), parameter :: tol_det = 1.0e-14_dp
+        real(dp), parameter :: s_slack = 1.0e-9_dp
+
+        real(dp) :: s0, s, theta
+        logical :: converged
+
+        ierr = 1
+        if (lvol < 1 .or. lvol > self%Mvol) return
+
+        s0 = 2.0_dp*(u(1) - real(lvol - 1, dp)) - 1.0_dp
+        call newton_volume(self, lvol, xcyl(1), xcyl(3), xcyl(2), s0, u(2), &
+                           tol_res, tol_det, s, theta, converged)
+        if (.not. converged) return
+        if (s < -1.0_dp - s_slack .or. s > 1.0_dp + s_slack) return
+
+        if (abs(s + 1.0_dp) <= s_slack) s = -1.0_dp
+        if (abs(s - 1.0_dp) <= s_slack) s = 1.0_dp
+        u(1) = real(lvol - 1, dp) + 0.5_dp*(s + 1.0_dp)
+        u(2) = modulo(theta, TWOPI)
+        u(3) = xcyl(2)
+        ierr = 0
+    end subroutine spectre_from_cyl_warm
 
     pure function spectre_seed_theta(self, lvol, R_tgt, Z_tgt, zeta) result(theta0)
         class(spectre_coordinate_system_t), intent(in) :: self
@@ -511,11 +543,11 @@ contains
         end do
     end function spectre_seed_theta
 
-    subroutine newton_volume(self, lvol, R_tgt, Z_tgt, zeta, theta0, &
+    subroutine newton_volume(self, lvol, R_tgt, Z_tgt, zeta, s0, theta0, &
                              tol_res, tol_det, s, theta, converged)
         class(spectre_coordinate_system_t), intent(in) :: self
         integer, intent(in) :: lvol
-        real(dp), intent(in) :: R_tgt, Z_tgt, zeta, theta0, tol_res, tol_det
+        real(dp), intent(in) :: R_tgt, Z_tgt, zeta, s0, theta0, tol_res, tol_det
         real(dp), intent(out) :: s, theta
         logical, intent(out) :: converged
 
@@ -526,7 +558,7 @@ contains
         integer :: iter, k
 
         converged = .false.
-        s = 0.0_dp
+        s = min(1.0_dp, max(-1.0_dp, s0))
         theta = theta0
 
         do iter = 1, max_iter

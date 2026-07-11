@@ -2,6 +2,7 @@ program test_spectre_coordinates
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use spectre_reader, only: spectre_data_t, load_spectre, free_spectre
     use libneo_coordinates, only: coordinate_system_t, &
+                                  spectre_coordinate_system_t, &
                                   make_spectre_coordinate_system
     use util_for_test, only: print_test, print_ok, print_fail
 
@@ -33,6 +34,8 @@ program test_spectre_coordinates
 
     call test_interface_continuity
     call test_roundtrip
+    call test_warm_roundtrip
+    call test_warm_interface_ownership
     call test_jacobian_vs_reference
     call test_metric_vs_fd
     call test_axis_single_signed
@@ -114,6 +117,79 @@ contains
             call print_fail
         end if
     end subroutine test_roundtrip
+
+    subroutine test_warm_roundtrip
+        integer :: lvol, jerr
+        real(dp) :: u_ref(3), u_warm(3), xcyl(3), dtheta
+        real(dp) :: worst_rho, worst_theta
+
+        call print_test('warm inverse converges from perturbed seeds in owned volume')
+        worst_rho = 0.0_dp
+        worst_theta = 0.0_dp
+        do lvol = 1, Mvol
+            u_ref = [real(lvol, dp) - 0.45_dp, 0.7_dp, 0.4_dp]
+            call cs%evaluate_cyl(u_ref, xcyl)
+            u_warm = [u_ref(1) + 0.1_dp, u_ref(2) + 0.15_dp, -1.0_dp]
+            select type (spectre => cs)
+            type is (spectre_coordinate_system_t)
+                call spectre%from_cyl_warm(xcyl, u_warm, lvol, jerr)
+            class default
+                jerr = 1
+            end select
+            if (jerr /= 0) exit
+            worst_rho = max(worst_rho, abs(u_warm(1) - u_ref(1)))
+            dtheta = modulo(u_warm(2) - u_ref(2) + 0.5_dp*twopi, twopi) &
+                - 0.5_dp*twopi
+            worst_theta = max(worst_theta, abs(dtheta))
+            if (u_warm(3) /= xcyl(2)) jerr = 1
+        end do
+
+        if (jerr == 0 .and. worst_rho < 1.0e-8_dp &
+            .and. worst_theta < 1.0e-8_dp) then
+            call print_ok
+        else
+            print *, '    ierr =', jerr, ' worst_rho =', worst_rho, &
+                ' worst_theta =', worst_theta
+            nfail = nfail + 1
+            call print_fail
+        end if
+    end subroutine test_warm_roundtrip
+
+    subroutine test_warm_interface_ownership
+        integer :: k, jerr_lo, jerr_hi
+        real(dp) :: u_ref(3), u_lo(3), u_hi(3), xcyl(3), worst
+
+        call print_test('warm inverse accepts exact shared interface from each owner')
+        worst = 0.0_dp
+        jerr_lo = 0
+        jerr_hi = 0
+        do k = 1, Mvol - 1
+            u_ref = [real(k, dp), 0.7_dp, 0.4_dp]
+            call cs%evaluate_cyl(u_ref, xcyl)
+            u_lo = [real(k, dp) - 0.05_dp, 0.8_dp, 0.0_dp]
+            u_hi = [real(k, dp) + 0.05_dp, 0.6_dp, 0.0_dp]
+            select type (spectre => cs)
+            type is (spectre_coordinate_system_t)
+                call spectre%from_cyl_warm(xcyl, u_lo, k, jerr_lo)
+                call spectre%from_cyl_warm(xcyl, u_hi, k + 1, jerr_hi)
+            class default
+                jerr_lo = 1
+                jerr_hi = 1
+            end select
+            worst = max(worst, abs(u_lo(1) - real(k, dp)))
+            worst = max(worst, abs(u_hi(1) - real(k, dp)))
+            if (jerr_lo /= 0 .or. jerr_hi /= 0) exit
+        end do
+
+        if (jerr_lo == 0 .and. jerr_hi == 0 .and. worst < 1.0e-8_dp) then
+            call print_ok
+        else
+            print *, '    ierr_lo =', jerr_lo, ' ierr_hi =', jerr_hi, &
+                ' worst_rho =', worst
+            nfail = nfail + 1
+            call print_fail
+        end if
+    end subroutine test_warm_interface_ownership
 
     subroutine test_jacobian_vs_reference
         integer :: iunit, io, lvol, nrows, sign_bad

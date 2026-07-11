@@ -1,6 +1,5 @@
 program test_spectre_field
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use spectre_reader, only: spectre_data_t
     use field_spectre, only: spectre_field_t, create_spectre_field
     use util_for_test, only: print_test, print_ok, print_fail
 
