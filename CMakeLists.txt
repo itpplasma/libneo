@@ -272,18 +272,36 @@ if(LIBNEO_BUILD_NUMERICS)
 
     add_subdirectory(src/coordinates)
 
-    # Tier 2: VMEC magnetic-field evaluation (depends on coordinates + vmec_support).
-    # magnetic_field_base.f90 provides the `field_base` module used by the VMEC field
-    # evaluators; keep it with them rather than in the generic neo_field interface.
-    add_library(vmec_field STATIC
+    # Tier 2: magnetic_field_base.f90 provides the `field_base` module (the
+    # magnetic_field_t contract) shared by the VMEC and SPECTRE evaluators.
+    add_library(magnetic_field_base STATIC
         src/field/magnetic_field_base.f90
+    )
+    target_link_libraries(magnetic_field_base PUBLIC coordinates)
+    set_property(TARGET magnetic_field_base PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::magnetic_field_base ALIAS magnetic_field_base)
+
+    # Tier 2: VMEC magnetic-field evaluation (depends on coordinates + vmec_support).
+    add_library(vmec_field STATIC
         src/field/field_vmec.f90
         src/field/vmec_field_eval.f90
     )
-    target_link_libraries(vmec_field PUBLIC coordinates vmec_support interpolate)
+    target_link_libraries(vmec_field PUBLIC magnetic_field_base coordinates
+                                            vmec_support interpolate)
     set_property(TARGET vmec_field PROPERTY
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
     add_library(LIBNEO::vmec_field ALIAS vmec_field)
+
+    # Tier 2: SPECTRE magnetic-field evaluation in the stacked-rho chart (#371).
+    add_library(spectre_field STATIC
+        src/field/field_spectre.f90
+    )
+    target_link_libraries(spectre_field PUBLIC magnetic_field_base coordinates
+                                               spectre_support)
+    set_property(TARGET spectre_field PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre_field ALIAS spectre_field)
 endif()
 
 # Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
