@@ -292,6 +292,16 @@ if(LIBNEO_BUILD_NUMERICS)
     set_property(TARGET vmec_field PROPERTY
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
     add_library(LIBNEO::vmec_field ALIAS vmec_field)
+
+    # Tier 2: SPECTRE magnetic-field evaluation in the stacked-rho chart (#371).
+    add_library(spectre_field STATIC
+        src/field/field_spectre.f90
+    )
+    target_link_libraries(spectre_field PUBLIC magnetic_field_base coordinates
+                                               spectre_support)
+    set_property(TARGET spectre_field PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre_field ALIAS spectre_field)
 endif()
 
 # Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
