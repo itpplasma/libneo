@@ -29,6 +29,16 @@ if (NOT Python_FOUND)
   message(FATAL_ERROR "Python interpreter required for GEQDSK scripts")
 endif()
 
+if(LIBNEO_DETERMINISTIC_FP)
+  add_test(
+    NAME deterministic_fp_compile_flags
+    COMMAND ${CMAKE_COMMAND}
+      -DCOMPILE_COMMANDS=${CMAKE_BINARY_DIR}/compile_commands.json
+      -DSOURCE_ROOT=${PROJECT_SOURCE_DIR}
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_deterministic_fp_flags.cmake
+  )
+endif()
+
 execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
