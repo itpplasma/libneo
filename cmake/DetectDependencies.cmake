@@ -131,13 +131,14 @@ message(STATUS "")
 message(STATUS "=== Detecting External Dependencies ===")
 message(STATUS "")
 
-# Light consumers (LIBNEO_BUILD_NUMERICS=OFF) link no HDF5-backed target and get
-# NetCDF via a pkg-config imported target (set up in the top-level CMakeLists),
-# so skip the nf-config detection here: it never triggers the HDF5/NetCDF
-# from-source superbuild and never injects nf-config's full static --flibs
-# (-lhdf5 -lz -lcurl, no -L) globally onto consumer executables.
-if(NOT DEFINED LIBNEO_BUILD_NUMERICS OR LIBNEO_BUILD_NUMERICS)
+# Light consumers get NetCDF through pkg-config and skip nf-config detection.
+# An explicitly enabled JOREK component still detects HDF5 without enabling the
+# numerical targets or the NetCDF/HDF5 source superbuild for those targets.
+if((NOT DEFINED LIBNEO_BUILD_NUMERICS OR LIBNEO_BUILD_NUMERICS) OR
+        (DEFINED LIBNEO_BUILD_JOREK AND LIBNEO_BUILD_JOREK))
     detect_hdf5()
+endif()
+if(NOT DEFINED LIBNEO_BUILD_NUMERICS OR LIBNEO_BUILD_NUMERICS)
     detect_netcdf()
 endif()
 
