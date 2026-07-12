@@ -10,19 +10,22 @@ find_program(UV_EXECUTABLE uv)
 set(_libneo_venv "${PROJECT_SOURCE_DIR}/.venv")
 
 if(UV_EXECUTABLE)
-    message(STATUS "uv: ${UV_EXECUTABLE} -- syncing project venv (chartmap extra)")
+    set(_libneo_uv_extra chartmap)
+    if(LIBNEO_BUILD_TESTING)
+        set(_libneo_uv_extra dev)
+    endif()
+    message(STATUS "uv: ${UV_EXECUTABLE} -- syncing project venv (${_libneo_uv_extra} extra)")
     execute_process(
-        COMMAND "${UV_EXECUTABLE}" sync --extra chartmap
+        COMMAND "${UV_EXECUTABLE}" sync --extra "${_libneo_uv_extra}"
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
         RESULT_VARIABLE _uv_rc
         OUTPUT_VARIABLE _uv_out
         ERROR_VARIABLE _uv_out)
     if(NOT _uv_rc EQUAL 0)
-        message(WARNING "uv sync failed; chartmap/map2disc tests may not run:\n${_uv_out}")
+        message(WARNING "uv sync failed; Python tests may not run:\n${_uv_out}")
     endif()
 else()
-    message(STATUS "uv not found; install uv or run 'uv sync --extra chartmap' "
-                   "for chartmap/map2disc tests")
+    message(STATUS "uv not found; install uv or sync the required project extra")
 endif()
 
 # Point find_package(Python) at the venv interpreter. Set Python_EXECUTABLE

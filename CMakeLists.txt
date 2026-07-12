@@ -28,17 +28,17 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     set(LIBNEO_IS_STANDALONE ON)
 endif()
 
-# Standalone builds run libneo's own Python tests and f2py; resolve Python from
-# the uv-managed project venv so their dependencies are available.
-if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
-endif()
-
 option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
 
 # Allow BUILD_TESTING to override (for subproject compatibility)
 if(DEFINED BUILD_TESTING)
     set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
+endif()
+
+# Standalone builds run libneo's own Python tests and f2py; resolve Python from
+# the uv-managed project venv so their dependencies are available.
+if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
 endif()
 
 # Numerics-heavy components (neo core, magfie, collisions, transport,
@@ -259,6 +259,16 @@ add_subdirectory(src/field)
 add_subdirectory(src/vmec_support)
 
 if(LIBNEO_BUILD_NUMERICS)
+    # Tier 1: SPECTRE equilibrium HDF5 reader (depends on hdf5_tools only).
+    add_library(spectre_support STATIC
+        src/spectre/spectre_reader.f90
+        src/spectre/spectre_basis.f90
+    )
+    target_link_libraries(spectre_support PUBLIC LIBNEO::hdf5_tools)
+    set_property(TARGET spectre_support PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre ALIAS spectre_support)
+
     add_subdirectory(src/coordinates)
 
     # Tier 1: abstract magnetic-field interface. magnetic_field_base.f90 provides
@@ -282,6 +292,16 @@ if(LIBNEO_BUILD_NUMERICS)
     set_property(TARGET vmec_field PROPERTY
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
     add_library(LIBNEO::vmec_field ALIAS vmec_field)
+
+    # Tier 2: SPECTRE magnetic-field evaluation in the stacked-rho chart (#371).
+    add_library(spectre_field STATIC
+        src/field/field_spectre.f90
+    )
+    target_link_libraries(spectre_field PUBLIC magnetic_field_base coordinates
+                                               spectre_support)
+    set_property(TARGET spectre_field PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre_field ALIAS spectre_field)
 endif()
 
 # Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
