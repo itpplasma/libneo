@@ -272,6 +272,7 @@ if(LIBNEO_BUILD_NUMERICS)
     # Tier 1: JOREK restart HDF5 reader (depends on hdf5_tools only).
     add_library(jorek_support STATIC
         src/field/jorek_restart.f90
+        src/field/jorek_bezier.f90
     )
     target_link_libraries(jorek_support PUBLIC LIBNEO::hdf5_tools)
     set_property(TARGET jorek_support PROPERTY
