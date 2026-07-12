@@ -1,6 +1,7 @@
 program test_jorek_restart_fixture
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use jorek_bezier, only: evaluate_jorek_geometry
+    use jorek_field_values, only: evaluate_jorek_variable
     use jorek_restart, only: jorek_restart_t, load_jorek_restart, &
         free_jorek_restart
     use util_for_test, only: print_test, print_ok, print_fail
@@ -51,6 +52,7 @@ contains
         call check_vertex_bounds(data)
         call check_neighbour_bounds(data)
         call check_geometry_oracle(data)
+        call check_value_oracle(data)
 
         call free_jorek_restart(data)
 
@@ -122,6 +124,21 @@ contains
         call check_dp('R_t', rz_st(1, 2), 0.0006138917527668017_dp)
         call check_dp('Z_t', rz_st(2, 2), -0.00017457983954904943_dp)
     end subroutine check_geometry_oracle
+
+    subroutine check_value_oracle(data)
+        type(jorek_restart_t), intent(in) :: data
+
+        real(dp) :: value, derivative(3)
+        integer :: ierr
+
+        call evaluate_jorek_variable(data, 1, 1, 0.2_dp, 0.7_dp, 0.4_dp, &
+            value, derivative, ierr)
+        call check_int('value ierr', ierr, 0)
+        call check_dp('value', value, -0.29533650641295134_dp)
+        call check_dp('value_s', derivative(1), 0.006069515481673916_dp)
+        call check_dp('value_t', derivative(2), -4.6960480732495265e-8_dp)
+        call check_dp('value_phi', derivative(3), 0.0_dp)
+    end subroutine check_value_oracle
 
     subroutine check_int(name, actual, expected)
         character(len=*), intent(in) :: name
