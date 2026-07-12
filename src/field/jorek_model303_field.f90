@@ -1,6 +1,7 @@
 module jorek_model303_field
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use jorek_bezier, only: evaluate_jorek_geometry, locate_jorek_element
+    use jorek_bezier, only: jorek_locator_t, evaluate_jorek_geometry, &
+        locate_jorek_element, locate_jorek_element_indexed
     use jorek_field_values, only: evaluate_jorek_variable
     use jorek_restart, only: jorek_restart_t
 
@@ -81,19 +82,26 @@ contains
     end subroutine evaluate_jorek_model303_b
 
     pure subroutine evaluate_jorek_model303_at(data, target_rz, phi, &
-            a_r_phi_z, b_r_z_phi, element, st, ierr)
+            a_r_phi_z, b_r_z_phi, element, st, ierr, locator)
         type(jorek_restart_t), intent(in) :: data
         real(dp), intent(in) :: target_rz(2), phi
         real(dp), intent(out) :: a_r_phi_z(3), b_r_z_phi(3)
         integer, intent(out) :: element
         real(dp), intent(out) :: st(2)
         integer, intent(out) :: ierr
+        type(jorek_locator_t), intent(in), optional :: locator
 
         a_r_phi_z = 0.0_dp
         b_r_z_phi = 0.0_dp
         element = 0
         st = 0.0_dp
-        call locate_jorek_element(data, target_rz, element, st(1), st(2), ierr)
+        if (present(locator)) then
+            call locate_jorek_element_indexed(data, locator, target_rz, &
+                element, st(1), st(2), ierr)
+        else
+            call locate_jorek_element(data, target_rz, element, st(1), st(2), &
+                ierr)
+        end if
         if (ierr /= 0) return
         call evaluate_jorek_model303_a(data, element, st(1), st(2), phi, &
             a_r_phi_z, ierr)

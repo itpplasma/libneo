@@ -1,7 +1,8 @@
 program test_jorek_bezier_geometry
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use jorek_bezier, only: cubic_jorek_basis, evaluate_jorek_geometry, &
-        locate_jorek_element
+        jorek_locator_t, build_jorek_locator, locate_jorek_element, &
+        locate_jorek_element_indexed
     use jorek_restart, only: jorek_restart_t
     use util_for_test, only: print_test, print_ok, print_fail
 
@@ -15,6 +16,8 @@ program test_jorek_bezier_geometry
     call test_affine_geometry
     call test_shared_edge
     call test_point_location
+    call test_indexed_point_location
+    call test_locator_bounds
     call test_rejected_inputs
     if (nfail > 0) error stop
 
@@ -111,6 +114,62 @@ contains
         call check_int('outside ierr', ierr, 1)
         call report(nfail_before)
     end subroutine test_point_location
+
+    subroutine test_indexed_point_location
+        type(jorek_restart_t) :: data
+        type(jorek_locator_t) :: locator
+        integer :: element, ierr, nfail_before
+        real(dp) :: s, t
+
+        call print_test('indexed point location preserves element ownership')
+        nfail_before = nfail
+        call make_two_element_strip(data)
+        call build_jorek_locator(data, locator, ierr)
+        call check_int('build ierr', ierr, 0)
+        call locate_jorek_element_indexed(data, locator, [11.25_dp, 0.6_dp], &
+            element, s, t, ierr)
+        call check_int('interior ierr', ierr, 0)
+        call check_int('interior element', element, 2)
+        call check_real('interior s', s, 0.25_dp)
+        call check_real('interior t', t, 0.6_dp)
+        call locate_jorek_element_indexed(data, locator, [11.0_dp, 0.37_dp], &
+            element, s, t, ierr)
+        call check_int('edge ierr', ierr, 0)
+        call check_int('edge element', element, 1)
+        call locate_jorek_element_indexed(data, locator, [13.0_dp, 0.5_dp], &
+            element, s, t, ierr)
+        call check_int('outside ierr', ierr, 1)
+        call report(nfail_before)
+    end subroutine test_indexed_point_location
+
+    subroutine test_locator_bounds
+        type(jorek_restart_t) :: data
+        type(jorek_locator_t) :: locator
+        real(dp) :: rz(2), rz_st(2, 2), s, t
+        integer :: ierr, i, j, nfail_before
+
+        call print_test('locator bounds contain curved Hermite geometry')
+        nfail_before = nfail
+        call make_two_element_strip(data)
+        data%x(:, 1, 2, 1) = [2.0_dp, -1.0_dp, 0.7_dp, -1.3_dp, &
+            1.1_dp, -0.4_dp]
+        data%x(:, 1, 3, 2) = [0.8_dp, -0.5_dp, 1.4_dp, -0.9_dp, &
+            0.6_dp, -1.2_dp]
+        call build_jorek_locator(data, locator, ierr)
+        call check_int('build ierr', ierr, 0)
+        do i = 0, 10
+            s = real(i, dp)/10.0_dp
+            do j = 0, 10
+                t = real(j, dp)/10.0_dp
+                call evaluate_jorek_geometry(data, 1, s, t, rz, rz_st, ierr)
+                call check_int('geometry ierr', ierr, 0)
+                if (any(rz < locator%bounds(:, 1, 1)) &
+                    .or. any(rz > locator%bounds(:, 2, 1))) &
+                    call fail('curved point outside locator bounds')
+            end do
+        end do
+        call report(nfail_before)
+    end subroutine test_locator_bounds
 
     subroutine test_rejected_inputs
         type(jorek_restart_t) :: data
