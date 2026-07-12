@@ -269,6 +269,15 @@ if(LIBNEO_BUILD_NUMERICS)
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
     add_library(LIBNEO::spectre ALIAS spectre_support)
 
+    # Tier 1: JOREK restart HDF5 reader (depends on hdf5_tools only).
+    add_library(jorek_support STATIC
+        src/field/jorek_restart.f90
+    )
+    target_link_libraries(jorek_support PUBLIC LIBNEO::hdf5_tools)
+    set_property(TARGET jorek_support PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::jorek ALIAS jorek_support)
+
     add_subdirectory(src/coordinates)
 
     # Tier 1: abstract magnetic-field interface. magnetic_field_base.f90 provides
