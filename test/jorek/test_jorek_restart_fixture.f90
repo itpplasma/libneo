@@ -1,5 +1,6 @@
 program test_jorek_restart_fixture
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use jorek_bezier, only: evaluate_jorek_geometry
     use jorek_restart, only: jorek_restart_t, load_jorek_restart, &
         free_jorek_restart
     use util_for_test, only: print_test, print_ok, print_fail
@@ -7,6 +8,7 @@ program test_jorek_restart_fixture
     implicit none
 
     character(len=*), parameter :: fixture_env = 'LIBNEO_JOREK_RESTART_FIXTURE'
+    real(dp), parameter :: tol = 2.0e-13_dp
     character(len=1024) :: fixture
     integer :: env_status, nfail
 
@@ -37,6 +39,8 @@ contains
         end if
 
         call check_int('rst_hdf5_version', data%rst_hdf5_version, 2)
+        call check_int('n_nodes', data%n_nodes, 1561)
+        call check_int('n_elements', data%n_elements, 1485)
         call check_int('n_degrees', data%n_degrees, 4)
         call check_int('n_dim', data%n_dim, 2)
         call check_int('n_vertex_max', data%n_vertex_max, 4)
@@ -46,6 +50,7 @@ contains
         call check_nodal_r_range(data)
         call check_vertex_bounds(data)
         call check_neighbour_bounds(data)
+        call check_geometry_oracle(data)
 
         call free_jorek_restart(data)
 
@@ -102,6 +107,22 @@ contains
         end if
     end subroutine check_neighbour_bounds
 
+    subroutine check_geometry_oracle(data)
+        type(jorek_restart_t), intent(in) :: data
+
+        real(dp) :: rz(2), rz_st(2, 2)
+        integer :: ierr
+
+        call evaluate_jorek_geometry(data, 1, 0.2_dp, 0.7_dp, rz, rz_st, ierr)
+        call check_int('geometry ierr', ierr, 0)
+        call check_dp('R', rz(1), 1.7020710470004476_dp)
+        call check_dp('Z', rz(2), 0.03437336518385514_dp)
+        call check_dp('R_s', rz_st(1, 1), -0.02304197881763608_dp)
+        call check_dp('Z_s', rz_st(2, 1), -0.10438992315046813_dp)
+        call check_dp('R_t', rz_st(1, 2), 0.0006138917527668017_dp)
+        call check_dp('Z_t', rz_st(2, 2), -0.00017457983954904943_dp)
+    end subroutine check_geometry_oracle
+
     subroutine check_int(name, actual, expected)
         character(len=*), intent(in) :: name
         integer, intent(in) :: actual, expected
@@ -114,6 +135,15 @@ contains
             call fail(trim(message))
         end if
     end subroutine check_int
+
+    subroutine check_dp(name, actual, expected)
+        character(len=*), intent(in) :: name
+        real(dp), intent(in) :: actual, expected
+
+        if (abs(actual - expected) > tol*max(1.0_dp, abs(expected))) then
+            call fail(name//' mismatch')
+        end if
+    end subroutine check_dp
 
     subroutine check_shape(name, actual, expected)
         character(len=*), intent(in) :: name
