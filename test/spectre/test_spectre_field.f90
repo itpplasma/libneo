@@ -29,6 +29,7 @@ program test_spectre_field
     call test_reference_field
     call test_div_b_vanishes
     call test_interfaces_are_flux_surfaces
+    call test_axis_toroidal_flux_map
     call test_beltrami_residual
     call test_reload_consistency
 
@@ -183,6 +184,53 @@ contains
             call print_fail
         end if
     end subroutine test_interfaces_are_flux_surfaces
+
+    subroutine test_axis_toroidal_flux_map
+        integer :: i, jerr
+        real(dp) :: label, previous, rho, rho_back, target, upper
+
+        call print_test('axis toroidal-flux label is monotone and invertible')
+        call field%axis_toroidal_flux_label(0.0_dp, label, jerr)
+        if (jerr /= 0 .or. abs(label) > 1.0e-14_dp) then
+            nfail = nfail + 1
+            call print_fail
+            return
+        end if
+        call field%axis_toroidal_flux_label(1.0_dp, upper, jerr)
+        if (jerr /= 0 .or. abs(upper - field%data%tflux(1)/ &
+            field%data%tflux(Mvol)) > 1.0e-14_dp) then
+            nfail = nfail + 1
+            call print_fail
+            return
+        end if
+
+        previous = label
+        do i = 1, 100
+            rho = real(i, dp)/100.0_dp
+            call field%axis_toroidal_flux_label(rho, label, jerr)
+            if (jerr /= 0 .or. label <= previous) then
+                nfail = nfail + 1
+                call print_fail
+                return
+            end if
+            previous = label
+        end do
+        do i = 0, 10
+            target = upper*real(i, dp)/10.0_dp
+            call field%axis_rho_from_toroidal_flux(target, rho, jerr)
+            call field%axis_toroidal_flux_label(rho, label, jerr)
+            call field%axis_rho_from_toroidal_flux(label, rho_back, jerr)
+            if (jerr /= 0 .or. abs(label - target) > 1.0e-13_dp .or. &
+                abs(rho_back - rho) > 1.0e-13_dp) then
+                print *, '    target, rho, label, rho_back, ierr =', &
+                    target, rho, label, rho_back, jerr
+                nfail = nfail + 1
+                call print_fail
+                return
+            end if
+        end do
+        call print_ok
+    end subroutine test_axis_toroidal_flux_map
 
     subroutine test_beltrami_residual
         real(dp), parameter :: h = 1.0e-4_dp

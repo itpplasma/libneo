@@ -20,7 +20,8 @@ module field_spectre
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use field_base, only: magnetic_field_t
     use spectre_reader, only: spectre_data_t, load_spectre
-    use spectre_basis, only: spectre_vecpot_t, eval_spectre_vector_potential
+    use spectre_basis, only: spectre_vecpot_t, eval_spectre_vector_potential, &
+                             eval_spectre_toroidal_flux_fraction
     use libneo_coordinates, only: make_spectre_coordinate_system, &
                                   spectre_coordinate_system_t
 
@@ -36,6 +37,8 @@ module field_spectre
     contains
         procedure :: evaluate => spectre_evaluate
         procedure :: evaluate_der => spectre_evaluate_der
+        procedure :: axis_toroidal_flux_label => spectre_axis_toroidal_flux_label
+        procedure :: axis_rho_from_toroidal_flux => spectre_axis_rho_from_toroidal_flux
     end type spectre_field_t
 
 contains
@@ -156,6 +159,64 @@ contains
 
         sqgBctr = sqgB
     end subroutine spectre_evaluate_der
+
+    pure subroutine spectre_axis_toroidal_flux_label(self, rho_g, label, ierr)
+        class(spectre_field_t), intent(in) :: self
+        real(dp), intent(in) :: rho_g
+        real(dp), intent(out) :: label
+        integer, intent(out) :: ierr
+
+        real(dp) :: derivative, fraction
+
+        if (rho_g < 0.0_dp .or. rho_g > 1.0_dp) then
+            ierr = 1
+            return
+        end if
+        if (self%data%Mvol < 1 .or. self%data%tflux(self%data%Mvol) == 0.0_dp) then
+            ierr = 2
+            return
+        end if
+        call eval_spectre_toroidal_flux_fraction(self%data, 1, 2.0_dp*rho_g - 1.0_dp, &
+                                                 fraction, derivative, ierr)
+        if (ierr /= 0) return
+        label = fraction*self%data%tflux(1)/self%data%tflux(self%data%Mvol)
+    end subroutine spectre_axis_toroidal_flux_label
+
+    pure subroutine spectre_axis_rho_from_toroidal_flux(self, label, rho_g, ierr)
+        class(spectre_field_t), intent(in) :: self
+        real(dp), intent(in) :: label
+        real(dp), intent(out) :: rho_g
+        integer, intent(out) :: ierr
+
+        integer :: iteration
+        real(dp) :: hi, label_hi, label_mid, lo, mid, target, tolerance
+
+        call self%axis_toroidal_flux_label(1.0_dp, label_hi, ierr)
+        if (ierr /= 0) return
+        tolerance = 64.0_dp*epsilon(label_hi)*max(1.0_dp, abs(label_hi))
+        if (label < -tolerance .or. label > label_hi + tolerance) then
+            ierr = 3
+            return
+        end if
+        target = min(max(label, 0.0_dp), label_hi)
+
+        lo = 0.0_dp
+        hi = 1.0_dp
+        do iteration = 1, 64
+            mid = 0.5_dp*(lo + hi)
+            call self%axis_toroidal_flux_label(mid, label_mid, ierr)
+            if (ierr /= 0) return
+            if (label_mid < target) then
+                lo = mid
+            else
+                hi = mid
+            end if
+        end do
+        rho_g = 0.5_dp*(lo + hi)
+        call self%axis_toroidal_flux_label(rho_g, label_mid, ierr)
+        if (ierr == 0 .and. abs(label_mid - target) > &
+            256.0_dp*epsilon(target)*max(1.0_dp, abs(target))) ierr = 4
+    end subroutine spectre_axis_rho_from_toroidal_flux
 
     pure subroutine locate_volume(Mvol, rho_g, lvol, s)
         !> Stacked chart: rho_g in [0, Mvol] -> volume index and local s.

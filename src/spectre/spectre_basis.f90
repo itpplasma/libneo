@@ -6,7 +6,7 @@ module spectre_basis
     private
 
     public :: spectre_vecpot_t, get_cheby_d2, get_zernike_d2, &
-              eval_spectre_vector_potential
+              eval_spectre_vector_potential, eval_spectre_toroidal_flux_fraction
 
     ! Covariant vector potential and its s/theta/zeta derivatives at one point.
     ! Second-derivative slots are ordered ss, st, sz, tt, tz, zz.
@@ -179,6 +179,69 @@ contains
             end do
         end do
     end subroutine eval_spectre_vector_potential
+
+    pure subroutine eval_spectre_toroidal_flux_fraction(data, lvol, s, fraction, &
+                                                         derivative, ierr)
+        type(spectre_data_t), intent(in) :: data
+        integer, intent(in) :: lvol
+        real(dp), intent(in) :: s
+        real(dp), intent(out) :: fraction, derivative
+        integer, intent(out) :: ierr
+
+        real(dp) :: inner, outer, value, slope, scale
+
+        call eval_axisymmetric_atheta(data, lvol, -1.0_dp, inner, slope, ierr)
+        if (ierr /= 0) return
+        call eval_axisymmetric_atheta(data, lvol, 1.0_dp, outer, slope, ierr)
+        if (ierr /= 0) return
+        call eval_axisymmetric_atheta(data, lvol, s, value, slope, ierr)
+        if (ierr /= 0) return
+
+        scale = max(abs(inner), abs(outer), 1.0_dp)
+        if (abs(outer - inner) <= 64.0_dp*epsilon(scale)*scale) then
+            ierr = 2
+            return
+        end if
+        fraction = (value - inner)/(outer - inner)
+        derivative = slope/(outer - inner)
+    end subroutine eval_spectre_toroidal_flux_fraction
+
+    pure subroutine eval_axisymmetric_atheta(data, lvol, s, value, derivative, ierr)
+        type(spectre_data_t), intent(in) :: data
+        integer, intent(in) :: lvol
+        real(dp), intent(in) :: s
+        real(dp), intent(out) :: value, derivative
+        integer, intent(out) :: ierr
+
+        integer :: ii, ll
+        real(dp) :: cheby(0:data%Lrad(lvol), 0:2)
+        real(dp) :: zernike(0:data%Lrad(lvol), 0:data%Mpol, 0:2)
+
+        ii = 0
+        do ll = 1, data%mn
+            if (data%im(ll) == 0 .and. data%in(ll) == 0) then
+                ii = ll
+                exit
+            end if
+        end do
+        if (ii == 0) then
+            ierr = 1
+            return
+        end if
+
+        if (lvol == 1) then
+            call get_zernike_d2(0.5_dp*(s + 1.0_dp), data%Lrad(lvol), &
+                                data%Mpol, zernike)
+            value = dot_product(data%vol(lvol)%Ate(:, ii), zernike(:, 0, 0))
+            derivative = 0.5_dp*dot_product(data%vol(lvol)%Ate(:, ii), &
+                                            zernike(:, 0, 1))
+        else
+            call get_cheby_d2(s, data%Lrad(lvol), cheby)
+            value = dot_product(data%vol(lvol)%Ate(:, ii), cheby(:, 0))
+            derivative = dot_product(data%vol(lvol)%Ate(:, ii), cheby(:, 1))
+        end if
+        ierr = 0
+    end subroutine eval_axisymmetric_atheta
 
     ! Add one (mode, radial-degree) contribution to a covariant component and
     ! its derivatives. cos_c/sin_c weight even/odd Fourier coefficients; the
