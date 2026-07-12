@@ -28,17 +28,17 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     set(LIBNEO_IS_STANDALONE ON)
 endif()
 
-# Standalone builds run libneo's own Python tests and f2py; resolve Python from
-# the uv-managed project venv so their dependencies are available.
-if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
-endif()
-
 option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
 
 # Allow BUILD_TESTING to override (for subproject compatibility)
 if(DEFINED BUILD_TESTING)
     set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
+endif()
+
+# Standalone builds run libneo's own Python tests and f2py; resolve Python from
+# the uv-managed project venv so their dependencies are available.
+if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
 endif()
 
 # Numerics-heavy components (neo core, magfie, collisions, transport,
