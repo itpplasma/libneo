@@ -1,6 +1,7 @@
 program test_jorek_bezier_geometry
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use jorek_bezier, only: cubic_jorek_basis, evaluate_jorek_geometry
+    use jorek_bezier, only: cubic_jorek_basis, evaluate_jorek_geometry, &
+        locate_jorek_element
     use jorek_restart, only: jorek_restart_t
     use util_for_test, only: print_test, print_ok, print_fail
 
@@ -13,6 +14,7 @@ program test_jorek_bezier_geometry
     call test_jorek_basis_oracle
     call test_affine_geometry
     call test_shared_edge
+    call test_point_location
     call test_rejected_inputs
     if (nfail > 0) error stop
 
@@ -86,6 +88,29 @@ contains
         call check_vector('t tangent', left_st(:, 2), right_st(:, 2))
         call report(nfail_before)
     end subroutine test_shared_edge
+
+    subroutine test_point_location
+        type(jorek_restart_t) :: data
+        integer :: element, ierr, nfail_before
+        real(dp) :: s, t
+
+        call print_test('point location finds interiors and resolves shared edges')
+        nfail_before = nfail
+        call make_two_element_strip(data)
+        call locate_jorek_element(data, [11.25_dp, 0.6_dp], element, s, t, ierr)
+        call check_int('interior ierr', ierr, 0)
+        call check_int('interior element', element, 2)
+        call check_real('interior s', s, 0.25_dp)
+        call check_real('interior t', t, 0.6_dp)
+        call locate_jorek_element(data, [11.0_dp, 0.37_dp], element, s, t, ierr)
+        call check_int('edge ierr', ierr, 0)
+        call check_int('edge element', element, 1)
+        call check_real('edge s', s, 1.0_dp)
+        call check_real('edge t', t, 0.37_dp)
+        call locate_jorek_element(data, [13.0_dp, 0.5_dp], element, s, t, ierr)
+        call check_int('outside ierr', ierr, 1)
+        call report(nfail_before)
+    end subroutine test_point_location
 
     subroutine test_rejected_inputs
         type(jorek_restart_t) :: data
