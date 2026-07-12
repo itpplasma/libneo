@@ -1,6 +1,7 @@
 program test_jorek_model303_field
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use jorek_model303_field, only: evaluate_jorek_model303_b
+    use jorek_model303_field, only: evaluate_jorek_model303_a, &
+        evaluate_jorek_model303_b, evaluate_jorek_model303_at
     use jorek_restart, only: jorek_restart_t
     use util_for_test, only: print_test, print_ok, print_fail
 
@@ -11,6 +12,8 @@ program test_jorek_model303_field
 
     nfail = 0
     call test_reduced_mhd_field
+    call test_reduced_mhd_potential
+    call test_global_field_query
     call test_rejected_model
     call test_rejected_singular_geometry
     if (nfail > 0) error stop
@@ -35,6 +38,48 @@ contains
         call check_real('B_phi', b_r_z_phi(3), data%F0/r)
         call report(nfail_before)
     end subroutine test_reduced_mhd_field
+
+    subroutine test_reduced_mhd_potential
+        type(jorek_restart_t) :: data
+        real(dp) :: a_r_phi_z(3), r, z
+        integer :: ierr, nfail_before
+
+        call print_test('model 303 potential has the reduced-MHD curl')
+        nfail_before = nfail
+        call make_model303_element(data)
+        call evaluate_jorek_model303_a(data, 1, 0.25_dp, 0.6_dp, 0.4_dp, &
+            a_r_phi_z, ierr)
+        r = 10.25_dp
+        z = 0.6_dp
+        call check_int('ierr', ierr, 0)
+        call check_real('A_R', a_r_phi_z(1), 0.0_dp)
+        call check_real('A_phi', a_r_phi_z(2), -r*z)
+        call check_real('A_Z', a_r_phi_z(3), -data%F0*log(r))
+        call report(nfail_before)
+    end subroutine test_reduced_mhd_potential
+
+    subroutine test_global_field_query
+        type(jorek_restart_t) :: data
+        real(dp) :: a_r_phi_z(3), b_r_z_phi(3), st(2), r, z
+        integer :: element, ierr, nfail_before
+
+        call print_test('global model 303 query returns compatible A and B')
+        nfail_before = nfail
+        call make_model303_element(data)
+        r = 10.25_dp
+        z = 0.6_dp
+        call evaluate_jorek_model303_at(data, [r, z], 0.4_dp, a_r_phi_z, &
+            b_r_z_phi, element, st, ierr)
+        call check_int('ierr', ierr, 0)
+        call check_int('element', element, 1)
+        call check_real('s', st(1), 0.25_dp)
+        call check_real('t', st(2), 0.6_dp)
+        call check_real('A_phi', a_r_phi_z(2), -r*z)
+        call check_real('B_R', b_r_z_phi(1), 1.0_dp)
+        call check_real('B_Z', b_r_z_phi(2), -z/r)
+        call check_real('B_phi', b_r_z_phi(3), data%F0/r)
+        call report(nfail_before)
+    end subroutine test_global_field_query
 
     subroutine test_rejected_model
         type(jorek_restart_t) :: data
