@@ -21,3 +21,8 @@ add_executable(test_jorek_field_values.x test_jorek_field_values.f90)
 target_link_libraries(test_jorek_field_values.x PRIVATE jorek_support
                                                        util_for_test)
 add_test(NAME test_jorek_field_values COMMAND test_jorek_field_values.x)
+
+add_executable(test_jorek_model303_field.x test_jorek_model303_field.f90)
+target_link_libraries(test_jorek_model303_field.x PRIVATE jorek_support
+                                                          util_for_test)
+add_test(NAME test_jorek_model303_field COMMAND test_jorek_model303_field.x)

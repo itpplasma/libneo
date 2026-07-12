@@ -274,6 +274,7 @@ if(LIBNEO_BUILD_NUMERICS)
         src/field/jorek_restart.f90
         src/field/jorek_bezier.f90
         src/field/jorek_field_values.f90
+        src/field/jorek_model303_field.f90
     )
     target_link_libraries(jorek_support PUBLIC LIBNEO::hdf5_tools)
     set_property(TARGET jorek_support PROPERTY
