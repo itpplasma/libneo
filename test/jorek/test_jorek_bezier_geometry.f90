@@ -2,7 +2,7 @@ program test_jorek_bezier_geometry
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use jorek_bezier, only: cubic_jorek_basis, evaluate_jorek_geometry, &
         jorek_locator_t, build_jorek_locator, locate_jorek_element, &
-        locate_jorek_element_indexed
+        locate_jorek_element_indexed, jorek_locator_candidate_count
     use jorek_restart, only: jorek_restart_t
     use util_for_test, only: print_test, print_ok, print_fail
 
@@ -126,6 +126,12 @@ contains
         call make_two_element_strip(data)
         call build_jorek_locator(data, locator, ierr)
         call check_int('build ierr', ierr, 0)
+        if (product(locator%n_bins) <= 1) call fail('spatial bins were not built')
+        if (jorek_locator_candidate_count(locator, [11.25_dp, 0.6_dp]) < 1) &
+            call fail('interior spatial bin has no candidates')
+        call check_int('outside candidates', &
+            jorek_locator_candidate_count(locator, [13.0_dp, 0.5_dp]), 0)
+        call check_sorted_bins(locator)
         call locate_jorek_element_indexed(data, locator, [11.25_dp, 0.6_dp], &
             element, s, t, ierr)
         call check_int('interior ierr', ierr, 0)
@@ -141,6 +147,21 @@ contains
         call check_int('outside ierr', ierr, 1)
         call report(nfail_before)
     end subroutine test_indexed_point_location
+
+    subroutine check_sorted_bins(locator)
+        type(jorek_locator_t), intent(in) :: locator
+
+        integer :: bin, first, last
+
+        do bin = 1, product(locator%n_bins)
+            first = locator%bin_offsets(bin)
+            last = locator%bin_offsets(bin + 1) - 1
+            if (last <= first) cycle
+            if (any(locator%bin_elements(first:last - 1) &
+                > locator%bin_elements(first + 1:last))) &
+                call fail('spatial-bin candidates are not deterministic')
+        end do
+    end subroutine check_sorted_bins
 
     subroutine test_locator_bounds
         type(jorek_restart_t) :: data
@@ -173,12 +194,16 @@ contains
 
     subroutine test_rejected_inputs
         type(jorek_restart_t) :: data
-        real(dp) :: rz(2), rz_st(2, 2)
-        integer :: ierr, nfail_before
+        type(jorek_locator_t) :: locator
+        real(dp) :: rz(2), rz_st(2, 2), s, t
+        integer :: element, ierr, nfail_before
 
         call print_test('geometry rejects invalid element, coordinates, and order')
         nfail_before = nfail
         call make_two_element_strip(data)
+        call locate_jorek_element_indexed(data, locator, [10.5_dp, 0.5_dp], &
+            element, s, t, ierr)
+        call check_int('empty locator ierr', ierr, 2)
         call evaluate_jorek_geometry(data, 0, 0.5_dp, 0.5_dp, rz, rz_st, ierr)
         call check_int('element ierr', ierr, 1)
         call evaluate_jorek_geometry(data, 1, -0.1_dp, 0.5_dp, rz, rz_st, ierr)

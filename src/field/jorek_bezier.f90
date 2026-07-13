@@ -7,12 +7,18 @@ module jorek_bezier
 
     type :: jorek_locator_t
         integer :: n_elements = 0
+        integer :: n_bins(2) = 0
+        real(dp) :: grid_lower(2) = 0.0_dp
+        real(dp) :: bin_width(2) = 0.0_dp
         real(dp), allocatable :: bounds(:, :, :)
+        integer, allocatable :: bin_offsets(:)
+        integer, allocatable :: bin_elements(:)
     end type jorek_locator_t
 
     public :: jorek_locator_t, cubic_jorek_basis, evaluate_jorek_geometry
     public :: build_jorek_locator, locate_jorek_element
     public :: locate_jorek_element_indexed
+    public :: jorek_locator_candidate_count
 
 contains
 
@@ -140,11 +146,10 @@ contains
         type(jorek_locator_t), intent(out) :: locator
         integer, intent(out) :: ierr
 
-        real(dp) :: coefficient, lower, upper
-        integer :: coordinate, degree, element, node, vertex
+        integer :: element
 
         ierr = 0
-        if (.not. supported_geometry_layout(data)) then
+        if (.not. supported_geometry_layout(data) .or. data%n_elements < 1) then
             ierr = 2
             return
         end if
@@ -153,28 +158,83 @@ contains
         locator%bounds(:, 1, :) = 0.0_dp
         locator%bounds(:, 2, :) = 0.0_dp
         do element = 1, data%n_elements
-            do vertex = 1, 4
-                node = data%vertex(element, vertex)
-                if (node < 1 .or. node > data%n_nodes) then
-                    ierr = 2
-                    return
-                end if
-                do degree = 1, 4
-                    call jorek_basis_interval(vertex, degree, lower, upper)
-                    do coordinate = 1, 2
-                        coefficient = data%x(node, 1, degree, coordinate) &
-                            *data%size(element, vertex, degree)
-                        locator%bounds(coordinate, 1, element) = &
-                            locator%bounds(coordinate, 1, element) &
-                            + min(coefficient*lower, coefficient*upper)
-                        locator%bounds(coordinate, 2, element) = &
-                            locator%bounds(coordinate, 2, element) &
-                            + max(coefficient*lower, coefficient*upper)
+            call build_element_bounds(data, element, &
+                locator%bounds(:, :, element), ierr)
+            if (ierr /= 0) return
+        end do
+        call build_locator_bins(locator, ierr)
+    end subroutine build_jorek_locator
+
+    pure subroutine build_element_bounds(data, element, bounds, ierr)
+        type(jorek_restart_t), intent(in) :: data
+        integer, intent(in) :: element
+        real(dp), intent(out) :: bounds(2, 2)
+        integer, intent(out) :: ierr
+
+        real(dp) :: coefficient, controls(2, 4, 4), s_weights(4), t_weights(4)
+        integer :: coordinate, degree, i, j, node, vertex
+
+        controls = 0.0_dp
+        ierr = 0
+        do vertex = 1, 4
+            node = data%vertex(element, vertex)
+            if (node < 1 .or. node > data%n_nodes) then
+                ierr = 2
+                return
+            end if
+            do degree = 1, 4
+                call jorek_bernstein_weights(vertex, degree, s_weights, &
+                    t_weights)
+                do coordinate = 1, 2
+                    coefficient = data%x(node, 1, degree, coordinate) &
+                        *data%size(element, vertex, degree)
+                    do j = 1, 4
+                        do i = 1, 4
+                            controls(coordinate, i, j) = &
+                                controls(coordinate, i, j) &
+                                + coefficient*s_weights(i)*t_weights(j)
+                        end do
                     end do
                 end do
             end do
         end do
-    end subroutine build_jorek_locator
+        do coordinate = 1, 2
+            bounds(coordinate, 1) = minval(controls(coordinate, :, :))
+            bounds(coordinate, 2) = maxval(controls(coordinate, :, :))
+        end do
+    end subroutine build_element_bounds
+
+    pure subroutine jorek_bernstein_weights(vertex, degree, s_weights, &
+            t_weights)
+        integer, intent(in) :: vertex, degree
+        real(dp), intent(out) :: s_weights(4), t_weights(4)
+
+        integer, parameter :: s_end(4) = [1, 2, 2, 1]
+        integer, parameter :: t_end(4) = [1, 1, 2, 2]
+        integer, parameter :: s_kind(4) = [1, 2, 1, 2]
+        integer, parameter :: t_kind(4) = [1, 1, 2, 2]
+
+        call endpoint_bernstein_weights(s_end(vertex), s_kind(degree), &
+            s_weights)
+        call endpoint_bernstein_weights(t_end(vertex), t_kind(degree), &
+            t_weights)
+    end subroutine jorek_bernstein_weights
+
+    pure subroutine endpoint_bernstein_weights(endpoint, kind, weights)
+        integer, intent(in) :: endpoint, kind
+        real(dp), intent(out) :: weights(4)
+
+        weights = 0.0_dp
+        if (endpoint == 1 .and. kind == 1) then
+            weights(1:2) = 1.0_dp
+        else if (endpoint == 1) then
+            weights(2) = 1.0_dp
+        else if (kind == 1) then
+            weights(3:4) = 1.0_dp
+        else
+            weights(3) = -1.0_dp
+        end if
+    end subroutine endpoint_bernstein_weights
 
     pure subroutine locate_jorek_element_indexed(data, locator, target_rz, &
             element, s, t, ierr)
@@ -186,19 +246,20 @@ contains
         integer, intent(out) :: ierr
 
         real(dp) :: scale, tolerance
-        integer :: candidate, candidate_ierr
+        integer :: bin, candidate, candidate_ierr, index
 
         element = 0
         s = 0.0_dp
         t = 0.0_dp
         ierr = 1
-        if (.not. allocated(locator%bounds) &
-            .or. locator%n_elements /= data%n_elements &
-            .or. any(shape(locator%bounds) /= [2, 2, data%n_elements])) then
+        if (.not. valid_locator(locator, data%n_elements)) then
             ierr = 2
             return
         end if
-        do candidate = 1, data%n_elements
+        bin = locator_bin(locator, target_rz)
+        if (bin == 0) return
+        do index = locator%bin_offsets(bin), locator%bin_offsets(bin + 1) - 1
+            candidate = locator%bin_elements(index)
             scale = max(1.0_dp, maxval(abs(target_rz)), &
                 maxval(abs(locator%bounds(:, :, candidate))))
             tolerance = 64.0_dp*epsilon(1.0_dp)*scale
@@ -218,6 +279,190 @@ contains
             end if
         end do
     end subroutine locate_jorek_element_indexed
+
+    pure integer function jorek_locator_candidate_count(locator, target_rz)
+        type(jorek_locator_t), intent(in) :: locator
+        real(dp), intent(in) :: target_rz(2)
+
+        integer :: bin
+
+        jorek_locator_candidate_count = 0
+        if (.not. valid_locator(locator, locator%n_elements)) return
+        bin = locator_bin(locator, target_rz)
+        if (bin == 0) return
+        jorek_locator_candidate_count = locator%bin_offsets(bin + 1) &
+            - locator%bin_offsets(bin)
+    end function jorek_locator_candidate_count
+
+    subroutine build_locator_bins(locator, ierr)
+        type(jorek_locator_t), intent(inout) :: locator
+        integer, intent(out) :: ierr
+
+        integer, allocatable :: counts(:), cursor(:)
+        integer :: bin, element, first(2), last(2), n_total
+
+        ierr = 0
+        call set_locator_grid(locator)
+        n_total = product(locator%n_bins)
+        allocate(counts(n_total), cursor(n_total))
+        counts = 0
+        do element = 1, locator%n_elements
+            call element_bin_range(locator, element, first, last)
+            call add_element_bins(locator%n_bins, first, last, counts)
+        end do
+        allocate(locator%bin_offsets(n_total + 1))
+        locator%bin_offsets(1) = 1
+        do bin = 1, n_total
+            locator%bin_offsets(bin + 1) = locator%bin_offsets(bin) + counts(bin)
+        end do
+        allocate(locator%bin_elements(locator%bin_offsets(n_total + 1) - 1))
+        cursor = locator%bin_offsets(:n_total)
+        do element = 1, locator%n_elements
+            call element_bin_range(locator, element, first, last)
+            call store_element_bins(locator%n_bins, first, last, element, &
+                cursor, locator%bin_elements)
+        end do
+    end subroutine build_locator_bins
+
+    subroutine set_locator_grid(locator)
+        type(jorek_locator_t), intent(inout) :: locator
+
+        real(dp) :: extent(2), ratio
+        integer :: coordinate, element
+        real(dp) :: lower(2), upper(2)
+
+        locator%grid_lower = huge(1.0_dp)
+        upper = -huge(1.0_dp)
+        do element = 1, locator%n_elements
+            call expanded_bounds(locator, element, lower, extent)
+            locator%grid_lower = min(locator%grid_lower, lower)
+            upper = max(upper, extent)
+        end do
+        extent = upper - locator%grid_lower
+        if (all(extent > 0.0_dp)) then
+            ratio = extent(1)/extent(2)
+            locator%n_bins(1) = max(1, min(locator%n_elements, &
+                nint(sqrt(real(locator%n_elements, dp)*ratio))))
+            locator%n_bins(2) = max(1, ceiling(real(locator%n_elements, dp) &
+                /locator%n_bins(1)))
+        else
+            locator%n_bins = 1
+            coordinate = maxloc(extent, 1)
+            locator%n_bins(coordinate) = locator%n_elements
+        end if
+        do coordinate = 1, 2
+            locator%bin_width(coordinate) = extent(coordinate) &
+                /locator%n_bins(coordinate)
+            if (locator%bin_width(coordinate) <= 0.0_dp) &
+                locator%bin_width(coordinate) = 1.0_dp
+        end do
+    end subroutine set_locator_grid
+
+    pure subroutine expanded_bounds(locator, element, lower, upper)
+        type(jorek_locator_t), intent(in) :: locator
+        integer, intent(in) :: element
+        real(dp), intent(out) :: lower(2), upper(2)
+
+        real(dp) :: scale, tolerance
+
+        scale = max(1.0_dp, maxval(abs(locator%bounds(:, :, element))))
+        tolerance = 64.0_dp*epsilon(1.0_dp)*scale
+        lower = locator%bounds(:, 1, element) - tolerance
+        upper = locator%bounds(:, 2, element) + tolerance
+    end subroutine expanded_bounds
+
+    pure subroutine element_bin_range(locator, element, first, last)
+        type(jorek_locator_t), intent(in) :: locator
+        integer, intent(in) :: element
+        integer, intent(out) :: first(2), last(2)
+
+        real(dp) :: lower(2), upper(2)
+        integer :: coordinate
+
+        call expanded_bounds(locator, element, lower, upper)
+        do coordinate = 1, 2
+            first(coordinate) = coordinate_bin(locator, coordinate, &
+                lower(coordinate))
+            last(coordinate) = coordinate_bin(locator, coordinate, &
+                upper(coordinate))
+        end do
+    end subroutine element_bin_range
+
+    pure integer function coordinate_bin(locator, coordinate, value)
+        type(jorek_locator_t), intent(in) :: locator
+        integer, intent(in) :: coordinate
+        real(dp), intent(in) :: value
+
+        coordinate_bin = int((value - locator%grid_lower(coordinate)) &
+            /locator%bin_width(coordinate)) + 1
+        coordinate_bin = min(locator%n_bins(coordinate), &
+            max(1, coordinate_bin))
+    end function coordinate_bin
+
+    pure integer function locator_bin(locator, target_rz)
+        type(jorek_locator_t), intent(in) :: locator
+        real(dp), intent(in) :: target_rz(2)
+
+        real(dp) :: upper(2)
+        integer :: indices(2)
+
+        upper = locator%grid_lower + locator%bin_width*locator%n_bins
+        locator_bin = 0
+        if (any(target_rz < locator%grid_lower) .or. any(target_rz > upper)) return
+        indices(1) = coordinate_bin(locator, 1, target_rz(1))
+        indices(2) = coordinate_bin(locator, 2, target_rz(2))
+        locator_bin = (indices(2) - 1)*locator%n_bins(1) + indices(1)
+    end function locator_bin
+
+    pure subroutine add_element_bins(n_bins, first, last, counts)
+        integer, intent(in) :: n_bins(2), first(2), last(2)
+        integer, intent(inout) :: counts(:)
+
+        integer :: bin, i, j
+
+        do j = first(2), last(2)
+            do i = first(1), last(1)
+                bin = (j - 1)*n_bins(1) + i
+                counts(bin) = counts(bin) + 1
+            end do
+        end do
+    end subroutine add_element_bins
+
+    pure subroutine store_element_bins(n_bins, first, last, element, cursor, &
+            elements)
+        integer, intent(in) :: n_bins(2), first(2), last(2), element
+        integer, intent(inout) :: cursor(:), elements(:)
+
+        integer :: bin, i, j
+
+        do j = first(2), last(2)
+            do i = first(1), last(1)
+                bin = (j - 1)*n_bins(1) + i
+                elements(cursor(bin)) = element
+                cursor(bin) = cursor(bin) + 1
+            end do
+        end do
+    end subroutine store_element_bins
+
+    pure logical function valid_locator(locator, n_elements)
+        type(jorek_locator_t), intent(in) :: locator
+        integer, intent(in) :: n_elements
+
+        integer :: n_total
+
+        valid_locator = .false.
+        if (n_elements < 1 .or. locator%n_elements /= n_elements) return
+        if (any(locator%n_bins <= 0)) return
+        if (.not. allocated(locator%bounds) &
+            .or. .not. allocated(locator%bin_offsets) &
+            .or. .not. allocated(locator%bin_elements)) return
+        if (any(shape(locator%bounds) /= [2, 2, n_elements])) return
+        n_total = product(locator%n_bins)
+        if (size(locator%bin_offsets) /= n_total + 1) return
+        if (size(locator%bin_elements) &
+            /= locator%bin_offsets(n_total + 1) - 1) return
+        valid_locator = .true.
+    end function valid_locator
 
     pure subroutine invert_jorek_element(data, element, target_rz, s, t, ierr)
         type(jorek_restart_t), intent(in) :: data
@@ -271,42 +516,6 @@ contains
             end do
         end do
     end subroutine invert_jorek_element
-
-    pure subroutine jorek_basis_interval(vertex, degree, lower, upper)
-        integer, intent(in) :: vertex, degree
-        real(dp), intent(out) :: lower, upper
-
-        integer, parameter :: s_end(4) = [1, 2, 2, 1]
-        integer, parameter :: t_end(4) = [1, 1, 2, 2]
-        integer, parameter :: s_kind(4) = [1, 2, 1, 2]
-        integer, parameter :: t_kind(4) = [1, 1, 2, 2]
-        real(dp) :: s_lower, s_upper, t_lower, t_upper, products(4)
-
-        call endpoint_basis_interval(s_end(vertex), s_kind(degree), &
-            s_lower, s_upper)
-        call endpoint_basis_interval(t_end(vertex), t_kind(degree), &
-            t_lower, t_upper)
-        products = [s_lower*t_lower, s_lower*t_upper, &
-            s_upper*t_lower, s_upper*t_upper]
-        lower = minval(products)
-        upper = maxval(products)
-    end subroutine jorek_basis_interval
-
-    pure subroutine endpoint_basis_interval(endpoint, kind, lower, upper)
-        integer, intent(in) :: endpoint, kind
-        real(dp), intent(out) :: lower, upper
-
-        if (kind == 1) then
-            lower = 0.0_dp
-            upper = 1.0_dp
-        else if (endpoint == 1) then
-            lower = 0.0_dp
-            upper = 4.0_dp/9.0_dp
-        else
-            lower = -4.0_dp/9.0_dp
-            upper = 0.0_dp
-        end if
-    end subroutine endpoint_basis_interval
 
     pure subroutine cubic_endpoint_basis(u, basis, derivative)
         real(dp), intent(in) :: u
