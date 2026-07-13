@@ -11,7 +11,7 @@ program test_chartmap_matches_vmec
     implicit none
 
     character(len=*), parameter :: wout_file = "wout.nc"
-    character(len=*), parameter :: chartmap_file = "wout_vmec.chartmap.nc"
+    character(len=*), parameter :: chartmap_file = "wout_vmec_matches.chartmap.nc"
 
     class(coordinate_system_t), allocatable :: cs
     type(vmec_coordinate_system_t) :: vmec
