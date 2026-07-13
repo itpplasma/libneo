@@ -21,6 +21,7 @@ program test_spectre_basis
     if (ierr /= 0) error stop 'load_spectre failed'
 
     call test_reference_values
+    call test_first_derivative_mode
     call test_fd_convergence
     call test_polynomial_extension
     call test_axis_regularity
@@ -55,6 +56,29 @@ contains
         if (nrow < 1) call fail('no reference rows read')
         call report(nfail_before)
     end subroutine test_reference_values
+
+    subroutine test_first_derivative_mode
+        type(spectre_vecpot_t) :: full, first
+        integer :: nfail_before
+        real(dp) :: tol
+
+        call print_test('first-derivative mode preserves values and slopes')
+        nfail_before = nfail
+
+        call eval_spectre_vector_potential(data, 2, 0.1_dp, 2.0_dp, 1.0_dp, full)
+        call eval_spectre_vector_potential(data, 2, 0.1_dp, 2.0_dp, 1.0_dp, first, &
+                                           second_derivatives=.false.)
+        call check_close('first Ath', first%Ath, full%Ath, 0.0_dp)
+        call check_close('first Azt', first%Azt, full%Azt, 0.0_dp)
+        tol = 64.0_dp*epsilon(1.0_dp)*max(1.0_dp, maxval(abs(full%dAth)))
+        if (any(abs(first%dAth - full%dAth) > tol)) call fail('first dAth differs')
+        tol = 64.0_dp*epsilon(1.0_dp)*max(1.0_dp, maxval(abs(full%dAzt)))
+        if (any(abs(first%dAzt - full%dAzt) > tol)) call fail('first dAzt differs')
+        if (any(first%d2Ath /= 0.0_dp)) call fail('first d2Ath not zero')
+        if (any(first%d2Azt /= 0.0_dp)) call fail('first d2Azt not zero')
+
+        call report(nfail_before)
+    end subroutine test_first_derivative_mode
 
     subroutine test_fd_convergence
         integer :: nfail_before

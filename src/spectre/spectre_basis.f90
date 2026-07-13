@@ -23,12 +23,17 @@ contains
 
     ! Chebyshev radial basis on [-1, 1] with SPEC recombination and 1/(l+1)
     ! scaling; columns hold value, first and second derivative in s.
-    pure subroutine get_cheby_d2(s, lrad, cheby)
+    pure subroutine get_cheby_d2(s, lrad, cheby, second_derivatives)
         real(dp), intent(in) :: s
         integer, intent(in) :: lrad
         real(dp), intent(out) :: cheby(0:lrad, 0:2)
+        logical, intent(in), optional :: second_derivatives
 
         integer :: ll
+        logical :: need_d2
+
+        need_d2 = .true.
+        if (present(second_derivatives)) need_d2 = second_derivatives
 
         cheby = 0.0_dp
         cheby(0, 0:2) = [1.0_dp, 0.0_dp, 0.0_dp]
@@ -37,8 +42,10 @@ contains
             cheby(ll, 0) = 2.0_dp*s*cheby(ll - 1, 0) - cheby(ll - 2, 0)
             cheby(ll, 1) = 2.0_dp*cheby(ll - 1, 0) + 2.0_dp*s*cheby(ll - 1, 1) &
                            - cheby(ll - 2, 1)
-            cheby(ll, 2) = 4.0_dp*cheby(ll - 1, 1) + 2.0_dp*s*cheby(ll - 1, 2) &
-                           - cheby(ll - 2, 2)
+            if (need_d2) then
+                cheby(ll, 2) = 4.0_dp*cheby(ll - 1, 1) &
+                               + 2.0_dp*s*cheby(ll - 1, 2) - cheby(ll - 2, 2)
+            end if
         end do
 
         do ll = 1, lrad
@@ -53,14 +60,19 @@ contains
     ! and 1/(n+1) scaling; columns hold value, first and second derivative in
     ! sbar. The corrections make the m=0 basis vanish and the m=1 basis have
     ! zero slope at sbar=0, keeping the field regular on the axis.
-    pure subroutine get_zernike_d2(r, lrad, mpol, zernike)
+    pure subroutine get_zernike_d2(r, lrad, mpol, zernike, second_derivatives)
         real(dp), intent(in) :: r
         integer, intent(in) :: lrad, mpol
         real(dp), intent(out) :: zernike(0:lrad, 0:mpol, 0:2)
+        logical, intent(in), optional :: second_derivatives
 
         real(dp) :: rm, rm1, rm2
         real(dp) :: f1, f2, f3, f4
         integer :: m, n
+        logical :: need_d2
+
+        need_d2 = .true.
+        if (present(second_derivatives)) need_d2 = second_derivatives
 
         rm = 1.0_dp
         rm1 = 0.0_dp
@@ -94,10 +106,13 @@ contains
                 zernike(n, m, 1) = f1*(2.0_dp*f2*r*zernike(n - 2, m, 0) &
                                        + (f2*r**2 - f3)*zernike(n - 2, m, 1) &
                                        - f4*zernike(n - 4, m, 1))
-                zernike(n, m, 2) = f1*(2.0_dp*f2*(2.0_dp*r*zernike(n - 2, m, 1) &
-                                                  + zernike(n - 2, m, 0)) &
-                                       + (f2*r**2 - f3)*zernike(n - 2, m, 2) &
-                                       - f4*zernike(n - 4, m, 2))
+                if (need_d2) then
+                    zernike(n, m, 2) = f1*( &
+                        2.0_dp*f2*(2.0_dp*r*zernike(n - 2, m, 1) &
+                                   + zernike(n - 2, m, 0)) &
+                        + (f2*r**2 - f3)*zernike(n - 2, m, 2) &
+                        - f4*zernike(n - 4, m, 2))
+                end if
             end do
 
             rm2 = rm1
@@ -133,14 +148,16 @@ contains
     ! 1/4 for the first and second radial derivative. The basis is a smooth
     ! polynomial, so |s| slightly outside [-1, 1] returns the analytic
     ! continuation without clamping.
-    pure subroutine eval_spectre_vector_potential(data, lvol, s, theta, zeta, av)
+    pure subroutine eval_spectre_vector_potential(data, lvol, s, theta, zeta, av, &
+                                                   second_derivatives)
         type(spectre_data_t), intent(in) :: data
         integer, intent(in) :: lvol
         real(dp), intent(in) :: s, theta, zeta
         type(spectre_vecpot_t), intent(out) :: av
+        logical, intent(in), optional :: second_derivatives
 
         integer :: ii, ll, lrad, mi
-        logical :: axis
+        logical :: axis, need_d2
         real(dp) :: sbar, arg, carg, sarg, rmi, rni
         real(dp) :: cheby(0:data%Lrad(lvol), 0:2)
         real(dp) :: zernike(0:data%Lrad(lvol), 0:data%Mpol, 0:2)
@@ -148,12 +165,14 @@ contains
 
         lrad = data%Lrad(lvol)
         axis = lvol == 1
+        need_d2 = .true.
+        if (present(second_derivatives)) need_d2 = second_derivatives
 
         if (axis) then
             sbar = 0.5_dp*(s + 1.0_dp)
-            call get_zernike_d2(sbar, lrad, data%Mpol, zernike)
+            call get_zernike_d2(sbar, lrad, data%Mpol, zernike, need_d2)
         else
-            call get_cheby_d2(s, lrad, cheby)
+            call get_cheby_d2(s, lrad, cheby, need_d2)
         end if
 
         do ii = 1, data%mn
@@ -170,12 +189,20 @@ contains
                 else
                     tt = cheby(ll, 0:2)
                 end if
-                call accumulate_mode(data%vol(lvol)%Ate(ll, ii), &
-                                     data%vol(lvol)%Ato(ll, ii), carg, sarg, &
-                                     rmi, rni, tt, av%Ath, av%dAth, av%d2Ath)
-                call accumulate_mode(data%vol(lvol)%Aze(ll, ii), &
-                                     data%vol(lvol)%Azo(ll, ii), carg, sarg, &
-                                     rmi, rni, tt, av%Azt, av%dAzt, av%d2Azt)
+                call accumulate_mode_d1(data%vol(lvol)%Ate(ll, ii), &
+                                        data%vol(lvol)%Ato(ll, ii), carg, sarg, &
+                                        rmi, rni, tt, av%Ath, av%dAth)
+                call accumulate_mode_d1(data%vol(lvol)%Aze(ll, ii), &
+                                        data%vol(lvol)%Azo(ll, ii), carg, sarg, &
+                                        rmi, rni, tt, av%Azt, av%dAzt)
+                if (need_d2) then
+                    call accumulate_mode_d2(data%vol(lvol)%Ate(ll, ii), &
+                                            data%vol(lvol)%Ato(ll, ii), carg, sarg, &
+                                            rmi, rni, tt, av%d2Ath)
+                    call accumulate_mode_d2(data%vol(lvol)%Aze(ll, ii), &
+                                            data%vol(lvol)%Azo(ll, ii), carg, sarg, &
+                                            rmi, rni, tt, av%d2Azt)
+                end if
             end do
         end do
     end subroutine eval_spectre_vector_potential
@@ -246,10 +273,27 @@ contains
     ! Add one (mode, radial-degree) contribution to a covariant component and
     ! its derivatives. cos_c/sin_c weight even/odd Fourier coefficients; the
     ! angular derivatives follow from d/dtheta = +m, d/dzeta = -n on arg.
-    pure subroutine accumulate_mode(coeff_e, coeff_o, carg, sarg, rmi, rni, &
-                                    tt, val, d1, d2)
+    pure subroutine accumulate_mode_d2(coeff_e, coeff_o, carg, sarg, rmi, rni, &
+                                       tt, d2)
         real(dp), intent(in) :: coeff_e, coeff_o, carg, sarg, rmi, rni, tt(0:2)
-        real(dp), intent(inout) :: val, d1(3), d2(6)
+        real(dp), intent(inout) :: d2(6)
+
+        real(dp) :: p, q
+
+        p = coeff_e*carg + coeff_o*sarg
+        q = coeff_o*carg - coeff_e*sarg
+        d2(1) = d2(1) + p*tt(2)
+        d2(2) = d2(2) + rmi*q*tt(1)
+        d2(3) = d2(3) - rni*q*tt(1)
+        d2(4) = d2(4) - rmi*rmi*p*tt(0)
+        d2(5) = d2(5) + rmi*rni*p*tt(0)
+        d2(6) = d2(6) - rni*rni*p*tt(0)
+    end subroutine accumulate_mode_d2
+
+    pure subroutine accumulate_mode_d1(coeff_e, coeff_o, carg, sarg, rmi, rni, &
+                                       tt, val, d1)
+        real(dp), intent(in) :: coeff_e, coeff_o, carg, sarg, rmi, rni, tt(0:2)
+        real(dp), intent(inout) :: val, d1(3)
 
         real(dp) :: p, q
 
@@ -260,12 +304,6 @@ contains
         d1(1) = d1(1) + p*tt(1)
         d1(2) = d1(2) + rmi*q*tt(0)
         d1(3) = d1(3) - rni*q*tt(0)
-        d2(1) = d2(1) + p*tt(2)
-        d2(2) = d2(2) + rmi*q*tt(1)
-        d2(3) = d2(3) - rni*q*tt(1)
-        d2(4) = d2(4) - rmi*rmi*p*tt(0)
-        d2(5) = d2(5) + rmi*rni*p*tt(0)
-        d2(6) = d2(6) - rni*rni*p*tt(0)
-    end subroutine accumulate_mode
+    end subroutine accumulate_mode_d1
 
 end module spectre_basis
