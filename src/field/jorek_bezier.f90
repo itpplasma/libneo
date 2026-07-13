@@ -10,15 +10,20 @@ module jorek_bezier
         integer :: n_bins(2) = 0
         real(dp) :: grid_lower(2) = 0.0_dp
         real(dp) :: bin_width(2) = 0.0_dp
+        logical :: has_axis = .false.
+        real(dp) :: axis_rz(2) = 0.0_dp
         real(dp), allocatable :: bounds(:, :, :)
         integer, allocatable :: bin_offsets(:)
         integer, allocatable :: bin_elements(:)
+        integer, allocatable :: axis_elements(:)
+        integer, allocatable :: axis_sides(:)
     end type jorek_locator_t
 
     public :: jorek_locator_t, cubic_jorek_basis, evaluate_jorek_geometry
     public :: build_jorek_locator, locate_jorek_element
     public :: locate_jorek_element_indexed
     public :: jorek_locator_candidate_count
+    public :: is_jorek_axis_target
 
 contains
 
@@ -162,8 +167,105 @@ contains
                 locator%bounds(:, :, element), ierr)
             if (ierr /= 0) return
         end do
+        call build_axis_metadata(data, locator, ierr)
+        if (ierr /= 0) return
         call build_locator_bins(locator, ierr)
     end subroutine build_jorek_locator
+
+    subroutine build_axis_metadata(data, locator, ierr)
+        type(jorek_restart_t), intent(in) :: data
+        type(jorek_locator_t), intent(inout) :: locator
+        integer, intent(out) :: ierr
+
+        integer, allocatable :: elements(:), sides(:)
+        real(dp) :: edge_rz(2), reference_rz(2), scale, tolerance
+        integer :: count, element, side, edge_ierr
+
+        ierr = 0
+        count = 0
+        allocate (elements(data%n_elements), sides(data%n_elements))
+        do element = 1, data%n_elements
+            call collapsed_element_side(data, element, side, edge_rz, edge_ierr)
+            if (edge_ierr /= 0) then
+                ierr = 2
+                return
+            end if
+            if (side == 0) cycle
+            if (count == 0) then
+                reference_rz = edge_rz
+            else
+                scale = max(1.0_dp, maxval(abs(reference_rz)), &
+                    maxval(abs(edge_rz)))
+                tolerance = 64.0_dp*epsilon(1.0_dp)*scale
+                if (maxval(abs(edge_rz - reference_rz)) > tolerance) then
+                    ierr = 2
+                    return
+                end if
+            end if
+            count = count + 1
+            elements(count) = element
+            sides(count) = side
+        end do
+        if (count == 0) return
+        locator%has_axis = .true.
+        locator%axis_rz = reference_rz
+        allocate (locator%axis_elements(count), locator%axis_sides(count))
+        locator%axis_elements = elements(:count)
+        locator%axis_sides = sides(:count)
+    end subroutine build_axis_metadata
+
+    pure subroutine collapsed_element_side(data, element, side, edge_rz, ierr)
+        type(jorek_restart_t), intent(in) :: data
+        integer, intent(in) :: element
+        integer, intent(out) :: side
+        real(dp), intent(out) :: edge_rz(2)
+        integer, intent(out) :: ierr
+
+        real(dp), parameter :: corners(2, 4) = reshape([ &
+            0.0_dp, 0.0_dp, 1.0_dp, 0.0_dp, &
+            1.0_dp, 1.0_dp, 0.0_dp, 1.0_dp], [2, 4])
+        integer, parameter :: edge_vertices(2, 4) = reshape([ &
+            1, 4, 2, 3, 1, 2, 4, 3], [2, 4])
+        real(dp) :: corner_rz(2, 4), rz_st(2, 2), scale, tolerance
+        integer :: corner, vertex_1, vertex_2
+
+        side = 0
+        edge_rz = 0.0_dp
+        ierr = 0
+        do corner = 1, 4
+            call evaluate_jorek_geometry(data, element, corners(1, corner), &
+                corners(2, corner), corner_rz(:, corner), rz_st, ierr)
+            if (ierr /= 0) return
+        end do
+        scale = max(1.0_dp, maxval(abs(corner_rz)))
+        tolerance = 64.0_dp*epsilon(1.0_dp)*scale
+        do side = 1, 4
+            vertex_1 = edge_vertices(1, side)
+            vertex_2 = edge_vertices(2, side)
+            if (maxval(abs(corner_rz(:, vertex_1) &
+                    - corner_rz(:, vertex_2))) <= tolerance) then
+                edge_rz = 0.5_dp*(corner_rz(:, vertex_1) &
+                    + corner_rz(:, vertex_2))
+                return
+            end if
+        end do
+        side = 0
+    end subroutine collapsed_element_side
+
+    pure logical function is_jorek_axis_target(locator, target_rz)
+        type(jorek_locator_t), intent(in) :: locator
+        real(dp), intent(in) :: target_rz(2)
+
+        real(dp) :: scale, tolerance
+
+        is_jorek_axis_target = .false.
+        if (.not. locator%has_axis) return
+        if (.not. allocated(locator%axis_elements)) return
+        scale = max(1.0_dp, maxval(abs(locator%axis_rz)))
+        tolerance = 64.0_dp*epsilon(1.0_dp)*scale
+        is_jorek_axis_target = &
+            maxval(abs(target_rz - locator%axis_rz)) <= tolerance
+    end function is_jorek_axis_target
 
     pure subroutine build_element_bounds(data, element, bounds, ierr)
         type(jorek_restart_t), intent(in) :: data
@@ -461,6 +563,13 @@ contains
         if (size(locator%bin_offsets) /= n_total + 1) return
         if (size(locator%bin_elements) &
             /= locator%bin_offsets(n_total + 1) - 1) return
+        if (locator%has_axis) then
+            if (.not. allocated(locator%axis_elements) &
+                .or. .not. allocated(locator%axis_sides)) return
+            if (size(locator%axis_elements) < 1 &
+                .or. size(locator%axis_sides) &
+                /= size(locator%axis_elements)) return
+        end if
         valid_locator = .true.
     end function valid_locator
 
