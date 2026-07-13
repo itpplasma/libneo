@@ -15,6 +15,7 @@ program test_jorek_model303_field
     call test_reduced_mhd_field
     call test_reduced_mhd_potential
     call test_global_field_query
+    call test_collapsed_axis_field
     call test_rejected_model
     call test_rejected_singular_geometry
     if (nfail > 0) error stop
@@ -85,6 +86,33 @@ contains
         call report(nfail_before)
     end subroutine test_global_field_query
 
+    subroutine test_collapsed_axis_field
+        type(jorek_restart_t) :: data
+        type(jorek_locator_t) :: locator
+        real(dp), parameter :: axis_r = 10.0_dp, axis_z = 0.0_dp
+        real(dp), parameter :: psi_axis = 3.0_dp, psi_r = 2.0_dp
+        real(dp), parameter :: psi_z = -4.0_dp
+        real(dp) :: a_r_phi_z(3), b_r_z_phi(3), st(2)
+        integer :: element, ierr, nfail_before
+
+        call print_test('global model 303 query has a finite collapsed-axis limit')
+        nfail_before = nfail
+        call make_model303_axis_element(data, axis_r, psi_axis, psi_r, psi_z)
+        call build_jorek_locator(data, locator, ierr)
+        call check_int('build ierr', ierr, 0)
+        call evaluate_jorek_model303_at(data, [axis_r, axis_z], 0.4_dp, &
+            a_r_phi_z, b_r_z_phi, element, st, ierr, locator)
+        call check_int('ierr', ierr, 0)
+        call check_int('element', element, 1)
+        call check_real('axis A_R', a_r_phi_z(1), 0.0_dp)
+        call check_real('axis A_phi', a_r_phi_z(2), -psi_axis)
+        call check_real('axis A_Z', a_r_phi_z(3), -data%F0*log(axis_r))
+        call check_axis_real('axis B_R', b_r_z_phi(1), psi_z/axis_r)
+        call check_axis_real('axis B_Z', b_r_z_phi(2), -psi_r/axis_r)
+        call check_real('axis B_phi', b_r_z_phi(3), data%F0/axis_r)
+        call report(nfail_before)
+    end subroutine test_collapsed_axis_field
+
     subroutine test_rejected_model
         type(jorek_restart_t) :: data
         real(dp) :: b_r_z_phi(3)
@@ -152,6 +180,36 @@ contains
         end do
     end subroutine make_model303_element
 
+    subroutine make_model303_axis_element(data, axis_r, psi_axis, psi_r, psi_z)
+        type(jorek_restart_t), intent(out) :: data
+        real(dp), intent(in) :: axis_r, psi_axis, psi_r, psi_z
+
+        real(dp), parameter :: s_node(4) = [0.0_dp, 1.0_dp, 1.0_dp, 0.0_dp]
+        real(dp), parameter :: t_node(4) = [0.0_dp, 0.0_dp, 1.0_dp, 1.0_dp]
+        real(dp) :: s, t
+        integer :: node
+
+        call make_model303_element(data)
+        do node = 1, 4
+            s = s_node(node)
+            t = t_node(node)
+            data%x(node, 1, 1, 1) = axis_r + s
+            data%x(node, 1, 1, 2) = s*(2.0_dp*t - 1.0_dp)
+            data%x(node, 1, 2, 1) = 1.0_dp/3.0_dp
+            data%x(node, 1, 2, 2) = (2.0_dp*t - 1.0_dp)/3.0_dp
+            data%x(node, 1, 3, 1) = 0.0_dp
+            data%x(node, 1, 3, 2) = 2.0_dp*s/3.0_dp
+            data%x(node, 1, 4, 1) = 0.0_dp
+            data%x(node, 1, 4, 2) = 2.0_dp/9.0_dp
+            data%values(node, 1, 1, 1) = psi_axis &
+                + s*(psi_r + psi_z*(2.0_dp*t - 1.0_dp))
+            data%values(node, 1, 2, 1) = &
+                (psi_r + psi_z*(2.0_dp*t - 1.0_dp))/3.0_dp
+            data%values(node, 1, 3, 1) = 2.0_dp*s*psi_z/3.0_dp
+            data%values(node, 1, 4, 1) = 2.0_dp*psi_z/9.0_dp
+        end do
+    end subroutine make_model303_axis_element
+
     subroutine check_real(name, actual, expected)
         character(len=*), intent(in) :: name
         real(dp), intent(in) :: actual, expected
@@ -160,6 +218,14 @@ contains
             call fail(name//' mismatch')
         end if
     end subroutine check_real
+
+    subroutine check_axis_real(name, actual, expected)
+        character(len=*), intent(in) :: name
+        real(dp), intent(in) :: actual, expected
+
+        if (abs(actual - expected) > 1.0e-12_dp*max(1.0_dp, abs(expected))) &
+            call fail(name//' mismatch')
+    end subroutine check_axis_real
 
     subroutine check_int(name, actual, expected)
         character(len=*), intent(in) :: name
