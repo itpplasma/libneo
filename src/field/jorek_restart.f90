@@ -5,8 +5,9 @@ module jorek_restart
     !> one-element datasets. Arrays keep the Fortran dimension order of the
     !> JOREK writer, so the C-order file shape (n_var, n_degrees, n_tor,
     !> n_nodes) reads back as (n_nodes, n_tor, n_degrees, n_var). Node indices
-    !> in vertex stay 1-based as stored; neighbours keeps -1 for boundary
-    !> edges. Values keep JOREK normalized units (t_norm = sqrt(mu0 rho0)).
+    !> in vertex stay 1-based as stored; neighbours keeps nonpositive boundary
+    !> sentinels as stored (-1 at a collapsed axis, 0 at a physical boundary).
+    !> Values keep JOREK normalized units (t_norm = sqrt(mu0 rho0)).
 
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use hdf5_tools, only: HID_T, h5_init, h5_deinit, h5_open, h5_close, h5_get, &
@@ -43,7 +44,7 @@ module jorek_restart
         integer, allocatable :: vertex(:, :)
         !> Element scalings, (n_elements, n_vertex_max, n_degrees)
         real(dp), allocatable :: size(:, :, :)
-        !> Element adjacency, (n_elements, n_vertex_max); -1 marks boundaries
+        !> Element adjacency; nonpositive values mark boundary sides as stored
         integer, allocatable :: neighbours(:, :)
     end type jorek_restart_t
 

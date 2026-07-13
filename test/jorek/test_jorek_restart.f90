@@ -180,7 +180,7 @@ contains
         end do
         vertex = reshape([1, 2, 2, 3, 3, 1, 1, 2], &
             [n_elements, n_vertex_max])
-        neighbours = reshape([2, 1, -1, -1, -1, -1, -1, -1], &
+        neighbours = reshape([2, 1, 0, -1, -1, -1, -1, -1], &
             [n_elements, n_vertex_max])
 
         call h5_init()
@@ -325,7 +325,7 @@ contains
         integer, intent(in) :: i, k
 
         integer, parameter :: ref(n_elements, n_vertex_max) = &
-            reshape([2, 1, -1, -1, -1, -1, -1, -1], &
+            reshape([2, 1, 0, -1, -1, -1, -1, -1], &
             [n_elements, n_vertex_max])
 
         neighbours_ref = ref(i, k)
