@@ -1,6 +1,8 @@
 program test_jorek_restart_fixture
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use jorek_bezier, only: evaluate_jorek_geometry, locate_jorek_element
+    use jorek_bezier, only: jorek_locator_t, build_jorek_locator, &
+        evaluate_jorek_geometry, locate_jorek_element, &
+        locate_jorek_element_indexed
     use jorek_field_values, only: evaluate_jorek_variable
     use jorek_model303_field, only: evaluate_jorek_model303_a, &
         evaluate_jorek_model303_b
@@ -117,6 +119,7 @@ contains
         type(jorek_restart_t), intent(in) :: data
 
         real(dp) :: rz(2), rz_st(2, 2), s, t
+        type(jorek_locator_t) :: locator
         integer :: element, ierr
 
         call evaluate_jorek_geometry(data, 1, 0.2_dp, 0.7_dp, rz, rz_st, ierr)
@@ -132,6 +135,14 @@ contains
         call check_int('location element', element, 1)
         call check_dp('location s', s, 0.2_dp)
         call check_dp('location t', t, 0.7_dp)
+        call build_jorek_locator(data, locator, ierr)
+        call check_int('locator build ierr', ierr, 0)
+        call locate_jorek_element_indexed(data, locator, rz, element, s, t, &
+            ierr)
+        call check_int('indexed location ierr', ierr, 0)
+        call check_int('indexed location element', element, 1)
+        call check_dp('indexed location s', s, 0.2_dp)
+        call check_dp('indexed location t', t, 0.7_dp)
     end subroutine check_geometry_oracle
 
     subroutine check_value_oracle(data)

@@ -2,6 +2,7 @@ program test_jorek_model303_field
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use jorek_model303_field, only: evaluate_jorek_model303_a, &
         evaluate_jorek_model303_b, evaluate_jorek_model303_at
+    use jorek_bezier, only: jorek_locator_t, build_jorek_locator
     use jorek_restart, only: jorek_restart_t
     use util_for_test, only: print_test, print_ok, print_fail
 
@@ -60,6 +61,7 @@ contains
 
     subroutine test_global_field_query
         type(jorek_restart_t) :: data
+        type(jorek_locator_t) :: locator
         real(dp) :: a_r_phi_z(3), b_r_z_phi(3), st(2), r, z
         integer :: element, ierr, nfail_before
 
@@ -68,8 +70,10 @@ contains
         call make_model303_element(data)
         r = 10.25_dp
         z = 0.6_dp
+        call build_jorek_locator(data, locator, ierr)
+        call check_int('build ierr', ierr, 0)
         call evaluate_jorek_model303_at(data, [r, z], 0.4_dp, a_r_phi_z, &
-            b_r_z_phi, element, st, ierr)
+            b_r_z_phi, element, st, ierr, locator)
         call check_int('ierr', ierr, 0)
         call check_int('element', element, 1)
         call check_real('s', st(1), 0.25_dp)
