@@ -46,6 +46,7 @@ endif()
 # Consumers that only link the light targets (interpolate, vmec_support, boozer,
 # field, nctools, util, ...) set this OFF to skip those dependencies entirely.
 option(LIBNEO_BUILD_NUMERICS "Build numerics-heavy components requiring BLAS/LAPACK and fortnum" ON)
+option(LIBNEO_BUILD_JOREK "Build the HDF5-backed JOREK restart component" ${LIBNEO_BUILD_NUMERICS})
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
@@ -247,7 +248,7 @@ endif()
 # Tier 0: no internal libneo dependencies
 add_subdirectory(src/util)
 add_subdirectory(src/nctools)
-if(LIBNEO_BUILD_NUMERICS)
+if(LIBNEO_BUILD_NUMERICS OR LIBNEO_BUILD_JOREK)
     add_subdirectory(src/hdf5_tools)
 endif()
 add_subdirectory(src/polylag)
@@ -258,17 +259,7 @@ add_subdirectory(src/field)
 # Tier 1: depends on Tier 0
 add_subdirectory(src/vmec_support)
 
-if(LIBNEO_BUILD_NUMERICS)
-    # Tier 1: SPECTRE equilibrium HDF5 reader (depends on hdf5_tools only).
-    add_library(spectre_support STATIC
-        src/spectre/spectre_reader.f90
-        src/spectre/spectre_basis.f90
-    )
-    target_link_libraries(spectre_support PUBLIC LIBNEO::hdf5_tools)
-    set_property(TARGET spectre_support PROPERTY
-        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
-    add_library(LIBNEO::spectre ALIAS spectre_support)
-
+if(LIBNEO_BUILD_JOREK)
     # Tier 1: JOREK restart HDF5 reader (depends on hdf5_tools only).
     add_library(jorek_support STATIC
         src/field/jorek_restart.f90
@@ -280,6 +271,18 @@ if(LIBNEO_BUILD_NUMERICS)
     set_property(TARGET jorek_support PROPERTY
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
     add_library(LIBNEO::jorek ALIAS jorek_support)
+endif()
+
+if(LIBNEO_BUILD_NUMERICS)
+    # Tier 1: SPECTRE equilibrium HDF5 reader (depends on hdf5_tools only).
+    add_library(spectre_support STATIC
+        src/spectre/spectre_reader.f90
+        src/spectre/spectre_basis.f90
+    )
+    target_link_libraries(spectre_support PUBLIC LIBNEO::hdf5_tools)
+    set_property(TARGET spectre_support PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre ALIAS spectre_support)
 
     add_subdirectory(src/coordinates)
 
