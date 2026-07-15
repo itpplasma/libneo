@@ -68,8 +68,9 @@ contains
 
     subroutine free_spectre(data)
         type(spectre_data_t), intent(inout) :: data
+        type(spectre_data_t) :: empty
 
-        data = spectre_data_t()
+        data = empty
     end subroutine free_spectre
 
     subroutine read_sizes(h5id, data)
