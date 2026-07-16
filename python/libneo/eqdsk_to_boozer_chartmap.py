@@ -125,6 +125,7 @@ def convert_eqdsk_to_chartmap(
     nsurfmax=10000,
     nsurf=2000,
     convexwall=None,
+    psimax=None,
 ):
     """Read an EQDSK g-file and write a libneo Boozer chartmap.
 
@@ -141,6 +142,15 @@ def convert_eqdsk_to_chartmap(
     convexwall : path-like or None
         Path to a convex wall file for stretch_coords.  If None a default
         circular wall is generated from the g-file boundary.
+    psimax : float or None
+        Poloidal flux at the plasma boundary in CGS (G*cm^2/rad), absolute
+        value as interpolated by field_eq from the g-file psi map.  The
+        flux-surface scan stops at the first surface with psi beyond this
+        value.  If None, the boundary is located purely by the field-line
+        integration leaving the computational box; that fails for synthetic
+        equilibria without an X-point, whose psi keeps rising to the box
+        edge (the scan then runs to nsurfmax and the last box-confined
+        surface, not the LCFS, becomes s = 1).
     """
     import _efit_to_boozer as _etb
     from _efit_to_boozer import efit_to_boozer_mod
@@ -155,18 +165,19 @@ def convert_eqdsk_to_chartmap(
     with tempfile.TemporaryDirectory() as tmpdir:
         os.chdir(tmpdir)
         try:
-            # Drive efit_to_boozer with its standard settings: psimax defaults to
-            # 1e10 and the separatrix is located by the field-line integration,
-            # exactly as the existing efit_to_boozer.inp does.
-            _write_inp(
-                "efit_to_boozer.inp",
-                gfile,
+            # Without an explicit psimax the boundary is located purely by
+            # the field-line integration (efit_to_boozer's historical 1e10
+            # placeholder disables the flux-based stop).
+            inp_kwargs = dict(
                 nstep=nstep,
                 nlabel=nlabel,
                 ntheta_int=ntheta_int,
                 nsurfmax=nsurfmax,
                 nsurf=nsurf,
             )
+            if psimax is not None:
+                inp_kwargs["psimax"] = psimax
+            _write_inp("efit_to_boozer.inp", gfile, **inp_kwargs)
             if convexwall is None:
                 from libneo.eqdsk_base import read_eqdsk
                 eq = read_eqdsk(gfile)
@@ -218,11 +229,48 @@ def convert_eqdsk_to_chartmap(
                 C_norm_arr[k] = Cn
                 q_arr[k] = q
 
-            # Covariant B surface functions in SI.
-            # B_phi (G) = C_norm [G*cm] -> SI: C_norm * 1e-6 T*m
-            # B_theta (I) = C_norm / q [G*cm] -> SI
+            # Covariant B surface functions (CGS G*cm).
+            # B_phi = G(s) = R*B_tor = C_norm from magdata.
+            # B_theta = I(s), the Boozer covariant poloidal component, from
+            # Ampere's law: 2*pi*I = loop integral of B_pol along the flux
+            # surface (only the enclosed toroidal current contributes).
+            # NOTE: I is NOT G/q. The field-line pitch iota is the ratio of
+            # the CONTRAvariant components; the covariant ratio I/G measures
+            # enclosed current. For a tokamak I << G/q, and writing G/q here
+            # inflates the field-line length factor (G + iota*I) and slows
+            # every traced orbit's parallel dynamics by O(1/q^2).
             B_phi_cgs = C_norm_arr          # G*cm
-            B_theta_cgs = C_norm_arr / q_arr  # G*cm; iota=I/G => I=G/q
+            # B_pol = |grad psi| / R from the g-file psi map itself: taking
+            # sqrt(B^2 - B_tor^2) instead would difference two nearly equal
+            # interpolants and lose all accuracy on inner surfaces.
+            from libneo.eqdsk_base import read_eqdsk
+            from scipy.interpolate import RectBivariateSpline
+            eq_amp = read_eqdsk(gfile)
+            psi_spl = RectBivariateSpline(
+                np.asarray(eq_amp["R"]) * METER_TO_CM,
+                np.asarray(eq_amp["Z"]) * METER_TO_CM,
+                np.asarray(eq_amp["PsiVs"]).T * 1.0e8,  # Wb/rad -> G*cm^2/rad
+            )
+            B_theta_cgs = np.zeros(nrho)    # G*cm
+            ntheta_amp = 2048
+            thb_amp = np.linspace(0.0, TWOPI, ntheta_amp, endpoint=False)
+            for k in range(nrho):
+                r_amp = np.asarray(r_of_thb[k](thb_amp), dtype=float)
+                dth_amp = np.asarray(dth_of_thb[k](thb_amp), dtype=float)
+                th_geom = thb_amp + dth_amp
+                R_amp = (R_axis_si + r_amp * np.cos(th_geom)) * METER_TO_CM
+                Z_amp = (Z_axis_si + r_amp * np.sin(th_geom)) * METER_TO_CM
+                dR = (np.roll(R_amp, -1) - np.roll(R_amp, 1)) / 2.0
+                dZ = (np.roll(Z_amp, -1) - np.roll(Z_amp, 1)) / 2.0
+                dl = np.hypot(dR, dZ)  # cm
+                dpsi_dR = psi_spl(R_amp, Z_amp, dx=1, grid=False)
+                dpsi_dZ = psi_spl(R_amp, Z_amp, dy=1, grid=False)
+                # Signed circulation of B_pol = (-psi_Z, psi_R)/R along
+                # increasing theta, so the sign of I follows the enclosed
+                # current direction instead of being forced positive.
+                B_R = -dpsi_dZ / R_amp  # G
+                B_Z = dpsi_dR / R_amp   # G
+                B_theta_cgs[k] = np.sum(B_R * dR + B_Z * dZ) / TWOPI  # G*cm
 
             # A_phi(s) = -torflux * integral_0^s iota(s') ds'
             # iota = 1/q.  Use a cubic spline on s_grid.
