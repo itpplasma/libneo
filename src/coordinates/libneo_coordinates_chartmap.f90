@@ -64,6 +64,7 @@ module libneo_coordinates_chartmap
         procedure :: evaluate_cart => chartmap_evaluate_cart
         procedure :: evaluate_cyl => chartmap_evaluate_cyl
         procedure :: covariant_basis => chartmap_covariant_basis
+        procedure :: jacobian_det => chartmap_jacobian_det
         procedure :: metric_tensor => chartmap_metric_tensor
         procedure :: christoffel => chartmap_christoffel
         procedure :: from_cyl => chartmap_from_cyl
@@ -664,6 +665,22 @@ contains
         e_cov = dvals
     end subroutine chartmap_covariant_basis
 
+    !> Signed Jacobian determinant det(dx/du) of the forward map, from the analytic
+    !> covariant basis. metric_tensor's sqrtg = sqrt(abs(det g)) = |jacobian_det|
+    !> discards the orientation; chart gates need the sign to certify one
+    !> consistent handedness across theta/zeta seams on the full torus.
+    real(dp) function chartmap_jacobian_det(self, u) result(det)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+
+        real(dp) :: e(3, 3)
+
+        call self%covariant_basis(u, e)
+        det = e(1, 1)*(e(2, 2)*e(3, 3) - e(2, 3)*e(3, 2)) &
+              - e(1, 2)*(e(2, 1)*e(3, 3) - e(2, 3)*e(3, 1)) &
+              + e(1, 3)*(e(2, 1)*e(3, 2) - e(2, 2)*e(3, 1))
+    end function chartmap_jacobian_det
+
     subroutine chartmap_metric_tensor(self, u, g, ginv, sqrtg)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
@@ -1118,7 +1135,7 @@ contains
         real(dp) :: zeta_seed(5)
         logical :: trace
         integer :: k
-        integer :: ierr_seed, ierr_try
+        integer :: ierr_try
 
         ierr = chartmap_from_cyl_err_max_iter
         best_res = huge(1.0_dp)
@@ -1142,8 +1159,7 @@ contains
             x_wedge(2) = -sa*x_target(1) + ca*x_target(2)
             x_wedge(3) = x_target(3)
             call chartmap_initial_guess_cartesian_3d(self, x_wedge, u_try)
-            call chartmap_refine_cart_seed(self, x_wedge, zeta_period, u_try, &
-                                           res_norm, ierr_seed)
+            call chartmap_refine_cart_seed(self, x_wedge, zeta_period, u_try)
             call chartmap_solve_cart(self, x_wedge, u_try(1), u_try(2), u_try(3), &
                                      ierr_try, trace)
             ! Accept on the final residual, not on the solver exit path: the Newton
@@ -1613,20 +1629,17 @@ contains
         end do
     end subroutine chartmap_initial_guess_cartesian_3d
 
-    subroutine chartmap_refine_cart_seed(self, x_target, zeta_period, u, res_norm, ierr)
+    subroutine chartmap_refine_cart_seed(self, x_target, zeta_period, u)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: x_target(3)
         real(dp), intent(in) :: zeta_period
         real(dp), intent(inout) :: u(3)
-        real(dp), intent(out) :: res_norm
-        integer, intent(out) :: ierr
 
         real(dp) :: trial(3), best_u(3), x_trial(3)
         real(dp) :: step_rho, step_theta, step_zeta
         real(dp) :: best_dist2, dist2
         integer :: iter, ir, it, iz
 
-        ierr = chartmap_from_cyl_ok
         step_rho = 1.0_dp/16.0_dp
         step_theta = TWOPI/64.0_dp
         step_zeta = zeta_period/48.0_dp
@@ -1661,10 +1674,6 @@ contains
                 if (max(step_rho, max(step_theta, step_zeta)) < 1.0e-12_dp) exit
             end if
         end do
-
-        call chartmap_eval_cart(self, u, x_trial)
-        res_norm = sqrt(sum((x_target - x_trial)**2))
-        if (res_norm > 1.0e-4_dp) ierr = chartmap_from_cyl_err_max_iter
     end subroutine chartmap_refine_cart_seed
 
     subroutine chartmap_newton_delta(self, x_target, rho, theta, zeta, delta, &
