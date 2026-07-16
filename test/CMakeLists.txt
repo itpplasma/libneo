@@ -486,6 +486,35 @@ set_tests_properties(test_chartmap_invert_cart PROPERTIES
 add_library(chartmap_test_utils STATIC source/chartmap_test_utils.f90)
 target_link_libraries(chartmap_test_utils PUBLIC neo)
 
+add_library(chartmap_gate_fixtures STATIC source/chartmap_gate_fixtures.f90)
+target_link_libraries(chartmap_gate_fixtures PUBLIC neo)
+
+add_executable(test_chartmap_gate_jacobian.x source/test_chartmap_gate_jacobian.f90)
+target_link_libraries(test_chartmap_gate_jacobian.x chartmap_gate_fixtures)
+add_test(NAME test_chartmap_gate_jacobian
+  COMMAND test_chartmap_gate_jacobian.x)
+set_tests_properties(test_chartmap_gate_jacobian PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_chartmap_gate_fieldline.x source/test_chartmap_gate_fieldline.f90)
+target_link_libraries(test_chartmap_gate_fieldline.x chartmap_gate_fixtures neo_field)
+add_test(NAME test_chartmap_gate_fieldline
+  COMMAND test_chartmap_gate_fieldline.x)
+set_tests_properties(test_chartmap_gate_fieldline PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_chartmap_gate_reconstruction.x
+  source/test_chartmap_gate_reconstruction.f90)
+target_link_libraries(test_chartmap_gate_reconstruction.x
+  chartmap_gate_fixtures neo_field)
+add_test(NAME test_chartmap_gate_reconstruction
+  COMMAND test_chartmap_gate_reconstruction.x)
+set_tests_properties(test_chartmap_gate_reconstruction PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(test_vmec_chartmap_generator.x source/test_vmec_chartmap_generator.f90)
 target_link_libraries(test_vmec_chartmap_generator.x chartmap_test_utils)
 add_test(NAME test_vmec_chartmap_generator
