@@ -162,7 +162,7 @@ contains
         type(chartmap_coordinate_system_t), intent(in), target :: ccs
         real(dp), intent(in) :: zeta_period
         integer, intent(inout) :: nerrors
-        real(dp) :: u0(3), x(3), u(3), u_guess(3)
+        real(dp) :: u0(3), x(3), u(3), u_guess(3), x_back(3)
         real(dp) :: dth, dze
         integer :: k, status, nfail
         real(dp), parameter :: seam_fracs(3) = [0.0_dp, 0.999_dp, 0.5_dp]
@@ -176,9 +176,13 @@ contains
             u_guess = [u0(1), u0(2), u0(3) + zeta_period]
             call ccs%invert_cart(x, u_guess, u, status)
             dth = angular_diff(u(2), u0(2), TWOPI)
-            dze = angular_diff(u(3), u0(3), zeta_period)
+            ! zeta compares modulo 2pi: a result off by a field period would pass
+            ! a wedge-modular comparison yet reconstruct a rotated position.
+            dze = angular_diff(u(3), u0(3), TWOPI)
+            call ccs%evaluate_cart(u, x_back)
             if (status /= CHARTMAP_LOCATED .or. abs(u(1) - u0(1)) > tol .or. &
-                dth > tol .or. dze > tol) then
+                dth > tol .or. dze > tol .or. &
+                sqrt(sum((x_back - x)**2)) > tol) then
                 print *, "  FAIL: seam roundtrip u0=", u0, " u=", u, " status=", status
                 nfail = nfail + 1
             end if

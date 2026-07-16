@@ -1114,6 +1114,7 @@ contains
         real(dp) :: phi
         real(dp) :: phi_shift, ca, sa
         real(dp) :: x_wedge(3), x_round(3)
+        real(dp) :: accept_tol
         real(dp) :: zeta_seed(5)
         logical :: trace
         integer :: k
@@ -1151,10 +1152,14 @@ contains
             ! |dx/du|*tol_step, well above tol_res yet far below the documented
             ! inverse tolerance. A target the chart cannot represent keeps a
             ! residual orders of magnitude above the accept tolerance and stays
-            ! rejected.
+            ! rejected. The threshold carries the solver's own convergence floors
+            ! (tol_newton and the scale-aware term) so a root the Newton
+            ! legitimately declares converged is never rejected here.
             call chartmap_eval_cart(self, u_try, x_round)
             res_norm = sqrt(sum((x_wedge - x_round)**2))
-            if (res_norm < chartmap_invert_accept_tol) ierr = chartmap_from_cyl_ok
+            accept_tol = max(chartmap_invert_accept_tol, self%tol_newton, &
+                             100.0_dp*epsilon(1.0_dp)*sqrt(sum(x_wedge**2)))
+            if (res_norm < accept_tol) ierr = chartmap_from_cyl_ok
             if (ierr /= chartmap_from_cyl_ok) return
             u = u_try
             u(1) = min(max(u(1), 0.0_dp), 1.0_dp)
