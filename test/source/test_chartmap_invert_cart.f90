@@ -68,6 +68,7 @@ contains
             zeta_period = TWOPI/real(ccs%num_field_periods, dp)
 
             call check_interior_roundtrip(ccs, zeta_period, nerrors)
+            call check_full_torus_roundtrip(ccs, nerrors)
             call check_seam_roundtrip(ccs, zeta_period, nerrors)
             call check_near_axis(ccs, zeta_period, nerrors)
             call check_axis(ccs, zeta_period, nerrors)
@@ -118,6 +119,42 @@ contains
         if (nfail == 0) print *, "  PASS: interior roundtrip recovers u0, LOCATED"
     end subroutine check_interior_roundtrip
 
+    ! Full-torus points (issue #395): the lab-frame position of the co-rotating
+    ! Boozer chart is 2pi-periodic in zeta, not field-period-periodic, so the
+    ! inverse must recover zeta modulo TWOPI and reproduce the Cartesian target
+    ! for angles in every field-period sector.
+    subroutine check_full_torus_roundtrip(ccs, nerrors)
+        type(chartmap_coordinate_system_t), intent(in), target :: ccs
+        integer, intent(inout) :: nerrors
+        real(dp) :: u0(3), x(3), u(3), u_guess(3), x_back(3)
+        real(dp) :: dth, dze
+        integer :: k, status, nfail
+        real(dp), parameter :: zeta_fracs(4) = [0.15_dp, 0.4_dp, 0.65_dp, 0.9_dp]
+        real(dp), parameter :: tol = 1.0e-6_dp
+
+        nfail = 0
+        do k = 1, size(zeta_fracs)
+            u0 = [0.52_dp, 2.6_dp, zeta_fracs(k)*TWOPI]
+            call ccs%evaluate_cart(u0, x)
+            u_guess = [u0(1) + 0.07_dp, u0(2) + 0.15_dp, u0(3) - 0.05_dp]
+            call ccs%invert_cart(x, u_guess, u, status)
+
+            dth = angular_diff(u(2), u0(2), TWOPI)
+            dze = angular_diff(u(3), u0(3), TWOPI)
+            call ccs%evaluate_cart(u, x_back)
+            if (status /= CHARTMAP_LOCATED .or. abs(u(1) - u0(1)) > tol .or. &
+                dth > tol .or. dze > tol .or. &
+                sqrt(sum((x_back - x)**2)) > tol) then
+                print *, "  FAIL: full-torus roundtrip u0=", u0
+                print *, "        u=", u, " status=", status
+                print *, "        |dx|=", sqrt(sum((x_back - x)**2))
+                nfail = nfail + 1
+            end if
+        end do
+        nerrors = nerrors + nfail
+        if (nfail == 0) print *, "  PASS: full-torus roundtrip recovers zeta mod 2pi"
+    end subroutine check_full_torus_roundtrip
+
     ! Seam points: zeta within a small fraction of a field-period boundary, where a
     ! global Boozer phi guess would be a full period stale. invert_cart reseeds the
     ! toroidal angle and must still locate.
@@ -125,7 +162,7 @@ contains
         type(chartmap_coordinate_system_t), intent(in), target :: ccs
         real(dp), intent(in) :: zeta_period
         integer, intent(inout) :: nerrors
-        real(dp) :: u0(3), x(3), u(3), u_guess(3)
+        real(dp) :: u0(3), x(3), u(3), u_guess(3), x_back(3)
         real(dp) :: dth, dze
         integer :: k, status, nfail
         real(dp), parameter :: seam_fracs(3) = [0.0_dp, 0.999_dp, 0.5_dp]
@@ -139,9 +176,13 @@ contains
             u_guess = [u0(1), u0(2), u0(3) + zeta_period]
             call ccs%invert_cart(x, u_guess, u, status)
             dth = angular_diff(u(2), u0(2), TWOPI)
-            dze = angular_diff(u(3), u0(3), zeta_period)
+            ! zeta compares modulo 2pi: a result off by a field period would pass
+            ! a wedge-modular comparison yet reconstruct a rotated position.
+            dze = angular_diff(u(3), u0(3), TWOPI)
+            call ccs%evaluate_cart(u, x_back)
             if (status /= CHARTMAP_LOCATED .or. abs(u(1) - u0(1)) > tol .or. &
-                dth > tol .or. dze > tol) then
+                dth > tol .or. dze > tol .or. &
+                sqrt(sum((x_back - x)**2)) > tol) then
                 print *, "  FAIL: seam roundtrip u0=", u0, " u=", u, " status=", status
                 nfail = nfail + 1
             end if

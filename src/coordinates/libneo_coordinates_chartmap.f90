@@ -803,7 +803,14 @@ contains
 
         u(1) = min(max(u(1), 0.0_dp), 1.0_dp)
         u(2) = modulo(u(2), TWOPI)
-        u(3) = modulo(u(3), zeta_period)
+        ! The rz chart is wedge-native (its forward map reduces zeta internally);
+        ! the co-rotating cart chart is only 2pi-periodic in zeta, so wrapping into
+        ! the wedge would move the returned point by a field-period rotation.
+        if (self%has_spl_rz) then
+            u(3) = modulo(u(3), zeta_period)
+        else
+            u(3) = modulo(u(3), TWOPI)
+        end if
 
         rscale = chartmap_radial_scale(self, u)
         geom_status = chartmap_classify_root(u(1), res_best, rscale)
@@ -1105,10 +1112,13 @@ contains
         real(dp) :: res_norm, best_res
         real(dp) :: zeta_period
         real(dp) :: phi
+        real(dp) :: phi_shift, ca, sa
+        real(dp) :: x_wedge(3), x_round(3)
+        real(dp) :: accept_tol
         real(dp) :: zeta_seed(5)
         logical :: trace
         integer :: k
-        integer :: ierr_try
+        integer :: ierr_seed, ierr_try
 
         ierr = chartmap_from_cyl_err_max_iter
         best_res = huge(1.0_dp)
@@ -1117,25 +1127,44 @@ contains
         zeta_period = TWOPI/real(self%num_field_periods, dp)
         if (.not. self%has_spl_rz) then
             trace = chartmap_trace_once_enabled()
-            call chartmap_initial_guess_cartesian_3d(self, x_target, u_try)
-            call chartmap_refine_cart_seed(self, x_target, zeta_period, u_try, &
-                                           res_norm, ierr)
-            if (ierr == chartmap_from_cyl_ok) then
-                call chartmap_solve_cart(self, x_target, u_try(1), u_try(2), u_try(3), &
-                                         ierr_try, trace)
-                if (ierr_try == chartmap_from_cyl_ok) then
-                    ierr = chartmap_from_cyl_ok
-                end if
-            else
-                call chartmap_solve_cart(self, x_target, u_try(1), u_try(2), u_try(3), &
-                                         ierr_try, trace)
-                if (ierr_try == chartmap_from_cyl_ok) ierr = chartmap_from_cyl_ok
-            end if
+            ! The co-rotating cart chart is field-period symmetric,
+            ! x(rho, theta, zeta + k*zeta_period) = Rot_z(k*zeta_period) x(rho,
+            ! theta, zeta), but the lab-frame position itself is only 2pi-periodic
+            ! in zeta, so a target may sit in any field-period sector. Rotate it
+            ! back by the whole field periods of its geometric angle: the rotated
+            ! target has its root near the stored wedge, where the seed scan
+            ! resolves, and the solved zeta shifts back exactly by the symmetry.
+            phi_shift = zeta_period*floor(modulo(atan2(x_target(2), x_target(1)), &
+                                                 TWOPI)/zeta_period)
+            ca = cos(phi_shift)
+            sa = sin(phi_shift)
+            x_wedge(1) = ca*x_target(1) + sa*x_target(2)
+            x_wedge(2) = -sa*x_target(1) + ca*x_target(2)
+            x_wedge(3) = x_target(3)
+            call chartmap_initial_guess_cartesian_3d(self, x_wedge, u_try)
+            call chartmap_refine_cart_seed(self, x_wedge, zeta_period, u_try, &
+                                           res_norm, ierr_seed)
+            call chartmap_solve_cart(self, x_wedge, u_try(1), u_try(2), u_try(3), &
+                                     ierr_try, trace)
+            ! Accept on the final residual, not on the solver exit path: the Newton
+            ! step-size exit fires once steps reach tol_step in chart units, which
+            ! on a reactor-size chart is a Cartesian residual of order
+            ! |dx/du|*tol_step, well above tol_res yet far below the documented
+            ! inverse tolerance. A target the chart cannot represent keeps a
+            ! residual orders of magnitude above the accept tolerance and stays
+            ! rejected. The threshold carries the solver's own convergence floors
+            ! (tol_newton and the scale-aware term) so a root the Newton
+            ! legitimately declares converged is never rejected here.
+            call chartmap_eval_cart(self, u_try, x_round)
+            res_norm = sqrt(sum((x_wedge - x_round)**2))
+            accept_tol = max(chartmap_invert_accept_tol, self%tol_newton, &
+                             100.0_dp*epsilon(1.0_dp)*sqrt(sum(x_wedge**2)))
+            if (res_norm < accept_tol) ierr = chartmap_from_cyl_ok
             if (ierr /= chartmap_from_cyl_ok) return
             u = u_try
             u(1) = min(max(u(1), 0.0_dp), 1.0_dp)
             u(2) = modulo(u(2), TWOPI)
-            u(3) = modulo(u(3), zeta_period)
+            u(3) = modulo(u(3) + phi_shift, TWOPI)
             return
         end if
 
@@ -1208,7 +1237,6 @@ contains
         real(dp) :: res_norm, res_norm_new
         real(dp) :: tol_res, tol_step
         real(dp) :: step_norm
-        real(dp) :: zeta_period
         integer :: iter
         logical :: success
 
@@ -1219,10 +1247,15 @@ contains
         ! for any orbit whose particle reaches rho -> 0. (X, Y) carries the same
         ! information with a Jacobian regular through rho = 0 (the standard near-axis
         ! chart, cf. flux_pseudocartesian and Pfefferle et al. arXiv:1412.5464).
+        ! zeta iterates unwrapped: the lab-frame position of the co-rotating cart
+        ! chart is only 2pi-periodic in zeta, so wrapping the trial into the stored
+        ! wedge would teleport it by a field-period rotation. Callers reduce the
+        ! solved zeta to their convention. The residual tolerance carries a
+        ! scale-aware floor so reactor-size charts (|x| ~ 1e3 cm) are not asked for
+        ! a residual below floating-point resolution.
         ierr = chartmap_from_cyl_ok
-        zeta_period = TWOPI/real(self%num_field_periods, dp)
-        zeta = modulo(zeta, zeta_period)
-        tol_res = max(1.0e-10_dp, self%tol_newton)
+        tol_res = max(1.0e-10_dp, self%tol_newton, &
+                      100.0_dp*epsilon(1.0_dp)*sqrt(sum(x_target**2)))
         tol_step = max(1.0e-10_dp, self%tol_newton)
         xw = rho*cos(theta)
         yw = rho*sin(theta)
@@ -1236,9 +1269,9 @@ contains
                 ierr = chartmap_from_cyl_err_max_iter
                 exit
             end if
-            call chartmap_line_search_xy(self, x_target, xw, yw, zeta, &
-                                         zeta_period, delta, res_norm, xw_new, &
-                                         yw_new, zeta_new, res_norm_new, success)
+            call chartmap_line_search_xy(self, x_target, xw, yw, zeta, delta, &
+                                         res_norm, xw_new, yw_new, zeta_new, &
+                                         res_norm_new, success)
             if (.not. success) then
                 ierr = chartmap_from_cyl_err_max_iter
                 exit
@@ -1279,9 +1312,14 @@ contains
         call chartmap_eval_residual_and_partials_cart(self, x_target, rho, theta, &
                                                       zeta, residual, res_norm, &
                                                       dx_drho, dx_dtheta, dx_dzeta)
-        rsafe = max(rho, 1.0e-30_dp)
-        cth = xw/rsafe
-        sth = yw/rsafe
+        ! Take the gauge direction from theta, not from xw/rho: at an exact axis
+        ! seed (xw = yw = 0) the quotient degenerates to cth = sth = 0, which zeroes
+        ! both pseudo-Cartesian columns and freezes the iteration on the axis.
+        ! atan2(0, 0) = 0 gives a well-defined gauge there. The radial floor caps
+        ! the 1/rho amplification of axis-level spline noise in dx/dtheta.
+        rsafe = max(rho, 1.0e-8_dp)
+        cth = cos(theta)
+        sth = sin(theta)
         dx_dxw = cth*dx_drho - (sth/rsafe)*dx_dtheta
         dx_dyw = sth*dx_drho + (cth/rsafe)*dx_dtheta
 
@@ -1303,13 +1341,15 @@ contains
     end subroutine chartmap_newton_delta_xy
 
     ! Backtracking line search in (X, Y, zeta). rho = sqrt(X^2 + Y^2) >= 0 is
-    ! automatic, so only the outer bound needs a guard.
-    subroutine chartmap_line_search_xy(self, x_target, xw, yw, zeta, zeta_period, &
-                                       delta, res_norm, xw_new, yw_new, zeta_new, &
+    ! automatic, so only the outer bound needs a guard. zeta moves unwrapped: the
+    ! lab-frame position is only 2pi-periodic in zeta, so a wedge wrap would
+    ! teleport the trial by a field-period rotation and stall the search.
+    subroutine chartmap_line_search_xy(self, x_target, xw, yw, zeta, delta, &
+                                       res_norm, xw_new, yw_new, zeta_new, &
                                        res_norm_new, success)
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: x_target(3)
-        real(dp), intent(in) :: xw, yw, zeta, zeta_period
+        real(dp), intent(in) :: xw, yw, zeta
         real(dp), intent(in) :: delta(3), res_norm
         real(dp), intent(out) :: xw_new, yw_new, zeta_new, res_norm_new
         logical, intent(out) :: success
@@ -1329,7 +1369,7 @@ contains
                 cycle
             end if
             theta_t = atan2(yw_new, xw_new)
-            zeta_new = modulo(zeta + alpha*delta(3), zeta_period)
+            zeta_new = zeta + alpha*delta(3)
             uvec = [rho_t, theta_t, zeta_new]
             call chartmap_eval_cart(self, uvec, x_trial)
             res_norm_new = sqrt(sum((x_target - x_trial)**2))
