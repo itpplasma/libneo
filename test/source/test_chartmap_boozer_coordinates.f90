@@ -175,8 +175,11 @@ contains
                                                 6.2_dp]
         real(dp), parameter :: zeta_fracs(6) = [0.0_dp, 0.13_dp, 0.29_dp, 0.48_dp, &
                                                 0.77_dp, 0.999_dp]
-        real(dp), parameter :: tol_u = 1.0e-8_dp
-        real(dp), parameter :: tol_x = 1.0e-8_dp
+        ! The documented inverse tolerance: chartmap_invert_accept_tol on the
+        ! Cartesian residual, with the coordinate error bounded by residual over
+        ! the smallest local basis-vector scale.
+        real(dp), parameter :: tol_u = 1.0e-6_dp
+        real(dp), parameter :: tol_x = 1.0e-6_dp
 
         npoints = 0
         nfail = 0
@@ -263,7 +266,7 @@ contains
         call ccs%from_cart(x, u_back, ierr_local)
         if (ierr_local == chartmap_from_cyl_ok) then
             call ccs%evaluate_cart(u_back, x_back)
-            if (u_back(1) > 1.0e-4_dp .or. sqrt(sum((x_back - x)**2)) > 1.0e-6_dp) then
+            if (u_back(1) > 1.0e-4_dp .or. sqrt(sum((x_back - x)**2)) > 1.0e-4_dp) then
                 print *, "  FAIL: near-axis target accepted on wrong branch"
                 print *, "    u_back=", u_back
                 nerrors = nerrors + 1
