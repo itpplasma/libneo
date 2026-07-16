@@ -116,9 +116,9 @@ def write_eqdsk(filename, eqdata):
             fobj.write("\n")
 
     with open(filename, 'w') as f:
-        f.write(eqdata['header'][:48])
+        f.write(f"{eqdata['header'][:48]:<48s}")
 
-        f.write(f"   0  {eqdata['nrgr']} {eqdata['nzgr']}\n")
+        f.write(f"{0:4d}{eqdata['nrgr']:4d}{eqdata['nzgr']:4d}\n")
 
         write_field(f, eqdata['rboxlength'])
         write_field(f, eqdata['zboxlength'])
