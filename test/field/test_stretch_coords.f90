@@ -52,8 +52,10 @@ contains
         integer :: unit_full
         integer :: i
         real(dp) :: angle
+        real(dp) :: rm_inside, zm_inside
         real(dp) :: rm_full, zm_full
         real(dp) :: r_input, z_input
+        logical :: was_stretched
 
         call print_test("test_stretch_coords_large_file")
 
@@ -73,14 +75,22 @@ contains
         z_input = rho_probe * sin(angle_probe)
 
         convexfile = full_file
-        call stretch_coords(r_input, z_input, rm_full, zm_full)
+        call stretch_coords(major_radius, 0.0_dp, rm_inside, zm_inside, &
+            was_stretched)
+        if (was_stretched) then
+            write(error_unit, '(A)') &
+                'ERROR: stretch_coords reported an inside point as outside.'
+            call print_fail()
+            error stop
+        end if
+        call stretch_coords(r_input, z_input, rm_full, zm_full, was_stretched)
 
         call cleanup_file(full_file)
 
         if (.not. ieee_is_finite(rm_full) .or. .not. ieee_is_finite(zm_full) &
-            .or. rm_full <= 0.0_dp) then
+            .or. rm_full <= 0.0_dp .or. .not. was_stretched) then
             write(error_unit, '(A)') &
-                'ERROR: stretch_coords gave a non-finite result for a 150-point wall.'
+                'ERROR: stretch_coords did not report and map the outside point.'
             call print_fail()
             error stop
         end if
