@@ -1,7 +1,8 @@
 program test_geoflux
     use, intrinsic :: iso_fortran_env, only : dp => real64
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-    use geoflux_coordinates, only : geoflux_to_cyl, cyl_to_geoflux
+    use geoflux_coordinates, only : geoflux_to_cyl, cyl_to_geoflux, &
+                                    geoflux_get_flux_profiles
     use geoflux_field, only : spline_geoflux_data, splint_geoflux_field
     use field_sub, only : field_eq, psif
     use field_eq_mod, only : psi_axis
@@ -29,6 +30,7 @@ program test_geoflux
     real(dp) :: hcov_expected(3)
     real(dp) :: psi_expected
     real(dp) :: tol_field
+    real(dp) :: q_profile, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge
 
     geqdsk_file = fallback_geqdsk
     arg_buffer = ''
@@ -44,6 +46,20 @@ program test_geoflux
     end if
 
     call spline_geoflux_data(trim(geqdsk_file), 64, 128)
+
+    call geoflux_get_flux_profiles(0.3_dp, q_profile, dq_ds, psi_pol, &
+                                   dpsi_pol_ds, psi_tor_edge)
+    if (.not. all(ieee_is_finite([q_profile, dq_ds, psi_pol, &
+                                  dpsi_pol_ds, psi_tor_edge]))) then
+        write(*,*) 'Non-finite geoflux profile metadata.'
+        error stop
+    end if
+    if (abs(q_profile) <= tiny(q_profile) .or. &
+        abs(dpsi_pol_ds) <= tiny(dpsi_pol_ds) .or. &
+        abs(psi_tor_edge) <= tiny(psi_tor_edge)) then
+        write(*,*) 'Degenerate geoflux profile metadata.'
+        error stop
+    end if
 
     x_geo = [0.3_dp, 0.5_dp, 0.0_dp]
     call geoflux_to_cyl(x_geo, x_cyl)

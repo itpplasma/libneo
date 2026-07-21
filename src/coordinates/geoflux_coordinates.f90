@@ -3,10 +3,10 @@ module geoflux_coordinates
     use, intrinsic :: iso_fortran_env, only : dp => real64
     use cylindrical_cartesian, only : cyl_to_cart, cart_to_cyl
     use math_constants, only : pi
-    use geqdsk_tools, only : geqdsk_t, geqdsk_read, geqdsk_standardise, geqdsk_deinit
+    use geqdsk_tools, only : geqdsk_t, geqdsk_read, geqdsk_deinit
     use binsrc_sub, only : binsrc
     use interpolate, only : SplineData1D, construct_splines_1d, &
-        destroy_splines_1d, evaluate_splines_1d
+        destroy_splines_1d, evaluate_splines_1d, evaluate_splines_1d_der
 
     implicit none
 
@@ -42,8 +42,10 @@ module geoflux_coordinates
         real(dp), allocatable :: Z_cache(:,:)
         type(SplineData1D) :: psi_of_s_spline
         type(SplineData1D) :: s_of_psi_spline
+        type(SplineData1D) :: q_of_s_spline
         logical :: psi_of_s_ready = .false.
         logical :: s_of_psi_ready = .false.
+        logical :: q_of_s_ready = .false.
         logical :: cache_built = .false.
     end type geoflux_context_t
 
@@ -68,7 +70,11 @@ contains
         call cleanup_context()
 
         call geqdsk_read(ctx%geqdsk, filename)
-        call geqdsk_standardise(ctx%geqdsk)
+        ! Keep the native GEQDSK signs.  The geoflux chart is used together with
+        ! field_eq/magfie, whose cylindrical field also reads the native file;
+        ! standardizing only this private copy would mix q/flux and field
+        ! orientations.  Callers that require another COCOS convention must
+        ! convert the GEQDSK as a whole before initialization.
 
         ctx%psi_axis = ctx%geqdsk%simag
         ctx%psi_sep = ctx%geqdsk%sibry
@@ -237,6 +243,10 @@ contains
             call destroy_splines_1d(ctx%s_of_psi_spline)
             ctx%s_of_psi_ready = .false.
         end if
+        if (ctx%q_of_s_ready) then
+            call destroy_splines_1d(ctx%q_of_s_spline)
+            ctx%q_of_s_ready = .false.
+        end if
         if (allocated(ctx%psi_grid)) deallocate(ctx%psi_grid)
         if (allocated(ctx%s_grid)) deallocate(ctx%s_grid)
         if (allocated(ctx%s_nodes)) deallocate(ctx%s_nodes)
@@ -307,7 +317,7 @@ contains
 
     subroutine build_radial_splines()
         integer :: npsi, i
-        real(dp), allocatable :: psi_samples(:)
+        real(dp), allocatable :: psi_samples(:), q_samples(:)
         real(dp) :: s_uniform
         real(dp) :: psi_min, psi_max
         integer, parameter :: spline_order = 5
@@ -328,16 +338,20 @@ contains
             ctx%s_of_psi_ready = .false.
         end if
 
-        allocate(psi_samples(npsi))
+        allocate(psi_samples(npsi), q_samples(npsi))
         do i = 1, npsi
             s_uniform = real(i - 1, dp) / real(npsi - 1, dp)
             psi_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%psi_grid, s_uniform)
+            q_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%geqdsk%qpsi, s_uniform)
         end do
 
         call construct_splines_1d(0.0_dp, 1.0_dp, psi_samples, spline_order, &
             .false., ctx%psi_of_s_spline)
         ctx%psi_of_s_ready = .true.
-        deallocate(psi_samples)
+        call construct_splines_1d(0.0_dp, 1.0_dp, q_samples, spline_order, &
+            .false., ctx%q_of_s_spline)
+        ctx%q_of_s_ready = .true.
+        deallocate(psi_samples, q_samples)
 
         psi_min = minval(ctx%psi_grid)
         psi_max = maxval(ctx%psi_grid)
@@ -409,7 +423,9 @@ contains
             dpsi = ctx%psi_grid(i) - ctx%psi_grid(i-1)
             q_lo = ctx%geqdsk%qpsi(i-1)
             q_hi = ctx%geqdsk%qpsi(i)
-            tor_flux(i) = tor_flux(i-1) + 0.5_dp * (q_lo + q_hi) * dpsi / (2.0_dp * pi)
+            ! GEQDSK poloidal flux is standardized per radian and q=dPsi_tor/dPsi_pol,
+            ! so the toroidal flux uses the direct integral with no extra 2*pi.
+            tor_flux(i) = tor_flux(i-1) + 0.5_dp * (q_lo + q_hi) * dpsi
         end do
     end subroutine integrate_toroidal_flux
 
@@ -853,5 +869,25 @@ contains
         R_axis = ctx%R_axis
         Z_axis = ctx%Z_axis
     end subroutine geoflux_get_axis
+
+    subroutine geoflux_get_flux_profiles(s_tor, q, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge)
+        ! Return the raw-GEQDSK signed profiles used by the geoflux chart.
+        ! Lengths, fields, and fluxes are in libneo CGS units; s_tor is normalized
+        ! toroidal flux.  This routine intentionally reports the same native sign
+        ! lineage as the cylindrical EQDSK field used by POTATO.
+        real(dp), intent(in) :: s_tor
+        real(dp), intent(out) :: q, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge
+        real(dp) :: s_use
+
+        call ensure_initialised()
+        if (.not. ctx%q_of_s_ready .or. .not. ctx%psi_of_s_ready) then
+            error stop 'geoflux_coordinates: flux-profile splines are not ready.'
+        end if
+
+        s_use = clamp01(s_tor)
+        call evaluate_splines_1d_der(ctx%q_of_s_spline, s_use, q, dq_ds)
+        call evaluate_splines_1d_der(ctx%psi_of_s_spline, s_use, psi_pol, dpsi_pol_ds)
+        psi_tor_edge = ctx%psi_tor_edge
+    end subroutine geoflux_get_flux_profiles
 
 end module geoflux_coordinates
