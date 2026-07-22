@@ -113,6 +113,26 @@ As seen in the coordinate system section above, besides the choice of individual
 
 TD;LR: You have to know which convention you are in, else you can not really do anything with the numbers you are reading out of the files.
 
+### VMEC `signgs` and the internal toroidal flux
+
+VMEC stores `signgs`, the sign of the Jacobian of its ordered
+`(s, theta, zeta)` chart. The cylindrical azimuth is `zeta`; a negative
+`signgs` describes the complete flux chart and is not a reversal of the
+physical toroidal angle.
+
+When reading a WOUT, libneo defines the signed covariant potential derivative
+
+```text
+torflux = signgs * phi_edge / (2*pi).
+```
+
+Thus the historical `signgs=-1` path is unchanged. Under the pure coordinate
+relabel `theta'=-theta`, `signgs`, `torflux`, `iota`, and the poloidal
+covariants change sign together, while Cartesian geometry and the physical
+magnetic vector remain unchanged. Exported Boozer chartmaps record `signgs`
+alongside `torflux`; old chartmaps without the attribute retain the documented
+`signgs=-1` default.
+
 ### Example COCOS=2, interpreting EQDSK file content
 
 Here is an example of an EQDSK file where the convention used is COCOS=2 (for this specific file). Using the associated coordinate system, one can reimagine the actual physical situation based on the "numbers" provided for the fluxes and safety factor. See also the quick [lookup](/doc/ExtraDocuments/Lookup_flux_coordinates.md) regarding straight field line coordinates and the safety factor (more in depth in D'heaseleer).

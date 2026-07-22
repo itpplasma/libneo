@@ -71,6 +71,11 @@ contains
         ! Scalars.
         call check(nf90_get_att(ncid, nf90_global, "torflux", d%torflux), &
                    "att torflux")
+        status = nf90_get_att(ncid, nf90_global, "signgs", d%signgs)
+        if (status /= nf90_noerr) d%signgs = -1
+        if (abs(d%signgs) /= 1) then
+            error stop "chartmap signgs must be +1 or -1"
+        end if
         call require_scalar_variable(ncid, "num_field_periods")
         call check(nf90_inq_varid(ncid, "num_field_periods", varid), &
                    "inq_var num_field_periods")

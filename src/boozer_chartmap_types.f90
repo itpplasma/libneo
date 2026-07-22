@@ -15,6 +15,7 @@ module boozer_chartmap_types
         integer :: n_theta = 0       !< internal field grid, endpoint-included
         integer :: n_phi = 0         !< internal field grid, endpoint-included
         integer :: nfp = 1
+        integer :: signgs = -1       !< sign of the source (s,theta,zeta) Jacobian
         real(dp) :: torflux = 0.0_dp
         real(dp) :: rmajor = 0.0_dp  !< metres, derived from innermost-surface geometry
         real(dp) :: rho_min = 0.0_dp

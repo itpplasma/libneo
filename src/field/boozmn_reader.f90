@@ -67,6 +67,7 @@ contains
         d%n_s = nrho
         d%nfp = b%nfp
         d%torflux = torflux_si*GAUSS_CM2_PER_TM2
+        call derive_signgs(b, torflux_si, d%signgs)
         d%rho_min = rho_min
         d%rho_max = rho_max
         d%h_rho = (rho_max - rho_min)/real(nrho - 1, dp)
@@ -139,6 +140,31 @@ contains
 
         call build_boozer_from_chartmap(d)
     end subroutine load_boozer_from_boozmn
+
+    subroutine derive_signgs(b, torflux_si, signgs)
+        use boozmn_file, only: boozmn_data_t
+
+        type(boozmn_data_t), intent(in) :: b
+        real(dp), intent(in) :: torflux_si
+        integer, intent(out) :: signgs
+
+        real(dp) :: signed_jacobian_factor
+        integer :: current_sign, k
+
+        signgs = 0
+        do k = 1, b%nsurf
+            signed_jacobian_factor = torflux_si* &
+                (b%bvco(b%jlist(k)) + b%iota(b%jlist(k))*b%buco(b%jlist(k)))
+            if (abs(signed_jacobian_factor) <= tiny(1.0_dp)) then
+                error stop "boozmn Jacobian factor is zero"
+            end if
+            current_sign = merge(1, -1, signed_jacobian_factor > 0.0_dp)
+            if (signgs == 0) signgs = current_sign
+            if (signgs /= current_sign) then
+                error stop "boozmn Jacobian sign changes radially"
+            end if
+        end do
+    end subroutine derive_signgs
 
     !> Interpolate boozmn Fourier coefficients from the half grid to rho_out.
     !> bmnc_h is shaped (nmn, nsurf): Fortran order from NetCDF (comput_surfs, mn_mode).

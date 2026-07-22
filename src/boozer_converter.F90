@@ -1320,7 +1320,8 @@ contains
         !> Populate the module-level Boozer batch splines from an already-parsed
         !> chartmap record, bypassing the VMEC-based compute_boozer_data path.
         use vector_potentail_mod, only: torflux, ns, hs
-        use new_vmec_stuff_mod, only: nper, rmajor, ns_A, vmec_B_scale, vmec_RZ_scale
+        use new_vmec_stuff_mod, only: nper, rmajor, ns_A, vmec_B_scale, &
+                                      vmec_RZ_scale, signgs
         use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, n_theta_B, &
                                           n_phi_B, hs_B, h_theta_B, h_phi_B, &
                                           use_B_r, use_del_tp_B
@@ -1353,6 +1354,7 @@ contains
         ! Set global parameters used by splint_boozer_coord.
         torflux = flux_scale*d%torflux
         nper = d%nfp
+        signgs = d%signgs
         rmajor = d%rmajor*rz_scale
 
         ! Set boozer_coordinates_mod parameters

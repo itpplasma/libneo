@@ -39,14 +39,15 @@ contains
         use libneo_kinds, only: dp
         !use math_constants, only: PI
         use new_vmec_stuff_mod, only: netcdffile, vmec_B_scale, vmec_RZ_scale, rmajor, &
-                                      raxis_cc, zaxis_cs, raxis_cs, zaxis_cc
+                                      raxis_cc, zaxis_cs, raxis_cs, zaxis_cc, signgs
         use nctools_module, only: nc_open, nc_close, nc_get
+        use netcdf, only: nf90_inq_varid, nf90_noerr
 
         real(dp), parameter :: fac_b0 = 1d4, fac_r0 = 1d2, EPS = 1d-10, pi=3.14159265358979d0
         ! TODO: Replace pi by math_constants more accurate version. This requires new golden record in SIMPLE
         real(dp) :: fac_b, fac_r
 
-        integer :: nsurfb, nstrb, kparb, ncid, i
+        integer :: nsurfb, nstrb, kparb, ncid, i, signgs_varid
         real(dp) :: flux
         real(dp), dimension(nstrb) :: axm, axn
         real(dp), dimension(0:kparb) :: sps, aiota, phi, s
@@ -73,13 +74,23 @@ contains
         call nc_get(ncid, 'lasym__logical__', lasym_int)
         lasym = (lasym_int == 1)
 
+        signgs = -1
+        if (nf90_inq_varid(ncid, 'signgs', signgs_varid) == nf90_noerr) then
+            call nc_get(ncid, 'signgs', signgs)
+        else
+            print *, 'VMEC wout has no signgs; assuming the historical signgs=-1.'
+        end if
+        if (abs(signgs) /= 1) then
+            print *, 'Invalid VMEC signgs in ', trim(filename), ': ', signgs
+            error stop 'VMEC signgs must be +1 or -1'
+        end if
+
         call nc_get(ncid, 'phi', phi)
-        ! VMEC is left-handed (phi_v = -cylindrical angle, signgs = -1), so the wout
-        ! stores a negative enclosed toroidal flux. SIMPLE works with a positive
-        ! internal psi_tor = -phi_vmec/(2*pi). This is the toroidal flux on the
-        ! poloidal covariant component, A_theta = torflux*s (see spline_vmec_data),
-        ! and the reader recovers iota = -dA_phi/dA_theta = +iota_vmec.
-        phi = -phi/(2*pi)
+        ! The internal A_theta derivative is the signed flux associated with
+        ! the oriented VMEC (s,theta,zeta) chart. For the historical
+        ! signgs=-1 path this is bit-for-bit the former -phi/(2*pi); a pure
+        ! theta reversal flips signgs and A_theta while preserving Cartesian B.
+        phi = real(signgs, dp)*phi/(2*pi)
 
         flux = phi(kparb)
         flux = flux*fac_b*fac_r**2

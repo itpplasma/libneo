@@ -582,6 +582,19 @@ set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(export_boozer_signgs_probe.x source/export_boozer_signgs_probe.f90)
+target_link_libraries(export_boozer_signgs_probe.x neo)
+add_test(
+  NAME test_vmec_signgs_relabel
+  COMMAND ${Python_EXECUTABLE}
+          ${CMAKE_SOURCE_DIR}/test/scripts/verify_vmec_signgs_relabel.py
+          --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
+          --exporter $<TARGET_FILE:export_boozer_signgs_probe.x>
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}/vmec_signgs_relabel)
+set_tests_properties(test_vmec_signgs_relabel PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_vmec_wout)
+
 add_executable(test_boozmn_reader.x source/test_boozmn_reader.f90)
 target_link_libraries(test_boozmn_reader.x neo)
 add_test(NAME test_boozmn_reader

@@ -67,6 +67,7 @@ contains
       ! A_phi = -chi = -(poloidal flux/2pi) = -torflux * integral(iota ds), the
       ! toroidal covariant component A_zeta. The toroidal flux psi_tor sits on the
       ! poloidal component instead: A_theta = torflux*s (interpolate_vector_potential).
+      ! For VMEC input, sign(torflux)=sign(signgs*phi_edge).
       if (allocated(sA_phi)) deallocate (sA_phi)
       allocate (sA_phi(ns_A + 1, ns))
       do k = 0, ns_A

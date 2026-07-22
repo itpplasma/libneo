@@ -11,6 +11,7 @@
   module new_vmec_stuff_mod
     character*1000   :: netcdffile = ''  ! Empty = unset, apply 'wout.nc' default at usage
     integer          :: nsurfm,nstrm,nper=1,kpar
+    integer          :: signgs=-1 !< sign of the VMEC (s,theta,zeta) Jacobian
     integer          :: multharm=5,n_theta,n_phi
     integer          :: ns_A=5  !<- spline order for vector potential
     integer          :: ns_s=5  !<- spline order for R,Z,lambda over s

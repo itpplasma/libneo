@@ -34,7 +34,7 @@ contains
         !> get_boozer_coordinates() and while VMEC splines are still active
         !> (needed for X, Y, Z geometry evaluation).
         use vector_potentail_mod, only: torflux
-        use new_vmec_stuff_mod, only: nper, raxis_cc, zaxis_cs, ntor_axis
+        use new_vmec_stuff_mod, only: nper, raxis_cc, zaxis_cs, ntor_axis, signgs
         use boozer_coordinates_mod, only: ns_B, n_theta_B, n_phi_B, &
                                           h_theta_B, h_phi_B
         use spline_vmec_sub, only: splint_vmec_data
@@ -285,6 +285,8 @@ contains
                        "att boozer_field")
         call nc_assert(nf90_put_att(ncid, nf90_global, "torflux", torflux), &
                        "att torflux")
+        call nc_assert(nf90_put_att(ncid, nf90_global, "signgs", signgs), &
+                       "att signgs")
         ! No rmajor attribute: the chartmap reader derives the major radius
         ! from the innermost-surface geometry (see boozer_chartmap_io).
 

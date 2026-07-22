@@ -9,11 +9,14 @@ program test_boozmn_reader
     use boozmn_file, only: boozmn_data_t, read_boozmn, write_boozmn
     use boozmn_reader, only: load_boozer_from_boozmn
     use boozer_sub, only: splint_boozer_coord
+    use new_vmec_stuff_mod, only: signgs
+    use vector_potentail_mod, only: torflux
 
     implicit none
 
     character(len=*), parameter :: sym_file = 'boozmn_reader_sym.nc'
     character(len=*), parameter :: asym_file = 'boozmn_reader_asym.nc'
+    character(len=*), parameter :: relabel_file = 'boozmn_reader_relabel.nc'
     integer, parameter :: ns_full = 5
     integer, parameter :: nsurf = 3
     integer, parameter :: nmode = 4
@@ -35,10 +38,11 @@ program test_boozmn_reader
     real(dp), parameter :: reltol = 1.0e-6_dp
 
     type(boozmn_data_t) :: d
-    real(dp) :: bmod, expected
+    real(dp) :: bmod, bmod_original, expected, torflux_original
 
-    call write_boozmn_fixture(sym_file, asym=.false.)
-    call write_boozmn_fixture(asym_file, asym=.true.)
+    call write_boozmn_fixture(sym_file, asym=.false., relabeled=.false.)
+    call write_boozmn_fixture(asym_file, asym=.true., relabeled=.false.)
+    call write_boozmn_fixture(relabel_file, asym=.false., relabeled=.true.)
 
     call read_boozmn(sym_file, d)
     call check_raw_symmetric(d)
@@ -51,13 +55,23 @@ program test_boozmn_reader
     print *, 'OK raw asymmetric read'
 
     call load_boozer_from_boozmn(sym_file)
+    if (signgs /= -1) error stop 'symmetric boozmn signgs mismatch'
+    torflux_original = torflux
     call eval_bmod(stor, theta, zeta, bmod)
+    bmod_original = bmod
     expected = expected_bmod(theta, zeta)*GAUSS_PER_T
     print *, 'boozmn Bmod:', bmod, ' expected:', expected
     if (abs(bmod - expected) > reltol*abs(expected)) then
         error stop 'boozmn Bmod mismatch'
     end if
     print *, 'OK boozmn -> Boozer splines'
+
+    call load_boozer_from_boozmn(relabel_file)
+    if (signgs /= 1) error stop 'relabeled boozmn signgs mismatch'
+    call assert_close(torflux, -torflux_original, 'relabeled torflux')
+    call eval_bmod(stor, -theta, zeta, bmod)
+    call assert_close(bmod, bmod_original, 'relabeled Bmod')
+    print *, 'OK boozmn theta relabel sign tuple'
 
 contains
 
@@ -118,9 +132,9 @@ contains
             Br, dBr, d2Br)
     end subroutine eval_bmod
 
-    subroutine write_boozmn_fixture(path, asym)
+    subroutine write_boozmn_fixture(path, asym, relabeled)
         character(len=*), intent(in) :: path
-        logical, intent(in) :: asym
+        logical, intent(in) :: asym, relabeled
 
         type(boozmn_data_t) :: b
 
@@ -146,6 +160,12 @@ contains
         b%rmnc(1, :) = [1.8_dp, 1.9_dp, 2.0_dp]
         b%zmns = 0.1_dp*b%bmnc
         b%pmns = 0.2_dp*b%bmnc
+        if (relabeled) then
+            b%ixn = -b%ixn
+            b%iota = -b%iota
+            b%buco = -b%buco
+            b%phi = -b%phi
+        end if
         if (asym) then
             allocate (b%bmns(nmode, nsurf), b%rmns(nmode, nsurf), &
                 b%zmnc(nmode, nsurf), b%pmnc(nmode, nsurf))
