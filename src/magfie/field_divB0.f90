@@ -820,7 +820,7 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
   integer, parameter :: nrhotht=360
   integer :: iflag, unit_convex, ios
   real(dp) :: Rw, Zw, a, b, rho, tht, rho_c, dummy
-  real(dp), save :: R0 = 0.0_dp, htht = 0.0_dp
+  real(dp), save :: R0 = 0.0_dp, Z0 = 0.0_dp, htht = 0.0_dp
   real(dp), dimension(:), allocatable, save :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable, save :: rho_w, tht_w
   real(dp), dimension(nrhotht), save :: rho_wall, tht_wall ! polar coords of CW
@@ -840,7 +840,7 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
     call validate_data_count(nrz)
     call allocate_arrays(nrz)
     call read_data_points(nrz)
-    call compute_polar_coords(nrz, R0)
+    call compute_polar_coords(nrz, R0, Z0)
 
     ! make sure points are ordered according to tht_w.
     do
@@ -880,18 +880,19 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
         if(tht_wall(i).ge.tht_w(j) .and. tht_wall(i).le.tht_w(j+1)) then
           if( abs((rad_w(j+1) - rad_w(j))/rad_w(j)) .gt. 1.e-3) then
             a = (zet_w(j+1) - zet_w(j))/(rad_w(j+1) - rad_w(j))
-            b = zet_w(j) - a*(rad_w(j) - R0)
+            b = zet_w(j) - Z0 - a*(rad_w(j) - R0)
             Rw = b/(tan(tht_wall(i)) - a) + R0
-            Zw = a*(Rw - R0) + b
+            Zw = a*(Rw - R0) + b + Z0
           else
             a = (rad_w(j+1) - rad_w(j))/(zet_w(j+1) - zet_w(j))
-            b = rad_w(j)-R0 - a*zet_w(j)
+            b = rad_w(j)-R0 - a*(zet_w(j)-Z0)
             Zw = b/(1./tan(tht_wall(i)) - a)
             Rw = a*Zw + b + R0
+            Zw = Zw + Z0
           end if
         end if
       end do
-      rho_wall(i) = sqrt((Rw-R0)**2 + Zw**2)
+      rho_wall(i) = sqrt((Rw-R0)**2 + (Zw-Z0)**2)
     end do
     tht_wall(1) = 0.
     rho_wall(1) = rho_wall(nrhotht)
@@ -902,8 +903,8 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
   !----------- end of the 1st call --------------------------------------------
   rm = r
   zm = z
-  rho = sqrt((r-R0)**2 + z**2)
-  tht = atan2(z,(r-R0))
+  rho = sqrt((r-R0)**2 + (z-Z0)**2)
+  tht = atan2(z-Z0,(r-R0))
   if(tht .lt. 0.) tht = tht + TWOPI
   i = modulo(int(tht/htht), nrhotht-1) + 1
   rho_c = (rho_wall(i+1) - rho_wall(i))/(tht_wall(i+1) - tht_wall(i))   &
@@ -913,7 +914,7 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
   if(rho .ge. rho_c) then
      rho = rho_c + delta*atan2((rho-rho_c), delta)
      rm = rho*cos(tht) + R0
-     zm = rho*sin(tht)
+     zm = rho*sin(tht) + Z0
   end if
 
 contains
@@ -988,15 +989,16 @@ contains
     close(unit_convex)
   end subroutine read_data_points
 
-  subroutine compute_polar_coords(point_count, center_r)
+  subroutine compute_polar_coords(point_count, center_r, center_z)
     integer, intent(in) :: point_count
-    real(dp), intent(out) :: center_r
+    real(dp), intent(out) :: center_r, center_z
     integer :: i
 
     center_r = (maxval(rad_w(1:point_count)) + minval(rad_w(1:point_count)))*0.5
+    center_z = (maxval(zet_w(1:point_count)) + minval(zet_w(1:point_count)))*0.5
     do i=1,point_count
-      rho_w(i) = sqrt( (rad_w(i)-center_r)**2 + zet_w(i)**2 )
-      tht_w(i) = atan2(zet_w(i),(rad_w(i)-center_r))
+      rho_w(i) = sqrt( (rad_w(i)-center_r)**2 + (zet_w(i)-center_z)**2 )
+      tht_w(i) = atan2(zet_w(i)-center_z,rad_w(i)-center_r)
       if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
     end do
   end subroutine compute_polar_coords

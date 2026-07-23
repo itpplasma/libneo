@@ -41,10 +41,11 @@ contains
 
         real(dp), parameter :: pi_value = 2.0_dp * asin(1.0_dp)
         real(dp), parameter :: major_radius = 10.0_dp
-        real(dp), parameter :: radius_small = 0.4_dp
+        real(dp), parameter :: radius_small = 0.8_dp
         real(dp), parameter :: radius_large = 0.8_dp
         real(dp), parameter :: angle_probe = 5.5_dp
         real(dp), parameter :: rho_probe = 1.0_dp
+        real(dp), parameter :: vertical_shift = 75.0_dp
         real(dp), parameter :: R0 = major_radius + 0.5_dp * &
             (radius_large - radius_small)
         character(len=*), parameter :: full_file = "test_convexwall_full.dat"
@@ -67,15 +68,15 @@ contains
         do i = 1, 150
             angle = (real(i, dp) - 0.5_dp) * 2.0_dp * pi_value / 150.0_dp
             call write_point(unit_full, major_radius, radius_small, &
-                radius_large, angle)
+                radius_large, vertical_shift, angle)
         end do
         close(unit_full)
 
         r_input = R0 + rho_probe * cos(angle_probe)
-        z_input = rho_probe * sin(angle_probe)
+        z_input = vertical_shift + rho_probe * sin(angle_probe)
 
         convexfile = full_file
-        call stretch_coords(major_radius, 0.0_dp, rm_inside, zm_inside, &
+        call stretch_coords(major_radius, vertical_shift, rm_inside, zm_inside, &
             was_stretched)
         if (was_stretched) then
             write(error_unit, '(A)') &
@@ -91,6 +92,13 @@ contains
             .or. rm_full <= 0.0_dp .or. .not. was_stretched) then
             write(error_unit, '(A)') &
                 'ERROR: stretch_coords did not report and map the outside point.'
+            call print_fail()
+            error stop
+        end if
+        if (abs((rm_full-R0)*sin(angle_probe) - &
+            (zm_full-vertical_shift)*cos(angle_probe)) > 1.0e-12_dp) then
+            write(error_unit, '(A)') &
+                'ERROR: stretch_coords changed the ray under vertical translation.'
             call print_fail()
             error stop
         end if
@@ -130,9 +138,11 @@ contains
         call print_ok()
     end subroutine verify_empty_file_failure
 
-    subroutine write_point(unit, major_radius, radius_small, radius_large, angle)
+    subroutine write_point(unit, major_radius, radius_small, radius_large, &
+        vertical_shift, angle)
         integer, intent(in) :: unit
-        real(dp), intent(in) :: major_radius, radius_small, radius_large, angle
+        real(dp), intent(in) :: major_radius, radius_small, radius_large
+        real(dp), intent(in) :: vertical_shift, angle
         real(dp) :: cos_angle, sin_angle, radius_profile
 
         cos_angle = cos(angle)
@@ -143,7 +153,7 @@ contains
             radius_profile = radius_small
         end if
         write(unit, '(2es24.16)') major_radius + radius_profile * cos_angle, &
-            radius_profile * sin_angle
+            vertical_shift + radius_profile * sin_angle
     end subroutine write_point
 
     subroutine cleanup_file(filename)
