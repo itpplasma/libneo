@@ -169,6 +169,9 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
       end if
       psib = -psi_axis
       psi_sep = (psi_sep - psi_axis) * 1.d8
+      ! psi and psif below are shifted by psib and converted to G cm^2.
+      ! Keep the public endpoints in that same gauge and unit.
+      psi_axis = 0.d0
       splfpol(0, :) = splfpol(0, :) * 1.d6
       call spline_fpol
     else
