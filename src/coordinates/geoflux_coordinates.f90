@@ -34,6 +34,9 @@ module geoflux_coordinates
         logical :: initialised = .false.
         real(dp), allocatable :: psi_grid(:)
         real(dp), allocatable :: s_grid(:)
+        !> Safety factor on psi_grid, computed from the field rather than read
+        !> from the GEQDSK qpsi record.  See compute_q_from_field.
+        real(dp), allocatable :: q_grid(:)
         integer :: ns_cache = 0
         integer :: ntheta_cache = 0
         real(dp), allocatable :: s_nodes(:)
@@ -249,6 +252,7 @@ contains
         end if
         if (allocated(ctx%psi_grid)) deallocate(ctx%psi_grid)
         if (allocated(ctx%s_grid)) deallocate(ctx%s_grid)
+        if (allocated(ctx%q_grid)) deallocate(ctx%q_grid)
         if (allocated(ctx%s_nodes)) deallocate(ctx%s_nodes)
         if (allocated(ctx%theta_nodes)) deallocate(ctx%theta_nodes)
         if (allocated(ctx%R_cache)) deallocate(ctx%R_cache)
@@ -278,6 +282,7 @@ contains
 
         allocate(ctx%psi_grid(npsi))
         allocate(ctx%s_grid(npsi))
+        allocate(ctx%q_grid(npsi))
         allocate(tor_flux(npsi))
 
         ctx%psi_grid = ctx%geqdsk%psi_eqd
@@ -285,9 +290,14 @@ contains
 
         ctx%psi_tor_edge = 0.0_dp
 
-        if (allocated(ctx%geqdsk%qpsi)) then
-            call integrate_toroidal_flux(tor_flux)
-        end if
+        ! The safety factor comes from the field, not from the file's qpsi
+        ! record.  A GEQDSK's stored q is frequently inconsistent with its own
+        ! psirz and fpol -- it may be a fit, a different radial grid, or simply
+        ! stale -- and it must not be trusted for anything quantitative.  Both
+        ! the toroidal flux (and hence the s label) and the returned q profile
+        ! are built from the computed values.
+        call compute_q_from_field(ctx%q_grid)
+        call integrate_toroidal_flux(tor_flux)
 
         ctx%psi_tor_edge = tor_flux(npsi)
 
@@ -342,7 +352,7 @@ contains
         do i = 1, npsi
             s_uniform = real(i - 1, dp) / real(npsi - 1, dp)
             psi_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%psi_grid, s_uniform)
-            q_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%geqdsk%qpsi, s_uniform)
+            q_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%q_grid, s_uniform)
         end do
 
         call construct_splines_1d(0.0_dp, 1.0_dp, psi_samples, spline_order, &
@@ -410,6 +420,133 @@ contains
         ctx%cache_built = .true.
     end subroutine build_flux_surface_cache
 
+    !> Safety factor on ctx%psi_grid, computed from the equilibrium field.
+    !>
+    !> In axisymmetry with B = F(psi) grad(phi) + grad(phi) x grad(psi), the
+    !> toroidal component is B_phi = F/R and the poloidal one is
+    !> B_pol = |grad(psi)|/R, so a field line advances
+    !>
+    !>     dphi/dl_p = B_phi/(R B_pol) = F/(R |grad(psi)|)
+    !>
+    !> per unit poloidal arclength, and one poloidal circuit gives
+    !>
+    !>     q(psi) = (F(psi)/(2 pi)) oint dl_p / (R |grad(psi)|).
+    !>
+    !> Only psirz (through psi_from_position) and fpol are used, so the result is
+    !> consistent with the field the rest of the chart evaluates -- unlike the
+    !> stored qpsi record, which is not required to be.
+    !>
+    !> The axis value is extrapolated from the two neighbouring surfaces because
+    !> the contour integral degenerates there.
+    subroutine compute_q_from_field(q_out)
+        real(dp), intent(out) :: q_out(:)
+
+        integer, parameter :: ntheta_q = 512
+        integer :: npsi, i, k, i_first
+        real(dp) :: theta, dtheta, target_norm, slope
+        real(dp) :: R_pt(ntheta_q + 1), Z_pt(ntheta_q + 1)
+        real(dp) :: dl, dR, dZ, R_mid, Z_mid, grad_psi, integral
+        real(dp) :: f_pol, h_R, h_Z, dpsi_dR, dpsi_dZ
+
+        npsi = size(q_out)
+        q_out = 0.0_dp
+        dtheta = 2.0_dp*pi/real(ntheta_q, dp)
+        h_R = 1.0e-4_dp*(ctx%R_max - ctx%R_min)
+        h_Z = 1.0e-4_dp*(ctx%Z_max - ctx%Z_min)
+
+        ! The outermost grid point sits on sibry.  There the traced contour is
+        ! the boundary itself: the bisection has nothing to bracket against, and
+        ! on a diverted equilibrium q genuinely diverges at the separatrix.  Both
+        ! give a meaningless contour integral, so the edge is extrapolated from
+        ! the interior exactly as the axis is.
+        do i = 2, npsi - 1
+            target_norm = normalized_poloidal(ctx%psi_grid(i))
+            do k = 1, ntheta_q + 1
+                theta = real(k - 1, dp)*dtheta
+                call locate_by_normalized_flux(target_norm, theta, &
+                    R_pt(k), Z_pt(k))
+            end do
+
+            f_pol = fpol_at_index(i)
+            integral = 0.0_dp
+            do k = 1, ntheta_q
+                dR = R_pt(k + 1) - R_pt(k)
+                dZ = Z_pt(k + 1) - Z_pt(k)
+                dl = sqrt(dR*dR + dZ*dZ)
+                R_mid = 0.5_dp*(R_pt(k) + R_pt(k + 1))
+                Z_mid = 0.5_dp*(Z_pt(k) + Z_pt(k + 1))
+                dpsi_dR = (psi_from_position(R_mid + h_R, Z_mid) &
+                    - psi_from_position(R_mid - h_R, Z_mid))/(2.0_dp*h_R)
+                dpsi_dZ = (psi_from_position(R_mid, Z_mid + h_Z) &
+                    - psi_from_position(R_mid, Z_mid - h_Z))/(2.0_dp*h_Z)
+                grad_psi = sqrt(dpsi_dR*dpsi_dR + dpsi_dZ*dpsi_dZ)
+                ! A vanishing gradient means the contour has wandered onto an
+                ! extremum of psi; skipping the segment is safer than dividing.
+                if (grad_psi <= tiny(grad_psi)) cycle
+                if (R_mid <= tiny(R_mid)) cycle
+                integral = integral + dl/(R_mid*grad_psi)
+            end do
+            q_out(i) = f_pol*integral/(2.0_dp*pi)
+        end do
+
+        ! Surfaces too close to the axis collapse to a point, so their contour
+        ! integral is identically zero and carries no information.  Find the
+        ! first index that actually resolved, and extrapolate inwards from the
+        ! first two resolved surfaces.  Doing this by index rather than assuming
+        ! index 2 resolved matters: a zero there would otherwise propagate into
+        ! the toroidal flux, make s_grid non-monotonic, and corrupt every later
+        ! interpolation.
+        i_first = 0
+        do i = 2, npsi - 1
+            if (q_out(i) /= 0.0_dp) then
+                i_first = i
+                exit
+            end if
+        end do
+
+        if (i_first == 0) then
+            ! Nothing resolved at all; leave zeros and let the caller fall back
+            ! to a poloidal-flux label.
+            return
+        end if
+
+        if (i_first + 1 <= npsi) then
+            slope = (q_out(i_first + 1) - q_out(i_first)) &
+                /(ctx%psi_grid(i_first + 1) - ctx%psi_grid(i_first))
+            do i = 1, i_first - 1
+                q_out(i) = q_out(i_first) &
+                    + slope*(ctx%psi_grid(i) - ctx%psi_grid(i_first))
+            end do
+        else
+            q_out(1:i_first - 1) = q_out(i_first)
+        end if
+
+        ! Edge, by the same linear extrapolation in psi from the last two
+        ! interior surfaces.
+        if (npsi >= 3) then
+            slope = (q_out(npsi - 1) - q_out(npsi - 2)) &
+                /(ctx%psi_grid(npsi - 1) - ctx%psi_grid(npsi - 2))
+            q_out(npsi) = q_out(npsi - 1) &
+                + slope*(ctx%psi_grid(npsi) - ctx%psi_grid(npsi - 1))
+        else if (npsi == 2) then
+            q_out(npsi) = q_out(npsi - 1)
+        end if
+    end subroutine compute_q_from_field
+
+    !> fpol on the same index as psi_grid, falling back to the last available
+    !> entry if the record is shorter than the flux grid.
+    function fpol_at_index(i) result(f_pol)
+        integer, intent(in) :: i
+        real(dp) :: f_pol
+        integer :: nf
+
+        f_pol = 0.0_dp
+        if (.not. allocated(ctx%geqdsk%fpol)) return
+        nf = size(ctx%geqdsk%fpol)
+        if (nf < 1) return
+        f_pol = ctx%geqdsk%fpol(min(i, nf))
+    end function fpol_at_index
+
     subroutine integrate_toroidal_flux(tor_flux)
         real(dp), intent(inout) :: tor_flux(:)
 
@@ -421,8 +558,8 @@ contains
 
         do i = 2, npsi
             dpsi = ctx%psi_grid(i) - ctx%psi_grid(i-1)
-            q_lo = ctx%geqdsk%qpsi(i-1)
-            q_hi = ctx%geqdsk%qpsi(i)
+            q_lo = ctx%q_grid(i-1)
+            q_hi = ctx%q_grid(i)
             ! GEQDSK poloidal flux is standardized per radian and q=dPsi_tor/dPsi_pol,
             ! so the toroidal flux uses the direct integral with no extra 2*pi.
             tor_flux(i) = tor_flux(i-1) + 0.5_dp * (q_lo + q_hi) * dpsi
@@ -434,8 +571,6 @@ contains
         real(dp), intent(out) :: R_val, Z_val
 
         real(dp) :: target_psi, target_norm
-        real(dp) :: r_low, r_high, flux_low, flux_high, r_mid, flux_mid
-        integer :: iter
 
         if (s_val <= tol_s) then
             R_val = ctx%R_axis
@@ -445,6 +580,27 @@ contains
 
         target_psi = psi_from_s(s_val)
         target_norm = normalized_poloidal(target_psi)
+
+        call locate_by_normalized_flux(target_norm, theta_val, R_val, Z_val)
+    end subroutine locate_flux_surface
+
+    !> Bisect along a ray from the axis for a target NORMALIZED poloidal flux.
+    !>
+    !> Split out of locate_flux_surface so that compute_q_from_field can trace
+    !> contours before the s label exists: s is built by integrating q, so
+    !> anything q needs must be reachable from psi alone.
+    subroutine locate_by_normalized_flux(target_norm, theta_val, R_val, Z_val)
+        real(dp), intent(in) :: target_norm, theta_val
+        real(dp), intent(out) :: R_val, Z_val
+
+        real(dp) :: r_low, r_high, flux_low, flux_high, r_mid, flux_mid
+        integer :: iter
+
+        if (target_norm <= tol_s) then
+            R_val = ctx%R_axis
+            Z_val = ctx%Z_axis
+            return
+        end if
 
         r_low = 0.0_dp
         flux_low = 0.0_dp
@@ -489,7 +645,7 @@ contains
 
         R_val = clamp(ctx%R_axis + r_high * cos(theta_val), ctx%R_min, ctx%R_max)
         Z_val = clamp(ctx%Z_axis + r_high * sin(theta_val), ctx%Z_min, ctx%Z_max)
-    end subroutine locate_flux_surface
+    end subroutine locate_by_normalized_flux
 
     function flux_along_ray(r_val, theta_val) result(s_norm)
         real(dp), intent(in) :: r_val, theta_val
