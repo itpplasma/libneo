@@ -74,11 +74,13 @@ contains
         lasym = (lasym_int == 1)
 
         call nc_get(ncid, 'phi', phi)
-        ! VMEC is left-handed (phi_v = -cylindrical angle, signgs = -1), so the wout
-        ! stores a negative enclosed toroidal flux. SIMPLE works with a positive
-        ! internal psi_tor = -phi_vmec/(2*pi). This is the toroidal flux on the
-        ! poloidal covariant component, A_theta = torflux*s (see spline_vmec_data),
-        ! and the reader recovers iota = -dA_phi/dA_theta = +iota_vmec.
+        ! VMEC zeta is the physical geometric cylindrical azimuth.  Its usual
+        ! (s, theta, zeta) chart is nevertheless left-handed (signgs=-1), because
+        ! of the poloidal-angle orientation.  For an oriented Jacobian J<0,
+        ! B^zeta=(dA_theta/ds)/J; hence a positive outward VMEC Phi_tor requires
+        ! A_theta=-Phi_tor/(2*pi).  This is why SIMPLE stores
+        ! torflux=-phi_vmec/(2*pi): no toroidal-angle reversal is involved.
+        ! A_phi=-chi then gives iota=-dA_phi/dA_theta=+iota_vmec.
         phi = -phi/(2*pi)
 
         flux = phi(kparb)
