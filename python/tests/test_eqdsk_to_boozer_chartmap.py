@@ -73,10 +73,39 @@ def test_geometry_plausible(chartmap_path):
     assert 1.0 < R_axis < 2.5, f"axis R = {R_axis:.3f} m, expected a tokamak-scale value"
 
 
-def test_q_positive(chartmap_path):
+def test_covariant_components_tokamak_ordering(chartmap_path):
+    # B_phi = G(s) = R*B_tor; B_theta = I(s) from the enclosed toroidal
+    # current. For a tokamak I << G (NOT I = G/q: iota is the ratio of the
+    # contravariant components, while I/G measures enclosed current).
+    # Signs of both track the equilibrium's field and current direction.
     d = _read_chartmap(chartmap_path)
-    q = d["B_phi"] / d["B_theta"]
-    assert np.all(q > 0.0), f"q = B_phi/B_theta has non-positive values: min={q.min():.4f}"
+    assert np.all(np.isfinite(d["B_theta"])) and np.all(d["B_theta"] != 0.0), (
+        f"B_theta (I) has zero/non-finite values: min|I|={np.abs(d['B_theta']).min():.4e}"
+    )
+    assert np.all(np.abs(d["B_phi"]) > 0.0), (
+        f"B_phi (G) has zero values: min|G|={np.abs(d['B_phi']).min():.4e}"
+    )
+    ratio = np.abs(d["B_theta"]).max() / np.abs(d["B_phi"]).min()
+    assert ratio < 0.5, (
+        f"|I/G| = {ratio:.3f}: covariant B_theta is not small against B_phi, "
+        "which suggests the fabricated I = G/q instead of the enclosed-current I"
+    )
+
+
+def test_B_theta_matches_plasma_current(chartmap_path):
+    # Ampere: 2*pi*I(s) = mu0 * I_tor(s), so at the outermost stored surface
+    # I approaches mu0*Ip/(2*pi). In CGS G*cm that is 0.2*Ip[A]. The stored
+    # grid stops just inside the LCFS, so allow a one-sided tolerance.
+    from libneo.eqdsk_base import read_eqdsk
+
+    d = _read_chartmap(chartmap_path)
+    Ip = abs(float(read_eqdsk(EFIT)["Ip"]))
+    I_edge_expected = 0.2 * Ip  # G*cm
+    I_edge = abs(float(d["B_theta"][-1]))
+    assert 0.7 * I_edge_expected < I_edge <= 1.05 * I_edge_expected, (
+        f"I at outermost surface = {I_edge:.4e} G*cm, expected close to "
+        f"mu0*Ip/2pi = {I_edge_expected:.4e} G*cm"
+    )
 
 
 def test_torflux_nonzero(chartmap_path):
@@ -84,6 +113,20 @@ def test_torflux_nonzero(chartmap_path):
     assert np.isfinite(d["torflux"]) and d["torflux"] != 0.0, (
         f"torflux={d['torflux']:.3e} must be finite and nonzero"
     )
+
+
+def test_write_inp_psimax(tmp_path):
+    # psimax bounds the flux-surface scan; required for equilibria without an
+    # X-point, whose psi keeps rising to the box edge. Default stays 1e10.
+    from libneo.eqdsk_to_boozer_chartmap import _write_inp
+
+    inp = tmp_path / "efit_to_boozer.inp"
+    _write_inp(inp, "dummy.geqdsk", psimax=4.25e8)
+    assert "425000000.0" in inp.read_text()
+
+    inp_default = tmp_path / "efit_to_boozer_default.inp"
+    _write_inp(inp_default, "dummy.geqdsk")
+    assert "10000000000.0" in inp_default.read_text()
 
 
 def test_A_phi_consistent_with_torflux(chartmap_path):

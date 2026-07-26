@@ -54,6 +54,16 @@ def _read_boozmn(filename):
         d["buco"] = var("buco_b")
         d["bvco"] = var("bvco_b")
         d["phi"] = var("phi_b")
+        d["aminor_m"] = (
+            float(ds.libneo_vmec_aminor_m)
+            if "libneo_vmec_aminor_m" in ds.ncattrs()
+            else None
+        )
+        d["rmajor_m"] = (
+            float(ds.libneo_vmec_rmajor_m)
+            if "libneo_vmec_rmajor_m" in ds.ncattrs()
+            else None
+        )
         d["bmnc"] = var("bmnc_b")
         d["rmnc"] = var("rmnc_b")
         d["zmns"] = var("zmns_b")
@@ -185,6 +195,7 @@ def convert_boozmn_to_chartmap(
     nrho=50,
     ntheta=48,
     nzeta=96,
+    covariant_sign=1,
 ):
     """Read a boozmn file and write a libneo Boozer chartmap.
 
@@ -192,6 +203,9 @@ def convert_boozmn_to_chartmap(
     optional dependencies.
     """
     from scipy.interpolate import CubicSpline
+
+    if covariant_sign not in (-1, 1):
+        raise ValueError("covariant_sign must be -1 or 1")
 
     d = _read_boozmn(boozmn)
     nfp = d["nfp"]
@@ -215,8 +229,8 @@ def convert_boozmn_to_chartmap(
     zeta_geom = np.linspace(0.0, TWOPI / nfp, nzeta, endpoint=False)
 
     iota_spline = CubicSpline(s_half, iota_h)
-    B_theta = CubicSpline(s_half, buco_h)(s_grid)
-    B_phi = CubicSpline(s_half, bvco_h)(s_grid)
+    B_theta = covariant_sign * CubicSpline(s_half, buco_h)(s_grid)
+    B_phi = covariant_sign * CubicSpline(s_half, bvco_h)(s_grid)
     iota_int = iota_spline.antiderivative()
     A_phi = -torflux_si * (iota_int(s) - iota_int(0.0))
 
@@ -253,6 +267,15 @@ def convert_boozmn_to_chartmap(
     torflux = torflux_si * TESLA_METER2_TO_GAUSS_CM2
     X, Y, Z = X * METER_TO_CM, Y * METER_TO_CM, Z * METER_TO_CM
 
+    attrs = {
+        "booz2chartmap_source": str(boozmn),
+        "booz2chartmap_covariant_sign": np.int32(covariant_sign),
+    }
+    if d["aminor_m"] is not None:
+        attrs["aminor_m"] = d["aminor_m"]
+    if d["rmajor_m"] is not None:
+        attrs["vmec_rmajor_m"] = d["rmajor_m"]
+
     write_boozer_chartmap(
         output,
         rho=rho_grid,
@@ -268,7 +291,7 @@ def convert_boozmn_to_chartmap(
         Bmod=Bmod,
         num_field_periods=nfp,
         torflux=torflux,
-        booz2chartmap_source=str(boozmn),
+        **attrs,
     )
     return torflux
 
@@ -293,6 +316,17 @@ def main(argv=None):
         default=96,
         help="toroidal points per field period, endpoint-excluded",
     )
+    parser.add_argument(
+        "--covariant-sign",
+        type=int,
+        choices=(-1, 1),
+        default=1,
+        help=(
+            "explicit common sign applied to B_theta and B_phi; use -1 "
+            "when mapping native VMEC/booz_xform covariants to a target "
+            "convention with the opposite current signs"
+        ),
+    )
     args = parser.parse_args(argv)
 
     torflux = convert_boozmn_to_chartmap(
@@ -301,6 +335,7 @@ def main(argv=None):
         nrho=args.nrho,
         ntheta=args.ntheta,
         nzeta=args.nzeta,
+        covariant_sign=args.covariant_sign,
     )
     print(f"Done. torflux={torflux:.6e} G cm^2")
 

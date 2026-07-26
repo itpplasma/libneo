@@ -45,7 +45,7 @@ subroutine read_field_input(input_file)
 end subroutine read_field_input
 
 subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
-                ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
+                ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ,outside_boundary)
 
   use field_c_mod, only : icall_c
   use field_mod, only : icall, ipert, iequil, ampl
@@ -59,6 +59,7 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   real(dp) :: rm,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc &
                      ,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc
+  logical, intent(out), optional :: outside_boundary
 
   if(icall .eq. 0) then
     icall = 1
@@ -67,7 +68,7 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
     if(icall_c.eq.-1) ipert=1
   end if
 
-  call stretch_coords(r,z,rm,zm)
+  call stretch_coords(r,z,rm,zm,outside_boundary)
 
   if(iequil.eq.0) then
     call set_zero(Br,Bp,Bz,dBrdR,dBrdp,dBrdZ,   &
@@ -800,7 +801,7 @@ end subroutine read_field1
 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine stretch_coords(r,z,rm,zm)
+subroutine stretch_coords(r,z,rm,zm,outside_boundary)
   use input_files, only : convexfile
   use libneo_kinds, only : dp
   use math_constants, only : TWOPI
@@ -809,6 +810,7 @@ subroutine stretch_coords(r,z,rm,zm)
 
   real(dp), intent(in) :: r, z
   real(dp), intent(out) :: rm, zm
+  logical, intent(out), optional :: outside_boundary
 
   integer, save :: icall = 0
   integer :: i, j, nrz ! number of points "convex wall" in input file
@@ -904,6 +906,7 @@ subroutine stretch_coords(r,z,rm,zm)
   rho_c = (rho_wall(i+1) - rho_wall(i))/(tht_wall(i+1) - tht_wall(i))   &
        *(tht - tht_wall(i)) + rho_wall(i)
 
+  if (present(outside_boundary)) outside_boundary = rho .ge. rho_c
   if(rho .ge. rho_c) then
      rho = rho_c + delta*atan2((rho-rho_c), delta)
      rm = rho*cos(tht) + R0
