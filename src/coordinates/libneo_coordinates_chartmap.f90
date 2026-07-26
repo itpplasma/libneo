@@ -1160,8 +1160,6 @@ contains
             x_wedge(3) = x_target(3)
             call chartmap_initial_guess_cartesian_3d(self, x_wedge, u_try)
             call chartmap_refine_cart_seed(self, x_wedge, zeta_period, u_try)
-            call chartmap_solve_cart(self, x_wedge, u_try(1), u_try(2), u_try(3), &
-                                     ierr_try, trace)
             ! Accept on the final residual, not on the solver exit path: the Newton
             ! step-size exit fires once steps reach tol_step in chart units, which
             ! on a reactor-size chart is a Cartesian residual of order
@@ -1171,6 +1169,8 @@ contains
             ! rejected. The threshold carries the solver's own convergence floors
             ! (tol_newton and the scale-aware term) so a root the Newton
             ! legitimately declares converged is never rejected here.
+            call chartmap_solve_cart(self, x_wedge, u_try(1), u_try(2), u_try(3), &
+                                     ierr_try, trace)
             call chartmap_eval_cart(self, u_try, x_round)
             res_norm = sqrt(sum((x_wedge - x_round)**2))
             accept_tol = max(chartmap_invert_accept_tol, self%tol_newton, &

@@ -36,7 +36,7 @@ program test_chartmap_gate_reconstruction
                                       circular_chart_position, CIRC_R_AXIS
     implicit none
 
-    real(dp), parameter :: B_POL = 0.3183099_dp
+    real(dp), parameter :: B_POL = 2.0_dp/TWOPI ! 1/pi
     real(dp), parameter :: B_TOR = 1.0_dp
     integer, parameter :: n_levels = 3
     integer, parameter :: nrho_l(n_levels) = [9, 17, 33]

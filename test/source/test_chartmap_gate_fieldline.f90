@@ -33,7 +33,7 @@ program test_chartmap_gate_fieldline
     implicit none
 
     character(len=*), parameter :: chart_path = "chartmap_gate_fieldline.nc"
-    real(dp), parameter :: B_POL = 0.3183099_dp
+    real(dp), parameter :: B_POL = 2.0_dp/TWOPI ! 1/pi
     real(dp), parameter :: B_TOR = 1.0_dp
     real(dp), parameter :: iota_geom = B_POL/B_TOR
     real(dp), parameter :: iota_chart_ref = -iota_geom
