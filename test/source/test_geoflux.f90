@@ -5,7 +5,7 @@ program test_geoflux
                                     geoflux_get_flux_profiles
     use geoflux_field, only : spline_geoflux_data, splint_geoflux_field
     use field_sub, only : field_eq, psif
-    use field_eq_mod, only : psi_axis
+    use field_eq_mod, only : psi_axis, psi_sep
 
     implicit none
 
@@ -94,6 +94,15 @@ program test_geoflux
                   dBrdR, dBrdp, dBrdZ, dBpdR, dBpdp, dBpdZ, &
                   dBzdR, dBzdp, dBzdZ)
 
+    if (psi_axis /= 0.0_dp) then
+        write(*,*) 'Shifted field_eq flux gauge must have psi_axis=0: ', psi_axis
+        error stop
+    end if
+    if (.not. ieee_is_finite(psi_sep) .or. psi_sep == 0.0_dp) then
+        write(*,*) 'Shifted field_eq psi_sep must be finite and nonzero: ', psi_sep
+        error stop
+    end if
+
     Bmod_expected = sqrt(Br*Br + Bphi*Bphi + Bz*Bz)
     if (Bmod_expected <= 0.0_dp) then
         write(*,*) 'Reference Bmod not positive: ', Bmod_expected
@@ -104,7 +113,7 @@ program test_geoflux
     hcov_expected(2) = (Br*jac(1,2) + Bz*jac(3,2)) / Bmod_expected
     hcov_expected(3) = (Bphi * x_cyl(1)) / Bmod_expected
 
-    psi_expected = psif - psi_axis
+    psi_expected = psif
 
     tol_field = 5.0d-10
 
