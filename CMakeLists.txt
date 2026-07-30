@@ -14,8 +14,9 @@ endif()
 
 option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
 
-# Allow BUILD_TESTING to override (for subproject compatibility)
-if(DEFINED BUILD_TESTING)
+# A top-level BUILD_TESTING setting controls standalone libneo, but must not
+# implicitly inject libneo's tests into a consuming project's target namespace.
+if(LIBNEO_IS_STANDALONE AND DEFINED BUILD_TESTING)
     set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
 endif()
 
