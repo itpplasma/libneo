@@ -21,6 +21,11 @@
 # gate triggers; its golden-record/performance/PAR suite stays on NEO-2's own
 # PRs, so NEO-2 is full=no here.
 #
+# SIMPLE's full workflow is being corrected in SIMPLE #507 to propagate the
+# dispatched libneo SHA through its Python and regression reconfigurations.
+# Until that lands, keep the candidate-aware smoke tier blocking here; #507
+# carries the full independent run.
+#
 # rabe is report-only while its Fortio migration remains an open downstream PR.
 # That PR carries blocking test, golden, and benchmark checks against the
 # candidate libneo. Promote this row back to blocking after the migration lands.
@@ -28,7 +33,7 @@
 # NEO-RT is report-only: it reaches libneo transitively through NEO-2 (already
 # gated), and its own build does not yet compile the candidate libneo, so a
 # direct gate would not exercise it. Promote once that propagation is wired.
-SIMPLE   main.yml         yes   yes
+SIMPLE   main.yml         yes   no
 NEO-2    unit-tests.yml   yes   no
 MEPHIT   main.yml         yes   yes
 KAMEL    ci.yml           yes   yes
