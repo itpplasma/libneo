@@ -6,12 +6,12 @@ maintainer = "albert@tugraz.at"
 copyright = "Copyright 2025, Plasma Physics at TU Graz"
 
 [dependencies]
-# System libraries (openmp, mpi, hdf5, netcdf) handled via compiler flags
+fortio = { git = "https://github.com/lazy-fortran/fortio.git", rev = "27e7e17ecc6f272f44ae42a5718b9a4a3c449cfc" }
+fortnum = { git = "https://github.com/lazy-fortran/fortnum.git", rev = "62a559c0b8e1b28bd63550164a09ed9644e659b1" }
 
 [build]
 external-modules = [
     "fftw3", "fftw3.f03",
-    "netcdf", "hdf5", "h5lt",
     "omp_lib", "mpi", "mpi_f08",
     "openacc"
 ]
