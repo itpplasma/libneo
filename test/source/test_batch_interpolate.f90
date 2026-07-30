@@ -15,6 +15,7 @@ program test_batch_interpolate
     call test_batch_spline_1d_single_extraction()
     call test_batch_spline_1d_periodic()
     call test_batch_spline_1d_memory_layout()
+    call test_batch_spline_1d_lsq_scattered()
     call bench_batch_vs_individual_1d()
     
     ! Test 2D batch splines  
@@ -264,6 +265,95 @@ contains
         print *, "  PASSED: 1D batch derivatives match individual splines"
         
     end subroutine test_batch_spline_1d_derivatives
+    
+    subroutine test_batch_spline_1d_lsq_scattered()
+        use interpolate
+        
+        integer, parameter :: N_POINTS_GRID = 40
+        integer, parameter :: N_POINTS_DATA = 4*N_POINTS_GRID
+        integer, parameter :: N_QUANTITIES = 3
+        integer, parameter :: ORDER = 5
+        logical, parameter :: PERIODIC = .false.
+        real(dp), parameter :: TOL_LSQ_ANAL = 5.0d-4
+        
+        type(BatchSplineData1D) :: batch_spl_lsq
+        type(BatchSplineData1D) :: batch_spl_grid
+        
+        real(dp) :: x_grid(N_POINTS_GRID)
+        real(dp) :: y_grid(N_POINTS_GRID, N_QUANTITIES)
+        real(dp) :: x_data(N_POINTS_DATA)
+        real(dp) :: f_data(N_POINTS_DATA, N_QUANTITIES)
+        real(dp) :: x_eval
+        real(dp) :: y_batch(N_QUANTITIES)
+        real(dp) :: f_true
+        real(dp) :: max_err_grid, max_err_lsq
+        
+        integer :: iq, i, n_test
+        
+        print *, "Testing 1D batch LSQ spline with scattered data"
+
+        max_err_grid = 0.0d0
+        max_err_lsq = 0.0d0
+        
+        call linspace(X_MIN, X_MAX, N_POINTS_GRID, x_grid)
+        
+        do iq = 1, N_QUANTITIES
+            do i = 1, N_POINTS_GRID
+                y_grid(i, iq) = sin(real(iq, dp)*x_grid(i)) + &
+                    0.25d0*cos(2.0d0*real(iq, dp)*x_grid(i))
+            end do
+        end do
+        
+        call construct_batch_splines_1d(X_MIN, X_MAX, y_grid, ORDER, &
+            PERIODIC, batch_spl_grid)
+        
+        do i = 1, N_POINTS_DATA
+            x_data(i) = X_MIN + (X_MAX - X_MIN) * &
+                (real(i, dp) + 0.23d0)/real(N_POINTS_DATA + 1, dp)
+            do iq = 1, N_QUANTITIES
+                f_data(i, iq) = sin(real(iq, dp)*x_data(i)) + &
+                    0.25d0*cos(2.0d0*real(iq, dp)*x_data(i))
+            end do
+        end do
+        
+        call construct_batch_splines_1d_lsq(X_MIN, X_MAX, ORDER, PERIODIC, &
+            N_POINTS_GRID, x_data, f_data, batch_spl_lsq)
+        
+        do n_test = 1, 20
+            x_eval = X_MIN + (X_MAX - X_MIN) * &
+                real(n_test, dp)/21.0d0
+            
+            call evaluate_batch_splines_1d(batch_spl_grid, x_eval, y_batch)
+            do iq = 1, N_QUANTITIES
+                f_true = sin(real(iq, dp)*x_eval) + &
+                    0.25d0*cos(2.0d0*real(iq, dp)*x_eval)
+                max_err_grid = max(max_err_grid, abs(y_batch(iq) - f_true))
+            end do
+
+            call evaluate_batch_splines_1d(batch_spl_lsq, x_eval, y_batch)
+            do iq = 1, N_QUANTITIES
+                f_true = sin(real(iq, dp)*x_eval) + &
+                    0.25d0*cos(2.0d0*real(iq, dp)*x_eval)
+                max_err_lsq = max(max_err_lsq, abs(y_batch(iq) - f_true))
+            end do
+        end do
+
+        call destroy_batch_splines_1d(batch_spl_grid)
+        call destroy_batch_splines_1d(batch_spl_lsq)
+
+        print *, "  1D batch LSQ: max grid error =", max_err_grid
+        print *, "  1D batch LSQ: max LSQ  error =", max_err_lsq
+
+        if (max_err_grid > TOL_LSQ_ANAL) then
+            error stop "1D batch grid spline mismatch analytic"
+        end if
+        if (max_err_lsq > TOL_LSQ_ANAL) then
+            error stop "1D batch LSQ spline mismatch analytic"
+        end if
+
+        print *, "  PASSED: 1D batch LSQ scattered interpolation"
+        
+    end subroutine test_batch_spline_1d_lsq_scattered
     
     
     subroutine test_batch_spline_1d_single_extraction()
