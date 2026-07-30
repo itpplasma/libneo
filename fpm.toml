@@ -6,7 +6,7 @@ maintainer = "albert@tugraz.at"
 copyright = "Copyright 2025, Plasma Physics at TU Graz"
 
 [dependencies]
-fortio = { git = "https://github.com/lazy-fortran/fortio.git", rev = "cab69f3297fcda0ffa6c1acaa989da575865e64e" }
+fortio = { git = "https://github.com/lazy-fortran/fortio.git", rev = "46e16e7507550bb70a4c392073e20118d554aff5" }
 fortnum = { git = "https://github.com/lazy-fortran/fortnum.git", rev = "62a559c0b8e1b28bd63550164a09ed9644e659b1" }
 
 [build]
