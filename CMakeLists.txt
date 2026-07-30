@@ -222,7 +222,7 @@ if(NOT TARGET fortio)
     FetchContent_Declare(
         fortio
         GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-        GIT_TAG d33fe5f3bea2a7d48f6362e93b584758f1077a22
+        GIT_TAG 88ce8de1fa42832b48df779f6d748e5873ee0bde
     )
     FetchContent_MakeAvailable(fortio)
 endif()
