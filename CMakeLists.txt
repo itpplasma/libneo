@@ -18,6 +18,11 @@ option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
 # implicitly inject libneo's tests into a consuming project's target namespace.
 if(LIBNEO_IS_STANDALONE AND DEFINED BUILD_TESTING)
     set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
+elseif(NOT LIBNEO_IS_STANDALONE)
+    # A consumer may reuse a build tree previously configured with an older
+    # standalone libneo, leaving this cache entry enabled. Never inject
+    # libneo's test targets into the consumer's target namespace.
+    set(LIBNEO_BUILD_TESTING OFF)
 endif()
 
 # Standalone builds run libneo's own Python tests and f2py; resolve Python from
