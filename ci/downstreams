@@ -21,9 +21,9 @@
 # gate triggers; its golden-record/performance/PAR suite stays on NEO-2's own
 # PRs, so NEO-2 is full=no here.
 #
-# rabe keeps its slow suite in its own golden.yml; on full-ci the gate dispatches
-# that against the candidate libneo. benchmark.yml is a rabe perf trend keyed to
-# rabe's own commits, so it stays on rabe's PRs and is not gate-triggered.
+# rabe is report-only while its Fortio migration remains an open downstream PR.
+# That PR carries blocking test, golden, and benchmark checks against the
+# candidate libneo. Promote this row back to blocking after the migration lands.
 #
 # NEO-RT is report-only: it reaches libneo transitively through NEO-2 (already
 # gated), and its own build does not yet compile the candidate libneo, so a
@@ -32,5 +32,5 @@ SIMPLE   main.yml         yes   yes
 NEO-2    unit-tests.yml   yes   no
 MEPHIT   main.yml         yes   yes
 KAMEL    ci.yml           yes   yes
-rabe     test.yml         yes   golden.yml
+rabe     test.yml         no    no
 NEO-RT   test.yml         no    no
