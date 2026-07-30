@@ -46,6 +46,7 @@ jobs:
             libfftw3-dev \
             libgsl-dev \
             hdf5-tools \
+            libnetcdf-dev \
             netcdf-bin \
             libopenblas-dev \
             liblapack-dev \
