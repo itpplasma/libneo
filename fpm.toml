@@ -6,7 +6,7 @@ maintainer = "albert@tugraz.at"
 copyright = "Copyright 2025, Plasma Physics at TU Graz"
 
 [dependencies]
-fortio = { git = "https://github.com/lazy-fortran/fortio.git", rev = "c40d632fd693a4437100c37542d9d9212e5eec77" }
+fortio = { git = "https://github.com/lazy-fortran/fortio.git", rev = "b6a0c57e7a7577612637ed1619c3bc50d26c2556" }
 fortnum = { git = "https://github.com/lazy-fortran/fortnum.git", rev = "62a559c0b8e1b28bd63550164a09ed9644e659b1" }
 
 [build]
@@ -19,7 +19,7 @@ auto-executables = true
 auto-tests = true
 auto-examples = true
 module-naming = false
-link = ["pthread", "z"]
+link = ["pthread"]
 
 [install]
 library = true

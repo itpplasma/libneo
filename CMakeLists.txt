@@ -102,10 +102,6 @@ set_property(CACHE OPENACC_OFFLOAD_TARGET PROPERTY STRINGS none nvptx)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
     "Enable fetching and running the ODEINT golden record regression test" ON)
 
-# Dependency fetching options
-option(PREFER_SYSTEM_LIBS "Try system libraries before building from source" ON)
-option(FORCE_FETCH_DEPS "Always build Fortran dependencies from source" OFF)
-
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
 endif()
@@ -228,7 +224,7 @@ if(NOT TARGET fortio)
     FetchContent_Declare(
         fortio
         GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-        GIT_TAG c40d632fd693a4437100c37542d9d9212e5eec77
+        GIT_TAG b6a0c57e7a7577612637ed1619c3bc50d26c2556
     )
     FetchContent_MakeAvailable(fortio)
 endif()
