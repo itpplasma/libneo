@@ -1062,17 +1062,160 @@ contains
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:, :)  ! (3, n_quantities)
 
-        real(dp) :: x_arr(3, 1)
-        real(dp) :: y_arr(spl%num_quantities, 1)
-        real(dp) :: dy_arr(3, spl%num_quantities, 1)
-
-        x_arr(:, 1) = x
-        call evaluate_batch_splines_3d_many_der(spl, x_arr, y_arr, dy_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:3, 1:spl%num_quantities) = dy_arr(:, :, 1)
+        ! Call the single-point core directly. Routing one point through
+        ! evaluate_batch_splines_3d_many_der cost three automatic arrays and two
+        ! array copies per call, for a routine that only loops over the core
+        ! anyway. evaluate_batch_splines_3d_der2 has always called its core
+        ! directly; this makes the first-derivative entry point match.
+        call evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
     end subroutine evaluate_batch_splines_3d_der
 
+    ! Dispatch to the specialised first-derivative kernel, mirroring how
+    ! evaluate_batch_splines_3d_der2_core selects among its variants. The
+    ! single-quantity case is the common one in orbit tracing (|B| alone), and
+    ! the general kernel below indexes coeff arrays whose leading dimension is
+    ! MAX_QUANTITIES, so with num_quantities = 1 every access is stride-8 and
+    ! the !$omp simd loops have a single iteration. The nq1 kernel drops that
+    ! leading dimension.
+    !
+    ! The nq1 kernel performs the same Horner recurrences in the same order as
+    ! the general one, so for num_quantities = 1 it is bit-identical. That is
+    ! asserted in test/interpolate/test_batch_spline_3d_der_nq1.f90.
     recursive subroutine evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:, :)  ! (3, n_quantities)
+
+        if (spl%num_quantities == 1) then
+            call evaluate_batch_splines_3d_der_core_nq1(spl, x, y_batch, dy_batch)
+            return
+        end if
+
+        call evaluate_batch_splines_3d_der_core_general(spl, x, y_batch, dy_batch)
+    end subroutine evaluate_batch_splines_3d_der_core
+
+    ! Single-quantity first-derivative kernel. Same algorithm and same operation
+    ! order as evaluate_batch_splines_3d_der_core_general, with the quantity
+    ! dimension removed so the coefficient sweeps are contiguous.
+    recursive subroutine evaluate_batch_splines_3d_der_core_nq1(spl, x, y_batch, &
+                                                                dy_batch)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)     ! (1)
+        real(dp), intent(out) :: dy_batch(:, :)  ! (3, 1)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: coeff_23(0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1(0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_3(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2(0:MAX_ORDER)
+        real(dp) :: yv, dy1, dy2, dy3
+
+        integer :: interval_index(3), k1, k2, k3, j
+        integer :: i1, i2, i3
+        integer :: N1, N2, N3
+
+        N1 = spl%order(1)
+        N2 = spl%order(2)
+        N3 = spl%order(3)
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = modulo(x(j) - spl%x_min(j), &
+                            spl%h_step(j)*(spl%num_points(j) - 1)) + spl%x_min(j)
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
+        end do
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        ! First reduction over x1: value.
+        do k3 = 0, N3
+            do k2 = 0, N2
+                coeff_23(k2, k3) = spl%coeff(1, N1, k2, k3, i1, i2, i3)
+            end do
+        end do
+
+        do k1 = N1 - 1, 0, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23(k2, k3) = spl%coeff(1, k1, k2, k3, i1, i2, i3) + &
+                                       x_local(1)*coeff_23(k2, k3)
+                end do
+            end do
+        end do
+
+        ! First reduction over x1: d/dx1.
+        do k3 = 0, N3
+            do k2 = 0, N2
+                coeff_23_dx1(k2, k3) = N1*spl%coeff(1, N1, k2, k3, i1, i2, i3)
+            end do
+        end do
+
+        do k1 = N1 - 1, 1, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23_dx1(k2, k3) = k1*spl%coeff(1, k1, k2, k3, &
+                                                        i1, i2, i3) + &
+                                           x_local(1)*coeff_23_dx1(k2, k3)
+                end do
+            end do
+        end do
+
+        ! Second reduction over x2.
+        do k3 = 0, N3
+            coeff_3(k3) = coeff_23(N2, k3)
+            coeff_3_dx1(k3) = coeff_23_dx1(N2, k3)
+            coeff_3_dx2(k3) = N2*coeff_23(N2, k3)
+        end do
+
+        do k2 = N2 - 1, 0, -1
+            do k3 = 0, N3
+                coeff_3(k3) = coeff_23(k2, k3) + x_local(2)*coeff_3(k3)
+                coeff_3_dx1(k3) = coeff_23_dx1(k2, k3) + x_local(2)*coeff_3_dx1(k3)
+            end do
+        end do
+
+        do k2 = N2 - 1, 1, -1
+            do k3 = 0, N3
+                coeff_3_dx2(k3) = k2*coeff_23(k2, k3) + x_local(2)*coeff_3_dx2(k3)
+            end do
+        end do
+
+        ! Third reduction over x3.
+        yv = coeff_3(N3)
+        dy1 = coeff_3_dx1(N3)
+        dy2 = coeff_3_dx2(N3)
+        dy3 = N3*coeff_3(N3)
+
+        do k3 = N3 - 1, 0, -1
+            yv = coeff_3(k3) + x_local(3)*yv
+            dy1 = coeff_3_dx1(k3) + x_local(3)*dy1
+            dy2 = coeff_3_dx2(k3) + x_local(3)*dy2
+        end do
+
+        do k3 = N3 - 1, 1, -1
+            dy3 = k3*coeff_3(k3) + x_local(3)*dy3
+        end do
+
+        y_batch(1) = yv
+        dy_batch(1, 1) = dy1
+        dy_batch(2, 1) = dy2
+        dy_batch(3, 1) = dy3
+
+    end subroutine evaluate_batch_splines_3d_der_core_nq1
+
+    recursive subroutine evaluate_batch_splines_3d_der_core_general(spl, x, y_batch, &
+                                                                    dy_batch)
         !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
@@ -1224,7 +1367,7 @@ contains
             end do
         end do
 
-    end subroutine evaluate_batch_splines_3d_der_core
+    end subroutine evaluate_batch_splines_3d_der_core_general
 
     recursive subroutine evaluate_batch_splines_3d_der2(spl, x, y_batch, dy_batch, d2y_batch)
         !$acc routine seq
