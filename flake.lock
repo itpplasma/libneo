@@ -18,6 +18,40 @@
         "type": "github"
       }
     },
+    "fortio": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785449238,
+        "narHash": "sha256-rQb2ZhszXbXWglTDlzd3YzHHS93YpETq/cX/snssk7g=",
+        "owner": "lazy-fortran",
+        "repo": "fortio",
+        "rev": "b6a0c57e7a7577612637ed1619c3bc50d26c2556",
+        "type": "github"
+      },
+      "original": {
+        "owner": "lazy-fortran",
+        "repo": "fortio",
+        "rev": "b6a0c57e7a7577612637ed1619c3bc50d26c2556",
+        "type": "github"
+      }
+    },
+    "fortnum": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782936489,
+        "narHash": "sha256-/1M9f4SHe7/Wa1IuLcbWcyy/7kI7Uew57i7R63M4uw4=",
+        "owner": "lazy-fortran",
+        "repo": "fortnum",
+        "rev": "62a559c0b8e1b28bd63550164a09ed9644e659b1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "lazy-fortran",
+        "repo": "fortnum",
+        "rev": "62a559c0b8e1b28bd63550164a09ed9644e659b1",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1774709303,
@@ -37,6 +71,8 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "fortio": "fortio",
+        "fortnum": "fortnum",
         "nixpkgs": "nixpkgs"
       }
     },

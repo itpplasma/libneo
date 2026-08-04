@@ -2,22 +2,6 @@
 
 # Basic cmake settings/requirements
 cmake_minimum_required(VERSION 3.22)
-if(APPLE AND NOT DEFINED HDF5_DIR)
-  # locate brew
-  find_program(BREW_EXECUTABLE brew HINTS /opt/homebrew/bin /usr/local/bin)
-  if(BREW_EXECUTABLE)
-    execute_process(
-      COMMAND "${BREW_EXECUTABLE}" --prefix hdf5
-      OUTPUT_VARIABLE _hdf5_prefix
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      RESULT_VARIABLE _hdf5_res
-    )
-    if(_hdf5_res EQUAL 0 AND EXISTS "${_hdf5_prefix}/lib/cmake/hdf5")
-      set(HDF5_DIR "${_hdf5_prefix}/lib/cmake/hdf5" CACHE PATH "Path to HDF5Config.cmake")
-      message(STATUS "HDF5_DIR set to ${HDF5_DIR}")
-    endif()
-  endif()
-endif()
 
 # Basic project settings.
 project(libneo)
@@ -30,9 +14,15 @@ endif()
 
 option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
 
-# Allow BUILD_TESTING to override (for subproject compatibility)
-if(DEFINED BUILD_TESTING)
+# A top-level BUILD_TESTING setting controls standalone libneo, but must not
+# implicitly inject libneo's tests into a consuming project's target namespace.
+if(LIBNEO_IS_STANDALONE AND DEFINED BUILD_TESTING)
     set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
+elseif(NOT LIBNEO_IS_STANDALONE)
+    # A consumer may reuse a build tree previously configured with an older
+    # standalone libneo, leaving this cache entry enabled. Never inject
+    # libneo's test targets into the consumer's target namespace.
+    set(LIBNEO_BUILD_TESTING OFF)
 endif()
 
 # Standalone builds run libneo's own Python tests and f2py; resolve Python from
@@ -111,10 +101,6 @@ set(OPENACC_OFFLOAD_TARGET "none" CACHE STRING "OpenACC offload target for GNU (
 set_property(CACHE OPENACC_OFFLOAD_TARGET PROPERTY STRINGS none nvptx)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
     "Enable fetching and running the ODEINT golden record regression test" ON)
-
-# Dependency fetching options
-option(PREFER_SYSTEM_LIBS "Try system libraries before building from source" ON)
-option(FORCE_FETCH_DEPS "Always build Fortran dependencies from source" OFF)
 
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
@@ -233,31 +219,26 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-# Detect and configure external dependencies (HDF5, NetCDF)
-# Uses smoke tests to verify ABI compatibility with current compiler.
-# Falls back to building from source if system libraries are incompatible.
-include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
+include(FetchContent)
+if(NOT TARGET fortio)
+    FetchContent_Declare(
+        fortio
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
+        GIT_TAG b6a0c57e7a7577612637ed1619c3bc50d26c2556
+    )
+    FetchContent_MakeAvailable(fortio)
+endif()
 
 # fortnum: numerical core (special functions, quadrature, FFT, ODE). Guarded so
 # a repo that also pulls fortnum transitively via libneo does not double-declare
 # the target.
 if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
-    include(FetchContent)
     FetchContent_Declare(
         fortnum
         GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
         GIT_TAG 62a559c0b8e1b28bd63550164a09ed9644e659b1
     )
     FetchContent_MakeAvailable(fortnum)
-endif()
-
-# Light consumers get NetCDF as a shared library via pkg-config. The
-# netcdf-fortran shared object pulls HDF5/curl/zlib through DT_NEEDED, so nctools
-# and boozer need only -lnetcdff, not nf-config's full static --flibs.
-if(NOT LIBNEO_BUILD_NUMERICS AND NOT TARGET netcdf::netcdff)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LIBNEO_NETCDF_FORTRAN REQUIRED IMPORTED_TARGET GLOBAL netcdf-fortran)
-    add_library(netcdf::netcdff ALIAS PkgConfig::LIBNEO_NETCDF_FORTRAN)
 endif()
 
 # Tier 0: no internal libneo dependencies
@@ -345,14 +326,7 @@ add_library(boozer STATIC
     src/field/bc_file.f90
 )
 target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
-target_link_libraries(boozer PRIVATE nctools)
-if(TARGET netcdf::netcdff)
-    target_link_libraries(boozer PRIVATE netcdf::netcdff)
-elseif(TARGET netcdf::netcdf)
-    target_link_libraries(boozer PRIVATE netcdf::netcdf netcdff)
-else()
-    target_link_libraries(boozer PRIVATE netcdf netcdff)
-endif()
+target_link_libraries(boozer PRIVATE nctools fortio::fortio)
 set_property(TARGET boozer PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::boozer ALIAS boozer)
@@ -410,7 +384,7 @@ add_executable(coil_convert.x src/magfie/coil_convert.f90)
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
-target_link_libraries(vacfield.x magfie)
+target_link_libraries(vacfield.x magfie hdf5_tools)
 target_link_libraries(coil_convert.x magfie)
 
 # Tier 2+: depends on neo core

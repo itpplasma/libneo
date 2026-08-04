@@ -1,64 +1,14 @@
-### Basic settings
 cmake_minimum_required(VERSION 3.22)
+project(hdf5_file_merging_tool LANGUAGES C Fortran)
 
-if(APPLE AND NOT DEFINED HDF5_DIR)
-  # locate brew
-  find_program(BREW_EXECUTABLE brew HINTS /opt/homebrew/bin /usr/local/bin)
-  if(BREW_EXECUTABLE)
-    execute_process(
-      COMMAND "${BREW_EXECUTABLE}" --prefix hdf5
-      OUTPUT_VARIABLE _hdf5_prefix
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      RESULT_VARIABLE _hdf5_res
-    )
-    if(_hdf5_res EQUAL 0 AND EXISTS "${_hdf5_prefix}/lib/cmake/hdf5")
-      set(HDF5_DIR "${_hdf5_prefix}/lib/cmake/hdf5" CACHE PATH "Path to HDF5Config.cmake")
-      message(STATUS "HDF5_DIR set to ${HDF5_DIR}")
-    endif()
-  endif()
-endif()
-
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-
-### Define the project
-project (hdf5_file_merging_tool)
-enable_language(Fortran)
-
-### Define the name of the executable
-set(PROJECT_EXE_NAME "h5merge.x")
-
-### Set compiler flags
-set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
-set(CMAKE_Fortran_FLAGS "-g -Wall")
-
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-find_package(HDF5 COMPONENTS C HL Fortran Fortran_HL)
-
-include_directories(${CMAKE_SOURCE_DIR}/../../build/include ${CMAKE_BINARY_DIR})
-
-set(Interface_Libs
-  hdf5::hdf5
-  hdf5::hdf5_hl
-  hdf5::hdf5_fortran
-  hdf5::hdf5_hl_fortran
-  LAPACK::LAPACK
-  BLAS::BLAS
+include(FetchContent)
+set(BUILD_TESTING OFF CACHE BOOL "Do not build dependency tests" FORCE)
+FetchContent_Declare(
+  fortio
+  GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
+  GIT_TAG c40d632fd693a4437100c37542d9d9212e5eec77
 )
+FetchContent_MakeAvailable(fortio)
 
-### Define executable
-add_executable(${PROJECT_EXE_NAME}
-  ../src/h5merge.f90
-)
-
-### Linking
-target_link_libraries(${PROJECT_EXE_NAME}
-  ${CMAKE_SOURCE_DIR}/../../build/libneo.a
-  ${CMAKE_SOURCE_DIR}/../../build/src/hdf5_tools/libhdf5_tools.a
-  ${Interface_Libs}
-)
-
-
-### For make install
-# install (TARGETS ${PROJECT_EXE_NAME} DESTINATION /temp/)
-# set_property(TARGET ${PROJECT_EXE_NAME} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
+add_executable(h5merge.x src/h5merge.f90)
+target_link_libraries(h5merge.x PRIVATE fortio::fortio)
