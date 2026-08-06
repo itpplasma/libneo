@@ -2,10 +2,11 @@ program test_geoflux
     use, intrinsic :: iso_fortran_env, only : dp => real64
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     use geoflux_coordinates, only : geoflux_to_cyl, cyl_to_geoflux, &
-                                    geoflux_get_flux_profiles
+                                    geoflux_get_axis, geoflux_get_flux_profiles
     use geoflux_field, only : spline_geoflux_data, splint_geoflux_field
     use field_sub, only : field_eq, psif
     use field_eq_mod, only : psi_axis, psi_sep
+    use math_constants, only : pi
 
     implicit none
 
@@ -31,6 +32,13 @@ program test_geoflux
     real(dp) :: psi_expected
     real(dp) :: tol_field
     real(dp) :: q_profile, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge
+    real(dp) :: R_axis, Z_axis, radius_inner, radius_outer, radius_ratio
+    real(dp) :: volume_inner, volume_outer, volume_ratio
+    integer, parameter :: ns_cache = 64, ntheta_cache = 128
+    real(dp), parameter :: cache_rho_step = 1.0_dp/real(ns_cache - 1, dp)
+    real(dp), parameter :: s_inner = (0.25_dp*cache_rho_step)**2
+    real(dp), parameter :: s_outer = (0.5_dp*cache_rho_step)**2
+    real(dp), parameter :: tol_axis_scaling = 1.0e-8_dp
 
     geqdsk_file = fallback_geqdsk
     arg_buffer = ''
@@ -45,7 +53,28 @@ program test_geoflux
         end if
     end if
 
-    call spline_geoflux_data(trim(geqdsk_file), 64, 128)
+    call spline_geoflux_data(trim(geqdsk_file), ns_cache, ntheta_cache)
+
+    call geoflux_get_axis(R_axis, Z_axis)
+    x_geo = [s_inner, 0.4_dp, 0.0_dp]
+    call geoflux_to_cyl(x_geo, x_cyl)
+    radius_inner = hypot(x_cyl(1) - R_axis, x_cyl(3) - Z_axis)
+    x_geo(1) = s_outer
+    call geoflux_to_cyl(x_geo, x_cyl)
+    radius_outer = hypot(x_cyl(1) - R_axis, x_cyl(3) - Z_axis)
+    radius_ratio = radius_outer/radius_inner
+    if (abs(radius_ratio - sqrt(s_outer/s_inner)) > tol_axis_scaling) then
+        write(*,*) 'Near-axis radius must scale as sqrt(s): ', radius_ratio
+        error stop
+    end if
+
+    volume_inner = toroidal_volume(s_inner)
+    volume_outer = toroidal_volume(s_outer)
+    volume_ratio = volume_outer/volume_inner
+    if (abs(volume_ratio - s_outer/s_inner) > 1.0e-2_dp) then
+        write(*,*) 'Near-axis enclosed volume must scale as s: ', volume_ratio
+        error stop
+    end if
 
     call geoflux_get_flux_profiles(0.3_dp, q_profile, dq_ds, psi_pol, &
                                    dpsi_pol_ds, psi_tor_edge)
@@ -146,5 +175,32 @@ program test_geoflux
         write(*,*) 'expected=', psi_expected, ' got=', Acov(3)
         error stop
     end if
+
+contains
+
+    function toroidal_volume(s_val) result(volume)
+        real(dp), intent(in) :: s_val
+        real(dp) :: volume
+        integer, parameter :: ntheta = 256
+        real(dp) :: points(2, ntheta), x_geo_local(3), x_cyl_local(3)
+        real(dp) :: cross, moment
+        integer :: i, next_i
+
+        do i = 1, ntheta
+            x_geo_local = [s_val, 2.0_dp*pi*real(i - 1, dp)/real(ntheta, dp), &
+                           0.0_dp]
+            call geoflux_to_cyl(x_geo_local, x_cyl_local)
+            points(:, i) = [x_cyl_local(1), x_cyl_local(3)]
+        end do
+
+        moment = 0.0_dp
+        do i = 1, ntheta
+            next_i = modulo(i, ntheta) + 1
+            cross = points(1, i)*points(2, next_i) &
+                    - points(1, next_i)*points(2, i)
+            moment = moment + (points(1, i) + points(1, next_i))*cross
+        end do
+        volume = pi*abs(moment)/3.0_dp
+    end function toroidal_volume
 
 end program test_geoflux

@@ -39,7 +39,7 @@ module geoflux_coordinates
         real(dp), allocatable :: q_grid(:)
         integer :: ns_cache = 0
         integer :: ntheta_cache = 0
-        real(dp), allocatable :: s_nodes(:)
+        real(dp), allocatable :: rho_nodes(:)
         real(dp), allocatable :: theta_nodes(:)
         real(dp), allocatable :: R_cache(:,:)
         real(dp), allocatable :: Z_cache(:,:)
@@ -253,7 +253,7 @@ contains
         if (allocated(ctx%psi_grid)) deallocate(ctx%psi_grid)
         if (allocated(ctx%s_grid)) deallocate(ctx%s_grid)
         if (allocated(ctx%q_grid)) deallocate(ctx%q_grid)
-        if (allocated(ctx%s_nodes)) deallocate(ctx%s_nodes)
+        if (allocated(ctx%rho_nodes)) deallocate(ctx%rho_nodes)
         if (allocated(ctx%theta_nodes)) deallocate(ctx%theta_nodes)
         if (allocated(ctx%R_cache)) deallocate(ctx%R_cache)
         if (allocated(ctx%Z_cache)) deallocate(ctx%Z_cache)
@@ -381,18 +381,18 @@ contains
             return
         end if
 
-        if (allocated(ctx%s_nodes)) deallocate(ctx%s_nodes)
+        if (allocated(ctx%rho_nodes)) deallocate(ctx%rho_nodes)
         if (allocated(ctx%theta_nodes)) deallocate(ctx%theta_nodes)
         if (allocated(ctx%R_cache)) deallocate(ctx%R_cache)
         if (allocated(ctx%Z_cache)) deallocate(ctx%Z_cache)
 
-        allocate(ctx%s_nodes(ctx%ns_cache))
+        allocate(ctx%rho_nodes(ctx%ns_cache))
         allocate(ctx%theta_nodes(ctx%ntheta_cache))
         allocate(ctx%R_cache(ctx%ns_cache, ctx%ntheta_cache))
         allocate(ctx%Z_cache(ctx%ns_cache, ctx%ntheta_cache))
 
         do is = 1, ctx%ns_cache
-            ctx%s_nodes(is) = real(is - 1, dp) / &
+            ctx%rho_nodes(is) = real(is - 1, dp) / &
                 real(ctx%ns_cache - 1, dp)
         end do
 
@@ -408,7 +408,7 @@ contains
         end do
 
         do is = 2, ctx%ns_cache
-            s_val = ctx%s_nodes(is)
+            s_val = ctx%rho_nodes(is)**2
             do itheta = 1, ctx%ntheta_cache
                 theta_val = ctx%theta_nodes(itheta)
                 call locate_flux_surface(s_val, theta_val, R_tmp, Z_tmp)
@@ -745,7 +745,7 @@ contains
     subroutine interpolate_cached_surface(s_val, theta_val, R_val, Z_val)
         real(dp), intent(in) :: s_val, theta_val
         real(dp), intent(out) :: R_val, Z_val
-        real(dp) :: s_use, theta_use, s_pos, theta_pos
+        real(dp) :: s_use, rho_pos, theta_use, theta_pos
         real(dp) :: ws, wt, dtheta, two_pi
         integer :: i_lo, i_hi, j_lo, j_hi
 
@@ -761,15 +761,15 @@ contains
             return
         end if
 
-        s_pos = s_use * real(ctx%ns_cache - 1, dp)
-        i_lo = int(floor(s_pos)) + 1
+        rho_pos = sqrt(s_use) * real(ctx%ns_cache - 1, dp)
+        i_lo = int(floor(rho_pos)) + 1
         if (i_lo >= ctx%ns_cache) then
             i_lo = ctx%ns_cache - 1
             i_hi = ctx%ns_cache
             ws = 1.0_dp
         else
             i_hi = i_lo + 1
-            ws = s_pos - real(i_lo - 1, dp)
+            ws = rho_pos - real(i_lo - 1, dp)
         end if
 
         two_pi = 2.0_dp * pi
