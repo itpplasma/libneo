@@ -34,8 +34,10 @@ program test_geoflux
     real(dp) :: q_profile, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge
     real(dp) :: R_axis, Z_axis, radius_inner, radius_outer, radius_ratio
     real(dp) :: jac_left(3,3), jac_right(3,3), derivative_jump
+    real(dp) :: theta_scan, radial_cross, radial_scale, surface_det
     real(dp) :: volume_inner, volume_outer, volume_ratio
     integer, parameter :: ns_cache = 64, ntheta_cache = 128
+    integer :: itheta
     real(dp), parameter :: cache_rho_step = 1.0_dp/real(ns_cache - 1, dp)
     real(dp), parameter :: s_inner = (0.001_dp*cache_rho_step)**2
     real(dp), parameter :: s_outer = (0.002_dp*cache_rho_step)**2
@@ -82,6 +84,27 @@ program test_geoflux
         write(*,*) 'Cached surface metric is discontinuous: ', derivative_jump
         error stop
     end if
+
+    ! The cache is constructed by tracing each surface on rays from the magnetic
+    ! axis. Its radial derivative must remain on that ray between theta nodes;
+    ! otherwise the interpolated chart can fold and B dot grad(theta) can vanish.
+    do itheta = 1, 512
+        theta_scan = -pi + 2.0_dp*pi*real(itheta - 1, dp)/512.0_dp
+        x_geo = [0.232_dp, theta_scan, 0.0_dp]
+        call geoflux_to_cyl(x_geo, x_cyl, jac)
+        radial_cross = jac(1,1)*sin(theta_scan) - jac(3,1)*cos(theta_scan)
+        radial_scale = hypot(jac(1,1), jac(3,1))
+        if (abs(radial_cross) > 1.0e-10_dp*max(1.0_dp, radial_scale)) then
+            write(*,*) 'Cached radial derivative left its construction ray: ', &
+                theta_scan, radial_cross
+            error stop
+        end if
+        surface_det = jac(1,1)*jac(3,2) - jac(1,2)*jac(3,1)
+        if (.not. ieee_is_finite(surface_det) .or. surface_det <= 0.0_dp) then
+            write(*,*) 'Cached geoflux chart folded: ', theta_scan, surface_det
+            error stop
+        end if
+    end do
 
     volume_inner = toroidal_volume(s_inner)
     volume_outer = toroidal_volume(s_outer)

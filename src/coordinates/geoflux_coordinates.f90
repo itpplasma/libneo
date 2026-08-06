@@ -428,17 +428,16 @@ contains
             ctx%Z_cache(is, ctx%ntheta_cache + 1) = ctx%Z_cache(is, 1)
         end do
 
-        allocate(surface_data(ctx%ns_cache, ctx%ntheta_cache + 1, 2))
+        allocate(surface_data(ctx%ns_cache, ctx%ntheta_cache + 1, 1))
         do itheta = 1, ctx%ntheta_cache + 1
             do is = 2, ctx%ns_cache
                 surface_data(is,itheta,1) = &
-                    (ctx%R_cache(is,itheta) - ctx%R_axis)/ctx%rho_nodes(is)
-                surface_data(is,itheta,2) = &
-                    (ctx%Z_cache(is,itheta) - ctx%Z_axis)/ctx%rho_nodes(is)
+                    hypot(ctx%R_cache(is,itheta) - ctx%R_axis, &
+                          ctx%Z_cache(is,itheta) - ctx%Z_axis)/ctx%rho_nodes(is)
             end do
             ! The innermost resolved contour supplies the leading near-axis
-            ! amplitudes.  Holding that leading coefficient to the axis is the
-            ! stable discrete form of R-R0=rho*R1 and Z-Z0=rho*Z1; extrapolating
+            ! radius. Holding that leading coefficient to the axis is the
+            ! stable discrete form of r=rho*r1; extrapolating
             ! several tiny traced contours would instead amplify root tolerance.
             surface_data(1,itheta,:) = surface_data(2,itheta,:)
         end do
@@ -780,8 +779,8 @@ contains
         real(dp), intent(in) :: s_val, theta_val
         real(dp), intent(out) :: R_val, Z_val
         real(dp), intent(out), optional :: dR_ds, dR_dtheta, dZ_ds, dZ_dtheta
-        real(dp) :: s_use, rho, theta_use, drho_ds
-        real(dp) :: values(2), derivatives(2,2)
+        real(dp) :: s_use, rho, theta_use, drho_ds, radius, dradius_ds
+        real(dp) :: values(1), derivatives(2,1)
 
         if (.not. ctx%cache_built) then
             call locate_flux_surface(s_val, theta_val, R_val, Z_val)
@@ -805,15 +804,19 @@ contains
         theta_use = wrap_theta(theta_val)
         call evaluate_batch_splines_2d_der(ctx%surface_spline, &
             [rho, theta_use], values, derivatives)
-        R_val = ctx%R_axis + rho*values(1)
-        Z_val = ctx%Z_axis + rho*values(2)
+        radius = rho*values(1)
+        R_val = ctx%R_axis + radius*cos(theta_use)
+        Z_val = ctx%Z_axis + radius*sin(theta_use)
 
         if (present(dR_ds)) then
             drho_ds = 0.5_dp/rho
-            dR_ds = drho_ds*(values(1) + rho*derivatives(1,1))
-            dR_dtheta = rho*derivatives(2,1)
-            dZ_ds = drho_ds*(values(2) + rho*derivatives(1,2))
-            dZ_dtheta = rho*derivatives(2,2)
+            dradius_ds = drho_ds*(values(1) + rho*derivatives(1,1))
+            dR_ds = dradius_ds*cos(theta_use)
+            dZ_ds = dradius_ds*sin(theta_use)
+            dR_dtheta = rho*(derivatives(2,1)*cos(theta_use) &
+                - values(1)*sin(theta_use))
+            dZ_dtheta = rho*(derivatives(2,1)*sin(theta_use) &
+                + values(1)*cos(theta_use))
         end if
     end subroutine interpolate_cached_surface
 
