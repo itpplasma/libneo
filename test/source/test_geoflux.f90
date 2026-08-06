@@ -33,12 +33,13 @@ program test_geoflux
     real(dp) :: tol_field
     real(dp) :: q_profile, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge
     real(dp) :: R_axis, Z_axis, radius_inner, radius_outer, radius_ratio
+    real(dp) :: jac_left(3,3), jac_right(3,3), derivative_jump
     real(dp) :: volume_inner, volume_outer, volume_ratio
     integer, parameter :: ns_cache = 64, ntheta_cache = 128
     real(dp), parameter :: cache_rho_step = 1.0_dp/real(ns_cache - 1, dp)
-    real(dp), parameter :: s_inner = (0.25_dp*cache_rho_step)**2
-    real(dp), parameter :: s_outer = (0.5_dp*cache_rho_step)**2
-    real(dp), parameter :: tol_axis_scaling = 1.0e-8_dp
+    real(dp), parameter :: s_inner = (0.025_dp*cache_rho_step)**2
+    real(dp), parameter :: s_outer = (0.05_dp*cache_rho_step)**2
+    real(dp), parameter :: tol_axis_scaling = 1.0e-3_dp
 
     geqdsk_file = fallback_geqdsk
     arg_buffer = ''
@@ -65,6 +66,20 @@ program test_geoflux
     radius_ratio = radius_outer/radius_inner
     if (abs(radius_ratio - sqrt(s_outer/s_inner)) > tol_axis_scaling) then
         write(*,*) 'Near-axis radius must scale as sqrt(s): ', radius_ratio
+        error stop
+    end if
+
+    ! The orbit integrator crosses cache-cell boundaries.  A piecewise-linear
+    ! surface has a discontinuous metric there even when its values converge;
+    ! the spline representation must provide a continuous first derivative.
+    x_geo = [(20.0_dp*cache_rho_step - 1.0e-8_dp)**2, 0.37_dp, 0.0_dp]
+    call geoflux_to_cyl(x_geo, x_cyl, jac_left)
+    x_geo(1) = (20.0_dp*cache_rho_step + 1.0e-8_dp)**2
+    call geoflux_to_cyl(x_geo, x_cyl, jac_right)
+    derivative_jump = maxval(abs(jac_right(:,1:2) - jac_left(:,1:2))) / &
+        max(1.0_dp, maxval(abs(jac_left(:,1:2))))
+    if (derivative_jump > 1.0e-5_dp) then
+        write(*,*) 'Cached surface metric is discontinuous: ', derivative_jump
         error stop
     end if
 

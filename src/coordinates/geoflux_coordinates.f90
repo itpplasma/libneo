@@ -5,8 +5,10 @@ module geoflux_coordinates
     use math_constants, only : pi
     use geqdsk_tools, only : geqdsk_t, geqdsk_read, geqdsk_deinit
     use binsrc_sub, only : binsrc
-    use interpolate, only : SplineData1D, construct_splines_1d, &
-        destroy_splines_1d, evaluate_splines_1d, evaluate_splines_1d_der
+    use interpolate, only : SplineData1D, BatchSplineData2D, &
+        construct_splines_1d, destroy_splines_1d, evaluate_splines_1d, &
+        evaluate_splines_1d_der, construct_batch_splines_2d, &
+        destroy_batch_splines_2d, evaluate_batch_splines_2d_der
 
     implicit none
 
@@ -43,12 +45,14 @@ module geoflux_coordinates
         real(dp), allocatable :: theta_nodes(:)
         real(dp), allocatable :: R_cache(:,:)
         real(dp), allocatable :: Z_cache(:,:)
+        type(BatchSplineData2D) :: surface_spline
         type(SplineData1D) :: psi_of_s_spline
         type(SplineData1D) :: s_of_psi_spline
         type(SplineData1D) :: q_of_s_spline
         logical :: psi_of_s_ready = .false.
         logical :: s_of_psi_ready = .false.
         logical :: q_of_s_ready = .false.
+        logical :: surface_spline_ready = .false.
         logical :: cache_built = .false.
     end type geoflux_context_t
 
@@ -250,6 +254,10 @@ contains
             call destroy_splines_1d(ctx%q_of_s_spline)
             ctx%q_of_s_ready = .false.
         end if
+        if (ctx%surface_spline_ready) then
+            call destroy_batch_splines_2d(ctx%surface_spline)
+            ctx%surface_spline_ready = .false.
+        end if
         if (allocated(ctx%psi_grid)) deallocate(ctx%psi_grid)
         if (allocated(ctx%s_grid)) deallocate(ctx%s_grid)
         if (allocated(ctx%q_grid)) deallocate(ctx%q_grid)
@@ -375,6 +383,7 @@ contains
         real(dp) :: s_val, theta_val
         real(dp) :: R_tmp, Z_tmp
         real(dp) :: two_pi, dtheta
+        real(dp), allocatable :: surface_data(:,:,:)
 
         if (ctx%ns_cache < 3 .or. ctx%ntheta_cache < 4) then
             ctx%cache_built = .false.
@@ -387,9 +396,9 @@ contains
         if (allocated(ctx%Z_cache)) deallocate(ctx%Z_cache)
 
         allocate(ctx%rho_nodes(ctx%ns_cache))
-        allocate(ctx%theta_nodes(ctx%ntheta_cache))
-        allocate(ctx%R_cache(ctx%ns_cache, ctx%ntheta_cache))
-        allocate(ctx%Z_cache(ctx%ns_cache, ctx%ntheta_cache))
+        allocate(ctx%theta_nodes(ctx%ntheta_cache + 1))
+        allocate(ctx%R_cache(ctx%ns_cache, ctx%ntheta_cache + 1))
+        allocate(ctx%Z_cache(ctx%ns_cache, ctx%ntheta_cache + 1))
 
         do is = 1, ctx%ns_cache
             ctx%rho_nodes(is) = real(is - 1, dp) / &
@@ -398,11 +407,11 @@ contains
 
         two_pi = 2.0_dp * pi
         dtheta = two_pi / real(ctx%ntheta_cache, dp)
-        do itheta = 1, ctx%ntheta_cache
+        do itheta = 1, ctx%ntheta_cache + 1
             ctx%theta_nodes(itheta) = -pi + real(itheta - 1, dp) * dtheta
         end do
 
-        do itheta = 1, ctx%ntheta_cache
+        do itheta = 1, ctx%ntheta_cache + 1
             ctx%R_cache(1, itheta) = ctx%R_axis
             ctx%Z_cache(1, itheta) = ctx%Z_axis
         end do
@@ -415,7 +424,17 @@ contains
                 ctx%R_cache(is, itheta) = R_tmp
                 ctx%Z_cache(is, itheta) = Z_tmp
             end do
+            ctx%R_cache(is, ctx%ntheta_cache + 1) = ctx%R_cache(is, 1)
+            ctx%Z_cache(is, ctx%ntheta_cache + 1) = ctx%Z_cache(is, 1)
         end do
+
+        allocate(surface_data(ctx%ns_cache, ctx%ntheta_cache + 1, 2))
+        surface_data(:,:,1) = ctx%R_cache
+        surface_data(:,:,2) = ctx%Z_cache
+        call construct_batch_splines_2d([0.0_dp, -pi], [1.0_dp, pi], &
+            surface_data, [3, 3], [.false., .true.], ctx%surface_spline)
+        deallocate(surface_data)
+        ctx%surface_spline_ready = .true.
 
         ctx%cache_built = .true.
     end subroutine build_flux_surface_cache
@@ -747,9 +766,8 @@ contains
         real(dp), intent(in) :: s_val, theta_val
         real(dp), intent(out) :: R_val, Z_val
         real(dp), intent(out), optional :: dR_ds, dR_dtheta, dZ_ds, dZ_dtheta
-        real(dp) :: s_use, rho_pos, theta_use, theta_pos
-        real(dp) :: ws, wt, dtheta, drho_ds, inv_drho, two_pi
-        integer :: i_lo, i_hi, j_lo, j_hi
+        real(dp) :: s_use, rho, theta_use, drho_ds
+        real(dp) :: values(2), derivatives(2,2)
 
         if (.not. ctx%cache_built) then
             call locate_flux_surface(s_val, theta_val, R_val, Z_val)
@@ -760,58 +778,28 @@ contains
         if (s_use <= tol_s) then
             R_val = ctx%R_axis
             Z_val = ctx%Z_axis
+            if (present(dR_ds)) then
+                dR_ds = 0.0_dp
+                dR_dtheta = 0.0_dp
+                dZ_ds = 0.0_dp
+                dZ_dtheta = 0.0_dp
+            end if
             return
         end if
 
-        rho_pos = sqrt(s_use) * real(ctx%ns_cache - 1, dp)
-        i_lo = int(floor(rho_pos)) + 1
-        if (i_lo >= ctx%ns_cache) then
-            i_lo = ctx%ns_cache - 1
-            i_hi = ctx%ns_cache
-            ws = 1.0_dp
-        else
-            i_hi = i_lo + 1
-            ws = rho_pos - real(i_lo - 1, dp)
-        end if
-
-        two_pi = 2.0_dp * pi
-        dtheta = two_pi / real(ctx%ntheta_cache, dp)
+        rho = sqrt(s_use)
         theta_use = wrap_theta(theta_val)
-        theta_pos = (theta_use + pi) / dtheta
-        j_lo = int(floor(theta_pos)) + 1
-        wt = theta_pos - real(j_lo - 1, dp)
-        if (j_lo > ctx%ntheta_cache) then
-            j_lo = 1
-            wt = theta_pos - floor(theta_pos)
-        end if
-        j_hi = j_lo + 1
-        if (j_hi > ctx%ntheta_cache) j_hi = 1
-
-        R_val = (1.0_dp - ws) * (1.0_dp - wt) * ctx%R_cache(i_lo, j_lo) &
-            + ws * (1.0_dp - wt) * ctx%R_cache(i_hi, j_lo) &
-            + (1.0_dp - ws) * wt * ctx%R_cache(i_lo, j_hi) &
-            + ws * wt * ctx%R_cache(i_hi, j_hi)
-
-        Z_val = (1.0_dp - ws) * (1.0_dp - wt) * ctx%Z_cache(i_lo, j_lo) &
-            + ws * (1.0_dp - wt) * ctx%Z_cache(i_hi, j_lo) &
-            + (1.0_dp - ws) * wt * ctx%Z_cache(i_lo, j_hi) &
-            + ws * wt * ctx%Z_cache(i_hi, j_hi)
+        call evaluate_batch_splines_2d_der(ctx%surface_spline, &
+            [rho, theta_use], values, derivatives)
+        R_val = values(1)
+        Z_val = values(2)
 
         if (present(dR_ds)) then
-            drho_ds = 0.5_dp/sqrt(s_use)
-            inv_drho = real(ctx%ns_cache - 1, dp)
-            dR_ds = drho_ds*inv_drho*((1.0_dp - wt) &
-                *(ctx%R_cache(i_hi, j_lo) - ctx%R_cache(i_lo, j_lo)) &
-                + wt*(ctx%R_cache(i_hi, j_hi) - ctx%R_cache(i_lo, j_hi)))
-            dZ_ds = drho_ds*inv_drho*((1.0_dp - wt) &
-                *(ctx%Z_cache(i_hi, j_lo) - ctx%Z_cache(i_lo, j_lo)) &
-                + wt*(ctx%Z_cache(i_hi, j_hi) - ctx%Z_cache(i_lo, j_hi)))
-            dR_dtheta = ((1.0_dp - ws) &
-                *(ctx%R_cache(i_lo, j_hi) - ctx%R_cache(i_lo, j_lo)) &
-                + ws*(ctx%R_cache(i_hi, j_hi) - ctx%R_cache(i_hi, j_lo)))/dtheta
-            dZ_dtheta = ((1.0_dp - ws) &
-                *(ctx%Z_cache(i_lo, j_hi) - ctx%Z_cache(i_lo, j_lo)) &
-                + ws*(ctx%Z_cache(i_hi, j_hi) - ctx%Z_cache(i_hi, j_lo)))/dtheta
+            drho_ds = 0.5_dp/rho
+            dR_ds = drho_ds*derivatives(1,1)
+            dR_dtheta = derivatives(2,1)
+            dZ_ds = drho_ds*derivatives(1,2)
+            dZ_dtheta = derivatives(2,2)
         end if
     end subroutine interpolate_cached_surface
 
