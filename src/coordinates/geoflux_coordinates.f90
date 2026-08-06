@@ -442,8 +442,11 @@ contains
             ! several tiny traced contours would instead amplify root tolerance.
             surface_data(1,itheta,:) = surface_data(2,itheta,:)
         end do
+        ! Orbit integration consumes first derivatives of this map at high
+        ! accuracy.  A quintic tensor spline keeps those coefficients smooth
+        ! through the higher derivatives used by the variable-order solver.
         call construct_batch_splines_2d([0.0_dp, -pi], [1.0_dp, pi], &
-            surface_data, [3, 3], [.false., .true.], ctx%surface_spline)
+            surface_data, [5, 5], [.false., .true.], ctx%surface_spline)
         deallocate(surface_data)
         ctx%surface_spline_ready = .true.
 
