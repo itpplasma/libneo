@@ -8,7 +8,8 @@ module geoflux_coordinates
     use interpolate, only : SplineData1D, BatchSplineData2D, &
         construct_splines_1d, destroy_splines_1d, evaluate_splines_1d, &
         evaluate_splines_1d_der, construct_batch_splines_2d, &
-        destroy_batch_splines_2d, evaluate_batch_splines_2d_der
+        destroy_batch_splines_2d, evaluate_batch_splines_2d, &
+        evaluate_batch_splines_2d_der
 
     implicit none
 
@@ -46,6 +47,7 @@ module geoflux_coordinates
         real(dp), allocatable :: R_cache(:,:)
         real(dp), allocatable :: Z_cache(:,:)
         type(BatchSplineData2D) :: surface_spline
+        type(BatchSplineData2D) :: psi_rz_spline
         type(SplineData1D) :: psi_of_s_spline
         type(SplineData1D) :: s_of_psi_spline
         type(SplineData1D) :: q_of_s_spline
@@ -53,6 +55,7 @@ module geoflux_coordinates
         logical :: s_of_psi_ready = .false.
         logical :: q_of_s_ready = .false.
         logical :: surface_spline_ready = .false.
+        logical :: psi_rz_spline_ready = .false.
         logical :: cache_built = .false.
     end type geoflux_context_t
 
@@ -97,6 +100,7 @@ contains
         ctx%max_radius = ctx%max_radius + 1.0_dp
         ctx%ray_step = max(ctx%max_radius/100.0_dp, 1.0d-3)
 
+        call build_rz_flux_spline()
         call build_radial_mapping()
         call build_radial_splines()
 
@@ -258,6 +262,10 @@ contains
             call destroy_batch_splines_2d(ctx%surface_spline)
             ctx%surface_spline_ready = .false.
         end if
+        if (ctx%psi_rz_spline_ready) then
+            call destroy_batch_splines_2d(ctx%psi_rz_spline)
+            ctx%psi_rz_spline_ready = .false.
+        end if
         if (allocated(ctx%psi_grid)) deallocate(ctx%psi_grid)
         if (allocated(ctx%s_grid)) deallocate(ctx%s_grid)
         if (allocated(ctx%q_grid)) deallocate(ctx%q_grid)
@@ -276,6 +284,18 @@ contains
             error stop
         end if
     end subroutine ensure_initialised
+
+    subroutine build_rz_flux_spline()
+        real(dp), allocatable :: psi_data(:, :, :)
+
+        allocate(psi_data(size(ctx%geqdsk%R_eqd), size(ctx%geqdsk%Z_eqd), 1))
+        psi_data(:, :, 1) = ctx%geqdsk%psirz
+        call construct_batch_splines_2d([ctx%R_min, ctx%Z_min], &
+            [ctx%R_max, ctx%Z_max], psi_data, [3, 3], [.false., .false.], &
+            ctx%psi_rz_spline)
+        deallocate(psi_data)
+        ctx%psi_rz_spline_ready = .true.
+    end subroutine build_rz_flux_spline
 
     subroutine build_radial_mapping()
         integer :: npsi
@@ -442,7 +462,7 @@ contains
             surface_data(1,itheta,:) = surface_data(2,itheta,:)
         end do
         ! Orbit integration consumes first derivatives of this map at high
-        ! accuracy.  A quintic tensor spline keeps those coefficients smooth
+        ! accuracy. A quintic tensor spline keeps those coefficients smooth
         ! through the higher derivatives used by the variable-order solver.
         call construct_batch_splines_2d([0.0_dp, -pi], [1.0_dp, pi], &
             surface_data, [5, 5], [.false., .true.], ctx%surface_spline)
@@ -719,46 +739,19 @@ contains
     function psi_from_position(R_val, Z_val) result(psi_val)
         real(dp), intent(in) :: R_val, Z_val
         real(dp) :: psi_val
-        integer :: i_hi, j_hi, i_lo, j_lo
-        real(dp) :: t_R, t_Z
         real(dp) :: R_clamped, Z_clamped
+        real(dp) :: values(1)
 
         R_clamped = clamp(R_val, ctx%R_min, ctx%R_max)
         Z_clamped = clamp(Z_val, ctx%Z_min, ctx%Z_max)
 
-        call binsrc(ctx%geqdsk%R_eqd, 1, size(ctx%geqdsk%R_eqd), R_clamped, i_hi)
-        call binsrc(ctx%geqdsk%Z_eqd, 1, size(ctx%geqdsk%Z_eqd), Z_clamped, j_hi)
-
-        i_lo = max(1, min(i_hi - 1, size(ctx%geqdsk%R_eqd) - 1))
-        i_hi = i_lo + 1
-        j_lo = max(1, min(j_hi - 1, size(ctx%geqdsk%Z_eqd) - 1))
-        j_hi = j_lo + 1
-
-        t_R = (R_clamped - ctx%geqdsk%R_eqd(i_lo)) / &
-              max(ctx%geqdsk%R_eqd(i_hi) - ctx%geqdsk%R_eqd(i_lo), 1.0d-12)
-        t_Z = (Z_clamped - ctx%geqdsk%Z_eqd(j_lo)) / &
-              max(ctx%geqdsk%Z_eqd(j_hi) - ctx%geqdsk%Z_eqd(j_lo), 1.0d-12)
-
-        psi_val = bilinear(ctx%geqdsk%psirz, i_lo, j_lo, t_R, t_Z)
+        if (.not. ctx%psi_rz_spline_ready) then
+            error stop 'geoflux_coordinates: R-Z flux spline is not ready.'
+        end if
+        call evaluate_batch_splines_2d(ctx%psi_rz_spline, &
+            [R_clamped, Z_clamped], values)
+        psi_val = values(1)
     end function psi_from_position
-
-    function bilinear(psirz, i_lo, j_lo, t_R, t_Z) result(value)
-        real(dp), intent(in) :: psirz(:,:)
-        integer, intent(in) :: i_lo, j_lo
-        real(dp), intent(in) :: t_R, t_Z
-        real(dp) :: value
-        real(dp) :: f00, f10, f01, f11
-
-        f00 = psirz(i_lo    , j_lo)
-        f10 = psirz(i_lo + 1, j_lo)
-        f01 = psirz(i_lo    , j_lo + 1)
-        f11 = psirz(i_lo + 1, j_lo + 1)
-
-        value = (1.0_dp - t_R) * (1.0_dp - t_Z) * f00 + &
-                t_R * (1.0_dp - t_Z) * f10 + &
-                (1.0_dp - t_R) * t_Z * f01 + &
-                t_R * t_Z * f11
-    end function bilinear
 
     function normalized_poloidal(psi_val) result(s_norm)
         real(dp), intent(in) :: psi_val
