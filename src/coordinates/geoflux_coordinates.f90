@@ -455,11 +455,14 @@ contains
                     hypot(ctx%R_cache(is,itheta) - ctx%R_axis, &
                           ctx%Z_cache(is,itheta) - ctx%Z_axis)/ctx%rho_nodes(is)
             end do
-            ! The innermost resolved contour supplies the leading near-axis
-            ! radius. Holding that leading coefficient to the axis is the
-            ! stable discrete form of r=rho*r1; extrapolating
-            ! several tiny traced contours would instead amplify root tolerance.
-            surface_data(1,itheta,:) = surface_data(2,itheta,:)
+            ! r/rho tends to the finite shape coefficient r1(theta) as rho->0,
+            ! so the axis node is an extrapolation, not a copy.  Copying node 2
+            ! leaves an O(h) error in r1 and a slope discontinuity that the
+            ! quintic carries into its first derivatives.  Linear extrapolation
+            ! on the equidistant rho nodes is O(h^2) and is safe now that the
+            ! ray root is converged to sub-micron rather than bracket accuracy.
+            surface_data(1,itheta,1) = 2.0_dp*surface_data(2,itheta,1) &
+                - surface_data(3,itheta,1)
         end do
         ! Orbit integration consumes first derivatives of this map at high
         ! accuracy. A quintic tensor spline keeps those coefficients smooth
@@ -646,6 +649,7 @@ contains
         real(dp), intent(out) :: R_val, Z_val
 
         real(dp) :: r_low, r_high, flux_low, flux_high, r_mid, flux_mid
+        real(dp) :: r_root
         integer :: iter
 
         if (target_norm <= tol_s) then
@@ -680,9 +684,19 @@ contains
             end if
         end if
 
+        ! r_root always holds the last abscissa whose flux was actually
+        ! evaluated against the target.  Returning the bracket bound r_high
+        ! instead would discard the converged midpoint whenever the tolerance
+        ! test below exits early, leaving an error of up to half the current
+        ! bracket width.  That happens for a small fraction of targets and
+        ! displaces isolated cache nodes by centimetres, which the quintic
+        ! surface spline then turns into a ringing wave packet in dV/ds_tor.
+        r_root = 0.5_dp * (r_low + r_high)
+
         do iter = 1, max_bisect_iter
             r_mid = 0.5_dp * (r_low + r_high)
             flux_mid = flux_along_ray(r_mid, theta_val)
+            r_root = r_mid
 
             if (abs(flux_mid - target_norm) <= tol_root) exit
 
@@ -695,8 +709,8 @@ contains
             end if
         end do
 
-        R_val = clamp(ctx%R_axis + r_high * cos(theta_val), ctx%R_min, ctx%R_max)
-        Z_val = clamp(ctx%Z_axis + r_high * sin(theta_val), ctx%Z_min, ctx%Z_max)
+        R_val = clamp(ctx%R_axis + r_root * cos(theta_val), ctx%R_min, ctx%R_max)
+        Z_val = clamp(ctx%Z_axis + r_root * sin(theta_val), ctx%Z_min, ctx%Z_max)
     end subroutine locate_by_normalized_flux
 
     function flux_along_ray(r_val, theta_val) result(s_norm)
