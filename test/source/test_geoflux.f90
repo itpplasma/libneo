@@ -42,6 +42,23 @@ program test_geoflux
     real(dp), parameter :: s_inner = (0.001_dp*cache_rho_step)**2
     real(dp), parameter :: s_outer = (0.002_dp*cache_rho_step)**2
     real(dp), parameter :: tol_axis_scaling = 1.0e-3_dp
+    !> Surface-residual oracle.  The chart's defining equation is that the point
+    !> returned for (s, theta) lies on the surface whose normalized poloidal flux
+    !> belongs to s.  Reading that flux back through the independent field_eq
+    !> path measures how far the returned point actually sits off it.
+    !> Sweeping the radial node count matters: an unconverged ray root
+    !> displaces one cache node by centimetres and the quintic surface spline
+    !> rings around it, so whether a given chart rings depends on which node
+    !> count happens to draw a bad root.  A converged chart is flat at ~1e-6
+    !> here for every node count; an unconverged one scatters over two decades.
+    integer, parameter :: ns_sweep(4) = [64, 72, 80, 90]
+    real(dp), parameter :: tol_surface_residual = 5.0e-6_dp
+    integer, parameter :: n_s_residual = 401, n_theta_residual = 64
+    real(dp), parameter :: s_residual_min = 1.0e-3_dp
+    real(dp), parameter :: s_residual_max = 0.64_dp
+    real(dp) :: psi_pol_axis, psi_pol_edge, psi_norm_expected, psi_norm_actual
+    real(dp) :: max_residual, s_residual, x_geo_scan(3), x_cyl_scan(3)
+    integer :: is_residual, itheta_residual, i_sweep
 
     geqdsk_file = fallback_geqdsk
     arg_buffer = ''
@@ -213,6 +230,42 @@ program test_geoflux
         write(*,*) 'expected=', psi_expected, ' got=', Acov(3)
         error stop
     end if
+
+    do i_sweep = 1, size(ns_sweep)
+        call spline_geoflux_data(trim(geqdsk_file), ns_sweep(i_sweep), &
+                                 ntheta_cache)
+        call geoflux_get_flux_profiles(0.0_dp, q_profile, dq_ds, psi_pol_axis, &
+                                       dpsi_pol_ds, psi_tor_edge)
+        call geoflux_get_flux_profiles(1.0_dp, q_profile, dq_ds, psi_pol_edge, &
+                                       dpsi_pol_ds, psi_tor_edge)
+        max_residual = 0.0_dp
+        do is_residual = 1, n_s_residual
+            s_residual = s_residual_min + (s_residual_max - s_residual_min) &
+                *real(is_residual - 1, dp)/real(n_s_residual - 1, dp)
+            call geoflux_get_flux_profiles(s_residual, q_profile, dq_ds, &
+                                           psi_pol, dpsi_pol_ds, psi_tor_edge)
+            psi_norm_expected = (psi_pol - psi_pol_axis) &
+                /(psi_pol_edge - psi_pol_axis)
+            do itheta_residual = 1, n_theta_residual
+                theta_scan = -pi + 2.0_dp*pi*real(itheta_residual - 1, dp) &
+                    /real(n_theta_residual, dp)
+                x_geo_scan = [s_residual, theta_scan, 0.0_dp]
+                call geoflux_to_cyl(x_geo_scan, x_cyl_scan)
+                call field_eq(x_cyl_scan(1), x_cyl_scan(2), x_cyl_scan(3), &
+                              Br, Bphi, Bz, dBrdR, dBrdp, dBrdZ, &
+                              dBpdR, dBpdp, dBpdZ, dBzdR, dBzdp, dBzdZ)
+                psi_norm_actual = psif/psi_sep
+                max_residual = max(max_residual, &
+                                   abs(psi_norm_actual - psi_norm_expected))
+            end do
+        end do
+        if (max_residual > tol_surface_residual) then
+            write(*,*) 'Flux surfaces are misplaced for ns_cache=', &
+                ns_sweep(i_sweep), ': ', max_residual, &
+                ' >', tol_surface_residual
+            error stop
+        end if
+    end do
 
 contains
 
