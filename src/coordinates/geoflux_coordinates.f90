@@ -436,12 +436,11 @@ contains
                 surface_data(is,itheta,2) = &
                     (ctx%Z_cache(is,itheta) - ctx%Z_axis)/ctx%rho_nodes(is)
             end do
-            ! A quadratic one-sided extrapolation supplies the regular leading
-            ! near-axis amplitudes.  Splining these amplitudes, rather than the
-            ! collapsed R and Z surfaces, encodes R-R0=rho*R1 and Z-Z0=rho*Z1
-            ! and therefore gives a finite nonzero metric determinant at rho=0.
-            surface_data(1,itheta,:) = 3.0_dp*surface_data(2,itheta,:) &
-                - 3.0_dp*surface_data(3,itheta,:) + surface_data(4,itheta,:)
+            ! The innermost resolved contour supplies the leading near-axis
+            ! amplitudes.  Holding that leading coefficient to the axis is the
+            ! stable discrete form of R-R0=rho*R1 and Z-Z0=rho*Z1; extrapolating
+            ! several tiny traced contours would instead amplify root tolerance.
+            surface_data(1,itheta,:) = surface_data(2,itheta,:)
         end do
         call construct_batch_splines_2d([0.0_dp, -pi], [1.0_dp, pi], &
             surface_data, [3, 3], [.false., .true.], ctx%surface_spline)
