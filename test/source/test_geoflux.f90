@@ -37,8 +37,8 @@ program test_geoflux
     real(dp) :: volume_inner, volume_outer, volume_ratio
     integer, parameter :: ns_cache = 64, ntheta_cache = 128
     real(dp), parameter :: cache_rho_step = 1.0_dp/real(ns_cache - 1, dp)
-    real(dp), parameter :: s_inner = (0.025_dp*cache_rho_step)**2
-    real(dp), parameter :: s_outer = (0.05_dp*cache_rho_step)**2
+    real(dp), parameter :: s_inner = (0.001_dp*cache_rho_step)**2
+    real(dp), parameter :: s_outer = (0.002_dp*cache_rho_step)**2
     real(dp), parameter :: tol_axis_scaling = 1.0e-3_dp
 
     geqdsk_file = fallback_geqdsk

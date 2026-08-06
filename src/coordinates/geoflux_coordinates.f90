@@ -385,7 +385,7 @@ contains
         real(dp) :: two_pi, dtheta
         real(dp), allocatable :: surface_data(:,:,:)
 
-        if (ctx%ns_cache < 3 .or. ctx%ntheta_cache < 4) then
+        if (ctx%ns_cache < 4 .or. ctx%ntheta_cache < 4) then
             ctx%cache_built = .false.
             return
         end if
@@ -429,8 +429,20 @@ contains
         end do
 
         allocate(surface_data(ctx%ns_cache, ctx%ntheta_cache + 1, 2))
-        surface_data(:,:,1) = ctx%R_cache
-        surface_data(:,:,2) = ctx%Z_cache
+        do itheta = 1, ctx%ntheta_cache + 1
+            do is = 2, ctx%ns_cache
+                surface_data(is,itheta,1) = &
+                    (ctx%R_cache(is,itheta) - ctx%R_axis)/ctx%rho_nodes(is)
+                surface_data(is,itheta,2) = &
+                    (ctx%Z_cache(is,itheta) - ctx%Z_axis)/ctx%rho_nodes(is)
+            end do
+            ! A quadratic one-sided extrapolation supplies the regular leading
+            ! near-axis amplitudes.  Splining these amplitudes, rather than the
+            ! collapsed R and Z surfaces, encodes R-R0=rho*R1 and Z-Z0=rho*Z1
+            ! and therefore gives a finite nonzero metric determinant at rho=0.
+            surface_data(1,itheta,:) = 3.0_dp*surface_data(2,itheta,:) &
+                - 3.0_dp*surface_data(3,itheta,:) + surface_data(4,itheta,:)
+        end do
         call construct_batch_splines_2d([0.0_dp, -pi], [1.0_dp, pi], &
             surface_data, [3, 3], [.false., .true.], ctx%surface_spline)
         deallocate(surface_data)
@@ -791,15 +803,15 @@ contains
         theta_use = wrap_theta(theta_val)
         call evaluate_batch_splines_2d_der(ctx%surface_spline, &
             [rho, theta_use], values, derivatives)
-        R_val = values(1)
-        Z_val = values(2)
+        R_val = ctx%R_axis + rho*values(1)
+        Z_val = ctx%Z_axis + rho*values(2)
 
         if (present(dR_ds)) then
             drho_ds = 0.5_dp/rho
-            dR_ds = drho_ds*derivatives(1,1)
-            dR_dtheta = derivatives(2,1)
-            dZ_ds = drho_ds*derivatives(1,2)
-            dZ_dtheta = derivatives(2,2)
+            dR_ds = drho_ds*(values(1) + rho*derivatives(1,1))
+            dR_dtheta = rho*derivatives(2,1)
+            dZ_ds = drho_ds*(values(2) + rho*derivatives(1,2))
+            dZ_dtheta = rho*derivatives(2,2)
         end if
     end subroutine interpolate_cached_surface
 
