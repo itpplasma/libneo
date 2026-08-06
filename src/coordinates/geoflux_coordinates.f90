@@ -133,7 +133,7 @@ contains
         xto(3) = Z_val
 
         if (present(dxto_dxfrom)) then
-            call assign_geoflux_to_cyl_jacobian(s_val, theta_val, phi_val, R_val, Z_val, dxto_dxfrom)
+            call assign_geoflux_to_cyl_jacobian(s_val, theta_val, dxto_dxfrom)
         end if
     end subroutine geoflux_to_cyl
 
@@ -742,11 +742,13 @@ contains
         s_norm = clamp01(s_norm)
     end function normalized_poloidal
 
-    subroutine interpolate_cached_surface(s_val, theta_val, R_val, Z_val)
+    subroutine interpolate_cached_surface(s_val, theta_val, R_val, Z_val, &
+                                           dR_ds, dR_dtheta, dZ_ds, dZ_dtheta)
         real(dp), intent(in) :: s_val, theta_val
         real(dp), intent(out) :: R_val, Z_val
+        real(dp), intent(out), optional :: dR_ds, dR_dtheta, dZ_ds, dZ_dtheta
         real(dp) :: s_use, rho_pos, theta_use, theta_pos
-        real(dp) :: ws, wt, dtheta, two_pi
+        real(dp) :: ws, wt, dtheta, drho_ds, inv_drho, two_pi
         integer :: i_lo, i_hi, j_lo, j_hi
 
         if (.not. ctx%cache_built) then
@@ -794,6 +796,23 @@ contains
             + ws * (1.0_dp - wt) * ctx%Z_cache(i_hi, j_lo) &
             + (1.0_dp - ws) * wt * ctx%Z_cache(i_lo, j_hi) &
             + ws * wt * ctx%Z_cache(i_hi, j_hi)
+
+        if (present(dR_ds)) then
+            drho_ds = 0.5_dp/sqrt(s_use)
+            inv_drho = real(ctx%ns_cache - 1, dp)
+            dR_ds = drho_ds*inv_drho*((1.0_dp - wt) &
+                *(ctx%R_cache(i_hi, j_lo) - ctx%R_cache(i_lo, j_lo)) &
+                + wt*(ctx%R_cache(i_hi, j_hi) - ctx%R_cache(i_lo, j_hi)))
+            dZ_ds = drho_ds*inv_drho*((1.0_dp - wt) &
+                *(ctx%Z_cache(i_hi, j_lo) - ctx%Z_cache(i_lo, j_lo)) &
+                + wt*(ctx%Z_cache(i_hi, j_hi) - ctx%Z_cache(i_lo, j_hi)))
+            dR_dtheta = ((1.0_dp - ws) &
+                *(ctx%R_cache(i_lo, j_hi) - ctx%R_cache(i_lo, j_lo)) &
+                + ws*(ctx%R_cache(i_hi, j_hi) - ctx%R_cache(i_hi, j_lo)))/dtheta
+            dZ_dtheta = ((1.0_dp - ws) &
+                *(ctx%Z_cache(i_lo, j_hi) - ctx%Z_cache(i_lo, j_lo)) &
+                + ws*(ctx%Z_cache(i_hi, j_hi) - ctx%Z_cache(i_hi, j_lo)))/dtheta
+        end if
     end subroutine interpolate_cached_surface
 
     pure function wrap_theta(theta) result(theta_wrapped)
@@ -871,33 +890,14 @@ contains
         end if
     end function linear_interp_monotonic
 
-    subroutine assign_geoflux_to_cyl_jacobian(s_val, theta_val, phi_val, R_val, Z_val, jac)
-        real(dp), intent(in) :: s_val, theta_val, phi_val, R_val, Z_val
+    subroutine assign_geoflux_to_cyl_jacobian(s_val, theta_val, jac)
+        real(dp), intent(in) :: s_val, theta_val
         real(dp), intent(out) :: jac(3,3)
-        real(dp) :: ds, dt
-        real(dp) :: xp(3), xm(3)
-        real(dp) :: rp(3), rm(3)
+        real(dp) :: R_interp, Z_interp
 
         jac = 0.0_dp
-
-        ds = max(1.0d-5, 1.0d-3 * max(1.0_dp, s_val))
-        dt = 1.0d-4
-
-        xp = [clamp01(s_val + ds), theta_val, phi_val]
-        xm = [clamp01(s_val - ds), theta_val, phi_val]
-        call geoflux_to_cyl_internal(xp, rp)
-        call geoflux_to_cyl_internal(xm, rm)
-        jac(1,1) = (rp(1) - rm(1)) / (2.0_dp * ds)
-        jac(3,1) = (rp(3) - rm(3)) / (2.0_dp * ds)
-        jac(2,1) = 0.0_dp
-
-        xp = [s_val, theta_val + dt, phi_val]
-        xm = [s_val, theta_val - dt, phi_val]
-        call geoflux_to_cyl_internal(xp, rp)
-        call geoflux_to_cyl_internal(xm, rm)
-        jac(1,2) = (rp(1) - rm(1)) / (2.0_dp * dt)
-        jac(3,2) = (rp(3) - rm(3)) / (2.0_dp * dt)
-        jac(2,2) = 0.0_dp
+        call interpolate_cached_surface(s_val, theta_val, R_interp, Z_interp, &
+                                        jac(1,1), jac(1,2), jac(3,1), jac(3,2))
 
         jac(1,3) = 0.0_dp
         jac(2,3) = 1.0_dp
