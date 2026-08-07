@@ -103,7 +103,26 @@ contains
     subroutine free_jorek_restart(data)
         type(jorek_restart_t), intent(inout) :: data
 
-        data = jorek_restart_t()
+        if (allocated(data%values)) deallocate (data%values)
+        if (allocated(data%x)) deallocate (data%x)
+        if (allocated(data%vertex)) deallocate (data%vertex)
+        if (allocated(data%size)) deallocate (data%size)
+        if (allocated(data%neighbours)) deallocate (data%neighbours)
+        data%rst_hdf5_version = 0
+        data%n_var = 0
+        data%n_degrees = 0
+        data%n_tor = 0
+        data%n_coord_tor = 0
+        data%n_dim = 0
+        data%n_nodes = 0
+        data%n_elements = 0
+        data%n_vertex_max = 0
+        data%n_order = 0
+        data%n_period = 0
+        data%jorek_model = 0
+        data%F0 = 0.0_dp
+        data%t_norm = 0.0_dp
+        data%t_now = 0.0_dp
     end subroutine free_jorek_restart
 
     subroutine require_datasets(h5id, ierr)

@@ -172,6 +172,9 @@ target_link_libraries(test_plag_coeff.x ${COMMON_LIBS})
 add_executable(test_spl_three_to_five.x source/test_spl_three_to_five.f90)
 target_link_libraries(test_spl_three_to_five.x ${COMMON_LIBS})
 
+add_executable(test_spline_build_lines.x source/test_spline_build_lines.f90)
+target_link_libraries(test_spline_build_lines.x ${COMMON_LIBS})
+
 add_executable(test_species.x source/test_species.f90)
 target_link_libraries(test_species.x neo species)
 
@@ -195,6 +198,10 @@ target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 
 add_executable(test_batch_interpolate_rmix.x source/test_batch_interpolate_rmix.f90)
 target_link_libraries(test_batch_interpolate_rmix.x ${COMMON_LIBS})
+
+add_executable(test_batch_interpolate_scalar_cubic.x
+  source/test_batch_interpolate_scalar_cubic.f90)
+target_link_libraries(test_batch_interpolate_scalar_cubic.x ${COMMON_LIBS})
 
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
@@ -268,6 +275,7 @@ add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
 add_test(NAME test_plag_coeff COMMAND test_plag_coeff.x)
 add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
+add_test(NAME test_spline_build_lines COMMAND test_spline_build_lines.x)
 add_test(NAME test_species COMMAND test_species.x)
 add_test(NAME test_rng COMMAND test_rng.x)
 add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
@@ -276,6 +284,8 @@ add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
+add_test(NAME test_batch_interpolate_scalar_cubic
+  COMMAND test_batch_interpolate_scalar_cubic.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)

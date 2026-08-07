@@ -6,6 +6,7 @@ module boozer_sub
                            evaluate_batch_splines_1d_der3, &
                            evaluate_batch_splines_3d_der, &
                            evaluate_batch_splines_3d_der2, &
+                           evaluate_batch_spline_3d_scalar_cubic_der2, &
                            evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
     use, intrinsic :: iso_fortran_env, only: dp => real64
@@ -16,6 +17,7 @@ module boozer_sub
     ! Public API
     public :: get_boozer_coordinates
     public :: splint_boozer_coord
+    public :: splint_boozer_coord_device
     public :: reset_boozer_batch_splines
     public :: vmec_to_boozer, boozer_to_vmec
     public :: delthe_delphi_BV
@@ -57,6 +59,12 @@ module boozer_sub
     ! Batch spline for B_theta, B_phi covariant components
     type(BatchSplineData1D), save :: bcovar_tp_batch_spline
     logical, save :: bcovar_tp_batch_spline_ready = .false.
+
+    ! These descriptors are module globals so GPU-callable field evaluation can
+    ! address them without passing a large spline bundle through every layer.
+    ! The construction routines attach the allocatable coefficient components.
+    !$acc declare create(field3d_batch_spline, aphi_batch_spline, &
+    !$acc&               bcovar_tp_batch_spline)
 
     ! Batch splines for angle transformations (VMEC <-> Boozer).
     ! delt_delp_V holds (theta_B-theta_V, phi_B-phi_V) on the VMEC-angle grid;
@@ -170,9 +178,67 @@ contains
                                    B_varphi_B, dB_varphi_B, d2B_varphi_B, &
                                    Bmod_B, dBmod_B, d2Bmod_B, &
                                    B_r, dB_r, d2B_r, sqrt_g_ss_B)
-
         use chamb_mod, only: rnegflag
         use diag_mod, only: dodiag, icounter
+
+        integer, intent(in) :: mode_secders
+        real(dp), intent(in) :: r, vartheta_B, varphi_B
+        real(dp), intent(out) :: A_phi, A_theta, dA_phi_dr, dA_theta_dr
+        real(dp), intent(out) :: d2A_phi_dr2, d3A_phi_dr3
+        real(dp), intent(out) :: B_vartheta_B, dB_vartheta_B, d2B_vartheta_B
+        real(dp), intent(out) :: B_varphi_B, dB_varphi_B, d2B_varphi_B
+        real(dp), intent(out) :: Bmod_B, B_r
+        real(dp), intent(out), optional :: sqrt_g_ss_B
+        real(dp), intent(out) :: dBmod_B(3), dB_r(3)
+        real(dp), intent(out) :: d2Bmod_B(6), d2B_r(6)
+        real(dp) :: r_eval
+
+        if (dodiag) then
+!$omp atomic
+            icounter = icounter + 1
+        end if
+        r_eval = r
+        if (r_eval .le. 0.0_dp) then
+            rnegflag = .true.
+            r_eval = abs(r_eval)
+        end if
+        if (.not. aphi_batch_spline_ready) &
+            error stop "splint_boozer_coord: Aphi batch spline not initialized"
+        if (.not. field3d_batch_spline_ready) &
+            error stop "splint_boozer_coord: Bmod/Br batch spline not initialized"
+        if (.not. bcovar_tp_batch_spline_ready) &
+            error stop "splint_boozer_coord: Bcovar_tp batch spline not initialized"
+
+        if (present(sqrt_g_ss_B)) then
+            call splint_boozer_coord_device(r_eval, vartheta_B, varphi_B, mode_secders, &
+                                            A_theta, A_phi, dA_theta_dr, dA_phi_dr, &
+                                            d2A_phi_dr2, d3A_phi_dr3, &
+                                            B_vartheta_B, dB_vartheta_B, &
+                                            d2B_vartheta_B, B_varphi_B, &
+                                            dB_varphi_B, d2B_varphi_B, Bmod_B, &
+                                            dBmod_B, d2Bmod_B, B_r, dB_r, d2B_r, &
+                                            sqrt_g_ss_B)
+        else
+            call splint_boozer_coord_device(r_eval, vartheta_B, varphi_B, mode_secders, &
+                                            A_theta, A_phi, dA_theta_dr, dA_phi_dr, &
+                                            d2A_phi_dr2, d3A_phi_dr3, &
+                                            B_vartheta_B, dB_vartheta_B, &
+                                            d2B_vartheta_B, B_varphi_B, &
+                                            dB_varphi_B, d2B_varphi_B, Bmod_B, &
+                                            dBmod_B, d2Bmod_B, B_r, dB_r, d2B_r)
+        end if
+    end subroutine splint_boozer_coord
+
+    !> Device-callable spline evaluator. The host wrapper above verifies that
+    !> all resident spline tables are initialized before entering a GPU region.
+    subroutine splint_boozer_coord_device(r, vartheta_B, varphi_B, mode_secders, &
+                                   A_theta, A_phi, dA_theta_dr, dA_phi_dr, &
+                                   d2A_phi_dr2, d3A_phi_dr3, &
+                                   B_vartheta_B, dB_vartheta_B, d2B_vartheta_B, &
+                                   B_varphi_B, dB_varphi_B, d2B_varphi_B, &
+                                   Bmod_B, dBmod_B, d2Bmod_B, &
+                                   B_r, dB_r, d2B_r, sqrt_g_ss_B)
+        !$acc routine seq
 
         implicit none
 
@@ -198,35 +264,20 @@ contains
         real(dp) :: dy_eval(3, MAX_FIELD3D_QUANTITIES)
         real(dp) :: d2y_eval(6, MAX_FIELD3D_QUANTITIES)
         real(dp) :: theta_wrapped, phi_wrapped
-        real(dp) :: y1d(2), dy1d(2), d2y1d(2)
+        real(dp) :: y1d(2), dy1d(2), d2y1d(2), d3y1d(1)
 
-        if (dodiag) then
-!$omp atomic
-            icounter = icounter + 1
-        end if
-        r_eval = r
-        if (r_eval .le. 0.0_dp) then
-            rnegflag = .true.
-            r_eval = abs(r_eval)
-        end if
+        r_eval = abs(r)
 
         A_theta = boozer_state%torflux*r_eval
         dA_theta_dr = boozer_state%torflux
 
         ! Interpolate A_phi over s (batch spline 1D)
-        if (.not. aphi_batch_spline_ready) then
-            error stop "splint_boozer_coord: Aphi batch spline not initialized"
-        end if
-
         if (mode_secders > 0) then
             ! Need third derivative - use der3 which computes all in one pass
-            block
-                real(dp) :: d3y1d(1)
-                call evaluate_batch_splines_1d_der3(aphi_batch_spline, r_eval, &
-                                                    y1d(1:1), dy1d(1:1), &
-                                                    d2y1d(1:1), d3y1d)
-                d3A_phi_dr3 = d3y1d(1)
-            end block
+            call evaluate_batch_splines_1d_der3(aphi_batch_spline, r_eval, &
+                                                y1d(1:1), dy1d(1:1), &
+                                                d2y1d(1:1), d3y1d)
+            d3A_phi_dr3 = d3y1d(1)
         else
             call evaluate_batch_splines_1d_der2(aphi_batch_spline, r_eval, y1d(1:1), &
                                                 dy1d(1:1), d2y1d(1:1))
@@ -241,15 +292,11 @@ contains
         theta_wrapped = modulo(vartheta_B, TWOPI)
         phi_wrapped = modulo(varphi_B, TWOPI/real(boozer_state%nper, dp))
 
-        if (.not. field3d_batch_spline_ready) then
-            error stop "splint_boozer_coord: Bmod/Br batch spline not initialized"
-        end if
-
         x_eval(1) = rho_tor
         x_eval(2) = theta_wrapped
         x_eval(3) = phi_wrapped
 
-        i_br = field3d_num_quantities
+        i_br = boozer_state%num_quantities
 
         ! Chain rule coefficients for rho -> s conversion
         drhods = 0.5_dp/rho_tor
@@ -257,10 +304,17 @@ contains
         d2rhods2m = drhods2/rho_tor  ! -d2rho/ds2 (negative of second derivative)
 
         if (mode_secders == 2) then
-            call evaluate_batch_splines_3d_der2(field3d_batch_spline, x_eval, &
-                                                y_eval(1:field3d_num_quantities), &
-                                                dy_eval(:, 1:field3d_num_quantities), &
-                                                d2y_eval(:, 1:field3d_num_quantities))
+            if (field3d_num_quantities == 1 .and. &
+                all(field3d_batch_spline%order == [3, 3, 3])) then
+                call evaluate_batch_spline_3d_scalar_cubic_der2( &
+                    field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1), &
+                    d2y_eval(:, 1))
+            else
+                call evaluate_batch_splines_3d_der2(field3d_batch_spline, x_eval, &
+                                                    y_eval(1:field3d_num_quantities), &
+                                                    dy_eval(:, 1:field3d_num_quantities), &
+                                                    d2y_eval(:, 1:field3d_num_quantities))
+            end if
 
             ! Extract Bmod (quantity 1)
             qua = y_eval(1)
@@ -334,9 +388,16 @@ contains
                 d2B_r = 0.0_dp
             end if
         else
-            call evaluate_batch_splines_3d_der(field3d_batch_spline, x_eval, &
-                                               y_eval(1:field3d_num_quantities), &
-                                               dy_eval(:, 1:field3d_num_quantities))
+            if (field3d_num_quantities == 1 .and. &
+                all(field3d_batch_spline%order == [3, 3, 3])) then
+                call evaluate_batch_spline_3d_scalar_cubic_der2( &
+                    field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1), &
+                    d2y_eval(:, 1))
+            else
+                call evaluate_batch_splines_3d_der(field3d_batch_spline, x_eval, &
+                                                   y_eval(1:field3d_num_quantities), &
+                                                   dy_eval(:, 1:field3d_num_quantities))
+            end if
 
             Bmod_B = y_eval(1)
             dBmod_B(1) = dy_eval(1, 1)*drhods
@@ -348,7 +409,8 @@ contains
 
             d2Bmod_B = 0.0_dp
 
-            if (mode_secders == 1) then
+            if (mode_secders == 1 .and. .not. (field3d_num_quantities == 1 .and. &
+                all(field3d_batch_spline%order == [3, 3, 3]))) then
                 call evaluate_batch_splines_3d_der2(field3d_batch_spline, x_eval, &
                                                     y_eval(1:field3d_num_quantities), &
                                                     dy_eval(:, &
@@ -385,10 +447,6 @@ contains
         end if
 
         ! Interpolation of B_\vartheta and B_\varphi (flux functions)
-        if (.not. bcovar_tp_batch_spline_ready) then
-            error stop "splint_boozer_coord: Bcovar_tp batch spline not initialized"
-        end if
-
         call evaluate_batch_splines_1d_der2(bcovar_tp_batch_spline, rho_tor, y1d, &
                                             dy1d, d2y1d)
         B_vartheta_B = y1d(1)
@@ -405,7 +463,7 @@ contains
             d2B_varphi_B = 0.0_dp
         end if
 
-    end subroutine splint_boozer_coord
+    end subroutine splint_boozer_coord_device
 
     !> Computes deltheta_BV = vartheta_B - theta_V and delphi_BV = varphi_B - varphi_V
     !> together with their first derivatives over the angles.

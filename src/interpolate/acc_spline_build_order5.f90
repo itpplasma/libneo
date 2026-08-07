@@ -130,36 +130,47 @@ contains
         real(dp), intent(out), contiguous :: b(:), c(:), d(:)
 
         integer :: nmx, i
-        real(dp) :: psi, inv_h, beta, denom, fact
-        real(dp) :: rhs(n - 1), y(n - 1), z(n - 1), u(n - 1)
-        real(dp) :: bb(n - 1)
+        real(dp) :: psi, inv_h, beta, denom, fact, rhs_i, u_i
 
         nmx = n - 1
         inv_h = 1.0d0/h
         psi = 3.0d0*inv_h*inv_h
 
-        rhs(1) = (a(2) - a(1) - a(n) + a(nmx))*psi
-        do i = 3, nmx
-            rhs(i - 1) = (a(i) - 2.0d0*a(i - 1) + a(i - 2))*psi
+        ! Cyclic tridiagonal solve using Sherman-Morrison. Store the shared
+        ! Thomas factors in d, the first solution in c, and the correction
+        ! solution in b. This avoids five automatic arrays of length n in every
+        ! OpenACC thread, which can exhaust device-local storage for the Boozer
+        ! angular grids.
+        beta = -4.0d0
+        denom = 4.0d0 - beta
+        d(1) = 1.0d0/denom
+        rhs_i = (a(2) - a(1) - a(n) + a(nmx))*psi
+        c(1) = rhs_i/denom
+        b(1) = beta/denom
+        do i = 2, nmx
+            denom = 4.0d0
+            if (i == nmx) denom = denom - 1.0d0/beta
+            denom = denom - d(i - 1)
+            d(i) = 1.0d0/denom
+            if (i == nmx) then
+                rhs_i = (a(n) - 2.0d0*a(nmx) + a(nmx - 1))*psi
+                u_i = 1.0d0
+            else
+                rhs_i = (a(i + 1) - 2.0d0*a(i) + a(i - 1))*psi
+                u_i = 0.0d0
+            end if
+            c(i) = (rhs_i - c(i - 1))*d(i)
+            b(i) = (u_i - b(i - 1))*d(i)
         end do
-        rhs(nmx) = (a(n) - 2.0d0*a(nmx) + a(nmx - 1))*psi
+        do i = nmx - 1, 1, -1
+            c(i) = c(i) - d(i)*c(i + 1)
+            b(i) = b(i) - d(i)*b(i + 1)
+        end do
 
-        bb = 4.0d0
-        beta = -bb(1)
-        bb(1) = bb(1) - beta
-        bb(nmx) = bb(nmx) - 1.0d0/beta
-
-        u = 0.0d0
-        u(1) = beta
-        u(nmx) = 1.0d0
-
-        call tridiag_thomas(nmx, bb, rhs, y)
-        call tridiag_thomas(nmx, bb, u, z)
-
-        denom = 1.0d0 + z(1) + z(nmx)/beta
-        fact = (y(1) + y(nmx)/beta)/denom
+        denom = 1.0d0 + b(1) + b(nmx)/beta
+        fact = (c(1) + c(nmx)/beta)/denom
         do i = 1, nmx
-            c(i) = y(i) - fact*z(i)
+            c(i) = c(i) - fact*b(i)
         end do
         c(n) = c(1)
 

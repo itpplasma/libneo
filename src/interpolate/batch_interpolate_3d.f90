@@ -33,6 +33,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d
     public :: evaluate_batch_splines_3d_der
     public :: evaluate_batch_splines_3d_der2
+    public :: evaluate_batch_spline_3d_scalar_cubic_der2
     public :: evaluate_batch_splines_3d_der3
     public :: evaluate_batch_splines_3d_der2_rmix
     public :: evaluate_batch_splines_3d_many
@@ -1235,6 +1236,83 @@ contains
         real(dp), intent(out) :: d2y_batch(:, :)  ! (6, n_quantities)
         call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_3d_der2
+
+    !> Allocation-free value/gradient/Hessian evaluator for the production
+    !> scalar cubic field spline. Keeping the polynomial order and quantity
+    !> count fixed avoids the MAX_ORDER/MAX_QUANTITIES work arrays used by the
+    !> general evaluator in every GPU thread.
+    !NVF$ INLINE
+    subroutine evaluate_batch_spline_3d_scalar_cubic_der2(spl, x, y, dy, d2y)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(3)
+        real(dp), intent(out) :: d2y(6)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: x1, x2, x3
+        real(dp) :: c0, c1, c2, c3
+        real(dp) :: v2(0:3), d1_2(0:3), d11_2(0:3)
+        real(dp) :: v3(0:3), d1_3(0:3), d2_3(0:3)
+        real(dp) :: d11_3(0:3), d12_3(0:3), d22_3(0:3)
+        integer :: interval_index(3), i1, i2, i3
+        integer :: j, k2, k3
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = x(j)
+                if (xj < spl%x_min(j) .or. xj >= spl%x_min(j) + spl%period(j)) then
+                    xj = modulo(xj - spl%x_min(j), spl%period(j)) + spl%x_min(j)
+                end if
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))*spl%inv_h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))*spl%h_step(j)
+        end do
+
+        x1 = x_local(1)
+        x2 = x_local(2)
+        x3 = x_local(3)
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        ! Collapse x1 and x2 one x3 plane at a time. This requires 36 local
+        ! doubles instead of the general scalar evaluator's 297.
+        do k3 = 0, 3
+            do k2 = 0, 3
+                c0 = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c1 = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c2 = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c3 = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                v2(k2) = ((c3*x1 + c2)*x1 + c1)*x1 + c0
+                d1_2(k2) = (3.0_dp*c3*x1 + 2.0_dp*c2)*x1 + c1
+                d11_2(k2) = 6.0_dp*c3*x1 + 2.0_dp*c2
+            end do
+
+            v3(k3) = ((v2(3)*x2 + v2(2))*x2 + v2(1))*x2 + v2(0)
+            d1_3(k3) = ((d1_2(3)*x2 + d1_2(2))*x2 + d1_2(1))*x2 + d1_2(0)
+            d2_3(k3) = (3.0_dp*v2(3)*x2 + 2.0_dp*v2(2))*x2 + v2(1)
+            d11_3(k3) = ((d11_2(3)*x2 + d11_2(2))*x2 + d11_2(1))*x2 + d11_2(0)
+            d12_3(k3) = (3.0_dp*d1_2(3)*x2 + 2.0_dp*d1_2(2))*x2 + d1_2(1)
+            d22_3(k3) = 6.0_dp*v2(3)*x2 + 2.0_dp*v2(2)
+        end do
+
+        y = ((v3(3)*x3 + v3(2))*x3 + v3(1))*x3 + v3(0)
+        dy(1) = ((d1_3(3)*x3 + d1_3(2))*x3 + d1_3(1))*x3 + d1_3(0)
+        dy(2) = ((d2_3(3)*x3 + d2_3(2))*x3 + d2_3(1))*x3 + d2_3(0)
+        dy(3) = (3.0_dp*v3(3)*x3 + 2.0_dp*v3(2))*x3 + v3(1)
+
+        d2y(1) = ((d11_3(3)*x3 + d11_3(2))*x3 + d11_3(1))*x3 + d11_3(0)
+        d2y(2) = ((d12_3(3)*x3 + d12_3(2))*x3 + d12_3(1))*x3 + d12_3(0)
+        d2y(3) = (3.0_dp*d1_3(3)*x3 + 2.0_dp*d1_3(2))*x3 + d1_3(1)
+        d2y(4) = ((d22_3(3)*x3 + d22_3(2))*x3 + d22_3(1))*x3 + d22_3(0)
+        d2y(5) = (3.0_dp*d2_3(3)*x3 + 2.0_dp*d2_3(2))*x3 + d2_3(1)
+        d2y(6) = 6.0_dp*v3(3)*x3 + 2.0_dp*v3(2)
+    end subroutine evaluate_batch_spline_3d_scalar_cubic_der2
 
     recursive subroutine evaluate_batch_splines_3d_der3(spl, x, y_batch, dy_batch, &
                                                         d2y_batch, d3y_batch)
