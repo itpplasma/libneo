@@ -9,7 +9,7 @@ program test_batch_interpolate_rmix
     real(dp), parameter :: TOL = 1.0d-12
 
     call test_rmix_matches_full_der2_nq1_o555
-    call test_rmix_matches_full_der2_nq1_general_periodic
+    call test_rmix_matches_full_der2_nq1_o355_periodic
     call test_rmix_matches_full_der2_nq2_general
     call test_rmix_matches_full_der2_nq2_o555
 
@@ -115,10 +115,10 @@ contains
         call destroy_batch_splines_3d(spl)
     end subroutine test_rmix_matches_full_der2_nq2_general
 
-    subroutine test_rmix_matches_full_der2_nq1_general_periodic
+    subroutine test_rmix_matches_full_der2_nq1_o355_periodic
         integer, parameter :: N_POINTS(3) = [23, 25, 27]
-        integer, parameter :: ORDER(3) = [3, 5, 3]
-        logical, parameter :: PERIODIC(3) = [.false., .true., .false.]
+        integer, parameter :: ORDER(3) = [3, 5, 5]
+        logical, parameter :: PERIODIC(3) = [.false., .true., .true.]
 
         type(BatchSplineData3D) :: spl
         real(dp) :: y_data(N_POINTS(1), N_POINTS(2), N_POINTS(3), 1)
@@ -160,7 +160,7 @@ contains
         end do
 
         call destroy_batch_splines_3d(spl)
-    end subroutine test_rmix_matches_full_der2_nq1_general_periodic
+    end subroutine test_rmix_matches_full_der2_nq1_o355_periodic
 
     subroutine test_rmix_matches_full_der2_nq2_o555
         integer, parameter :: N_POINTS(3) = [24, 26, 28]

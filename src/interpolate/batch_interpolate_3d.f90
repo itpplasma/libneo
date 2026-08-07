@@ -1564,6 +1564,7 @@ contains
 
     recursive subroutine evaluate_batch_splines_3d_der2_rmix(spl, x, y_batch, dy_batch, &
                                                    d2y_batch_rmix)
+        !$acc routine seq
         ! Evaluate a 3D batch spline at point x, returning:
         ! - y_batch: value
         ! - dy_batch: first derivatives (dx1, dx2, dx3)
@@ -1577,12 +1578,15 @@ contains
         real(dp), intent(out) :: y_batch(:)           ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:, :)        ! (3, n_quantities)
         real(dp), intent(out) :: d2y_batch_rmix(:, :)  ! (3, n_quantities)
+        real(dp) :: d2y_full(6, MAX_QUANTITIES)
 
+#ifndef _OPENACC
         if (size(d2y_batch_rmix, 1) /= 3) then
             error stop &
                 "evaluate_batch_splines_3d_der2_rmix: d2y_batch_rmix "// &
                 "first dim must be 3"
         end if
+#endif
 
         if (spl%num_quantities == 1) then
             call evaluate_batch_splines_3d_der2_core_rmix_nq1(spl, x, y_batch, &
@@ -1594,13 +1598,10 @@ contains
                                                                    dy_batch, &
                                                                    d2y_batch_rmix)
             else
-                block
-                    real(dp) :: d2y_full(6, size(y_batch))
-
-                    call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, &
-                                                            dy_batch, d2y_full)
-                    d2y_batch_rmix(:, :) = d2y_full(1:3, :)
-                end block
+                call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, &
+                                                        dy_batch, &
+                                                        d2y_full(:, 1:size(y_batch)))
+                d2y_batch_rmix(:, :) = d2y_full(1:3, 1:size(y_batch))
             end if
         end if
     end subroutine evaluate_batch_splines_3d_der2_rmix
@@ -2042,6 +2043,12 @@ contains
         N2 = spl%order(2)
         N3 = spl%order(3)
 
+        if (N1 == 3 .and. N2 == 5 .and. N3 == 5) then
+            call evaluate_batch_splines_3d_der2_core_rmix_nq1_o355( &
+                spl, x, y_batch, dy_batch, d2y_rmix)
+            return
+        end if
+
         if (N1 == 5 .and. N2 == 5 .and. N3 == 5) then
             call evaluate_batch_splines_3d_der2_core_rmix_nq1_o555(spl, x, y_batch, &
                                                                    dy_batch, d2y_rmix)
@@ -2177,6 +2184,83 @@ contains
         d2y_rmix(1, 1) = coeff_3_dx1x1(k3) + x3*d2y_rmix(1, 1)
         d2y_rmix(2, 1) = coeff_3_dx1x2(k3) + x3*d2y_rmix(2, 1)
     end subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1
+
+    recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o355( &
+            spl, x, y_batch, dy_batch, d2y_rmix)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)
+        real(dp), intent(out) :: dy_batch(:, :)
+        real(dp), intent(out) :: d2y_rmix(:, :)
+
+        integer, parameter :: N2 = 5, N3 = 5
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
+        real(dp) :: x1, x2, x3, c
+        real(dp) :: c23, c23_dx1, c23_dx1x1
+        integer :: interval_index(3), i1, i2, i3, k2, k3, j
+        real(dp) :: coeff_3(0:N3), coeff_3_dx1(0:N3)
+        real(dp) :: coeff_3_dx2(0:N3), coeff_3_dx1x1(0:N3)
+        real(dp) :: coeff_3_dx1x2(0:N3)
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        inv_h_step = spl%inv_h_step
+        period = spl%period
+
+#include "spline3d_o555_point_setup.inc"
+
+        do k3 = 0, N3
+            do k2 = N2, 0, -1
+                c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                c23 = c
+                c23_dx1 = 3.0_dp*c
+                c23_dx1x1 = 6.0_dp*c
+
+                c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = 2.0_dp*c + x1*c23_dx1
+                c23_dx1x1 = 2.0_dp*c + x1*c23_dx1x1
+
+                c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = c + x1*c23_dx1
+
+                c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+
+                if (k2 == N2) then
+                    coeff_3(k3) = c23
+                    coeff_3_dx1(k3) = c23_dx1
+                    coeff_3_dx1x1(k3) = c23_dx1x1
+                    coeff_3_dx2(k3) = real(N2, dp)*c23
+                    coeff_3_dx1x2(k3) = real(N2, dp)*c23_dx1
+                else
+                    coeff_3(k3) = c23 + x2*coeff_3(k3)
+                    coeff_3_dx1(k3) = c23_dx1 + x2*coeff_3_dx1(k3)
+                    coeff_3_dx1x1(k3) = c23_dx1x1 + &
+                        x2*coeff_3_dx1x1(k3)
+                    if (k2 > 0) then
+                        coeff_3_dx2(k3) = real(k2, dp)*c23 + &
+                            x2*coeff_3_dx2(k3)
+                        coeff_3_dx1x2(k3) = real(k2, dp)*c23_dx1 + &
+                            x2*coeff_3_dx1x2(k3)
+                    end if
+                end if
+            end do
+        end do
+
+#define D2_11 d2y_rmix(1, 1)
+#define D2_12 d2y_rmix(2, 1)
+#define D2_13 d2y_rmix(3, 1)
+
+#include "spline3d_o555_k3_reduce_nq1.inc"
+
+#undef D2_11
+#undef D2_12
+#undef D2_13
+    end subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o355
 
     recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o555( &
         spl, x, y_batch, dy_batch, d2y_rmix)

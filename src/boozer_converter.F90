@@ -10,6 +10,7 @@ module boozer_sub
                            evaluate_batch_spline_1d_pair_quintic_der, &
                            evaluate_batch_splines_3d_der, &
                            evaluate_batch_splines_3d_der2, &
+                           evaluate_batch_splines_3d_der2_rmix, &
                            evaluate_batch_spline_3d_scalar_cubic_der, &
                            evaluate_batch_spline_3d_scalar_quintic_der, &
                            evaluate_batch_spline_3d_scalar_cubic_der2, &
@@ -32,10 +33,12 @@ module boozer_sub
     public :: delthe_delphi_BV_d3
     public :: build_boozer_from_chartmap
     public :: sync_boozer_state, boozer_state
+    public :: BOOZER_SECDERS_RADIAL_MIXED
 
     ! Constants
     real(dp), parameter :: TWOPI = 2.0_dp*3.14159265358979_dp
     integer, parameter :: MAX_FIELD3D_QUANTITIES = 3
+    integer, parameter :: BOOZER_SECDERS_RADIAL_MIXED = 3
 
 
     ! Device-accessible Boozer runtime state shared by host and OpenACC code.
@@ -333,17 +336,27 @@ contains
         drhods2 = drhods**2
         d2rhods2m = drhods2/rho_tor  ! -d2rho/ds2 (negative of second derivative)
 
-        if (mode_secders == 2) then
-            if (boozer_state%num_quantities == 1 .and. &
-                all(field3d_batch_spline%order == [3, 3, 3])) then
-                call evaluate_batch_spline_3d_scalar_cubic_der2( &
-                    field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1), &
-                    d2y_eval(:, 1))
+        if (mode_secders == 2 .or. &
+                mode_secders == BOOZER_SECDERS_RADIAL_MIXED) then
+            if (mode_secders == BOOZER_SECDERS_RADIAL_MIXED) then
+                d2y_eval(4:6, :) = 0.0_dp
+                call evaluate_batch_splines_3d_der2_rmix( &
+                    field3d_batch_spline, x_eval, &
+                    y_eval(1:boozer_state%num_quantities), &
+                    dy_eval(:, 1:boozer_state%num_quantities), &
+                    d2y_eval(1:3, 1:boozer_state%num_quantities))
             else
-                call evaluate_batch_splines_3d_der2(field3d_batch_spline, x_eval, &
-                                                    y_eval(1:boozer_state%num_quantities), &
-                                                    dy_eval(:, 1:boozer_state%num_quantities), &
-                                                    d2y_eval(:, 1:boozer_state%num_quantities))
+                if (boozer_state%num_quantities == 1 .and. &
+                    all(field3d_batch_spline%order == [3, 3, 3])) then
+                    call evaluate_batch_spline_3d_scalar_cubic_der2( &
+                        field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1), &
+                        d2y_eval(:, 1))
+                else
+                    call evaluate_batch_splines_3d_der2(field3d_batch_spline, x_eval, &
+                                                        y_eval(1:boozer_state%num_quantities), &
+                                                        dy_eval(:, 1:boozer_state%num_quantities), &
+                                                        d2y_eval(:, 1:boozer_state%num_quantities))
+                end if
             end if
 
             ! Extract Bmod (quantity 1)
