@@ -7,6 +7,7 @@ module boozer_sub
                            evaluate_batch_splines_3d_der, &
                            evaluate_batch_splines_3d_der2, &
                            evaluate_batch_spline_3d_scalar_cubic_der, &
+                           evaluate_batch_spline_3d_scalar_quintic_der, &
                            evaluate_batch_spline_3d_scalar_cubic_der2, &
                            evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
@@ -19,6 +20,7 @@ module boozer_sub
     public :: get_boozer_coordinates
     public :: splint_boozer_coord
     public :: splint_boozer_coord_device
+    public :: splint_boozer_rk_device, boozer_rk_device_supported
     public :: reset_boozer_batch_splines
     public :: vmec_to_boozer, boozer_to_vmec
     public :: delthe_delphi_BV
@@ -464,6 +466,54 @@ contains
         end if
 
     end subroutine splint_boozer_coord_device
+
+    logical function boozer_rk_device_supported()
+        boozer_rk_device_supported = aphi_batch_spline_ready .and. &
+            bcovar_tp_batch_spline_ready .and. field3d_batch_spline_ready
+        if (.not. boozer_rk_device_supported) return
+        boozer_rk_device_supported = field3d_num_quantities == 1 .and. &
+            all(field3d_batch_spline%order == [5, 5, 5]) .and. &
+            aphi_batch_spline%order == 5 .and. &
+            bcovar_tp_batch_spline%order == 5
+    end function boozer_rk_device_supported
+
+    !> Minimal Boozer data needed by the canonical RK right-hand side.
+    !> Landreman production uses scalar quintic |B| and quintic radial profiles;
+    !> avoiding the generic field/Hessian interface sharply reduces GPU stack.
+    subroutine splint_boozer_rk_device(r, vartheta_B, varphi_B, aphi, daphi, &
+            btheta, dbtheta, bphi, dbphi, bmod, dbmod)
+        !$acc routine seq
+        real(dp), intent(in) :: r, vartheta_B, varphi_B
+        real(dp), intent(out) :: aphi, daphi
+        real(dp), intent(out) :: btheta, dbtheta, bphi, dbphi
+        real(dp), intent(out) :: bmod, dbmod(3)
+
+        real(dp) :: r_eval, rho_tor, drhods, x_eval(3)
+        real(dp) :: y1d(2), dy1d(2), d2y1d(2), gradient_rho(3)
+
+        r_eval = abs(r)
+        rho_tor = sqrt(r_eval)
+        drhods = 0.5_dp/rho_tor
+        x_eval = [rho_tor, modulo(vartheta_B, TWOPI), &
+            modulo(varphi_B, TWOPI/real(boozer_state%nper, dp))]
+
+        call evaluate_batch_spline_3d_scalar_quintic_der( &
+            field3d_batch_spline, x_eval, bmod, gradient_rho)
+        dbmod = gradient_rho
+        dbmod(1) = dbmod(1)*drhods
+
+        call evaluate_batch_splines_1d_der2(aphi_batch_spline, r_eval, &
+            y1d(1:1), dy1d(1:1), d2y1d(1:1))
+        aphi = y1d(1)
+        daphi = dy1d(1)
+
+        call evaluate_batch_splines_1d_der2(bcovar_tp_batch_spline, rho_tor, &
+            y1d, dy1d, d2y1d)
+        btheta = y1d(1)
+        dbtheta = dy1d(1)*drhods
+        bphi = y1d(2)
+        dbphi = dy1d(2)*drhods
+    end subroutine splint_boozer_rk_device
 
     !> Computes deltheta_BV = vartheta_B - theta_V and delphi_BV = varphi_B - varphi_V
     !> together with their first derivatives over the angles.

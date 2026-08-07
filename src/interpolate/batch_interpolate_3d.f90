@@ -34,6 +34,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d_der
     public :: evaluate_batch_splines_3d_der2
     public :: evaluate_batch_spline_3d_scalar_cubic_der
+    public :: evaluate_batch_spline_3d_scalar_quintic_der
     public :: evaluate_batch_spline_3d_scalar_cubic_der2
     public :: evaluate_batch_splines_3d_der3
     public :: evaluate_batch_splines_3d_der2_rmix
@@ -1297,6 +1298,89 @@ contains
         dy(2) = ((d2_3(3)*x3 + d2_3(2))*x3 + d2_3(1))*x3 + d2_3(0)
         dy(3) = (3.0_dp*v3(3)*x3 + 2.0_dp*v3(2))*x3 + v3(1)
     end subroutine evaluate_batch_spline_3d_scalar_cubic_der
+
+    !> Allocation-free value/gradient evaluator for a scalar quintic field
+    !> spline. The fixed order and quantity count keep the device working set
+    !> independent of the generic batch evaluator's maximum dimensions.
+    !NVF$ INLINE
+    subroutine evaluate_batch_spline_3d_scalar_quintic_der(spl, x, y, dy)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(3)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: value_x1, derivative_x1
+        real(dp) :: value_x2(0:5), derivative_x1_x2(0:5)
+        real(dp) :: value_x3(0:5), derivative_x1_x3(0:5)
+        real(dp) :: derivative_x2_x3(0:5)
+        integer :: interval_index(3), i1, i2, i3
+        integer :: j, k1, k2, k3
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = x(j)
+                if (xj < spl%x_min(j) .or. xj >= spl%x_min(j) + spl%period(j)) then
+                    xj = modulo(xj - spl%x_min(j), spl%period(j)) + spl%x_min(j)
+                end if
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))*spl%inv_h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))*spl%h_step(j)
+        end do
+
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        do k3 = 0, 5
+            do k2 = 0, 5
+                value_x1 = spl%coeff(1, 5, k2, k3, i1, i2, i3)
+                derivative_x1 = 5.0_dp*value_x1
+                do k1 = 4, 1, -1
+                    value_x1 = spl%coeff(1, k1, k2, k3, i1, i2, i3) + &
+                        x_local(1)*value_x1
+                    derivative_x1 = real(k1, dp)* &
+                        spl%coeff(1, k1, k2, k3, i1, i2, i3) + &
+                        x_local(1)*derivative_x1
+                end do
+                value_x2(k2) = spl%coeff(1, 0, k2, k3, i1, i2, i3) + &
+                    x_local(1)*value_x1
+                derivative_x1_x2(k2) = derivative_x1
+            end do
+
+            value_x3(k3) = value_x2(5)
+            derivative_x1_x3(k3) = derivative_x1_x2(5)
+            derivative_x2_x3(k3) = 5.0_dp*value_x2(5)
+            do k2 = 4, 1, -1
+                value_x3(k3) = value_x2(k2) + x_local(2)*value_x3(k3)
+                derivative_x1_x3(k3) = derivative_x1_x2(k2) + &
+                    x_local(2)*derivative_x1_x3(k3)
+                derivative_x2_x3(k3) = real(k2, dp)*value_x2(k2) + &
+                    x_local(2)*derivative_x2_x3(k3)
+            end do
+            value_x3(k3) = value_x2(0) + x_local(2)*value_x3(k3)
+            derivative_x1_x3(k3) = derivative_x1_x2(0) + &
+                x_local(2)*derivative_x1_x3(k3)
+        end do
+
+        y = value_x3(5)
+        dy(1) = derivative_x1_x3(5)
+        dy(2) = derivative_x2_x3(5)
+        dy(3) = 5.0_dp*value_x3(5)
+        do k3 = 4, 1, -1
+            y = value_x3(k3) + x_local(3)*y
+            dy(1) = derivative_x1_x3(k3) + x_local(3)*dy(1)
+            dy(2) = derivative_x2_x3(k3) + x_local(3)*dy(2)
+            dy(3) = real(k3, dp)*value_x3(k3) + x_local(3)*dy(3)
+        end do
+        y = value_x3(0) + x_local(3)*y
+        dy(1) = derivative_x1_x3(0) + x_local(3)*dy(1)
+        dy(2) = derivative_x2_x3(0) + x_local(3)*dy(2)
+    end subroutine evaluate_batch_spline_3d_scalar_quintic_der
 
     !> Allocation-free value/gradient/Hessian evaluator for the production
     !> scalar cubic field spline. Keeping the polynomial order and quantity
