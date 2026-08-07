@@ -27,6 +27,7 @@ program test_batch_interpolate_scalar_cubic
 
     call test_value_gradient_oracle
     call test_quintic_value_gradient_oracle
+    call test_mixed_hessian_oracle
 
     do i3 = 1, N3
         do i2 = 1, N2
@@ -69,6 +70,89 @@ program test_batch_interpolate_scalar_cubic
     print *, "PASSED: scalar cubic evaluator max relative error", max_error
 
 contains
+
+    subroutine test_mixed_hessian_oracle
+        type(BatchSplineData3D) :: oracle_spl
+        real(dp) :: basis(0:5, 3), dbasis(0:5, 3), d2basis(0:5, 3)
+        real(dp) :: coeff, expected_y, expected_dy(3), expected_d2y(6)
+        real(dp) :: x_local(3), oracle_x(3), oracle_y(1)
+        real(dp) :: oracle_dy(3, 1), oracle_d2y(6, 1)
+        integer :: j, k1, k2, k3
+
+        oracle_spl%order = [3, 5, 5]
+        oracle_spl%num_points = 2
+        oracle_spl%periodic = .false.
+        oracle_spl%x_min = [-0.5_dp, 0.25_dp, -1.0_dp]
+        oracle_spl%h_step = [2.0_dp, 1.5_dp, 0.75_dp]
+        oracle_spl%inv_h_step = 1.0_dp/oracle_spl%h_step
+        oracle_spl%period = oracle_spl%h_step
+        oracle_spl%num_quantities = 1
+        allocate (oracle_spl%coeff(1, 0:3, 0:5, 0:5, 1, 1, 1))
+
+        do k3 = 0, 5
+            do k2 = 0, 5
+                do k1 = 0, 3
+                    oracle_spl%coeff(1, k1, k2, k3, 1, 1, 1) = &
+                        0.03125_dp*real(1 + 2*k1 - 3*k2 + 5*k3, dp)
+                end do
+            end do
+        end do
+
+        x_local = [0.37_dp, 0.61_dp, 0.29_dp]*oracle_spl%h_step
+        oracle_x = oracle_spl%x_min + x_local
+        basis = 0.0_dp
+        dbasis = 0.0_dp
+        d2basis = 0.0_dp
+        do j = 1, 3
+            basis(0, j) = 1.0_dp
+            do k1 = 1, 5
+                basis(k1, j) = x_local(j)**k1
+                dbasis(k1, j) = real(k1, dp)*x_local(j)**(k1 - 1)
+                if (k1 >= 2) d2basis(k1, j) = &
+                    real(k1*(k1 - 1), dp)*x_local(j)**(k1 - 2)
+            end do
+        end do
+
+        expected_y = 0.0_dp
+        expected_dy = 0.0_dp
+        expected_d2y = 0.0_dp
+        do k3 = 0, 5
+            do k2 = 0, 5
+                do k1 = 0, 3
+                    coeff = oracle_spl%coeff(1, k1, k2, k3, 1, 1, 1)
+                    expected_y = expected_y + coeff*basis(k1, 1)* &
+                        basis(k2, 2)*basis(k3, 3)
+                    expected_dy(1) = expected_dy(1) + coeff*dbasis(k1, 1)* &
+                        basis(k2, 2)*basis(k3, 3)
+                    expected_dy(2) = expected_dy(2) + coeff*basis(k1, 1)* &
+                        dbasis(k2, 2)*basis(k3, 3)
+                    expected_dy(3) = expected_dy(3) + coeff*basis(k1, 1)* &
+                        basis(k2, 2)*dbasis(k3, 3)
+                    expected_d2y(1) = expected_d2y(1) + coeff*d2basis(k1, 1)* &
+                        basis(k2, 2)*basis(k3, 3)
+                    expected_d2y(2) = expected_d2y(2) + coeff*dbasis(k1, 1)* &
+                        dbasis(k2, 2)*basis(k3, 3)
+                    expected_d2y(3) = expected_d2y(3) + coeff*dbasis(k1, 1)* &
+                        basis(k2, 2)*dbasis(k3, 3)
+                    expected_d2y(4) = expected_d2y(4) + coeff*basis(k1, 1)* &
+                        d2basis(k2, 2)*basis(k3, 3)
+                    expected_d2y(5) = expected_d2y(5) + coeff*basis(k1, 1)* &
+                        dbasis(k2, 2)*dbasis(k3, 3)
+                    expected_d2y(6) = expected_d2y(6) + coeff*basis(k1, 1)* &
+                        basis(k2, 2)*d2basis(k3, 3)
+                end do
+            end do
+        end do
+
+        call evaluate_batch_splines_3d_der2(oracle_spl, oracle_x, oracle_y, &
+            oracle_dy, oracle_d2y)
+        if (relative_error(oracle_y(1), expected_y) > TOL .or. &
+                maxval(relative_error_vec(oracle_dy(:, 1), expected_dy)) > TOL .or. &
+                maxval(relative_error_vec(oracle_d2y(:, 1), expected_d2y)) > TOL) then
+            error stop "mixed cubic/quintic Hessian failed analytic polynomial oracle"
+        end if
+        deallocate (oracle_spl%coeff)
+    end subroutine test_mixed_hessian_oracle
 
     subroutine test_value_gradient_oracle
         type(BatchSplineData3D) :: oracle_spl
