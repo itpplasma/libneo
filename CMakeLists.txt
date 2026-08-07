@@ -318,6 +318,7 @@ endif()
 # Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
 add_library(boozer STATIC
     src/boozer_chartmap_types.f90
+    src/boozer_rk_tables.f90
     src/boozer_converter.F90
     src/boozer_chartmap.f90
     src/field/boozer_chartmap_io.f90

@@ -79,6 +79,20 @@ def test_left_handed_flip():
 
 def test_write_roundtrip(tmp_path):
     data = _synthetic_chartmap()
+    rk_field = {
+        "Bmod": data["Bmod"] + 1.0,
+        "dBmod_ds": data["Bmod"] * 0.1,
+        "dBmod_dtheta": data["Bmod"] * 0.2,
+        "dBmod_dzeta": data["Bmod"] * 0.3,
+    }
+    rk_profiles = {
+        "A_phi": data["A_phi"] + 1.0,
+        "dA_phi_ds": data["A_phi"] * 0.1,
+        "B_theta": data["B_theta"] + 2.0,
+        "dB_theta_ds": data["B_theta"] * 0.2,
+        "B_phi": data["B_phi"] + 3.0,
+        "dB_phi_ds": data["B_phi"] * 0.3,
+    }
     out = tmp_path / "chartmap.nc"
 
     write_boozer_chartmap(
@@ -96,6 +110,8 @@ def test_write_roundtrip(tmp_path):
         Bmod=data["Bmod"],
         num_field_periods=data["num_field_periods"],
         torflux=data["torflux"],
+        rk_field=rk_field,
+        rk_profiles=rk_profiles,
         booz2chartmap_source="synthetic",
     )
 
@@ -147,6 +163,13 @@ def test_write_roundtrip(tmp_path):
 
         assert ds.variables["x"].units == "cm"
         assert ds.variables["A_phi"].radial_abscissa == "s"
+        for name, arr in rk_field.items():
+            stored = np.asarray(ds.variables[f"rk_{name}"][:])
+            np.testing.assert_allclose(np.transpose(stored, (2, 1, 0)), arr)
+            assert ds.variables[f"rk_{name}"].radial_abscissa == "s"
+        for name, arr in rk_profiles.items():
+            np.testing.assert_allclose(ds.variables[f"rk_{name}"][:], arr)
+            assert ds.variables[f"rk_{name}"].radial_abscissa == "s"
 
 
 def test_shape_validation(tmp_path):

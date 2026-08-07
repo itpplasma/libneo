@@ -56,6 +56,8 @@ def write_boozer_chartmap(
     Bmod,
     num_field_periods,
     torflux,
+    rk_field=None,
+    rk_profiles=None,
     **attrs,
 ):
     """Write an extended Boozer chartmap NetCDF file.
@@ -86,6 +88,13 @@ def write_boozer_chartmap(
         Number of field periods.
     torflux : float
         Toroidal flux (A_theta at the edge) in G*cm^2.
+    rk_field : mapping, optional
+        Native canonical-RK tables on the uniform s grid. When present it
+        must contain Bmod, dBmod_ds, dBmod_dtheta, and dBmod_dzeta arrays
+        with shape (n_s, n_theta, n_zeta).
+    rk_profiles : mapping, optional
+        Native canonical-RK profiles on s. When present it must contain
+        A_phi, dA_phi_ds, B_theta, dB_theta_ds, B_phi, and dB_phi_ds.
     **attrs
         Extra global attributes passed through verbatim (provenance, e.g.
         booz2chartmap_source or gvec2chartmap_flip).
@@ -122,6 +131,41 @@ def write_boozer_chartmap(
         if arr.size != n_rho:
             raise ValueError(f"{name} has length {arr.size}, expected {n_rho}")
 
+    rk_field_arrays = None
+    if rk_field is not None:
+        field_names = ("Bmod", "dBmod_ds", "dBmod_dtheta", "dBmod_dzeta")
+        rk_field_arrays = {
+            name: np.asarray(rk_field[name], dtype=float) for name in field_names
+        }
+        for name, arr in rk_field_arrays.items():
+            if arr.shape != shape:
+                raise ValueError(
+                    f"rk_field[{name!r}] has shape {arr.shape}, expected {shape}"
+                )
+
+    rk_profile_arrays = None
+    if rk_profiles is not None:
+        profile_names = (
+            "A_phi",
+            "dA_phi_ds",
+            "B_theta",
+            "dB_theta_ds",
+            "B_phi",
+            "dB_phi_ds",
+        )
+        rk_profile_arrays = {
+            name: np.asarray(rk_profiles[name], dtype=float)
+            for name in profile_names
+        }
+        for name, arr in rk_profile_arrays.items():
+            if arr.shape != (s.size,):
+                raise ValueError(
+                    f"rk_profiles[{name!r}] has shape {arr.shape}, "
+                    f"expected {(s.size,)}"
+                )
+    if (rk_field_arrays is None) != (rk_profile_arrays is None):
+        raise ValueError("rk_field and rk_profiles must be supplied together")
+
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -156,6 +200,16 @@ def write_boozer_chartmap(
         v[:] = B_phi
         v = ds.createVariable("Bmod", "f8", ("zeta", "theta", "rho"))
         v[:] = np.transpose(Bmod, (2, 1, 0))
+
+        if rk_field_arrays is not None:
+            for name, arr in rk_field_arrays.items():
+                v = ds.createVariable(f"rk_{name}", "f8", ("zeta", "theta", "s"))
+                v[:] = np.transpose(arr, (2, 1, 0))
+                v.radial_abscissa = "s"
+            for name, arr in rk_profile_arrays.items():
+                v = ds.createVariable(f"rk_{name}", "f8", ("s",))
+                v[:] = arr
+                v.radial_abscissa = "s"
 
         v = ds.createVariable("num_field_periods", "i4")
         v.assignValue(np.int32(num_field_periods))

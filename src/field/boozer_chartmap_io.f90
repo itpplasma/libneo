@@ -118,8 +118,55 @@ contains
         d%Bmod(:, 1:n_theta_geom, d%n_phi) = bmod_file(:, :, 1)
         d%Bmod(:, d%n_theta, d%n_phi) = bmod_file(:, 1, 1)
 
+        call read_optional_rk_tables(ncid, d, n_theta_geom, n_phi_geom)
         call check(nf90_close(ncid), "close")
     end subroutine read_boozer_chartmap
+
+    subroutine read_optional_rk_tables(ncid, d, n_theta_geom, n_phi_geom)
+        integer, intent(in) :: ncid, n_theta_geom, n_phi_geom
+        type(boozer_chartmap_data_t), intent(inout) :: d
+
+        integer :: status, varid, iq
+        real(dp), allocatable :: field_file(:, :, :, :)
+        character(len=32), parameter :: field_names(4) = [character(len=32) :: &
+            "rk_Bmod", "rk_dBmod_ds", "rk_dBmod_dtheta", "rk_dBmod_dzeta"]
+        character(len=32), parameter :: profile_names(6) = [character(len=32) :: &
+            "rk_A_phi", "rk_dA_phi_ds", "rk_B_theta", "rk_dB_theta_ds", &
+            "rk_B_phi", "rk_dB_phi_ds"]
+
+        status = nf90_inq_varid(ncid, field_names(1), varid)
+        if (status == nf90_enotvar) return
+        call check(status, "inq_var "//trim(field_names(1)))
+
+        allocate (field_file(d%n_s, n_theta_geom, n_phi_geom, 4))
+        allocate (d%rk_field(d%n_s, d%n_theta, d%n_phi, 4))
+        do iq = 1, 4
+            call require_variable_dimensions(ncid, trim(field_names(iq)), &
+                [character(len=5) :: "s", "theta", "zeta"])
+            call check(nf90_inq_varid(ncid, trim(field_names(iq)), varid), &
+                "inq_var "//trim(field_names(iq)))
+            call check(nf90_get_var(ncid, varid, field_file(:, :, :, iq)), &
+                "get "//trim(field_names(iq)))
+            d%rk_field(:, 1:n_theta_geom, 1:n_phi_geom, iq) = &
+                field_file(:, :, :, iq)
+            d%rk_field(:, d%n_theta, 1:n_phi_geom, iq) = &
+                field_file(:, 1, :, iq)
+            d%rk_field(:, 1:n_theta_geom, d%n_phi, iq) = &
+                field_file(:, :, 1, iq)
+            d%rk_field(:, d%n_theta, d%n_phi, iq) = field_file(:, 1, 1, iq)
+        end do
+
+        allocate (d%rk_profiles(d%n_s, 6))
+        do iq = 1, 6
+            call require_variable_dimensions(ncid, trim(profile_names(iq)), &
+                [character(len=1) :: "s"])
+            call check(nf90_inq_varid(ncid, trim(profile_names(iq)), varid), &
+                "inq_var "//trim(profile_names(iq)))
+            call check(nf90_get_var(ncid, varid, d%rk_profiles(:, iq)), &
+                "get "//trim(profile_names(iq)))
+        end do
+        d%has_rk_tables = .true.
+    end subroutine read_optional_rk_tables
 
     subroutine derive_radii(ncid, n_rho, n_theta_geom, n_phi_geom, rmajor, aminor)
         integer, intent(in) :: ncid, n_rho, n_theta_geom, n_phi_geom

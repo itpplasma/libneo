@@ -30,5 +30,11 @@ module boozer_chartmap_types
         real(dp), allocatable :: B_theta(:)
         real(dp), allocatable :: B_phi(:)
         real(dp), allocatable :: Bmod(:, :, :) !< (n_rho, n_theta, n_phi)
+        logical :: has_rk_tables = .false.
+        ! Native canonical-RK data on the uniform s grid. Field quantity
+        ! order: B, dB/ds, dB/dtheta, dB/dzeta. Profile order: A_phi,
+        ! dA_phi/ds, B_theta, dB_theta/ds, B_phi, dB_phi/ds.
+        real(dp), allocatable :: rk_field(:, :, :, :)
+        real(dp), allocatable :: rk_profiles(:, :)
     end type boozer_chartmap_data_t
 end module boozer_chartmap_types
