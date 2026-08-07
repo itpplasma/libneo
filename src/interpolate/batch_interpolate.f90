@@ -18,7 +18,9 @@ module batch_interpolate
                                     evaluate_batch_splines_1d_many_der3, &
                                     evaluate_batch_splines_1d_der, &
                                     evaluate_batch_splines_1d_der2, &
-                                    evaluate_batch_splines_1d_der3
+                                    evaluate_batch_splines_1d_der3, &
+                                    evaluate_batch_spline_1d_scalar_quintic_der, &
+                                    evaluate_batch_spline_1d_pair_quintic_der
     use batch_interpolate_2d, only: construct_batch_splines_2d, &
                                     construct_batch_splines_2d_lines, &
                                     construct_batch_splines_2d_resident, &
@@ -62,6 +64,8 @@ module batch_interpolate
     public :: evaluate_batch_splines_1d_many_der2, evaluate_batch_splines_1d_many_der3
     public :: evaluate_batch_splines_1d_der, evaluate_batch_splines_1d_der2
     public :: evaluate_batch_splines_1d_der3
+    public :: evaluate_batch_spline_1d_scalar_quintic_der
+    public :: evaluate_batch_spline_1d_pair_quintic_der
 
     ! Re-export 2D routines from batch_interpolate_2d
     public :: construct_batch_splines_2d, destroy_batch_splines_2d

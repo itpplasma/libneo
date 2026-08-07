@@ -203,6 +203,10 @@ add_executable(test_batch_interpolate_scalar_cubic.x
   source/test_batch_interpolate_scalar_cubic.f90)
 target_link_libraries(test_batch_interpolate_scalar_cubic.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_1d_fixed.x
+  source/test_batch_interpolate_1d_fixed.f90)
+target_link_libraries(test_batch_interpolate_1d_fixed.x ${COMMON_LIBS})
+
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
 
@@ -286,6 +290,8 @@ add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
 add_test(NAME test_batch_interpolate_scalar_cubic
   COMMAND test_batch_interpolate_scalar_cubic.x)
+add_test(NAME test_batch_interpolate_1d_fixed
+  COMMAND test_batch_interpolate_1d_fixed.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)

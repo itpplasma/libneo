@@ -4,6 +4,8 @@ module boozer_sub
                            construct_batch_splines_1d, construct_batch_splines_3d, &
                            evaluate_batch_splines_1d_der2, &
                            evaluate_batch_splines_1d_der3, &
+                           evaluate_batch_spline_1d_scalar_quintic_der, &
+                           evaluate_batch_spline_1d_pair_quintic_der, &
                            evaluate_batch_splines_3d_der, &
                            evaluate_batch_splines_3d_der2, &
                            evaluate_batch_spline_3d_scalar_cubic_der, &
@@ -489,7 +491,7 @@ contains
         real(dp), intent(out) :: bmod, dbmod(3)
 
         real(dp) :: r_eval, rho_tor, drhods, x_eval(3)
-        real(dp) :: y1d(2), dy1d(2), d2y1d(2), gradient_rho(3)
+        real(dp) :: gradient_rho(3)
 
         r_eval = abs(r)
         rho_tor = sqrt(r_eval)
@@ -502,17 +504,12 @@ contains
         dbmod = gradient_rho
         dbmod(1) = dbmod(1)*drhods
 
-        call evaluate_batch_splines_1d_der2(aphi_batch_spline, r_eval, &
-            y1d(1:1), dy1d(1:1), d2y1d(1:1))
-        aphi = y1d(1)
-        daphi = dy1d(1)
-
-        call evaluate_batch_splines_1d_der2(bcovar_tp_batch_spline, rho_tor, &
-            y1d, dy1d, d2y1d)
-        btheta = y1d(1)
-        dbtheta = dy1d(1)*drhods
-        bphi = y1d(2)
-        dbphi = dy1d(2)*drhods
+        call evaluate_batch_spline_1d_scalar_quintic_der( &
+            aphi_batch_spline, r_eval, aphi, daphi)
+        call evaluate_batch_spline_1d_pair_quintic_der( &
+            bcovar_tp_batch_spline, rho_tor, btheta, dbtheta, bphi, dbphi)
+        dbtheta = dbtheta*drhods
+        dbphi = dbphi*drhods
     end subroutine splint_boozer_rk_device
 
     !> Computes deltheta_BV = vartheta_B - theta_V and delphi_BV = varphi_B - varphi_V
