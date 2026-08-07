@@ -30,6 +30,7 @@ module interpolate
     use batch_interpolate, only: evaluate_batch_splines_3d, &
                                  evaluate_batch_splines_3d_der, &
                                  evaluate_batch_splines_3d_der2, &
+                                 evaluate_batch_spline_3d_scalar_cubic_der, &
                                  evaluate_batch_spline_3d_scalar_cubic_der2, &
                                  evaluate_batch_splines_3d_der3, &
                                  evaluate_batch_splines_3d_der2_rmix, &
@@ -62,6 +63,7 @@ module interpolate
     public :: evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &
               evaluate_batch_splines_3d_der2, evaluate_batch_splines_3d_der3, &
               evaluate_batch_splines_3d_der2_rmix
+    public :: evaluate_batch_spline_3d_scalar_cubic_der
     public :: evaluate_batch_spline_3d_scalar_cubic_der2
     public :: evaluate_batch_splines_3d_many, evaluate_batch_splines_3d_many_resident
     public :: evaluate_batch_splines_3d_many_der, evaluate_batch_splines_3d_many_der2
