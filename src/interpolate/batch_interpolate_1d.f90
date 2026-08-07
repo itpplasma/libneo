@@ -31,6 +31,8 @@ module batch_interpolate_1d
    public :: evaluate_batch_splines_1d_der
    public :: evaluate_batch_splines_1d_der2
    public :: evaluate_batch_splines_1d_der3
+   public :: evaluate_batch_spline_1d_scalar_cubic_der
+   public :: evaluate_batch_spline_1d_pair_cubic_der
    public :: evaluate_batch_spline_1d_scalar_quintic_der
    public :: evaluate_batch_spline_1d_pair_quintic_der
    public :: evaluate_batch_splines_1d_many_der
@@ -845,6 +847,70 @@ contains
          end do
       end do
    end subroutine evaluate_batch_splines_1d_der3
+
+   !NVF$ INLINE
+   subroutine evaluate_batch_spline_1d_scalar_cubic_der(spl, x, y, dy)
+      !$acc routine seq
+      type(BatchSplineData1D), intent(in) :: spl
+      real(dp), intent(in) :: x
+      real(dp), intent(out) :: y, dy
+
+      integer :: idx, k
+      real(dp) :: xj, x_norm, x_local
+
+      xj = x
+      if (spl%periodic) then
+         if (xj < spl%x_min .or. xj >= spl%x_min + spl%period) then
+            xj = modulo(xj - spl%x_min, spl%period) + spl%x_min
+         end if
+      end if
+      x_norm = (xj - spl%x_min)*spl%inv_h_step
+      idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+      x_local = (x_norm - real(idx - 1, dp))*spl%h_step
+
+      y = spl%coeff(1, 3, idx)
+      dy = 3.0_dp*spl%coeff(1, 3, idx)
+      do k = 2, 1, -1
+         dy = real(k, dp)*spl%coeff(1, k, idx) + x_local*dy
+      end do
+      do k = 2, 0, -1
+         y = spl%coeff(1, k, idx) + x_local*y
+      end do
+   end subroutine evaluate_batch_spline_1d_scalar_cubic_der
+
+   !NVF$ INLINE
+   subroutine evaluate_batch_spline_1d_pair_cubic_der(spl, x, y1, dy1, y2, dy2)
+      !$acc routine seq
+      type(BatchSplineData1D), intent(in) :: spl
+      real(dp), intent(in) :: x
+      real(dp), intent(out) :: y1, dy1, y2, dy2
+
+      integer :: idx, k
+      real(dp) :: xj, x_norm, x_local
+
+      xj = x
+      if (spl%periodic) then
+         if (xj < spl%x_min .or. xj >= spl%x_min + spl%period) then
+            xj = modulo(xj - spl%x_min, spl%period) + spl%x_min
+         end if
+      end if
+      x_norm = (xj - spl%x_min)*spl%inv_h_step
+      idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+      x_local = (x_norm - real(idx - 1, dp))*spl%h_step
+
+      y1 = spl%coeff(1, 3, idx)
+      dy1 = 3.0_dp*spl%coeff(1, 3, idx)
+      y2 = spl%coeff(2, 3, idx)
+      dy2 = 3.0_dp*spl%coeff(2, 3, idx)
+      do k = 2, 1, -1
+         dy1 = real(k, dp)*spl%coeff(1, k, idx) + x_local*dy1
+         dy2 = real(k, dp)*spl%coeff(2, k, idx) + x_local*dy2
+      end do
+      do k = 2, 0, -1
+         y1 = spl%coeff(1, k, idx) + x_local*y1
+         y2 = spl%coeff(2, k, idx) + x_local*y2
+      end do
+   end subroutine evaluate_batch_spline_1d_pair_cubic_der
 
    subroutine evaluate_batch_spline_1d_scalar_quintic_der(spl, x, y, dy)
       !$acc routine seq

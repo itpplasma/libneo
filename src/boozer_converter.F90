@@ -4,6 +4,8 @@ module boozer_sub
                            construct_batch_splines_1d, construct_batch_splines_3d, &
                            evaluate_batch_splines_1d_der2, &
                            evaluate_batch_splines_1d_der3, &
+                           evaluate_batch_spline_1d_scalar_cubic_der, &
+                           evaluate_batch_spline_1d_pair_cubic_der, &
                            evaluate_batch_spline_1d_scalar_quintic_der, &
                            evaluate_batch_spline_1d_pair_quintic_der, &
                            evaluate_batch_splines_3d_der, &
@@ -474,9 +476,11 @@ contains
             bcovar_tp_batch_spline_ready .and. field3d_batch_spline_ready
         if (.not. boozer_rk_device_supported) return
         boozer_rk_device_supported = field3d_num_quantities == 1 .and. &
-            all(field3d_batch_spline%order == [5, 5, 5]) .and. &
-            aphi_batch_spline%order == 5 .and. &
-            bcovar_tp_batch_spline%order == 5
+            (all(field3d_batch_spline%order == [3, 3, 3]) .or. &
+             all(field3d_batch_spline%order == [5, 5, 5])) .and. &
+            (aphi_batch_spline%order == 3 .or. aphi_batch_spline%order == 5) .and. &
+            (bcovar_tp_batch_spline%order == 3 .or. &
+             bcovar_tp_batch_spline%order == 5)
     end function boozer_rk_device_supported
 
     !> Minimal Boozer data needed by the canonical RK right-hand side.
@@ -499,15 +503,30 @@ contains
         x_eval = [rho_tor, modulo(vartheta_B, TWOPI), &
             modulo(varphi_B, TWOPI/real(boozer_state%nper, dp))]
 
-        call evaluate_batch_spline_3d_scalar_quintic_der( &
-            field3d_batch_spline, x_eval, bmod, gradient_rho)
+        if (field3d_batch_spline%order(1) == 3) then
+            call evaluate_batch_spline_3d_scalar_cubic_der( &
+                field3d_batch_spline, x_eval, bmod, gradient_rho)
+        else
+            call evaluate_batch_spline_3d_scalar_quintic_der( &
+                field3d_batch_spline, x_eval, bmod, gradient_rho)
+        end if
         dbmod = gradient_rho
         dbmod(1) = dbmod(1)*drhods
 
-        call evaluate_batch_spline_1d_scalar_quintic_der( &
-            aphi_batch_spline, r_eval, aphi, daphi)
-        call evaluate_batch_spline_1d_pair_quintic_der( &
-            bcovar_tp_batch_spline, rho_tor, btheta, dbtheta, bphi, dbphi)
+        if (aphi_batch_spline%order == 3) then
+            call evaluate_batch_spline_1d_scalar_cubic_der( &
+                aphi_batch_spline, r_eval, aphi, daphi)
+        else
+            call evaluate_batch_spline_1d_scalar_quintic_der( &
+                aphi_batch_spline, r_eval, aphi, daphi)
+        end if
+        if (bcovar_tp_batch_spline%order == 3) then
+            call evaluate_batch_spline_1d_pair_cubic_der( &
+                bcovar_tp_batch_spline, rho_tor, btheta, dbtheta, bphi, dbphi)
+        else
+            call evaluate_batch_spline_1d_pair_quintic_der( &
+                bcovar_tp_batch_spline, rho_tor, btheta, dbtheta, bphi, dbphi)
+        end if
         dbtheta = dbtheta*drhods
         dbphi = dbphi*drhods
     end subroutine splint_boozer_rk_device
