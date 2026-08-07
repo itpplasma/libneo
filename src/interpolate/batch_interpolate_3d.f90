@@ -2292,10 +2292,8 @@ contains
         real(dp) :: x_norm(3), x_local(3), xj
         real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
         real(dp) :: x1, x2, x3, c
+        real(dp) :: c23, c23_dx1, c23_dx1x1
         integer :: interval_index(3), i1, i2, i3, k2, k3, j
-        real(dp) :: coeff_23(0:N2, 0:N3)
-        real(dp) :: coeff_23_dx1(0:N2, 0:N3)
-        real(dp) :: coeff_23_dx1x1(0:N2, 0:N3)
         real(dp) :: coeff_3(0:N3), coeff_3_dx1(0:N3)
         real(dp) :: coeff_3_dx2(0:N3), coeff_3_dx1x1(0:N3)
         real(dp) :: coeff_3_dx1x2(0:N3), coeff_3_dx2x2(0:N3)
@@ -2307,26 +2305,50 @@ contains
 
 #include "spline3d_o555_point_setup.inc"
 
+        ! Fuse the radial and theta reductions so the device routine retains
+        ! six length-6 phi vectors instead of three 6-by-6 coefficient planes.
         do k3 = 0, N3
-            do k2 = 0, N2
+            do k2 = N2, 0, -1
                 c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
-                coeff_23(k2, k3) = c
-                coeff_23_dx1(k2, k3) = 3.0_dp*c
-                coeff_23_dx1x1(k2, k3) = 6.0_dp*c
+                c23 = c
+                c23_dx1 = 3.0_dp*c
+                c23_dx1x1 = 6.0_dp*c
 
                 c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
-                coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-                coeff_23_dx1(k2, k3) = 2.0_dp*c + &
-                    x1*coeff_23_dx1(k2, k3)
-                coeff_23_dx1x1(k2, k3) = 2.0_dp*c + &
-                    x1*coeff_23_dx1x1(k2, k3)
+                c23 = c + x1*c23
+                c23_dx1 = 2.0_dp*c + x1*c23_dx1
+                c23_dx1x1 = 2.0_dp*c + x1*c23_dx1x1
 
                 c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
-                coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
-                coeff_23_dx1(k2, k3) = c + x1*coeff_23_dx1(k2, k3)
+                c23 = c + x1*c23
+                c23_dx1 = c + x1*c23_dx1
 
                 c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
-                coeff_23(k2, k3) = c + x1*coeff_23(k2, k3)
+                c23 = c + x1*c23
+
+                if (k2 == N2) then
+                    coeff_3(k3) = c23
+                    coeff_3_dx1(k3) = c23_dx1
+                    coeff_3_dx1x1(k3) = c23_dx1x1
+                    coeff_3_dx2(k3) = real(N2, dp)*c23
+                    coeff_3_dx1x2(k3) = real(N2, dp)*c23_dx1
+                    coeff_3_dx2x2(k3) = real(N2*(N2 - 1), dp)*c23
+                else
+                    coeff_3(k3) = c23 + x2*coeff_3(k3)
+                    coeff_3_dx1(k3) = c23_dx1 + x2*coeff_3_dx1(k3)
+                    coeff_3_dx1x1(k3) = c23_dx1x1 + &
+                        x2*coeff_3_dx1x1(k3)
+                    if (k2 > 0) then
+                        coeff_3_dx2(k3) = real(k2, dp)*c23 + &
+                            x2*coeff_3_dx2(k3)
+                        coeff_3_dx1x2(k3) = real(k2, dp)*c23_dx1 + &
+                            x2*coeff_3_dx1x2(k3)
+                    end if
+                    if (k2 > 1) then
+                        coeff_3_dx2x2(k3) = real(k2*(k2 - 1), dp)*c23 + &
+                            x2*coeff_3_dx2x2(k3)
+                    end if
+                end if
             end do
         end do
 
@@ -2338,7 +2360,6 @@ contains
 #define D2_23 d2y_batch(5, 1)
 #define D2_33 d2y_batch(6, 1)
 
-#include "spline3d_o555_k2_reduce_nq1.inc"
 #include "spline3d_o555_k3_reduce_nq1.inc"
 
 #undef SPLINE3D_O555_FULL_D2
