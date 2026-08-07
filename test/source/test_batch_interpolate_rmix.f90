@@ -1,7 +1,8 @@
 program test_batch_interpolate_rmix
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use interpolate, only: BatchSplineData3D, construct_batch_splines_3d, &
-                           destroy_batch_splines_3d, evaluate_batch_splines_3d_der2
+                           destroy_batch_splines_3d, evaluate_batch_splines_3d_der2, &
+                           evaluate_batch_splines_3d_der_nq1_o355
     use batch_interpolate_3d, only: evaluate_batch_splines_3d_der2_rmix
 
     implicit none
@@ -10,6 +11,7 @@ program test_batch_interpolate_rmix
 
     call test_rmix_matches_full_der2_nq1_o555
     call test_rmix_matches_full_der2_nq1_o355_periodic
+    call test_der_nq1_o355_matches_full_der2_periodic
     call test_rmix_matches_full_der2_nq2_general
     call test_rmix_matches_full_der2_nq2_o555
 
@@ -161,6 +163,52 @@ contains
 
         call destroy_batch_splines_3d(spl)
     end subroutine test_rmix_matches_full_der2_nq1_o355_periodic
+
+    subroutine test_der_nq1_o355_matches_full_der2_periodic
+        integer, parameter :: N_POINTS(3) = [23, 25, 27]
+        integer, parameter :: ORDER(3) = [3, 5, 5]
+        logical, parameter :: PERIODIC(3) = [.false., .true., .true.]
+
+        type(BatchSplineData3D) :: spl
+        real(dp) :: y_data(N_POINTS(1), N_POINTS(2), N_POINTS(3), 1)
+        real(dp) :: x_min(3), x_max(3), x_eval(3)
+        real(dp) :: y_ref(1), y_got(1)
+        real(dp) :: dy_ref(3, 1), dy_got(3, 1), d2_ref(6, 1)
+        real(dp) :: y_device(1), dy_device(3, 1)
+        integer :: i1, i2, i3, n_test
+
+        x_min = [-0.4d0, 0.0d0, -0.9d0]
+        x_max = [0.8d0, 2.0d0, 1.1d0]
+        do i3 = 1, N_POINTS(3)
+            do i2 = 1, N_POINTS(2)
+                do i1 = 1, N_POINTS(1)
+                    y_data(i1, i2, i3, 1) = 0.1d0*real(i1, dp)**2 + &
+                                            0.2d0*sin(real(i2 - 1, dp)*0.07d0) + &
+                                            0.3d0*cos(real(i3 - 1, dp)*0.05d0)
+                end do
+            end do
+        end do
+
+        call construct_batch_splines_3d(x_min, x_max, y_data, ORDER, PERIODIC, spl)
+        do n_test = 0, 9
+            x_eval(1) = x_min(1) + (x_max(1) - x_min(1))*real(n_test + 1, dp)/11.0d0
+            x_eval(2) = x_min(2) + (x_max(2) - x_min(2))*real(2*n_test + 1, dp)/7.0d0
+            x_eval(3) = x_min(3) + (x_max(3) - x_min(3))*real(3*n_test + 2, dp)/8.0d0
+
+            call evaluate_batch_splines_3d_der2(spl, x_eval, y_ref, dy_ref, d2_ref)
+            call evaluate_batch_splines_3d_der_nq1_o355(spl, x_eval, y_got, dy_got)
+            call assert_close_vec("o355 value", y_got, y_ref, TOL)
+            call assert_close_mat("o355 dy", dy_got, dy_ref, TOL)
+
+            !$acc serial copyin(x_eval) copyout(y_device, dy_device)
+            call evaluate_batch_splines_3d_der_nq1_o355( &
+                spl, x_eval, y_device, dy_device)
+            !$acc end serial
+            call assert_close_vec("o355 device value", y_device, y_ref, TOL)
+            call assert_close_mat("o355 device dy", dy_device, dy_ref, TOL)
+        end do
+        call destroy_batch_splines_3d(spl)
+    end subroutine test_der_nq1_o355_matches_full_der2_periodic
 
     subroutine test_rmix_matches_full_der2_nq2_o555
         integer, parameter :: N_POINTS(3) = [24, 26, 28]

@@ -34,6 +34,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d_der
     public :: evaluate_batch_splines_3d_der2
     public :: evaluate_batch_spline_3d_scalar_cubic_der
+    public :: evaluate_batch_splines_3d_der_nq1_o355
     public :: evaluate_batch_spline_3d_scalar_quintic_der
     public :: evaluate_batch_spline_3d_scalar_cubic_der2
     public :: evaluate_batch_splines_3d_der3
@@ -1381,6 +1382,79 @@ contains
         dy(1) = derivative_x1_x3(0) + x_local(3)*dy(1)
         dy(2) = derivative_x2_x3(0) + x_local(3)*dy(2)
     end subroutine evaluate_batch_spline_3d_scalar_quintic_der
+
+    recursive subroutine evaluate_batch_splines_3d_der_nq1_o355( &
+            spl, x, y_batch, dy_batch)
+        ! Value and gradient for the production scalar [3,5,5] spline. This is
+        ! the first-derivative subset of the independently checked radial-mixed
+        ! Hessian evaluator below.
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)
+        real(dp), intent(out) :: dy_batch(:, :)
+
+        integer, parameter :: N2 = 5, N3 = 5
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
+        real(dp) :: x1, x2, x3, c, c23, c23_dx1
+        integer :: interval_index(3), i1, i2, i3, k2, k3, j
+        real(dp) :: coeff_3(0:N3), coeff_3_dx1(0:N3), coeff_3_dx2(0:N3)
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        inv_h_step = spl%inv_h_step
+        period = spl%period
+
+#include "spline3d_o555_point_setup.inc"
+
+        do k3 = 0, N3
+            do k2 = N2, 0, -1
+                c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                c23 = c
+                c23_dx1 = 3.0_dp*c
+
+                c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = 2.0_dp*c + x1*c23_dx1
+
+                c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = c + x1*c23_dx1
+
+                c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+
+                if (k2 == N2) then
+                    coeff_3(k3) = c23
+                    coeff_3_dx1(k3) = c23_dx1
+                    coeff_3_dx2(k3) = real(N2, dp)*c23
+                else
+                    coeff_3(k3) = c23 + x2*coeff_3(k3)
+                    coeff_3_dx1(k3) = c23_dx1 + x2*coeff_3_dx1(k3)
+                    if (k2 > 0) then
+                        coeff_3_dx2(k3) = real(k2, dp)*c23 + &
+                            x2*coeff_3_dx2(k3)
+                    end if
+                end if
+            end do
+        end do
+
+        y_batch(1) = coeff_3(N3)
+        dy_batch(1, 1) = coeff_3_dx1(N3)
+        dy_batch(2, 1) = coeff_3_dx2(N3)
+        dy_batch(3, 1) = real(N3, dp)*coeff_3(N3)
+        do k3 = N3 - 1, 1, -1
+            y_batch(1) = coeff_3(k3) + x3*y_batch(1)
+            dy_batch(1, 1) = coeff_3_dx1(k3) + x3*dy_batch(1, 1)
+            dy_batch(2, 1) = coeff_3_dx2(k3) + x3*dy_batch(2, 1)
+            dy_batch(3, 1) = real(k3, dp)*coeff_3(k3) + &
+                x3*dy_batch(3, 1)
+        end do
+        y_batch(1) = coeff_3(0) + x3*y_batch(1)
+        dy_batch(1, 1) = coeff_3_dx1(0) + x3*dy_batch(1, 1)
+        dy_batch(2, 1) = coeff_3_dx2(0) + x3*dy_batch(2, 1)
+    end subroutine evaluate_batch_splines_3d_der_nq1_o355
 
     !> Allocation-free value/gradient/Hessian evaluator for the production
     !> scalar cubic field spline. Keeping the polynomial order and quantity

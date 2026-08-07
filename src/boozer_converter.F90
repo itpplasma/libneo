@@ -9,6 +9,7 @@ module boozer_sub
                            evaluate_batch_spline_1d_scalar_quintic_der, &
                            evaluate_batch_spline_1d_pair_quintic_der, &
                            evaluate_batch_splines_3d_der, &
+                           evaluate_batch_splines_3d_der_nq1_o355, &
                            evaluate_batch_splines_3d_der2, &
                            evaluate_batch_splines_3d_der2_rmix, &
                            evaluate_batch_spline_3d_scalar_cubic_der, &
@@ -435,6 +436,10 @@ contains
                 all(field3d_batch_spline%order == [3, 3, 3])) then
                 call evaluate_batch_spline_3d_scalar_cubic_der( &
                     field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1))
+            else if (boozer_state%num_quantities == 1 .and. &
+                all(field3d_batch_spline%order == [3, 5, 5])) then
+                call evaluate_batch_splines_3d_der_nq1_o355( &
+                    field3d_batch_spline, x_eval, y_eval(1:1), dy_eval(:, 1:1))
             else
                 call evaluate_batch_splines_3d_der(field3d_batch_spline, x_eval, &
                                                    y_eval(1:boozer_state%num_quantities), &
