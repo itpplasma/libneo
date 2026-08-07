@@ -13,6 +13,10 @@ module boozer_chartmap
     implicit none
     private
     public :: load_boozer_from_chartmap, export_boozer_chartmap
+    public :: set_boozer_chartmap_spline_orders
+
+    integer, save :: chartmap_radial_spline_order = 5
+    integer, save :: chartmap_angular_spline_order = 5
 
 contains
 
@@ -24,9 +28,21 @@ contains
         type(boozer_chartmap_data_t) :: d
 
         call read_boozer_chartmap(filename, d)
-        call build_boozer_from_chartmap(d)
+        call build_boozer_from_chartmap(d, chartmap_radial_spline_order, &
+            chartmap_angular_spline_order)
         print *, 'Loaded Boozer splines from chartmap: ', trim(filename)
     end subroutine load_boozer_from_chartmap
+
+    subroutine set_boozer_chartmap_spline_orders(radial_order, angular_order)
+        integer, intent(in) :: radial_order, angular_order
+
+        if (radial_order < 3 .or. radial_order > 5 .or. &
+                angular_order < 3 .or. angular_order > 5) then
+            error stop 'Boozer chartmap spline orders must be between 3 and 5'
+        end if
+        chartmap_radial_spline_order = radial_order
+        chartmap_angular_spline_order = angular_order
+    end subroutine set_boozer_chartmap_spline_orders
 
     subroutine export_boozer_chartmap(filename)
         !> Export Boozer coordinate data computed by get_boozer_coordinates()

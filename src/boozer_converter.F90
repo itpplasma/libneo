@@ -1462,7 +1462,7 @@ contains
         deallocate (y_batch)
     end subroutine build_boozer_delt_delp_batch_splines
 
-    subroutine build_boozer_from_chartmap(d)
+    subroutine build_boozer_from_chartmap(d, radial_spline_order, angular_spline_order)
         !> Populate the module-level Boozer batch splines from an already-parsed
         !> chartmap record, bypassing the VMEC-based compute_boozer_data path.
         use vector_potentail_mod, only: torflux, ns, hs
@@ -1476,15 +1476,26 @@ contains
             rk_tables_ready
 
         type(boozer_chartmap_data_t), intent(inout) :: d
+        integer, intent(in), optional :: radial_spline_order, angular_spline_order
         real(dp), allocatable :: y_aphi(:, :), y_bcovar(:, :), y_bmod(:, :, :, :)
         real(dp) :: s_min, s_max
         real(dp) :: b_scale, rz_scale, covar_scale, flux_scale
-        integer :: spline_order, i_s, i_theta, i_phi, iq, table_index
+        integer :: spline_order, field_radial_order, field_angular_order
+        integer :: i_s, i_theta, i_phi, iq, table_index
         integer :: order_3d(3)
         logical :: periodic_3d(3)
         real(dp) :: x_min_3d(3), x_max_3d(3)
 
         call reset_boozer_batch_splines
+
+        field_radial_order = 5
+        field_angular_order = 5
+        if (present(radial_spline_order)) field_radial_order = radial_spline_order
+        if (present(angular_spline_order)) field_angular_order = angular_spline_order
+        if (field_radial_order < 3 .or. field_radial_order > 5 .or. &
+                field_angular_order < 3 .or. field_angular_order > 5) then
+            error stop 'Boozer chartmap spline orders must be between 3 and 5'
+        end if
 
         ! Apply the VMEC scaling knobs so a chartmap behaves like a VMEC run
         ! (matches boozer_chartmap_field_t and test_chartmap_scaling). Base files
@@ -1510,8 +1521,8 @@ contains
         rmajor = d%rmajor*rz_scale
 
         ! Set boozer_coordinates_mod parameters
-        ns_s_B = 5
-        ns_tp_B = 5
+        ns_s_B = field_radial_order
+        ns_tp_B = field_angular_order
         ns_B = d%n_rho
         n_theta_B = d%n_theta
         n_phi_B = d%n_phi
@@ -1526,7 +1537,7 @@ contains
         s_min = d%s(1)
         s_max = d%s(d%n_s)
         hs = (s_max - s_min)/real(ns - 1, dp)
-        ns_A = 5
+        ns_A = field_radial_order
 
         spline_order = ns_A
         allocate (y_aphi(ns, 1))
@@ -1603,6 +1614,7 @@ contains
             d%n_theta, ' nphi_spline=', d%n_phi
         print *, '  torflux=', torflux
         print *, '  native canonical RK tables=', rk_tables_ready
+        print *, '  Boozer spline orders=', ns_s_B, ns_tp_B
     end subroutine build_boozer_from_chartmap
 
 
