@@ -28,12 +28,13 @@ module boozer_rk_tables
 
 contains
 
-    subroutine cubic_table_location(x, idim, first, weight)
+    subroutine cubic_table_location(x, idim, first, weight, derivative)
         !$acc routine seq
         real(dp), intent(in) :: x
         integer, intent(in) :: idim
         integer, intent(out) :: first
         real(sp), intent(out) :: weight(4)
+        real(sp), intent(out), optional :: derivative(4)
 
         real(dp) :: x_eval, x_grid, periods, relative
         real(sp) :: relative_sp
@@ -59,6 +60,17 @@ contains
             (3.0_sp - relative_sp)/2.0_sp
         weight(4) = relative_sp*(relative_sp - 1.0_sp)* &
             (relative_sp - 2.0_sp)/6.0_sp
+        if (present(derivative)) then
+            derivative(1) = (-11.0_sp + relative_sp* &
+                (12.0_sp - 3.0_sp*relative_sp))/6.0_sp
+            derivative(2) = (6.0_sp + relative_sp* &
+                (-10.0_sp + 3.0_sp*relative_sp))/2.0_sp
+            derivative(3) = (-3.0_sp + relative_sp* &
+                (8.0_sp - 3.0_sp*relative_sp))/2.0_sp
+            derivative(4) = (2.0_sp + relative_sp* &
+                (-6.0_sp + 3.0_sp*relative_sp))/6.0_sp
+            derivative = derivative*real(rk_inv_h_step(idim), sp)
+        end if
     end subroutine cubic_table_location
 
     subroutine evaluate_rk_profile_table(s, value)
@@ -85,24 +97,33 @@ contains
         real(sp), intent(out) :: value(4)
 
         integer :: first_s, first_theta, first_phi
-        integer :: i, j, k, iq, table_index
-        real(sp) :: weight_s(4), weight_theta(4), weight_phi(4), weight
+        integer :: i, j, k, table_index
+        real(sp) :: weight_s(4), weight_theta(4), weight_phi(4)
+        real(sp) :: derivative_theta(4), derivative_phi(4)
+        real(sp) :: bmod, weight_theta_phi
 
         call cubic_table_location(s, 1, first_s, weight_s)
-        call cubic_table_location(theta, 2, first_theta, weight_theta)
-        call cubic_table_location(phi, 3, first_phi, weight_phi)
+        call cubic_table_location(theta, 2, first_theta, weight_theta, &
+            derivative_theta)
+        call cubic_table_location(phi, 3, first_phi, weight_phi, derivative_phi)
         value = 0.0_sp
         do k = 1, 4
             do j = 1, 4
+                weight_theta_phi = weight_theta(j)*weight_phi(k)
                 do i = 1, 4
-                    weight = weight_s(i)*weight_theta(j)*weight_phi(k)
-                    do iq = 1, 4
-                        table_index = iq + 4*((first_s + i - 2) + &
-                            rk_num_points(1)*((first_theta + j - 2) + &
-                            rk_num_points(2)*(first_phi + k - 2)))
-                        value(iq) = value(iq) + &
-                            weight*rk_field_table(table_index)
-                    end do
+                    table_index = 1 + 2*((first_s + i - 2) + &
+                        rk_num_points(1)*((first_theta + j - 2) + &
+                        rk_num_points(2)*(first_phi + k - 2)))
+                    bmod = rk_field_table(table_index)
+                    value(1) = value(1) + &
+                        weight_s(i)*weight_theta_phi*bmod
+                    value(2) = value(2) + &
+                        weight_s(i)*weight_theta_phi* &
+                        rk_field_table(table_index + 1)
+                    value(3) = value(3) + weight_s(i)* &
+                        derivative_theta(j)*weight_phi(k)*bmod
+                    value(4) = value(4) + weight_s(i)*weight_theta(j)* &
+                        derivative_phi(k)*bmod
                 end do
             end do
         end do

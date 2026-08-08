@@ -1595,13 +1595,13 @@ contains
         deallocate (y_bmod)
 
         if (d%has_rk_tables) then
-            allocate (rk_field_table(4*d%n_s*d%n_theta*d%n_phi))
+            allocate (rk_field_table(2*d%n_s*d%n_theta*d%n_phi))
             allocate (rk_profile_table(6*d%n_s))
             do i_phi = 1, d%n_phi
                 do i_theta = 1, d%n_theta
                     do i_s = 1, d%n_s
-                        do iq = 1, 4
-                            table_index = iq + 4*((i_s - 1) + d%n_s* &
+                        do iq = 1, 2
+                            table_index = iq + 2*((i_s - 1) + d%n_s* &
                                 ((i_theta - 1) + d%n_theta*(i_phi - 1)))
                             rk_field_table(table_index) = &
                                 d%rk_field(i_s, i_theta, i_phi, iq)
