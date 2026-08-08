@@ -1,7 +1,7 @@
 module boozer_sub
     use spl_three_to_five_sub
-    use batch_interpolate_types, only: BatchSplineData1D, BatchSplineData3D
-    use interpolate, only: construct_batch_splines_1d, construct_batch_splines_3d, &
+    use interpolate, only: BatchSplineData1D, BatchSplineData3D, &
+                           construct_batch_splines_1d, construct_batch_splines_3d, &
                            evaluate_batch_splines_1d_der2, &
                            evaluate_batch_splines_1d_der3, &
                            evaluate_batch_spline_1d_scalar_cubic_der, &
