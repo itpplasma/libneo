@@ -1489,7 +1489,8 @@ contains
         deallocate (y_batch)
     end subroutine build_boozer_delt_delp_batch_splines
 
-    subroutine build_boozer_from_chartmap(d, radial_spline_order, angular_spline_order)
+    subroutine build_boozer_from_chartmap(d, radial_spline_order, &
+            angular_spline_order, rk_only)
         !> Populate the module-level Boozer batch splines from an already-parsed
         !> chartmap record, bypassing the VMEC-based compute_boozer_data path.
         use vector_potentail_mod, only: torflux, ns, hs
@@ -1504,16 +1505,22 @@ contains
 
         type(boozer_chartmap_data_t), intent(inout) :: d
         integer, intent(in), optional :: radial_spline_order, angular_spline_order
+        logical, intent(in), optional :: rk_only
         real(dp), allocatable :: y_aphi(:, :), y_bcovar(:, :), y_bmod(:, :, :, :)
         real(dp) :: s_min, s_max
         real(dp) :: b_scale, rz_scale, covar_scale, flux_scale
         integer :: spline_order, field_radial_order, field_angular_order
         integer :: i_s, i_theta, i_phi, iq, table_index
         integer :: order_3d(3)
-        logical :: periodic_3d(3)
+        logical :: periodic_3d(3), compact_only
         real(dp) :: x_min_3d(3), x_max_3d(3)
 
         call reset_boozer_batch_splines
+
+        compact_only = .false.
+        if (present(rk_only)) compact_only = rk_only
+        if (compact_only .and. .not. d%has_rk_tables) &
+            error stop 'RK-only chartmap loading requires compact RK tables'
 
         field_radial_order = 5
         field_angular_order = 5
@@ -1566,11 +1573,12 @@ contains
         hs = (s_max - s_min)/real(ns - 1, dp)
         ns_A = field_radial_order
 
+        if (.not. compact_only) then
         spline_order = ns_A
         allocate (y_aphi(ns, 1))
         y_aphi(:, 1) = d%A_phi
-        call construct_batch_splines_1d(s_min, s_max, y_aphi, spline_order, .false., &
-                                        aphi_batch_spline)
+            call construct_batch_splines_1d(s_min, s_max, y_aphi, spline_order, &
+                .false., aphi_batch_spline)
         aphi_batch_spline_ready = .true.
         deallocate (y_aphi)
 
@@ -1580,7 +1588,8 @@ contains
         y_bcovar(:, 1) = d%B_theta
         y_bcovar(:, 2) = d%B_phi
         call construct_batch_splines_1d(d%rho(1), d%rho(d%n_rho), y_bcovar, &
-                                        spline_order, .false., bcovar_tp_batch_spline)
+                spline_order, .false., &
+                bcovar_tp_batch_spline)
         bcovar_tp_batch_spline_ready = .true.
         deallocate (y_bcovar)
 
@@ -1601,6 +1610,7 @@ contains
         field3d_batch_spline_ready = .true.
         field3d_num_quantities = 1
         deallocate (y_bmod)
+        end if
 
         if (d%has_rk_tables) then
             allocate (rk_field_table(2*d%n_s*d%n_theta*d%n_phi))
@@ -1642,6 +1652,7 @@ contains
             d%n_theta, ' nphi_spline=', d%n_phi
         print *, '  torflux=', torflux
         print *, '  native canonical RK tables=', rk_tables_ready
+        print *, '  compact RK-only load=', compact_only
         print *, '  Boozer spline orders=', ns_s_B, ns_tp_B
     end subroutine build_boozer_from_chartmap
 

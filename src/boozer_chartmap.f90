@@ -20,16 +20,17 @@ module boozer_chartmap
 
 contains
 
-    subroutine load_boozer_from_chartmap(filename)
+    subroutine load_boozer_from_chartmap(filename, rk_only)
         !> Parse an extended chartmap NetCDF file and build the module-level
         !> Boozer batch splines from it.
         character(len=*), intent(in) :: filename
+        logical, intent(in), optional :: rk_only
 
         type(boozer_chartmap_data_t) :: d
 
         call read_boozer_chartmap(filename, d)
         call build_boozer_from_chartmap(d, chartmap_radial_spline_order, &
-            chartmap_angular_spline_order)
+            chartmap_angular_spline_order, rk_only)
         print *, 'Loaded Boozer splines from chartmap: ', trim(filename)
     end subroutine load_boozer_from_chartmap
 
