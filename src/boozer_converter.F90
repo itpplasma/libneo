@@ -56,10 +56,7 @@ module boozer_sub
     !$acc declare create(boozer_state)
 
     ! Batch spline data for 3D field quantities (Bmod, sqrt_g_ss, optionally B_r)
-    type(BatchSplineData3D), save :: field3d_batch_spline = BatchSplineData3D( &
-        order=[0, 0, 0], num_points=[0, 0, 0], periodic=.false., &
-        h_step=1.0_dp, x_min=1.0_dp, inv_h_step=1.0_dp, period=1.0_dp, &
-        num_quantities=0)
+    type(BatchSplineData3D), save :: field3d_batch_spline
     logical, save :: field3d_batch_spline_ready = .false.
     integer, save :: field3d_num_quantities = 0
     real(dp), allocatable, save :: bmod_grid(:, :, :)
@@ -71,15 +68,11 @@ module boozer_sub
     ! A_phi, dA_phi/ds, B_theta, dB_theta/ds, B_phi, dB_phi/ds.
 
     ! Batch spline for A_phi (vector potential)
-    type(BatchSplineData1D), save :: aphi_batch_spline = BatchSplineData1D( &
-        order=0, num_points=0, periodic=.false., x_min=1.0_dp, &
-        h_step=1.0_dp, inv_h_step=1.0_dp, period=1.0_dp, num_quantities=0)
+    type(BatchSplineData1D), save :: aphi_batch_spline
     logical, save :: aphi_batch_spline_ready = .false.
 
     ! Batch spline for B_theta, B_phi covariant components
-    type(BatchSplineData1D), save :: bcovar_tp_batch_spline = BatchSplineData1D( &
-        order=0, num_points=0, periodic=.false., x_min=1.0_dp, &
-        h_step=1.0_dp, inv_h_step=1.0_dp, period=1.0_dp, num_quantities=0)
+    type(BatchSplineData1D), save :: bcovar_tp_batch_spline
     logical, save :: bcovar_tp_batch_spline_ready = .false.
 
     ! These descriptors are module globals so GPU-callable field evaluation can
