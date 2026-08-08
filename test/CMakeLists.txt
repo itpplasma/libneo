@@ -199,8 +199,13 @@ target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate_rmix.x source/test_batch_interpolate_rmix.f90)
 target_link_libraries(test_batch_interpolate_rmix.x ${COMMON_LIBS})
 if(ENABLE_OPENACC AND CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
+  if(LIBNEO_OPENACC_MEM STREQUAL "managed")
+    set(_libneo_test_openacc_mem_option "managed")
+  else()
+    set(_libneo_test_openacc_mem_option "mem:${LIBNEO_OPENACC_MEM}")
+  endif()
   target_compile_options(test_batch_interpolate_rmix.x PRIVATE
-    -acc -gpu=ccnative,mem:${LIBNEO_OPENACC_MEM})
+    -acc -gpu=${LIBNEO_OPENACC_GPU_ARCH},${_libneo_test_openacc_mem_option})
 endif()
 
 add_executable(test_batch_interpolate_scalar_cubic.x
