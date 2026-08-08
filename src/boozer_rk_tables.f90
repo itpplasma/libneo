@@ -6,6 +6,7 @@ module boozer_rk_tables
 
     public :: rk_field_table, rk_profile_table
     public :: rk_num_points, rk_x_min, rk_h_step, rk_inv_h_step, rk_period
+    public :: rk_inv_period
     public :: rk_tables_ready
     public :: splint_boozer_rk_table_device
 
@@ -19,9 +20,11 @@ module boozer_rk_tables
     real(dp), save :: rk_h_step(3)
     real(dp), save :: rk_inv_h_step(3)
     real(dp), save :: rk_period(3)
+    real(dp), save :: rk_inv_period(3)
     logical, save :: rk_tables_ready = .false.
     !$acc declare create(rk_field_table, rk_profile_table, rk_num_points, &
-    !$acc& rk_x_min, rk_h_step, rk_inv_h_step, rk_period, rk_tables_ready)
+    !$acc& rk_x_min, rk_h_step, rk_inv_h_step, rk_period, rk_inv_period, &
+    !$acc& rk_tables_ready)
 
 contains
 
@@ -32,14 +35,14 @@ contains
         integer, intent(out) :: first
         real(sp), intent(out) :: weight(4)
 
-        real(dp) :: x_eval, x_grid, relative
+        real(dp) :: x_eval, x_grid, periods, relative
         real(sp) :: relative_sp
         integer :: first_zero
 
         x_eval = x
         if (idim > 1) then
-            x_eval = rk_x_min(idim) + modulo( &
-                x - rk_x_min(idim), rk_period(idim))
+            periods = floor((x - rk_x_min(idim))*rk_inv_period(idim))
+            x_eval = x - periods*rk_period(idim)
         end if
         x_grid = (x_eval - rk_x_min(idim))*rk_inv_h_step(idim)
         first_zero = 3*(int(x_grid)/3)

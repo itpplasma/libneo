@@ -1248,7 +1248,7 @@ contains
     subroutine reset_boozer_batch_splines
         use boozer_rk_tables, only: rk_field_table, rk_profile_table, &
             rk_num_points, rk_x_min, rk_h_step, rk_inv_h_step, rk_period, &
-            rk_tables_ready
+            rk_inv_period, rk_tables_ready
 
         if (allocated(rk_field_table)) then
             !$acc exit data delete(rk_field_table)
@@ -1264,8 +1264,9 @@ contains
         rk_h_step = 0.0_dp
         rk_inv_h_step = 0.0_dp
         rk_period = 0.0_dp
+        rk_inv_period = 0.0_dp
         !$acc update device(rk_num_points, rk_x_min, rk_h_step, &
-        !$acc& rk_inv_h_step, rk_period, rk_tables_ready)
+        !$acc& rk_inv_h_step, rk_period, rk_inv_period, rk_tables_ready)
         if (aphi_batch_spline_ready) then
             call destroy_batch_splines_1d(aphi_batch_spline)
             aphi_batch_spline_ready = .false.
@@ -1491,7 +1492,7 @@ contains
         use boozer_chartmap_types, only: boozer_chartmap_data_t
         use boozer_rk_tables, only: rk_field_table, rk_profile_table, &
             rk_num_points, rk_x_min, rk_h_step, rk_inv_h_step, rk_period, &
-            rk_tables_ready
+            rk_inv_period, rk_tables_ready
 
         type(boozer_chartmap_data_t), intent(inout) :: d
         integer, intent(in), optional :: radial_spline_order, angular_spline_order
@@ -1619,8 +1620,9 @@ contains
             rk_h_step = [hs, h_theta_B, h_phi_B]
             rk_inv_h_step = 1.0_dp/rk_h_step
             rk_period = rk_h_step*real(rk_num_points - 1, dp)
+            rk_inv_period = 1.0_dp/rk_period
             !$acc update device(rk_num_points, rk_x_min, rk_h_step, &
-            !$acc& rk_inv_h_step, rk_period)
+            !$acc& rk_inv_h_step, rk_period, rk_inv_period)
             !$acc enter data copyin(rk_field_table, rk_profile_table)
             rk_tables_ready = .true.
             !$acc update device(rk_tables_ready)
