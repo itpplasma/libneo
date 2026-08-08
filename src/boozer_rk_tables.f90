@@ -28,7 +28,6 @@ module boozer_rk_tables
 
 contains
 
-    !NVF$ INLINE
     subroutine cubic_table_location(x, idim, first, weight, derivative)
         !$acc routine seq
         real(dp), intent(in) :: x
@@ -74,7 +73,6 @@ contains
         end if
     end subroutine cubic_table_location
 
-    !NVF$ INLINE
     subroutine evaluate_rk_profile_table(s, value)
         !$acc routine seq
         real(dp), intent(in) :: s
@@ -93,7 +91,6 @@ contains
         end do
     end subroutine evaluate_rk_profile_table
 
-    !NVF$ INLINE
     subroutine evaluate_rk_field_table(s, theta, phi, value)
         !$acc routine seq
         real(dp), intent(in) :: s, theta, phi
@@ -132,7 +129,6 @@ contains
         end do
     end subroutine evaluate_rk_field_table
 
-    !NVF$ INLINE
     subroutine splint_boozer_rk_table_device(s, theta, phi, aphi, daphi, &
             btheta, dbtheta, bphi, dbphi, bmod, dbmod)
         !$acc routine seq
