@@ -78,6 +78,11 @@ target_link_libraries(test_boozer_coordinates_exports.x
   neo
 )
 
+add_executable(test_boozer_symplectic_table.x
+  source/test_boozer_symplectic_table.f90
+)
+target_link_libraries(test_boozer_symplectic_table.x neo)
+
 add_executable(test_axis_power_law_regularization.x
   source/test_axis_power_law_regularization.f90
 )
@@ -281,6 +286,9 @@ add_test(NAME test_axis_healing_mode
   COMMAND test_axis_healing_mode.x)
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
+)
+add_test(NAME test_boozer_symplectic_table
+  COMMAND test_boozer_symplectic_table.x
 )
 add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
