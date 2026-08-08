@@ -15,6 +15,7 @@ module boozer_sub
                            evaluate_batch_spline_3d_scalar_cubic_der, &
                            evaluate_batch_spline_3d_scalar_quintic_der, &
                            evaluate_batch_spline_3d_scalar_cubic_der2, &
+                           evaluate_batch_spline_3d_scalar_cubic_der2_rmix, &
                            evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
     use, intrinsic :: iso_fortran_env, only: dp => real64
@@ -341,11 +342,18 @@ contains
                 mode_secders == BOOZER_SECDERS_RADIAL_MIXED) then
             if (mode_secders == BOOZER_SECDERS_RADIAL_MIXED) then
                 d2y_eval(4:6, :) = 0.0_dp
-                call evaluate_batch_splines_3d_der2_rmix( &
-                    field3d_batch_spline, x_eval, &
-                    y_eval(1:boozer_state%num_quantities), &
-                    dy_eval(:, 1:boozer_state%num_quantities), &
-                    d2y_eval(1:3, 1:boozer_state%num_quantities))
+                if (boozer_state%num_quantities == 1 .and. &
+                        all(field3d_batch_spline%order == [3, 3, 3])) then
+                    call evaluate_batch_spline_3d_scalar_cubic_der2_rmix( &
+                        field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1), &
+                        d2y_eval(1:3, 1))
+                else
+                    call evaluate_batch_splines_3d_der2_rmix( &
+                        field3d_batch_spline, x_eval, &
+                        y_eval(1:boozer_state%num_quantities), &
+                        dy_eval(:, 1:boozer_state%num_quantities), &
+                        d2y_eval(1:3, 1:boozer_state%num_quantities))
+                end if
             else
                 if (boozer_state%num_quantities == 1 .and. &
                     all(field3d_batch_spline%order == [3, 3, 3])) then
