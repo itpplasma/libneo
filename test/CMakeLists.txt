@@ -83,6 +83,11 @@ add_executable(test_boozer_symplectic_table.x
 )
 target_link_libraries(test_boozer_symplectic_table.x neo)
 
+add_executable(test_boozer_symplectic_file.x
+  source/test_boozer_symplectic_file.f90
+)
+target_link_libraries(test_boozer_symplectic_file.x neo)
+
 add_executable(test_axis_power_law_regularization.x
   source/test_axis_power_law_regularization.f90
 )

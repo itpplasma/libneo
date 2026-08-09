@@ -54,6 +54,8 @@ program test_boozer_symplectic_table
 
     call evaluate(0.62_dp, 0.43_dp + eps, 0.77_dp, 2, plus)
     call evaluate(0.62_dp, 0.43_dp - eps, 0.77_dp, 2, minus)
+    call require_close('dB/dtheta', base(6), &
+        (plus(4) - minus(4))/(2.0_dp*eps))
     call require_close('d2B/dsdtheta', base(9), &
         (plus(5) - minus(5))/(2.0_dp*eps))
     call require_close('d2B/dtheta2', base(11), &
@@ -63,6 +65,8 @@ program test_boozer_symplectic_table
 
     call evaluate(0.62_dp, 0.43_dp, 0.77_dp + eps, 2, plus)
     call evaluate(0.62_dp, 0.43_dp, 0.77_dp - eps, 2, minus)
+    call require_close('dB/dphi', base(7), &
+        (plus(4) - minus(4))/(2.0_dp*eps))
     call require_close('d2B/dsdphi', base(10), &
         (plus(5) - minus(5))/(2.0_dp*eps))
     call require_close('d2B/dthetadphi phi', base(12), &
@@ -75,9 +79,9 @@ program test_boozer_symplectic_table
         error stop 'radial-mixed mode computed angular Hessian entries'
     call evaluate(0.62_dp, 0.43_dp, 0.77_dp, 0, plus)
     if (abs(plus(3)) > epsilon(1.0_sp) .or. &
-            any(abs(plus(8:13)) > epsilon(1.0_sp)) .or. &
-            abs(plus(16)) > epsilon(1.0_sp) .or. &
-            abs(plus(19)) > epsilon(1.0_sp)) &
+        any(abs(plus(8:13)) > epsilon(1.0_sp)) .or. &
+        abs(plus(16)) > epsilon(1.0_sp) .or. &
+        abs(plus(19)) > epsilon(1.0_sp)) &
         error stop 'first-derivative mode computed Hessian entries'
 
     print *, 'compact symplectic Boozer derivative oracle passed'
