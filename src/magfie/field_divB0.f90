@@ -130,7 +130,7 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 
   use input_files, only : ieqfile
   use field_eq_mod, only : use_fpol,skip_read,icall_eq,nrad,nzet,icp,nwindow_r,&
-    nwindow_z,psib,btf,rtf,hrad,hzet,psi_axis,psi_sep,&
+    nwindow_z,psib,btf,rtf,hrad,hzet,rmagaxis,zmagaxis,psi_axis,psi_sep,&
     psi,psi0,splfpol,splpsi,rad,zet,imi,ima,jmi,jma,ipoint
   use libneo_kinds, only : dp
 
@@ -199,6 +199,15 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
     rad = rad*1.d2 ! cm
     zet = zet*1.d2 ! cm
     rtf = rtf*1.d2 ! cm
+    if (rmagaxis.ne.0.d0 .or. zmagaxis.ne.0.d0) then
+       rmagaxis = rmagaxis*1.d2 ! cm
+       zmagaxis = zmagaxis*1.d2 ! cm
+    else
+       ! Legacy equilibrium readers do not carry an axis explicitly.  Their
+       ! rectangular grid centre is the only format-independent seed.
+       rmagaxis = 0.5d0*(rad(1)+rad(nrad))
+       zmagaxis = 0.5d0*(zet(1)+zet(nzet))
+    endif
     psi = psi*1.d8
     psib= psib*1.d8
     btf = btf*1.d4
@@ -380,6 +389,7 @@ end subroutine read_dimeq1
 
 subroutine read_eqfile1(nwEQD,nhEQD,psiSep, bt0, rzero, rad, zet, psiRZ)
   use input_files, only : iunit, gfile
+  use field_eq_mod, only : rmagaxis,zmagaxis
   use libneo_kinds, only : dp
 
   implicit none
@@ -409,6 +419,8 @@ subroutine read_eqfile1(nwEQD,nhEQD,psiSep, bt0, rzero, rad, zet, psiRZ)
   read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
   write(*,*) xdim, zdim, rzero, r1, zmid
   read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
+  rmagaxis = rmaxis
+  zmagaxis = zmaxis
   write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
   read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
   write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
@@ -449,6 +461,7 @@ end subroutine read_eqfile1
 
 subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
   use input_files, only : iunit, gfile
+  use field_eq_mod, only : rmagaxis,zmagaxis
   use libneo_kinds, only : dp
   implicit none
 
@@ -478,6 +491,8 @@ subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
   read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
   write(*,*) xdim, zdim, rzero, r1, zmid
   read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
+  rmagaxis = rmaxis
+  zmagaxis = zmaxis
   write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
   read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
   write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
