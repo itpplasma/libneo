@@ -42,18 +42,19 @@ subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
   CALL field(x(1),x(2),x(3),br,bf,bz,BRR,BRF,BRZ,BFR,BFF,BFZ,BZR,BZF,BZZ, &
       outside_boundary)
 
-  if(allow_sol) then
+  ! The convex file bounds the interpolation domain.  SOL extension only
+  ! relaxes the separatrix check; it must never make a point outside the
+  ! interpolation boundary look valid after stretch_coords has clamped it.
+  if (outside_boundary) then
+    print *, 'magfie: requested point is outside the convex computational ', &
+      'boundary; check the point and convexfile, (R,Z) = ', x(1), x(3)
+    ierrfield=1
+  else if(allow_sol) then
     ierrfield=0
   else if((psif-psi_axis)/(psi_sep-psi_axis).gt.1d0) then
-    if (outside_boundary) then
-      print *, 'magfie: requested point is outside the convex computational ', &
-        'boundary and maps outside the LCFS; check the point and convexfile, ', &
-        '(R,Z) = ', x(1), x(3)
-    else
-      print *, 'magfie: point is outside the LCFS while SOL tracing is ', &
-        'disabled; enable allow_sol/edge_extension to permit it, (R,Z) = ', &
-        x(1), x(3)
-    end if
+    print *, 'magfie: point is outside the LCFS while SOL tracing is ', &
+      'disabled; enable allow_sol/edge_extension to permit it, (R,Z) = ', &
+      x(1), x(3)
     ierrfield=1
   else
     ierrfield=0
