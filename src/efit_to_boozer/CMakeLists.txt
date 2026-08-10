@@ -74,8 +74,15 @@ target_link_libraries(efit_to_boozer
     magfie
 )
 
-# Grab Python
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+# The static Fortran library is usable without the optional f2py wrapper.  In
+# particular, SIMPLE links this library in environments where Python is not
+# part of the compiler toolchain (for example, a minimal GNU or NVHPC build).
+find_package(Python COMPONENTS Interpreter Development.Module NumPy)
+
+if(NOT Python_FOUND)
+  message(STATUS "Python with NumPy not found; skipping efit_to_boozer f2py wrapper")
+  return()
+endif()
 
 message(STATUS "Python found: ${Python_EXECUTABLE}")
 message(STATUS "Python version: ${Python_VERSION}")

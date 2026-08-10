@@ -132,6 +132,7 @@ module odeint_allroutines_sub
 
     private
     logical, save :: odeint_failed = .false.
+    !$omp threadprivate(odeint_failed)
 
     abstract interface
         subroutine derivative_function(x, y, dydx)
@@ -199,12 +200,14 @@ contains
             h_init = sign(initial_stepsize, x2 - x1)
         end if
 
-        call integrate_adaptive(y, nvar, x1, x2, eps, h_init, derivs, events)
+        call integrate_adaptive(y, nvar, x1, x2, eps, h_init, derivs, &
+                                max_steps, events)
     end subroutine odeint_allroutines_no_context
 
     !> Integrate ODE system with context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_context(y, nvar, context, x1, x2, eps, &
-                                          derivs, initial_stepsize, events)
+                                          derivs, initial_stepsize, events, step_limit, &
+                                          ierr)
         integer, intent(in) :: nvar
         real(dp), dimension(nvar), intent(inout) :: y
         class(*), intent(in) :: context
@@ -212,27 +215,38 @@ contains
         procedure(derivative_function_with_context) :: derivs
         real(dp), intent(in), optional :: initial_stepsize
         type(ode_event_t), intent(inout), optional :: events(:)
+        integer, intent(in), optional :: step_limit
+        integer, intent(out), optional :: ierr
 
         real(dp) :: h_init
+        integer :: max_steps_call
 
         h_init = x2 - x1
         if (present(initial_stepsize)) then
             h_init = sign(initial_stepsize, x2 - x1)
         end if
+        max_steps_call = max_steps
+        if (present(step_limit)) max_steps_call = step_limit
+        if (max_steps_call < 1) error stop 'ODE step limit must be positive'
 
         call integrate_adaptive_with_context(y, nvar, x1, x2, eps, h_init, &
-                                             derivs, context, events)
+                                             derivs, context, max_steps_call, events)
+        if (present(ierr)) then
+            ierr = 0
+            if (odeint_failed) ierr = 1
+        end if
     end subroutine odeint_allroutines_context
 
     !> Main integration loop with adaptive step control
     subroutine integrate_adaptive(y, n, x_start, x_end, tolerance, h_init, &
-                                  derivative, events)
+                                  derivative, step_limit, events)
 
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
         real(dp), intent(in) :: x_start, x_end, tolerance
         real(dp), intent(in) :: h_init
         procedure(derivative_function) :: derivative
+        integer, intent(in) :: step_limit
         type(ode_event_t), intent(inout), optional :: events(:)
 
         real(dp) :: x, h, h_next
@@ -271,7 +285,7 @@ contains
             ! using the (g1 - g0) directional surrogate for consistent direction logic.
         end if
 
-        do step = 1, max_steps
+        do step = 1, step_limit
             x_step_start = x
             if (events_active) then
                 y_start = y_work
@@ -315,12 +329,14 @@ contains
             h = h_next
         end do
 
-        error stop 'Maximum steps exceeded in ODE integration'
+        odeint_failed = .true.
+        y = y_work
     end subroutine integrate_adaptive
 
     !> Main integration loop with context
     subroutine integrate_adaptive_with_context(y, n, x_start, x_end, tolerance, &
-                                               h_init, derivative, context, events)
+                                               h_init, derivative, context, step_limit, &
+                                               events)
 
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
@@ -328,6 +344,7 @@ contains
         real(dp), intent(in) :: h_init
         procedure(derivative_function_with_context) :: derivative
         class(*), intent(in) :: context
+        integer, intent(in) :: step_limit
         type(ode_event_t), intent(inout), optional :: events(:)
 
         real(dp) :: x, h, h_next
@@ -367,7 +384,7 @@ contains
             ! using the (g1 - g0) directional surrogate for consistent direction logic.
         end if
 
-        do step = 1, max_steps
+        do step = 1, step_limit
             x_step_start = x
             if (events_active) then
                 y_start = y_work
@@ -413,7 +430,8 @@ contains
             h = h_next
         end do
 
-        error stop 'Maximum steps exceeded in ODE integration'
+        odeint_failed = .true.
+        y = y_work
     end subroutine integrate_adaptive_with_context
 
     !> Fused error scale computation with k1 (eliminates separate loop)

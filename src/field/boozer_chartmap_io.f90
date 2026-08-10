@@ -70,15 +70,17 @@ contains
 
         ! Scalars.
         call check(nf90_get_att(ncid, nf90_global, "torflux", d%torflux), &
-                   "att torflux")
+            "att torflux")
+        status = nf90_get_att(ncid, nf90_global, "aminor_m", d%aminor)
+        if (status /= nf90_noerr) d%aminor = 0.0_dp
         call require_scalar_variable(ncid, "num_field_periods")
         call check(nf90_inq_varid(ncid, "num_field_periods", varid), &
-                   "inq_var num_field_periods")
+            "inq_var num_field_periods")
         call check(nf90_get_var(ncid, varid, d%nfp), "get num_field_periods")
         call require_positive_nfp(d%nfp)
         call require_endpoint_excluded_grid("theta", theta_geom, d%h_theta, twopi)
         call require_endpoint_excluded_grid("zeta", zeta_geom, d%h_phi, &
-                                            twopi/real(d%nfp, dp))
+            twopi/real(d%nfp, dp))
 
         ! Major radius from geometry: (theta,zeta)-average of sqrt(x^2+y^2) on
         ! the innermost rho surface (the chartmap analogue of libneo's
@@ -87,7 +89,8 @@ contains
         ! attribute, so the vmec_RZ_scale applied downstream by the field
         ! loaders stays correct. A leftover "rmajor" attribute in older files
         ! is ignored.
-        call derive_rmajor(ncid, n_theta_geom, n_phi_geom, d%rmajor)
+        call derive_radii(ncid, n_rho, n_theta_geom, n_phi_geom, &
+            d%rmajor, d%aminor)
 
         ! 1D profiles. A_phi has its own abscissa; B_theta/B_phi remain on rho.
         call read_aphi_profile(ncid, d)
@@ -107,7 +110,7 @@ contains
         allocate (bmod_file(n_rho, n_theta_geom, n_phi_geom))
         allocate (d%Bmod(n_rho, d%n_theta, d%n_phi))
         call require_variable_dimensions(ncid, "Bmod", &
-                                         [character(len=5) :: "rho", "theta", "zeta"])
+            [character(len=5) :: "rho", "theta", "zeta"])
         call check(nf90_inq_varid(ncid, "Bmod", varid), "inq_var Bmod")
         call check(nf90_get_var(ncid, varid, bmod_file), "get Bmod")
         d%Bmod(:, 1:n_theta_geom, 1:n_phi_geom) = bmod_file
@@ -118,34 +121,67 @@ contains
         call check(nf90_close(ncid), "close")
     end subroutine read_boozer_chartmap
 
-    subroutine derive_rmajor(ncid, n_theta_geom, n_phi_geom, rmajor)
-        integer, intent(in) :: ncid, n_theta_geom, n_phi_geom
+    subroutine derive_radii(ncid, n_rho, n_theta_geom, n_phi_geom, rmajor, aminor)
+        integer, intent(in) :: ncid, n_rho, n_theta_geom, n_phi_geom
         real(dp), intent(out) :: rmajor
+        real(dp), intent(inout) :: aminor
 
-        integer :: varid
+        integer :: varid, j, k, j_next
+        real(dp) :: area_plane, area_sum, rj, rj_next
         real(dp), allocatable :: x_in(:, :, :), y_in(:, :, :)
+        real(dp), allocatable :: x_edge(:, :, :), y_edge(:, :, :), z_edge(:, :, :)
         real(dp), parameter :: cm_to_m = 1.0e-2_dp
+        real(dp), parameter :: pi = 4.0_dp*atan(1.0_dp)
 
         call require_variable_dimensions(ncid, "x", &
-                                         [character(len=5) :: "rho", "theta", "zeta"])
+            [character(len=5) :: "rho", "theta", "zeta"])
         call require_variable_dimensions(ncid, "y", &
-                                         [character(len=5) :: "rho", "theta", "zeta"])
+            [character(len=5) :: "rho", "theta", "zeta"])
         call require_variable_dimensions(ncid, "z", &
-                                         [character(len=5) :: "rho", "theta", "zeta"])
+            [character(len=5) :: "rho", "theta", "zeta"])
 
         allocate (x_in(1, n_theta_geom, n_phi_geom), &
-                  y_in(1, n_theta_geom, n_phi_geom))
+            y_in(1, n_theta_geom, n_phi_geom))
 
         call check(nf90_inq_varid(ncid, "x", varid), "inq_var x")
         call check(nf90_get_var(ncid, varid, x_in, start=[1, 1, 1], &
-                                count=[1, n_theta_geom, n_phi_geom]), "get x")
+            count=[1, n_theta_geom, n_phi_geom]), "get x")
         call check(nf90_inq_varid(ncid, "y", varid), "inq_var y")
         call check(nf90_get_var(ncid, varid, y_in, start=[1, 1, 1], &
-                                count=[1, n_theta_geom, n_phi_geom]), "get y")
+            count=[1, n_theta_geom, n_phi_geom]), "get y")
 
         rmajor = sum(sqrt(x_in**2 + y_in**2))*cm_to_m &
-                 /real(n_theta_geom*n_phi_geom, dp)
-    end subroutine derive_rmajor
+            /real(n_theta_geom*n_phi_geom, dp)
+
+        if (aminor > 0.0_dp) return
+
+        allocate (x_edge(1, n_theta_geom, n_phi_geom), &
+            y_edge(1, n_theta_geom, n_phi_geom), &
+            z_edge(1, n_theta_geom, n_phi_geom))
+        call check(nf90_inq_varid(ncid, "x", varid), "inq_var x")
+        call check(nf90_get_var(ncid, varid, x_edge, start=[n_rho, 1, 1], &
+            count=[1, n_theta_geom, n_phi_geom]), "get edge x")
+        call check(nf90_inq_varid(ncid, "y", varid), "inq_var y")
+        call check(nf90_get_var(ncid, varid, y_edge, start=[n_rho, 1, 1], &
+            count=[1, n_theta_geom, n_phi_geom]), "get edge y")
+        call check(nf90_inq_varid(ncid, "z", varid), "inq_var z")
+        call check(nf90_get_var(ncid, varid, z_edge, start=[n_rho, 1, 1], &
+            count=[1, n_theta_geom, n_phi_geom]), "get edge z")
+
+        area_sum = 0.0_dp
+        do k = 1, n_phi_geom
+            area_plane = 0.0_dp
+            do j = 1, n_theta_geom
+                j_next = modulo(j, n_theta_geom) + 1
+                rj = sqrt(x_edge(1, j, k)**2 + y_edge(1, j, k)**2)
+                rj_next = sqrt(x_edge(1, j_next, k)**2 + y_edge(1, j_next, k)**2)
+                area_plane = area_plane + rj*z_edge(1, j_next, k) &
+                    - rj_next*z_edge(1, j, k)
+            end do
+            area_sum = area_sum + abs(area_plane)
+        end do
+        aminor = sqrt(area_sum/(2.0_dp*pi*real(n_phi_geom, dp)))*cm_to_m
+    end subroutine derive_radii
 
     subroutine read_aphi_profile(ncid, d)
         integer, intent(in) :: ncid
@@ -158,13 +194,13 @@ contains
 
         call check(nf90_inq_varid(ncid, "A_phi", varid), "inq_var A_phi")
         call check(nf90_inquire_variable(ncid, varid, ndims=ndims, dimids=dimids), &
-                   "inquire A_phi")
+            "inquire A_phi")
         if (ndims /= 1) then
             print *, "read_boozer_chartmap: A_phi must be one-dimensional"
             error stop "read_boozer_chartmap failed"
         end if
         call check(nf90_inquire_dimension(ncid, dimids(1), name=dim_name, len=n_aphi), &
-                   "A_phi dim")
+            "A_phi dim")
 
         abscissa = ""
         status = nf90_get_att(ncid, varid, "radial_abscissa", abscissa)
@@ -203,9 +239,9 @@ contains
         integer :: varid, ndims
 
         call check(nf90_inq_varid(ncid, trim(var_name), varid), &
-                   "inq_var "//trim(var_name))
+            "inq_var "//trim(var_name))
         call check(nf90_inquire_variable(ncid, varid, ndims=ndims), &
-                   "inquire "//trim(var_name))
+            "inquire "//trim(var_name))
         if (ndims /= 0) then
             print *, "read_boozer_chartmap: ", trim(var_name), " must be scalar"
             error stop "read_boozer_chartmap failed"
@@ -221,9 +257,9 @@ contains
         character(len=nf90_max_name) :: dim_name
 
         call check(nf90_inq_varid(ncid, trim(var_name), varid), &
-                   "inq_var "//trim(var_name))
+            "inq_var "//trim(var_name))
         call check(nf90_inquire_variable(ncid, varid, ndims=ndims, dimids=dimids), &
-                   "inquire "//trim(var_name))
+            "inquire "//trim(var_name))
         if (ndims /= size(expected)) then
             print *, "read_boozer_chartmap: ", trim(var_name), " must have ", &
                 size(expected), " dimensions"
@@ -231,7 +267,7 @@ contains
         end if
         do i = 1, size(expected)
             call check(nf90_inquire_dimension(ncid, dimids(i), name=dim_name), &
-                       "dimension for "//trim(var_name))
+                "dimension for "//trim(var_name))
             if (trim(dim_name) /= trim(expected(i))) then
                 print *, "read_boozer_chartmap: ", trim(var_name), &
                     " dimension ", i, " is ", trim(dim_name), &

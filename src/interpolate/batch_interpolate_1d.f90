@@ -437,6 +437,7 @@ contains
       if (allocated(spl%coeff)) then
          if (acc_is_present(spl%coeff)) then
             !$acc exit data delete(spl%coeff)
+            !$acc wait
          end if
       end if
 #endif

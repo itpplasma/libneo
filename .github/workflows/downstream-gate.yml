@@ -63,10 +63,12 @@ jobs:
           # so a watch or query glitch is never mistaken for a failed run.
           # Returns 0 success, 2 cancelled (retryable by the caller), 1 any
           # other terminal state or timeout.
+          # Polls with plain run-view reads: gh run watch re-queries every few
+          # seconds and five sequential downstream waits can exhaust the shared
+          # hourly API quota of the token, which then kills the gate itself.
           await_run() {
             local repo=$1 run_id=$2 deadline=$((SECONDS + 5400)) misses=0 state
             while [ "$SECONDS" -lt "$deadline" ]; do
-              gh run watch "$run_id" -R "itpplasma/$repo" >/dev/null 2>&1 || true
               state=$(gh run view "$run_id" -R "itpplasma/$repo" \
                         --json status,conclusion \
                         -q '"\(.status) \(.conclusion)"' 2>/dev/null)
@@ -76,7 +78,7 @@ jobs:
                   echo "::error::$repo run $run_id: cannot read status after retries"
                   return 1
                 }
-                sleep 15; continue
+                sleep 30; continue
               fi
               misses=0
               case "$state" in
@@ -88,7 +90,7 @@ jobs:
                   echo "::error::$repo run $run_id concluded ${state#completed }"
                   return 1 ;;
               esac
-              sleep 15
+              sleep 30
             done
             echo "::error::$repo run $run_id did not finish within timeout"
             return 1
@@ -109,8 +111,19 @@ jobs:
             local before run_id="" attempt rc
             for attempt in 1 2 3; do
               before=$(latest_dispatch_id "$repo" "$wf")
-              if ! gh workflow run "$wf" -R "itpplasma/$repo" -f "libneo_ref=$REF" "$@"; then
-                echo "::error::failed to dispatch $repo ($wf) — workflow may lack workflow_dispatch trigger"
+              # --ref main skips gh's GraphQL default-branch lookup, which fails
+              # hard when the token's hourly API quota is drained. Dispatch
+              # errors are retried with backoff for the same reason.
+              dispatched=0
+              for _ in 1 2 3; do
+                if gh workflow run "$wf" -R "itpplasma/$repo" --ref main \
+                     -f "libneo_ref=$REF" "$@"; then
+                  dispatched=1; break
+                fi
+                sleep 30
+              done
+              if [ "$dispatched" -ne 1 ]; then
+                echo "::error::failed to dispatch $repo ($wf) — missing workflow_dispatch trigger or persistent API error"
                 return 1
               fi
               run_id=""
