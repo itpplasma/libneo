@@ -224,7 +224,7 @@ if(NOT TARGET fortio)
     FetchContent_Declare(
         fortio
         GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-        GIT_TAG b6a0c57e7a7577612637ed1619c3bc50d26c2556
+        GIT_TAG 083c943ee0da5e996efc340a4d9a0375c6322bab
     )
     FetchContent_MakeAvailable(fortio)
 endif()
@@ -233,12 +233,23 @@ endif()
 # a repo that also pulls fortnum transitively via libneo does not double-declare
 # the target.
 if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
-    FetchContent_Declare(
-        fortnum
-        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-        GIT_TAG 62a559c0b8e1b28bd63550164a09ed9644e659b1
-    )
-    FetchContent_MakeAvailable(fortnum)
+    if(DEFINED FORTNUM_SOURCE_DIR)
+        get_filename_component(_fortnum_source "${FORTNUM_SOURCE_DIR}" ABSOLUTE
+            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        if(NOT IS_DIRECTORY "${_fortnum_source}")
+            message(FATAL_ERROR
+                "FORTNUM_SOURCE_DIR='${_fortnum_source}' is not a directory")
+        endif()
+        add_subdirectory("${_fortnum_source}" "${CMAKE_CURRENT_BINARY_DIR}/fortnum"
+            EXCLUDE_FROM_ALL)
+    else()
+        FetchContent_Declare(
+            fortnum
+            GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+            GIT_TAG 62a559c0b8e1b28bd63550164a09ed9644e659b1
+        )
+        FetchContent_MakeAvailable(fortnum)
+    endif()
 endif()
 
 # Tier 0: no internal libneo dependencies
