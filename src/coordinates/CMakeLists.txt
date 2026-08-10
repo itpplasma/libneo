@@ -27,3 +27,7 @@ target_link_libraries(coordinates PUBLIC
 set_property(TARGET coordinates PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::coordinates ALIAS coordinates)
+
+# SPECTRE stacked-rho coordinate chart (#370): appended to stay rebase-friendly.
+target_sources(coordinates PRIVATE libneo_coordinates_spectre.f90)
+target_link_libraries(coordinates PUBLIC spectre_support)

@@ -33,7 +33,7 @@ target_link_libraries(tilted_coil_axis_field.x PRIVATE
 
 add_test(
     NAME tilted_coil_generate_geometry
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tilted_coil_geometry.py
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tilted_coil_geometry.py
             ${CMAKE_CURRENT_BINARY_DIR}/tilted_coil.dat
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
@@ -55,7 +55,7 @@ set_tests_properties(tilted_coil_fourier_modes PROPERTIES
 
 add_test(
     NAME tilted_coil_field_validation
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/validate_tilted_coil_fields.py
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/validate_tilted_coil_fields.py
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(tilted_coil_field_validation PROPERTIES

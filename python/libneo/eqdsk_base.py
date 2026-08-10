@@ -116,9 +116,9 @@ def write_eqdsk(filename, eqdata):
             fobj.write("\n")
 
     with open(filename, 'w') as f:
-        f.write(eqdata['header'][:48])
+        f.write(f"{eqdata['header'][:48]:<48s}")
 
-        f.write(f"   0  {eqdata['nrgr']} {eqdata['nzgr']}\n")
+        f.write(f"{0:4d}{eqdata['nrgr']:4d}{eqdata['nzgr']:4d}\n")
 
         write_field(f, eqdata['rboxlength'])
         write_field(f, eqdata['zboxlength'])
@@ -157,7 +157,11 @@ def write_eqdsk(filename, eqdata):
 
         write_array(f, eqdata['qprof'])
         
-        f.write(f"{eqdata['npbound']} {eqdata['nplimiter']}\n")
+        # The boundary-count record is a fixed-width (2i5) G-EQDSK
+        # record.  Free-form spacing happens to work for the Python reader,
+        # but a Fortran reader that consumes the standard fields by column
+        # misreads the second count once either value has three digits.
+        f.write(f"{int(eqdata['npbound']):5d}{int(eqdata['nplimiter']):5d}\n")
 
         write_array(f, eqdata['Lcfs'].flatten())
         

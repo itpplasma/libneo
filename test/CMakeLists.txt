@@ -29,6 +29,16 @@ if (NOT Python_FOUND)
   message(FATAL_ERROR "Python interpreter required for GEQDSK scripts")
 endif()
 
+if(LIBNEO_DETERMINISTIC_FP)
+  add_test(
+    NAME deterministic_fp_compile_flags
+    COMMAND ${CMAKE_COMMAND}
+      -DCOMPILE_COMMANDS=${CMAKE_BINARY_DIR}/compile_commands.json
+      -DSOURCE_ROOT=${PROJECT_SOURCE_DIR}
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_deterministic_fp_flags.cmake
+  )
+endif()
+
 execute_process(COMMAND nf-config --flibs
                 OUTPUT_VARIABLE NETCDF_LIBRARIES
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -192,6 +202,9 @@ target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate_rmix.x source/test_batch_interpolate_rmix.f90)
 target_link_libraries(test_batch_interpolate_rmix.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_der_nq1.x source/test_batch_interpolate_der_nq1.f90)
+target_link_libraries(test_batch_interpolate_der_nq1.x ${COMMON_LIBS})
+
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
 
@@ -278,6 +291,7 @@ add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
+add_test(NAME test_batch_interpolate_der_nq1 COMMAND test_batch_interpolate_der_nq1.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)
@@ -488,6 +502,35 @@ set_tests_properties(test_chartmap_invert_cart PROPERTIES
 add_library(chartmap_test_utils STATIC source/chartmap_test_utils.f90)
 target_link_libraries(chartmap_test_utils PUBLIC neo)
 
+add_library(chartmap_gate_fixtures STATIC source/chartmap_gate_fixtures.f90)
+target_link_libraries(chartmap_gate_fixtures PUBLIC neo)
+
+add_executable(test_chartmap_gate_jacobian.x source/test_chartmap_gate_jacobian.f90)
+target_link_libraries(test_chartmap_gate_jacobian.x chartmap_gate_fixtures)
+add_test(NAME test_chartmap_gate_jacobian
+  COMMAND test_chartmap_gate_jacobian.x)
+set_tests_properties(test_chartmap_gate_jacobian PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_chartmap_gate_fieldline.x source/test_chartmap_gate_fieldline.f90)
+target_link_libraries(test_chartmap_gate_fieldline.x chartmap_gate_fixtures neo_field)
+add_test(NAME test_chartmap_gate_fieldline
+  COMMAND test_chartmap_gate_fieldline.x)
+set_tests_properties(test_chartmap_gate_fieldline PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_chartmap_gate_reconstruction.x
+  source/test_chartmap_gate_reconstruction.f90)
+target_link_libraries(test_chartmap_gate_reconstruction.x
+  chartmap_gate_fixtures neo_field)
+add_test(NAME test_chartmap_gate_reconstruction
+  COMMAND test_chartmap_gate_reconstruction.x)
+set_tests_properties(test_chartmap_gate_reconstruction PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(test_vmec_chartmap_generator.x source/test_vmec_chartmap_generator.f90)
 target_link_libraries(test_vmec_chartmap_generator.x chartmap_test_utils)
 add_test(NAME test_vmec_chartmap_generator
@@ -584,6 +627,22 @@ set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout)
 
+add_executable(test_boozmn_reader.x source/test_boozmn_reader.f90)
+target_link_libraries(test_boozmn_reader.x neo)
+add_test(NAME test_boozmn_reader
+  COMMAND test_boozmn_reader.x)
+set_tests_properties(test_boozmn_reader PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_bc_file.x source/test_bc_file.f90)
+target_link_libraries(test_bc_file.x neo)
+add_test(NAME test_bc_file
+  COMMAND test_bc_file.x)
+set_tests_properties(test_bc_file PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(test_delthe_delphi_bv_d2.x source/test_delthe_delphi_bv_d2.f90)
 target_link_libraries(test_delthe_delphi_bv_d2.x neo)
 add_test(NAME test_delthe_delphi_bv_d2
@@ -635,3 +694,5 @@ add_subdirectory(magfie)
 add_subdirectory(polylag)
 add_subdirectory(poincare)
 add_subdirectory(odeint)
+add_subdirectory(spectre)
+add_subdirectory(jorek)

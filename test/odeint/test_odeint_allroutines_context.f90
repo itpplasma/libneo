@@ -1,10 +1,12 @@
 program test_odeint_allroutines_context
     use odeint_test_common
+    use odeint_allroutines_sub, only: odeint_allroutines, odeint_has_failed
     implicit none
 
     logical :: test_failed = .false.
 
     call run_all_serial_tests(test_failed)
+    call test_step_limit_status(test_failed)
 
     if (test_failed) then
         write(*,*) 'Some odeint_allroutines tests failed!'
@@ -14,6 +16,32 @@ program test_odeint_allroutines_context
     end if
 
 contains
+
+    subroutine test_step_limit_status(test_failed)
+        logical, intent(inout) :: test_failed
+        real(dp) :: y(2)
+        type(ode_params_t) :: params
+        integer :: ierr
+
+        write(*,*) 'Testing catchable step-limit failure'
+        y = 0.0_dp
+        call odeint_allroutines(y, 2, params, 0.0_dp, 1.0_dp, 1.0e-12_dp, &
+                                damped_oscillator_rhs, initial_stepsize=1.0e-3_dp, &
+                                step_limit=1, ierr=ierr)
+        if (ierr /= 1 .or. .not. odeint_has_failed()) then
+            write(*,*) 'ERROR: exhausted step limit did not set failure status'
+            test_failed = .true.
+        else
+            write(*,*) 'Step-limit status test passed'
+        end if
+        y = 0.0_dp
+        call odeint_allroutines(y, 2, params, 0.0_dp, 1.0_dp, 1.0e-12_dp, &
+                                damped_oscillator_rhs, ierr=ierr)
+        if (ierr /= 0 .or. odeint_has_failed()) then
+            write(*,*) 'ERROR: failure status leaked into the next solve'
+            test_failed = .true.
+        end if
+    end subroutine test_step_limit_status
 
     subroutine run_all_serial_tests(test_failed)
         logical, intent(inout) :: test_failed
