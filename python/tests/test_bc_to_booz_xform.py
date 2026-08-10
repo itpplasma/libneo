@@ -100,6 +100,7 @@ def _read_chartmap(path):
         d["B_theta"] = np.asarray(ds.variables["B_theta"][:])
         d["B_phi"] = np.asarray(ds.variables["B_phi"][:])
         d["torflux"] = float(ds.torflux)
+        d["aminor_m"] = float(ds.aminor_m)
         d["nfp"] = int(np.asarray(ds.variables["num_field_periods"][:]).item())
     return d
 
@@ -366,6 +367,7 @@ def test_chartmap_from_bc_structure(chartmap_path):
     """Chartmap built from .bc boozmn has nfp=1 and plausible geometry."""
     d = _read_chartmap(chartmap_path)
     assert d["nfp"] == 1, f"expected nfp=1, got {d['nfp']}"
+    assert d["aminor_m"] == pytest.approx(A_expected)
     # R is sqrt(x^2+y^2) in cm; R0 should be near R0_expected*100 cm
     R_cm = np.sqrt(d["x"] ** 2 + d["y"] ** 2)
     R_mid = R_cm[R_cm.shape[0] // 2].mean()
@@ -387,3 +389,32 @@ def test_chartmap_from_bc_Bmod(chartmap_path):
     assert 1.0e3 < Bmod_outer < 5.0e4, (
         f"Bmod_outer={Bmod_outer:.2f} G out of expected range [1e3,5e4]"
     )
+
+
+def test_chartmap_explicit_covariant_sign_changes_only_covariants(
+    boozmn_path, tmp_path
+):
+    from libneo.booz_xform_to_boozer_chartmap import convert_boozmn_to_chartmap
+
+    positive = tmp_path / "positive.nc"
+    negative = tmp_path / "negative.nc"
+    convert_boozmn_to_chartmap(
+        boozmn_path, positive, nrho=20, ntheta=24, nzeta=2,
+        covariant_sign=1,
+    )
+    convert_boozmn_to_chartmap(
+        boozmn_path, negative, nrho=20, ntheta=24, nzeta=2,
+        covariant_sign=-1,
+    )
+    pos = _read_chartmap(positive)
+    neg = _read_chartmap(negative)
+
+    np.testing.assert_allclose(neg["B_theta"], -pos["B_theta"])
+    np.testing.assert_allclose(neg["B_phi"], -pos["B_phi"])
+    np.testing.assert_allclose(neg["A_phi"], pos["A_phi"])
+    np.testing.assert_allclose(neg["Bmod"], pos["Bmod"])
+    assert neg["torflux"] == pytest.approx(pos["torflux"])
+
+    import netCDF4
+    with netCDF4.Dataset(negative) as dataset:
+        assert dataset.booz2chartmap_covariant_sign == -1

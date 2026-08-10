@@ -35,14 +35,7 @@ target_link_libraries(magfie PRIVATE
     fortnum
 )
 
-# Link NetCDF - use built targets if available, otherwise system libraries
-if(TARGET netcdf::netcdff)
-    target_link_libraries(magfie PRIVATE netcdf::netcdff)
-elseif(TARGET netcdf::netcdf)
-    target_link_libraries(magfie PRIVATE netcdf::netcdf netcdff)
-else()
-    target_link_libraries(magfie PRIVATE netcdf netcdff)
-endif()
+target_link_libraries(magfie PRIVATE fortio::fortio)
 set_property(TARGET magfie PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::magfie ALIAS magfie)

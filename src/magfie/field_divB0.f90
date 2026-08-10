@@ -45,7 +45,7 @@ subroutine read_field_input(input_file)
 end subroutine read_field_input
 
 subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
-                ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
+                ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ,outside_boundary)
 
   use field_c_mod, only : icall_c
   use field_mod, only : icall, ipert, iequil, ampl
@@ -59,6 +59,7 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   real(dp) :: rm,zm,Brc,Bpc,Bzc,dBrdRc,dBrdpc,dBrdZc &
                      ,dBpdRc,dBpdpc,dBpdZc,dBzdRc,dBzdpc,dBzdZc
+  logical, intent(out), optional :: outside_boundary
 
   if(icall .eq. 0) then
     icall = 1
@@ -67,7 +68,7 @@ subroutine field(r,p,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
     if(icall_c.eq.-1) ipert=1
   end if
 
-  call stretch_coords(r,z,rm,zm)
+  call stretch_coords(r,z,rm,zm,outside_boundary)
 
   if(iequil.eq.0) then
     call set_zero(Br,Bp,Bz,dBrdR,dBrdp,dBrdZ,   &
@@ -129,7 +130,7 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
 
   use input_files, only : ieqfile
   use field_eq_mod, only : use_fpol,skip_read,icall_eq,nrad,nzet,icp,nwindow_r,&
-    nwindow_z,psib,btf,rtf,hrad,hzet,psi_axis,psi_sep,&
+    nwindow_z,psib,btf,rtf,hrad,hzet,rmagaxis,zmagaxis,psi_axis,psi_sep,&
     psi,psi0,splfpol,splpsi,rad,zet,imi,ima,jmi,jma,ipoint
   use libneo_kinds, only : dp
 
@@ -168,6 +169,9 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
       end if
       psib = -psi_axis
       psi_sep = (psi_sep - psi_axis) * 1.d8
+      ! psi and psif below are shifted by psib and converted to G cm^2.
+      ! Keep the public endpoints in that same gauge and unit.
+      psi_axis = 0.d0
       splfpol(0, :) = splfpol(0, :) * 1.d6
       call spline_fpol
     else
@@ -195,6 +199,15 @@ subroutine field_eq(r,ppp,z,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
     rad = rad*1.d2 ! cm
     zet = zet*1.d2 ! cm
     rtf = rtf*1.d2 ! cm
+    if (rmagaxis.ne.0.d0 .or. zmagaxis.ne.0.d0) then
+       rmagaxis = rmagaxis*1.d2 ! cm
+       zmagaxis = zmagaxis*1.d2 ! cm
+    else
+       ! Legacy equilibrium readers do not carry an axis explicitly.  Their
+       ! rectangular grid centre is the only format-independent seed.
+       rmagaxis = 0.5d0*(rad(1)+rad(nrad))
+       zmagaxis = 0.5d0*(zet(1)+zet(nzet))
+    endif
     psi = psi*1.d8
     psib= psib*1.d8
     btf = btf*1.d4
@@ -376,6 +389,7 @@ end subroutine read_dimeq1
 
 subroutine read_eqfile1(nwEQD,nhEQD,psiSep, bt0, rzero, rad, zet, psiRZ)
   use input_files, only : iunit, gfile
+  use field_eq_mod, only : rmagaxis,zmagaxis
   use libneo_kinds, only : dp
 
   implicit none
@@ -405,6 +419,8 @@ subroutine read_eqfile1(nwEQD,nhEQD,psiSep, bt0, rzero, rad, zet, psiRZ)
   read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
   write(*,*) xdim, zdim, rzero, r1, zmid
   read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
+  rmagaxis = rmaxis
+  zmagaxis = zmaxis
   write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
   read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
   write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
@@ -445,6 +461,7 @@ end subroutine read_eqfile1
 
 subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
   use input_files, only : iunit, gfile
+  use field_eq_mod, only : rmagaxis,zmagaxis
   use libneo_kinds, only : dp
   implicit none
 
@@ -474,6 +491,8 @@ subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
   read(gunit,2010,end=55,err=250)xdim,zdim,rzero,r1,zmid
   write(*,*) xdim, zdim, rzero, r1, zmid
   read(gunit,2010,end=55,err=250)rmaxis,zmaxis,psiAxis,psiSep,bt0
+  rmagaxis = rmaxis
+  zmagaxis = zmaxis
   write(*,*) rmaxis,zmaxis,psiAxis,psiSep,bt0
   read(gunit,2010,end=55,err=250)plas_cur,psiAxis,xdum,rmaxis,xdum
   write(*,*) plas_cur,psiAxis,xdum,rmaxis,xdum
@@ -800,7 +819,7 @@ end subroutine read_field1
 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine stretch_coords(r,z,rm,zm)
+subroutine stretch_coords(r,z,rm,zm,outside_boundary)
   use input_files, only : convexfile
   use libneo_kinds, only : dp
   use math_constants, only : TWOPI
@@ -809,13 +828,14 @@ subroutine stretch_coords(r,z,rm,zm)
 
   real(dp), intent(in) :: r, z
   real(dp), intent(out) :: rm, zm
+  logical, intent(out), optional :: outside_boundary
 
   integer, save :: icall = 0
   integer :: i, j, nrz ! number of points "convex wall" in input file
   integer, parameter :: nrhotht=360
   integer :: iflag, unit_convex, ios
   real(dp) :: Rw, Zw, a, b, rho, tht, rho_c, dummy
-  real(dp), save :: R0 = 0.0_dp, htht = 0.0_dp
+  real(dp), save :: R0 = 0.0_dp, Z0 = 0.0_dp, htht = 0.0_dp
   real(dp), dimension(:), allocatable, save :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable, save :: rho_w, tht_w
   real(dp), dimension(nrhotht), save :: rho_wall, tht_wall ! polar coords of CW
@@ -835,7 +855,7 @@ subroutine stretch_coords(r,z,rm,zm)
     call validate_data_count(nrz)
     call allocate_arrays(nrz)
     call read_data_points(nrz)
-    call compute_polar_coords(nrz, R0)
+    call compute_polar_coords(nrz, R0, Z0)
 
     ! make sure points are ordered according to tht_w.
     do
@@ -875,18 +895,19 @@ subroutine stretch_coords(r,z,rm,zm)
         if(tht_wall(i).ge.tht_w(j) .and. tht_wall(i).le.tht_w(j+1)) then
           if( abs((rad_w(j+1) - rad_w(j))/rad_w(j)) .gt. 1.e-3) then
             a = (zet_w(j+1) - zet_w(j))/(rad_w(j+1) - rad_w(j))
-            b = zet_w(j) - a*(rad_w(j) - R0)
+            b = zet_w(j) - Z0 - a*(rad_w(j) - R0)
             Rw = b/(tan(tht_wall(i)) - a) + R0
-            Zw = a*(Rw - R0) + b
+            Zw = a*(Rw - R0) + b + Z0
           else
             a = (rad_w(j+1) - rad_w(j))/(zet_w(j+1) - zet_w(j))
-            b = rad_w(j)-R0 - a*zet_w(j)
+            b = rad_w(j)-R0 - a*(zet_w(j)-Z0)
             Zw = b/(1./tan(tht_wall(i)) - a)
             Rw = a*Zw + b + R0
+            Zw = Zw + Z0
           end if
         end if
       end do
-      rho_wall(i) = sqrt((Rw-R0)**2 + Zw**2)
+      rho_wall(i) = sqrt((Rw-R0)**2 + (Zw-Z0)**2)
     end do
     tht_wall(1) = 0.
     rho_wall(1) = rho_wall(nrhotht)
@@ -897,17 +918,18 @@ subroutine stretch_coords(r,z,rm,zm)
   !----------- end of the 1st call --------------------------------------------
   rm = r
   zm = z
-  rho = sqrt((r-R0)**2 + z**2)
-  tht = atan2(z,(r-R0))
+  rho = sqrt((r-R0)**2 + (z-Z0)**2)
+  tht = atan2(z-Z0,(r-R0))
   if(tht .lt. 0.) tht = tht + TWOPI
   i = modulo(int(tht/htht), nrhotht-1) + 1
   rho_c = (rho_wall(i+1) - rho_wall(i))/(tht_wall(i+1) - tht_wall(i))   &
        *(tht - tht_wall(i)) + rho_wall(i)
 
+  if (present(outside_boundary)) outside_boundary = rho .ge. rho_c
   if(rho .ge. rho_c) then
      rho = rho_c + delta*atan2((rho-rho_c), delta)
      rm = rho*cos(tht) + R0
-     zm = rho*sin(tht)
+     zm = rho*sin(tht) + Z0
   end if
 
 contains
@@ -982,15 +1004,16 @@ contains
     close(unit_convex)
   end subroutine read_data_points
 
-  subroutine compute_polar_coords(point_count, center_r)
+  subroutine compute_polar_coords(point_count, center_r, center_z)
     integer, intent(in) :: point_count
-    real(dp), intent(out) :: center_r
+    real(dp), intent(out) :: center_r, center_z
     integer :: i
 
     center_r = (maxval(rad_w(1:point_count)) + minval(rad_w(1:point_count)))*0.5
+    center_z = (maxval(zet_w(1:point_count)) + minval(zet_w(1:point_count)))*0.5
     do i=1,point_count
-      rho_w(i) = sqrt( (rad_w(i)-center_r)**2 + zet_w(i)**2 )
-      tht_w(i) = atan2(zet_w(i),(rad_w(i)-center_r))
+      rho_w(i) = sqrt( (rad_w(i)-center_r)**2 + (zet_w(i)-center_z)**2 )
+      tht_w(i) = atan2(zet_w(i)-center_z,rad_w(i)-center_r)
       if(tht_w(i) .lt. 0.) tht_w(i) = tht_w(i) + TWOPI
     end do
   end subroutine compute_polar_coords
