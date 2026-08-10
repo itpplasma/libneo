@@ -196,6 +196,9 @@ target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate_rmix.x source/test_batch_interpolate_rmix.f90)
 target_link_libraries(test_batch_interpolate_rmix.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_der_nq1.x source/test_batch_interpolate_der_nq1.f90)
+target_link_libraries(test_batch_interpolate_der_nq1.x ${COMMON_LIBS})
+
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
 
@@ -276,6 +279,7 @@ add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
+add_test(NAME test_batch_interpolate_der_nq1 COMMAND test_batch_interpolate_der_nq1.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)
