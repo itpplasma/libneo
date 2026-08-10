@@ -12,7 +12,13 @@ import subprocess
 import sys
 import urllib.request
 
-GEQDSK_URL = "https://crppwww.epfl.ch/~sauter/benchmark/EQDSK_I"
+# Pin the public CHEASE benchmark fixture to an immutable EPFL GitLab commit.
+# The former crppwww download endpoint is intermittently unreachable in CI.
+GEQDSK_URL = (
+    "https://gitlab.epfl.ch/spc/chease/-/raw/"
+    "d246be692630dd04aecd8a3c8273a6d3232c3d33/"
+    "WK/TESTCASES/GYROKINbenchmark/EQDSK_I_dir/EQDSK_I"
+)
 SSL_CONTEXT = ssl._create_unverified_context()
 LIBNEO_TESTING_ENV = "LIBNEO_TESTING"
 _DISABLED_VALUES = {"", "0", "false", "no", "off"}
