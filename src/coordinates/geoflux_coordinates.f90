@@ -3,10 +3,13 @@ module geoflux_coordinates
     use, intrinsic :: iso_fortran_env, only : dp => real64
     use cylindrical_cartesian, only : cyl_to_cart, cart_to_cyl
     use math_constants, only : pi
-    use geqdsk_tools, only : geqdsk_t, geqdsk_read, geqdsk_standardise, geqdsk_deinit
+    use geqdsk_tools, only : geqdsk_t, geqdsk_read, geqdsk_deinit
     use binsrc_sub, only : binsrc
-    use interpolate, only : SplineData1D, construct_splines_1d, &
-        destroy_splines_1d, evaluate_splines_1d
+    use interpolate, only : SplineData1D, BatchSplineData2D, &
+        construct_splines_1d, destroy_splines_1d, evaluate_splines_1d, &
+        evaluate_splines_1d_der, construct_batch_splines_2d, &
+        destroy_batch_splines_2d, evaluate_batch_splines_2d, &
+        evaluate_batch_splines_2d_der
 
     implicit none
 
@@ -34,16 +37,25 @@ module geoflux_coordinates
         logical :: initialised = .false.
         real(dp), allocatable :: psi_grid(:)
         real(dp), allocatable :: s_grid(:)
+        !> Safety factor on psi_grid, computed from the field rather than read
+        !> from the GEQDSK qpsi record.  See compute_q_from_field.
+        real(dp), allocatable :: q_grid(:)
         integer :: ns_cache = 0
         integer :: ntheta_cache = 0
-        real(dp), allocatable :: s_nodes(:)
+        real(dp), allocatable :: rho_nodes(:)
         real(dp), allocatable :: theta_nodes(:)
         real(dp), allocatable :: R_cache(:,:)
         real(dp), allocatable :: Z_cache(:,:)
+        type(BatchSplineData2D) :: surface_spline
+        type(BatchSplineData2D) :: psi_rz_spline
         type(SplineData1D) :: psi_of_s_spline
         type(SplineData1D) :: s_of_psi_spline
+        type(SplineData1D) :: q_of_s_spline
         logical :: psi_of_s_ready = .false.
         logical :: s_of_psi_ready = .false.
+        logical :: q_of_s_ready = .false.
+        logical :: surface_spline_ready = .false.
+        logical :: psi_rz_spline_ready = .false.
         logical :: cache_built = .false.
     end type geoflux_context_t
 
@@ -68,7 +80,11 @@ contains
         call cleanup_context()
 
         call geqdsk_read(ctx%geqdsk, filename)
-        call geqdsk_standardise(ctx%geqdsk)
+        ! Keep the native GEQDSK signs.  The geoflux chart is used together with
+        ! field_eq/magfie, whose cylindrical field also reads the native file;
+        ! standardizing only this private copy would mix q/flux and field
+        ! orientations.  Callers that require another COCOS convention must
+        ! convert the GEQDSK as a whole before initialization.
 
         ctx%psi_axis = ctx%geqdsk%simag
         ctx%psi_sep = ctx%geqdsk%sibry
@@ -84,6 +100,7 @@ contains
         ctx%max_radius = ctx%max_radius + 1.0_dp
         ctx%ray_step = max(ctx%max_radius/100.0_dp, 1.0d-3)
 
+        call build_rz_flux_spline()
         call build_radial_mapping()
         call build_radial_splines()
 
@@ -124,7 +141,7 @@ contains
         xto(3) = Z_val
 
         if (present(dxto_dxfrom)) then
-            call assign_geoflux_to_cyl_jacobian(s_val, theta_val, phi_val, R_val, Z_val, dxto_dxfrom)
+            call assign_geoflux_to_cyl_jacobian(s_val, theta_val, dxto_dxfrom)
         end if
     end subroutine geoflux_to_cyl
 
@@ -237,9 +254,22 @@ contains
             call destroy_splines_1d(ctx%s_of_psi_spline)
             ctx%s_of_psi_ready = .false.
         end if
+        if (ctx%q_of_s_ready) then
+            call destroy_splines_1d(ctx%q_of_s_spline)
+            ctx%q_of_s_ready = .false.
+        end if
+        if (ctx%surface_spline_ready) then
+            call destroy_batch_splines_2d(ctx%surface_spline)
+            ctx%surface_spline_ready = .false.
+        end if
+        if (ctx%psi_rz_spline_ready) then
+            call destroy_batch_splines_2d(ctx%psi_rz_spline)
+            ctx%psi_rz_spline_ready = .false.
+        end if
         if (allocated(ctx%psi_grid)) deallocate(ctx%psi_grid)
         if (allocated(ctx%s_grid)) deallocate(ctx%s_grid)
-        if (allocated(ctx%s_nodes)) deallocate(ctx%s_nodes)
+        if (allocated(ctx%q_grid)) deallocate(ctx%q_grid)
+        if (allocated(ctx%rho_nodes)) deallocate(ctx%rho_nodes)
         if (allocated(ctx%theta_nodes)) deallocate(ctx%theta_nodes)
         if (allocated(ctx%R_cache)) deallocate(ctx%R_cache)
         if (allocated(ctx%Z_cache)) deallocate(ctx%Z_cache)
@@ -255,6 +285,18 @@ contains
         end if
     end subroutine ensure_initialised
 
+    subroutine build_rz_flux_spline()
+        real(dp), allocatable :: psi_data(:, :, :)
+
+        allocate(psi_data(size(ctx%geqdsk%R_eqd), size(ctx%geqdsk%Z_eqd), 1))
+        psi_data(:, :, 1) = ctx%geqdsk%psirz
+        call construct_batch_splines_2d([ctx%R_min, ctx%Z_min], &
+            [ctx%R_max, ctx%Z_max], psi_data, [3, 3], [.false., .false.], &
+            ctx%psi_rz_spline)
+        deallocate(psi_data)
+        ctx%psi_rz_spline_ready = .true.
+    end subroutine build_rz_flux_spline
+
     subroutine build_radial_mapping()
         integer :: npsi
         real(dp), allocatable :: tor_flux(:)
@@ -268,6 +310,7 @@ contains
 
         allocate(ctx%psi_grid(npsi))
         allocate(ctx%s_grid(npsi))
+        allocate(ctx%q_grid(npsi))
         allocate(tor_flux(npsi))
 
         ctx%psi_grid = ctx%geqdsk%psi_eqd
@@ -275,9 +318,14 @@ contains
 
         ctx%psi_tor_edge = 0.0_dp
 
-        if (allocated(ctx%geqdsk%qpsi)) then
-            call integrate_toroidal_flux(tor_flux)
-        end if
+        ! The safety factor comes from the field, not from the file's qpsi
+        ! record.  A GEQDSK's stored q is frequently inconsistent with its own
+        ! psirz and fpol -- it may be a fit, a different radial grid, or simply
+        ! stale -- and it must not be trusted for anything quantitative.  Both
+        ! the toroidal flux (and hence the s label) and the returned q profile
+        ! are built from the computed values.
+        call compute_q_from_field(ctx%q_grid)
+        call integrate_toroidal_flux(tor_flux)
 
         ctx%psi_tor_edge = tor_flux(npsi)
 
@@ -307,7 +355,7 @@ contains
 
     subroutine build_radial_splines()
         integer :: npsi, i
-        real(dp), allocatable :: psi_samples(:)
+        real(dp), allocatable :: psi_samples(:), q_samples(:)
         real(dp) :: s_uniform
         real(dp) :: psi_min, psi_max
         integer, parameter :: spline_order = 5
@@ -328,16 +376,20 @@ contains
             ctx%s_of_psi_ready = .false.
         end if
 
-        allocate(psi_samples(npsi))
+        allocate(psi_samples(npsi), q_samples(npsi))
         do i = 1, npsi
             s_uniform = real(i - 1, dp) / real(npsi - 1, dp)
             psi_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%psi_grid, s_uniform)
+            q_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%q_grid, s_uniform)
         end do
 
         call construct_splines_1d(0.0_dp, 1.0_dp, psi_samples, spline_order, &
             .false., ctx%psi_of_s_spline)
         ctx%psi_of_s_ready = .true.
-        deallocate(psi_samples)
+        call construct_splines_1d(0.0_dp, 1.0_dp, q_samples, spline_order, &
+            .false., ctx%q_of_s_spline)
+        ctx%q_of_s_ready = .true.
+        deallocate(psi_samples, q_samples)
 
         psi_min = minval(ctx%psi_grid)
         psi_max = maxval(ctx%psi_grid)
@@ -351,50 +403,204 @@ contains
         real(dp) :: s_val, theta_val
         real(dp) :: R_tmp, Z_tmp
         real(dp) :: two_pi, dtheta
+        real(dp), allocatable :: surface_data(:,:,:)
 
-        if (ctx%ns_cache < 3 .or. ctx%ntheta_cache < 4) then
+        if (ctx%ns_cache < 4 .or. ctx%ntheta_cache < 4) then
             ctx%cache_built = .false.
             return
         end if
 
-        if (allocated(ctx%s_nodes)) deallocate(ctx%s_nodes)
+        if (allocated(ctx%rho_nodes)) deallocate(ctx%rho_nodes)
         if (allocated(ctx%theta_nodes)) deallocate(ctx%theta_nodes)
         if (allocated(ctx%R_cache)) deallocate(ctx%R_cache)
         if (allocated(ctx%Z_cache)) deallocate(ctx%Z_cache)
 
-        allocate(ctx%s_nodes(ctx%ns_cache))
-        allocate(ctx%theta_nodes(ctx%ntheta_cache))
-        allocate(ctx%R_cache(ctx%ns_cache, ctx%ntheta_cache))
-        allocate(ctx%Z_cache(ctx%ns_cache, ctx%ntheta_cache))
+        allocate(ctx%rho_nodes(ctx%ns_cache))
+        allocate(ctx%theta_nodes(ctx%ntheta_cache + 1))
+        allocate(ctx%R_cache(ctx%ns_cache, ctx%ntheta_cache + 1))
+        allocate(ctx%Z_cache(ctx%ns_cache, ctx%ntheta_cache + 1))
 
         do is = 1, ctx%ns_cache
-            ctx%s_nodes(is) = real(is - 1, dp) / &
+            ctx%rho_nodes(is) = real(is - 1, dp) / &
                 real(ctx%ns_cache - 1, dp)
         end do
 
         two_pi = 2.0_dp * pi
         dtheta = two_pi / real(ctx%ntheta_cache, dp)
-        do itheta = 1, ctx%ntheta_cache
+        do itheta = 1, ctx%ntheta_cache + 1
             ctx%theta_nodes(itheta) = -pi + real(itheta - 1, dp) * dtheta
         end do
 
-        do itheta = 1, ctx%ntheta_cache
+        do itheta = 1, ctx%ntheta_cache + 1
             ctx%R_cache(1, itheta) = ctx%R_axis
             ctx%Z_cache(1, itheta) = ctx%Z_axis
         end do
 
         do is = 2, ctx%ns_cache
-            s_val = ctx%s_nodes(is)
+            s_val = ctx%rho_nodes(is)**2
             do itheta = 1, ctx%ntheta_cache
                 theta_val = ctx%theta_nodes(itheta)
                 call locate_flux_surface(s_val, theta_val, R_tmp, Z_tmp)
                 ctx%R_cache(is, itheta) = R_tmp
                 ctx%Z_cache(is, itheta) = Z_tmp
             end do
+            ctx%R_cache(is, ctx%ntheta_cache + 1) = ctx%R_cache(is, 1)
+            ctx%Z_cache(is, ctx%ntheta_cache + 1) = ctx%Z_cache(is, 1)
         end do
+
+        allocate(surface_data(ctx%ns_cache, ctx%ntheta_cache + 1, 1))
+        do itheta = 1, ctx%ntheta_cache + 1
+            do is = 2, ctx%ns_cache
+                surface_data(is,itheta,1) = &
+                    hypot(ctx%R_cache(is,itheta) - ctx%R_axis, &
+                          ctx%Z_cache(is,itheta) - ctx%Z_axis)/ctx%rho_nodes(is)
+            end do
+            ! r/rho tends to the finite shape coefficient r1(theta) as rho->0,
+            ! so the axis node is an extrapolation, not a copy.  Copying node 2
+            ! leaves an O(h) error in r1 and a slope discontinuity that the
+            ! quintic carries into its first derivatives.  Linear extrapolation
+            ! on the equidistant rho nodes is O(h^2) and is safe now that the
+            ! ray root is converged to sub-micron rather than bracket accuracy.
+            surface_data(1,itheta,1) = 2.0_dp*surface_data(2,itheta,1) &
+                - surface_data(3,itheta,1)
+        end do
+        ! Orbit integration consumes first derivatives of this map at high
+        ! accuracy. A quintic tensor spline keeps those coefficients smooth
+        ! through the higher derivatives used by the variable-order solver.
+        call construct_batch_splines_2d([0.0_dp, -pi], [1.0_dp, pi], &
+            surface_data, [5, 5], [.false., .true.], ctx%surface_spline)
+        deallocate(surface_data)
+        ctx%surface_spline_ready = .true.
 
         ctx%cache_built = .true.
     end subroutine build_flux_surface_cache
+
+    !> Safety factor on ctx%psi_grid, computed from the equilibrium field.
+    !>
+    !> In axisymmetry with B = F(psi) grad(phi) + grad(phi) x grad(psi), the
+    !> toroidal component is B_phi = F/R and the poloidal one is
+    !> B_pol = |grad(psi)|/R, so a field line advances
+    !>
+    !>     dphi/dl_p = B_phi/(R B_pol) = F/(R |grad(psi)|)
+    !>
+    !> per unit poloidal arclength, and one poloidal circuit gives
+    !>
+    !>     q(psi) = (F(psi)/(2 pi)) oint dl_p / (R |grad(psi)|).
+    !>
+    !> Only psirz (through psi_from_position) and fpol are used, so the result is
+    !> consistent with the field the rest of the chart evaluates -- unlike the
+    !> stored qpsi record, which is not required to be.
+    !>
+    !> The axis value is extrapolated from the two neighbouring surfaces because
+    !> the contour integral degenerates there.
+    subroutine compute_q_from_field(q_out)
+        real(dp), intent(out) :: q_out(:)
+
+        integer, parameter :: ntheta_q = 512
+        integer :: npsi, i, k, i_first
+        real(dp) :: theta, dtheta, target_norm, slope
+        real(dp) :: R_pt(ntheta_q + 1), Z_pt(ntheta_q + 1)
+        real(dp) :: dl, dR, dZ, R_mid, Z_mid, grad_psi, integral
+        real(dp) :: f_pol, h_R, h_Z, dpsi_dR, dpsi_dZ
+
+        npsi = size(q_out)
+        q_out = 0.0_dp
+        dtheta = 2.0_dp*pi/real(ntheta_q, dp)
+        h_R = 1.0e-4_dp*(ctx%R_max - ctx%R_min)
+        h_Z = 1.0e-4_dp*(ctx%Z_max - ctx%Z_min)
+
+        ! The outermost grid point sits on sibry.  There the traced contour is
+        ! the boundary itself: the bisection has nothing to bracket against, and
+        ! on a diverted equilibrium q genuinely diverges at the separatrix.  Both
+        ! give a meaningless contour integral, so the edge is extrapolated from
+        ! the interior exactly as the axis is.
+        do i = 2, npsi - 1
+            target_norm = normalized_poloidal(ctx%psi_grid(i))
+            do k = 1, ntheta_q + 1
+                theta = real(k - 1, dp)*dtheta
+                call locate_by_normalized_flux(target_norm, theta, &
+                    R_pt(k), Z_pt(k))
+            end do
+
+            f_pol = fpol_at_index(i)
+            integral = 0.0_dp
+            do k = 1, ntheta_q
+                dR = R_pt(k + 1) - R_pt(k)
+                dZ = Z_pt(k + 1) - Z_pt(k)
+                dl = sqrt(dR*dR + dZ*dZ)
+                R_mid = 0.5_dp*(R_pt(k) + R_pt(k + 1))
+                Z_mid = 0.5_dp*(Z_pt(k) + Z_pt(k + 1))
+                dpsi_dR = (psi_from_position(R_mid + h_R, Z_mid) &
+                    - psi_from_position(R_mid - h_R, Z_mid))/(2.0_dp*h_R)
+                dpsi_dZ = (psi_from_position(R_mid, Z_mid + h_Z) &
+                    - psi_from_position(R_mid, Z_mid - h_Z))/(2.0_dp*h_Z)
+                grad_psi = sqrt(dpsi_dR*dpsi_dR + dpsi_dZ*dpsi_dZ)
+                ! A vanishing gradient means the contour has wandered onto an
+                ! extremum of psi; skipping the segment is safer than dividing.
+                if (grad_psi <= tiny(grad_psi)) cycle
+                if (R_mid <= tiny(R_mid)) cycle
+                integral = integral + dl/(R_mid*grad_psi)
+            end do
+            q_out(i) = f_pol*integral/(2.0_dp*pi)
+        end do
+
+        ! Surfaces too close to the axis collapse to a point, so their contour
+        ! integral is identically zero and carries no information.  Find the
+        ! first index that actually resolved, and extrapolate inwards from the
+        ! first two resolved surfaces.  Doing this by index rather than assuming
+        ! index 2 resolved matters: a zero there would otherwise propagate into
+        ! the toroidal flux, make s_grid non-monotonic, and corrupt every later
+        ! interpolation.
+        i_first = 0
+        do i = 2, npsi - 1
+            if (q_out(i) /= 0.0_dp) then
+                i_first = i
+                exit
+            end if
+        end do
+
+        if (i_first == 0) then
+            ! Nothing resolved at all; leave zeros and let the caller fall back
+            ! to a poloidal-flux label.
+            return
+        end if
+
+        if (i_first + 1 <= npsi) then
+            slope = (q_out(i_first + 1) - q_out(i_first)) &
+                /(ctx%psi_grid(i_first + 1) - ctx%psi_grid(i_first))
+            do i = 1, i_first - 1
+                q_out(i) = q_out(i_first) &
+                    + slope*(ctx%psi_grid(i) - ctx%psi_grid(i_first))
+            end do
+        else
+            q_out(1:i_first - 1) = q_out(i_first)
+        end if
+
+        ! Edge, by the same linear extrapolation in psi from the last two
+        ! interior surfaces.
+        if (npsi >= 3) then
+            slope = (q_out(npsi - 1) - q_out(npsi - 2)) &
+                /(ctx%psi_grid(npsi - 1) - ctx%psi_grid(npsi - 2))
+            q_out(npsi) = q_out(npsi - 1) &
+                + slope*(ctx%psi_grid(npsi) - ctx%psi_grid(npsi - 1))
+        else if (npsi == 2) then
+            q_out(npsi) = q_out(npsi - 1)
+        end if
+    end subroutine compute_q_from_field
+
+    !> fpol on the same index as psi_grid, falling back to the last available
+    !> entry if the record is shorter than the flux grid.
+    function fpol_at_index(i) result(f_pol)
+        integer, intent(in) :: i
+        real(dp) :: f_pol
+        integer :: nf
+
+        f_pol = 0.0_dp
+        if (.not. allocated(ctx%geqdsk%fpol)) return
+        nf = size(ctx%geqdsk%fpol)
+        if (nf < 1) return
+        f_pol = ctx%geqdsk%fpol(min(i, nf))
+    end function fpol_at_index
 
     subroutine integrate_toroidal_flux(tor_flux)
         real(dp), intent(inout) :: tor_flux(:)
@@ -407,9 +613,11 @@ contains
 
         do i = 2, npsi
             dpsi = ctx%psi_grid(i) - ctx%psi_grid(i-1)
-            q_lo = ctx%geqdsk%qpsi(i-1)
-            q_hi = ctx%geqdsk%qpsi(i)
-            tor_flux(i) = tor_flux(i-1) + 0.5_dp * (q_lo + q_hi) * dpsi / (2.0_dp * pi)
+            q_lo = ctx%q_grid(i-1)
+            q_hi = ctx%q_grid(i)
+            ! GEQDSK poloidal flux is standardized per radian and q=dPsi_tor/dPsi_pol,
+            ! so the toroidal flux uses the direct integral with no extra 2*pi.
+            tor_flux(i) = tor_flux(i-1) + 0.5_dp * (q_lo + q_hi) * dpsi
         end do
     end subroutine integrate_toroidal_flux
 
@@ -418,8 +626,6 @@ contains
         real(dp), intent(out) :: R_val, Z_val
 
         real(dp) :: target_psi, target_norm
-        real(dp) :: r_low, r_high, flux_low, flux_high, r_mid, flux_mid
-        integer :: iter
 
         if (s_val <= tol_s) then
             R_val = ctx%R_axis
@@ -429,6 +635,28 @@ contains
 
         target_psi = psi_from_s(s_val)
         target_norm = normalized_poloidal(target_psi)
+
+        call locate_by_normalized_flux(target_norm, theta_val, R_val, Z_val)
+    end subroutine locate_flux_surface
+
+    !> Bisect along a ray from the axis for a target NORMALIZED poloidal flux.
+    !>
+    !> Split out of locate_flux_surface so that compute_q_from_field can trace
+    !> contours before the s label exists: s is built by integrating q, so
+    !> anything q needs must be reachable from psi alone.
+    subroutine locate_by_normalized_flux(target_norm, theta_val, R_val, Z_val)
+        real(dp), intent(in) :: target_norm, theta_val
+        real(dp), intent(out) :: R_val, Z_val
+
+        real(dp) :: r_low, r_high, flux_low, flux_high, r_mid, flux_mid
+        real(dp) :: r_root
+        integer :: iter
+
+        if (target_norm <= tol_s) then
+            R_val = ctx%R_axis
+            Z_val = ctx%Z_axis
+            return
+        end if
 
         r_low = 0.0_dp
         flux_low = 0.0_dp
@@ -456,9 +684,19 @@ contains
             end if
         end if
 
+        ! r_root always holds the last abscissa whose flux was actually
+        ! evaluated against the target.  Returning the bracket bound r_high
+        ! instead would discard the converged midpoint whenever the tolerance
+        ! test below exits early, leaving an error of up to half the current
+        ! bracket width.  That happens for a small fraction of targets and
+        ! displaces isolated cache nodes by centimetres, which the quintic
+        ! surface spline then turns into a ringing wave packet in dV/ds_tor.
+        r_root = 0.5_dp * (r_low + r_high)
+
         do iter = 1, max_bisect_iter
             r_mid = 0.5_dp * (r_low + r_high)
             flux_mid = flux_along_ray(r_mid, theta_val)
+            r_root = r_mid
 
             if (abs(flux_mid - target_norm) <= tol_root) exit
 
@@ -471,9 +709,9 @@ contains
             end if
         end do
 
-        R_val = clamp(ctx%R_axis + r_high * cos(theta_val), ctx%R_min, ctx%R_max)
-        Z_val = clamp(ctx%Z_axis + r_high * sin(theta_val), ctx%Z_min, ctx%Z_max)
-    end subroutine locate_flux_surface
+        R_val = clamp(ctx%R_axis + r_root * cos(theta_val), ctx%R_min, ctx%R_max)
+        Z_val = clamp(ctx%Z_axis + r_root * sin(theta_val), ctx%Z_min, ctx%Z_max)
+    end subroutine locate_by_normalized_flux
 
     function flux_along_ray(r_val, theta_val) result(s_norm)
         real(dp), intent(in) :: r_val, theta_val
@@ -515,46 +753,19 @@ contains
     function psi_from_position(R_val, Z_val) result(psi_val)
         real(dp), intent(in) :: R_val, Z_val
         real(dp) :: psi_val
-        integer :: i_hi, j_hi, i_lo, j_lo
-        real(dp) :: t_R, t_Z
         real(dp) :: R_clamped, Z_clamped
+        real(dp) :: values(1)
 
         R_clamped = clamp(R_val, ctx%R_min, ctx%R_max)
         Z_clamped = clamp(Z_val, ctx%Z_min, ctx%Z_max)
 
-        call binsrc(ctx%geqdsk%R_eqd, 1, size(ctx%geqdsk%R_eqd), R_clamped, i_hi)
-        call binsrc(ctx%geqdsk%Z_eqd, 1, size(ctx%geqdsk%Z_eqd), Z_clamped, j_hi)
-
-        i_lo = max(1, min(i_hi - 1, size(ctx%geqdsk%R_eqd) - 1))
-        i_hi = i_lo + 1
-        j_lo = max(1, min(j_hi - 1, size(ctx%geqdsk%Z_eqd) - 1))
-        j_hi = j_lo + 1
-
-        t_R = (R_clamped - ctx%geqdsk%R_eqd(i_lo)) / &
-              max(ctx%geqdsk%R_eqd(i_hi) - ctx%geqdsk%R_eqd(i_lo), 1.0d-12)
-        t_Z = (Z_clamped - ctx%geqdsk%Z_eqd(j_lo)) / &
-              max(ctx%geqdsk%Z_eqd(j_hi) - ctx%geqdsk%Z_eqd(j_lo), 1.0d-12)
-
-        psi_val = bilinear(ctx%geqdsk%psirz, i_lo, j_lo, t_R, t_Z)
+        if (.not. ctx%psi_rz_spline_ready) then
+            error stop 'geoflux_coordinates: R-Z flux spline is not ready.'
+        end if
+        call evaluate_batch_splines_2d(ctx%psi_rz_spline, &
+            [R_clamped, Z_clamped], values)
+        psi_val = values(1)
     end function psi_from_position
-
-    function bilinear(psirz, i_lo, j_lo, t_R, t_Z) result(value)
-        real(dp), intent(in) :: psirz(:,:)
-        integer, intent(in) :: i_lo, j_lo
-        real(dp), intent(in) :: t_R, t_Z
-        real(dp) :: value
-        real(dp) :: f00, f10, f01, f11
-
-        f00 = psirz(i_lo    , j_lo)
-        f10 = psirz(i_lo + 1, j_lo)
-        f01 = psirz(i_lo    , j_lo + 1)
-        f11 = psirz(i_lo + 1, j_lo + 1)
-
-        value = (1.0_dp - t_R) * (1.0_dp - t_Z) * f00 + &
-                t_R * (1.0_dp - t_Z) * f10 + &
-                (1.0_dp - t_R) * t_Z * f01 + &
-                t_R * t_Z * f11
-    end function bilinear
 
     function normalized_poloidal(psi_val) result(s_norm)
         real(dp), intent(in) :: psi_val
@@ -570,12 +781,13 @@ contains
         s_norm = clamp01(s_norm)
     end function normalized_poloidal
 
-    subroutine interpolate_cached_surface(s_val, theta_val, R_val, Z_val)
+    subroutine interpolate_cached_surface(s_val, theta_val, R_val, Z_val, &
+                                           dR_ds, dR_dtheta, dZ_ds, dZ_dtheta)
         real(dp), intent(in) :: s_val, theta_val
         real(dp), intent(out) :: R_val, Z_val
-        real(dp) :: s_use, theta_use, s_pos, theta_pos
-        real(dp) :: ws, wt, dtheta, two_pi
-        integer :: i_lo, i_hi, j_lo, j_hi
+        real(dp), intent(out), optional :: dR_ds, dR_dtheta, dZ_ds, dZ_dtheta
+        real(dp) :: s_use, rho, theta_use, drho_ds, radius, dradius_ds
+        real(dp) :: values(1), derivatives(2,1)
 
         if (.not. ctx%cache_built) then
             call locate_flux_surface(s_val, theta_val, R_val, Z_val)
@@ -586,42 +798,33 @@ contains
         if (s_use <= tol_s) then
             R_val = ctx%R_axis
             Z_val = ctx%Z_axis
+            if (present(dR_ds)) then
+                dR_ds = 0.0_dp
+                dR_dtheta = 0.0_dp
+                dZ_ds = 0.0_dp
+                dZ_dtheta = 0.0_dp
+            end if
             return
         end if
 
-        s_pos = s_use * real(ctx%ns_cache - 1, dp)
-        i_lo = int(floor(s_pos)) + 1
-        if (i_lo >= ctx%ns_cache) then
-            i_lo = ctx%ns_cache - 1
-            i_hi = ctx%ns_cache
-            ws = 1.0_dp
-        else
-            i_hi = i_lo + 1
-            ws = s_pos - real(i_lo - 1, dp)
-        end if
-
-        two_pi = 2.0_dp * pi
-        dtheta = two_pi / real(ctx%ntheta_cache, dp)
+        rho = sqrt(s_use)
         theta_use = wrap_theta(theta_val)
-        theta_pos = (theta_use + pi) / dtheta
-        j_lo = int(floor(theta_pos)) + 1
-        wt = theta_pos - real(j_lo - 1, dp)
-        if (j_lo > ctx%ntheta_cache) then
-            j_lo = 1
-            wt = theta_pos - floor(theta_pos)
+        call evaluate_batch_splines_2d_der(ctx%surface_spline, &
+            [rho, theta_use], values, derivatives)
+        radius = rho*values(1)
+        R_val = ctx%R_axis + radius*cos(theta_use)
+        Z_val = ctx%Z_axis + radius*sin(theta_use)
+
+        if (present(dR_ds)) then
+            drho_ds = 0.5_dp/rho
+            dradius_ds = drho_ds*(values(1) + rho*derivatives(1,1))
+            dR_ds = dradius_ds*cos(theta_use)
+            dZ_ds = dradius_ds*sin(theta_use)
+            dR_dtheta = rho*(derivatives(2,1)*cos(theta_use) &
+                - values(1)*sin(theta_use))
+            dZ_dtheta = rho*(derivatives(2,1)*sin(theta_use) &
+                + values(1)*cos(theta_use))
         end if
-        j_hi = j_lo + 1
-        if (j_hi > ctx%ntheta_cache) j_hi = 1
-
-        R_val = (1.0_dp - ws) * (1.0_dp - wt) * ctx%R_cache(i_lo, j_lo) &
-            + ws * (1.0_dp - wt) * ctx%R_cache(i_hi, j_lo) &
-            + (1.0_dp - ws) * wt * ctx%R_cache(i_lo, j_hi) &
-            + ws * wt * ctx%R_cache(i_hi, j_hi)
-
-        Z_val = (1.0_dp - ws) * (1.0_dp - wt) * ctx%Z_cache(i_lo, j_lo) &
-            + ws * (1.0_dp - wt) * ctx%Z_cache(i_hi, j_lo) &
-            + (1.0_dp - ws) * wt * ctx%Z_cache(i_lo, j_hi) &
-            + ws * wt * ctx%Z_cache(i_hi, j_hi)
     end subroutine interpolate_cached_surface
 
     pure function wrap_theta(theta) result(theta_wrapped)
@@ -699,33 +902,14 @@ contains
         end if
     end function linear_interp_monotonic
 
-    subroutine assign_geoflux_to_cyl_jacobian(s_val, theta_val, phi_val, R_val, Z_val, jac)
-        real(dp), intent(in) :: s_val, theta_val, phi_val, R_val, Z_val
+    subroutine assign_geoflux_to_cyl_jacobian(s_val, theta_val, jac)
+        real(dp), intent(in) :: s_val, theta_val
         real(dp), intent(out) :: jac(3,3)
-        real(dp) :: ds, dt
-        real(dp) :: xp(3), xm(3)
-        real(dp) :: rp(3), rm(3)
+        real(dp) :: R_interp, Z_interp
 
         jac = 0.0_dp
-
-        ds = max(1.0d-5, 1.0d-3 * max(1.0_dp, s_val))
-        dt = 1.0d-4
-
-        xp = [clamp01(s_val + ds), theta_val, phi_val]
-        xm = [clamp01(s_val - ds), theta_val, phi_val]
-        call geoflux_to_cyl_internal(xp, rp)
-        call geoflux_to_cyl_internal(xm, rm)
-        jac(1,1) = (rp(1) - rm(1)) / (2.0_dp * ds)
-        jac(3,1) = (rp(3) - rm(3)) / (2.0_dp * ds)
-        jac(2,1) = 0.0_dp
-
-        xp = [s_val, theta_val + dt, phi_val]
-        xm = [s_val, theta_val - dt, phi_val]
-        call geoflux_to_cyl_internal(xp, rp)
-        call geoflux_to_cyl_internal(xm, rm)
-        jac(1,2) = (rp(1) - rm(1)) / (2.0_dp * dt)
-        jac(3,2) = (rp(3) - rm(3)) / (2.0_dp * dt)
-        jac(2,2) = 0.0_dp
+        call interpolate_cached_surface(s_val, theta_val, R_interp, Z_interp, &
+                                        jac(1,1), jac(1,2), jac(3,1), jac(3,2))
 
         jac(1,3) = 0.0_dp
         jac(2,3) = 1.0_dp
@@ -853,5 +1037,25 @@ contains
         R_axis = ctx%R_axis
         Z_axis = ctx%Z_axis
     end subroutine geoflux_get_axis
+
+    subroutine geoflux_get_flux_profiles(s_tor, q, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge)
+        ! Return the raw-GEQDSK signed profiles used by the geoflux chart.
+        ! Lengths, fields, and fluxes are in libneo CGS units; s_tor is normalized
+        ! toroidal flux.  This routine intentionally reports the same native sign
+        ! lineage as the cylindrical EQDSK field used by POTATO.
+        real(dp), intent(in) :: s_tor
+        real(dp), intent(out) :: q, dq_ds, psi_pol, dpsi_pol_ds, psi_tor_edge
+        real(dp) :: s_use
+
+        call ensure_initialised()
+        if (.not. ctx%q_of_s_ready .or. .not. ctx%psi_of_s_ready) then
+            error stop 'geoflux_coordinates: flux-profile splines are not ready.'
+        end if
+
+        s_use = clamp01(s_tor)
+        call evaluate_splines_1d_der(ctx%q_of_s_spline, s_use, q, dq_ds)
+        call evaluate_splines_1d_der(ctx%psi_of_s_spline, s_use, psi_pol, dpsi_pol_ds)
+        psi_tor_edge = ctx%psi_tor_edge
+    end subroutine geoflux_get_flux_profiles
 
 end module geoflux_coordinates
