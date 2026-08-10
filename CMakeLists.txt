@@ -2,22 +2,6 @@
 
 # Basic cmake settings/requirements
 cmake_minimum_required(VERSION 3.22)
-if(APPLE AND NOT DEFINED HDF5_DIR)
-  # locate brew
-  find_program(BREW_EXECUTABLE brew HINTS /opt/homebrew/bin /usr/local/bin)
-  if(BREW_EXECUTABLE)
-    execute_process(
-      COMMAND "${BREW_EXECUTABLE}" --prefix hdf5
-      OUTPUT_VARIABLE _hdf5_prefix
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      RESULT_VARIABLE _hdf5_res
-    )
-    if(_hdf5_res EQUAL 0 AND EXISTS "${_hdf5_prefix}/lib/cmake/hdf5")
-      set(HDF5_DIR "${_hdf5_prefix}/lib/cmake/hdf5" CACHE PATH "Path to HDF5Config.cmake")
-      message(STATUS "HDF5_DIR set to ${HDF5_DIR}")
-    endif()
-  endif()
-endif()
 
 # Basic project settings.
 project(libneo)
@@ -28,17 +12,23 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     set(LIBNEO_IS_STANDALONE ON)
 endif()
 
+option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
+
+# A top-level BUILD_TESTING setting controls standalone libneo, but must not
+# implicitly inject libneo's tests into a consuming project's target namespace.
+if(LIBNEO_IS_STANDALONE AND DEFINED BUILD_TESTING)
+    set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
+elseif(NOT LIBNEO_IS_STANDALONE)
+    # A consumer may reuse a build tree previously configured with an older
+    # standalone libneo, leaving this cache entry enabled. Never inject
+    # libneo's test targets into the consumer's target namespace.
+    set(LIBNEO_BUILD_TESTING OFF)
+endif()
+
 # Standalone builds run libneo's own Python tests and f2py; resolve Python from
 # the uv-managed project venv so their dependencies are available.
 if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
-endif()
-
-option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
-
-# Allow BUILD_TESTING to override (for subproject compatibility)
-if(DEFINED BUILD_TESTING)
-    set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
 endif()
 
 # Numerics-heavy components (neo core, magfie, collisions, transport,
@@ -46,6 +36,13 @@ endif()
 # Consumers that only link the light targets (interpolate, vmec_support, boozer,
 # field, nctools, util, ...) set this OFF to skip those dependencies entirely.
 option(LIBNEO_BUILD_NUMERICS "Build numerics-heavy components requiring BLAS/LAPACK and fortnum" ON)
+option(LIBNEO_BUILD_JOREK "Build the HDF5-backed JOREK restart component" ${LIBNEO_BUILD_NUMERICS})
+option(LIBNEO_DETERMINISTIC_FP
+    "Disable value-changing floating-point optimizations in GNU Release and Fast builds" OFF)
+
+if(LIBNEO_DETERMINISTIC_FP)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
@@ -86,6 +83,10 @@ set(libneo_VERSION_PATCH 20)
 include(${PROJECT_SOURCE_DIR}/cmake/SetupNVHPCCuda.cmake)
 
 enable_language(C Fortran)
+if(LIBNEO_DETERMINISTIC_FP AND NOT CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    message(FATAL_ERROR
+        "LIBNEO_DETERMINISTIC_FP currently supports only the GNU Fortran compiler")
+endif()
 if(LIBNEO_BUILD_TESTING)
     include(CTest)
 endif()
@@ -100,10 +101,6 @@ set(OPENACC_OFFLOAD_TARGET "none" CACHE STRING "OpenACC offload target for GNU (
 set_property(CACHE OPENACC_OFFLOAD_TARGET PROPERTY STRINGS none nvptx)
 option(LIBNEO_ENABLE_GOLDEN_TESTS
     "Enable fetching and running the ODEINT golden record regression test" ON)
-
-# Dependency fetching options
-option(PREFER_SYSTEM_LIBS "Try system libraries before building from source" ON)
-option(FORCE_FETCH_DEPS "Always build Fortran dependencies from source" OFF)
 
 if(ENABLE_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS Fortran)
@@ -120,6 +117,9 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fmax-errors=1>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fbacktrace>)
     add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ffree-line-length-132>)
+    if(LIBNEO_DETERMINISTIC_FP)
+        add_compile_options(-fno-fast-math -ffp-contract=off)
+    endif()
     if(ENABLE_OPENACC)
         add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-fopenacc>)
         add_link_options($<$<LINK_LANGUAGE:Fortran>:-fopenacc>)
@@ -145,9 +145,11 @@ if(${CMAKE_Fortran_COMPILER_ID} STREQUAL "GNU")
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
         # Common optimization flags for Release and Fast builds
         add_compile_options(-O3 -DNDEBUG
-                          -ffast-math -ffp-contract=fast
                           -funroll-loops
                           -ftree-vectorize)
+        if(NOT LIBNEO_DETERMINISTIC_FP)
+            add_compile_options(-ffast-math -ffp-contract=fast)
+        endif()
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast OR CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
@@ -217,37 +219,43 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-# Detect and configure external dependencies (HDF5, NetCDF)
-# Uses smoke tests to verify ABI compatibility with current compiler.
-# Falls back to building from source if system libraries are incompatible.
-include(${PROJECT_SOURCE_DIR}/cmake/DetectDependencies.cmake)
+include(FetchContent)
+if(NOT TARGET fortio)
+    FetchContent_Declare(
+        fortio
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
+        GIT_TAG 083c943ee0da5e996efc340a4d9a0375c6322bab
+    )
+    FetchContent_MakeAvailable(fortio)
+endif()
 
 # fortnum: numerical core (special functions, quadrature, FFT, ODE). Guarded so
 # a repo that also pulls fortnum transitively via libneo does not double-declare
 # the target.
 if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
-    include(FetchContent)
-    FetchContent_Declare(
-        fortnum
-        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
-    )
-    FetchContent_MakeAvailable(fortnum)
-endif()
-
-# Light consumers get NetCDF as a shared library via pkg-config. The
-# netcdf-fortran shared object pulls HDF5/curl/zlib through DT_NEEDED, so nctools
-# and boozer need only -lnetcdff, not nf-config's full static --flibs.
-if(NOT LIBNEO_BUILD_NUMERICS AND NOT TARGET netcdf::netcdff)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LIBNEO_NETCDF_FORTRAN REQUIRED IMPORTED_TARGET GLOBAL netcdf-fortran)
-    add_library(netcdf::netcdff ALIAS PkgConfig::LIBNEO_NETCDF_FORTRAN)
+    if(DEFINED FORTNUM_SOURCE_DIR)
+        get_filename_component(_fortnum_source "${FORTNUM_SOURCE_DIR}" ABSOLUTE
+            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        if(NOT IS_DIRECTORY "${_fortnum_source}")
+            message(FATAL_ERROR
+                "FORTNUM_SOURCE_DIR='${_fortnum_source}' is not a directory")
+        endif()
+        add_subdirectory("${_fortnum_source}" "${CMAKE_CURRENT_BINARY_DIR}/fortnum"
+            EXCLUDE_FROM_ALL)
+    else()
+        FetchContent_Declare(
+            fortnum
+            GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+            GIT_TAG 62a559c0b8e1b28bd63550164a09ed9644e659b1
+        )
+        FetchContent_MakeAvailable(fortnum)
+    endif()
 endif()
 
 # Tier 0: no internal libneo dependencies
 add_subdirectory(src/util)
 add_subdirectory(src/nctools)
-if(LIBNEO_BUILD_NUMERICS)
+if(LIBNEO_BUILD_NUMERICS OR LIBNEO_BUILD_JOREK)
     add_subdirectory(src/hdf5_tools)
 endif()
 add_subdirectory(src/polylag)
@@ -258,7 +266,31 @@ add_subdirectory(src/field)
 # Tier 1: depends on Tier 0
 add_subdirectory(src/vmec_support)
 
+if(LIBNEO_BUILD_JOREK)
+    # Tier 1: JOREK restart HDF5 reader (depends on hdf5_tools only).
+    add_library(jorek_support STATIC
+        src/field/jorek_restart.f90
+        src/field/jorek_bezier.f90
+        src/field/jorek_field_values.f90
+        src/field/jorek_model303_field.f90
+    )
+    target_link_libraries(jorek_support PUBLIC LIBNEO::hdf5_tools)
+    set_property(TARGET jorek_support PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::jorek ALIAS jorek_support)
+endif()
+
 if(LIBNEO_BUILD_NUMERICS)
+    # Tier 1: SPECTRE equilibrium HDF5 reader (depends on hdf5_tools only).
+    add_library(spectre_support STATIC
+        src/spectre/spectre_reader.f90
+        src/spectre/spectre_basis.f90
+    )
+    target_link_libraries(spectre_support PUBLIC LIBNEO::hdf5_tools)
+    set_property(TARGET spectre_support PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre ALIAS spectre_support)
+
     add_subdirectory(src/coordinates)
 
     # Tier 1: abstract magnetic-field interface. magnetic_field_base.f90 provides
@@ -282,6 +314,16 @@ if(LIBNEO_BUILD_NUMERICS)
     set_property(TARGET vmec_field PROPERTY
         INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
     add_library(LIBNEO::vmec_field ALIAS vmec_field)
+
+    # Tier 2: SPECTRE magnetic-field evaluation in the stacked-rho chart (#371).
+    add_library(spectre_field STATIC
+        src/field/field_spectre.f90
+    )
+    target_link_libraries(spectre_field PUBLIC magnetic_field_base coordinates
+                                               spectre_support)
+    set_property(TARGET spectre_field PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+    add_library(LIBNEO::spectre_field ALIAS spectre_field)
 endif()
 
 # Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
@@ -290,15 +332,12 @@ add_library(boozer STATIC
     src/boozer_converter.F90
     src/boozer_chartmap.f90
     src/field/boozer_chartmap_io.f90
+    src/field/boozmn_file.f90
+    src/field/boozmn_reader.f90
+    src/field/bc_file.f90
 )
 target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
-if(TARGET netcdf::netcdff)
-    target_link_libraries(boozer PRIVATE netcdf::netcdff)
-elseif(TARGET netcdf::netcdf)
-    target_link_libraries(boozer PRIVATE netcdf::netcdf netcdff)
-else()
-    target_link_libraries(boozer PRIVATE netcdf netcdff)
-endif()
+target_link_libraries(boozer PRIVATE nctools fortio::fortio)
 set_property(TARGET boozer PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::boozer ALIAS boozer)
@@ -356,7 +395,7 @@ add_executable(coil_convert.x src/magfie/coil_convert.f90)
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
 set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
 
-target_link_libraries(vacfield.x magfie)
+target_link_libraries(vacfield.x magfie hdf5_tools)
 target_link_libraries(coil_convert.x magfie)
 
 # Tier 2+: depends on neo core

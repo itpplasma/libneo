@@ -193,6 +193,10 @@ def write_boozmn(bc, output, source=None):
             _var("pmnc_b", "f8", ("comput_surfs", "mn_mode"), pmnc_h)
 
         ds.bc2boozmn_source = str(source if source is not None else output)
+        if hasattr(bc, "a"):
+            ds.libneo_vmec_aminor_m = float(bc.a)
+        if hasattr(bc, "R"):
+            ds.libneo_vmec_rmajor_m = float(bc.R)
 
 
 def convert_bc_to_boozmn(bc_file, output):

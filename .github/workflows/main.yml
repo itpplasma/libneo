@@ -45,9 +45,9 @@ jobs:
             gfortran \
             libfftw3-dev \
             libgsl-dev \
-            libhdf5-dev \
+            hdf5-tools \
             libnetcdf-dev \
-            libnetcdff-dev \
+            netcdf-bin \
             libopenblas-dev \
             liblapack-dev \
             libopenmpi-dev \

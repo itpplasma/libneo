@@ -600,14 +600,12 @@ contains
         integer :: order1, order2, order3
         integer :: i1, i2, i3, iq, k1, k2, k3
         integer :: line, line2, line3
-        ! GCC OpenACC bug workaround: keep work arrays persistent across calls
-        ! to avoid address reuse that triggers the mapping bug
-        real(dp), allocatable, save :: work3(:, :, :)
-        real(dp), allocatable, save :: work2(:, :, :)
-        real(dp), allocatable, save :: work1(:, :, :)
+        ! Work arrays - allocated fresh each call to avoid GCC OpenACC memory issues
+        real(dp), allocatable :: work3(:, :, :)
+        real(dp), allocatable :: work2(:, :, :)
+        real(dp), allocatable :: work1(:, :, :)
         real(dp) :: h1, h2, h3
         logical :: periodic1, periodic2, periodic3
-        logical :: work_needs_alloc
 
         N1_order = order(1)
         N2_order = order(2)
@@ -691,79 +689,40 @@ contains
         spl%x_min = x_min
         spl%num_quantities = n_quantities
 
-        ! GCC OpenACC bug workaround: reuse existing allocation if possible
-        ! to avoid repeated map/unmap cycle that crashes on iteration 2
-        if (.not. allocated(spl%coeff)) then
-            allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
-                                n1, n2, n3), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_3d_resident_device:"// &
-                    " Allocation failed for coeff"
-            end if
-            !$acc enter data create(spl%coeff)
-        else if (size(spl%coeff, 1) /= n_quantities .or. &
-                 size(spl%coeff, 2) /= N1_order + 1 .or. &
-                 size(spl%coeff, 3) /= N2_order + 1 .or. &
-                 size(spl%coeff, 4) /= N3_order + 1 .or. &
-                 size(spl%coeff, 5) /= n1 .or. &
-                 size(spl%coeff, 6) /= n2 .or. &
-                 size(spl%coeff, 7) /= n3) then
-            ! Size mismatch - need to reallocate
+        ! Always allocate fresh - no reuse to avoid GCC OpenACC memory issues
 #ifdef _OPENACC
+        if (allocated(spl%coeff)) then
             if (acc_is_present(spl%coeff)) then
                 !$acc exit data delete(spl%coeff)
+                !$acc wait
             end if
-#endif
             deallocate (spl%coeff)
-            allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
-                                n1, n2, n3), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_3d_resident_device:"// &
-                    " Allocation failed for coeff"
-            end if
-            !$acc enter data create(spl%coeff)
         end if
-        ! If already allocated with right size, reuse (GCC bug workaround)
-
-        ! GCC OpenACC bug workaround: check if work arrays need (re)allocation
-        ! Must check ALL three work arrays since their sizes depend on different orders
-        work_needs_alloc = .not. allocated(work3)
-        if (allocated(work3)) then
-            if (size(work3, 1) /= n3 .or. &
-                size(work3, 2) /= n1*n2*n_quantities .or. &
-                size(work3, 3) /= N3_order + 1 .or. &
-                size(work2, 1) /= n2 .or. &
-                size(work2, 2) /= n1*n3*n_quantities .or. &
-                size(work2, 3) /= N2_order + 1 .or. &
-                size(work1, 1) /= n1 .or. &
-                size(work1, 2) /= n2*n3*n_quantities .or. &
-                size(work1, 3) /= N1_order + 1) then
-#ifdef _OPENACC
-                if (acc_is_present(work3)) then
-                    !$acc exit data delete(work3, work2, work1)
-                end if
+#else
+        if (allocated(spl%coeff)) deallocate (spl%coeff)
 #endif
-                deallocate (work3, work2, work1)
-                work_needs_alloc = .true.
-            end if
+        allocate (spl%coeff(n_quantities, 0:N1_order, 0:N2_order, 0:N3_order, &
+                            n1, n2, n3), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_resident_device:"// &
+                " Allocation failed for coeff"
         end if
+        !$acc enter data create(spl%coeff)
 
-        if (work_needs_alloc) then
-            allocate (work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_3d_resident_device:"// &
-                    " Allocation failed for work3"
-            end if
-            allocate (work2(n2, n1*n3*n_quantities, 0:N2_order), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_3d_resident_device:"// &
-                    " Allocation failed for work2"
-            end if
-            allocate (work1(n1, n2*n3*n_quantities, 0:N1_order), stat=istat)
-            if (istat /= 0) then
-                error stop "construct_batch_splines_3d_resident_device:"// &
-                    " Allocation failed for work1"
-            end if
+        allocate (work3(n3, n1*n2*n_quantities, 0:N3_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_resident_device:"// &
+                " Allocation failed for work3"
+        end if
+        allocate (work2(n2, n1*n3*n_quantities, 0:N2_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_resident_device:"// &
+                " Allocation failed for work2"
+        end if
+        allocate (work1(n1, n2*n3*n_quantities, 0:N1_order), stat=istat)
+        if (istat /= 0) then
+            error stop "construct_batch_splines_3d_resident_device:"// &
+                " Allocation failed for work1"
         end if
 
         h1 = spl%h_step(1)
@@ -772,9 +731,7 @@ contains
 
 #ifdef _OPENACC
         block
-            if (work_needs_alloc) then
-                !$acc enter data create(work3, work2, work1)
-            end if
+            !$acc enter data create(work3, work2, work1)
 
             ! Copy input data to work3
             !$acc parallel present(work3) &
@@ -873,11 +830,10 @@ contains
                 end do
             end do
 
-            ! GCC bug workaround: keep work arrays mapped for next call
+            !$acc exit data delete(work3, work2, work1)
+            !$acc wait
         end block
 #endif
-
-        ! GCC bug workaround: keep work arrays allocated for next call
         if (do_update) then
             !$acc update self(spl%coeff(1:n_quantities, 0:N1_order, 0:N2_order, &
             !$acc&                        0:N3_order, 1:n1, 1:n2, 1:n3))
@@ -891,6 +847,7 @@ contains
         if (allocated(spl%coeff)) then
             if (acc_is_present(spl%coeff)) then
                 !$acc exit data delete(spl%coeff)
+                !$acc wait
             end if
         end if
 #endif
@@ -904,6 +861,7 @@ contains
         if (allocated(spl%coeff)) then
             if (acc_is_present(spl%coeff)) then
                 !$acc exit data delete(spl%coeff)
+                !$acc wait
             end if
         end if
 #endif
@@ -1062,17 +1020,160 @@ contains
         real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:, :)  ! (3, n_quantities)
 
-        real(dp) :: x_arr(3, 1)
-        real(dp) :: y_arr(spl%num_quantities, 1)
-        real(dp) :: dy_arr(3, spl%num_quantities, 1)
-
-        x_arr(:, 1) = x
-        call evaluate_batch_splines_3d_many_der(spl, x_arr, y_arr, dy_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:3, 1:spl%num_quantities) = dy_arr(:, :, 1)
+        ! Call the single-point core directly. Routing one point through
+        ! evaluate_batch_splines_3d_many_der cost three automatic arrays and two
+        ! array copies per call, for a routine that only loops over the core
+        ! anyway. evaluate_batch_splines_3d_der2 has always called its core
+        ! directly; this makes the first-derivative entry point match.
+        call evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
     end subroutine evaluate_batch_splines_3d_der
 
+    ! Dispatch to the specialised first-derivative kernel, mirroring how
+    ! evaluate_batch_splines_3d_der2_core selects among its variants. The
+    ! single-quantity case is the common one in orbit tracing (|B| alone), and
+    ! the general kernel below indexes coeff arrays whose leading dimension is
+    ! MAX_QUANTITIES, so with num_quantities = 1 every access is stride-8 and
+    ! the !$omp simd loops have a single iteration. The nq1 kernel drops that
+    ! leading dimension.
+    !
+    ! The nq1 kernel performs the same Horner recurrences in the same order as
+    ! the general one, so for num_quantities = 1 it is bit-identical. That is
+    ! asserted in test/interpolate/test_batch_spline_3d_der_nq1.f90.
     recursive subroutine evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)     ! (n_quantities)
+        real(dp), intent(out) :: dy_batch(:, :)  ! (3, n_quantities)
+
+        if (spl%num_quantities == 1) then
+            call evaluate_batch_splines_3d_der_core_nq1(spl, x, y_batch, dy_batch)
+            return
+        end if
+
+        call evaluate_batch_splines_3d_der_core_general(spl, x, y_batch, dy_batch)
+    end subroutine evaluate_batch_splines_3d_der_core
+
+    ! Single-quantity first-derivative kernel. Same algorithm and same operation
+    ! order as evaluate_batch_splines_3d_der_core_general, with the quantity
+    ! dimension removed so the coefficient sweeps are contiguous.
+    recursive subroutine evaluate_batch_splines_3d_der_core_nq1(spl, x, y_batch, &
+                                                                dy_batch)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)     ! (1)
+        real(dp), intent(out) :: dy_batch(:, :)  ! (3, 1)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: coeff_23(0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_23_dx1(0:MAX_ORDER, 0:MAX_ORDER)
+        real(dp) :: coeff_3(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx1(0:MAX_ORDER)
+        real(dp) :: coeff_3_dx2(0:MAX_ORDER)
+        real(dp) :: yv, dy1, dy2, dy3
+
+        integer :: interval_index(3), k1, k2, k3, j
+        integer :: i1, i2, i3
+        integer :: N1, N2, N3
+
+        N1 = spl%order(1)
+        N2 = spl%order(2)
+        N3 = spl%order(3)
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = modulo(x(j) - spl%x_min(j), &
+                            spl%h_step(j)*(spl%num_points(j) - 1)) + spl%x_min(j)
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
+        end do
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        ! First reduction over x1: value.
+        do k3 = 0, N3
+            do k2 = 0, N2
+                coeff_23(k2, k3) = spl%coeff(1, N1, k2, k3, i1, i2, i3)
+            end do
+        end do
+
+        do k1 = N1 - 1, 0, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23(k2, k3) = spl%coeff(1, k1, k2, k3, i1, i2, i3) + &
+                                       x_local(1)*coeff_23(k2, k3)
+                end do
+            end do
+        end do
+
+        ! First reduction over x1: d/dx1.
+        do k3 = 0, N3
+            do k2 = 0, N2
+                coeff_23_dx1(k2, k3) = N1*spl%coeff(1, N1, k2, k3, i1, i2, i3)
+            end do
+        end do
+
+        do k1 = N1 - 1, 1, -1
+            do k3 = 0, N3
+                do k2 = 0, N2
+                    coeff_23_dx1(k2, k3) = k1*spl%coeff(1, k1, k2, k3, &
+                                                        i1, i2, i3) + &
+                                           x_local(1)*coeff_23_dx1(k2, k3)
+                end do
+            end do
+        end do
+
+        ! Second reduction over x2.
+        do k3 = 0, N3
+            coeff_3(k3) = coeff_23(N2, k3)
+            coeff_3_dx1(k3) = coeff_23_dx1(N2, k3)
+            coeff_3_dx2(k3) = N2*coeff_23(N2, k3)
+        end do
+
+        do k2 = N2 - 1, 0, -1
+            do k3 = 0, N3
+                coeff_3(k3) = coeff_23(k2, k3) + x_local(2)*coeff_3(k3)
+                coeff_3_dx1(k3) = coeff_23_dx1(k2, k3) + x_local(2)*coeff_3_dx1(k3)
+            end do
+        end do
+
+        do k2 = N2 - 1, 1, -1
+            do k3 = 0, N3
+                coeff_3_dx2(k3) = k2*coeff_23(k2, k3) + x_local(2)*coeff_3_dx2(k3)
+            end do
+        end do
+
+        ! Third reduction over x3.
+        yv = coeff_3(N3)
+        dy1 = coeff_3_dx1(N3)
+        dy2 = coeff_3_dx2(N3)
+        dy3 = N3*coeff_3(N3)
+
+        do k3 = N3 - 1, 0, -1
+            yv = coeff_3(k3) + x_local(3)*yv
+            dy1 = coeff_3_dx1(k3) + x_local(3)*dy1
+            dy2 = coeff_3_dx2(k3) + x_local(3)*dy2
+        end do
+
+        do k3 = N3 - 1, 1, -1
+            dy3 = k3*coeff_3(k3) + x_local(3)*dy3
+        end do
+
+        y_batch(1) = yv
+        dy_batch(1, 1) = dy1
+        dy_batch(2, 1) = dy2
+        dy_batch(3, 1) = dy3
+
+    end subroutine evaluate_batch_splines_3d_der_core_nq1
+
+    recursive subroutine evaluate_batch_splines_3d_der_core_general(spl, x, y_batch, &
+                                                                    dy_batch)
         !$acc routine seq
         type(BatchSplineData3D), intent(in) :: spl
         real(dp), intent(in) :: x(3)
@@ -1224,7 +1325,7 @@ contains
             end do
         end do
 
-    end subroutine evaluate_batch_splines_3d_der_core
+    end subroutine evaluate_batch_splines_3d_der_core_general
 
     recursive subroutine evaluate_batch_splines_3d_der2(spl, x, y_batch, dy_batch, d2y_batch)
         !$acc routine seq
