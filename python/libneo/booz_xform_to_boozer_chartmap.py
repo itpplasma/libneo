@@ -234,6 +234,97 @@ def convert_boozmn_to_chartmap(
     iota_int = iota_spline.antiderivative()
     A_phi = -torflux_si * (iota_int(s) - iota_int(0.0))
 
+    # The published Landreman/FIRM3D setup interpolates Boozer harmonics
+    # cubically in normalized toroidal flux s. Its radial derivative is a
+    # separate cubic interpolation of centered finite differences. Store
+    # those quantities explicitly for SIMPLE's native canonical RK path.
+    from scipy.interpolate import make_interp_spline
+
+    s_full = np.linspace(0.0, 1.0, d["ns"])
+    ds = s_full[1] - s_full[0]
+    s_half_ext = np.concatenate(([0.0], s_half, [1.0]))
+
+    def extended_half(values):
+        result = np.empty((values.shape[0] + 2, *values.shape[1:]))
+        result[1:-1] = values
+        result[0] = 1.5 * result[1] - 0.5 * result[2]
+        result[-1] = 1.5 * result[-2] - 0.5 * result[-3]
+        return result
+
+    bmnc_ext = extended_half(d["bmnc"])
+    bmnc_s = make_interp_spline(s_half_ext, bmnc_ext, k=3, axis=0)(s)
+    dbmnc = (bmnc_ext[2:-1] - bmnc_ext[1:-2]) / ds
+    dbmnc_s = make_interp_spline(
+        s_full[1:-1], dbmnc, k=3, axis=0
+    )(s)
+
+    rk_Bmod = _fourier_eval(
+        bmnc_s, d["ixm"], d["ixn"], theta_geom, zeta_geom, "cos"
+    )
+    rk_dBmod_ds = _fourier_eval(
+        dbmnc_s, d["ixm"], d["ixn"], theta_geom, zeta_geom, "cos"
+    )
+    rk_dBmod_dtheta = _fourier_eval(
+        -bmnc_s * d["ixm"][None, :],
+        d["ixm"],
+        d["ixn"],
+        theta_geom,
+        zeta_geom,
+        "sin",
+    )
+    rk_dBmod_dzeta = _fourier_eval(
+        bmnc_s * d["ixn"][None, :],
+        d["ixm"],
+        d["ixn"],
+        theta_geom,
+        zeta_geom,
+        "sin",
+    )
+    if d["lasym"]:
+        bmns_ext = extended_half(d["bmns"])
+        bmns_s = make_interp_spline(s_half_ext, bmns_ext, k=3, axis=0)(s)
+        dbmns = (bmns_ext[2:-1] - bmns_ext[1:-2]) / ds
+        dbmns_s = make_interp_spline(
+            s_full[1:-1], dbmns, k=3, axis=0
+        )(s)
+        rk_Bmod += _fourier_eval(
+            bmns_s, d["ixm"], d["ixn"], theta_geom, zeta_geom, "sin"
+        )
+        rk_dBmod_ds += _fourier_eval(
+            dbmns_s, d["ixm"], d["ixn"], theta_geom, zeta_geom, "sin"
+        )
+        rk_dBmod_dtheta += _fourier_eval(
+            bmns_s * d["ixm"][None, :],
+            d["ixm"],
+            d["ixn"],
+            theta_geom,
+            zeta_geom,
+            "cos",
+        )
+        rk_dBmod_dzeta += _fourier_eval(
+            -bmns_s * d["ixn"][None, :],
+            d["ixm"],
+            d["ixn"],
+            theta_geom,
+            zeta_geom,
+            "cos",
+        )
+
+    def surface_and_derivative(values):
+        values_ext = extended_half(values[:, None])[:, 0]
+        value = make_interp_spline(s_half_ext, values_ext, k=3)(s)
+        derivative_data = (values_ext[2:-1] - values_ext[1:-2]) / ds
+        derivative = make_interp_spline(
+            s_full[1:-1], derivative_data, k=3
+        )(s)
+        return value, derivative
+
+    rk_iota, _ = surface_and_derivative(iota_h)
+    rk_B_theta, rk_dB_theta_ds = surface_and_derivative(buco_h)
+    rk_B_phi, rk_dB_phi_ds = surface_and_derivative(bvco_h)
+    rk_A_phi = -torflux_si * (iota_int(s) - iota_int(0.0))
+    rk_dA_phi_ds = -torflux_si * rk_iota
+
     bmnc_g = _interp_coeffs(d["bmnc"], d["ixm"], rho_half, rho_grid)
     Bmod = _fourier_eval(bmnc_g, d["ixm"], d["ixn"], theta_geom, zeta_geom, "cos")
     if d["lasym"]:
@@ -265,6 +356,24 @@ def convert_boozmn_to_chartmap(
     B_phi = B_phi * TESLA_METER_TO_GAUSS_CM
     A_phi = A_phi * TESLA_METER2_TO_GAUSS_CM2
     torflux = torflux_si * TESLA_METER2_TO_GAUSS_CM2
+    rk_field = {
+        "Bmod": rk_Bmod * TESLA_TO_GAUSS,
+        "dBmod_ds": rk_dBmod_ds * TESLA_TO_GAUSS,
+        "dBmod_dtheta": rk_dBmod_dtheta * TESLA_TO_GAUSS,
+        "dBmod_dzeta": rk_dBmod_dzeta * TESLA_TO_GAUSS,
+    }
+    rk_profiles = {
+        "A_phi": rk_A_phi * TESLA_METER2_TO_GAUSS_CM2,
+        "dA_phi_ds": rk_dA_phi_ds * TESLA_METER2_TO_GAUSS_CM2,
+        "B_theta": covariant_sign * rk_B_theta * TESLA_METER_TO_GAUSS_CM,
+        "dB_theta_ds": (
+            covariant_sign * rk_dB_theta_ds * TESLA_METER_TO_GAUSS_CM
+        ),
+        "B_phi": covariant_sign * rk_B_phi * TESLA_METER_TO_GAUSS_CM,
+        "dB_phi_ds": (
+            covariant_sign * rk_dB_phi_ds * TESLA_METER_TO_GAUSS_CM
+        ),
+    }
     X, Y, Z = X * METER_TO_CM, Y * METER_TO_CM, Z * METER_TO_CM
 
     attrs = {
@@ -291,6 +400,8 @@ def convert_boozmn_to_chartmap(
         Bmod=Bmod,
         num_field_periods=nfp,
         torflux=torflux,
+        rk_field=rk_field,
+        rk_profiles=rk_profiles,
         **attrs,
     )
     return torflux

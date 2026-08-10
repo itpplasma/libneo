@@ -78,6 +78,11 @@ target_link_libraries(test_boozer_coordinates_exports.x
   neo
 )
 
+add_executable(test_boozer_symplectic_table.x
+  source/test_boozer_symplectic_table.f90
+)
+target_link_libraries(test_boozer_symplectic_table.x neo)
+
 add_executable(test_axis_power_law_regularization.x
   source/test_axis_power_law_regularization.f90
 )
@@ -178,6 +183,9 @@ target_link_libraries(test_plag_coeff.x ${COMMON_LIBS})
 add_executable(test_spl_three_to_five.x source/test_spl_three_to_five.f90)
 target_link_libraries(test_spl_three_to_five.x ${COMMON_LIBS})
 
+add_executable(test_spline_build_lines.x source/test_spline_build_lines.f90)
+target_link_libraries(test_spline_build_lines.x ${COMMON_LIBS})
+
 add_executable(test_species.x source/test_species.f90)
 target_link_libraries(test_species.x neo species)
 
@@ -201,6 +209,23 @@ target_link_libraries(test_batch_interpolate_many.x ${COMMON_LIBS})
 
 add_executable(test_batch_interpolate_rmix.x source/test_batch_interpolate_rmix.f90)
 target_link_libraries(test_batch_interpolate_rmix.x ${COMMON_LIBS})
+if(ENABLE_OPENACC AND CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
+  if(LIBNEO_OPENACC_MEM STREQUAL "managed")
+    set(_libneo_test_openacc_mem_option "managed")
+  else()
+    set(_libneo_test_openacc_mem_option "mem:${LIBNEO_OPENACC_MEM}")
+  endif()
+  target_compile_options(test_batch_interpolate_rmix.x PRIVATE
+    -acc -gpu=${LIBNEO_OPENACC_GPU_ARCH},${_libneo_test_openacc_mem_option})
+endif()
+
+add_executable(test_batch_interpolate_scalar_cubic.x
+  source/test_batch_interpolate_scalar_cubic.f90)
+target_link_libraries(test_batch_interpolate_scalar_cubic.x ${COMMON_LIBS})
+
+add_executable(test_batch_interpolate_1d_fixed.x
+  source/test_batch_interpolate_1d_fixed.f90)
+target_link_libraries(test_batch_interpolate_1d_fixed.x ${COMMON_LIBS})
 
 add_executable(test_batch_interpolate_der_nq1.x source/test_batch_interpolate_der_nq1.f90)
 target_link_libraries(test_batch_interpolate_der_nq1.x ${COMMON_LIBS})
@@ -277,6 +302,9 @@ add_test(NAME test_axis_healing_mode
 add_test(NAME test_boozer_coordinates_exports
   COMMAND test_boozer_coordinates_exports.x
 )
+add_test(NAME test_boozer_symplectic_table
+  COMMAND test_boozer_symplectic_table.x
+)
 add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
@@ -284,6 +312,7 @@ add_test(NAME test_util COMMAND test_util.x)
 add_test(NAME test_cgls_dense COMMAND test_cgls_dense.x)
 add_test(NAME test_plag_coeff COMMAND test_plag_coeff.x)
 add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
+add_test(NAME test_spline_build_lines COMMAND test_spline_build_lines.x)
 add_test(NAME test_species COMMAND test_species.x)
 add_test(NAME test_rng COMMAND test_rng.x)
 add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
@@ -293,6 +322,10 @@ add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
 add_test(NAME test_batch_interpolate_rmix COMMAND test_batch_interpolate_rmix.x)
+add_test(NAME test_batch_interpolate_scalar_cubic
+  COMMAND test_batch_interpolate_scalar_cubic.x)
+add_test(NAME test_batch_interpolate_1d_fixed
+  COMMAND test_batch_interpolate_1d_fixed.x)
 add_test(NAME test_batch_interpolate_der_nq1 COMMAND test_batch_interpolate_der_nq1.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_batch_interpolate_mask COMMAND test_batch_interpolate_mask.x)

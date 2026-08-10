@@ -24,10 +24,19 @@ if(ENABLE_OPENACC AND CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
         "OpenACC memory model: managed|unified|separate")
     set(LIBNEO_OPENACC_GPU_ARCH "ccnative" CACHE STRING
         "NVHPC OpenACC GPU architecture (for example ccnative or cc75)")
+    # NVHPC 23.x accepts only the legacy -gpu=managed spelling.  Newer
+    # compilers require the explicit mem: prefix; unlike the legacy spelling,
+    # it is not accepted together with another -gpu memory-model option.
+    if(CMAKE_Fortran_COMPILER_VERSION VERSION_LESS "24.0" AND
+       LIBNEO_OPENACC_MEM STREQUAL "managed")
+        set(_libneo_openacc_mem_option "managed")
+    else()
+        set(_libneo_openacc_mem_option "mem:${LIBNEO_OPENACC_MEM}")
+    endif()
     target_compile_options(interpolate PRIVATE -acc
-        -gpu=${LIBNEO_OPENACC_GPU_ARCH},mem:${LIBNEO_OPENACC_MEM})
+        -gpu=${LIBNEO_OPENACC_GPU_ARCH},${_libneo_openacc_mem_option})
     target_link_options(interpolate INTERFACE -acc
-        -gpu=${LIBNEO_OPENACC_GPU_ARCH},mem:${LIBNEO_OPENACC_MEM})
+        -gpu=${LIBNEO_OPENACC_GPU_ARCH},${_libneo_openacc_mem_option})
 endif()
 
 set_property(TARGET interpolate PROPERTY

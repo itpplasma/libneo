@@ -33,6 +33,11 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d
     public :: evaluate_batch_splines_3d_der
     public :: evaluate_batch_splines_3d_der2
+    public :: evaluate_batch_spline_3d_scalar_cubic_der
+    public :: evaluate_batch_splines_3d_der_nq1_o355
+    public :: evaluate_batch_spline_3d_scalar_quintic_der
+    public :: evaluate_batch_spline_3d_scalar_cubic_der2
+    public :: evaluate_batch_spline_3d_scalar_cubic_der2_rmix
     public :: evaluate_batch_splines_3d_der3
     public :: evaluate_batch_splines_3d_der2_rmix
     public :: evaluate_batch_splines_3d_many
@@ -1359,6 +1364,379 @@ contains
         call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_3d_der2
 
+    !> Allocation-free value/gradient evaluator for a scalar cubic field
+    !> spline. This is the RK hot-path counterpart of the Hessian evaluator.
+    !NVF$ INLINE
+    subroutine evaluate_batch_spline_3d_scalar_cubic_der(spl, x, y, dy)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(3)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: x1, x2, x3
+        real(dp) :: c0, c1, c2, c3
+        real(dp) :: v2(0:3), d1_2(0:3)
+        real(dp) :: v3(0:3), d1_3(0:3), d2_3(0:3)
+        integer :: interval_index(3), i1, i2, i3
+        integer :: j, k2, k3
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = x(j)
+                if (xj < spl%x_min(j) .or. xj >= spl%x_min(j) + spl%period(j)) then
+                    xj = modulo(xj - spl%x_min(j), spl%period(j)) + spl%x_min(j)
+                end if
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))*spl%inv_h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))*spl%h_step(j)
+        end do
+
+        x1 = x_local(1)
+        x2 = x_local(2)
+        x3 = x_local(3)
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        do k3 = 0, 3
+            do k2 = 0, 3
+                c0 = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c1 = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c2 = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c3 = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                v2(k2) = ((c3*x1 + c2)*x1 + c1)*x1 + c0
+                d1_2(k2) = (3.0_dp*c3*x1 + 2.0_dp*c2)*x1 + c1
+            end do
+
+            v3(k3) = ((v2(3)*x2 + v2(2))*x2 + v2(1))*x2 + v2(0)
+            d1_3(k3) = ((d1_2(3)*x2 + d1_2(2))*x2 + d1_2(1))*x2 + d1_2(0)
+            d2_3(k3) = (3.0_dp*v2(3)*x2 + 2.0_dp*v2(2))*x2 + v2(1)
+        end do
+
+        y = ((v3(3)*x3 + v3(2))*x3 + v3(1))*x3 + v3(0)
+        dy(1) = ((d1_3(3)*x3 + d1_3(2))*x3 + d1_3(1))*x3 + d1_3(0)
+        dy(2) = ((d2_3(3)*x3 + d2_3(2))*x3 + d2_3(1))*x3 + d2_3(0)
+        dy(3) = (3.0_dp*v3(3)*x3 + 2.0_dp*v3(2))*x3 + v3(1)
+    end subroutine evaluate_batch_spline_3d_scalar_cubic_der
+
+    !> Allocation-free value/gradient evaluator for a scalar quintic field
+    !> spline. The fixed order and quantity count keep the device working set
+    !> independent of the generic batch evaluator's maximum dimensions.
+    !NVF$ INLINE
+    subroutine evaluate_batch_spline_3d_scalar_quintic_der(spl, x, y, dy)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(3)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: value_x1, derivative_x1
+        real(dp) :: value_x2(0:5), derivative_x1_x2(0:5)
+        real(dp) :: value_x3(0:5), derivative_x1_x3(0:5)
+        real(dp) :: derivative_x2_x3(0:5)
+        integer :: interval_index(3), i1, i2, i3
+        integer :: j, k1, k2, k3
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = x(j)
+                if (xj < spl%x_min(j) .or. xj >= spl%x_min(j) + spl%period(j)) then
+                    xj = modulo(xj - spl%x_min(j), spl%period(j)) + spl%x_min(j)
+                end if
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))*spl%inv_h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))*spl%h_step(j)
+        end do
+
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        do k3 = 0, 5
+            do k2 = 0, 5
+                value_x1 = spl%coeff(1, 5, k2, k3, i1, i2, i3)
+                derivative_x1 = 5.0_dp*value_x1
+                do k1 = 4, 1, -1
+                    value_x1 = spl%coeff(1, k1, k2, k3, i1, i2, i3) + &
+                        x_local(1)*value_x1
+                    derivative_x1 = real(k1, dp)* &
+                        spl%coeff(1, k1, k2, k3, i1, i2, i3) + &
+                        x_local(1)*derivative_x1
+                end do
+                value_x2(k2) = spl%coeff(1, 0, k2, k3, i1, i2, i3) + &
+                    x_local(1)*value_x1
+                derivative_x1_x2(k2) = derivative_x1
+            end do
+
+            value_x3(k3) = value_x2(5)
+            derivative_x1_x3(k3) = derivative_x1_x2(5)
+            derivative_x2_x3(k3) = 5.0_dp*value_x2(5)
+            do k2 = 4, 1, -1
+                value_x3(k3) = value_x2(k2) + x_local(2)*value_x3(k3)
+                derivative_x1_x3(k3) = derivative_x1_x2(k2) + &
+                    x_local(2)*derivative_x1_x3(k3)
+                derivative_x2_x3(k3) = real(k2, dp)*value_x2(k2) + &
+                    x_local(2)*derivative_x2_x3(k3)
+            end do
+            value_x3(k3) = value_x2(0) + x_local(2)*value_x3(k3)
+            derivative_x1_x3(k3) = derivative_x1_x2(0) + &
+                x_local(2)*derivative_x1_x3(k3)
+        end do
+
+        y = value_x3(5)
+        dy(1) = derivative_x1_x3(5)
+        dy(2) = derivative_x2_x3(5)
+        dy(3) = 5.0_dp*value_x3(5)
+        do k3 = 4, 1, -1
+            y = value_x3(k3) + x_local(3)*y
+            dy(1) = derivative_x1_x3(k3) + x_local(3)*dy(1)
+            dy(2) = derivative_x2_x3(k3) + x_local(3)*dy(2)
+            dy(3) = real(k3, dp)*value_x3(k3) + x_local(3)*dy(3)
+        end do
+        y = value_x3(0) + x_local(3)*y
+        dy(1) = derivative_x1_x3(0) + x_local(3)*dy(1)
+        dy(2) = derivative_x2_x3(0) + x_local(3)*dy(2)
+    end subroutine evaluate_batch_spline_3d_scalar_quintic_der
+
+    recursive subroutine evaluate_batch_splines_3d_der_nq1_o355( &
+            spl, x, y_batch, dy_batch)
+        ! Value and gradient for the production scalar [3,5,5] spline. This is
+        ! the first-derivative subset of the independently checked radial-mixed
+        ! Hessian evaluator below.
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)
+        real(dp), intent(out) :: dy_batch(:, :)
+
+        integer, parameter :: N2 = 5, N3 = 5
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
+        real(dp) :: x1, x2, x3, c, c23, c23_dx1
+        integer :: interval_index(3), i1, i2, i3, k2, k3, j
+        real(dp) :: coeff_3(0:N3), coeff_3_dx1(0:N3), coeff_3_dx2(0:N3)
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        inv_h_step = spl%inv_h_step
+        period = spl%period
+
+#include "spline3d_o555_point_setup.inc"
+
+        do k3 = 0, N3
+            do k2 = N2, 0, -1
+                c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                c23 = c
+                c23_dx1 = 3.0_dp*c
+
+                c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = 2.0_dp*c + x1*c23_dx1
+
+                c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = c + x1*c23_dx1
+
+                c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+
+                if (k2 == N2) then
+                    coeff_3(k3) = c23
+                    coeff_3_dx1(k3) = c23_dx1
+                    coeff_3_dx2(k3) = real(N2, dp)*c23
+                else
+                    coeff_3(k3) = c23 + x2*coeff_3(k3)
+                    coeff_3_dx1(k3) = c23_dx1 + x2*coeff_3_dx1(k3)
+                    if (k2 > 0) then
+                        coeff_3_dx2(k3) = real(k2, dp)*c23 + &
+                            x2*coeff_3_dx2(k3)
+                    end if
+                end if
+            end do
+        end do
+
+        y_batch(1) = coeff_3(N3)
+        dy_batch(1, 1) = coeff_3_dx1(N3)
+        dy_batch(2, 1) = coeff_3_dx2(N3)
+        dy_batch(3, 1) = real(N3, dp)*coeff_3(N3)
+        do k3 = N3 - 1, 1, -1
+            y_batch(1) = coeff_3(k3) + x3*y_batch(1)
+            dy_batch(1, 1) = coeff_3_dx1(k3) + x3*dy_batch(1, 1)
+            dy_batch(2, 1) = coeff_3_dx2(k3) + x3*dy_batch(2, 1)
+            dy_batch(3, 1) = real(k3, dp)*coeff_3(k3) + &
+                x3*dy_batch(3, 1)
+        end do
+        y_batch(1) = coeff_3(0) + x3*y_batch(1)
+        dy_batch(1, 1) = coeff_3_dx1(0) + x3*dy_batch(1, 1)
+        dy_batch(2, 1) = coeff_3_dx2(0) + x3*dy_batch(2, 1)
+    end subroutine evaluate_batch_splines_3d_der_nq1_o355
+
+    !> Allocation-free value/gradient/Hessian evaluator for the production
+    !> scalar cubic field spline. Keeping the polynomial order and quantity
+    !> count fixed avoids the MAX_ORDER/MAX_QUANTITIES work arrays used by the
+    !> general evaluator in every GPU thread.
+    !NVF$ INLINE
+    subroutine evaluate_batch_spline_3d_scalar_cubic_der2(spl, x, y, dy, d2y)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(3)
+        real(dp), intent(out) :: d2y(6)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: x1, x2, x3
+        real(dp) :: c0, c1, c2, c3
+        real(dp) :: v2(0:3), d1_2(0:3), d11_2(0:3)
+        real(dp) :: v3(0:3), d1_3(0:3), d2_3(0:3)
+        real(dp) :: d11_3(0:3), d12_3(0:3), d22_3(0:3)
+        integer :: interval_index(3), i1, i2, i3
+        integer :: j, k2, k3
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = x(j)
+                if (xj < spl%x_min(j) .or. xj >= spl%x_min(j) + spl%period(j)) then
+                    xj = modulo(xj - spl%x_min(j), spl%period(j)) + spl%x_min(j)
+                end if
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))*spl%inv_h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))*spl%h_step(j)
+        end do
+
+        x1 = x_local(1)
+        x2 = x_local(2)
+        x3 = x_local(3)
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        ! Collapse x1 and x2 one x3 plane at a time. This requires 36 local
+        ! doubles instead of the general scalar evaluator's 297.
+        do k3 = 0, 3
+            do k2 = 0, 3
+                c0 = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c1 = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c2 = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c3 = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                v2(k2) = ((c3*x1 + c2)*x1 + c1)*x1 + c0
+                d1_2(k2) = (3.0_dp*c3*x1 + 2.0_dp*c2)*x1 + c1
+                d11_2(k2) = 6.0_dp*c3*x1 + 2.0_dp*c2
+            end do
+
+            v3(k3) = ((v2(3)*x2 + v2(2))*x2 + v2(1))*x2 + v2(0)
+            d1_3(k3) = ((d1_2(3)*x2 + d1_2(2))*x2 + d1_2(1))*x2 + d1_2(0)
+            d2_3(k3) = (3.0_dp*v2(3)*x2 + 2.0_dp*v2(2))*x2 + v2(1)
+            d11_3(k3) = ((d11_2(3)*x2 + d11_2(2))*x2 + d11_2(1))*x2 + d11_2(0)
+            d12_3(k3) = (3.0_dp*d1_2(3)*x2 + 2.0_dp*d1_2(2))*x2 + d1_2(1)
+            d22_3(k3) = 6.0_dp*v2(3)*x2 + 2.0_dp*v2(2)
+        end do
+
+        y = ((v3(3)*x3 + v3(2))*x3 + v3(1))*x3 + v3(0)
+        dy(1) = ((d1_3(3)*x3 + d1_3(2))*x3 + d1_3(1))*x3 + d1_3(0)
+        dy(2) = ((d2_3(3)*x3 + d2_3(2))*x3 + d2_3(1))*x3 + d2_3(0)
+        dy(3) = (3.0_dp*v3(3)*x3 + 2.0_dp*v3(2))*x3 + v3(1)
+
+        d2y(1) = ((d11_3(3)*x3 + d11_3(2))*x3 + d11_3(1))*x3 + d11_3(0)
+        d2y(2) = ((d12_3(3)*x3 + d12_3(2))*x3 + d12_3(1))*x3 + d12_3(0)
+        d2y(3) = (3.0_dp*d1_3(3)*x3 + 2.0_dp*d1_3(2))*x3 + d1_3(1)
+        d2y(4) = ((d22_3(3)*x3 + d22_3(2))*x3 + d22_3(1))*x3 + d22_3(0)
+        d2y(5) = (3.0_dp*d2_3(3)*x3 + 2.0_dp*d2_3(2))*x3 + d2_3(1)
+        d2y(6) = 6.0_dp*v3(3)*x3 + 2.0_dp*v3(2)
+    end subroutine evaluate_batch_spline_3d_scalar_cubic_der2
+
+    !> Allocation-free radial-mixed Hessian evaluator for a scalar cubic
+    !> spline. This is the exact (11,12,13) subset of the full specialized
+    !> evaluator above and avoids the MAX_ORDER work arrays in the generic
+    !> radial-mixed path.
+    !NVF$ INLINE
+    subroutine evaluate_batch_spline_3d_scalar_cubic_der2_rmix( &
+            spl, x, y, dy, d2y)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(3)
+        real(dp), intent(out) :: d2y(3)
+
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: x1, x2, x3
+        real(dp) :: c0, c1, c2, c3
+        real(dp) :: v2(0:3), d1_2(0:3), d11_2(0:3)
+        real(dp) :: v3(0:3), d1_3(0:3), d2_3(0:3)
+        real(dp) :: d11_3(0:3), d12_3(0:3)
+        integer :: interval_index(3), i1, i2, i3
+        integer :: j, k2, k3
+
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = x(j)
+                if (xj < spl%x_min(j) .or. &
+                        xj >= spl%x_min(j) + spl%period(j)) then
+                    xj = modulo(xj - spl%x_min(j), spl%period(j)) + &
+                        spl%x_min(j)
+                end if
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))*spl%inv_h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, &
+                int(x_norm(j))))
+            x_local(j) = (x_norm(j) - real(interval_index(j), dp))* &
+                spl%h_step(j)
+        end do
+
+        x1 = x_local(1)
+        x2 = x_local(2)
+        x3 = x_local(3)
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        do k3 = 0, 3
+            do k2 = 0, 3
+                c0 = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c1 = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c2 = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c3 = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                v2(k2) = ((c3*x1 + c2)*x1 + c1)*x1 + c0
+                d1_2(k2) = (3.0_dp*c3*x1 + 2.0_dp*c2)*x1 + c1
+                d11_2(k2) = 6.0_dp*c3*x1 + 2.0_dp*c2
+            end do
+
+            v3(k3) = ((v2(3)*x2 + v2(2))*x2 + v2(1))*x2 + v2(0)
+            d1_3(k3) = ((d1_2(3)*x2 + d1_2(2))*x2 + d1_2(1))*x2 + &
+                d1_2(0)
+            d2_3(k3) = (3.0_dp*v2(3)*x2 + 2.0_dp*v2(2))*x2 + v2(1)
+            d11_3(k3) = ((d11_2(3)*x2 + d11_2(2))*x2 + d11_2(1))*x2 + &
+                d11_2(0)
+            d12_3(k3) = (3.0_dp*d1_2(3)*x2 + 2.0_dp*d1_2(2))*x2 + &
+                d1_2(1)
+        end do
+
+        y = ((v3(3)*x3 + v3(2))*x3 + v3(1))*x3 + v3(0)
+        dy(1) = ((d1_3(3)*x3 + d1_3(2))*x3 + d1_3(1))*x3 + d1_3(0)
+        dy(2) = ((d2_3(3)*x3 + d2_3(2))*x3 + d2_3(1))*x3 + d2_3(0)
+        dy(3) = (3.0_dp*v3(3)*x3 + 2.0_dp*v3(2))*x3 + v3(1)
+        d2y(1) = ((d11_3(3)*x3 + d11_3(2))*x3 + d11_3(1))*x3 + &
+            d11_3(0)
+        d2y(2) = ((d12_3(3)*x3 + d12_3(2))*x3 + d12_3(1))*x3 + &
+            d12_3(0)
+        d2y(3) = (3.0_dp*d1_3(3)*x3 + 2.0_dp*d1_3(2))*x3 + d1_3(1)
+    end subroutine evaluate_batch_spline_3d_scalar_cubic_der2_rmix
+
     recursive subroutine evaluate_batch_splines_3d_der3(spl, x, y_batch, dy_batch, &
                                                         d2y_batch, d3y_batch)
         !$acc routine seq
@@ -1464,6 +1842,7 @@ contains
 
     recursive subroutine evaluate_batch_splines_3d_der2_rmix(spl, x, y_batch, dy_batch, &
                                                    d2y_batch_rmix)
+        !$acc routine seq
         ! Evaluate a 3D batch spline at point x, returning:
         ! - y_batch: value
         ! - dy_batch: first derivatives (dx1, dx2, dx3)
@@ -1477,12 +1856,15 @@ contains
         real(dp), intent(out) :: y_batch(:)           ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:, :)        ! (3, n_quantities)
         real(dp), intent(out) :: d2y_batch_rmix(:, :)  ! (3, n_quantities)
+        real(dp) :: d2y_full(6, MAX_QUANTITIES)
 
+#ifndef _OPENACC
         if (size(d2y_batch_rmix, 1) /= 3) then
             error stop &
                 "evaluate_batch_splines_3d_der2_rmix: d2y_batch_rmix "// &
                 "first dim must be 3"
         end if
+#endif
 
         if (spl%num_quantities == 1) then
             call evaluate_batch_splines_3d_der2_core_rmix_nq1(spl, x, y_batch, &
@@ -1494,13 +1876,10 @@ contains
                                                                    dy_batch, &
                                                                    d2y_batch_rmix)
             else
-                block
-                    real(dp) :: d2y_full(6, size(y_batch))
-
-                    call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, &
-                                                            dy_batch, d2y_full)
-                    d2y_batch_rmix(:, :) = d2y_full(1:3, :)
-                end block
+                call evaluate_batch_splines_3d_der2_core(spl, x, y_batch, &
+                                                        dy_batch, &
+                                                        d2y_full(:, 1:size(y_batch)))
+                d2y_batch_rmix(:, :) = d2y_full(1:3, 1:size(y_batch))
             end if
         end if
     end subroutine evaluate_batch_splines_3d_der2_rmix
@@ -1754,6 +2133,12 @@ contains
         N2 = spl%order(2)
         N3 = spl%order(3)
 
+        if (N1 == 3 .and. N2 == 5 .and. N3 == 5) then
+            call evaluate_batch_splines_3d_der2_core_nq1_o355( &
+                spl, x, y_batch, dy_batch, d2y_batch)
+            return
+        end if
+
         if (N1 == 5 .and. N2 == 5 .and. N3 == 5) then
             call evaluate_batch_splines_3d_der2_core_nq1_o555( &
                 spl, x, y_batch, dy_batch, d2y_batch)
@@ -1936,6 +2321,12 @@ contains
         N2 = spl%order(2)
         N3 = spl%order(3)
 
+        if (N1 == 3 .and. N2 == 5 .and. N3 == 5) then
+            call evaluate_batch_splines_3d_der2_core_rmix_nq1_o355( &
+                spl, x, y_batch, dy_batch, d2y_rmix)
+            return
+        end if
+
         if (N1 == 5 .and. N2 == 5 .and. N3 == 5) then
             call evaluate_batch_splines_3d_der2_core_rmix_nq1_o555(spl, x, y_batch, &
                                                                    dy_batch, d2y_rmix)
@@ -2072,6 +2463,83 @@ contains
         d2y_rmix(2, 1) = coeff_3_dx1x2(k3) + x3*d2y_rmix(2, 1)
     end subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1
 
+    recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o355( &
+            spl, x, y_batch, dy_batch, d2y_rmix)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)
+        real(dp), intent(out) :: dy_batch(:, :)
+        real(dp), intent(out) :: d2y_rmix(:, :)
+
+        integer, parameter :: N2 = 5, N3 = 5
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
+        real(dp) :: x1, x2, x3, c
+        real(dp) :: c23, c23_dx1, c23_dx1x1
+        integer :: interval_index(3), i1, i2, i3, k2, k3, j
+        real(dp) :: coeff_3(0:N3), coeff_3_dx1(0:N3)
+        real(dp) :: coeff_3_dx2(0:N3), coeff_3_dx1x1(0:N3)
+        real(dp) :: coeff_3_dx1x2(0:N3)
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        inv_h_step = spl%inv_h_step
+        period = spl%period
+
+#include "spline3d_o555_point_setup.inc"
+
+        do k3 = 0, N3
+            do k2 = N2, 0, -1
+                c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                c23 = c
+                c23_dx1 = 3.0_dp*c
+                c23_dx1x1 = 6.0_dp*c
+
+                c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = 2.0_dp*c + x1*c23_dx1
+                c23_dx1x1 = 2.0_dp*c + x1*c23_dx1x1
+
+                c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = c + x1*c23_dx1
+
+                c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+
+                if (k2 == N2) then
+                    coeff_3(k3) = c23
+                    coeff_3_dx1(k3) = c23_dx1
+                    coeff_3_dx1x1(k3) = c23_dx1x1
+                    coeff_3_dx2(k3) = real(N2, dp)*c23
+                    coeff_3_dx1x2(k3) = real(N2, dp)*c23_dx1
+                else
+                    coeff_3(k3) = c23 + x2*coeff_3(k3)
+                    coeff_3_dx1(k3) = c23_dx1 + x2*coeff_3_dx1(k3)
+                    coeff_3_dx1x1(k3) = c23_dx1x1 + &
+                        x2*coeff_3_dx1x1(k3)
+                    if (k2 > 0) then
+                        coeff_3_dx2(k3) = real(k2, dp)*c23 + &
+                            x2*coeff_3_dx2(k3)
+                        coeff_3_dx1x2(k3) = real(k2, dp)*c23_dx1 + &
+                            x2*coeff_3_dx1x2(k3)
+                    end if
+                end if
+            end do
+        end do
+
+#define D2_11 d2y_rmix(1, 1)
+#define D2_12 d2y_rmix(2, 1)
+#define D2_13 d2y_rmix(3, 1)
+
+#include "spline3d_o555_k3_reduce_nq1.inc"
+
+#undef D2_11
+#undef D2_12
+#undef D2_13
+    end subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o355
+
     recursive subroutine evaluate_batch_splines_3d_der2_core_rmix_nq1_o555( &
         spl, x, y_batch, dy_batch, d2y_rmix)
         type(BatchSplineData3D), intent(in) :: spl
@@ -2172,6 +2640,98 @@ contains
 #undef D2_12
 #undef D2_13
     end subroutine evaluate_batch_splines_3d_der2_core_rmix_o555
+
+    recursive subroutine evaluate_batch_splines_3d_der2_core_nq1_o355( &
+            spl, x, y_batch, dy_batch, d2y_batch)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)
+        real(dp), intent(out) :: dy_batch(:, :)
+        real(dp), intent(out) :: d2y_batch(:, :)
+
+        integer, parameter :: N2 = 5, N3 = 5
+        real(dp) :: x_norm(3), x_local(3), xj
+        real(dp) :: period(3), x_min(3), h_step(3), inv_h_step(3)
+        real(dp) :: x1, x2, x3, c
+        real(dp) :: c23, c23_dx1, c23_dx1x1
+        integer :: interval_index(3), i1, i2, i3, k2, k3, j
+        real(dp) :: coeff_3(0:N3), coeff_3_dx1(0:N3)
+        real(dp) :: coeff_3_dx2(0:N3), coeff_3_dx1x1(0:N3)
+        real(dp) :: coeff_3_dx1x2(0:N3), coeff_3_dx2x2(0:N3)
+
+        x_min = spl%x_min
+        h_step = spl%h_step
+        inv_h_step = spl%inv_h_step
+        period = spl%period
+
+#include "spline3d_o555_point_setup.inc"
+
+        ! Fuse the radial and theta reductions so the device routine retains
+        ! six length-6 phi vectors instead of three 6-by-6 coefficient planes.
+        do k3 = 0, N3
+            do k2 = N2, 0, -1
+                c = spl%coeff(1, 3, k2, k3, i1, i2, i3)
+                c23 = c
+                c23_dx1 = 3.0_dp*c
+                c23_dx1x1 = 6.0_dp*c
+
+                c = spl%coeff(1, 2, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = 2.0_dp*c + x1*c23_dx1
+                c23_dx1x1 = 2.0_dp*c + x1*c23_dx1x1
+
+                c = spl%coeff(1, 1, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+                c23_dx1 = c + x1*c23_dx1
+
+                c = spl%coeff(1, 0, k2, k3, i1, i2, i3)
+                c23 = c + x1*c23
+
+                if (k2 == N2) then
+                    coeff_3(k3) = c23
+                    coeff_3_dx1(k3) = c23_dx1
+                    coeff_3_dx1x1(k3) = c23_dx1x1
+                    coeff_3_dx2(k3) = real(N2, dp)*c23
+                    coeff_3_dx1x2(k3) = real(N2, dp)*c23_dx1
+                    coeff_3_dx2x2(k3) = real(N2*(N2 - 1), dp)*c23
+                else
+                    coeff_3(k3) = c23 + x2*coeff_3(k3)
+                    coeff_3_dx1(k3) = c23_dx1 + x2*coeff_3_dx1(k3)
+                    coeff_3_dx1x1(k3) = c23_dx1x1 + &
+                        x2*coeff_3_dx1x1(k3)
+                    if (k2 > 0) then
+                        coeff_3_dx2(k3) = real(k2, dp)*c23 + &
+                            x2*coeff_3_dx2(k3)
+                        coeff_3_dx1x2(k3) = real(k2, dp)*c23_dx1 + &
+                            x2*coeff_3_dx1x2(k3)
+                    end if
+                    if (k2 > 1) then
+                        coeff_3_dx2x2(k3) = real(k2*(k2 - 1), dp)*c23 + &
+                            x2*coeff_3_dx2x2(k3)
+                    end if
+                end if
+            end do
+        end do
+
+#define SPLINE3D_O555_FULL_D2 1
+#define D2_11 d2y_batch(1, 1)
+#define D2_12 d2y_batch(2, 1)
+#define D2_13 d2y_batch(3, 1)
+#define D2_22 d2y_batch(4, 1)
+#define D2_23 d2y_batch(5, 1)
+#define D2_33 d2y_batch(6, 1)
+
+#include "spline3d_o555_k3_reduce_nq1.inc"
+
+#undef SPLINE3D_O555_FULL_D2
+#undef D2_11
+#undef D2_12
+#undef D2_13
+#undef D2_22
+#undef D2_23
+#undef D2_33
+    end subroutine evaluate_batch_splines_3d_der2_core_nq1_o355
 
     recursive subroutine evaluate_batch_splines_3d_der2_core_nq1_o555(spl, x, y_batch, &
                                                             dy_batch, d2y_batch)

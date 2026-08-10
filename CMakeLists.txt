@@ -200,21 +200,30 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "Intel")
 
 elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     # Base flags for all builds
-    add_compile_options(-Mpreprocess -fPIC -g)
+    add_compile_options(
+        $<$<COMPILE_LANGUAGE:Fortran>:-Mpreprocess>
+        -fPIC -g)
 
     # Note: OpenACC is applied selectively to interpolate library only
     # See src/interpolate/CMakeLists.txt
 
     # Build type specific flags
     if(CMAKE_BUILD_TYPE MATCHES Debug)
-        add_compile_options(-O0 -Mbounds -traceback)
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:Fortran>:-O0>
+            $<$<COMPILE_LANGUAGE:Fortran>:-Mbounds>
+            $<$<COMPILE_LANGUAGE:Fortran>:-traceback>)
     elseif(CMAKE_BUILD_TYPE MATCHES "Release|Fast")
         # Common optimization flags for Release and Fast builds
-        add_compile_options(-fast -O3 -Mfprelaxed -traceback)
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:Fortran>:-fast>
+            $<$<COMPILE_LANGUAGE:Fortran>:-O3>
+            $<$<COMPILE_LANGUAGE:Fortran>:-Mfprelaxed>
+            $<$<COMPILE_LANGUAGE:Fortran>:-traceback>)
 
         # Architecture-specific flags
         if(CMAKE_BUILD_TYPE MATCHES Fast)
-            add_compile_options(-tp=host)  # Native architecture
+            add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-tp=host>)
         endif()
     endif()
 endif()
@@ -329,6 +338,7 @@ endif()
 # Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
 add_library(boozer STATIC
     src/boozer_chartmap_types.f90
+    src/boozer_rk_tables.f90
     src/boozer_converter.F90
     src/boozer_chartmap.f90
     src/field/boozer_chartmap_io.f90

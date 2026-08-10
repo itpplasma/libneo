@@ -10,7 +10,8 @@ program test_boozer_chartmap_roundtrip
     use boozer_coordinates_mod, only: use_B_r
     use new_vmec_stuff_mod, only: nper
     use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord
-    use boozer_chartmap, only: export_boozer_chartmap, load_boozer_from_chartmap
+    use boozer_chartmap, only: export_boozer_chartmap, load_boozer_from_chartmap, &
+        set_boozer_chartmap_spline_orders
     use libneo_coordinates, only: coordinate_system_t, &
                                   make_chartmap_coordinate_system, &
                                   chartmap_from_cyl_ok
@@ -56,6 +57,7 @@ program test_boozer_chartmap_roundtrip
 
     call export_boozer_chartmap(chartmap_file)
     call check_coordinate_inverse_before_load(chartmap_file)
+    call set_boozer_chartmap_spline_orders(3, 3)
     call load_boozer_from_chartmap(chartmap_file)
 
     do i = 1, n_test
