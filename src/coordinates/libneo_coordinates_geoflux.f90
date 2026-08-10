@@ -54,7 +54,7 @@ contains
         real(dp), intent(out) :: e_cov(3, 3)
 
         real(dp) :: s, theta, phi
-        real(dp) :: R, Z
+        real(dp) :: R
         real(dp) :: jac_cyl(3, 3)
         real(dp) :: cos_phi, sin_phi
         real(dp) :: xgeo(3), xcyl(3)
@@ -69,9 +69,7 @@ contains
         xgeo = [s, theta, phi]
         call geoflux_to_cyl(xgeo, xcyl)
         R = xcyl(1)
-        Z = xcyl(3)
-
-        call assign_geoflux_to_cyl_jacobian(s, theta, phi, R, Z, jac_cyl)
+        call assign_geoflux_to_cyl_jacobian(s, theta, jac_cyl)
 
         cos_phi = cos(phi)
         sin_phi = sin(phi)

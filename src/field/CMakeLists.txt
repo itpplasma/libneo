@@ -26,13 +26,7 @@ target_link_libraries(neo_field PRIVATE
     interpolate
     neo_polylag
 )
-if(TARGET netcdf::netcdff)
-    target_link_libraries(neo_field PRIVATE netcdf::netcdff)
-elseif(TARGET netcdf::netcdf)
-    target_link_libraries(neo_field PRIVATE netcdf::netcdf netcdff)
-else()
-    target_link_libraries(neo_field PRIVATE netcdf netcdff)
-endif()
+target_link_libraries(neo_field PRIVATE fortio::fortio)
 set_property(TARGET neo_field PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
 add_library(LIBNEO::field ALIAS neo_field)
