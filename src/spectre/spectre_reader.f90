@@ -68,26 +68,9 @@ contains
 
     subroutine free_spectre(data)
         type(spectre_data_t), intent(inout) :: data
+        type(spectre_data_t) :: empty
 
-        if (allocated(data%im)) deallocate (data%im)
-        if (allocated(data%in)) deallocate (data%in)
-        if (allocated(data%Lrad)) deallocate (data%Lrad)
-        if (allocated(data%mu)) deallocate (data%mu)
-        if (allocated(data%pressure)) deallocate (data%pressure)
-        if (allocated(data%tflux)) deallocate (data%tflux)
-        if (allocated(data%pflux)) deallocate (data%pflux)
-        if (allocated(data%Rbc)) deallocate (data%Rbc)
-        if (allocated(data%Zbs)) deallocate (data%Zbs)
-        if (allocated(data%Rbs)) deallocate (data%Rbs)
-        if (allocated(data%Zbc)) deallocate (data%Zbc)
-        if (allocated(data%vol)) deallocate (data%vol)
-        data%Igeometry = 0
-        data%Nfp = 0
-        data%Nvol = 0
-        data%Mvol = 0
-        data%Mpol = 0
-        data%Ntor = 0
-        data%mn = 0
+        data = empty
     end subroutine free_spectre
 
     subroutine read_sizes(h5id, data)
