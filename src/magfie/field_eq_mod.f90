@@ -17,6 +17,9 @@ module field_eq_mod
    logical :: allow_sol = .false.
 
    real(dp) :: psib, btf, rtf, hrad, hzet
+   ! Magnetic-axis coordinates retained from gEQDSK.  rtf is the vacuum
+   ! reference radius and is not, in general, the magnetic-axis radius.
+   real(dp) :: rmagaxis = 0.0_dp, zmagaxis = 0.0_dp
    real(dp) :: psi_axis, psi_sep, hfpol                            !<=18.12.18
    real(dp), dimension(:, :), allocatable :: psi, psi0
    real(dp), dimension(:, :), allocatable :: splfpol               !<=18.12.18
@@ -56,6 +59,8 @@ contains
 
       skip_read = .false.
       icall_eq = 0
+      rmagaxis = 0.0_dp
+      zmagaxis = 0.0_dp
    end subroutine reset_field_eq_state
 
 end module field_eq_mod
