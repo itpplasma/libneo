@@ -102,8 +102,9 @@ contains
 
     subroutine free_jorek_restart(data)
         type(jorek_restart_t), intent(inout) :: data
+        type(jorek_restart_t) :: empty
 
-        data = jorek_restart_t()
+        data = empty
     end subroutine free_jorek_restart
 
     subroutine require_datasets(h5id, ierr)
