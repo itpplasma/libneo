@@ -633,12 +633,12 @@ contains
         basis(1, 1) = 2.0_dp*u**3 - 3.0_dp*u**2 + 1.0_dp
         basis(1, 2) = 3.0_dp*(u**3 - 2.0_dp*u**2 + u)
         basis(2, 1) = -2.0_dp*u**3 + 3.0_dp*u**2
-        basis(2, 2) = 3.0_dp*(u**3 - u**2)
+        basis(2, 2) = 3.0_dp*(u**2 - u**3)
 
         derivative(1, 1) = 6.0_dp*u**2 - 6.0_dp*u
         derivative(1, 2) = 9.0_dp*u**2 - 12.0_dp*u + 3.0_dp
         derivative(2, 1) = -6.0_dp*u**2 + 6.0_dp*u
-        derivative(2, 2) = 9.0_dp*u**2 - 6.0_dp*u
+        derivative(2, 2) = 6.0_dp*u - 9.0_dp*u**2
     end subroutine cubic_endpoint_basis
 
     pure logical function supported_geometry_layout(data)

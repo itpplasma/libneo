@@ -1,14 +1,13 @@
 module batch_interpolate_types
-   use, intrinsic :: iso_fortran_env, only: dp => real64
-   implicit none
-   private
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    implicit none
+    private
 
-   ! Export batch spline types
-   public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
-   ! dp is for internal use only, not exported
+    ! Export batch spline types
+    public :: BatchSplineData1D, BatchSplineData2D, BatchSplineData3D
 
-   ! Batch spline types for multiple quantities on shared grid
-   type :: BatchSplineData1D
+    ! Batch spline types for multiple quantities on shared grid
+    type :: BatchSplineData1D
       ! Shared grid data
       integer :: order = 0
       integer :: num_points = 0
@@ -55,6 +54,6 @@ module batch_interpolate_types
       ! Memory layout: (n_quantities, 0:order1, 0:order2, 0:order3, n1, n2, n3) for
       ! cache efficiency
       real(dp), dimension(:, :, :, :, :, :, :), allocatable :: coeff
-   end type BatchSplineData3D
+    end type BatchSplineData3D
 
 end module batch_interpolate_types

@@ -171,6 +171,12 @@ target_link_libraries(test_system_utility.x
 add_executable(test_util.x source/test_util.f90)
 target_link_libraries(test_util.x ${COMMON_LIBS})
 
+add_executable(test_cgls_dense.x source/test_cgls_dense.f90)
+target_link_libraries(test_cgls_dense.x ${COMMON_LIBS})
+
+add_executable(test_spline_cgls_global.x source/test_spline_cgls_global.f90)
+target_link_libraries(test_spline_cgls_global.x ${COMMON_LIBS})
+
 add_executable(test_plag_coeff.x source/test_plag_coeff.f90)
 target_link_libraries(test_plag_coeff.x ${COMMON_LIBS})
 
@@ -227,6 +233,9 @@ target_link_libraries(test_batch_interpolate_der_nq1.x ${COMMON_LIBS})
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
 
+add_executable(test_batch_interpolate_mask.x source/test_batch_interpolate_mask.f90)
+target_link_libraries(test_batch_interpolate_mask.x ${COMMON_LIBS})
+
 add_executable(test_batch_eval_oracle.x
     source/test_batch_eval_oracle.f90
     source/spline_eval_reference.f90)
@@ -266,6 +275,9 @@ target_link_libraries(test_chartmap_invert_cart.x neo ${MAGFIE_LIB})
 add_executable(test_analytical_circular.x source/test_analytical_circular.f90)
 target_link_libraries(test_analytical_circular.x ${MAGFIE_LIB} ${COMMON_LIBS})
 
+add_executable(test_ripple_field.x source/test_ripple_field.f90)
+target_link_libraries(test_ripple_field.x ${MAGFIE_LIB} ${COMMON_LIBS})
+
 add_executable(test_nctools_nc_get3.x source/test_nctools_nc_get3.f90)
 target_link_libraries(test_nctools_nc_get3.x
   ${COMMON_LIBS}
@@ -297,12 +309,14 @@ add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
+add_test(NAME test_cgls_dense COMMAND test_cgls_dense.x)
 add_test(NAME test_plag_coeff COMMAND test_plag_coeff.x)
 add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
 add_test(NAME test_spline_build_lines COMMAND test_spline_build_lines.x)
 add_test(NAME test_species COMMAND test_species.x)
 add_test(NAME test_rng COMMAND test_rng.x)
 add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
+add_test(NAME test_spline_cgls_global COMMAND test_spline_cgls_global.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
@@ -314,6 +328,7 @@ add_test(NAME test_batch_interpolate_1d_fixed
   COMMAND test_batch_interpolate_1d_fixed.x)
 add_test(NAME test_batch_interpolate_der_nq1 COMMAND test_batch_interpolate_der_nq1.x)
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
+add_test(NAME test_batch_interpolate_mask COMMAND test_batch_interpolate_mask.x)
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
 add_test(NAME test_spline_performance COMMAND test_spline_performance.x)
 add_test(NAME test_collision_freqs COMMAND test_collision_freqs.x)
@@ -333,6 +348,8 @@ set_tests_properties(test_geqdsk_tools PROPERTIES
 
 # test_ascot5_compare is run separately in CI workflow (not in ctest)
 # because a5py requires libascot.so at import time, which the test builds
+
+add_test(NAME test_ripple_field COMMAND test_ripple_field.x)
 
 if(LIBNEO_TESTING_ENABLED)
   add_test(
