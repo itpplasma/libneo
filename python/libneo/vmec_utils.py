@@ -1,13 +1,18 @@
 import numpy as np
 from os.path import splitext
-from scipy.interpolate import PchipInterpolator, LinearNDInterpolator, interp1d
-from scipy.integrate import quad
+from scipy.interpolate import (
+    CubicSpline,
+    LinearNDInterpolator,
+    PchipInterpolator,
+    interp1d,
+)
+from scipy.integrate import cumulative_trapezoid, quad
 from datetime import datetime
 from netCDF4 import Dataset
 from libneo import eqdsk_base
 
-def eqdsk2vmec(eqdsk_file, vmec_in_file=None):
-    data = eqdsk2vmec_gfile(eqdsk_file)
+def eqdsk2vmec(eqdsk_file, vmec_in_file=None, boundary_mpol=20):
+    data = eqdsk2vmec_gfile(eqdsk_file, boundary_mpol=boundary_mpol)
     vmec_input = default_vmec_input(data)
 
     if vmec_in_file is None:
@@ -64,15 +69,16 @@ def default_vmec_input(data):
         "zbc": data['zbc'].T
     }
 
-def eqdsk2vmec_gfile(filename):
+def eqdsk2vmec_gfile(filename, boundary_mpol=20):
     data = eqdsk_base.read_eqdsk(filename)
 
     # Extract boundary and profiles
     R = data['Lcfs'][:, 0]
     Z = data['Lcfs'][:, 1]
-    theta = np.arctan2(Z, R - np.mean(R))
+    theta = np.arctan2(Z - data['Zpsi0'], R - data['Rpsi0'])
     theta[theta < 0] += 2 * np.pi
     sorted_indices = np.argsort(theta)
+    theta = theta[sorted_indices]
     R, Z = R[sorted_indices], Z[sorted_indices]
 
     # Interpolate flux functions
@@ -81,12 +87,10 @@ def eqdsk2vmec_gfile(filename):
     press = data['ptotprof']
     qprof = data['qprof']
 
-    qprof_interp = interp1d(pflux, qprof, kind='linear', fill_value="extrapolate")
-
-    torflux = np.zeros(len(pflux))
-
-    for i in range(len(pflux)):
-        torflux[i], _ = quad(qprof_interp, pflux[0], pflux[i])   # EQDSK uses flux in Weber/rad
+    # EQDSK q is tabulated on this exact poloidal-flux grid. Integrating that
+    # tabulation directly is deterministic and avoids adaptive-quadrature
+    # warnings at profile knots.
+    torflux = cumulative_trapezoid(qprof, pflux, initial=0.0)
 
     torflux_vmec = torflux * 2 * np.pi  # VMEC uses flux in Weber
     torflux_norm = torflux/torflux[-1]
@@ -110,7 +114,7 @@ def eqdsk2vmec_gfile(filename):
     ai_aux_f = PchipInterpolator(torflux_norm, 1/data['qprof'])(ai_aux_s)
     p = np.polyfit(ai_aux_s, ai_aux_f, 9)
     p[-1] = ai_aux_f[0]
-    p = np.concatenate(([-np.sum(p[:10]) + ac_aux_f[-1]], p))
+    p = np.concatenate(([-np.sum(p[:10]) + ai_aux_f[-1]], p))
     ai = np.flip(p)
 
     data2 = {
@@ -129,52 +133,57 @@ def eqdsk2vmec_gfile(filename):
         'ai_aux_f': ai_aux_f
     }
 
-    compute_boundary_fourier(R, Z, data2)
+    compute_boundary_fourier(
+        R, Z, data2, mpol=boundary_mpol, theta=theta
+    )
 
     return data2
 
-def compute_boundary_fourier(R, Z, data, mpol=12, ntor=0):
+def compute_boundary_fourier(R, Z, data, mpol=12, ntor=0, theta=None):
+    if ntor != 0:
+        raise ValueError("A one-dimensional EQDSK boundary must have ntor=0")
+
+    R, Z, theta = _uniform_periodic_boundary(R, Z, theta)
     data['rbc'] = np.zeros((mpol+1, ntor+1))
     data['zbs'] = np.zeros((mpol+1, ntor+1))
     data['rbs'] = np.zeros((mpol+1, ntor+1))
     data['zbc'] = np.zeros((mpol+1, ntor+1))
 
     nu = len(R)
-    nv = 1
+    for m in range(mpol + 1):
+        scale = 1.0 if m == 0 else 2.0
+        cosine = np.cos(m * theta)
+        sine = np.sin(m * theta)
+        data['rbc'][m, 0] = scale * np.dot(R, cosine) / nu
+        data['zbs'][m, 0] = scale * np.dot(Z, sine) / nu
+        data['rbs'][m, 0] = scale * np.dot(R, sine) / nu
+        data['zbc'][m, 0] = scale * np.dot(Z, cosine) / nu
 
-    cosu = np.zeros((nu, mpol + 1))
-    cosv = np.zeros((nv, 2 * ntor + 1))
-    sinu = np.zeros((nu, mpol + 1))
-    sinv = np.zeros((nv, 2 * ntor + 1))
 
-    alu = 2 * np.pi / nu
-    for i in range(nu):
-        for j in range(mpol + 1):
-            m = j
-            cosu[i, j] = np.cos(m * i * alu)
-            sinu[i, j] = np.sin(m * i * alu)
+def _uniform_periodic_boundary(R, Z, theta):
+    R = np.asarray(R, dtype=float)
+    Z = np.asarray(Z, dtype=float)
+    if theta is None:
+        theta = np.arctan2(Z - np.mean(Z), R - np.mean(R))
+    theta = np.mod(np.asarray(theta, dtype=float), 2.0 * np.pi)
+    if R.shape != Z.shape or R.shape != theta.shape or R.ndim != 1:
+        raise ValueError("R, Z, and theta must be one-dimensional equal arrays")
 
-    alv = 2 * np.pi / nv
-    for i in range(nv):
-        for j in range(2 * ntor + 1):
-            n = j - ntor
-            cosv[i, j] = np.cos(n * i * alv)
-            sinv[i, j] = np.sin(n * i * alv)
+    order = np.argsort(theta)
+    theta, unique = np.unique(theta[order], return_index=True)
+    R, Z = R[order][unique], Z[order][unique]
+    if theta.size < 4:
+        raise ValueError("At least four unique boundary points are required")
 
-    # Initialize fnuv
-    fnuv = np.zeros(mpol + 1)
-    fnuv[0] = 1.0 / (nu * nv)
-    for i in range(1, mpol + 1):
-        fnuv[i] = 2 * fnuv[0]
-
-    for m1 in range(mpol + 1):
-        for n1 in range(2 * ntor + 1):
-            for i in range(nu):
-                for j in range(nv):
-                    data['rbc'][m1, n1] += R[i] * (cosv[j, n1] * cosu[i, m1] - sinv[j, n1] * sinu[i, m1]) * fnuv[m1]
-                    data['zbs'][m1, n1] += Z[i] * (sinv[j, n1] * cosu[i, m1] + cosv[j, n1] * sinu[i, m1]) * fnuv[m1]
-                    data['rbs'][m1, n1] += R[i] * (sinv[j, n1] * cosu[i, m1] + cosv[j, n1] * sinu[i, m1]) * fnuv[m1]
-                    data['zbc'][m1, n1] += Z[i] * (cosv[j, n1] * cosu[i, m1] - sinv[j, n1] * sinu[i, m1]) * fnuv[m1]
+    theta_closed = np.append(theta, theta[0] + 2.0 * np.pi)
+    theta_uniform = 2.0 * np.pi * np.arange(theta.size) / theta.size
+    theta_query = theta_uniform.copy()
+    theta_query[theta_query < theta[0]] += 2.0 * np.pi
+    R = CubicSpline(theta_closed, np.append(R, R[0]),
+                    bc_type="periodic")(theta_query)
+    Z = CubicSpline(theta_closed, np.append(Z, Z[0]),
+                    bc_type="periodic")(theta_query)
+    return R, Z, theta_uniform
 
 
 def write_vmec_input_vec(f, vec):

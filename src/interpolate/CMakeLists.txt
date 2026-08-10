@@ -21,8 +21,12 @@ if(ENABLE_OPENACC AND CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
     # Must match the value used by consuming executables (e.g. SIMPLE).
     set(LIBNEO_OPENACC_MEM "managed" CACHE STRING
         "OpenACC memory model: managed|unified|separate")
-    target_compile_options(interpolate PRIVATE -acc -gpu=ccnative,mem:${LIBNEO_OPENACC_MEM})
-    target_link_options(interpolate INTERFACE -acc -gpu=ccnative,mem:${LIBNEO_OPENACC_MEM})
+    set(LIBNEO_OPENACC_GPU_ARCH "ccnative" CACHE STRING
+        "NVHPC OpenACC GPU architecture (for example ccnative or cc75)")
+    target_compile_options(interpolate PRIVATE -acc
+        -gpu=${LIBNEO_OPENACC_GPU_ARCH},mem:${LIBNEO_OPENACC_MEM})
+    target_link_options(interpolate INTERFACE -acc
+        -gpu=${LIBNEO_OPENACC_GPU_ARCH},mem:${LIBNEO_OPENACC_MEM})
 endif()
 
 set_property(TARGET interpolate PROPERTY

@@ -69,3 +69,16 @@ def test_write_eqdsk_read_eqdsk_roundtrip(tmp_path, nrgr, nzgr):
     np.testing.assert_allclose(back["PsiVs"], eqdata["PsiVs"],
                                atol=1e-6*eqdata["PsiedgeVs"])
     np.testing.assert_allclose(back["qprof"], eqdata["qprof"], atol=1e-6)
+
+
+def test_write_eqdsk_boundary_counts_use_fixed_width_record(tmp_path):
+    path = tmp_path / "boundary-counts.eqdsk"
+    eqdata = _synthetic_eqdata(129, 129)
+    write_eqdsk(path, eqdata)
+
+    lines = path.read_text().splitlines()
+    core_lines = 4 + 5 * ((eqdata["nrgr"] + 4) // 5)
+    core_lines += (eqdata["nrgr"] * eqdata["nzgr"] + 4) // 5
+    boundary_record = lines[1 + core_lines]
+    assert boundary_record[:5] == f"{eqdata['npbound']:5d}"
+    assert boundary_record[5:10] == f"{eqdata['nplimiter']:5d}"
