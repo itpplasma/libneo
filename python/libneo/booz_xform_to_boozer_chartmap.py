@@ -254,9 +254,11 @@ def convert_boozmn_to_chartmap(
     bmnc_ext = extended_half(d["bmnc"])
     bmnc_s = make_interp_spline(s_half_ext, bmnc_ext, k=3, axis=0)(s)
     dbmnc = (bmnc_ext[2:-1] - bmnc_ext[1:-2]) / ds
-    dbmnc_s = make_interp_spline(
-        s_full[1:-1], dbmnc, k=3, axis=0
-    )(s)
+    # Differences of adjacent half-grid values are centered on the interior
+    # full-grid surfaces j=3..ns-2.  There are two fewer values than full
+    # surfaces because the supplied half grid starts at j=3 and ends at ns.
+    derivative_s = s_full[2:-1]
+    dbmnc_s = make_interp_spline(derivative_s, dbmnc, k=3, axis=0)(s)
 
     rk_Bmod = _fourier_eval(
         bmnc_s, d["ixm"], d["ixn"], theta_geom, zeta_geom, "cos"
@@ -284,9 +286,7 @@ def convert_boozmn_to_chartmap(
         bmns_ext = extended_half(d["bmns"])
         bmns_s = make_interp_spline(s_half_ext, bmns_ext, k=3, axis=0)(s)
         dbmns = (bmns_ext[2:-1] - bmns_ext[1:-2]) / ds
-        dbmns_s = make_interp_spline(
-            s_full[1:-1], dbmns, k=3, axis=0
-        )(s)
+        dbmns_s = make_interp_spline(derivative_s, dbmns, k=3, axis=0)(s)
         rk_Bmod += _fourier_eval(
             bmns_s, d["ixm"], d["ixn"], theta_geom, zeta_geom, "sin"
         )
@@ -314,9 +314,7 @@ def convert_boozmn_to_chartmap(
         values_ext = extended_half(values[:, None])[:, 0]
         value = make_interp_spline(s_half_ext, values_ext, k=3)(s)
         derivative_data = (values_ext[2:-1] - values_ext[1:-2]) / ds
-        derivative = make_interp_spline(
-            s_full[1:-1], derivative_data, k=3
-        )(s)
+        derivative = make_interp_spline(derivative_s, derivative_data, k=3)(s)
         return value, derivative
 
     rk_iota, _ = surface_and_derivative(iota_h)
