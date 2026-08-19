@@ -19,6 +19,11 @@ For convenience, the build process can be automatically started by running
 directly in the `libneo` directory. This will create a `build` subdirectory
 and run `cmake` with `ninja` internally. 
 
+The CMake build pins Fortio to a reviewed commit. To test a Fortio branch or
+commit explicitly, configure with `-DFORTIO_REF=<ref>`. The `main` workflow
+also accepts the `fortio_ref` `workflow_dispatch` input for the upstream
+Fortio downstream gate.
+
 ### Install Python interface
 The Python interface is located in the `python` subdirectory. This interface
 is only built if `python`, `numpy` and `f90wrap` are available. Please activate

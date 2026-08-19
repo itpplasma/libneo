@@ -229,11 +229,13 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
 endif()
 
 include(FetchContent)
+set(FORTIO_REF 2460882ecd6d84ffdedff0729588730ca1d1b5ce CACHE STRING
+    "Fortio commit, tag, or branch used for the build")
 if(NOT TARGET fortio)
     FetchContent_Declare(
         fortio
         GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-        GIT_TAG 9f684e33649c44044e44e1bbac1f16d318438d0e
+        GIT_TAG ${FORTIO_REF}
     )
     FetchContent_MakeAvailable(fortio)
 endif()

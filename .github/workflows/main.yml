@@ -7,6 +7,12 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
+    inputs:
+      fortio_ref:
+        description: Fortio branch, tag, or commit to build against
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -62,11 +68,18 @@ jobs:
           python -m pip install -c constraints/ci-python.txt numpy
 
       - name: Build
+        env:
+          FORTIO_REF: ${{ inputs.fortio_ref || '' }}
         run: |
-          if [ "${{ matrix.build_type }}" = "Release" ]; then
+          if [ "${{ matrix.build_type }}" = "Release" ] && [ -z "$FORTIO_REF" ]; then
             make
           else
-            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+            build_type="${{ matrix.build_type }}"
+            cmake_args=(-S . -B build -G Ninja -DCMAKE_BUILD_TYPE="$build_type")
+            if [ -n "$FORTIO_REF" ]; then
+              cmake_args+=("-DFORTIO_REF=$FORTIO_REF")
+            fi
+            cmake "${cmake_args[@]}"
             cmake --build build --parallel
           fi
 
