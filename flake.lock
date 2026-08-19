@@ -21,17 +21,17 @@
     "fortio": {
       "flake": false,
       "locked": {
-        "lastModified": 1785449238,
-        "narHash": "sha256-rQb2ZhszXbXWglTDlzd3YzHHS93YpETq/cX/snssk7g=",
+        "lastModified": 1787120089,
+        "narHash": "sha256-qarWjLH/7NBeOPKfkW5fGlULcq8+/sWGGD74qQ2MG4U=",
         "owner": "lazy-fortran",
         "repo": "fortio",
-        "rev": "b6a0c57e7a7577612637ed1619c3bc50d26c2556",
+        "rev": "471256b7382afb8f641f37d833cc9172605da018",
         "type": "github"
       },
       "original": {
         "owner": "lazy-fortran",
         "repo": "fortio",
-        "rev": "b6a0c57e7a7577612637ed1619c3bc50d26c2556",
+        "rev": "471256b7382afb8f641f37d833cc9172605da018",
         "type": "github"
       }
     },
