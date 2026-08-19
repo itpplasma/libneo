@@ -26,16 +26,12 @@
 # Until that lands, keep the candidate-aware smoke tier blocking here; #507
 # carries the full independent run.
 #
-# rabe is report-only while its Fortio migration remains an open downstream PR.
-# That PR carries blocking test, golden, and benchmark checks against the
-# candidate libneo. Promote this row back to blocking after the migration lands.
-#
-# NEO-RT is report-only: it reaches libneo transitively through NEO-2 (already
-# gated), and its own build does not yet compile the candidate libneo, so a
-# direct gate would not exercise it. Promote once that propagation is wired.
+# rabe's candidate propagation is waiting on its protected downstream PR, so
+# it remains report-only. NEO-RT propagates the dispatched candidate ref and
+# its fast workflow is a blocking compatibility gate.
 SIMPLE   main.yml         yes   no
 NEO-2    unit-tests.yml   yes   no
 MEPHIT   main.yml         yes   yes
 KAMEL    ci.yml           yes   yes
 rabe     test.yml         no    no
-NEO-RT   test.yml         no    no
+NEO-RT   test.yml         yes   no
