@@ -229,7 +229,7 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
 endif()
 
 include(FetchContent)
-set(FORTIO_REF aa24c111b5a7fa3a622c9672fe5aacc5691c6738 CACHE STRING
+set(FORTIO_REF fc3f83b7466b09c74e927645e08f0df8cd606e26 CACHE STRING
     "Fortio commit, tag, or branch used for the build")
 if(NOT TARGET fortio)
     FetchContent_Declare(
