@@ -6,7 +6,7 @@ set(BUILD_TESTING OFF CACHE BOOL "Do not build dependency tests" FORCE)
 FetchContent_Declare(
   fortio
   GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-  GIT_TAG 4af4f714eecc1430879c95dd144f6ead229158ce
+  GIT_TAG 11afd0bd1af0c99ea4e9a1c0df683dbdcc299b69
 )
 FetchContent_MakeAvailable(fortio)
 
