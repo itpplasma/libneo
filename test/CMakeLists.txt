@@ -39,11 +39,7 @@ if(LIBNEO_DETERMINISTIC_FP)
   )
 endif()
 
-execute_process(COMMAND nf-config --flibs
-                OUTPUT_VARIABLE NETCDF_LIBRARIES
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-set (COMMON_LIBS ${MAIN_LIB} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${NETCDF_LIBRARIES})
+set (COMMON_LIBS ${MAIN_LIB} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 add_executable(test_transport.x transport/test_transport.f90)
 target_link_libraries(test_transport.x
