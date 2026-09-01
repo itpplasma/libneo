@@ -195,6 +195,7 @@ def convert_boozmn_to_chartmap(
     nrho=50,
     ntheta=48,
     nzeta=96,
+    rho_min=1.0e-3,
     covariant_sign=1,
     chartmap_attrs=None,
     netcdf_format="NETCDF4",
@@ -209,6 +210,8 @@ def convert_boozmn_to_chartmap(
 
     if covariant_sign not in (-1, 1):
         raise ValueError("covariant_sign must be -1 or 1")
+    if not 0.0 <= rho_min < 1.0:
+        raise ValueError("rho_min must satisfy 0 <= rho_min < 1")
 
     d = _read_boozmn(boozmn)
     nfp = d["nfp"]
@@ -225,7 +228,7 @@ def convert_boozmn_to_chartmap(
     else:
         torflux_si = _derive_psi_prime(d)
 
-    rho_grid = np.linspace(1.0e-3, 1.0, nrho)
+    rho_grid = np.linspace(rho_min, 1.0, nrho)
     s_grid = rho_grid**2
     s = np.linspace(rho_grid[0] ** 2, 1.0, nrho)
     theta_geom = np.linspace(0.0, TWOPI, ntheta, endpoint=False)
@@ -321,6 +324,12 @@ def convert_boozmn_to_chartmap(
     rk_B_phi, rk_dB_phi_ds = surface_and_derivative(bvco_h)
     rk_A_phi = -torflux_si * (iota_int(s) - iota_int(0.0))
     rk_dA_phi_ds = -torflux_si * rk_iota
+    if rho_min == 0.0:
+        # The enclosed toroidal current, hence covariant B_theta, vanishes
+        # exactly on the magnetic axis.  The half-grid spline otherwise
+        # leaves a small extrapolation residue there.
+        B_theta[0] = 0.0
+        rk_B_theta[0] = 0.0
 
     bmnc_g = _interp_coeffs(d["bmnc"], d["ixm"], rho_half, rho_grid)
     Bmod = _fourier_eval(bmnc_g, d["ixm"], d["ixn"], theta_geom, zeta_geom, "cos")
@@ -376,6 +385,7 @@ def convert_boozmn_to_chartmap(
     attrs = {
         "booz2chartmap_source": str(boozmn),
         "booz2chartmap_covariant_sign": np.int32(covariant_sign),
+        "booz2chartmap_rho_min": float(rho_min),
     }
     if chartmap_attrs is not None:
         attrs.update(chartmap_attrs)
@@ -428,6 +438,12 @@ def main(argv=None):
         help="toroidal points per field period, endpoint-excluded",
     )
     parser.add_argument(
+        "--rho-min",
+        type=float,
+        default=1.0e-3,
+        help="innermost rho; use 0 for an axis-inclusive chartmap",
+    )
+    parser.add_argument(
         "--covariant-sign",
         type=int,
         choices=(-1, 1),
@@ -446,6 +462,7 @@ def main(argv=None):
         nrho=args.nrho,
         ntheta=args.ntheta,
         nzeta=args.nzeta,
+        rho_min=args.rho_min,
         covariant_sign=args.covariant_sign,
     )
     print(f"Done. torflux={torflux:.6e} G cm^2")

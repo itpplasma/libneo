@@ -171,6 +171,7 @@ def convert_neo2bc_to_chartmap(
     nrho=50,
     ntheta=48,
     nzeta=96,
+    rho_min=1.0e-3,
     covariant_sign=1,
     source_phase="neo2-plus",
 ):
@@ -216,6 +217,7 @@ def convert_neo2bc_to_chartmap(
             nrho=nrho,
             ntheta=ntheta,
             nzeta=nzeta,
+            rho_min=rho_min,
             covariant_sign=covariant_sign,
             chartmap_attrs=attrs,
             netcdf_format="NETCDF3_64BIT_OFFSET",
@@ -237,6 +239,10 @@ def main(argv=None):
     parser.add_argument("--nrho", type=int, default=50)
     parser.add_argument("--ntheta", type=int, default=48)
     parser.add_argument("--nzeta", type=int, default=96)
+    parser.add_argument(
+        "--rho-min", type=float, default=1.0e-3,
+        help="innermost rho; use 0 for an axis-inclusive chartmap",
+    )
     parser.add_argument("--covariant-sign", type=int, choices=(-1, 1), default=1)
     parser.add_argument(
         "--source-phase",
@@ -256,6 +262,7 @@ def main(argv=None):
         nrho=args.nrho,
         ntheta=args.ntheta,
         nzeta=args.nzeta,
+        rho_min=args.rho_min,
         covariant_sign=args.covariant_sign,
         source_phase=args.source_phase,
     )
