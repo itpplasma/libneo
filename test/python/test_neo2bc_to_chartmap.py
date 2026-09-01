@@ -166,6 +166,7 @@ def test_converter_writes_units_sign_and_hash_provenance(
     )
 
     with netCDF4.Dataset(output) as dataset:
+        assert dataset.data_model == "NETCDF3_64BIT_OFFSET"
         assert dataset.booz2chartmap_source == str(axis)
         assert dataset.neo2bc_source_fourier_phase == "m*theta+n*nper*phi"
         assert dataset.neo2bc_output_fourier_phase == "m*theta-n*nfp*zeta"

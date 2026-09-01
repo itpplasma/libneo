@@ -197,6 +197,7 @@ def convert_boozmn_to_chartmap(
     nzeta=96,
     covariant_sign=1,
     chartmap_attrs=None,
+    netcdf_format="NETCDF4",
 ):
     """Read a boozmn file and write a libneo Boozer chartmap.
 
@@ -400,6 +401,7 @@ def convert_boozmn_to_chartmap(
         torflux=torflux,
         rk_field=rk_field,
         rk_profiles=rk_profiles,
+        netcdf_format=netcdf_format,
         **attrs,
     )
     return torflux

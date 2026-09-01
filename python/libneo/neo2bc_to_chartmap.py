@@ -218,6 +218,7 @@ def convert_neo2bc_to_chartmap(
             nzeta=nzeta,
             covariant_sign=covariant_sign,
             chartmap_attrs=attrs,
+            netcdf_format="NETCDF3_64BIT_OFFSET",
         )
 
 
