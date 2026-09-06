@@ -257,7 +257,7 @@ if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
         FetchContent_Declare(
             fortnum
             GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-            GIT_TAG 62a559c0b8e1b28bd63550164a09ed9644e659b1
+            GIT_TAG 48f6f9bf0d4d523c3677bb686f5892f6e1329a24
         )
         FetchContent_MakeAvailable(fortnum)
     endif()
