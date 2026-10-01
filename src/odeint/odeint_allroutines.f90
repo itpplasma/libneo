@@ -16,6 +16,9 @@ module odeint_mod
     ! Step control parameters
     integer, parameter :: max_steps = 1000000
     real(dp), parameter :: tiny_value = 1.0e-30_dp
+    ! Error norm assigned to a non-finite error estimate (forces rejection
+    ! without overflowing when divided by the tolerance)
+    real(dp), parameter :: nonfinite_error = 1.0e10_dp
 
     ! Adaptive step size parameters
     real(dp), parameter :: safety_factor = 0.9_dp
@@ -67,7 +70,9 @@ module odeint_mod
     real(dp), allocatable :: y_temp(:)      ! Temporary for RK stages
     real(dp), allocatable :: y_error(:)     ! Error estimate
     real(dp), allocatable :: y_scale(:)     ! Error scaling
-!$omp threadprivate(k_stages, y_work, y_temp, y_error, y_scale)
+    real(dp), allocatable :: abs_tol(:)     ! Absolute tolerance per component
+    logical :: use_abs_tol = .false.        ! Mixed absolute/relative control
+!$omp threadprivate(k_stages, y_work, y_temp, y_error, y_scale, abs_tol, use_abs_tol)
 
     public :: allocate_state, deallocate_state, pow_m02, pow_m025
 
@@ -103,6 +108,7 @@ contains
         allocate (y_temp(n))
         allocate (y_error(n))
         allocate (y_scale(n))
+        allocate (abs_tol(n))
     end subroutine allocate_state
 
     subroutine deallocate_state()
@@ -113,6 +119,7 @@ contains
         deallocate (y_temp)
         deallocate (y_error)
         deallocate (y_scale)
+        deallocate (abs_tol)
     end subroutine deallocate_state
 
 end module odeint_mod
@@ -125,7 +132,7 @@ end module odeint_mod
 !> - Vectorized error norm calculation
 !> - Minimal function call overhead
 module odeint_allroutines_sub
-    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use odeint_mod
 
     implicit none
@@ -183,15 +190,44 @@ contains
         odeint_has_failed = odeint_failed
     end function odeint_has_failed
 
+    !> Select the error control for the next integration.
+    !>
+    !> Without atol a step is accepted if, for every component,
+    !>   |err_i| <= eps*(|y_i| + |h*dydx_i| + 1e-30)
+    !> (purely relative, Numerical Recipes). This cannot be met by a component
+    !> that is zero with zero derivative at the start of a step but not
+    !> afterwards (e.g. a running integral of a running integral), and the
+    !> step size then underflows. With atol the test is the mixed criterion
+    !>   |err_i| <= atol_i + eps*(|y_i| + |h*dydx_i| + 1e-30).
+    !> atol_i = huge(1.0_dp) excludes component i from step-size control.
+    subroutine set_error_control(nvar, atol)
+        integer, intent(in) :: nvar
+        real(dp), intent(in), optional :: atol(:)
+
+        call allocate_state(nvar)
+        use_abs_tol = present(atol)
+        if (.not. use_abs_tol) return
+        if (size(atol) /= nvar) error stop 'odeint: size(atol) /= nvar'
+        if (any(.not. (atol >= 0.0_dp))) error stop 'odeint: atol must be >= 0'
+        abs_tol = atol
+    end subroutine set_error_control
+
     !> Integrate ODE system without context (ORIGINAL INTERFACE)
+    !>
+    !> Optional atol: absolute tolerance per component (see set_error_control).
+    !> Callers must check odeint_has_failed() afterwards: it is true if the
+    !> step size underflowed or the step limit was reached (y then holds the
+    !> last accepted state, not the state at x2). An ierr argument here would
+    !> make the generic interface ambiguous with the context variant.
     subroutine odeint_allroutines_no_context(y, nvar, x1, x2, eps, derivs, &
-                                             initial_stepsize, events)
+                                             initial_stepsize, events, atol)
         integer, intent(in) :: nvar
         real(dp), dimension(nvar), intent(inout) :: y
         real(dp), intent(in) :: x1, x2, eps
         procedure(derivative_function) :: derivs
         real(dp), intent(in), optional :: initial_stepsize
         type(ode_event_t), intent(inout), optional :: events(:)
+        real(dp), intent(in), optional :: atol(:)
 
         real(dp) :: h_init
 
@@ -200,14 +236,16 @@ contains
             h_init = sign(initial_stepsize, x2 - x1)
         end if
 
+        call set_error_control(nvar, atol)
         call integrate_adaptive(y, nvar, x1, x2, eps, h_init, derivs, &
                                 max_steps, events)
+        use_abs_tol = .false.
     end subroutine odeint_allroutines_no_context
 
     !> Integrate ODE system with context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_context(y, nvar, context, x1, x2, eps, &
                                           derivs, initial_stepsize, events, step_limit, &
-                                          ierr)
+                                          ierr, atol)
         integer, intent(in) :: nvar
         real(dp), dimension(nvar), intent(inout) :: y
         class(*), intent(in) :: context
@@ -217,6 +255,7 @@ contains
         type(ode_event_t), intent(inout), optional :: events(:)
         integer, intent(in), optional :: step_limit
         integer, intent(out), optional :: ierr
+        real(dp), intent(in), optional :: atol(:)
 
         real(dp) :: h_init
         integer :: max_steps_call
@@ -229,8 +268,10 @@ contains
         if (present(step_limit)) max_steps_call = step_limit
         if (max_steps_call < 1) error stop 'ODE step limit must be positive'
 
+        call set_error_control(nvar, atol)
         call integrate_adaptive_with_context(y, nvar, x1, x2, eps, h_init, &
                                              derivs, context, max_steps_call, events)
+        use_abs_tol = .false.
         if (present(ierr)) then
             ierr = 0
             if (odeint_failed) ierr = 1
@@ -295,7 +336,7 @@ contains
             if (events_active) then
                 f_start = k_stages(1, :)
             end if
-            call compute_error_scale_fused(h, n)
+            call compute_error_scale_fused(h, n, tolerance)
             call check_endpoint_adjustment(x, h, x_start, x_end)
             call step_with_error_control(x, h, h_next, n, tolerance, derivative)
             if (odeint_failed) then
@@ -394,7 +435,7 @@ contains
             if (events_active) then
                 f_start = k_stages(1, :)
             end if
-            call compute_error_scale_fused(h, n)
+            call compute_error_scale_fused(h, n, tolerance)
             call check_endpoint_adjustment(x, h, x_start, x_end)
             call step_with_error_control_context(x, h, h_next, n, tolerance, &
                                                  derivative, context)
@@ -435,12 +476,24 @@ contains
     end subroutine integrate_adaptive_with_context
 
     !> Fused error scale computation with k1 (eliminates separate loop)
-    subroutine compute_error_scale_fused(h, n)
+    !> With use_abs_tol, y_scale is the full tolerance atol + eps*scale and
+    !> the error norm is not divided by eps again (see scaled_error_norm).
+    subroutine compute_error_scale_fused(h, n, tolerance)
 
         real(dp), intent(in) :: h
         integer, intent(in) :: n
+        real(dp), intent(in) :: tolerance
         integer :: i
         real(dp) :: abs_y, abs_hk1
+
+        if (use_abs_tol) then
+            do i = 1, n
+                abs_y = abs(y_work(i))
+                abs_hk1 = abs(h*k_stages(1, i))
+                y_scale(i) = abs_tol(i) + tolerance*(abs_y + abs_hk1 + tiny_value)
+            end do
+            return
+        end if
 
 !$omp simd private(abs_y, abs_hk1)
         do i = 1, n
@@ -449,6 +502,18 @@ contains
             y_scale(i) = abs_y + abs_hk1 + tiny_value
         end do
     end subroutine compute_error_scale_fused
+
+    !> Error of the trial step in units of the allowed error (accept if <= 1)
+    real(dp) function scaled_error_norm(n, tolerance)
+        integer, intent(in) :: n
+        real(dp), intent(in) :: tolerance
+
+        if (use_abs_tol) then
+            scaled_error_norm = compute_error_norm(n)
+        else
+            scaled_error_norm = compute_error_norm(n)/tolerance
+        end if
+    end function scaled_error_norm
 
     !> Check if step needs adjustment for endpoint (will be inlined)
     pure subroutine check_endpoint_adjustment(x, h, x_start, x_end)
@@ -472,7 +537,7 @@ contains
 
         do
             call compute_rk_step(x, h, n, derivative)
-            error_max = compute_error_norm(n)/tolerance
+            error_max = scaled_error_norm(n, tolerance)
             call adjust_step_size(x, h, h_next, error_max, step_accepted)
             if (step_accepted) return
         end do
@@ -492,7 +557,7 @@ contains
 
         do
             call compute_rk_step_context(x, h, n, derivative, context)
-            error_max = compute_error_norm(n)/tolerance
+            error_max = scaled_error_norm(n, tolerance)
             call adjust_step_size(x, h, h_next, error_max, step_accepted)
             if (step_accepted) return
         end do
@@ -774,13 +839,22 @@ contains
 
         error_norm = 0.0_dp
 
-        ! Vectorized max reduction (compiler will optimize to SIMD)
+        ! Vectorized max reduction (compiler will optimize to SIMD).
+        ! A non-finite error (NaN/Inf in the trial step) must reject the
+        ! step; max() would silently drop a NaN. The test inspects the
+        ! exponent bits so that it survives -ffast-math.
 !$omp simd reduction(max:error_norm) private(temp_error)
         do i = 1, n
             temp_error = abs(y_error(i)/y_scale(i))
+            if (.not. is_finite(temp_error)) temp_error = nonfinite_error
             error_norm = max(error_norm, temp_error)
         end do
     end function compute_error_norm
+
+    elemental logical function is_finite(x)
+        real(dp), intent(in) :: x
+        is_finite = iand(shiftr(transfer(x, 0_int64), 52), 2047_int64) /= 2047_int64
+    end function is_finite
 
     !> Common step adjustment logic (will be inlined)
     subroutine adjust_step_size(x, h, h_next, error_max, step_accepted)
@@ -797,7 +871,8 @@ contains
             h_temp = safety_factor*h*pow_m025(error_max)
             h = sign(max(abs(h_temp), 0.1_dp*abs(h)), h)
 
-            if (abs(h) < epsilon(x)) then
+            ! Underflow: below machine epsilon or too small to advance x
+            if (abs(h) < epsilon(x) .or. abs(h) < spacing(x)) then
                 odeint_failed = .true.
                 step_accepted = .true.
                 h_next = h

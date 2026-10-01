@@ -64,3 +64,8 @@ endif()
 add_executable(test_odeint_events.x test_odeint_events.f90)
 target_link_libraries(test_odeint_events.x ${COMMON_LIBS})
 add_test(NAME test_odeint_events COMMAND test_odeint_events.x)
+
+# Mixed absolute/relative error control and failure status
+add_executable(test_odeint_abs_tol.x test_odeint_abs_tol.f90)
+target_link_libraries(test_odeint_abs_tol.x ${COMMON_LIBS})
+add_test(NAME test_odeint_abs_tol COMMAND test_odeint_abs_tol.x)
