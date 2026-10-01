@@ -38,17 +38,17 @@
     "fortnum": {
       "flake": false,
       "locked": {
-        "lastModified": 1782936489,
-        "narHash": "sha256-/1M9f4SHe7/Wa1IuLcbWcyy/7kI7Uew57i7R63M4uw4=",
+        "lastModified": 1788695364,
+        "narHash": "sha256-eMOZu/QirpjZHUhSvJpVN5lCrWE1jSrwO5a3z1LC8YU=",
         "owner": "lazy-fortran",
         "repo": "fortnum",
-        "rev": "62a559c0b8e1b28bd63550164a09ed9644e659b1",
+        "rev": "48f6f9bf0d4d523c3677bb686f5892f6e1329a24",
         "type": "github"
       },
       "original": {
         "owner": "lazy-fortran",
         "repo": "fortnum",
-        "rev": "62a559c0b8e1b28bd63550164a09ed9644e659b1",
+        "rev": "48f6f9bf0d4d523c3677bb686f5892f6e1329a24",
         "type": "github"
       }
     },

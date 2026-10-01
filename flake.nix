@@ -9,7 +9,7 @@
       flake = false;
     };
     fortnum = {
-      url = "github:lazy-fortran/fortnum/62a559c0b8e1b28bd63550164a09ed9644e659b1";
+      url = "github:lazy-fortran/fortnum/48f6f9bf0d4d523c3677bb686f5892f6e1329a24";
       flake = false;
     };
   };
