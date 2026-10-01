@@ -20,6 +20,7 @@ add_library(neo_field STATIC
     spline_field.f90
     mgrid.f90
     perturbation_field.f90
+    perturbation_field_netcdf.f90
     field.f90)
 
 target_link_libraries(neo_field PUBLIC field_base)
