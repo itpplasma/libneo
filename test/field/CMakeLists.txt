@@ -50,6 +50,11 @@ target_link_libraries(test_mgrid.x PRIVATE neo
 target_link_libraries(test_mgrid.x PRIVATE fortio::fortio)
 add_test(NAME test_mgrid COMMAND test_mgrid.x)
 
+add_executable(test_perturbation_field.x test_perturbation_field.f90)
+target_link_libraries(test_perturbation_field.x PRIVATE neo)
+target_link_libraries(test_perturbation_field.x PRIVATE fortio::fortio)
+add_test(NAME test_perturbation_field COMMAND test_perturbation_field.x)
+
 add_executable(test_stretch_coords.x test_stretch_coords.f90)
 target_link_libraries(test_stretch_coords.x PRIVATE neo
                                                    magfie
@@ -67,5 +72,6 @@ set_tests_properties(
     test_spline_field
     test_field
     test_mgrid
+    test_perturbation_field
     test_stretch_coords
     PROPERTIES LABELS "field")
