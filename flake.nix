@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fortio = {
-      url = "github:lazy-fortran/fortio/11afd0bd1af0c99ea4e9a1c0df683dbdcc299b69";
+      url = "github:lazy-fortran/fortio/6841431f0623083d6ae1ae392abfe8ea3f33fd8a";
       flake = false;
     };
     fortnum = {
