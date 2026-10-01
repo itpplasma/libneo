@@ -622,6 +622,12 @@ set_tests_properties(test_vector_conversion PROPERTIES
 add_executable(test_geoflux_coordinate_system.x source/test_geoflux_coordinate_system.f90)
 target_link_libraries(test_geoflux_coordinate_system.x neo ${MAGFIE_LIB})
 
+add_executable(test_geoflux_flux_table.x source/test_geoflux_flux_table.f90)
+target_link_libraries(test_geoflux_flux_table.x neo ${MAGFIE_LIB})
+add_test(NAME test_geoflux_flux_table
+  COMMAND test_geoflux_flux_table.x
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(test_chartmap_matches_vmec.x source/test_chartmap_matches_vmec.f90)
 target_link_libraries(test_chartmap_matches_vmec.x neo)
 add_test(NAME test_chartmap_matches_vmec

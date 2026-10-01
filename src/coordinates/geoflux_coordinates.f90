@@ -358,6 +358,7 @@ contains
         real(dp), allocatable :: psi_samples(:), q_samples(:)
         real(dp) :: s_uniform
         real(dp) :: psi_min, psi_max
+        type(SplineData1D) :: q_of_psi
         integer, parameter :: spline_order = 5
 
         npsi = size(ctx%psi_grid)
@@ -376,12 +377,24 @@ contains
             ctx%s_of_psi_ready = .false.
         end if
 
+        psi_min = minval(ctx%psi_grid)
+        psi_max = maxval(ctx%psi_grid)
+        call construct_splines_1d(psi_min, psi_max, ctx%s_grid, spline_order, &
+            .false., ctx%s_of_psi_spline)
+        ctx%s_of_psi_ready = .true.
+
+        ! psi(s) and q(s) are resampled on a uniform s grid by inverting the
+        ! s(psi) spline, not by linear interpolation in the (s_grid, psi_grid)
+        ! table: a piecewise-linear intermediate would cap the quintic splines
+        ! below at second order and their s-derivatives at first order.
+        call build_q_of_psi_spline(q_of_psi)
         allocate(psi_samples(npsi), q_samples(npsi))
         do i = 1, npsi
             s_uniform = real(i - 1, dp) / real(npsi - 1, dp)
-            psi_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%psi_grid, s_uniform)
-            q_samples(i) = linear_interp_monotonic(ctx%s_grid, ctx%q_grid, s_uniform)
+            psi_samples(i) = invert_s_of_psi(s_uniform)
+            call evaluate_splines_1d(q_of_psi, psi_samples(i), q_samples(i))
         end do
+        call destroy_splines_1d(q_of_psi)
 
         call construct_splines_1d(0.0_dp, 1.0_dp, psi_samples, spline_order, &
             .false., ctx%psi_of_s_spline)
@@ -390,12 +403,6 @@ contains
             .false., ctx%q_of_s_spline)
         ctx%q_of_s_ready = .true.
         deallocate(psi_samples, q_samples)
-
-        psi_min = minval(ctx%psi_grid)
-        psi_max = maxval(ctx%psi_grid)
-        call construct_splines_1d(psi_min, psi_max, ctx%s_grid, spline_order, &
-            .false., ctx%s_of_psi_spline)
-        ctx%s_of_psi_ready = .true.
     end subroutine build_radial_splines
 
     subroutine build_flux_surface_cache()
@@ -487,11 +494,20 @@ contains
     !>
     !>     q(psi) = (F(psi)/(2 pi)) oint dl_p / (R |grad(psi)|).
     !>
+    !> With the contour traced on rays from the axis at polar angle theta,
+    !> dl_p/|grad(psi)| = r dtheta/|dpsi/dr|, the area element per unit psi, so
+    !>
+    !>     q(psi) = (F/(2 pi)) oint r/(R |dpsi/dr|) dtheta.
+    !>
+    !> The integrand is smooth and periodic in theta, so the trapezoidal rule
+    !> on the equidistant ray nodes converges spectrally; summing chord
+    !> lengths instead would be only second order in the node spacing.
+    !>
     !> Only psirz (through psi_from_position) and fpol are used, so the result is
     !> consistent with the field the rest of the chart evaluates -- unlike the
     !> stored qpsi record, which is not required to be.
     !>
-    !> The axis value is extrapolated from the two neighbouring surfaces because
+    !> The axis value is extrapolated from the neighbouring surfaces because
     !> the contour integral degenerates there.
     subroutine compute_q_from_field(q_out)
         real(dp), intent(out) :: q_out(:)
@@ -500,7 +516,7 @@ contains
         integer :: npsi, i, k, i_first
         real(dp) :: theta, dtheta, target_norm, slope
         real(dp) :: R_pt(ntheta_q + 1), Z_pt(ntheta_q + 1)
-        real(dp) :: dl, dR, dZ, R_mid, Z_mid, grad_psi, integral
+        real(dp) :: integral, r_ray, dpsi_dray
         real(dp) :: f_pol, h_R, h_Z, dpsi_dR, dpsi_dZ
 
         npsi = size(q_out)
@@ -525,21 +541,18 @@ contains
             f_pol = fpol_at_index(i)
             integral = 0.0_dp
             do k = 1, ntheta_q
-                dR = R_pt(k + 1) - R_pt(k)
-                dZ = Z_pt(k + 1) - Z_pt(k)
-                dl = sqrt(dR*dR + dZ*dZ)
-                R_mid = 0.5_dp*(R_pt(k) + R_pt(k + 1))
-                Z_mid = 0.5_dp*(Z_pt(k) + Z_pt(k + 1))
-                dpsi_dR = (psi_from_position(R_mid + h_R, Z_mid) &
-                    - psi_from_position(R_mid - h_R, Z_mid))/(2.0_dp*h_R)
-                dpsi_dZ = (psi_from_position(R_mid, Z_mid + h_Z) &
-                    - psi_from_position(R_mid, Z_mid - h_Z))/(2.0_dp*h_Z)
-                grad_psi = sqrt(dpsi_dR*dpsi_dR + dpsi_dZ*dpsi_dZ)
+                theta = real(k - 1, dp)*dtheta
+                dpsi_dR = (psi_from_position(R_pt(k) + h_R, Z_pt(k)) &
+                    - psi_from_position(R_pt(k) - h_R, Z_pt(k)))/(2.0_dp*h_R)
+                dpsi_dZ = (psi_from_position(R_pt(k), Z_pt(k) + h_Z) &
+                    - psi_from_position(R_pt(k), Z_pt(k) - h_Z))/(2.0_dp*h_Z)
+                dpsi_dray = abs(dpsi_dR*cos(theta) + dpsi_dZ*sin(theta))
                 ! A vanishing gradient means the contour has wandered onto an
-                ! extremum of psi; skipping the segment is safer than dividing.
-                if (grad_psi <= tiny(grad_psi)) cycle
-                if (R_mid <= tiny(R_mid)) cycle
-                integral = integral + dl/(R_mid*grad_psi)
+                ! extremum of psi; skipping the node is safer than dividing.
+                if (dpsi_dray <= tiny(dpsi_dray)) cycle
+                if (R_pt(k) <= tiny(R_pt(k))) cycle
+                r_ray = hypot(R_pt(k) - ctx%R_axis, Z_pt(k) - ctx%Z_axis)
+                integral = integral + r_ray/(R_pt(k)*dpsi_dray)*dtheta
             end do
             q_out(i) = f_pol*integral/(2.0_dp*pi)
         end do
@@ -565,7 +578,16 @@ contains
             return
         end if
 
-        if (i_first + 1 <= npsi) then
+        ! Axis and edge are extrapolated by the cubic through the four nearest
+        ! resolved surfaces.  A linear extrapolation leaves an O(h^2) error in
+        ! the end values that the quintic q(psi) spline turns into an O(h)
+        ! error of dq/dpsi over the end intervals.
+        if (i_first + 3 <= npsi - 1) then
+            do i = 1, i_first - 1
+                q_out(i) = cubic_extrapolate(ctx%psi_grid(i_first:i_first + 3), &
+                    q_out(i_first:i_first + 3), ctx%psi_grid(i))
+            end do
+        else if (i_first + 1 <= npsi) then
             slope = (q_out(i_first + 1) - q_out(i_first)) &
                 /(ctx%psi_grid(i_first + 1) - ctx%psi_grid(i_first))
             do i = 1, i_first - 1
@@ -576,9 +598,10 @@ contains
             q_out(1:i_first - 1) = q_out(i_first)
         end if
 
-        ! Edge, by the same linear extrapolation in psi from the last two
-        ! interior surfaces.
-        if (npsi >= 3) then
+        if (npsi - 4 >= 1) then
+            q_out(npsi) = cubic_extrapolate(ctx%psi_grid(npsi - 4:npsi - 1), &
+                q_out(npsi - 4:npsi - 1), ctx%psi_grid(npsi))
+        else if (npsi >= 3) then
             slope = (q_out(npsi - 1) - q_out(npsi - 2)) &
                 /(ctx%psi_grid(npsi - 1) - ctx%psi_grid(npsi - 2))
             q_out(npsi) = q_out(npsi - 1) &
@@ -587,6 +610,24 @@ contains
             q_out(npsi) = q_out(npsi - 1)
         end if
     end subroutine compute_q_from_field
+
+    !> Value at x_eval of the cubic through the four points (x, y).
+    pure function cubic_extrapolate(x, y, x_eval) result(y_eval)
+        real(dp), intent(in) :: x(4), y(4), x_eval
+        real(dp) :: y_eval
+        real(dp) :: weight
+        integer :: j, k
+
+        y_eval = 0.0_dp
+        do j = 1, 4
+            weight = 1.0_dp
+            do k = 1, 4
+                if (k == j) cycle
+                weight = weight*(x_eval - x(k))/(x(j) - x(k))
+            end do
+            y_eval = y_eval + weight*y(j)
+        end do
+    end function cubic_extrapolate
 
     !> fpol on the same index as psi_grid, falling back to the last available
     !> entry if the record is shorter than the flux grid.
@@ -605,21 +646,63 @@ contains
     subroutine integrate_toroidal_flux(tor_flux)
         real(dp), intent(inout) :: tor_flux(:)
 
-        integer :: i, npsi
-        real(dp) :: dpsi, q_lo, q_hi
+        ! Three-point Gauss-Legendre is exact for the quintic q(psi) spline on
+        ! each grid interval, so the integral carries only the spline error.
+        real(dp), parameter :: gl_x(3) = [-sqrt(0.6_dp), 0.0_dp, sqrt(0.6_dp)]
+        real(dp), parameter :: gl_w(3) = [5.0_dp, 8.0_dp, 5.0_dp] / 9.0_dp
+        type(SplineData1D) :: q_of_psi
+        integer :: i, k, npsi
+        real(dp) :: dpsi, psi_mid, q_val, sum_q
 
         npsi = size(tor_flux)
         tor_flux(1) = 0.0_dp
+        call build_q_of_psi_spline(q_of_psi)
 
         do i = 2, npsi
             dpsi = ctx%psi_grid(i) - ctx%psi_grid(i-1)
-            q_lo = ctx%q_grid(i-1)
-            q_hi = ctx%q_grid(i)
+            psi_mid = 0.5_dp * (ctx%psi_grid(i) + ctx%psi_grid(i-1))
+            sum_q = 0.0_dp
+            do k = 1, 3
+                call evaluate_splines_1d(q_of_psi, psi_mid + 0.5_dp*dpsi*gl_x(k), &
+                    q_val)
+                sum_q = sum_q + gl_w(k) * q_val
+            end do
             ! GEQDSK poloidal flux is standardized per radian and q=dPsi_tor/dPsi_pol,
             ! so the toroidal flux uses the direct integral with no extra 2*pi.
-            tor_flux(i) = tor_flux(i-1) + 0.5_dp * (q_lo + q_hi) * dpsi
+            tor_flux(i) = tor_flux(i-1) + 0.5_dp * sum_q * dpsi
         end do
+        call destroy_splines_1d(q_of_psi)
     end subroutine integrate_toroidal_flux
+
+    subroutine build_q_of_psi_spline(spl)
+        type(SplineData1D), intent(out) :: spl
+
+        call construct_splines_1d(minval(ctx%psi_grid), maxval(ctx%psi_grid), &
+            ctx%q_grid, 5, .false., spl)
+    end subroutine build_q_of_psi_spline
+
+    !> psi with s_of_psi_spline(psi) = s_val, by Newton iteration started from
+    !> the linear interpolant of the (s_grid, psi_grid) table.
+    function invert_s_of_psi(s_val) result(psi_val)
+        real(dp), intent(in) :: s_val
+        real(dp) :: psi_val
+
+        integer, parameter :: max_newton = 50
+        real(dp) :: psi_min, psi_max, s_cur, ds_dpsi, step
+        integer :: iter
+
+        psi_min = minval(ctx%psi_grid)
+        psi_max = maxval(ctx%psi_grid)
+        psi_val = linear_interp_monotonic(ctx%s_grid, ctx%psi_grid, s_val)
+        do iter = 1, max_newton
+            call evaluate_splines_1d_der(ctx%s_of_psi_spline, psi_val, s_cur, &
+                ds_dpsi)
+            if (ds_dpsi <= 0.0_dp) exit
+            step = (s_cur - s_val) / ds_dpsi
+            psi_val = clamp(psi_val - step, psi_min, psi_max)
+            if (abs(step) <= 1.0d-14 * (psi_max - psi_min)) exit
+        end do
+    end function invert_s_of_psi
 
     subroutine locate_flux_surface(s_val, theta_val, R_val, Z_val)
         real(dp), intent(in) :: s_val, theta_val
@@ -716,11 +799,19 @@ contains
     function flux_along_ray(r_val, theta_val) result(s_norm)
         real(dp), intent(in) :: r_val, theta_val
         real(dp) :: s_norm
-        real(dp) :: R_pt, Z_pt
+        real(dp) :: R_pt, Z_pt, denom
 
+        ! Not clamped to [0, 1]: a clamped value is identically 1 everywhere
+        ! outside the boundary, so the bisection for target_norm = 1 accepted
+        ! the first midpoint beyond it and misplaced the s = 1 surface.
         R_pt = ctx%R_axis + r_val * cos(theta_val)
         Z_pt = ctx%Z_axis + r_val * sin(theta_val)
-        s_norm = normalized_poloidal(psi_from_position(R_pt, Z_pt))
+        denom = ctx%psi_sep - ctx%psi_axis
+        if (abs(denom) < 1.0d-12) then
+            s_norm = 0.0_dp
+        else
+            s_norm = (psi_from_position(R_pt, Z_pt) - ctx%psi_axis) / denom
+        end if
     end function flux_along_ray
 
     function psi_from_s(s_val) result(psi_val)
