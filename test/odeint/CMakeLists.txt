@@ -69,3 +69,16 @@ add_test(NAME test_odeint_events COMMAND test_odeint_events.x)
 add_executable(test_odeint_abs_tol.x test_odeint_abs_tol.f90)
 target_link_libraries(test_odeint_abs_tol.x ${COMMON_LIBS})
 add_test(NAME test_odeint_abs_tol COMMAND test_odeint_abs_tol.x)
+
+add_test(NAME test_odeint_unchecked_failure COMMAND test_odeint_abs_tol.x unchecked)
+add_test(NAME test_odeint_unchecked_context_failure
+    COMMAND test_odeint_abs_tol.x unchecked_context)
+set_tests_properties(test_odeint_unchecked_failure test_odeint_unchecked_context_failure
+    PROPERTIES PASS_REGULAR_EXPRESSION "odeint: integration failed without status"
+    FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_test(NAME test_odeint_invalid_bounds COMMAND test_odeint_abs_tol.x invalid_span)
+add_test(NAME test_odeint_invalid_stepsize COMMAND test_odeint_abs_tol.x invalid_step)
+set_tests_properties(test_odeint_invalid_bounds test_odeint_invalid_stepsize PROPERTIES
+    PASS_REGULAR_EXPRESSION "PASS: nonfinite" FAIL_REGULAR_EXPRESSION "FAIL"
+    TIMEOUT 2)

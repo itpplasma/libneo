@@ -132,7 +132,7 @@ end module odeint_mod
 !> - Vectorized error norm calculation
 !> - Minimal function call overhead
 module odeint_allroutines_sub
-    use, intrinsic :: iso_fortran_env, only: dp => real64, int64
+    use, intrinsic :: iso_fortran_env, only: dp => real64, int64, error_unit
     use odeint_mod
 
     implicit none
@@ -172,7 +172,7 @@ module odeint_allroutines_sub
         real(dp) :: x_event = 0.0_dp
     end type ode_event_t
 
-    public :: odeint_allroutines, ode_event_t
+    public :: odeint_allroutines, odeint_allroutines_checked, ode_event_t
     public :: odeint_clear_status, odeint_has_failed
 
     interface odeint_allroutines
@@ -212,13 +212,46 @@ contains
         abs_tol = atol
     end subroutine set_error_control
 
-    !> Integrate ODE system without context (ORIGINAL INTERFACE)
-    !>
-    !> Optional atol: absolute tolerance per component (see set_error_control).
-    !> Callers must check odeint_has_failed() afterwards: it is true if the
-    !> step size underflowed or the step limit was reached (y then holds the
-    !> last accepted state, not the state at x2). An ierr argument here would
-    !> make the generic interface ambiguous with the context variant.
+    pure subroutine initialize_step(y, nvar, x1, x2, eps, initial_stepsize, atol, &
+                                    h_init, valid)
+        real(dp), intent(in) :: y(:), x1, x2, eps
+        integer, intent(in) :: nvar
+        real(dp), intent(in), optional :: initial_stepsize
+        real(dp), intent(in), optional :: atol(:)
+        real(dp), intent(out) :: h_init
+        logical, intent(out) :: valid
+
+        valid = .false.
+        h_init = 0.0_dp
+        if (nvar < 1) return
+        if (size(y) /= nvar) return
+        if (.not. all(is_finite(y))) return
+        if (.not. is_finite(x1) .or. .not. is_finite(x2)) return
+        if (.not. is_finite(eps)) return
+        if (eps <= 0.0_dp) return
+        if (present(atol)) then
+            if (.not. all(is_finite(atol))) return
+        end if
+        h_init = x2 - x1
+        if (present(initial_stepsize)) then
+            if (.not. is_finite(initial_stepsize)) return
+            h_init = sign(initial_stepsize, x2 - x1)
+        end if
+        if (.not. is_finite(h_init)) return
+        if (x1 /= x2) then
+            if (h_init == 0.0_dp) return
+        end if
+        valid = .true.
+    end subroutine initialize_step
+
+    subroutine stop_failed_integration(x1, x2)
+        real(dp), intent(in) :: x1, x2
+        write (error_unit, *) 'odeint: failed interval ', x1, ' to ', x2
+        error stop 'odeint: integration failed without status'
+    end subroutine stop_failed_integration
+
+    !> Original no-context interface. Failed integrations stop before a caller
+    !> can use the incomplete endpoint. For catchable failure use the checked API.
     subroutine odeint_allroutines_no_context(y, nvar, x1, x2, eps, derivs, &
                                              initial_stepsize, events, atol)
         integer, intent(in) :: nvar
@@ -228,19 +261,42 @@ contains
         real(dp), intent(in), optional :: initial_stepsize
         type(ode_event_t), intent(inout), optional :: events(:)
         real(dp), intent(in), optional :: atol(:)
+        integer :: ierr
 
+        call odeint_allroutines_checked(y, nvar, x1, x2, eps, derivs, ierr, &
+                                        initial_stepsize, events, atol)
+        if (ierr /= 0) call stop_failed_integration(x1, x2)
+    end subroutine odeint_allroutines_no_context
+
+    !> Explicit status without changing the original overloaded signatures.
+    !> ierr = 1 on nonfinite input/trials, underflow or step-limit exhaustion; y holds
+    !> the last accepted state. ierr = 0 denotes endpoint or requested event.
+    subroutine odeint_allroutines_checked(y, nvar, x1, x2, eps, derivs, ierr, &
+                                         initial_stepsize, events, atol)
+        integer, intent(in) :: nvar
+        real(dp), dimension(nvar), intent(inout) :: y
+        real(dp), intent(in) :: x1, x2, eps
+        procedure(derivative_function) :: derivs
+        integer, intent(out) :: ierr
+        real(dp), intent(in), optional :: initial_stepsize
+        type(ode_event_t), intent(inout), optional :: events(:)
+        real(dp), intent(in), optional :: atol(:)
         real(dp) :: h_init
+        logical :: valid
 
-        h_init = x2 - x1
-        if (present(initial_stepsize)) then
-            h_init = sign(initial_stepsize, x2 - x1)
+        call initialize_step(y, nvar, x1, x2, eps, initial_stepsize, atol, h_init, valid)
+        if (.not. valid) then
+            odeint_failed = .true.
+            ierr = 1
+            return
         end if
-
         call set_error_control(nvar, atol)
         call integrate_adaptive(y, nvar, x1, x2, eps, h_init, derivs, &
                                 max_steps, events)
         use_abs_tol = .false.
-    end subroutine odeint_allroutines_no_context
+        ierr = 0
+        if (odeint_failed) ierr = 1
+    end subroutine odeint_allroutines_checked
 
     !> Integrate ODE system with context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_context(y, nvar, context, x1, x2, eps, &
@@ -259,10 +315,16 @@ contains
 
         real(dp) :: h_init
         integer :: max_steps_call
+        logical :: valid
 
-        h_init = x2 - x1
-        if (present(initial_stepsize)) then
-            h_init = sign(initial_stepsize, x2 - x1)
+        call initialize_step(y, nvar, x1, x2, eps, initial_stepsize, atol, h_init, valid)
+        if (.not. valid) then
+            odeint_failed = .true.
+            if (present(ierr)) then
+                ierr = 1
+                return
+            end if
+            call stop_failed_integration(x1, x2)
         end if
         max_steps_call = max_steps
         if (present(step_limit)) max_steps_call = step_limit
@@ -275,6 +337,8 @@ contains
         if (present(ierr)) then
             ierr = 0
             if (odeint_failed) ierr = 1
+        else
+            if (odeint_failed) call stop_failed_integration(x1, x2)
         end if
     end subroutine odeint_allroutines_context
 
@@ -507,12 +571,14 @@ contains
     real(dp) function scaled_error_norm(n, tolerance)
         integer, intent(in) :: n
         real(dp), intent(in) :: tolerance
+        logical :: finite_trial
 
-        if (use_abs_tol) then
-            scaled_error_norm = compute_error_norm(n)
-        else
-            scaled_error_norm = compute_error_norm(n)/tolerance
+        scaled_error_norm = compute_error_norm(n, finite_trial)
+        if (.not. finite_trial) then
+            scaled_error_norm = nonfinite_error
+            return
         end if
+        if (.not. use_abs_tol) scaled_error_norm = scaled_error_norm/tolerance
     end function scaled_error_norm
 
     !> Check if step needs adjustment for endpoint (will be inlined)
@@ -831,23 +897,30 @@ contains
     end subroutine compute_rk_step_context
 
     !> Vectorized error norm computation (eliminates branches)
-    function compute_error_norm(n) result(error_norm)
+    function compute_error_norm(n, finite_trial) result(error_norm)
         integer, intent(in) :: n
+        logical, intent(out) :: finite_trial
         real(dp) :: error_norm
         integer :: i
         real(dp) :: temp_error
 
         error_norm = 0.0_dp
+        finite_trial = .true.
 
         ! Vectorized max reduction (compiler will optimize to SIMD).
         ! A non-finite error (NaN/Inf in the trial step) must reject the
         ! step; max() would silently drop a NaN. The test inspects the
         ! exponent bits so that it survives -ffast-math.
-!$omp simd reduction(max:error_norm) private(temp_error)
+!$omp simd reduction(max:error_norm) reduction(.and.:finite_trial) private(temp_error)
         do i = 1, n
             temp_error = abs(y_error(i)/y_scale(i))
-            if (.not. is_finite(temp_error)) temp_error = nonfinite_error
-            error_norm = max(error_norm, temp_error)
+            if (.not. is_finite(temp_error) .or. .not. is_finite(y_scale(i)) &
+                .or. .not. is_finite(y_temp(i)) &
+                .or. .not. all(is_finite(k_stages(:, i)))) then
+                finite_trial = .false.
+            else
+                error_norm = max(error_norm, temp_error)
+            end if
         end do
     end function compute_error_norm
 
