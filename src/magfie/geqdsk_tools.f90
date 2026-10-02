@@ -209,6 +209,7 @@ contains
        write (*, invert_fmt) 'FFPRIM'
        geqdsk%ffprim = -geqdsk%ffprim
     end if
+    if (allocated(geqdsk%fprime)) geqdsk%fprime(:) = geqdsk%ffprim / geqdsk%fpol
   end subroutine geqdsk_check_consistency
 
   !> Estimates terms of Grad-Shafranov equation to determine cocos_t::exp_bpol.
