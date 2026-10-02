@@ -379,8 +379,13 @@ contains
 
         psi_min = minval(ctx%psi_grid)
         psi_max = maxval(ctx%psi_grid)
-        call construct_splines_1d(psi_min, psi_max, ctx%s_grid, spline_order, &
-            .false., ctx%s_of_psi_spline)
+        if (ctx%psi_grid(npsi) < ctx%psi_grid(1)) then
+            call construct_splines_1d(psi_min, psi_max, ctx%s_grid(npsi:1:-1), &
+                spline_order, .false., ctx%s_of_psi_spline)
+        else
+            call construct_splines_1d(psi_min, psi_max, ctx%s_grid, spline_order, &
+                .false., ctx%s_of_psi_spline)
+        end if
         ctx%s_of_psi_ready = .true.
 
         ! psi(s) and q(s) are resampled on a uniform s grid by inverting the
@@ -510,20 +515,18 @@ contains
     !> The axis value is extrapolated from the neighbouring surfaces because
     !> the contour integral degenerates there.
     subroutine compute_q_from_field(q_out)
-        real(dp), intent(out) :: q_out(:)
+        real(dp), contiguous, intent(out) :: q_out(:)
 
         integer, parameter :: ntheta_q = 512
         integer :: npsi, i, k, i_first
         real(dp) :: theta, dtheta, target_norm, slope
         real(dp) :: R_pt(ntheta_q + 1), Z_pt(ntheta_q + 1)
-        real(dp) :: integral, r_ray, dpsi_dray
-        real(dp) :: f_pol, h_R, h_Z, dpsi_dR, dpsi_dZ
+        real(dp) :: integral, r_ray, dpsi_dray, f_pol
+        real(dp) :: psi_val(1), dpsi(2, 1), position(2)
 
         npsi = size(q_out)
         q_out = 0.0_dp
         dtheta = 2.0_dp*pi/real(ntheta_q, dp)
-        h_R = 1.0e-4_dp*(ctx%R_max - ctx%R_min)
-        h_Z = 1.0e-4_dp*(ctx%Z_max - ctx%Z_min)
 
         ! The outermost grid point sits on sibry.  There the traced contour is
         ! the boundary itself: the bisection has nothing to bracket against, and
@@ -542,11 +545,14 @@ contains
             integral = 0.0_dp
             do k = 1, ntheta_q
                 theta = real(k - 1, dp)*dtheta
-                dpsi_dR = (psi_from_position(R_pt(k) + h_R, Z_pt(k)) &
-                    - psi_from_position(R_pt(k) - h_R, Z_pt(k)))/(2.0_dp*h_R)
-                dpsi_dZ = (psi_from_position(R_pt(k), Z_pt(k) + h_Z) &
-                    - psi_from_position(R_pt(k), Z_pt(k) - h_Z))/(2.0_dp*h_Z)
-                dpsi_dray = abs(dpsi_dR*cos(theta) + dpsi_dZ*sin(theta))
+                ! Spline gradient, not a finite difference: next to the grid
+                ! edge a central difference straddles the clamp in
+                ! psi_from_position and halves the gradient.
+                position(1) = R_pt(k)
+                position(2) = Z_pt(k)
+                call evaluate_batch_splines_2d_der(ctx%psi_rz_spline, &
+                    position, psi_val, dpsi)
+                dpsi_dray = abs(dpsi(1, 1)*cos(theta) + dpsi(2, 1)*sin(theta))
                 ! A vanishing gradient means the contour has wandered onto an
                 ! extremum of psi; skipping the node is safer than dividing.
                 if (dpsi_dray <= tiny(dpsi_dray)) cycle
@@ -676,9 +682,16 @@ contains
 
     subroutine build_q_of_psi_spline(spl)
         type(SplineData1D), intent(out) :: spl
+        integer :: npsi
 
-        call construct_splines_1d(minval(ctx%psi_grid), maxval(ctx%psi_grid), &
-            ctx%q_grid, 5, .false., spl)
+        npsi = size(ctx%psi_grid)
+        if (ctx%psi_grid(npsi) < ctx%psi_grid(1)) then
+            call construct_splines_1d(minval(ctx%psi_grid), maxval(ctx%psi_grid), &
+                ctx%q_grid(npsi:1:-1), 5, .false., spl)
+        else
+            call construct_splines_1d(minval(ctx%psi_grid), maxval(ctx%psi_grid), &
+                ctx%q_grid, 5, .false., spl)
+        end if
     end subroutine build_q_of_psi_spline
 
     !> psi with s_of_psi_spline(psi) = s_val, by Newton iteration started from
@@ -697,7 +710,7 @@ contains
         do iter = 1, max_newton
             call evaluate_splines_1d_der(ctx%s_of_psi_spline, psi_val, s_cur, &
                 ds_dpsi)
-            if (ds_dpsi <= 0.0_dp) exit
+            if (abs(ds_dpsi) <= tiny(ds_dpsi)) exit
             step = (s_cur - s_val) / ds_dpsi
             psi_val = clamp(psi_val - step, psi_min, psi_max)
             if (abs(step) <= 1.0d-14 * (psi_max - psi_min)) exit
