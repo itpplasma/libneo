@@ -38,7 +38,9 @@ jobs:
           cache: pip
 
       - name: Check dependency pins
-        run: python ci/sync_dependency_pins.py --check
+        run: |
+          python ci/sync_dependency_pins.py --check
+          python ci/test_dependency_pins.py
 
       - name: Install system dependencies
         run: |

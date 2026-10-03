@@ -1,4 +1,6 @@
 # fpm.toml owns the dependency revisions for every build entrypoint.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/../fpm.toml")
 file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/../fpm.toml" _libneo_dependencies
     REGEX "^(fortio|fortnum) = ")
 foreach(_libneo_dependency IN ITEMS fortio fortnum)
@@ -13,8 +15,9 @@ foreach(_libneo_dependency IN ITEMS fortio fortnum)
                 message(FATAL_ERROR "Invalid ${_libneo_dependency} revision in fpm.toml")
             endif()
             string(TOUPPER "${_libneo_dependency}" _libneo_upper)
-            set(${_libneo_upper}_REF "${_libneo_revision}" CACHE STRING
-                "${_libneo_dependency} commit, tag, or branch used for the build")
+            if(NOT DEFINED ${_libneo_upper}_REF)
+                set(${_libneo_upper}_REF "${_libneo_revision}")
+            endif()
             set(_libneo_found ON)
         endif()
     endforeach()
