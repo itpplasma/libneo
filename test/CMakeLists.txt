@@ -127,6 +127,9 @@ target_link_libraries(test_geqdsk_tools.x
   ${MAGFIE_LIB}
 )
 
+add_executable(test_geqdsk_derivative_cache.x source/test_geqdsk_derivative_cache.f90)
+target_link_libraries(test_geqdsk_derivative_cache.x ${MAIN_LIB} ${MAGFIE_LIB})
+
 if(LIBNEO_TESTING_ENABLED)
   set(TEST_OUTPUT_DIR ${CMAKE_BINARY_DIR}/test)
   file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR})
@@ -302,6 +305,7 @@ add_test(NAME test_boozer_symplectic_table
   COMMAND test_boozer_symplectic_table.x
 )
 add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
+add_test(NAME test_geqdsk_derivative_cache COMMAND test_geqdsk_derivative_cache.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
@@ -621,6 +625,12 @@ set_tests_properties(test_vector_conversion PROPERTIES
 
 add_executable(test_geoflux_coordinate_system.x source/test_geoflux_coordinate_system.f90)
 target_link_libraries(test_geoflux_coordinate_system.x neo ${MAGFIE_LIB})
+
+add_executable(test_geoflux_flux_table.x source/test_geoflux_flux_table.f90)
+target_link_libraries(test_geoflux_flux_table.x neo ${MAGFIE_LIB})
+add_test(NAME test_geoflux_flux_table
+  COMMAND test_geoflux_flux_table.x
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(test_chartmap_matches_vmec.x source/test_chartmap_matches_vmec.f90)
 target_link_libraries(test_chartmap_matches_vmec.x neo)
