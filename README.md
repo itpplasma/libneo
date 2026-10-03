@@ -19,10 +19,14 @@ For convenience, the build process can be automatically started by running
 directly in the `libneo` directory. This will create a `build` subdirectory
 and run `cmake` with `ninja` internally. 
 
-The CMake build pins Fortio to a reviewed commit. To test a Fortio branch or
-commit explicitly, configure with `-DFORTIO_REF=<ref>`. The `main` workflow
-also accepts the `fortio_ref` `workflow_dispatch` input for the upstream
-Fortio downstream gate.
+Fortio and Fortnum revisions are defined in `fpm.toml`. Both the main CMake
+build and standalone `h5merge` read those defaults. To test another revision,
+configure with `-DFORTIO_REF=<ref>` or `-DFORTNUM_REF=<ref>`; local source
+overrides remain available through CMake's FetchContent options.
+
+After changing a revision in `fpm.toml`, run
+`python3 ci/sync_dependency_pins.py` to regenerate the Nix inputs and lockfile.
+CI checks their consistency with `python3 ci/sync_dependency_pins.py --check`.
 
 ### Install Python interface
 The Python interface is located in the `python` subdirectory. This interface

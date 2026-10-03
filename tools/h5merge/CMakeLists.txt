@@ -2,11 +2,12 @@ cmake_minimum_required(VERSION 3.22)
 project(hdf5_file_merging_tool LANGUAGES C Fortran)
 
 include(FetchContent)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/DependencyPins.cmake)
 set(BUILD_TESTING OFF CACHE BOOL "Do not build dependency tests" FORCE)
 FetchContent_Declare(
   fortio
   GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-  GIT_TAG 11afd0bd1af0c99ea4e9a1c0df683dbdcc299b69
+  GIT_TAG ${FORTIO_REF}
 )
 FetchContent_MakeAvailable(fortio)
 
