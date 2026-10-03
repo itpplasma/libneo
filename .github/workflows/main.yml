@@ -37,6 +37,9 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Check dependency pins
+        run: python ci/sync_dependency_pins.py --check
+
       - name: Install system dependencies
         run: |
           set -euo pipefail
