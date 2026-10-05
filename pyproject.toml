@@ -44,6 +44,7 @@ docs = [
 libneo-write-chartmap = "libneo.chartmap_cli:main"
 libneo-booz-xform = "libneo.run_booz_xform:main"
 nemec2vmec = "libneo.nemec2vmec:main"
+neo2bc2chartmap = "libneo.neo2bc_to_chartmap:main"
 
 [tool.scikit-build]
 build-dir = "build/skbuild"
