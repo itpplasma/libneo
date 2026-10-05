@@ -1,6 +1,28 @@
 # libneo
 Common code for plasma codes of ITPcp, in particular for different NEO-2 versions.
 
+## Role in the KIN6D/TIAGO stack
+
+libneo is the shared **interchange, convention and reusable field-utility
+layer**, not the owner of a universal equilibrium model or reconstruction
+framework.
+
+KIN6D should reuse libneo readers/converters when they already cover formats
+such as GEQDSK, VMEC wout, Boozer/boozmn/chartmaps, SPECTRE/SPEC, JOREK or
+coil data. The adapter boundary must normalize units, coordinate/phase/sign
+conventions and provenance into physical data. KIN6D may then evaluate native
+residuals, re-solve the corresponding equilibrium model and certify the
+result; importing a VMEC or EQDSK object does not make nested surfaces or that
+source code's equations fundamental.
+
+TIAGO continues to reuse libneo for coil/interchange utilities while owning
+diagnostic inference/UQ. libneo should not acquire KIN6D solver policy or TIAGO
+posterior semantics merely to connect the projects.
+
+Add new format/convention support here when it has multiple consumers or is
+clearly generic. Keep one-off machine acquisition and plasma-model-specific
+stationary solves in their owning projects.
+
 ## Getting started
 
 ### Prerequisites
