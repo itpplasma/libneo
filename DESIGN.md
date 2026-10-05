@@ -3,6 +3,35 @@
 ## Overview
 This document captures the architectural decisions, design patterns, and implementation strategies for the libneo Fortran library.
 
+### Ecosystem boundary: interchange rather than equilibrium ownership
+
+libneo owns generic plasma-code interchange, coordinate/convention conversion,
+reusable magnetic-field/geometry utilities and compatibility adapters that have
+multiple consumers. It is intentionally below KIN6D and TIAGO in the
+application stack.
+
+- **KIN6D** owns general plasma equations, stationary/evolution solves,
+  differentiability, numerical certification and model-reduction error.
+- **TIAGO** owns diagnostic observation/inference, likelihoods, nuisance
+  parameters, priors and posterior UQ.
+- **libneo** supplies shared readers/writers/converters and mature field
+  utilities to both.
+
+EQDSK/gEQDSK, VMEC wout, boozmn/chartmap, SPECTRE/SPEC, JOREK and similar
+formats are adapter inputs. A format-specific coordinate model must not leak
+into a consumer as a universal physical assumption. In particular, VMEC input
+does not imply that KIN6D requires nested flux surfaces.
+
+When KIN6D re-solves or certifies an imported state, the equilibrium residual,
+solver and certificate remain KIN6D responsibilities. When TIAGO reconstructs
+from measurements, the likelihood/posterior remain TIAGO responsibilities.
+Avoid adding wrappers here that duplicate either layer.
+
+New adapters should retain source format/version, units, orientation,
+toroidal-angle/field-period/flux conventions and any transformations needed to
+obtain the normalized physical representation. Prefer independently checked
+round trips or cross-code oracles for convention-sensitive conversions.
+
 ## Performance Optimizations
 
 ### Trampoline Elimination (Inner Subroutines)
