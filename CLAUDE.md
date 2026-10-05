@@ -20,6 +20,26 @@ libneo is a Fortran library containing common code for plasma physics codes at I
 - Run tests after each step
 - Keep the cycle short and focused
 
+### Ecosystem and boy-scout policy
+
+libneo is shared infrastructure. When work in KIN6D, TIAGO, SIMPLE, MEPHIT,
+NEO-2 or another consumer exposes a generic libneo bug or missing reusable
+capability, fix it here with a failing upstream test/oracle rather than keeping
+a downstream workaround.
+
+KIN6D uses libneo through a narrow adapter, but that replaceability is not a
+reason to leave touched libneo code unimproved. On first real use, clean the
+bounded path as needed for correctness, reentrancy, accuracy, derivatives,
+performance or reusable error diagnostics while preserving compatible behavior
+for existing consumers. Do not perform speculative repository-wide rewrites.
+
+Generic field/interpolation derivatives and representation-level error
+capabilities may be added here when reusable. Physical-model residuals,
+implicit equilibrium parameter adjoints and validated KIN6D solution/model
+bounds do not belong in libneo.
+
+Read `DESIGN.md` and `ROADMAP.md` before architectural work.
+
 ### Coding Standards
 See `CODING_STANDARD.md` for complete details. Key points:
 - Code is simple and self-explaining without comments
