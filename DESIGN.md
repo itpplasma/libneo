@@ -32,6 +32,58 @@ toroidal-angle/field-period/flux conventions and any transformations needed to
 obtain the normalized physical representation. Prefer independently checked
 round trips or cross-code oracles for convention-sensitive conversions.
 
+### Boy-scout modernization driven by real consumers
+
+libneo is historically grown and is not scheduled for a wholesale rewrite.
+Instead, every new production consumer is an opportunity to harden the exact
+path it exercises. KIN6D in particular should trigger this process as soon as
+it depends on a reader, converter, field evaluator or geometry utility.
+
+For each touched path:
+
+1. freeze the KIN6D/downstream reproducer and expected physical semantics;
+2. add a libneo-level analytic, manufactured, round-trip or cross-code oracle;
+3. fix generic correctness/convention/accuracy defects in libneo, not in a
+   downstream shadow implementation;
+4. make the smallest refactor needed for reentrancy, explicit state,
+   performance, derivative access or independent checking;
+5. preserve existing public behavior when correct, or provide a bounded
+   compatibility/migration path when a bug fix changes it;
+6. run libneo tests and the relevant downstream regression before promotion.
+
+The purpose is ecosystem compounding: fixes discovered while developing KIN6D
+should improve NEO-2, SIMPLE, MEPHIT, TIAGO and future consumers as they update
+their libneo revision.
+
+### Differentiability and error capabilities
+
+The current `field_t` value interface is intentionally small. Do not turn it
+into a mandatory monster interface that every historical backend must
+implement. Add capability-specific interfaces/composition only when real
+consumers require them, for example:
+
+- spatial field Jacobian/JVP evaluation;
+- parameter-independent interpolation derivatives;
+- interpolation/truncation diagnostics;
+- interval/ball evaluation or other representation-level enclosures.
+
+A value-only backend remains valid. A consumer that needs stronger semantics
+may either select a backend with those capabilities or use libneo to parse and
+normalize the source data, then rebuild it in a native differentiable/certified
+representation.
+
+Ownership remains strict:
+
+- libneo owns derivatives and error information of its generic
+  representation/conversion/evaluation mathematics;
+- KIN6D owns derivatives of the physical stationary/evolution equations with
+  respect to physical parameters, implicit equilibrium adjoints, validated
+  solution existence/error and physical model-reduction bounds;
+- TIAGO owns inference/posterior UQ.
+
+This split allows rigorous KIN6D results without requiring every historical
+libneo routine to become interval-arithmetic or AD-enabled.
+
 ## Performance Optimizations
 
 ### Trampoline Elimination (Inner Subroutines)
