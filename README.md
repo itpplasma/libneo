@@ -23,6 +23,26 @@ Add new format/convention support here when it has multiple consumers or is
 clearly generic. Keep one-off machine acquisition and plasma-model-specific
 stationary solves in their owning projects.
 
+### Demand-driven modernization
+
+KIN6D is expected to become a major new libneo consumer. That is a reason to
+improve libneo, not to fork its useful mathematics. Whenever KIN6D starts using
+a libneo path, treat the touched code with a boy-scout rule: add an independent
+regression/oracle for the real use case, fix generic bugs and convention errors
+here, and make bounded refactors that improve reentrancy, accuracy,
+differentiability or testability for all consumers.
+
+Do not rewrite unrelated historical subsystems merely because KIN6D exists.
+Preserve compatible entry points or provide migration shims so NEO-2, SIMPLE,
+MEPHIT, TIAGO and other consumers can adopt the improved implementation.
+
+Generic spatial field derivatives, interpolation/error diagnostics and
+representation-level enclosures belong here when they are reusable. Physical
+equilibrium/kinetic residuals, implicit parameter adjoints, validated
+stationary solves and model-error bounds remain KIN6D responsibilities. An old
+evaluator that is too costly to make rigorous may remain an importer into a
+canonical KIN6D representation rather than being duplicated.
+
 ## Getting started
 
 ### Prerequisites
