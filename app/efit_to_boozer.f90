@@ -116,9 +116,9 @@
   write(iunit,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'
   write(iunit_lhs,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'    !<=25.07.2023
   write(iunit_rhs,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'    !<=25.07.2023
-  write(iunit,'(4i6,e15.6,2f10.5)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2
-  write(iunit_lhs,'(4i6,e15.6,2f10.5)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
-  write(iunit_rhs,'(4i6,e15.6,2f10.5)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
+  write(iunit,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2
+  write(iunit_lhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
+  write(iunit_rhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
 !
   phi=0.d0
 !
