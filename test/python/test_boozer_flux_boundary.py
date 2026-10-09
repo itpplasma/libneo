@@ -57,3 +57,5 @@ def test_prescribed_circular_flux_boundary(tmp_path, scan):
     # Exact q at fixed normalized toroidal flux, not at a fitted radius.
     q_exact = f/(r0-np.asarray(bc.s)*flux/(2*np.pi*f))
     np.testing.assert_allclose(1/np.asarray(bc.iota), q_exact, rtol=2e-7)
+    native_flux = np.loadtxt(tmp_path/"flux_functions.dat")[-1, 5]*2*np.pi*1e-8
+    assert bc.flux == pytest.approx(native_flux, rel=2e-14)
