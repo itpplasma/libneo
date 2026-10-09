@@ -13,7 +13,8 @@ from libneo.eqdsk_to_boozer_chartmap import (
 
 
 @pytest.mark.parametrize("scan", [80, 160])
-def test_prescribed_circular_flux_boundary(tmp_path, scan):
+@pytest.mark.parametrize("polarity", [-1, 1])
+def test_prescribed_circular_flux_boundary(tmp_path, scan, polarity):
     binary = os.environ.get("EFIT_TO_BOOZER_BINARY")
     if not binary:
         pytest.skip("set EFIT_TO_BOOZER_BINARY to the native converter")
@@ -21,10 +22,10 @@ def test_prescribed_circular_flux_boundary(tmp_path, scan):
     r0, f, radius, nr = 4., 3., .8, 65
     r, z = np.linspace(2.5, 5.5, nr), np.linspace(-1.5, 1.5, nr)
     R, Z = np.meshgrid(r, z)
-    psi = ((R-r0)**2+Z**2-radius**2)/2
-    header = [3, 3, r0, 2.5, 0, r0, 0, -radius**2/2, 0, f/r0,
-              1, -radius**2/2, 0, r0, 0, 0, 0, 0, 0, 0]
-    q = f/np.sqrt(r0*r0-radius**2*np.linspace(0, 1, nr))
+    psi = polarity*((R-r0)**2+Z**2-radius**2)/2
+    header = [3, 3, r0, 2.5, 0, r0, 0, -polarity*radius**2/2, 0, f/r0,
+              polarity, -polarity*radius**2/2, 0, r0, 0, 0, 0, 0, 0, 0]
+    q = polarity*f/np.sqrt(r0*r0-radius**2*np.linspace(0, 1, nr))
     gfile = tmp_path/"circular.g"
     with gfile.open("w") as out:
         out.write(f"{'exact circular; COCOS 3':48s}{0:4d}{nr:4d}{nr:4d}\n")
@@ -42,7 +43,7 @@ def test_prescribed_circular_flux_boundary(tmp_path, scan):
     _write_convex_wall_from_lcfs(tmp_path/"convexwall.dat", boundary[:, 0], boundary[:, 1])
     _write_inp(tmp_path/"efit_to_boozer.inp", str(gfile), nlabel=128,
                ntheta_int=256, nsurfmax=scan, nsurf=40, mpol=12,
-               psimax=radius**2/2*1e8)
+               psimax=polarity*radius**2/2*1e8)
     _write_field_divB0_inp(tmp_path/"field_divB0.inp", str(gfile),
                           convexfile="convexwall.dat")
     proc = subprocess.run([str(Path(binary).resolve())], cwd=tmp_path,
@@ -55,7 +56,9 @@ def test_prescribed_circular_flux_boundary(tmp_path, scan):
     # The existing six-digit header has a separate serialization floor.
     assert bc.flux == pytest.approx(flux, rel=5e-6)
     # Exact q at fixed normalized toroidal flux, not at a fitted radius.
-    q_exact = f/(r0-np.asarray(bc.s)*flux/(2*np.pi*f))
+    q_exact = polarity*f/(r0-np.asarray(bc.s)*flux/(2*np.pi*f))
     np.testing.assert_allclose(1/np.asarray(bc.iota), q_exact, rtol=2e-7)
     native_flux = np.loadtxt(tmp_path/"flux_functions.dat")[-1, 5]*2*np.pi*1e-8
-    assert bc.flux == pytest.approx(native_flux, rel=2e-14)
+    # The intermediate contour integral follows the poloidal field; the
+    # delivered left-handed file restores physical toroidal-flux orientation.
+    assert bc.flux == pytest.approx(polarity*native_flux, rel=2e-14)
