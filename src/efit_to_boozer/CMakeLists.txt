@@ -136,8 +136,10 @@ message(STATUS "Python binary output dir: ${CMAKE_CURRENT_BINARY_DIR}")
 add_custom_command(
   OUTPUT _efit_to_boozermodule.c _efit_to_boozer-f2pywrappers.f _efit_to_boozer-f2pywrappers2.f90
   DEPENDS f2py_interfaces/f2py_efit_to_boozer.f90
+          "${CMAKE_CURRENT_SOURCE_DIR}/../../.f2py_f2cmap"
   VERBATIM
   COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
+  --f2cmap "${CMAKE_CURRENT_SOURCE_DIR}/../../.f2py_f2cmap"
   "${CMAKE_CURRENT_SOURCE_DIR}/f2py_interfaces/f2py_efit_to_boozer.f90"
   "${CMAKE_SOURCE_DIR}/src/magfie/field_divB0.f90"
   "${CMAKE_SOURCE_DIR}/src/magfie/field_eq_mod.f90"
