@@ -13,9 +13,16 @@ def read_eqdsk(filename):
     with open(filename) as f:
         # First line
         eqdata['header'] = f.read(48)
-        line = f.readline().split()
-        eqdata['nrgr'] = int(line[1])
-        eqdata['nzgr'] = int(line[2])
+        record = f.readline()
+        try:
+            # GEQDSK uses (6a8,3i4). Four-digit dimensions occupy the
+            # whole field, so adjacent integers need not have whitespace.
+            _, nrgr, nzgr = (int(record[i:i+4]) for i in (0, 4, 8))
+        except ValueError:
+            # Retain compatibility with historical whitespace-only headers.
+            _, nrgr, nzgr = map(int, record.split())
+        eqdata['nrgr'] = nrgr
+        eqdata['nzgr'] = nzgr
 
         # Second line
         eqdata['rboxlength'] = float(f.read(16))
