@@ -124,6 +124,7 @@
 !
   do is=1,nsurf
     s=hs*(dfloat(is)-0.5d0)
+    sqrtg00=0.d0
     do it=1,nt
       theta=htheta*dfloat(it)
 !
@@ -134,7 +135,9 @@
 !
       calE(it)=exp(cmplx(0.d0,theta+G/q, kind=cdp))
       aJb=R*(Br**2+Bp**2+Bz**2)/(C_norm*Bp)
-      calEm_times_Jb(it)=cmplx(aJb,0.d0, kind=cdp)
+      sqrtg00=sqrtg00+aJb/bmod**2
+      ! Fourier quadrature must use the Jacobian of its interpolated angle.
+      calEm_times_Jb(it)=cmplx(1.d0+dG_dtheta/q,0.d0, kind=cdp)
 !
       R_oft(it)=R
       Z_oft(it)=Z
@@ -146,7 +149,7 @@
     aiota=1.d0/q
     B_phi=Bp*R
     B_theta=q*(C_norm-B_phi)
-    sqrtg00=(B_phi+B_theta/q)*real(sum(calEm_times_Jb/B_oft**2))*oneovernt
+    sqrtg00=(B_phi+B_theta/q)*sqrtg00*oneovernt
     dB_phi_ds=(dBpdR*dR_ds+dBpdZ*dZ_ds)*R+Bp*dR_ds
     dB_theta_ds=dq_ds*(C_norm-B_phi)+q*(dC_norm_ds-dB_phi_ds)
     pprime=-(dB_phi_ds+aiota*dB_theta_ds)/(2.d0*twopi*sqrtg00)
