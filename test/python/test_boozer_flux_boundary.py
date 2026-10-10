@@ -41,8 +41,8 @@ def test_prescribed_circular_flux_boundary(tmp_path, scan, polarity):
                 out.write("".join(f"{v:16.9E}" for v in a[i:i+5])+"\n")
     # A wall encloses the requested smooth surface, not a separatrix.
     _write_convex_wall_from_lcfs(tmp_path/"convexwall.dat", boundary[:, 0], boundary[:, 1])
-    _write_inp(tmp_path/"efit_to_boozer.inp", str(gfile), nlabel=128,
-               ntheta_int=256, nsurfmax=scan, nsurf=40, mpol=12,
+    _write_inp(tmp_path/"efit_to_boozer.inp", str(gfile), nlabel=512,
+               ntheta_int=256, nsurfmax=scan, nsurf=2000, mpol=12,
                psimax=polarity*radius**2/2*1e8)
     _write_field_divB0_inp(tmp_path/"field_divB0.inp", str(gfile),
                           convexfile="convexwall.dat")
@@ -62,3 +62,26 @@ def test_prescribed_circular_flux_boundary(tmp_path, scan, polarity):
     # The intermediate contour integral follows the poloidal field; the
     # delivered left-handed file restores physical toroidal-flux orientation.
     assert bc.flux == pytest.approx(polarity*native_flux, rel=2e-14)
+
+    # Independent circular oracle for the Boozer metric: J=-Phi*R^2/(2*pi*F).
+    # Differentiating densely sampled geometry exposes coefficient-rounding
+    # errors that scalar B/q/flux readback cannot see.
+    from scipy.interpolate import CubicSpline
+    angle = np.arange(256)*2*np.pi/256
+    modes = np.asarray(bc.m[0])[:, None]
+    co, si = np.cos(modes*angle), np.sin(modes*angle)
+    samples = np.array([.05, .4, .9])
+    geometry = {}
+    for name in ("rmnc", "rmns", "zmnc", "zmns"):
+        spline = CubicSpline(bc.s, np.asarray(getattr(bc, name)), axis=0)
+        geometry[name] = (spline(samples), spline(samples, 1))
+    rc, rs, zc, zs = (geometry[name] for name in
+                      ("rmnc", "rmns", "zmnc", "zmns"))
+    R = rc[0]@co+rs[0]@si
+    R_s = rc[1]@co+rs[1]@si
+    Z_s = zc[1]@co+zs[1]@si
+    R_t = -(rc[0]*modes.T)@si+(rs[0]*modes.T)@co
+    Z_t = -(zc[0]*modes.T)@si+(zs[0]*modes.T)@co
+    jacobian = R*(R_t*Z_s-R_s*Z_t)
+    expected = -flux*R**2/(2*np.pi*f)
+    np.testing.assert_allclose(jacobian, expected, rtol=1e-6)

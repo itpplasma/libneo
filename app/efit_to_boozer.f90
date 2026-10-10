@@ -199,11 +199,12 @@
     write(iunit,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'
     write(iunit_lhs,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'  !<=25.07.2023
     write(iunit_rhs,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'  !<=25.07.2023
-    write(iunit,'(6e17.8)') s, aiota, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,              &
+    ! Radial geometry derivatives require full precision in all surface records.
+    write(iunit,'(6es25.16)') s, aiota, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,              &
                                                       -sigma*sqrtg00*psitor_max*1d-6*twopi**2
-    write(iunit_lhs,'(6e17.8)') s, aiota*sigma_lhs, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,            &               !<=25.07.2023
+    write(iunit_lhs,'(6es25.16)') s, aiota*sigma_lhs, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,            &               !<=25.07.2023
                                                       -abs(sqrtg00*psitor_max)*1d-6*twopi**2                                   !<=25.07.2023
-    write(iunit_rhs,'(6e17.8)') s, aiota*sigma_rhs, B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,             &               !<=25.07.2023
+    write(iunit_rhs,'(6es25.16)') s, aiota*sigma_rhs, B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,             &               !<=25.07.2023
                                                       abs(sqrtg00*psitor_max)*1d-6*twopi**2                                    !<=25.07.2023
     write(iunit,*) '    m    n      rmnc [m]         rmns [m]         zmnc [m]         zmns [m]'   &
                    //'         vmnc [ ]         vmns [ ]         bmnc [T]         bmns [T]'
@@ -212,11 +213,11 @@
     write(iunit_rhs,*) '    m    n      rmnc [m]         rmns [m]         zmnc [m]         zmns [m]'   &                       !<=25.07.2023
                    //'         vmnc [ ]         vmns [ ]         bmnc [T]         bmns [T]'                                    !<=25.07.2023
     do m=0,mpol
-      write(iunit,'(2i5,8e17.8)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2,  &
+      write(iunit,'(2i5,8es25.16)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2,  &
                      almn_c(m), almn_s(m), Bmn_c(m)*1d-4, Bmn_s(m)*1d-4
-      write(iunit_lhs,'(2i5,8e17.8)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_lhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_lhs,  &   !<=25.07.2023
+      write(iunit_lhs,'(2i5,8es25.16)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_lhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_lhs,  &   !<=25.07.2023
                      almn_c(m), almn_s(m)*sigma_lhs, Bmn_c(m)*1d-4, Bmn_s(m)*1d-4*sigma_lhs                                    !<=25.07.2023
-      write(iunit_rhs,'(2i5,8e17.8)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_rhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_rhs,  &   !<=25.07.2023
+      write(iunit_rhs,'(2i5,8es25.16)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_rhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_rhs,  &   !<=25.07.2023
                      almn_c(m), almn_s(m)*sigma_rhs, Bmn_c(m)*1d-4, Bmn_s(m)*1d-4*sigma_rhs                                    !<=25.07.2023
     enddo
 
