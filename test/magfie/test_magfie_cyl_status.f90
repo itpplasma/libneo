@@ -2,7 +2,9 @@ program test_magfie_cyl_status
     ! magfie_with_status reports points outside the LCFS / convex boundary via
     ! its optional status argument, prints nothing, and leaves the returned
     ! values identical to the legacy magfie entry point.
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_set_flag, &
+                                             ieee_set_halting_mode, ieee_invalid, &
+                                             ieee_divide_by_zero
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use input_files, only: convexfile
     use field_mod, only: icall, iequil, ipert
@@ -17,6 +19,10 @@ program test_magfie_cyl_status
     real(dp) :: x(3)
 
     nerr = 0
+
+    ! The zero field below gives 0/0 in magfie; debug builds trap it otherwise.
+    call ieee_set_halting_mode(ieee_invalid, .false.)
+    call ieee_set_halting_mode(ieee_divide_by_zero, .false.)
 
     ! Circular convex wall: radius 1 around (R,Z) = (2,0).
     convexfile = 'test_magfie_cyl_convex.dat'
@@ -43,6 +49,9 @@ program test_magfie_cyl_status
     call evaluate([2.3_dp, 0.0_dp, 0.1_dp], MAGFIE_OK, 0)
     allow_sol = .false.
     call evaluate([4.0_dp, 0.0_dp, 0.0_dp], MAGFIE_OUTSIDE_BOUNDARY, 1)
+
+    ! Do not leave the expected flags raised at program exit.
+    call ieee_set_flag([ieee_invalid, ieee_divide_by_zero], .false.)
 
     if (nerr /= 0) error stop 'test_magfie_cyl_status failed'
 
