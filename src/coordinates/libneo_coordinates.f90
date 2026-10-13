@@ -23,7 +23,8 @@ module libneo_coordinates
     public :: chartmap_coordinate_system_t, make_chartmap_coordinate_system
     public :: CHARTMAP_LOCATED, CHARTMAP_CLAMPED_EDGE
     public :: CHARTMAP_OUTSIDE, CHARTMAP_NO_ROOT
-    public :: spectre_coordinate_system_t, make_spectre_coordinate_system
+    public :: spectre_coordinate_system_t, make_spectre_coordinate_system, &
+              validate_spectre_chart
 
     public :: validate_chartmap_file
     public :: detect_refcoords_file_type
