@@ -69,3 +69,8 @@ set_tests_properties(
     test_mgrid
     test_stretch_coords
     PROPERTIES LABELS "field")
+
+add_executable(test_cyl_grid_field.x test_cyl_grid_field.f90)
+target_link_libraries(test_cyl_grid_field.x PRIVATE neo
+                                                    util_for_test)
+add_test(NAME test_cyl_grid_field COMMAND test_cyl_grid_field.x)

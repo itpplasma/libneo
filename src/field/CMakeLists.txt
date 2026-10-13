@@ -16,6 +16,8 @@ add_library(neo_field STATIC
     biotsavart.f90
     biotsavart_field.f90
     field_mesh.f90
+    cyl_grid_field.f90
+    mfbe2001.f90
     polylag_field.f90
     spline_field.f90
     mgrid.f90
