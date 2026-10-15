@@ -2203,6 +2203,11 @@ contains
         real(dp), intent(out) :: d2y_batch(:, :)  ! (6, n_quantities)
 
         if (spl%num_quantities == 1) then
+            if (spl%order(1) == 5 .and. spl%order(2) == 5 .and. spl%order(3) == 5) then
+                call evaluate_batch_splines_3d_der2_core_nq1_o555(spl, x, y_batch, &
+                                                                  dy_batch, d2y_batch)
+                return
+            end if
             call evaluate_batch_splines_3d_der2_core_nq1(spl, x, y_batch, &
                                                          dy_batch, d2y_batch)
             return
