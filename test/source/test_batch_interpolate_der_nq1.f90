@@ -13,11 +13,11 @@ program test_batch_interpolate_der_nq1
     !
     !   1. Dispatch equivalence, bitwise. The same underlying data is splined
     !      twice: once as a 1-quantity spline (which takes the nq1 kernel) and
-    !      once as the first quantity of a 2-quantity spline (which takes the
-    !      general kernel). The nq1 kernel performs the same Horner recurrences
-    !      in the same order, so the two must agree to the last bit, not merely
-    !      to a tolerance. A tolerance check here would hide exactly the
-    !      reassociation bugs that break SIMPLE's byte-exact golden records.
+    !      once as the first quantity of a 2-quantity spline evaluated through
+    !      the general reference kernel. The nq1 kernel performs the same Horner
+    !      recurrences in the same order, so the two must agree to the last bit,
+    !      not merely to a tolerance. A tolerance check here would hide exactly
+    !      the reassociation bugs that break SIMPLE's byte-exact golden records.
     !
     !   2. Cross-kernel agreement. Value and first derivatives from
     !      evaluate_batch_splines_3d_der must match those from
@@ -30,6 +30,7 @@ program test_batch_interpolate_der_nq1
                                  destroy_batch_splines_3d, &
                                  evaluate_batch_splines_3d, &
                                  evaluate_batch_splines_3d_der, &
+                                 evaluate_batch_splines_3d_der_general, &
                                  evaluate_batch_splines_3d_der2
     implicit none
 
@@ -128,7 +129,7 @@ contains
         do ip = 1, npts
             call eval_point(ip, npts, x_min, x_max, x)
             call evaluate_batch_splines_3d_der(spl1, x, v1, dv1)
-            call evaluate_batch_splines_3d_der(spl2, x, v2, dv2)
+            call evaluate_batch_splines_3d_der_general(spl2, x, v2, dv2)
             if (v1(1) /= v2(1)) nbad = nbad + 1
             if (dv1(1, 1) /= dv2(1, 1)) nbad = nbad + 1
             if (dv1(2, 1) /= dv2(2, 1)) nbad = nbad + 1
