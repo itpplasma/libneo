@@ -35,6 +35,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d_der2
     public :: evaluate_batch_spline_3d_scalar_cubic_der
     public :: evaluate_batch_splines_3d_der_nq1_o355
+    public :: evaluate_batch_splines_3d_der_general
     public :: evaluate_batch_spline_3d_scalar_quintic_der
     public :: evaluate_batch_spline_3d_scalar_cubic_der2
     public :: evaluate_batch_spline_3d_scalar_cubic_der2_rmix
@@ -1055,6 +1056,18 @@ contains
         call evaluate_batch_splines_3d_der_core(spl, x, y_batch, dy_batch)
     end subroutine evaluate_batch_splines_3d_der
 
+    ! Reference evaluation through the general kernel for any degree; the
+    ! specialised kernels selected by evaluate_batch_splines_3d_der must agree
+    ! with it bitwise.
+    subroutine evaluate_batch_splines_3d_der_general(spl, x, y_batch, dy_batch)
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)
+        real(dp), intent(out) :: dy_batch(:, :)
+
+        call evaluate_batch_splines_3d_der_core_general(spl, x, y_batch, dy_batch)
+    end subroutine evaluate_batch_splines_3d_der_general
+
     ! Dispatch to the specialised first-derivative kernel, mirroring how
     ! evaluate_batch_splines_3d_der2_core selects among its variants. The
     ! single-quantity case is the common one in orbit tracing (|B| alone), and
@@ -1078,8 +1091,113 @@ contains
             return
         end if
 
+        if (spl%order(1) == 5 .and. spl%order(2) == 5 .and. spl%order(3) == 5) then
+            call evaluate_batch_splines_3d_der_core_o555(spl, x, y_batch, dy_batch)
+            return
+        end if
         call evaluate_batch_splines_3d_der_core_general(spl, x, y_batch, dy_batch)
     end subroutine evaluate_batch_splines_3d_der_core
+
+    ! Quintic first-derivative kernel. Same point setup and the same Horner
+    ! recurrences in the same order as evaluate_batch_splines_3d_der_core_general,
+    ! with fixed degree and each recurrence held in registers, so no
+    ! coefficient block is copied before it is reduced.
+    recursive subroutine evaluate_batch_splines_3d_der_core_o555(spl, x, y_batch, &
+                                                                 dy_batch)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y_batch(:)
+        real(dp), intent(out) :: dy_batch(:, :)
+
+        real(dp) :: x_norm(3), x_local(3), xj, x1, x2, x3
+        real(dp) :: v(MAX_QUANTITIES, 0:5, 0:5), d1(MAX_QUANTITIES, 0:5, 0:5)
+        real(dp) :: w(MAX_QUANTITIES, 0:5), w1(MAX_QUANTITIES, 0:5)
+        real(dp) :: w2(MAX_QUANTITIES, 0:5)
+        real(dp) :: c0, c1, c2, c3, c4, c5, a, b, e
+        integer :: interval_index(3), j, iq, k2, k3, i1, i2, i3, nq
+
+        nq = spl%num_quantities
+        do j = 1, 3
+            if (spl%periodic(j)) then
+                xj = modulo(x(j) - spl%x_min(j), &
+                            spl%h_step(j)*(spl%num_points(j) - 1)) + spl%x_min(j)
+            else
+                xj = x(j)
+            end if
+            x_norm(j) = (xj - spl%x_min(j))/spl%h_step(j)
+            interval_index(j) = max(0, min(spl%num_points(j) - 2, int(x_norm(j))))
+            x_local(j) = (x_norm(j) - dble(interval_index(j)))*spl%h_step(j)
+        end do
+        x1 = x_local(1)
+        x2 = x_local(2)
+        x3 = x_local(3)
+        i1 = interval_index(1) + 1
+        i2 = interval_index(2) + 1
+        i3 = interval_index(3) + 1
+
+        do k3 = 0, 5
+            do k2 = 0, 5
+                do iq = 1, nq
+                    c5 = spl%coeff(iq, 5, k2, k3, i1, i2, i3)
+                    c4 = spl%coeff(iq, 4, k2, k3, i1, i2, i3)
+                    c3 = spl%coeff(iq, 3, k2, k3, i1, i2, i3)
+                    c2 = spl%coeff(iq, 2, k2, k3, i1, i2, i3)
+                    c1 = spl%coeff(iq, 1, k2, k3, i1, i2, i3)
+                    c0 = spl%coeff(iq, 0, k2, k3, i1, i2, i3)
+                    a = c4 + x1*c5
+                    a = c3 + x1*a
+                    a = c2 + x1*a
+                    a = c1 + x1*a
+                    v(iq, k2, k3) = c0 + x1*a
+                    b = 4*c4 + x1*(5*c5)
+                    b = 3*c3 + x1*b
+                    b = 2*c2 + x1*b
+                    d1(iq, k2, k3) = 1*c1 + x1*b
+                end do
+            end do
+        end do
+
+        do k3 = 0, 5
+            do iq = 1, nq
+                a = v(iq, 5, k3)
+                b = d1(iq, 5, k3)
+                e = 5*v(iq, 5, k3)
+                a = v(iq, 4, k3) + x2*a
+                b = d1(iq, 4, k3) + x2*b
+                e = 4*v(iq, 4, k3) + x2*e
+                a = v(iq, 3, k3) + x2*a
+                b = d1(iq, 3, k3) + x2*b
+                e = 3*v(iq, 3, k3) + x2*e
+                a = v(iq, 2, k3) + x2*a
+                b = d1(iq, 2, k3) + x2*b
+                e = 2*v(iq, 2, k3) + x2*e
+                a = v(iq, 1, k3) + x2*a
+                b = d1(iq, 1, k3) + x2*b
+                e = 1*v(iq, 1, k3) + x2*e
+                w(iq, k3) = v(iq, 0, k3) + x2*a
+                w1(iq, k3) = d1(iq, 0, k3) + x2*b
+                w2(iq, k3) = e
+            end do
+        end do
+
+        do iq = 1, nq
+            a = w(iq, 5)
+            b = w1(iq, 5)
+            c0 = w2(iq, 5)
+            e = 5*w(iq, 5)
+            do k3 = 4, 0, -1
+                a = w(iq, k3) + x3*a
+                b = w1(iq, k3) + x3*b
+                c0 = w2(iq, k3) + x3*c0
+                if (k3 >= 1) e = k3*w(iq, k3) + x3*e
+            end do
+            y_batch(iq) = a
+            dy_batch(1, iq) = b
+            dy_batch(2, iq) = c0
+            dy_batch(3, iq) = e
+        end do
+    end subroutine evaluate_batch_splines_3d_der_core_o555
 
     ! Single-quantity first-derivative kernel. Same algorithm and same operation
     ! order as evaluate_batch_splines_3d_der_core_general, with the quantity
@@ -2085,6 +2203,11 @@ contains
         real(dp), intent(out) :: d2y_batch(:, :)  ! (6, n_quantities)
 
         if (spl%num_quantities == 1) then
+            if (spl%order(1) == 5 .and. spl%order(2) == 5 .and. spl%order(3) == 5) then
+                call evaluate_batch_splines_3d_der2_core_nq1_o555(spl, x, y_batch, &
+                                                                  dy_batch, d2y_batch)
+                return
+            end if
             call evaluate_batch_splines_3d_der2_core_nq1(spl, x, y_batch, &
                                                          dy_batch, d2y_batch)
             return
