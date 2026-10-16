@@ -11,7 +11,6 @@ module boozer_chartmap_io
     !> this reader appends exact periodic endpoint planes for the spline backend.
 
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use netcdf
     use boozer_chartmap_types, only: boozer_chartmap_data_t
 
@@ -325,6 +324,7 @@ contains
     end subroutine require_variable_dimensions
 
     subroutine require_min_points(name, grid)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         character(len=*), intent(in) :: name
         real(dp), intent(in) :: grid(:)
 
@@ -340,6 +340,7 @@ contains
     end subroutine require_min_points
 
     subroutine require_uniform_grid(name, grid, h)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         character(len=*), intent(in) :: name
         real(dp), intent(in) :: grid(:), h
 
@@ -363,6 +364,7 @@ contains
     end subroutine require_uniform_grid
 
     subroutine require_endpoint_excluded_grid(name, grid, h, period)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         character(len=*), intent(in) :: name
         real(dp), intent(in) :: grid(:), h, period
 
