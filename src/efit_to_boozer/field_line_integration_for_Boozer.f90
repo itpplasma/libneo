@@ -21,6 +21,8 @@
 !
   integer :: nstep,nsurfmax,nlabel,ntheta
   integer :: i,j,nsurf,nmap,isurf,iter
+  logical :: flux_boundary
+  double precision :: rleft,rright,rmid
 !
   double precision, parameter :: pi = 3.14159265358979d0
   double precision, dimension(4), parameter :: win   = (/-1.d0, 13.d0, 13.d0, -1.d0 /) / 24.d0
@@ -114,6 +116,7 @@
   h=2.d0*pi/nstep_min
 !
   nsurf = 0
+  flux_boundary = .false.
   surf: do isurf=1,nsurfmax
     phi=0.d0
     phiout=h
@@ -146,6 +149,7 @@
       endif
       if (psif > psimax) then
         nsurf=isurf-1
+        flux_boundary = .true.
         exit surf
       endif
     enddo
@@ -166,7 +170,30 @@
 !------------------------------------------------------------------------------
 
 ! Re-define start points step size in R for data storage
-  hbr=hbr*dfloat(nsurf)/dfloat(nlabel)
+  if (flux_boundary) then
+    ! A prescribed regular flux surface is not a separatrix. Refine its
+    ! outboard intercept instead of moving the requested boundary inward
+    ! by one or two scan cells. Keep the old safety margin for box exits.
+    rleft=raxis
+    rright=min(rmx,raxis+hbr*dfloat(isurf+1))
+    call field_eq(rright,ppp,zaxis,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ &
+                  ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
+    if (psif < psimax .or. psi_axis >= psimax) &
+      error stop 'Cannot bracket prescribed Boozer flux boundary'
+    do iter=1,48
+      rmid=(rleft+rright)*0.5d0
+      call field_eq(rmid,ppp,zaxis,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ &
+                    ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
+      if (psif <= psimax) then
+        rleft=rmid
+      else
+        rright=rmid
+      endif
+    enddo
+    hbr=(rleft-raxis)/dfloat(nlabel)
+  else
+    hbr=hbr*dfloat(nsurf)/dfloat(nlabel)
+  endif
 !
 !------------------------------------------------------------------------------
 !
