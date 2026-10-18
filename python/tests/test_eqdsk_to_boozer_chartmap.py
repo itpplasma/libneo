@@ -109,12 +109,30 @@ def test_limiter_boundary_both_flux_directions(tmp_path, sign, toroidal_sign):
         # magdata's normalization C also contains iota*I and is not G alone.
         np.testing.assert_allclose(ds.variables["B_phi"][:], 20e6*toroidal_sign, rtol=2e-5)
         assert np.sign(ds.torflux) == -toroidal_sign
+        radius = np.hypot(x, y)*.01
+        minor2 = (radius-10)**2+(z*.01)**2
+        expected_b = np.sqrt((20/radius)**2+minor2/radius**2)
+        np.testing.assert_allclose(ds.variables["Bmod"][:]*1e-4, expected_b, rtol=2e-5)
 
 
 def test_bmod_positive(chartmap_path):
     d = _read_chartmap(chartmap_path)
     assert np.all(np.isfinite(d["Bmod"]))
     assert np.all(d["Bmod"] > 0.0), f"Bmod has non-positive values: min={d['Bmod'].min()}"
+
+
+def test_geometry_follows_input_flux_surfaces(chartmap_path):
+    from libneo.eqdsk_base import read_eqdsk
+    from scipy.interpolate import RectBivariateSpline
+
+    eq = read_eqdsk(EFIT)
+    d = _read_chartmap(chartmap_path)
+    r = np.hypot(d["x"][..., 0], d["y"][..., 0])*.01
+    z = d["z"][..., 0]*.01
+    flux = RectBivariateSpline(eq["R"], eq["Z"], eq["PsiVs"].T).ev(r, z)
+    interior = (d["rho"] >= .1) & (d["rho"] <= .8)
+    relative_spread = np.ptp(flux[interior], axis=1)/abs(eq["PsiedgeVs"]-eq["PsiaxisVs"])
+    assert np.max(relative_spread) < 1e-3
 
 
 def test_geometry_plausible(chartmap_path):
