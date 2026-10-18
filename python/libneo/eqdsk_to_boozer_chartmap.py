@@ -13,7 +13,7 @@ even though the field strength and surface functions are axisymmetric.
 Geometry varies with
 phi_cyl = zeta - G_of_thb(theta_B); Bmod is independent of zeta.
 Surface functions:
-  B_phi (G*cm) = C_norm (covariant toroidal B from magdata, CGS)
+  B_phi (G*cm) = C_norm - iota*B_theta (covariant toroidal field)
   B_theta (G*cm) = signed poloidal circulation / (2*pi)
   A_phi(s) = -torflux * integral_0^s iota(s') ds'
 torflux = -psitor_max (negative: left-handed SIMPLE convention)
@@ -163,6 +163,15 @@ def convert_eqdsk_to_chartmap(
     from scipy.interpolate import CubicSpline
 
     gfile = str(Path(gfile).resolve())
+    from libneo.eqdsk_base import read_eqdsk
+    eq = read_eqdsk(gfile)
+    # The field-line scan advances phi positively in either field direction.
+    # Its q and toroidal-flux signs therefore need the geometric orientation
+    # used by get_boozer_transform (increasing counter-clockwise theta).
+    q_orientation = np.sign(eq["fprof"][0] *
+                            (eq["PsiedgeVs"]-eq["PsiaxisVs"]))
+    if q_orientation == 0:
+        raise ValueError("Distinct boundary flux and nonzero toroidal field required")
     if convexwall is not None:
         convexwall = str(Path(convexwall).resolve())
 
@@ -219,7 +228,7 @@ def convert_eqdsk_to_chartmap(
             # psitor_max available after init (called inside get_boozer_transform).
             # SIMPLE/boozer_chartmap convention: torflux < 0 (left-handed).
             psitor_max_cgs = float(efit_to_boozer_mod.psitor_max)
-            torflux_si = -psitor_max_cgs * 1.0e-8  # G*cm^2 -> T*m^2, negated
+            torflux_si = -np.copysign(abs(psitor_max_cgs), eq["fprof"][0]) * 1.0e-8
 
             R_axis_si, Z_axis_si = get_magnetic_axis()  # in SI (m)
 
@@ -236,10 +245,10 @@ def convert_eqdsk_to_chartmap(
                     1, s_f, psi_f, th_f
                 )
                 C_norm_arr[k] = Cn
-                q_arr[k] = q
+                q_arr[k] = q_orientation*abs(q)
 
             # Covariant B surface functions (CGS G*cm).
-            # B_phi = G(s) = R*B_tor = C_norm from magdata.
+            # magdata returns C = G + iota*I, not the toroidal covariant G.
             # B_theta = I(s), the Boozer covariant poloidal component, from
             # Ampere's law: 2*pi*I = loop integral of B_pol along the flux
             # surface (only the enclosed toroidal current contributes).
@@ -248,7 +257,6 @@ def convert_eqdsk_to_chartmap(
             # enclosed current. For a tokamak I << G/q, and writing G/q here
             # inflates the field-line length factor (G + iota*I) and slows
             # every traced orbit's parallel dynamics by O(1/q^2).
-            B_phi_cgs = C_norm_arr          # G*cm
             # B_pol = |grad psi| / R from the g-file psi map itself: taking
             # sqrt(B^2 - B_tor^2) instead would difference two nearly equal
             # interpolants and lose all accuracy on inner surfaces.
@@ -280,6 +288,8 @@ def convert_eqdsk_to_chartmap(
                 B_R = -dpsi_dZ / R_amp  # G
                 B_Z = dpsi_dR / R_amp   # G
                 B_theta_cgs[k] = np.sum(B_R * dR + B_Z * dZ) / TWOPI  # G*cm
+
+            B_phi_cgs = C_norm_arr - B_theta_cgs/q_arr
 
             # A_phi(s) = -torflux * integral_0^s iota(s') ds'
             # iota = 1/q.  Use a cubic spline on s_grid.

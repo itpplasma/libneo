@@ -75,6 +75,42 @@ def test_full_torus_geometry(chartmap_path):
     np.testing.assert_allclose(b, np.broadcast_to(b[0], b.shape), atol=1e-9)
 
 
+@pytest.mark.parametrize("sign", [-1, 1])
+@pytest.mark.parametrize("toroidal_sign", [-1, 1])
+def test_limiter_boundary_both_flux_directions(tmp_path, sign, toroidal_sign):
+    from libneo.eqdsk_base import read_eqdsk, write_eqdsk
+    from libneo.eqdsk_to_boozer_chartmap import convert_eqdsk_to_chartmap
+    import netCDF4
+
+    d = read_eqdsk(EFIT)
+    r = np.linspace(8.7, 11.3, 65)
+    z = np.linspace(-1.3, 1.3, 65)
+    theta = np.linspace(0, 2*np.pi, 129)
+    d.update(nrgr=65, nzgr=65, rboxlength=2.6, zboxlength=2.6, R0=10.,
+             rboxleft=8.7, zboxmid=0., Rpsi0=10., Zpsi0=0.,
+             PsiaxisVs=0., PsiedgeVs=sign*.5, Btor_at_R0=2.*toroidal_sign, Ip=-sign*5e5,
+             fprof=np.full(65, 20.*toroidal_sign), ptotprof=np.zeros(65),
+             fdfdpsiprof=np.zeros(65), dpressdpsiprof=np.zeros(65),
+             PsiVs=sign*.5*((r[None, :]-10)**2+z[:, None]**2),
+             qprof=np.full(65, sign*toroidal_sign*2.), npbound=129, nplimiter=0,
+             Lcfs=np.column_stack((10+np.cos(theta), np.sin(theta))),
+             Limiter=np.empty((0, 2)))
+    path = tmp_path/"circular.geqdsk"
+    write_eqdsk(path, d)
+    output = tmp_path/"chartmap.nc"
+    convert_eqdsk_to_chartmap(path, output, nrho=24, ntheta=48, nstep=360,
+        nlabel=32, ntheta_int=64, nsurfmax=400, nsurf=64, psimax=.5e8)
+    with netCDF4.Dataset(output) as ds:
+        x, y, z = [np.asarray(ds.variables[n][:]) for n in ["x", "y", "z"]]
+        minor = np.sqrt((np.hypot(x, y)*.01-10)**2+(z*.01)**2)
+        assert .98 < minor.max() < 1.01
+        assert .98e8 < abs(ds.torflux) < 1.02e8
+        # The exact Killing-coordinate covariant field is R*B_phi=20 T m.
+        # magdata's normalization C also contains iota*I and is not G alone.
+        np.testing.assert_allclose(ds.variables["B_phi"][:], 20e6*toroidal_sign, rtol=2e-5)
+        assert np.sign(ds.torflux) == -toroidal_sign
+
+
 def test_bmod_positive(chartmap_path):
     d = _read_chartmap(chartmap_path)
     assert np.all(np.isfinite(d["Bmod"]))
@@ -146,14 +182,13 @@ def test_write_inp_psimax(tmp_path):
 
 
 def test_A_phi_consistent_with_torflux(chartmap_path):
-    # A_phi(s) = -torflux * integral_0^s iota ds' with iota > 0, so sign(A_phi)
-    # is opposite to sign(torflux) and |A_phi| increases with s. The absolute
-    # signs track the equilibrium's field direction, not a fixed convention.
+    # In geometric counter-clockwise theta, A_phi is the input COCOS-3
+    # poloidal flux relative to the axis. Its sign is independent of B_tor.
+    from libneo.eqdsk_base import read_eqdsk
+    eq = read_eqdsk(EFIT)
     d = _read_chartmap(chartmap_path)
     A = d["A_phi"]
-    assert np.sign(A[-1]) == -np.sign(d["torflux"]), (
-        f"sign(A_phi)={np.sign(A[-1])} inconsistent with -sign(torflux)"
-    )
+    assert np.sign(A[-1]) == np.sign(eq["PsiedgeVs"]-eq["PsiaxisVs"])
     assert abs(A[-1]) > abs(A[0]), (
         f"|A_phi| not increasing: |A_phi[0]|={abs(A[0]):.3e}, |A_phi[-1]|={abs(A[-1]):.3e}"
     )

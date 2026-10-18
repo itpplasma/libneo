@@ -144,7 +144,7 @@
         nsurf=isurf-1
         exit surf
       endif
-      if (psif > psimax) then
+      if (abs(psif-psi_axis) > abs(psimax)) then
         nsurf=isurf-1
         exit surf
       endif
