@@ -6,6 +6,7 @@
 !>   spline3d      one 3D |B| spline value and gradient (the bare kernel)
 !>   splint m0/m2  splint_boozer_coord with mode_secders 0 and 2
 !>   regular m0..2 eval_boozer_regular modes 0, 1, 2
+!>   axis 1d, flux 1d, atan2  components of the regular evaluation
 !> Points are either uniformly random (cache-cold field data) or orbit-like
 !> (1000 tracks of small steps in s, theta, phi, as during tracing). Each
 !> timing is repeated over the thread counts given on the command line
@@ -19,7 +20,8 @@ program bench_boozer_regular
     use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord
     use boozer_regular, only: regular_field_t, set_boozer_regular_enabled, &
                               eval_boozer_regular, boozer_regular_field
-    use interpolate, only: evaluate_batch_splines_3d_der
+    use interpolate, only: evaluate_batch_splines_3d_der, &
+                           evaluate_batch_splines_1d_der
     implicit none
 
     real(dp), parameter :: TWOPI = 6.283185307179586476925286766559_dp
@@ -27,9 +29,10 @@ program bench_boozer_regular
     integer :: n_points, n_threads, i_arg, k
     real(dp), allocatable :: s(:), theta(:), phi(:), x(:), y(:)
     character(len=32) :: arg, pattern
-    character(len=12), parameter :: names(6) = [character(12) :: 'spline3d', &
-        'splint m0', 'splint m2', 'regular m0', 'regular m1', 'regular m2']
-    real(dp) :: t_ns(6), sink
+    character(len=12), parameter :: names(9) = [character(12) :: 'spline3d', &
+        'splint m0', 'splint m2', 'regular m0', 'regular m1', 'regular m2', &
+        'axis 1d', 'flux 1d', 'atan2']
+    real(dp) :: t_ns(9), sink
 
     sink = 0.0_dp
     n_points = 1000000
@@ -60,7 +63,7 @@ program bench_boozer_regular
 
     print '(a,i0,3a)', 'points: ', n_points, ' (', trim(pattern), &
         '); wall ns per evaluation (best of 5)'
-    print '(a8,6a12)', 'threads', names
+    print '(a8,9a12)', 'threads', names
     i_arg = 3
     do
         n_threads = 1
@@ -71,10 +74,10 @@ program bench_boozer_regular
             exit
         end if
         call omp_set_num_threads(n_threads)
-        do k = 1, 6
+        do k = 1, 9
             t_ns(k) = best_time(k)*1.0e9_dp/real(n_points, dp)
         end do
-        print '(i8,6f12.1,a,f6.3,a,f6.3)', n_threads, t_ns, &
+        print '(i8,9f12.1,a,f6.3,a,f6.3)', n_threads, t_ns, &
             '   m1/spline3d=', t_ns(5)/t_ns(1), ' m1/splint0=', t_ns(5)/t_ns(2)
         i_arg = i_arg + 1
     end do
@@ -114,7 +117,7 @@ contains
     real(dp) function sweep(kind) result(acc)
         integer, intent(in) :: kind
         type(regular_field_t) :: f
-        real(dp) :: q(3), b(1), db(3, 1)
+        real(dp) :: q(3), b(1), db(3, 1), ax(6), dax(6)
         real(dp) :: ath, aph, dath, daph, d2aph, d3aph, bth, dbth, d2bth
         real(dp) :: bph, dbph, d2bph, bm, dbm(3), d2bm(6), br, dbr(3), d2br(6)
         integer :: i
@@ -128,6 +131,25 @@ contains
                 call evaluate_batch_splines_3d_der(boozer_regular_field%remainder, &
                                                    q, b, db)
                 acc = acc + b(1) + db(1, 1)
+            end do
+        case (7)
+            !$omp parallel do schedule(static) private(ax, dax) reduction(+:acc)
+            do i = 1, n_points
+                call evaluate_batch_splines_1d_der(boozer_regular_field%axis, &
+                                                   phi(i), ax, dax)
+                acc = acc + ax(1) + dax(2)
+            end do
+        case (8)
+            !$omp parallel do schedule(static) private(ax, dax) reduction(+:acc)
+            do i = 1, n_points
+                call evaluate_batch_splines_1d_der(boozer_regular_field%flux, &
+                                                   sqrt(s(i)), ax(1:3), dax(1:3))
+                acc = acc + ax(1) + dax(2)
+            end do
+        case (9)
+            !$omp parallel do schedule(static) reduction(+:acc)
+            do i = 1, n_points
+                acc = acc + atan2(y(i), x(i))
             end do
         case (2, 3)
             !$omp parallel do schedule(static) reduction(+:acc) &

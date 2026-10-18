@@ -1039,7 +1039,7 @@ contains
         real(dp), intent(out) :: dy_batch(:)  ! (n_quantities)
 
         ! Single-point core without the temporaries and copies of the
-        ! many-point path; same recurrences in the same order, so bitwise equal.
+        ! many-point path; same recurrences in the same order.
         call evaluate_batch_splines_1d_der_core(spl, x, y_batch, dy_batch)
     end subroutine evaluate_batch_splines_1d_der
 
@@ -1057,10 +1057,10 @@ contains
         h_step = spl%h_step
         period = h_step*real(spl%num_points - 1, dp)
 
+        xj = x
         if (spl%periodic) then
-            xj = modulo(x - x_min, period) + x_min
-        else
-            xj = x
+            if (xj < x_min .or. xj >= x_min + period) &
+                xj = modulo(x - x_min, period) + x_min
         end if
         x_norm = (xj - x_min)/h_step
         idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
