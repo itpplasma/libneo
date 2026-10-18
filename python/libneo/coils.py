@@ -175,6 +175,17 @@ def _split_filaments_on_zero_current(filaments: List[Filament]) -> List[Filament
     return result
 
 
+def _closed_with_zero_end(fil: Filament) -> Tuple[np.ndarray, np.ndarray]:
+    """Return coil points closed at the first point, ending with I=0."""
+    coords = np.asarray(fil.coords, dtype=float)
+    current = np.asarray(fil.current, dtype=float)
+    if np.array_equal(coords[0], coords[-1]) and len(coords) > 1:
+        coords, current = coords[:-1], current[:-1]
+    coords = np.vstack([coords, coords[:1]])
+    current = np.append(current, 0.0)
+    return coords, current
+
+
 class CoilsFile:
     def __init__(self, *, periods: Optional[int], mirror: Optional[str], filaments: List[Filament]):
         self.periods = periods
@@ -235,13 +246,16 @@ class CoilsFile:
             ...
 
         This format is compatible with libneo's neo_biotsavart module
-        load_coils_from_file() function.
+        load_coils_from_file() function. Segment i joins points i and i+1 and
+        carries the current of point i, so each coil is closed by repeating its
+        first point with I=0. The zero-current closing point also makes the
+        segment to the next coil carry no current.
         """
+        closed = [_closed_with_zero_end(fil) for fil in self.filaments]
         with open(filename, "w", encoding="utf-8") as f:
-            n_points = sum(len(fil.coords) for fil in self.filaments)
-            f.write(f"{n_points}\n")
-            for fil in self.filaments:
-                for (x, y, z), I in zip(fil.coords, fil.current):
+            f.write(f"{sum(len(coords) for coords, _ in closed)}\n")
+            for coords, current in closed:
+                for (x, y, z), I in zip(coords, current):
                     f.write(f"{x:.14E}   {y:.14E}   {z:.14E}   {I:.14E}\n")
 
     def plot(self, show_legend: bool = True, show: bool = False):
