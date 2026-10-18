@@ -54,9 +54,25 @@ def _read_chartmap(path):
 def test_axisymmetric_structure(chartmap_path):
     d = _read_chartmap(chartmap_path)
     assert d["nfp"] == 1, f"expected nfp=1, got {d['nfp']}"
-    assert d["Bmod"].shape[2] == 1, (
-        f"expected nzeta=1 for axisymmetric chartmap, got {d['Bmod'].shape[2]}"
+    assert d["Bmod"].shape[2] >= 8, (
+        f"expected a full toroidal grid, got {d['Bmod'].shape[2]} planes"
     )
+
+
+def test_full_torus_geometry(chartmap_path):
+    import netCDF4
+
+    with netCDF4.Dataset(chartmap_path) as ds:
+        rho = np.asarray(ds.variables["rho"][:])
+        zeta = np.asarray(ds.variables["zeta"][:])
+        x, y, z, b = [np.asarray(ds.variables[n][:]) for n in ["x", "y", "z", "Bmod"]]
+    assert len(zeta) >= 8
+    assert 0 <= rho[0] <= .01
+    assert rho[-1] == 1
+    xyz0 = (x[0]+1j*y[0])[None, ...]
+    np.testing.assert_allclose(x+1j*y, xyz0*np.exp(1j*zeta[:, None, None]), atol=1e-9)
+    np.testing.assert_allclose(z, np.broadcast_to(z[0], z.shape), atol=1e-9)
+    np.testing.assert_allclose(b, np.broadcast_to(b[0], b.shape), atol=1e-9)
 
 
 def test_bmod_positive(chartmap_path):

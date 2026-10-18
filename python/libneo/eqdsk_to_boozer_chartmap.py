@@ -8,11 +8,13 @@ then calls the module.
 
 Output convention
 -----------------
-Axisymmetric: num_field_periods=1, nzeta=1.  Geometry varies with
+Axisymmetric: num_field_periods=1. Cartesian geometry covers the full torus,
+even though the field strength and surface functions are axisymmetric.
+Geometry varies with
 phi_cyl = zeta - G_of_thb(theta_B); Bmod is independent of zeta.
 Surface functions:
   B_phi (G*cm) = C_norm (covariant toroidal B from magdata, CGS)
-  B_theta (G*cm) = C_norm / q
+  B_theta (G*cm) = signed poloidal circulation / (2*pi)
   A_phi(s) = -torflux * integral_0^s iota(s') ds'
 torflux = -psitor_max (negative: left-handed SIMPLE convention)
 """
@@ -119,6 +121,7 @@ def convert_eqdsk_to_chartmap(
     *,
     nrho=50,
     ntheta=48,
+    nzeta=48,
     nstep=3600,
     nlabel=500,
     ntheta_int=500,
@@ -152,6 +155,8 @@ def convert_eqdsk_to_chartmap(
         edge (the scan then runs to nsurfmax and the last box-confined
         surface, not the LCFS, becomes s = 1).
     """
+    if not isinstance(nzeta, int) or nzeta < 8:
+        raise ValueError("nzeta must be an integer >=8 for periodic Cartesian splines")
     import _efit_to_boozer as _etb
     from _efit_to_boozer import efit_to_boozer_mod
     from efit_to_boozer.boozer import get_boozer_transform, get_magnetic_axis
@@ -191,17 +196,21 @@ def convert_eqdsk_to_chartmap(
             _write_field_divB0_inp("field_divB0.inp", gfile,
                                    convexfile=wall_path)
 
-            # Uniform s grid: skip s=0 (axis singularity) and s=1 (LCFS,
-            # field-line integration may not converge exactly at the separatrix).
-            s_grid = np.linspace(1.0 / nrho, 1.0 - 0.5 / nrho, nrho)
-            rho_grid = np.sqrt(s_grid)
+            # Native chartmap readers require a uniform rho grid, reaching
+            # the normalized outer surface and beginning close to the axis.
+            # efit_to_boozer's outer surface is its last closed scanned contour.
+            rho_grid = np.linspace(0.01, 1.0, nrho)
+            surface_s = rho_grid**2
+            # A_phi has its own independent uniform s abscissa. Its entries
+            # are not paired by index with the geometry's uniform rho grid.
+            s_grid = np.linspace(surface_s[0], 1.0, nrho)
 
             # Boozer transform per surface: splines r(theta_B), dth(theta_B),
             # G(theta_B), q; stored on stor[0..nrho-1] (stor[-1] is not used).
             # get_boozer_transform calls efit_to_boozer.init() internally from
             # the current directory (tmpdir), so do not call init() separately.
             num_theta_boozer = 64
-            stor = np.append(s_grid, 1.0 + 1.0 / nrho)  # sentinel
+            stor = np.append(surface_s, 1.0 + 1.0 / nrho)  # sentinel
             (r_of_thb, dth_of_thb, G_of_thb,
              _theta_b, _theta_g, _theta_sf, B0_of_thb) = get_boozer_transform(
                 stor, num_theta_boozer
@@ -219,7 +228,7 @@ def convert_eqdsk_to_chartmap(
             psi_dum = np.float64(0.0)
             C_norm_arr = np.zeros(nrho)
             q_arr = np.zeros(nrho)
-            for k, sk in enumerate(s_grid):
+            for k, sk in enumerate(surface_s):
                 s_f = np.float64(sk)
                 psi_f = np.float64(0.0)
                 th_f = np.float64(0.0)
@@ -274,18 +283,18 @@ def convert_eqdsk_to_chartmap(
 
             # A_phi(s) = -torflux * integral_0^s iota(s') ds'
             # iota = 1/q.  Use a cubic spline on s_grid.
-            iota_spl = CubicSpline(s_grid, 1.0 / q_arr)
+            iota_spl = CubicSpline(surface_s, 1.0 / q_arr)
             iota_int = iota_spl.antiderivative()
             A_phi_si = -torflux_si * (iota_int(s_grid) - iota_int(0.0))
 
-            # Geometry and Bmod on (nrho, ntheta, 1) grid (nzeta=1 for axisymm).
+            # Cartesian geometry rotates with zeta even in an axisymmetric field.
             theta_B = np.linspace(0.0, TWOPI, ntheta, endpoint=False)
-            zeta_B = np.array([0.0])  # one zeta slice; geometry repeats
+            zeta_B = np.linspace(0.0, TWOPI, nzeta, endpoint=False)
 
-            Bmod = np.zeros((nrho, ntheta, 1))
-            X = np.zeros((nrho, ntheta, 1))
-            Y = np.zeros((nrho, ntheta, 1))
-            Z = np.zeros((nrho, ntheta, 1))
+            Bmod = np.zeros((nrho, ntheta, nzeta))
+            X = np.zeros((nrho, ntheta, nzeta))
+            Y = np.zeros((nrho, ntheta, nzeta))
+            Z = np.zeros((nrho, ntheta, nzeta))
 
             for k in range(nrho):
                 r_spl = r_of_thb[k]
@@ -301,15 +310,15 @@ def convert_eqdsk_to_chartmap(
 
                     theta_geom = thb + dth
                     # phi_cyl = zeta_B - G_val (from boozer.py convention)
-                    phi_cyl = 0.0 - G_val
+                    phi_cyl = zeta_B - G_val
 
                     R_cyl = R_axis_si + r_min * np.cos(theta_geom)  # m
                     Z_cyl = Z_axis_si + r_min * np.sin(theta_geom)  # m
 
-                    Bmod[k, j, 0] = B0_val  # already in CGS (G)
-                    X[k, j, 0] = R_cyl * np.cos(phi_cyl)  # m
-                    Y[k, j, 0] = R_cyl * np.sin(phi_cyl)  # m
-                    Z[k, j, 0] = Z_cyl                     # m
+                    Bmod[k, j, :] = B0_val  # already in CGS (G)
+                    X[k, j, :] = R_cyl * np.cos(phi_cyl)  # m
+                    Y[k, j, :] = R_cyl * np.sin(phi_cyl)  # m
+                    Z[k, j, :] = Z_cyl                     # m
 
             _etb.efit_to_boozer.deinit()
         finally:
