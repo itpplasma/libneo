@@ -64,3 +64,7 @@ endif()
 add_executable(test_odeint_events.x test_odeint_events.f90)
 target_link_libraries(test_odeint_events.x ${COMMON_LIBS})
 add_test(NAME test_odeint_events COMMAND test_odeint_events.x)
+
+add_executable(test_odeint_scale_floor.x test_odeint_scale_floor.f90)
+target_link_libraries(test_odeint_scale_floor.x ${COMMON_LIBS})
+add_test(NAME test_odeint_scale_floor COMMAND test_odeint_scale_floor.x)

@@ -63,3 +63,16 @@ set_tests_properties(tilted_coil_field_validation PROPERTIES
     LABELS "magfie;tilted_coil"
     TIMEOUT 300
 )
+
+# magfie_with_status reports points outside the LCFS and must print nothing.
+add_executable(test_magfie_cyl_status.x test_magfie_cyl_status.f90)
+target_link_libraries(test_magfie_cyl_status.x PRIVATE
+    neo
+    magfie
+)
+add_test(
+    NAME test_magfie_cyl_status
+    COMMAND sh -c "./test_magfie_cyl_status.x > magfie_cyl_status.log 2>&1 && test ! -s magfie_cyl_status.log || { cat magfie_cyl_status.log; exit 1; }"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_magfie_cyl_status PROPERTIES LABELS "magfie" TIMEOUT 120)

@@ -23,7 +23,8 @@ module field_spectre
     use spectre_basis, only: spectre_vecpot_t, eval_spectre_vector_potential, &
                              eval_spectre_toroidal_flux_fraction
     use libneo_coordinates, only: make_spectre_coordinate_system, &
-                                  spectre_coordinate_system_t
+                                  spectre_coordinate_system_t, &
+                                  validate_spectre_chart
 
     implicit none
     private
@@ -45,13 +46,26 @@ contains
 
     subroutine create_spectre_field(field, filename, ierr)
         !> Load a SPECTRE equilibrium and build its stacked-rho coordinate chart.
+        !> ierr = 1, 2: file errors from load_spectre; ierr = 3: the interface
+        !> blend folds, so the file has no valid field.
         type(spectre_field_t), intent(out) :: field
         character(len=*), intent(in) :: filename
         integer, intent(out) :: ierr
 
+        integer :: folded_volume
+
         call load_spectre(filename, field%data, ierr)
         if (ierr /= 0) return
         call make_spectre_coordinate_system(field%coords, field%data)
+        select type (cs => field%coords)
+        type is (spectre_coordinate_system_t)
+            call validate_spectre_chart(cs, folded_volume)
+        end select
+        if (folded_volume /= 0) then
+            print '(A,I0,A)', 'create_spectre_field: volume ', folded_volume, &
+                ' of the interface blend folds (Jacobian changes sign)'
+            ierr = 3
+        end if
     end subroutine create_spectre_field
 
     subroutine spectre_evaluate(self, x, Acov, hcov, Bmod, sqgBctr)
