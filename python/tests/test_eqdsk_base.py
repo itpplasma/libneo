@@ -57,7 +57,7 @@ def test_write_eqdsk_header_matches_3i4_columns(tmp_path, nrgr, nzgr):
     assert int(header[56:60]) == nzgr
 
 
-@pytest.mark.parametrize("nrgr,nzgr", [(65, 65), (129, 129)])
+@pytest.mark.parametrize("nrgr,nzgr", [(65, 65), (129, 129), (1025, 9), (9, 1025)])
 def test_write_eqdsk_read_eqdsk_roundtrip(tmp_path, nrgr, nzgr):
     path = tmp_path / "test.eqdsk"
     eqdata = _synthetic_eqdata(nrgr, nzgr)
@@ -82,3 +82,15 @@ def test_write_eqdsk_boundary_counts_use_fixed_width_record(tmp_path):
     boundary_record = lines[1 + core_lines]
     assert boundary_record[:5] == f"{eqdata['npbound']:5d}"
     assert boundary_record[5:10] == f"{eqdata['nplimiter']:5d}"
+
+
+def test_read_eqdsk_retains_whitespace_header_compatibility(tmp_path):
+    path = tmp_path / 'whitespace.eqdsk'
+    data = _synthetic_eqdata(65, 9)
+    write_eqdsk(path, data)
+    lines = path.read_text().splitlines(keepends=True)
+    lines[0] = lines[0][:48] + ' 0 65 9\n'
+    path.write_text(''.join(lines))
+    result = read_eqdsk(path)
+    assert (result['nrgr'], result['nzgr']) == (65, 9)
+    np.testing.assert_allclose(result['PsiVs'], data['PsiVs'], atol=1e-8)

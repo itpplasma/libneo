@@ -21,6 +21,8 @@
 !
   integer :: nstep,nsurfmax,nlabel,ntheta
   integer :: i,j,nsurf,nmap,isurf,iter
+  logical :: flux_boundary
+  double precision :: rleft,rright,rmid,flux_direction
 !
   double precision, parameter :: pi = 3.14159265358979d0
   double precision, dimension(4), parameter :: win   = (/-1.d0, 13.d0, 13.d0, -1.d0 /) / 24.d0
@@ -112,8 +114,12 @@
 ! Scan of flux surfaces
 !
   h=2.d0*pi/nstep_min
+  ! A prescribed axis-relative flux may decrease toward the boundary.
+  ! Orient comparisons along the requested axis-to-edge flux interval.
+  flux_direction=sign(1.d0,psimax-psi_axis)
 !
   nsurf = 0
+  flux_boundary = .false.
   surf: do isurf=1,nsurfmax
     phi=0.d0
     phiout=h
@@ -144,8 +150,9 @@
         nsurf=isurf-1
         exit surf
       endif
-      if (psif > psimax) then
+      if (flux_direction*(psif-psimax) > 0.d0) then
         nsurf=isurf-1
+        flux_boundary = .true.
         exit surf
       endif
     enddo
@@ -166,7 +173,30 @@
 !------------------------------------------------------------------------------
 
 ! Re-define start points step size in R for data storage
-  hbr=hbr*dfloat(nsurf)/dfloat(nlabel)
+  if (flux_boundary) then
+    ! A prescribed regular flux surface is not a separatrix. Refine its
+    ! outboard intercept instead of moving the requested boundary inward
+    ! by one or two scan cells. Keep the old safety margin for box exits.
+    rleft=raxis
+    rright=min(rmx,raxis+hbr*dfloat(isurf+1))
+    call field_eq(rright,ppp,zaxis,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ &
+                  ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
+    if (flux_direction*(psif-psimax) < 0.d0 .or. psimax == psi_axis) &
+      error stop 'Cannot bracket prescribed Boozer flux boundary'
+    do iter=1,48
+      rmid=(rleft+rright)*0.5d0
+      call field_eq(rmid,ppp,zaxis,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ &
+                    ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
+      if (flux_direction*(psif-psimax) <= 0.d0) then
+        rleft=rmid
+      else
+        rright=rmid
+      endif
+    enddo
+    hbr=(rleft-raxis)/dfloat(nlabel)
+  else
+    hbr=hbr*dfloat(nsurf)/dfloat(nlabel)
+  endif
 !
 !------------------------------------------------------------------------------
 !
