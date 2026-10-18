@@ -299,11 +299,10 @@ contains
                                          f%Ath, f%dAth(1), f%dAth(2))
             f%dAph(3) = 0.0_dp
             f%dAth(3) = 0.0_dp
-            call boozer_regular_quotient_d1(bi(1), bi(2), bi(3), f%Bmod, &
-                                            f%dBmod(1), f%dBmod(2), f%dBmod(3), &
-                                            f%hth, f%dhth(1), f%dhth(2), f%dhth(3))
-            call boozer_regular_quotient_d1(bg(1), bg(2), bg(3), f%Bmod, &
-                                            f%dBmod(1), f%dBmod(2), f%dBmod(3), &
+            call boozer_regular_quotient_d1(bi(1), bi(2), bi(3), bg(1), bg(2), &
+                                            bg(3), f%Bmod, f%dBmod(1), &
+                                            f%dBmod(2), f%dBmod(3), f%hth, &
+                                            f%dhth(1), f%dhth(2), f%dhth(3), &
                                             f%hph, f%dhph(1), f%dhph(2), f%dhph(3))
         case (REGULAR_SECOND)
             call boozer_regular_polar_d2(rho, c, sn, self%torflux, ax(1), ax(2), &
@@ -332,21 +331,17 @@ contains
             f%d2Ath(3) = 0.0_dp
             f%d2Ath(5:6) = 0.0_dp
             call boozer_regular_quotient_d2(bi(1), bi(2), bi(3), bi(4), bi(5), &
-                                            bi(6), f%Bmod, f%dBmod(1), f%dBmod(2), &
-                                            f%dBmod(3), f%d2Bmod(1), f%d2Bmod(2), &
-                                            f%d2Bmod(3), f%d2Bmod(4), f%d2Bmod(5), &
-                                            f%d2Bmod(6), f%hth, f%dhth(1), &
-                                            f%dhth(2), f%dhth(3), f%d2hth(1), &
-                                            f%d2hth(2), f%d2hth(3), f%d2hth(4), &
-                                            f%d2hth(5), f%d2hth(6))
-            call boozer_regular_quotient_d2(bg(1), bg(2), bg(3), bg(4), bg(5), &
-                                            bg(6), f%Bmod, f%dBmod(1), f%dBmod(2), &
-                                            f%dBmod(3), f%d2Bmod(1), f%d2Bmod(2), &
-                                            f%d2Bmod(3), f%d2Bmod(4), f%d2Bmod(5), &
-                                            f%d2Bmod(6), f%hph, f%dhph(1), &
-                                            f%dhph(2), f%dhph(3), f%d2hph(1), &
-                                            f%d2hph(2), f%d2hph(3), f%d2hph(4), &
-                                            f%d2hph(5), f%d2hph(6))
+                                            bi(6), bg(1), bg(2), bg(3), bg(4), &
+                                            bg(5), bg(6), f%Bmod, f%dBmod(1), &
+                                            f%dBmod(2), f%dBmod(3), f%d2Bmod(1), &
+                                            f%d2Bmod(2), f%d2Bmod(3), f%d2Bmod(4), &
+                                            f%d2Bmod(5), f%d2Bmod(6), f%hth, &
+                                            f%dhth(1), f%dhth(2), f%dhth(3), &
+                                            f%d2hth(1), f%d2hth(2), f%d2hth(3), &
+                                            f%d2hth(4), f%d2hth(5), f%d2hth(6), &
+                                            f%hph, f%dhph(1), f%dhph(2), f%dhph(3), &
+                                            f%d2hph(1), f%d2hph(2), f%d2hph(3), &
+                                            f%d2hph(4), f%d2hph(5), f%d2hph(6))
         case default
             error stop "boozer_regular_eval: mode must be 0, 1 or 2"
         end select

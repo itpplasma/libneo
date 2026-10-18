@@ -10,7 +10,7 @@
 !> d/dX = cos d/drho - sin/rho d/dtheta and d/dY = sin d/drho +
 !> cos/rho d/dtheta; every 1/rho cancels after expansion, so the emitted
 !> leaves contain no division by rho and are finite on the axis. The quotient
-!> leaves form h = N/B for N in {I, G}.
+!> leaves form h_theta = I/B and h_phi = G/B together, sharing 1/B.
 program gen_boozer_regular
     use fortsym_arena, only: arena_t
     use fortsym_expr, only: expr_t, sym, func, cos, sin, operator(+), &
@@ -25,7 +25,8 @@ program gen_boozer_regular
     type(leaf_writer_t) :: w
     type(arena_t), target :: arena
     type(expr_t) :: rho, th, ph, x, y, c, sn, g0, ap0, torflux, ct, st
-    type(expr_t) :: bfield, iflux, gflux, aphi, atheta, numer, denom, quot
+    type(expr_t) :: bfield, iflux, gflux, aphi, atheta, denom
+    type(expr_t) :: numer(2), quot(2)
     type(expr_t) :: axis(6), polar_old(2), polar_new(2)
     type(expr_t) :: trig_old(3), trig_new(3)
     type(kernel_binding_t), allocatable :: polar_bind(:), quot_bind(:)
@@ -84,12 +85,15 @@ program gen_boozer_regular
                   binding('FA', [integer ::], 'fa'), binding('FA', [1], 'fa_r'), &
                   binding('FA', [1, 1], 'fa_rr')]
 
-    numer = func('N', [x, y])
+    numer = [func('NI', [x, y]), func('NG', [x, y])]
     denom = func('B', [x, y, ph])
-    quot = numer/denom
-    quot_bind = [binding('N', [integer ::], 'n'), binding('N', [1], 'n_x'), &
-                 binding('N', [2], 'n_y'), binding('N', [1, 1], 'n_xx'), &
-                 binding('N', [1, 2], 'n_xy'), binding('N', [2, 2], 'n_yy'), &
+    quot = [numer(1)/denom, numer(2)/denom]
+    quot_bind = [binding('NI', [integer ::], 'i'), binding('NI', [1], 'i_x'), &
+                 binding('NI', [2], 'i_y'), binding('NI', [1, 1], 'i_xx'), &
+                 binding('NI', [1, 2], 'i_xy'), binding('NI', [2, 2], 'i_yy'), &
+                 binding('NG', [integer ::], 'g'), binding('NG', [1], 'g_x'), &
+                 binding('NG', [2], 'g_y'), binding('NG', [1, 1], 'g_xx'), &
+                 binding('NG', [1, 2], 'g_xy'), binding('NG', [2, 2], 'g_yy'), &
                  binding('B', [integer ::], 'b'), binding('B', [1], 'b_x'), &
                  binding('B', [2], 'b_y'), binding('B', [3], 'b_p'), &
                  binding('B', [1, 1], 'b_xx'), binding('B', [1, 2], 'b_xy'), &
@@ -209,20 +213,48 @@ contains
     end subroutine
 
     subroutine emit_quotient_leaves()
-        type(expr_t) :: q1(3)
+        character(4), parameter :: ins1(3) = [character(4) :: 'i', 'i_x', 'i_y']
+        character(4), parameter :: ins2(3) = [character(4) :: 'i_xx', 'i_xy', 'i_yy']
+        character(4), parameter :: bs1(4) = [character(4) :: 'b', 'b_x', 'b_y', &
+                                             'b_p']
+        character(4), parameter :: bs2(6) = [character(4) :: 'b_xx', 'b_xy', &
+            'b_xp', 'b_yy', 'b_yp', 'b_pp']
+        character(4), parameter :: d1(4) = [character(4) :: '', '_x', '_y', '_p']
+        character(4), parameter :: d2(6) = [character(4) :: '_xx', '_xy', '_xp', &
+            '_yy', '_yp', '_pp']
+        type(expr_t) :: q1(3, 2), roots1(8), roots2(20)
+        character(8) :: out1(8), out2(20)
+        integer :: k, j
 
-        q1 = [diff(quot, x), diff(quot, y), diff(quot, ph)]
+        do k = 1, 2
+            q1(:, k) = [diff(quot(k), x), diff(quot(k), y), diff(quot(k), ph)]
+            roots1(4*k - 3:4*k) = [quot(k), q1(:, k)]
+            roots2(10*k - 9:10*k) = [quot(k), q1(:, k), diff(q1(1, k), x), &
+                                     diff(q1(1, k), y), diff(q1(1, k), ph), &
+                                     diff(q1(2, k), y), diff(q1(2, k), ph), &
+                                     diff(q1(3, k), ph)]
+            do j = 1, 4
+                out1(4*k - 4 + j) = trim(merge('hth', 'hph', k == 1))//trim(d1(j))
+                out2(10*k - 10 + j) = out1(4*k - 4 + j)
+            end do
+            do j = 1, 6
+                out2(10*k - 6 + j) = trim(merge('hth', 'hph', k == 1))//trim(d2(j))
+            end do
+        end do
         call w%emit('boozer_regular_quotient_d1', &
-                    [character(4) :: 'n', 'n_x', 'n_y', 'b', 'b_x', 'b_y', 'b_p'], &
-                    [character(4) :: 'q', 'q_x', 'q_y', 'q_p'], &
-                    [quot, q1], quot_bind)
+                    [ins1, gname(ins1), bs1], out1, roots1, quot_bind)
         call w%emit('boozer_regular_quotient_d2', &
-                    [character(4) :: 'n', 'n_x', 'n_y', 'n_xx', 'n_xy', 'n_yy', &
-                     'b', 'b_x', 'b_y', 'b_p', 'b_xx', 'b_xy', 'b_xp', 'b_yy', &
-                     'b_yp', 'b_pp'], &
-                    [character(4) :: 'q', 'q_x', 'q_y', 'q_p', 'q_xx', 'q_xy', &
-                     'q_xp', 'q_yy', 'q_yp', 'q_pp'], &
-                    [quot, q1, diff(q1(1), x), diff(q1(1), y), diff(q1(1), ph), &
-                     diff(q1(2), y), diff(q1(2), ph), diff(q1(3), ph)], quot_bind)
+                    [ins1, ins2, gname(ins1), gname(ins2), bs1, bs2], out2, roots2, &
+                    quot_bind)
     end subroutine
+
+    pure function gname(names) result(g)
+        character(4), intent(in) :: names(:)
+        character(4) :: g(size(names))
+        integer :: j
+
+        do j = 1, size(names)
+            g(j) = 'g'//names(j)(2:)
+        end do
+    end function
 end program gen_boozer_regular

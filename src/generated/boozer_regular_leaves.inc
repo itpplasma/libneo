@@ -185,20 +185,28 @@ end subroutine boozer_regular_polar_d2
 ! Generator revision: d1eeb405fc7f43f39fb7383c88ff57d577d7781b
 ! Regenerate with: cmake --build <build> --target regenerate_gen_boozer_regular
 
-pure elemental subroutine boozer_regular_quotient_d1(n, n_x, n_y, b, b_x, b_y, b_p, q, q_x, q_y, &
-        q_p)
+pure elemental subroutine boozer_regular_quotient_d1(i, i_x, i_y, g, g_x, g_y, b, b_x, b_y, b_p, &
+        hth, hth_x, hth_y, hth_p, hph, hph_x, hph_y, hph_p)
     use, intrinsic :: iso_fortran_env, only: dp => real64
     implicit none
-    real(dp), intent(in) :: n, n_x, n_y, b, b_x, b_y, b_p
-    real(dp), intent(out) :: q, q_x, q_y, q_p
-    real(dp) :: t1, t2
+    real(dp), intent(in) :: i, i_x, i_y, g, g_x, g_y, b, b_x, b_y, b_p
+    real(dp), intent(out) :: hth, hth_x, hth_y, hth_p, hph, hph_x, hph_y, hph_p
+    real(dp) :: t1, t2, t3, t4, t5, t6
 
-    t1 = n
+    t1 = i
     t2 = b
-    q = t1/t2
-    q_x = -b_x*t1/t2**2 + n_x/t2
-    q_y = -b_y*t1/t2**2 + n_y/t2
-    q_p = -b_p*t1/t2**2
+    t3 = b_x
+    t4 = b_y
+    t5 = b_p
+    t6 = g
+    hth = t1/t2
+    hth_x = -t3*t1/t2**2 + i_x/t2
+    hth_y = -t4*t1/t2**2 + i_y/t2
+    hth_p = -t5*t1/t2**2
+    hph = t6/t2
+    hph_x = -t3*t6/t2**2 + g_x/t2
+    hph_y = -t4*t6/t2**2 + g_y/t2
+    hph_p = -t5*t6/t2**2
 
 end subroutine boozer_regular_quotient_d1
 
@@ -207,34 +215,59 @@ end subroutine boozer_regular_quotient_d1
 ! Generator revision: d1eeb405fc7f43f39fb7383c88ff57d577d7781b
 ! Regenerate with: cmake --build <build> --target regenerate_gen_boozer_regular
 
-pure elemental subroutine boozer_regular_quotient_d2(n, n_x, n_y, n_xx, n_xy, n_yy, b, b_x, b_y, &
-        b_p, b_xx, b_xy, b_xp, b_yy, b_yp, b_pp, q, q_x, q_y, q_p, q_xx, q_xy, q_xp, q_yy, q_yp, q_pp)
+pure elemental subroutine boozer_regular_quotient_d2(i, i_x, i_y, i_xx, i_xy, i_yy, g, g_x, g_y, &
+        g_xx, g_xy, g_yy, b, b_x, b_y, b_p, b_xx, b_xy, b_xp, b_yy, b_yp, b_pp, hth, hth_x, hth_y, hth_p, &
+        hth_xx, hth_xy, hth_xp, hth_yy, hth_yp, hth_pp, hph, hph_x, hph_y, hph_p, hph_xx, hph_xy, hph_xp, &
+        hph_yy, hph_yp, hph_pp)
     use, intrinsic :: iso_fortran_env, only: dp => real64
     implicit none
-    real(dp), intent(in) :: n, n_x, n_y, n_xx, n_xy, n_yy, b, b_x, b_y, b_p, b_xx, b_xy, b_xp, b_yy, &
-        b_yp, b_pp
-    real(dp), intent(out) :: q, q_x, q_y, q_p, q_xx, q_xy, q_xp, q_yy, q_yp, q_pp
-    real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9
+    real(dp), intent(in) :: i, i_x, i_y, i_xx, i_xy, i_yy, g, g_x, g_y, g_xx, g_xy, g_yy, b, b_x, &
+        b_y, b_p, b_xx, b_xy, b_xp, b_yy, b_yp, b_pp
+    real(dp), intent(out) :: hth, hth_x, hth_y, hth_p, hth_xx, hth_xy, hth_xp, hth_yy, hth_yp, &
+        hth_pp, hph, hph_x, hph_y, hph_p, hph_xx, hph_xy, hph_xp, hph_yy, hph_yp, hph_pp
+    real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, &
+        t19, t20
 
-    t1 = n
+    t1 = i
     t2 = b
     t3 = b_x
-    t4 = n_x
+    t4 = i_x
     t5 = b_y
-    t6 = n_y
+    t6 = i_y
     t7 = b_p
     t8 = -t3*t4/t2**2
-    t9 = -t5*t6/t2**2
-    q = t1/t2
-    q_x = -t3*t1/t2**2 + t4/t2
-    q_y = -t5*t1/t2**2 + t6/t2
-    q_p = -t7*t1/t2**2
-    q_xx = t3*t3*t1*2/t2**3 - t3*t4/t2**2 - t3*t4/t2**2 - b_xx*t1/t2**2 + n_xx/t2
-    q_xy = t3*t5*t1*2/t2**3 - t3*t6/t2**2 - t5*t4/t2**2 - b_xy*t1/t2**2 + n_xy/t2
-    q_xp = t3*t7*t1*2/t2**3 - t7*t4/t2**2 - b_xp*t1/t2**2
-    q_yy = t5*t5*t1*2/t2**3 - t5*t6/t2**2 - t5*t6/t2**2 - b_yy*t1/t2**2 + n_yy/t2
-    q_yp = t5*t7*t1*2/t2**3 - t7*t6/t2**2 - b_yp*t1/t2**2
-    q_pp = t7*t7*t1*2/t2**3 - b_pp*t1/t2**2
+    t9 = b_xx
+    t10 = b_xy
+    t11 = b_xp
+    t12 = -t5*t6/t2**2
+    t13 = b_yy
+    t14 = b_yp
+    t15 = b_pp
+    t16 = g
+    t17 = g_x
+    t18 = g_y
+    t19 = -t3*t17/t2**2
+    t20 = -t5*t18/t2**2
+    hth = t1/t2
+    hth_x = -t3*t1/t2**2 + t4/t2
+    hth_y = -t5*t1/t2**2 + t6/t2
+    hth_p = -t7*t1/t2**2
+    hth_xx = t3*t3*t1*2/t2**3 - t3*t4/t2**2 - t3*t4/t2**2 - t9*t1/t2**2 + i_xx/t2
+    hth_xy = t3*t5*t1*2/t2**3 - t3*t6/t2**2 - t5*t4/t2**2 - t10*t1/t2**2 + i_xy/t2
+    hth_xp = t3*t7*t1*2/t2**3 - t7*t4/t2**2 - t11*t1/t2**2
+    hth_yy = t5*t5*t1*2/t2**3 - t5*t6/t2**2 - t5*t6/t2**2 - t13*t1/t2**2 + i_yy/t2
+    hth_yp = t5*t7*t1*2/t2**3 - t7*t6/t2**2 - t14*t1/t2**2
+    hth_pp = t7*t7*t1*2/t2**3 - t15*t1/t2**2
+    hph = t16/t2
+    hph_x = -t3*t16/t2**2 + t17/t2
+    hph_y = -t5*t16/t2**2 + t18/t2
+    hph_p = -t7*t16/t2**2
+    hph_xx = t3*t3*t16*2/t2**3 - t3*t17/t2**2 - t3*t17/t2**2 - t9*t16/t2**2 + g_xx/t2
+    hph_xy = t3*t5*t16*2/t2**3 - t3*t18/t2**2 - t5*t17/t2**2 - t10*t16/t2**2 + g_xy/t2
+    hph_xp = t3*t7*t16*2/t2**3 - t7*t17/t2**2 - t11*t16/t2**2
+    hph_yy = t5*t5*t16*2/t2**3 - t5*t18/t2**2 - t5*t18/t2**2 - t13*t16/t2**2 + g_yy/t2
+    hph_yp = t5*t7*t16*2/t2**3 - t7*t18/t2**2 - t14*t16/t2**2
+    hph_pp = t7*t7*t16*2/t2**3 - t15*t16/t2**2
 
 end subroutine boozer_regular_quotient_d2
 
