@@ -12,17 +12,18 @@ def read_eqdsk(filename):
     eqdata = {}
     with open(filename) as f:
         # First line
-        eqdata['header'] = f.read(48)
-        record = f.readline()
+        record = f.readline().rstrip('\n')
         try:
             # GEQDSK uses (6a8,3i4). Four-digit dimensions occupy the
             # whole field, so adjacent integers need not have whitespace.
-            _, nrgr, nzgr = (int(record[i:i+4]) for i in (0, 4, 8))
+            _, nr, nz = (int(record[i:i+4]) for i in (48, 52, 56))
+            eqdata['header'] = record[:48]
         except ValueError:
-            # Retain compatibility with historical whitespace-only headers.
-            _, nrgr, nzgr = map(int, record.split())
-        eqdata['nrgr'] = nrgr
-        eqdata['nzgr'] = nzgr
+            # EFIT exports also use a short, whitespace-delimited title.
+            title, _, nr, nz = record.rsplit(None, 3)
+            eqdata['header'] = title[:48].ljust(48)
+        eqdata['nrgr'] = int(nr)
+        eqdata['nzgr'] = int(nz)
 
         # Second line
         eqdata['rboxlength'] = float(f.read(16))

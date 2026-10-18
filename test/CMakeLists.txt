@@ -130,6 +130,9 @@ target_link_libraries(test_geqdsk_tools.x
 add_executable(test_geqdsk_derivative_cache.x source/test_geqdsk_derivative_cache.f90)
 target_link_libraries(test_geqdsk_derivative_cache.x ${MAIN_LIB} ${MAGFIE_LIB})
 
+add_executable(test_eqfile_empty_boundaries.x source/test_eqfile_empty_boundaries.f90)
+target_link_libraries(test_eqfile_empty_boundaries.x ${MAIN_LIB} ${MAGFIE_LIB})
+
 if(LIBNEO_TESTING_ENABLED)
   set(TEST_OUTPUT_DIR ${CMAKE_BINARY_DIR}/test)
   file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR})
@@ -315,6 +318,9 @@ add_test(NAME test_boozer_symplectic_table
 )
 add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_geqdsk_derivative_cache COMMAND test_geqdsk_derivative_cache.x)
+add_test(NAME test_eqfile_empty_boundaries COMMAND test_eqfile_empty_boundaries.x)
+set_tests_properties(test_eqfile_empty_boundaries PROPERTIES
+  PASS_REGULAR_EXPRESSION "empty-boundary reader returned correct fields")
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
