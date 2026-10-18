@@ -256,6 +256,11 @@ target_link_libraries(test_vmec_modules.x neo)
 add_executable(test_coordinate_systems.x source/test_coordinate_systems.f90)
 target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
 
+add_executable(test_chartmap_full_torus.x source/test_chartmap_full_torus.f90)
+target_link_libraries(test_chartmap_full_torus.x neo)
+add_test(NAME test_chartmap_full_torus COMMAND test_chartmap_full_torus.x)
+set_tests_properties(test_chartmap_full_torus PROPERTIES LABELS "unit;chartmap")
+
 add_executable(test_chartmap_coordinates.x source/test_chartmap_coordinates.f90)
 target_link_libraries(test_chartmap_coordinates.x neo ${MAGFIE_LIB})
 

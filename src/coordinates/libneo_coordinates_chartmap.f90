@@ -316,7 +316,6 @@ contains
 
         real(dp) :: rz(2)
         real(dp) :: phi
-        real(dp) :: phi_mod
         real(dp) :: zeta_period
         real(dp) :: u_eval(3)
         real(dp) :: x_min(3), x_max(3)
@@ -339,12 +338,11 @@ contains
         u_eval(3) = modulo(u_eval(3) - x_min(3), zeta_period) + x_min(3)
 
         if (self%has_spl_rz) then
-            phi = u_eval(3)
-            phi_mod = modulo(phi - self%spl_rz%x_min(3), zeta_period) + &
-                      self%spl_rz%x_min(3)
+            ! Shape is periodic; Cartesian position retains the full toroidal angle.
+            phi = u(3)
             call evaluate_batch_splines_3d(self%spl_rz, u_eval, rz)
-            vals(1) = rz(1)*cos(phi_mod)
-            vals(2) = rz(1)*sin(phi_mod)
+            vals(1) = rz(1)*cos(phi)
+            vals(2) = rz(1)*sin(phi)
             vals(3) = rz(2)
         else
             call evaluate_batch_splines_3d(self%spl_cart, u_eval, vals)
@@ -369,7 +367,6 @@ contains
         real(dp) :: rz(2)
         real(dp) :: drz(3, 2)
         real(dp) :: phi
-        real(dp) :: phi_mod
         real(dp) :: cph, sph
         real(dp) :: zeta_period
         real(dp) :: u_eval(3)
@@ -394,11 +391,10 @@ contains
         u_eval(3) = modulo(u_eval(3) - x_min(3), zeta_period) + x_min(3)
 
         if (self%has_spl_rz) then
-            phi = u_eval(3)
-            phi_mod = modulo(phi - self%spl_rz%x_min(3), zeta_period) + &
-                      self%spl_rz%x_min(3)
-            cph = cos(phi_mod)
-            sph = sin(phi_mod)
+            ! Shape is periodic; Cartesian position retains the full toroidal angle.
+            phi = u(3)
+            cph = cos(phi)
+            sph = sin(phi)
             call evaluate_batch_splines_3d_der(self%spl_rz, u_eval, rz, drz)
 
             vals(1) = rz(1)*cph
