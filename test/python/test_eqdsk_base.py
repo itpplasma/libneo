@@ -34,5 +34,18 @@ def test_write_eqdsk(tmp_path):
             else:
                 assert_allclose(eqdsk[key], eqdsk2[key])
 
+
+def test_read_short_header(tmp_path):
+    source = test_files[0]
+    expected = eqdsk_base.read_eqdsk(source)
+    with open(source) as stream:
+        stream.readline()
+        body = stream.read()
+    target = tmp_path / "short-header.geqdsk"
+    target.write_text(f"EFIT 3 {expected['nrgr']} {expected['nzgr']}\n" + body)
+    actual = eqdsk_base.read_eqdsk(target)
+    for key in ["nrgr", "nzgr", "PsiVs", "fprof", "Lcfs", "Limiter"]:
+        assert_allclose(actual[key], expected[key])
+
 if __name__ == "__main__":
     pytest.main([__file__, "-s"])

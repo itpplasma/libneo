@@ -12,10 +12,16 @@ def read_eqdsk(filename):
     eqdata = {}
     with open(filename) as f:
         # First line
-        eqdata['header'] = f.read(48)
-        line = f.readline().split()
-        eqdata['nrgr'] = int(line[1])
-        eqdata['nzgr'] = int(line[2])
+        record = f.readline().rstrip('\n')
+        try:
+            _, nr, nz = (int(record[i:i+4]) for i in (48, 52, 56))
+            eqdata['header'] = record[:48]
+        except ValueError:
+            # EFIT exports also use a short, whitespace-delimited title.
+            title, _, nr, nz = record.rsplit(None, 3)
+            eqdata['header'] = title[:48].ljust(48)
+        eqdata['nrgr'] = int(nr)
+        eqdata['nzgr'] = int(nz)
 
         # Second line
         eqdata['rboxlength'] = float(f.read(16))
