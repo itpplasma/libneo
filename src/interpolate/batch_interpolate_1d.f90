@@ -1049,7 +1049,7 @@ contains
         real(dp), intent(out) :: y(:), dy(:)
 
         integer :: iq, k, idx, nq, N
-        real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period, c(0:5)
 
         nq = spl%num_quantities
         N = spl%order
@@ -1065,6 +1065,18 @@ contains
         x_norm = (xj - x_min)/h_step
         idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
         x_local = (x_norm - real(idx - 1, dp))*h_step
+
+        if (N == 5) then
+            ! Unrolled quintic Horner; same operations in the same order.
+            do iq = 1, nq
+                c = spl%coeff(iq, 0:5, idx)
+                y(iq) = c(0) + x_local*(c(1) + x_local*(c(2) + x_local*(c(3) &
+                        + x_local*(c(4) + x_local*c(5)))))
+                dy(iq) = c(1) + x_local*(2.0_dp*c(2) + x_local*(3.0_dp*c(3) &
+                         + x_local*(4.0_dp*c(4) + x_local*(5.0_dp*c(5)))))
+            end do
+            return
+        end if
 
         do iq = 1, nq
             y(iq) = spl%coeff(iq, N, idx)

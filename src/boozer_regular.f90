@@ -261,6 +261,7 @@ contains
             c = x/rho
             sn = y/rho
             theta = atan2(y, x)
+            if (theta < 0.0_dp) theta = theta + TWOPI
         else
             c = 1.0_dp
             sn = 0.0_dp
