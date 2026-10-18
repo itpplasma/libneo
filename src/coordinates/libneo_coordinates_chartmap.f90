@@ -635,13 +635,11 @@ contains
 
         real(dp) :: xcart(3)
         real(dp) :: rz(2)
-        real(dp) :: zeta_period
 
         if (self%has_spl_rz) then
-            zeta_period = TWOPI/real(self%num_field_periods, dp)
             call evaluate_batch_splines_3d(self%spl_rz, u, rz)
             x(1) = rz(1)
-            x(2) = modulo(u(3), zeta_period)
+            x(2) = u(3)
             x(3) = rz(2)
         else
             call chartmap_eval_cart(self, u, xcart)
@@ -738,6 +736,7 @@ contains
         zeta_period = TWOPI/real(self%num_field_periods, dp)
         if (self%zeta_convention == CYL .or. self%zeta_convention == VMEC) then
             zeta = modulo(xcyl(2), zeta_period)
+            if (self%has_spl_rz) zeta = modulo(xcyl(2), TWOPI)
             call newton_slice(self, x_target, zeta, rho_theta, ierr)
             u(1) = min(max(rho_theta(1), 0.0_dp), 1.0_dp)
             u(2) = modulo(rho_theta(2), TWOPI)
@@ -1181,13 +1180,18 @@ contains
         end if
 
         phi = atan2(x_target(2), x_target(1))
+        phi_shift = phi - modulo(phi, zeta_period)
+        ca = cos(phi_shift)
+        sa = sin(phi_shift)
+        x_wedge = [ca*x_target(1) + sa*x_target(2), &
+                   -sa*x_target(1) + ca*x_target(2), x_target(3)]
         zeta_seed = [modulo(phi, zeta_period), 0.0_dp, 0.25_dp*zeta_period, &
                      0.50_dp*zeta_period, 0.75_dp*zeta_period]
 
         trace = chartmap_trace_once_enabled()
 
         do k = 1, size(zeta_seed)
-            call chartmap_try_cart_seed(self, x_target, zeta_seed(k), u_try, res_norm, &
+            call chartmap_try_cart_seed(self, x_wedge, zeta_seed(k), u_try, res_norm, &
                                         ierr_try, trace .and. k == 1)
             if (ierr_try /= chartmap_from_cyl_ok) cycle
             if (res_norm < best_res) then
@@ -1200,7 +1204,7 @@ contains
         if (ierr /= chartmap_from_cyl_ok) return
         u(1) = min(max(u(1), 0.0_dp), 1.0_dp)
         u(2) = modulo(u(2), TWOPI)
-        u(3) = modulo(u(3), zeta_period)
+        u(3) = modulo(u(3) + phi_shift, TWOPI)
     end subroutine chartmap_invert_cart
 
     subroutine chartmap_try_cart_seed(self, x_target, zeta_seed, u, res_norm, ierr, &
