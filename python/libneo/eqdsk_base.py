@@ -14,6 +14,8 @@ def read_eqdsk(filename):
         # First line
         record = f.readline().rstrip('\n')
         try:
+            # GEQDSK uses (6a8,3i4). Four-digit dimensions occupy the
+            # whole field, so adjacent integers need not have whitespace.
             _, nr, nz = (int(record[i:i+4]) for i in (48, 52, 56))
             eqdata['header'] = record[:48]
         except ValueError:

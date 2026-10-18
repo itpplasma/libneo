@@ -768,3 +768,19 @@ add_subdirectory(poincare)
 add_subdirectory(odeint)
 add_subdirectory(spectre)
 add_subdirectory(jorek)
+
+# Exercise the production projection with an analytic map and independent field weight.
+add_executable(test_efit_boozer_projection.x
+  ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_to_boozer_mod.f90
+  source/boozer_projection_fixture.f90
+  ${CMAKE_SOURCE_DIR}/app/efit_to_boozer.f90)
+set_target_properties(test_efit_boozer_projection.x PROPERTIES
+  Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/projection_modules)
+target_include_directories(test_efit_boozer_projection.x BEFORE PRIVATE
+  ${CMAKE_CURRENT_BINARY_DIR}/projection_modules)
+add_test(NAME test_efit_boozer_projection
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_projection.py
+    $<TARGET_FILE:test_efit_boozer_projection.x>)
+set_tests_properties(test_efit_boozer_projection PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

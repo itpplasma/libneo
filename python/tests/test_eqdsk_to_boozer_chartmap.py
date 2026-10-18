@@ -99,7 +99,7 @@ def test_limiter_boundary_both_flux_directions(tmp_path, sign, toroidal_sign):
     write_eqdsk(path, d)
     output = tmp_path/"chartmap.nc"
     convert_eqdsk_to_chartmap(path, output, nrho=24, ntheta=48, nstep=360,
-        nlabel=32, ntheta_int=64, nsurfmax=400, nsurf=64, psimax=.5e8)
+        nlabel=32, ntheta_int=64, nsurfmax=400, nsurf=64, psimax=sign*.5e8)
     with netCDF4.Dataset(output) as ds:
         x, y, z = [np.asarray(ds.variables[n][:]) for n in ["x", "y", "z"]]
         minor = np.sqrt((np.hypot(x, y)*.01-10)**2+(z*.01)**2)

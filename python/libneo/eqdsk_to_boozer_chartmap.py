@@ -146,7 +146,7 @@ def convert_eqdsk_to_chartmap(
         Path to a convex wall file for stretch_coords.  If None a default
         circular wall is generated from the g-file boundary.
     psimax : float or None
-        Poloidal flux at the plasma boundary in CGS (G*cm^2/rad), absolute
+        Poloidal flux at the plasma boundary in CGS (G*cm^2/rad), signed
         value as interpolated by field_eq from the g-file psi map.  The
         flux-surface scan stops at the first surface with psi beyond this
         value.  If None, the boundary is located purely by the field-line
