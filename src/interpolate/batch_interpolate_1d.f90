@@ -1053,16 +1053,7 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:)
 
-        real(dp) :: x_arr(1)
-        real(dp) :: y_arr(spl%num_quantities, 1)
-        real(dp) :: dy_arr(spl%num_quantities, 1)
-        real(dp) :: d2y_arr(spl%num_quantities, 1)
-
-        x_arr(1) = x
-        call evaluate_batch_splines_1d_many_der2(spl, x_arr, y_arr, dy_arr, d2y_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
-        d2y_batch(1:spl%num_quantities) = d2y_arr(:, 1)
+        call evaluate_batch_splines_1d_der2_core(spl, x, y_batch, dy_batch, d2y_batch)
     end subroutine evaluate_batch_splines_1d_der2
 
     recursive subroutine evaluate_batch_splines_1d_der3(spl, x, y_batch, dy_batch, d2y_batch, &
@@ -1072,19 +1063,8 @@ contains
         real(dp), intent(in) :: x
         real(dp), intent(out) :: y_batch(:), dy_batch(:), d2y_batch(:), d3y_batch(:)
 
-        real(dp) :: x_arr(1)
-        real(dp) :: y_arr(spl%num_quantities, 1)
-        real(dp) :: dy_arr(spl%num_quantities, 1)
-        real(dp) :: d2y_arr(spl%num_quantities, 1)
-        real(dp) :: d3y_arr(spl%num_quantities, 1)
-
-        x_arr(1) = x
-        call evaluate_batch_splines_1d_many_der3(spl, x_arr, y_arr, dy_arr, &
-                                                 d2y_arr, d3y_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
-        d2y_batch(1:spl%num_quantities) = d2y_arr(:, 1)
-        d3y_batch(1:spl%num_quantities) = d3y_arr(:, 1)
+        call evaluate_batch_splines_1d_der3_core(spl, x, y_batch, dy_batch, d2y_batch, &
+                                                 d3y_batch)
     end subroutine evaluate_batch_splines_1d_der3
 
    !NVF$ INLINE

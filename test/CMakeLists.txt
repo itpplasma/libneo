@@ -127,6 +127,9 @@ target_link_libraries(test_geqdsk_tools.x
   ${MAGFIE_LIB}
 )
 
+add_executable(test_geqdsk_derivative_cache.x source/test_geqdsk_derivative_cache.f90)
+target_link_libraries(test_geqdsk_derivative_cache.x ${MAIN_LIB} ${MAGFIE_LIB})
+
 if(LIBNEO_TESTING_ENABLED)
   set(TEST_OUTPUT_DIR ${CMAKE_BINARY_DIR}/test)
   file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR})
@@ -225,6 +228,10 @@ target_link_libraries(test_batch_interpolate_1d_fixed.x ${COMMON_LIBS})
 
 add_executable(test_batch_interpolate_der_nq1.x source/test_batch_interpolate_der_nq1.f90)
 target_link_libraries(test_batch_interpolate_der_nq1.x ${COMMON_LIBS})
+add_executable(test_batch_interpolate_der_o555.x source/test_batch_interpolate_der_o555.f90)
+target_link_libraries(test_batch_interpolate_der_o555.x ${COMMON_LIBS})
+add_executable(test_batch_interpolate_single_point.x source/test_batch_interpolate_single_point.f90)
+target_link_libraries(test_batch_interpolate_single_point.x ${COMMON_LIBS})
 
 add_executable(test_batch_interpolate_oracle.x source/test_batch_interpolate_oracle.f90)
 target_link_libraries(test_batch_interpolate_oracle.x ${COMMON_LIBS})
@@ -248,6 +255,11 @@ target_link_libraries(test_vmec_modules.x neo)
 
 add_executable(test_coordinate_systems.x source/test_coordinate_systems.f90)
 target_link_libraries(test_coordinate_systems.x neo ${MAGFIE_LIB})
+
+add_executable(test_chartmap_full_torus.x source/test_chartmap_full_torus.f90)
+target_link_libraries(test_chartmap_full_torus.x neo)
+add_test(NAME test_chartmap_full_torus COMMAND test_chartmap_full_torus.x)
+set_tests_properties(test_chartmap_full_torus PROPERTIES LABELS "unit;chartmap")
 
 add_executable(test_chartmap_coordinates.x source/test_chartmap_coordinates.f90)
 target_link_libraries(test_chartmap_coordinates.x neo ${MAGFIE_LIB})
@@ -302,6 +314,7 @@ add_test(NAME test_boozer_symplectic_table
   COMMAND test_boozer_symplectic_table.x
 )
 add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
+add_test(NAME test_geqdsk_derivative_cache COMMAND test_geqdsk_derivative_cache.x)
 add_test(NAME test_simpson COMMAND test_simpson.x)
 add_test(NAME test_hdf5_tools COMMAND test_hdf5_tools.x)
 add_test(NAME test_util COMMAND test_util.x)
@@ -323,6 +336,19 @@ add_test(NAME test_batch_interpolate_scalar_cubic
 add_test(NAME test_batch_interpolate_1d_fixed
   COMMAND test_batch_interpolate_1d_fixed.x)
 add_test(NAME test_batch_interpolate_der_nq1 COMMAND test_batch_interpolate_der_nq1.x)
+if(LIBNEO_DETERMINISTIC_FP)
+  add_test(NAME test_batch_interpolate_single_point
+           COMMAND test_batch_interpolate_single_point.x bitwise)
+else()
+  add_test(NAME test_batch_interpolate_single_point
+           COMMAND test_batch_interpolate_single_point.x)
+endif()
+if(LIBNEO_DETERMINISTIC_FP)
+  add_test(NAME test_batch_interpolate_der_o555
+           COMMAND test_batch_interpolate_der_o555.x bitwise)
+else()
+  add_test(NAME test_batch_interpolate_der_o555 COMMAND test_batch_interpolate_der_o555.x)
+endif()
 add_test(NAME test_batch_interpolate_oracle COMMAND test_batch_interpolate_oracle.x)
 add_test(NAME test_batch_interpolate_mask COMMAND test_batch_interpolate_mask.x)
 add_test(NAME test_batch_eval_oracle COMMAND test_batch_eval_oracle.x)
@@ -622,6 +648,12 @@ set_tests_properties(test_vector_conversion PROPERTIES
 add_executable(test_geoflux_coordinate_system.x source/test_geoflux_coordinate_system.f90)
 target_link_libraries(test_geoflux_coordinate_system.x neo ${MAGFIE_LIB})
 
+add_executable(test_geoflux_flux_table.x source/test_geoflux_flux_table.f90)
+target_link_libraries(test_geoflux_flux_table.x neo ${MAGFIE_LIB})
+add_test(NAME test_geoflux_flux_table
+  COMMAND test_geoflux_flux_table.x
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(test_chartmap_matches_vmec.x source/test_chartmap_matches_vmec.f90)
 target_link_libraries(test_chartmap_matches_vmec.x neo)
 add_test(NAME test_chartmap_matches_vmec
@@ -730,3 +762,19 @@ add_subdirectory(poincare)
 add_subdirectory(odeint)
 add_subdirectory(spectre)
 add_subdirectory(jorek)
+
+# Exercise the production projection with an analytic map and independent field weight.
+add_executable(test_efit_boozer_projection.x
+  ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_to_boozer_mod.f90
+  source/boozer_projection_fixture.f90
+  ${CMAKE_SOURCE_DIR}/app/efit_to_boozer.f90)
+set_target_properties(test_efit_boozer_projection.x PROPERTIES
+  Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/projection_modules)
+target_include_directories(test_efit_boozer_projection.x BEFORE PRIVATE
+  ${CMAKE_CURRENT_BINARY_DIR}/projection_modules)
+add_test(NAME test_efit_boozer_projection
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_projection.py
+    $<TARGET_FILE:test_efit_boozer_projection.x>)
+set_tests_properties(test_efit_boozer_projection PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

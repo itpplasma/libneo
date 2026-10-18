@@ -20,7 +20,7 @@ program test_chartmap_matches_vmec
     integer, parameter :: ntest = 25
     real(dp) :: u(3), u_shift(3), u_vmec(3)
     real(dp) :: x_chart(3), x_vmec_cart(3), x_vmec_cyl(3)
-    real(dp) :: dx(3)
+    real(dp) :: dx(3), x_rotated(3)
     real(dp) :: max_dx
     real(dp) :: max_dx_grid
     real(dp) :: zeta_period
@@ -87,7 +87,10 @@ program test_chartmap_matches_vmec
 
             u_shift = [u(1), u(2), u(3) + zeta_period]
             call ccs%evaluate_cart(u_shift, x_vmec_cart)
-            dx = x_chart - x_vmec_cart
+            x_rotated = [cos(zeta_period)*x_chart(1) - sin(zeta_period)*x_chart(2), &
+                         sin(zeta_period)*x_chart(1) + cos(zeta_period)*x_chart(2), &
+                         x_chart(3)]
+            dx = x_rotated - x_vmec_cart
             max_dx = max(max_dx, maxval(abs(dx)))
         end do
     class default

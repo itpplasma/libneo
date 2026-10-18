@@ -67,7 +67,8 @@ module odeint_mod
     real(dp), allocatable :: y_temp(:)      ! Temporary for RK stages
     real(dp), allocatable :: y_error(:)     ! Error estimate
     real(dp), allocatable :: y_scale(:)     ! Error scaling
-!$omp threadprivate(k_stages, y_work, y_temp, y_error, y_scale)
+    real(dp), allocatable :: y_floor(:)     ! Absolute floor of error scaling
+!$omp threadprivate(k_stages, y_work, y_temp, y_error, y_scale, y_floor)
 
     public :: allocate_state, deallocate_state, pow_m02, pow_m025
 
@@ -103,6 +104,7 @@ contains
         allocate (y_temp(n))
         allocate (y_error(n))
         allocate (y_scale(n))
+        allocate (y_floor(n))
     end subroutine allocate_state
 
     subroutine deallocate_state()
@@ -113,6 +115,7 @@ contains
         deallocate (y_temp)
         deallocate (y_error)
         deallocate (y_scale)
+        deallocate (y_floor)
     end subroutine deallocate_state
 
 end module odeint_mod
@@ -185,13 +188,14 @@ contains
 
     !> Integrate ODE system without context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_no_context(y, nvar, x1, x2, eps, derivs, &
-                                             initial_stepsize, events)
+                                             initial_stepsize, events, scale_floor)
         integer, intent(in) :: nvar
         real(dp), dimension(nvar), intent(inout) :: y
         real(dp), intent(in) :: x1, x2, eps
         procedure(derivative_function) :: derivs
         real(dp), intent(in), optional :: initial_stepsize
         type(ode_event_t), intent(inout), optional :: events(:)
+        real(dp), intent(in), optional :: scale_floor(nvar)
 
         real(dp) :: h_init
 
@@ -201,13 +205,13 @@ contains
         end if
 
         call integrate_adaptive(y, nvar, x1, x2, eps, h_init, derivs, &
-                                max_steps, events)
+                                max_steps, events, scale_floor)
     end subroutine odeint_allroutines_no_context
 
     !> Integrate ODE system with context (ORIGINAL INTERFACE)
     subroutine odeint_allroutines_context(y, nvar, context, x1, x2, eps, &
                                           derivs, initial_stepsize, events, step_limit, &
-                                          ierr)
+                                          ierr, scale_floor)
         integer, intent(in) :: nvar
         real(dp), dimension(nvar), intent(inout) :: y
         class(*), intent(in) :: context
@@ -217,6 +221,7 @@ contains
         type(ode_event_t), intent(inout), optional :: events(:)
         integer, intent(in), optional :: step_limit
         integer, intent(out), optional :: ierr
+        real(dp), intent(in), optional :: scale_floor(nvar)
 
         real(dp) :: h_init
         integer :: max_steps_call
@@ -230,7 +235,8 @@ contains
         if (max_steps_call < 1) error stop 'ODE step limit must be positive'
 
         call integrate_adaptive_with_context(y, nvar, x1, x2, eps, h_init, &
-                                             derivs, context, max_steps_call, events)
+                                             derivs, context, max_steps_call, events, &
+                                             scale_floor)
         if (present(ierr)) then
             ierr = 0
             if (odeint_failed) ierr = 1
@@ -239,7 +245,7 @@ contains
 
     !> Main integration loop with adaptive step control
     subroutine integrate_adaptive(y, n, x_start, x_end, tolerance, h_init, &
-                                  derivative, step_limit, events)
+                                  derivative, step_limit, events, scale_floor)
 
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
@@ -248,6 +254,7 @@ contains
         procedure(derivative_function) :: derivative
         integer, intent(in) :: step_limit
         type(ode_event_t), intent(inout), optional :: events(:)
+        real(dp), intent(in), optional :: scale_floor(:)
 
         real(dp) :: x, h, h_next
         real(dp) :: x_step_start, x_root
@@ -258,6 +265,7 @@ contains
         integer, allocatable :: direction(:)
 
         call allocate_state(n)
+        call set_scale_floor(scale_floor)
         odeint_failed = .false.
         x = x_start
         h = h_init
@@ -336,7 +344,7 @@ contains
     !> Main integration loop with context
     subroutine integrate_adaptive_with_context(y, n, x_start, x_end, tolerance, &
                                                h_init, derivative, context, step_limit, &
-                                               events)
+                                               events, scale_floor)
 
         real(dp), intent(inout) :: y(:)
         integer, intent(in) :: n
@@ -346,6 +354,7 @@ contains
         class(*), intent(in) :: context
         integer, intent(in) :: step_limit
         type(ode_event_t), intent(inout), optional :: events(:)
+        real(dp), intent(in), optional :: scale_floor(:)
 
         real(dp) :: x, h, h_next
         real(dp) :: x_step_start, x_root
@@ -356,6 +365,7 @@ contains
         integer, allocatable :: direction(:)
 
         call allocate_state(n)
+        call set_scale_floor(scale_floor)
         odeint_failed = .false.
         x = x_start
         h = h_init
@@ -446,9 +456,18 @@ contains
         do i = 1, n
             abs_y = abs(y_work(i))
             abs_hk1 = abs(h*k_stages(1, i))
-            y_scale(i) = abs_y + abs_hk1 + tiny_value
+            y_scale(i) = abs_y + abs_hk1 + y_floor(i)
         end do
     end subroutine compute_error_scale_fused
+
+    !> Absolute error-scale floor, so components starting at zero with zero
+    !> derivative do not force the step size down to roundoff
+    subroutine set_scale_floor(scale_floor)
+        real(dp), intent(in), optional :: scale_floor(:)
+
+        y_floor = tiny_value
+        if (present(scale_floor)) y_floor = max(scale_floor, tiny_value)
+    end subroutine set_scale_floor
 
     !> Check if step needs adjustment for endpoint (will be inlined)
     pure subroutine check_endpoint_adjustment(x, h, x_start, x_end)

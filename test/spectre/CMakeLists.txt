@@ -35,3 +35,12 @@ add_test(NAME test_spectre_field
          COMMAND test_spectre_field.x
                  ${CMAKE_CURRENT_SOURCE_DIR}/data/spectre_test.h5
                  ${CMAKE_CURRENT_SOURCE_DIR}/data/reference_eval.dat)
+
+add_executable(test_spectre_chart_validity.x test_spectre_chart_validity.f90)
+target_link_libraries(test_spectre_chart_validity.x PRIVATE spectre_field
+                                                            spectre_support
+                                                            coordinates
+                                                            util_for_test)
+add_test(NAME test_spectre_chart_validity
+         COMMAND test_spectre_chart_validity.x
+                 ${CMAKE_CURRENT_SOURCE_DIR}/data/spectre_test.h5)

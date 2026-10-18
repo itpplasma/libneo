@@ -1,6 +1,48 @@
 # libneo
 Common code for plasma codes of ITPcp, in particular for different NEO-2 versions.
 
+## Role in the KIN6D/TIAGO stack
+
+libneo is the shared **interchange, convention and reusable field-utility
+layer**, not the owner of a universal equilibrium model or reconstruction
+framework.
+
+KIN6D should reuse libneo readers/converters when they already cover formats
+such as GEQDSK, VMEC wout, Boozer/boozmn/chartmaps, SPECTRE/SPEC, JOREK or
+coil data. The adapter boundary must normalize units, coordinate/phase/sign
+conventions and provenance into physical data. KIN6D may then evaluate native
+residuals, re-solve the corresponding equilibrium model and certify the
+result; importing a VMEC or EQDSK object does not make nested surfaces or that
+source code's equations fundamental.
+
+TIAGO continues to reuse libneo for coil/interchange utilities while owning
+diagnostic inference/UQ. libneo should not acquire KIN6D solver policy or TIAGO
+posterior semantics merely to connect the projects.
+
+Add new format/convention support here when it has multiple consumers or is
+clearly generic. Keep one-off machine acquisition and plasma-model-specific
+stationary solves in their owning projects.
+
+### Demand-driven modernization
+
+KIN6D is expected to become a major new libneo consumer. That is a reason to
+improve libneo, not to fork its useful mathematics. Whenever KIN6D starts using
+a libneo path, treat the touched code with a boy-scout rule: add an independent
+regression/oracle for the real use case, fix generic bugs and convention errors
+here, and make bounded refactors that improve reentrancy, accuracy,
+differentiability or testability for all consumers.
+
+Do not rewrite unrelated historical subsystems merely because KIN6D exists.
+Preserve compatible entry points or provide migration shims so NEO-2, SIMPLE,
+MEPHIT, TIAGO and other consumers can adopt the improved implementation.
+
+Generic spatial field derivatives, interpolation/error diagnostics and
+representation-level enclosures belong here when they are reusable. Physical
+equilibrium/kinetic residuals, implicit parameter adjoints, validated
+stationary solves and model-error bounds remain KIN6D responsibilities. An old
+evaluator that is too costly to make rigorous may remain an importer into a
+canonical KIN6D representation rather than being duplicated.
+
 ## Getting started
 
 ### Prerequisites
@@ -19,10 +61,14 @@ For convenience, the build process can be automatically started by running
 directly in the `libneo` directory. This will create a `build` subdirectory
 and run `cmake` with `ninja` internally. 
 
-The CMake build pins Fortio to a reviewed commit. To test a Fortio branch or
-commit explicitly, configure with `-DFORTIO_REF=<ref>`. The `main` workflow
-also accepts the `fortio_ref` `workflow_dispatch` input for the upstream
-Fortio downstream gate.
+Fortio and Fortnum revisions are defined in `fpm.toml`. Both the main CMake
+build and standalone `h5merge` read those defaults. To test another revision,
+configure with `-DFORTIO_REF=<ref>` or `-DFORTNUM_REF=<ref>`; local source
+overrides remain available through CMake's FetchContent options.
+
+After changing a revision in `fpm.toml`, run
+`python3 ci/sync_dependency_pins.py` to regenerate the Nix inputs and lockfile.
+CI checks their consistency with `python3 ci/sync_dependency_pins.py --check`.
 
 ### Install Python interface
 The Python interface is located in the `python` subdirectory. This interface

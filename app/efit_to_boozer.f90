@@ -116,14 +116,15 @@
   write(iunit,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'
   write(iunit_lhs,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'    !<=25.07.2023
   write(iunit_rhs,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'    !<=25.07.2023
-  write(iunit,'(4i6,e15.6,2f10.5)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2
-  write(iunit_lhs,'(4i6,e15.6,2f10.5)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
-  write(iunit_rhs,'(4i6,e15.6,2f10.5)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
+  write(iunit,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2
+  write(iunit_lhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
+  write(iunit_rhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
 !
   phi=0.d0
 !
   do is=1,nsurf
     s=hs*(dfloat(is)-0.5d0)
+    sqrtg00=0.d0
     do it=1,nt
       theta=htheta*dfloat(it)
 !
@@ -134,7 +135,9 @@
 !
       calE(it)=exp(cmplx(0.d0,theta+G/q, kind=cdp))
       aJb=R*(Br**2+Bp**2+Bz**2)/(C_norm*Bp)
-      calEm_times_Jb(it)=cmplx(aJb,0.d0, kind=cdp)
+      sqrtg00=sqrtg00+aJb/bmod**2
+      ! Fourier quadrature must use the Jacobian of its interpolated angle.
+      calEm_times_Jb(it)=cmplx(1.d0+dG_dtheta/q,0.d0, kind=cdp)
 !
       R_oft(it)=R
       Z_oft(it)=Z
@@ -146,7 +149,7 @@
     aiota=1.d0/q
     B_phi=Bp*R
     B_theta=q*(C_norm-B_phi)
-    sqrtg00=(B_phi+B_theta/q)*real(sum(calEm_times_Jb/B_oft**2))*oneovernt
+    sqrtg00=(B_phi+B_theta/q)*sqrtg00*oneovernt
     dB_phi_ds=(dBpdR*dR_ds+dBpdZ*dZ_ds)*R+Bp*dR_ds
     dB_theta_ds=dq_ds*(C_norm-B_phi)+q*(dC_norm_ds-dB_phi_ds)
     pprime=-(dB_phi_ds+aiota*dB_theta_ds)/(2.d0*twopi*sqrtg00)
@@ -199,11 +202,12 @@
     write(iunit,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'
     write(iunit_lhs,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'  !<=25.07.2023
     write(iunit_rhs,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'  !<=25.07.2023
-    write(iunit,'(6e17.8)') s, aiota, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,              &
+    ! Radial geometry derivatives require full precision in all surface records.
+    write(iunit,'(6es25.16)') s, aiota, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,              &
                                                       -sigma*sqrtg00*psitor_max*1d-6*twopi**2
-    write(iunit_lhs,'(6e17.8)') s, aiota*sigma_lhs, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,            &               !<=25.07.2023
+    write(iunit_lhs,'(6es25.16)') s, aiota*sigma_lhs, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,            &               !<=25.07.2023
                                                       -abs(sqrtg00*psitor_max)*1d-6*twopi**2                                   !<=25.07.2023
-    write(iunit_rhs,'(6e17.8)') s, aiota*sigma_rhs, B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,             &               !<=25.07.2023
+    write(iunit_rhs,'(6es25.16)') s, aiota*sigma_rhs, B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,             &               !<=25.07.2023
                                                       abs(sqrtg00*psitor_max)*1d-6*twopi**2                                    !<=25.07.2023
     write(iunit,*) '    m    n      rmnc [m]         rmns [m]         zmnc [m]         zmns [m]'   &
                    //'         vmnc [ ]         vmns [ ]         bmnc [T]         bmns [T]'
@@ -212,11 +216,11 @@
     write(iunit_rhs,*) '    m    n      rmnc [m]         rmns [m]         zmnc [m]         zmns [m]'   &                       !<=25.07.2023
                    //'         vmnc [ ]         vmns [ ]         bmnc [T]         bmns [T]'                                    !<=25.07.2023
     do m=0,mpol
-      write(iunit,'(2i5,8e17.8)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2,  &
+      write(iunit,'(2i5,8es25.16)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2,  &
                      almn_c(m), almn_s(m), Bmn_c(m)*1d-4, Bmn_s(m)*1d-4
-      write(iunit_lhs,'(2i5,8e17.8)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_lhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_lhs,  &   !<=25.07.2023
+      write(iunit_lhs,'(2i5,8es25.16)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_lhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_lhs,  &   !<=25.07.2023
                      almn_c(m), almn_s(m)*sigma_lhs, Bmn_c(m)*1d-4, Bmn_s(m)*1d-4*sigma_lhs                                    !<=25.07.2023
-      write(iunit_rhs,'(2i5,8e17.8)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_rhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_rhs,  &   !<=25.07.2023
+      write(iunit_rhs,'(2i5,8es25.16)') m,0,Rmn_c(m)*1d-2, Rmn_s(m)*1d-2*sigma_rhs, Zmn_c(m)*1d-2, Zmn_s(m)*1d-2*sigma_rhs,  &   !<=25.07.2023
                      almn_c(m), almn_s(m)*sigma_rhs, Bmn_c(m)*1d-4, Bmn_s(m)*1d-4*sigma_rhs                                    !<=25.07.2023
     enddo
 

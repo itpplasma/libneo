@@ -31,7 +31,8 @@ module libneo_coordinates_spectre
     implicit none
     private
 
-    public :: spectre_coordinate_system_t, make_spectre_coordinate_system
+    public :: spectre_coordinate_system_t, make_spectre_coordinate_system, &
+              validate_spectre_chart
 
     type, extends(coordinate_system_t) :: spectre_coordinate_system_t
         integer :: Mvol = 0
@@ -71,6 +72,65 @@ contains
         tmp%Zbs = data%Zbs
         allocate (cs, source=tmp)
     end subroutine make_spectre_coordinate_system
+
+    subroutine validate_spectre_chart(self, ierr)
+        !> ierr = 0 if the Jacobian of (rho_g, theta, zeta) -> x keeps one sign
+        !> in every volume, otherwise the first volume in which it changes sign.
+        !> A folded interface blend has no valid field there: sqrtg is taken
+        !> positive, so B^i = sqrtg B^i / sqrtg flips with the fold. The sample
+        !> grid resolves 32 points per period of the highest harmonic over one
+        !> toroidal period of the chart; the magnetic axis (s = -1 in volume 1)
+        !> is excluded.
+        class(spectre_coordinate_system_t), intent(in) :: self
+        integer, intent(out) :: ierr
+
+        integer, parameter :: NS = 64
+        integer :: lvol, i, j, k, nth, nze, nperiod, sign0, sign_jac
+        real(dp) :: s, theta, zeta, jac
+        real(dp) :: R, Z, dRds, dRdt, dRdz, dZds, dZdt, dZdz
+
+        ierr = 0
+        nth = 32*max(1, maxval(abs(self%im)))
+        nperiod = 0
+        do i = 1, self%mn
+            nperiod = gcd(nperiod, abs(self%in(i)))
+        end do
+        nze = 1
+        if (nperiod > 0) nze = 32*maxval(abs(self%in))/nperiod
+        do lvol = 1, self%Mvol
+            sign0 = 0
+            do i = merge(1, 0, lvol == 1), NS
+                s = -1.0_dp + 2.0_dp*real(i, dp)/real(NS, dp)
+                do k = 0, nze - 1
+                    zeta = TWOPI*real(k, dp)/real(nze*max(nperiod, 1), dp)
+                    do j = 0, nth - 1
+                        theta = TWOPI*real(j, dp)/real(nth, dp)
+                        call spectre_geom(self, lvol, s, theta, zeta, R, Z, &
+                                          dRds, dRdt, dRdz, dZds, dZdt, dZdz)
+                        jac = R*(dRdt*dZds - dRds*dZdt)
+                        sign_jac = 0
+                        if (jac > 0.0_dp) sign_jac = 1
+                        if (jac < 0.0_dp) sign_jac = -1
+                        if (sign0 == 0) sign0 = sign_jac
+                        if (sign_jac /= sign0) then
+                            ierr = lvol
+                            return
+                        end if
+                    end do
+                end do
+            end do
+        end do
+    end subroutine validate_spectre_chart
+
+    pure recursive integer function gcd(a, b) result(g)
+        integer, intent(in) :: a, b
+
+        if (b == 0) then
+            g = a
+        else
+            g = gcd(b, mod(a, b))
+        end if
+    end function gcd
 
     pure subroutine spectre_locate(Mvol, rho_g, lvol, s)
         integer, intent(in) :: Mvol

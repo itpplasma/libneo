@@ -229,8 +229,7 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
 endif()
 
 include(FetchContent)
-set(FORTIO_REF 11afd0bd1af0c99ea4e9a1c0df683dbdcc299b69 CACHE STRING
-    "Fortio commit, tag, or branch used for the build")
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DependencyPins.cmake)
 if(NOT TARGET fortio)
     FetchContent_Declare(
         fortio
@@ -257,7 +256,7 @@ if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
         FetchContent_Declare(
             fortnum
             GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-            GIT_TAG 62a559c0b8e1b28bd63550164a09ed9644e659b1
+            GIT_TAG ${FORTNUM_REF}
         )
         FetchContent_MakeAvailable(fortnum)
     endif()

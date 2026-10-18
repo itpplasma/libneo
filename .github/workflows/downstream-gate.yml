@@ -39,6 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Test downstream run attribution
+        run: python3 ci/test_downstream_gate.py
+
       - name: Dispatch downstream CI against this PR's libneo and gate on green
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
@@ -47,13 +50,6 @@ jobs:
         run: |
           set -u
           fail=0
-
-          # Latest workflow_dispatch run id for a downstream workflow, or empty
-          # on a transient gh/API error (caller treats empty as "unknown", not 0).
-          latest_dispatch_id() {
-            gh run list -R "itpplasma/$1" --workflow "$2" --event workflow_dispatch \
-              --limit 1 --json databaseId -q '.[0].databaseId // empty' 2>/dev/null
-          }
 
           # Block until a dispatched run reaches a terminal state and return its
           # TRUE verdict. gh run watch is best-effort: it can exit nonzero on a
@@ -97,7 +93,7 @@ jobs:
           }
 
           # Dispatch one workflow against this PR's libneo and wait for its run.
-          # Always passes -f libneo_ref=$REF; extra -f args are appended. Returns
+          # Always sends libneo_ref=$REF; extra API input fields are appended. Returns
           # non-zero only on a dispatch failure, a run that never appears, or a
           # genuine non-success conclusion.
           #
@@ -108,16 +104,20 @@ jobs:
           # this PR's libneo — retry a few times with backoff before giving up.
           run_wf() {
             local repo=$1 wf=$2; shift 2
-            local before run_id="" attempt rc
+            local run_id="" attempt rc
             for attempt in 1 2 3; do
-              before=$(latest_dispatch_id "$repo" "$wf")
-              # --ref main skips gh's GraphQL default-branch lookup, which fails
-              # hard when the token's hourly API quota is drained. Dispatch
-              # errors are retried with backoff for the same reason.
+              # The dispatch response identifies this run even when another PR
+              # dispatches the same workflow concurrently. Never select a run
+              # from the repository-wide latest list. Retry transient API errors.
               dispatched=0
               for _ in 1 2 3; do
-                if gh workflow run "$wf" -R "itpplasma/$repo" --ref main \
-                     -f "libneo_ref=$REF" "$@"; then
+                if run_id=$(gh api --method POST \
+                     "repos/itpplasma/$repo/actions/workflows/$wf/dispatches" \
+                     -H "Accept: application/vnd.github+json" \
+                     -H "X-GitHub-Api-Version: 2022-11-28" \
+                     -f ref=main -F return_run_details=true \
+                     -f "inputs[libneo_ref]=$REF" "$@" \
+                     --jq '.workflow_run_id // empty'); then
                   dispatched=1; break
                 fi
                 sleep 30
@@ -126,15 +126,11 @@ jobs:
                 echo "::error::failed to dispatch $repo ($wf) — missing workflow_dispatch trigger or persistent API error"
                 return 1
               fi
-              run_id=""
-              for _ in $(seq 1 24); do
-                sleep 5
-                run_id=$(latest_dispatch_id "$repo" "$wf")
-                [ -n "$run_id" ] && [ "$run_id" != "$before" ] && break
-              done
-              if [ -z "$run_id" ] || [ "$run_id" = "$before" ]; then
-                echo "::error::could not find dispatched run for $repo ($wf)"; return 1
+              if ! [[ "$run_id" =~ ^[1-9][0-9]*$ ]]; then
+                echo "::error::$repo ($wf): dispatch returned no valid run ID"
+                return 1
               fi
+              echo "https://github.com/itpplasma/$repo/actions/runs/$run_id"
               await_run "$repo" "$run_id"; rc=$?
               [ "$rc" -eq 2 ] || return "$rc"
               echo "::warning::$repo ($wf) retry $attempt/3 after cancellation"
@@ -156,7 +152,7 @@ jobs:
             rc=0
             if [ "$FULL" = true ] && [ "${full_ci:-no}" = yes ]; then
               # self: the downstream's one workflow carries its own slow tier.
-              run_wf "$repo" "$wf" -f full=true || rc=1
+              run_wf "$repo" "$wf" -f "inputs[full]=true" || rc=1
             else
               run_wf "$repo" "$wf" || rc=1
               if [ "$FULL" = true ] && [ "${full_ci:-no}" != no ]; then

@@ -3,6 +3,87 @@
 ## Overview
 This document captures the architectural decisions, design patterns, and implementation strategies for the libneo Fortran library.
 
+### Ecosystem boundary: interchange rather than equilibrium ownership
+
+libneo owns generic plasma-code interchange, coordinate/convention conversion,
+reusable magnetic-field/geometry utilities and compatibility adapters that have
+multiple consumers. It is intentionally below KIN6D and TIAGO in the
+application stack.
+
+- **KIN6D** owns general plasma equations, stationary/evolution solves,
+  differentiability, numerical certification and model-reduction error.
+- **TIAGO** owns diagnostic observation/inference, likelihoods, nuisance
+  parameters, priors and posterior UQ.
+- **libneo** supplies shared readers/writers/converters and mature field
+  utilities to both.
+
+EQDSK/gEQDSK, VMEC wout, boozmn/chartmap, SPECTRE/SPEC, JOREK and similar
+formats are adapter inputs. A format-specific coordinate model must not leak
+into a consumer as a universal physical assumption. In particular, VMEC input
+does not imply that KIN6D requires nested flux surfaces.
+
+When KIN6D re-solves or certifies an imported state, the equilibrium residual,
+solver and certificate remain KIN6D responsibilities. When TIAGO reconstructs
+from measurements, the likelihood/posterior remain TIAGO responsibilities.
+Avoid adding wrappers here that duplicate either layer.
+
+New adapters should retain source format/version, units, orientation,
+toroidal-angle/field-period/flux conventions and any transformations needed to
+obtain the normalized physical representation. Prefer independently checked
+round trips or cross-code oracles for convention-sensitive conversions.
+
+### Boy-scout modernization driven by real consumers
+
+libneo is historically grown and is not scheduled for a wholesale rewrite.
+Instead, every new production consumer is an opportunity to harden the exact
+path it exercises. KIN6D in particular should trigger this process as soon as
+it depends on a reader, converter, field evaluator or geometry utility.
+
+For each touched path:
+
+1. freeze the KIN6D/downstream reproducer and expected physical semantics;
+2. add a libneo-level analytic, manufactured, round-trip or cross-code oracle;
+3. fix generic correctness/convention/accuracy defects in libneo, not in a
+   downstream shadow implementation;
+4. make the smallest refactor needed for reentrancy, explicit state,
+   performance, derivative access or independent checking;
+5. preserve existing public behavior when correct, or provide a bounded
+   compatibility/migration path when a bug fix changes it;
+6. run libneo tests and the relevant downstream regression before promotion.
+
+The purpose is ecosystem compounding: fixes discovered while developing KIN6D
+should improve NEO-2, SIMPLE, MEPHIT, TIAGO and future consumers as they update
+their libneo revision.
+
+### Differentiability and error capabilities
+
+The current `field_t` value interface is intentionally small. Do not turn it
+into a mandatory monster interface that every historical backend must
+implement. Add capability-specific interfaces/composition only when real
+consumers require them, for example:
+
+- spatial field Jacobian/JVP evaluation;
+- parameter-independent interpolation derivatives;
+- interpolation/truncation diagnostics;
+- interval/ball evaluation or other representation-level enclosures.
+
+A value-only backend remains valid. A consumer that needs stronger semantics
+may either select a backend with those capabilities or use libneo to parse and
+normalize the source data, then rebuild it in a native differentiable/certified
+representation.
+
+Ownership remains strict:
+
+- libneo owns derivatives and error information of its generic
+  representation/conversion/evaluation mathematics;
+- KIN6D owns derivatives of the physical stationary/evolution equations with
+  respect to physical parameters, implicit equilibrium adjoints, validated
+  solution existence/error and physical model-reduction bounds;
+- TIAGO owns inference/posterior UQ.
+
+This split allows rigorous KIN6D results without requiring every historical
+libneo routine to become interval-arithmetic or AD-enabled.
+
 ## Performance Optimizations
 
 ### Trampoline Elimination (Inner Subroutines)
