@@ -8,11 +8,13 @@ then calls the module.
 
 Output convention
 -----------------
-Axisymmetric: num_field_periods=1, nzeta=1.  Geometry varies with
+Axisymmetric: num_field_periods=1. Cartesian geometry covers the full torus,
+even though the field strength and surface functions are axisymmetric.
+Geometry varies with
 phi_cyl = zeta - G_of_thb(theta_B); Bmod is independent of zeta.
 Surface functions:
-  B_phi (G*cm) = C_norm (covariant toroidal B from magdata, CGS)
-  B_theta (G*cm) = C_norm / q
+  B_phi (G*cm) = C_norm - iota*B_theta (covariant toroidal field)
+  B_theta (G*cm) = signed poloidal circulation / (2*pi)
   A_phi(s) = -torflux * integral_0^s iota(s') ds'
 torflux = -psitor_max (negative: left-handed SIMPLE convention)
 """
@@ -119,6 +121,7 @@ def convert_eqdsk_to_chartmap(
     *,
     nrho=50,
     ntheta=48,
+    nzeta=48,
     nstep=3600,
     nlabel=500,
     ntheta_int=500,
@@ -143,7 +146,7 @@ def convert_eqdsk_to_chartmap(
         Path to a convex wall file for stretch_coords.  If None a default
         circular wall is generated from the g-file boundary.
     psimax : float or None
-        Poloidal flux at the plasma boundary in CGS (G*cm^2/rad), absolute
+        Poloidal flux at the plasma boundary in CGS (G*cm^2/rad), signed
         value as interpolated by field_eq from the g-file psi map.  The
         flux-surface scan stops at the first surface with psi beyond this
         value.  If None, the boundary is located purely by the field-line
@@ -152,12 +155,23 @@ def convert_eqdsk_to_chartmap(
         edge (the scan then runs to nsurfmax and the last box-confined
         surface, not the LCFS, becomes s = 1).
     """
+    if not isinstance(nzeta, int) or nzeta < 8:
+        raise ValueError("nzeta must be an integer >=8 for periodic Cartesian splines")
     import _efit_to_boozer as _etb
     from _efit_to_boozer import efit_to_boozer_mod
     from efit_to_boozer.boozer import get_boozer_transform, get_magnetic_axis
     from scipy.interpolate import CubicSpline
 
     gfile = str(Path(gfile).resolve())
+    from libneo.eqdsk_base import read_eqdsk
+    eq = read_eqdsk(gfile)
+    # The field-line scan advances phi positively in either field direction.
+    # Its q and toroidal-flux signs therefore need the geometric orientation
+    # used by get_boozer_transform (increasing counter-clockwise theta).
+    q_orientation = np.sign(eq["fprof"][0] *
+                            (eq["PsiedgeVs"]-eq["PsiaxisVs"]))
+    if q_orientation == 0:
+        raise ValueError("Distinct boundary flux and nonzero toroidal field required")
     if convexwall is not None:
         convexwall = str(Path(convexwall).resolve())
 
@@ -191,17 +205,21 @@ def convert_eqdsk_to_chartmap(
             _write_field_divB0_inp("field_divB0.inp", gfile,
                                    convexfile=wall_path)
 
-            # Uniform s grid: skip s=0 (axis singularity) and s=1 (LCFS,
-            # field-line integration may not converge exactly at the separatrix).
-            s_grid = np.linspace(1.0 / nrho, 1.0 - 0.5 / nrho, nrho)
-            rho_grid = np.sqrt(s_grid)
+            # Native chartmap readers require a uniform rho grid, reaching
+            # the normalized outer surface and beginning close to the axis.
+            # efit_to_boozer's outer surface is its last closed scanned contour.
+            rho_grid = np.linspace(0.01, 1.0, nrho)
+            surface_s = rho_grid**2
+            # A_phi has its own independent uniform s abscissa. Its entries
+            # are not paired by index with the geometry's uniform rho grid.
+            s_grid = np.linspace(surface_s[0], 1.0, nrho)
 
             # Boozer transform per surface: splines r(theta_B), dth(theta_B),
             # G(theta_B), q; stored on stor[0..nrho-1] (stor[-1] is not used).
             # get_boozer_transform calls efit_to_boozer.init() internally from
             # the current directory (tmpdir), so do not call init() separately.
             num_theta_boozer = 64
-            stor = np.append(s_grid, 1.0 + 1.0 / nrho)  # sentinel
+            stor = np.append(surface_s, 1.0 + 1.0 / nrho)  # sentinel
             (r_of_thb, dth_of_thb, G_of_thb,
              _theta_b, _theta_g, _theta_sf, B0_of_thb) = get_boozer_transform(
                 stor, num_theta_boozer
@@ -210,7 +228,7 @@ def convert_eqdsk_to_chartmap(
             # psitor_max available after init (called inside get_boozer_transform).
             # SIMPLE/boozer_chartmap convention: torflux < 0 (left-handed).
             psitor_max_cgs = float(efit_to_boozer_mod.psitor_max)
-            torflux_si = -psitor_max_cgs * 1.0e-8  # G*cm^2 -> T*m^2, negated
+            torflux_si = -np.copysign(abs(psitor_max_cgs), eq["fprof"][0]) * 1.0e-8
 
             R_axis_si, Z_axis_si = get_magnetic_axis()  # in SI (m)
 
@@ -219,7 +237,7 @@ def convert_eqdsk_to_chartmap(
             psi_dum = np.float64(0.0)
             C_norm_arr = np.zeros(nrho)
             q_arr = np.zeros(nrho)
-            for k, sk in enumerate(s_grid):
+            for k, sk in enumerate(surface_s):
                 s_f = np.float64(sk)
                 psi_f = np.float64(0.0)
                 th_f = np.float64(0.0)
@@ -227,10 +245,10 @@ def convert_eqdsk_to_chartmap(
                     1, s_f, psi_f, th_f
                 )
                 C_norm_arr[k] = Cn
-                q_arr[k] = q
+                q_arr[k] = q_orientation*abs(q)
 
             # Covariant B surface functions (CGS G*cm).
-            # B_phi = G(s) = R*B_tor = C_norm from magdata.
+            # magdata returns C = G + iota*I, not the toroidal covariant G.
             # B_theta = I(s), the Boozer covariant poloidal component, from
             # Ampere's law: 2*pi*I = loop integral of B_pol along the flux
             # surface (only the enclosed toroidal current contributes).
@@ -239,7 +257,6 @@ def convert_eqdsk_to_chartmap(
             # enclosed current. For a tokamak I << G/q, and writing G/q here
             # inflates the field-line length factor (G + iota*I) and slows
             # every traced orbit's parallel dynamics by O(1/q^2).
-            B_phi_cgs = C_norm_arr          # G*cm
             # B_pol = |grad psi| / R from the g-file psi map itself: taking
             # sqrt(B^2 - B_tor^2) instead would difference two nearly equal
             # interpolants and lose all accuracy on inner surfaces.
@@ -272,20 +289,22 @@ def convert_eqdsk_to_chartmap(
                 B_Z = dpsi_dR / R_amp   # G
                 B_theta_cgs[k] = np.sum(B_R * dR + B_Z * dZ) / TWOPI  # G*cm
 
+            B_phi_cgs = C_norm_arr - B_theta_cgs/q_arr
+
             # A_phi(s) = -torflux * integral_0^s iota(s') ds'
             # iota = 1/q.  Use a cubic spline on s_grid.
-            iota_spl = CubicSpline(s_grid, 1.0 / q_arr)
+            iota_spl = CubicSpline(surface_s, 1.0 / q_arr)
             iota_int = iota_spl.antiderivative()
             A_phi_si = -torflux_si * (iota_int(s_grid) - iota_int(0.0))
 
-            # Geometry and Bmod on (nrho, ntheta, 1) grid (nzeta=1 for axisymm).
+            # Cartesian geometry rotates with zeta even in an axisymmetric field.
             theta_B = np.linspace(0.0, TWOPI, ntheta, endpoint=False)
-            zeta_B = np.array([0.0])  # one zeta slice; geometry repeats
+            zeta_B = np.linspace(0.0, TWOPI, nzeta, endpoint=False)
 
-            Bmod = np.zeros((nrho, ntheta, 1))
-            X = np.zeros((nrho, ntheta, 1))
-            Y = np.zeros((nrho, ntheta, 1))
-            Z = np.zeros((nrho, ntheta, 1))
+            Bmod = np.zeros((nrho, ntheta, nzeta))
+            X = np.zeros((nrho, ntheta, nzeta))
+            Y = np.zeros((nrho, ntheta, nzeta))
+            Z = np.zeros((nrho, ntheta, nzeta))
 
             for k in range(nrho):
                 r_spl = r_of_thb[k]
@@ -301,15 +320,15 @@ def convert_eqdsk_to_chartmap(
 
                     theta_geom = thb + dth
                     # phi_cyl = zeta_B - G_val (from boozer.py convention)
-                    phi_cyl = 0.0 - G_val
+                    phi_cyl = zeta_B - G_val
 
                     R_cyl = R_axis_si + r_min * np.cos(theta_geom)  # m
                     Z_cyl = Z_axis_si + r_min * np.sin(theta_geom)  # m
 
-                    Bmod[k, j, 0] = B0_val  # already in CGS (G)
-                    X[k, j, 0] = R_cyl * np.cos(phi_cyl)  # m
-                    Y[k, j, 0] = R_cyl * np.sin(phi_cyl)  # m
-                    Z[k, j, 0] = Z_cyl                     # m
+                    Bmod[k, j, :] = B0_val  # already in CGS (G)
+                    X[k, j, :] = R_cyl * np.cos(phi_cyl)  # m
+                    Y[k, j, :] = R_cyl * np.sin(phi_cyl)  # m
+                    Z[k, j, :] = Z_cyl                     # m
 
             _etb.efit_to_boozer.deinit()
         finally:

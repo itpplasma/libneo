@@ -67,13 +67,10 @@ def get_angles_G_and_B0(s, num_theta):
         B0mod.append(B0mod_temp)
 
     Gs = np.array(Gs)
-    Gs = np.append(Gs, Gs[0])
 
     B0mod = np.array(B0mod)
-    B0mod = np.append(B0mod, B0mod[0])
 
     r = np.array(r)
-    r = np.append(r, r[0])
 
     th_boozers = np.unwrap(th_boozers)
     monotone_sign_boozers = np.sign(np.mean(np.sign(np.diff(th_boozers))))
@@ -91,6 +88,11 @@ def get_angles_G_and_B0(s, num_theta):
         Gs = Gs[::-1]
         B0mod = B0mod[::-1]
 
+    # Reverse samples and their abscissae together before closing the period.
+    # Closing only the values first shifts reversed data by one poloidal sample.
+    r = np.append(r, r[0])
+    Gs = np.append(Gs, Gs[0])
+    B0mod = np.append(B0mod, B0mod[0])
     th_boozers = np.append(th_boozers, th_boozers[0] + 2 * np.pi)
     th_geoms = np.append(th_geoms, th_geoms[0] + 2 * np.pi)
 

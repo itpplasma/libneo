@@ -507,10 +507,14 @@ subroutine read_eqfile2(nwEQD,nhEQD,psiAxis,psiSep,bt0,rzero,fpol,rad,zet,psiRZ)
   print *, 'Equilibrium Done.', trim(gfile)
   ! Boundary Data
   read(gunit,*,end=55,err=250)n_bndyxy,nlimEQD
-  allocate(LCFS(2*n_bndyxy))
-  allocate(limEQD(2*nlimEQD))
-  read(gunit,2010,end=55,err=250)(LCFS(i),i=1,2*n_bndyxy)
-  read(gunit,2010,end=55,err=250)(limEQD(i),i=1,2*nlimEQD)
+  if (n_bndyxy > 0) then
+    allocate(LCFS(2*n_bndyxy))
+    read(gunit,2010,end=55,err=250)(LCFS(i),i=1,2*n_bndyxy)
+  end if
+  if (nlimEQD > 0) then
+    allocate(limEQD(2*nlimEQD))
+    read(gunit,2010,end=55,err=250)(limEQD(i),i=1,2*nlimEQD)
+  end if
 
   close(gunit)
 
