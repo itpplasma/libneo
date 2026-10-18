@@ -90,7 +90,7 @@ def _interp_coeffs(coeffs, ixm, rho_half, rho_out):
     inner = rho_out < rho_half[0]
     if np.any(inner):
         ratio = rho_out[inner, None] / rho_half[0]
-        m = np.minimum(ixm[None, :], 50)
+        m = np.minimum(np.abs(ixm)[None, :], 50)
         out[inner, :] = coeffs[0][None, :] * ratio**m
     return out
 
@@ -195,17 +195,23 @@ def convert_boozmn_to_chartmap(
     nrho=50,
     ntheta=48,
     nzeta=96,
+    rho_min=1.0e-3,
     covariant_sign=1,
+    chartmap_attrs=None,
+    netcdf_format="NETCDF4",
 ):
     """Read a boozmn file and write a libneo Boozer chartmap.
 
     booz_xform/scipy are imported lazily so this module imports without the
-    optional dependencies.
+    optional dependencies. ``chartmap_attrs`` supplies additional global
+    NetCDF attributes for converter-specific provenance.
     """
     from scipy.interpolate import CubicSpline
 
     if covariant_sign not in (-1, 1):
         raise ValueError("covariant_sign must be -1 or 1")
+    if not 0.0 <= rho_min < 1.0:
+        raise ValueError("rho_min must satisfy 0 <= rho_min < 1")
 
     d = _read_boozmn(boozmn)
     nfp = d["nfp"]
@@ -222,7 +228,7 @@ def convert_boozmn_to_chartmap(
     else:
         torflux_si = _derive_psi_prime(d)
 
-    rho_grid = np.linspace(1.0e-3, 1.0, nrho)
+    rho_grid = np.linspace(rho_min, 1.0, nrho)
     s_grid = rho_grid**2
     s = np.linspace(rho_grid[0] ** 2, 1.0, nrho)
     theta_geom = np.linspace(0.0, TWOPI, ntheta, endpoint=False)
@@ -240,8 +246,6 @@ def convert_boozmn_to_chartmap(
     # those quantities explicitly for SIMPLE's native canonical RK path.
     from scipy.interpolate import make_interp_spline
 
-    s_full = np.linspace(0.0, 1.0, d["ns"])
-    ds = s_full[1] - s_full[0]
     s_half_ext = np.concatenate(([0.0], s_half, [1.0]))
 
     def extended_half(values):
@@ -253,11 +257,9 @@ def convert_boozmn_to_chartmap(
 
     bmnc_ext = extended_half(d["bmnc"])
     bmnc_s = make_interp_spline(s_half_ext, bmnc_ext, k=3, axis=0)(s)
-    dbmnc = (bmnc_ext[2:-1] - bmnc_ext[1:-2]) / ds
-    # Differences of adjacent half-grid values are centered on the interior
-    # full-grid surfaces j=3..ns-2.  There are two fewer values than full
-    # surfaces because the supplied half grid starts at j=3 and ends at ns.
-    derivative_s = s_full[2:-1]
+    radial_steps = np.diff(s_half)
+    dbmnc = (bmnc_ext[2:-1] - bmnc_ext[1:-2]) / radial_steps[:, None]
+    derivative_s = 0.5 * (s_half[1:] + s_half[:-1])
     dbmnc_s = make_interp_spline(derivative_s, dbmnc, k=3, axis=0)(s)
 
     rk_Bmod = _fourier_eval(
@@ -285,7 +287,7 @@ def convert_boozmn_to_chartmap(
     if d["lasym"]:
         bmns_ext = extended_half(d["bmns"])
         bmns_s = make_interp_spline(s_half_ext, bmns_ext, k=3, axis=0)(s)
-        dbmns = (bmns_ext[2:-1] - bmns_ext[1:-2]) / ds
+        dbmns = (bmns_ext[2:-1] - bmns_ext[1:-2]) / radial_steps[:, None]
         dbmns_s = make_interp_spline(derivative_s, dbmns, k=3, axis=0)(s)
         rk_Bmod += _fourier_eval(
             bmns_s, d["ixm"], d["ixn"], theta_geom, zeta_geom, "sin"
@@ -313,7 +315,7 @@ def convert_boozmn_to_chartmap(
     def surface_and_derivative(values):
         values_ext = extended_half(values[:, None])[:, 0]
         value = make_interp_spline(s_half_ext, values_ext, k=3)(s)
-        derivative_data = (values_ext[2:-1] - values_ext[1:-2]) / ds
+        derivative_data = (values_ext[2:-1] - values_ext[1:-2]) / radial_steps
         derivative = make_interp_spline(derivative_s, derivative_data, k=3)(s)
         return value, derivative
 
@@ -322,6 +324,12 @@ def convert_boozmn_to_chartmap(
     rk_B_phi, rk_dB_phi_ds = surface_and_derivative(bvco_h)
     rk_A_phi = -torflux_si * (iota_int(s) - iota_int(0.0))
     rk_dA_phi_ds = -torflux_si * rk_iota
+    if rho_min == 0.0:
+        # The enclosed toroidal current, hence covariant B_theta, vanishes
+        # exactly on the magnetic axis.  The half-grid spline otherwise
+        # leaves a small extrapolation residue there.
+        B_theta[0] = 0.0
+        rk_B_theta[0] = 0.0
 
     bmnc_g = _interp_coeffs(d["bmnc"], d["ixm"], rho_half, rho_grid)
     Bmod = _fourier_eval(bmnc_g, d["ixm"], d["ixn"], theta_geom, zeta_geom, "cos")
@@ -377,7 +385,10 @@ def convert_boozmn_to_chartmap(
     attrs = {
         "booz2chartmap_source": str(boozmn),
         "booz2chartmap_covariant_sign": np.int32(covariant_sign),
+        "booz2chartmap_rho_min": float(rho_min),
     }
+    if chartmap_attrs is not None:
+        attrs.update(chartmap_attrs)
     if d["aminor_m"] is not None:
         attrs["aminor_m"] = d["aminor_m"]
     if d["rmajor_m"] is not None:
@@ -400,6 +411,7 @@ def convert_boozmn_to_chartmap(
         torflux=torflux,
         rk_field=rk_field,
         rk_profiles=rk_profiles,
+        netcdf_format=netcdf_format,
         **attrs,
     )
     return torflux
@@ -426,6 +438,12 @@ def main(argv=None):
         help="toroidal points per field period, endpoint-excluded",
     )
     parser.add_argument(
+        "--rho-min",
+        type=float,
+        default=1.0e-3,
+        help="innermost rho; use 0 for an axis-inclusive chartmap",
+    )
+    parser.add_argument(
         "--covariant-sign",
         type=int,
         choices=(-1, 1),
@@ -444,6 +462,7 @@ def main(argv=None):
         nrho=args.nrho,
         ntheta=args.ntheta,
         nzeta=args.nzeta,
+        rho_min=args.rho_min,
         covariant_sign=args.covariant_sign,
     )
     print(f"Done. torflux={torflux:.6e} G cm^2")

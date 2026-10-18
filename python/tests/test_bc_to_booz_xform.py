@@ -391,6 +391,30 @@ def test_chartmap_from_bc_Bmod(chartmap_path):
     )
 
 
+def test_axis_inclusive_chartmap_is_single_valued(boozmn_path, tmp_path):
+    """The rho=0 ring is finite and independent of poloidal angle."""
+    import netCDF4
+    from libneo.booz_xform_to_boozer_chartmap import convert_boozmn_to_chartmap
+
+    output = tmp_path / "axis.nc"
+    convert_boozmn_to_chartmap(
+        boozmn_path, output, nrho=20, ntheta=48, nzeta=2, rho_min=0.0
+    )
+    with netCDF4.Dataset(output) as dataset:
+        assert dataset["rho"][0] == 0.0
+        assert dataset["s"][0] == 0.0
+        assert dataset["B_theta"][0] == 0.0
+        assert dataset["rk_B_theta"][0] == 0.0
+        for name in dataset.variables:
+            values = np.asarray(dataset[name][:])
+            if np.issubdtype(values.dtype, np.number):
+                assert np.all(np.isfinite(values)), name
+        radius = np.hypot(dataset["x"][:, :, 0], dataset["y"][:, :, 0])
+        assert np.max(np.ptp(radius, axis=1)) < 1.0e-10
+        assert np.max(np.ptp(dataset["z"][:, :, 0], axis=1)) < 1.0e-10
+        assert np.max(np.ptp(dataset["Bmod"][:, :, 0], axis=1)) < 1.0e-10
+
+
 def test_chartmap_explicit_covariant_sign_changes_only_covariants(
     boozmn_path, tmp_path
 ):

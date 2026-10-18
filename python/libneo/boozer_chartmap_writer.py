@@ -58,6 +58,7 @@ def write_boozer_chartmap(
     torflux,
     rk_field=None,
     rk_profiles=None,
+    netcdf_format="NETCDF4",
     **attrs,
 ):
     """Write an extended Boozer chartmap NetCDF file.
@@ -95,6 +96,9 @@ def write_boozer_chartmap(
     rk_profiles : mapping, optional
         Native canonical-RK profiles on s. When present it must contain
         A_phi, dA_phi_ds, B_theta, dB_theta_ds, B_phi, and dB_phi_ds.
+    netcdf_format : str, optional
+        netCDF4-python output format. Use ``NETCDF3_64BIT_OFFSET`` for
+        readers limited to the classic data model.
     **attrs
         Extra global attributes passed through verbatim (provenance, e.g.
         booz2chartmap_source or gvec2chartmap_flip).
@@ -169,7 +173,7 @@ def write_boozer_chartmap(
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    ds = Dataset(path, "w", format="NETCDF4")
+    ds = Dataset(path, "w", format=netcdf_format)
     try:
         ds.createDimension("rho", n_rho)
         ds.createDimension("s", n_rho)
