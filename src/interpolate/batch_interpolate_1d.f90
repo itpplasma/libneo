@@ -1038,14 +1038,51 @@ contains
         real(dp), intent(out) :: y_batch(:)   ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:)  ! (n_quantities)
 
-        real(dp) :: x_arr(1)
-        real(dp) :: y_arr(spl%num_quantities, 1), dy_arr(spl%num_quantities, 1)
-
-        x_arr(1) = x
-        call evaluate_batch_splines_1d_many_der(spl, x_arr, y_arr, dy_arr)
-        y_batch(1:spl%num_quantities) = y_arr(:, 1)
-        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
+        ! Single-point core without the temporaries and copies of the
+        ! many-point path; same recurrences in the same order, so bitwise equal.
+        call evaluate_batch_splines_1d_der_core(spl, x, y_batch, dy_batch)
     end subroutine evaluate_batch_splines_1d_der
+
+    recursive subroutine evaluate_batch_splines_1d_der_core(spl, x, y, dy)
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
+        real(dp), intent(out) :: y(:), dy(:)
+
+        integer :: iq, k, idx, nq, N
+        real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+
+        nq = spl%num_quantities
+        N = spl%order
+        x_min = spl%x_min
+        h_step = spl%h_step
+        period = h_step*real(spl%num_points - 1, dp)
+
+        if (spl%periodic) then
+            xj = modulo(x - x_min, period) + x_min
+        else
+            xj = x
+        end if
+        x_norm = (xj - x_min)/h_step
+        idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+        x_local = (x_norm - real(idx - 1, dp))*h_step
+
+        do iq = 1, nq
+            y(iq) = spl%coeff(iq, N, idx)
+            dy(iq) = N*spl%coeff(iq, N, idx)
+        end do
+
+        do k = N - 1, 1, -1
+            do iq = 1, nq
+                dy(iq) = k*spl%coeff(iq, k, idx) + x_local*dy(iq)
+            end do
+        end do
+
+        do k = N - 1, 0, -1
+            do iq = 1, nq
+                y(iq) = spl%coeff(iq, k, idx) + x_local*y(iq)
+            end do
+        end do
+    end subroutine evaluate_batch_splines_1d_der_core
 
     recursive subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
        !$acc routine seq
