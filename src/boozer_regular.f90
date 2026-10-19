@@ -233,43 +233,47 @@ contains
     end function slope_weights
 
     !> Axis jets in phi (periodic) and flux jets in rho with first
-    !> derivatives, both 1D splines in one pass. Private to keep the public
-    !> library evaluator, and thus existing results, unchanged.
-    pure subroutine axis_flux_d1(axis, flux, phi, rho, ax, dax, fl, dfl)
+    !> derivatives. Quintic splines (the default) are evaluated in one fused
+    !> pass; other orders use the library evaluator, which stays unchanged.
+    subroutine axis_flux_d1(axis, flux, phi, rho, ax, dax, fl, dfl)
         type(BatchSplineData1D), intent(in) :: axis, flux
         real(dp), intent(in) :: phi, rho
         real(dp), intent(out) :: ax(6), dax(6), fl(3), dfl(3)
 
-        real(dp) :: t, period, xa, xf, ca(6, 0:5), cf(3, 0:5)
-        integer :: ja, jf, k, na, nf
+        real(dp) :: t, period, xa, xf
+        integer :: ja, jf
 
-        na = axis%order
-        nf = flux%order
+        if (axis%order /= 5 .or. flux%order /= 5) then
+            call evaluate_batch_splines_1d_der(axis, phi, ax, dax)
+            call evaluate_batch_splines_1d_der(flux, rho, fl, dfl)
+            return
+        end if
+
         period = axis%h_step*real(axis%num_points - 1, dp)
         t = phi - axis%x_min
         if (t < 0.0_dp .or. t >= period) t = modulo(t, period)
         t = t/axis%h_step
-        ja = max(0, min(axis%num_points - 2, int(t)))
-        xa = (t - real(ja, dp))*axis%h_step
+        ja = max(0, min(axis%num_points - 2, int(t))) + 1
+        xa = (t - real(ja - 1, dp))*axis%h_step
         t = (rho - flux%x_min)/flux%h_step
-        jf = max(0, min(flux%num_points - 2, int(t)))
-        xf = (t - real(jf, dp))*flux%h_step
+        jf = max(0, min(flux%num_points - 2, int(t))) + 1
+        xf = (t - real(jf - 1, dp))*flux%h_step
 
-        ca(:, 0:na) = axis%coeff(:, 0:na, ja + 1)
-        cf(:, 0:nf) = flux%coeff(:, 0:nf, jf + 1)
-        ax = ca(:, na)
-        dax = real(na, dp)*ca(:, na)
-        fl = cf(:, nf)
-        dfl = real(nf, dp)*cf(:, nf)
-        do k = max(na, nf) - 1, 1, -1
-            if (k < na) dax = real(k, dp)*ca(:, k) + xa*dax
-            if (k < nf) dfl = real(k, dp)*cf(:, k) + xf*dfl
-        end do
-        do k = max(na, nf) - 1, 0, -1
-            if (k < na) ax = ca(:, k) + xa*ax
-            if (k < nf) fl = cf(:, k) + xf*fl
-        end do
+        call quintic_d1(axis%coeff(:, :, ja), xa, ax, dax)
+        call quintic_d1(flux%coeff(:, :, jf), xf, fl, dfl)
     end subroutine axis_flux_d1
+
+    !> Value and first derivative of quintic pieces c(:, 0:5) at offset x.
+    pure subroutine quintic_d1(c, x, y, dy)
+        real(dp), intent(in) :: c(:, 0:)
+        real(dp), intent(in) :: x
+        real(dp), intent(out) :: y(:), dy(:)
+
+        y = c(:, 0) + x*(c(:, 1) + x*(c(:, 2) + x*(c(:, 3) + x*(c(:, 4) &
+            + x*c(:, 5)))))
+        dy = c(:, 1) + x*(2.0_dp*c(:, 2) + x*(3.0_dp*c(:, 3) &
+             + x*(4.0_dp*c(:, 4) + x*5.0_dp*c(:, 5))))
+    end subroutine quintic_d1
 
     subroutine boozer_regular_destroy(self)
         class(boozer_regular_t), intent(inout) :: self
