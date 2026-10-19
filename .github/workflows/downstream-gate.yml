@@ -32,10 +32,14 @@ jobs:
     runs-on: ubuntu-24.04
     # Skip drafts and forks. On a `labeled` event run only when the label is
     # `full-ci`, so unrelated label changes do not re-dispatch the whole gate.
+    # Upper layers of a PR stack (base is another PR branch) skip the gate
+    # unless labeled `full-ci`; the bottom layer and normal PRs into main run it.
     if: >-
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+      (github.event.action != 'labeled' || github.event.label.name == 'full-ci') &&
+      (github.event.pull_request.base.ref == github.event.repository.default_branch ||
+       contains(github.event.pull_request.labels.*.name, 'full-ci'))
     steps:
       - uses: actions/checkout@v6
 
