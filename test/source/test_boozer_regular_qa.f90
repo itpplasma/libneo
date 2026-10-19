@@ -180,9 +180,12 @@ contains
         ! A_phi(s) is resampled onto the rho nodes as A0 + s a(rho).
         call expect(label//': A equals (s,theta) evaluation', &
                     err(4) <= 1.0e-12_dp .and. err(5) <= 1.0e-8_dp)
-        ! Both evaluations interpolate the same nodal |B|. The low-resolution
-        ! QA data are rough at the 1e-6 level between radial nodes, so two
-        ! valid interpolants differ by ~1e-6/h in their radial derivative.
+        ! Both evaluations interpolate the same nodal |B| on 50 radial nodes.
+        ! Against central differences of the (s, theta) evaluation on an 8x
+        ! finer radial grid, d|B|/ds errs by up to 1.5e-2 (regular) and
+        ! 1.7e-2 (legacy) of this scale; the radial interpolation error
+        ! dominates, and the difference here falls to 6.6e-5 and 7.4e-6 on
+        ! 2x and 4x finer radial grids.
         call expect(label//': grad |B| equals (s,theta) evaluation', &
                     err(6) <= 1.0e-2_dp)
     end subroutine check_against_legacy
