@@ -1038,63 +1038,14 @@ contains
         real(dp), intent(out) :: y_batch(:)   ! (n_quantities)
         real(dp), intent(out) :: dy_batch(:)  ! (n_quantities)
 
-        ! Single-point core without the temporaries and copies of the
-        ! many-point path; same recurrences in the same order.
-        call evaluate_batch_splines_1d_der_core(spl, x, y_batch, dy_batch)
+        real(dp) :: x_arr(1)
+        real(dp) :: y_arr(spl%num_quantities, 1), dy_arr(spl%num_quantities, 1)
+
+        x_arr(1) = x
+        call evaluate_batch_splines_1d_many_der(spl, x_arr, y_arr, dy_arr)
+        y_batch(1:spl%num_quantities) = y_arr(:, 1)
+        dy_batch(1:spl%num_quantities) = dy_arr(:, 1)
     end subroutine evaluate_batch_splines_1d_der
-
-    recursive subroutine evaluate_batch_splines_1d_der_core(spl, x, y, dy)
-        type(BatchSplineData1D), intent(in) :: spl
-        real(dp), intent(in) :: x
-        real(dp), intent(out) :: y(:), dy(:)
-
-        integer :: iq, k, idx, nq, N
-        real(dp) :: xj, x_norm, x_local, x_min, h_step, period, c(0:5)
-
-        nq = spl%num_quantities
-        N = spl%order
-        x_min = spl%x_min
-        h_step = spl%h_step
-        period = h_step*real(spl%num_points - 1, dp)
-
-        xj = x
-        if (spl%periodic) then
-            if (xj < x_min .or. xj >= x_min + period) &
-                xj = modulo(x - x_min, period) + x_min
-        end if
-        x_norm = (xj - x_min)/h_step
-        idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
-        x_local = (x_norm - real(idx - 1, dp))*h_step
-
-        if (N == 5) then
-            ! Unrolled quintic Horner; same operations in the same order.
-            do iq = 1, nq
-                c = spl%coeff(iq, 0:5, idx)
-                y(iq) = c(0) + x_local*(c(1) + x_local*(c(2) + x_local*(c(3) &
-                        + x_local*(c(4) + x_local*c(5)))))
-                dy(iq) = c(1) + x_local*(2.0_dp*c(2) + x_local*(3.0_dp*c(3) &
-                         + x_local*(4.0_dp*c(4) + x_local*(5.0_dp*c(5)))))
-            end do
-            return
-        end if
-
-        do iq = 1, nq
-            y(iq) = spl%coeff(iq, N, idx)
-            dy(iq) = N*spl%coeff(iq, N, idx)
-        end do
-
-        do k = N - 1, 1, -1
-            do iq = 1, nq
-                dy(iq) = k*spl%coeff(iq, k, idx) + x_local*dy(iq)
-            end do
-        end do
-
-        do k = N - 1, 0, -1
-            do iq = 1, nq
-                y(iq) = spl%coeff(iq, k, idx) + x_local*y(iq)
-            end do
-        end do
-    end subroutine evaluate_batch_splines_1d_der_core
 
     recursive subroutine evaluate_batch_splines_1d_der2(spl, x, y_batch, dy_batch, d2y_batch)
        !$acc routine seq

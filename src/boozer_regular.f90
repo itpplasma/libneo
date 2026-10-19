@@ -232,6 +232,45 @@ contains
         v(3) = -(s(1) + s(2))/((s(3) - s(1))*(s(3) - s(2)))
     end function slope_weights
 
+    !> Axis jets in phi (periodic) and flux jets in rho with first
+    !> derivatives, both 1D splines in one pass. Private to keep the public
+    !> library evaluator, and thus existing results, unchanged.
+    pure subroutine axis_flux_d1(axis, flux, phi, rho, ax, dax, fl, dfl)
+        type(BatchSplineData1D), intent(in) :: axis, flux
+        real(dp), intent(in) :: phi, rho
+        real(dp), intent(out) :: ax(6), dax(6), fl(3), dfl(3)
+
+        real(dp) :: t, period, xa, xf, ca(6, 0:5), cf(3, 0:5)
+        integer :: ja, jf, k, na, nf
+
+        na = axis%order
+        nf = flux%order
+        period = axis%h_step*real(axis%num_points - 1, dp)
+        t = phi - axis%x_min
+        if (t < 0.0_dp .or. t >= period) t = modulo(t, period)
+        t = t/axis%h_step
+        ja = max(0, min(axis%num_points - 2, int(t)))
+        xa = (t - real(ja, dp))*axis%h_step
+        t = (rho - flux%x_min)/flux%h_step
+        jf = max(0, min(flux%num_points - 2, int(t)))
+        xf = (t - real(jf, dp))*flux%h_step
+
+        ca(:, 0:na) = axis%coeff(:, 0:na, ja + 1)
+        cf(:, 0:nf) = flux%coeff(:, 0:nf, jf + 1)
+        ax = ca(:, na)
+        dax = real(na, dp)*ca(:, na)
+        fl = cf(:, nf)
+        dfl = real(nf, dp)*cf(:, nf)
+        do k = max(na, nf) - 1, 1, -1
+            if (k < na) dax = real(k, dp)*ca(:, k) + xa*dax
+            if (k < nf) dfl = real(k, dp)*cf(:, k) + xf*dfl
+        end do
+        do k = max(na, nf) - 1, 0, -1
+            if (k < na) ax = ca(:, k) + xa*ax
+            if (k < nf) fl = cf(:, k) + xf*fl
+        end do
+    end subroutine axis_flux_d1
+
     subroutine boozer_regular_destroy(self)
         class(boozer_regular_t), intent(inout) :: self
 
@@ -270,9 +309,8 @@ contains
         q = [rho, theta, phi]
 
         if (mode < REGULAR_SECOND) then
-            call evaluate_batch_splines_1d_der(self%axis, phi, ax, dax)
             call evaluate_batch_splines_3d_der(self%remainder, q, r, dr)
-            call evaluate_batch_splines_1d_der(self%flux, rho, fl, dfl)
+            call axis_flux_d1(self%axis, self%flux, phi, rho, ax, dax, fl, dfl)
         else
             call evaluate_batch_splines_1d_der2(self%axis, phi, ax, dax, d2ax)
             call evaluate_batch_splines_3d_der2(self%remainder, q, r, dr, d2r)
