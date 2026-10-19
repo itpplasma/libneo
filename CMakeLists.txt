@@ -354,7 +354,7 @@ target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
 # output is the build input; regeneration needs a FortSym build tree at the
 # pinned revision (configure with -DLIBNEO_FORTSYM_BUILD=<fortsym build>).
 set(LIBNEO_FORTSYM_BUILD "" CACHE PATH "Optional FortSym build tree for regeneration")
-set(LIBNEO_FORTSYM_REVISION "d1eeb405fc7f43f39fb7383c88ff57d577d7781b")
+set(LIBNEO_FORTSYM_REVISION "8f4d6ed1d4d0ea829693b1ed7f109cba92643710")
 if(LIBNEO_FORTSYM_BUILD)
     file(STRINGS "${LIBNEO_FORTSYM_BUILD}/CMakeCache.txt" fortsym_source
         REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL=")
