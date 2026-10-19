@@ -24,8 +24,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: downstream-gate-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  # Only commits cancel a running gate. A label event (skipped by the job `if:`
+  # unless full-ci) must never cancel it: a skipped required check passes. The
+  # full-ci label gets its own group so a later label cannot replace its pending run.
+  group: downstream-gate-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name == 'full-ci' && 'full' || 'std' }}
+  cancel-in-progress: ${{ github.event.action != 'labeled' }}
 
 jobs:
   gate:
