@@ -341,6 +341,7 @@ add_library(boozer STATIC
     src/boozer_chartmap_types.f90
     src/boozer_rk_tables.f90
     src/boozer_converter.F90
+    src/boozer_regular.f90
     src/boozer_chartmap.f90
     src/field/boozer_chartmap_io.f90
     src/field/boozmn_file.f90
@@ -348,6 +349,52 @@ add_library(boozer STATIC
     src/field/bc_file.f90
 )
 target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
+
+# FortSym generators for the pointwise leaves in src/generated. The checked-in
+# output is the build input; regeneration needs a FortSym build tree at the
+# pinned revision (configure with -DLIBNEO_FORTSYM_BUILD=<fortsym build>).
+set(LIBNEO_FORTSYM_BUILD "" CACHE PATH "Optional FortSym build tree for regeneration")
+set(LIBNEO_FORTSYM_REVISION "8f4d6ed1d4d0ea829693b1ed7f109cba92643710")
+if(LIBNEO_FORTSYM_BUILD)
+    file(STRINGS "${LIBNEO_FORTSYM_BUILD}/CMakeCache.txt" fortsym_source
+        REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL=")
+    string(REPLACE "CMAKE_HOME_DIRECTORY:INTERNAL=" "" fortsym_source
+        "${fortsym_source}")
+    execute_process(COMMAND git -C "${fortsym_source}" rev-parse HEAD
+        OUTPUT_VARIABLE fortsym_revision OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE fortsym_revision_status)
+    if(NOT fortsym_revision_status EQUAL 0 OR
+            NOT fortsym_revision STREQUAL LIBNEO_FORTSYM_REVISION)
+        message(FATAL_ERROR "Regeneration requires FortSym ${LIBNEO_FORTSYM_REVISION}")
+    endif()
+    configure_file(gen/libneo_fortsym_revision.inc.in
+        ${CMAKE_BINARY_DIR}/gen_include/libneo_fortsym_revision.inc @ONLY)
+    add_library(libneo_gen_support STATIC gen/libneo_gen_support.f90)
+    target_include_directories(libneo_gen_support PUBLIC
+        ${LIBNEO_FORTSYM_BUILD}/include ${CMAKE_BINARY_DIR}/gen_include)
+    target_link_libraries(libneo_gen_support PUBLIC
+        ${LIBNEO_FORTSYM_BUILD}/lib/libfortsym${CMAKE_SHARED_LIBRARY_SUFFIX})
+    # The generators use standard reallocation on assignment, which libneo
+    # disables globally with -fno-realloc-lhs.
+    target_compile_options(libneo_gen_support PUBLIC
+        $<$<Fortran_COMPILER_ID:GNU>:-frealloc-lhs>)
+    foreach(generator boozer_regular)
+        add_executable(gen_${generator} gen/gen_${generator}.f90)
+        target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
+        add_custom_target(regenerate_gen_${generator}
+            COMMAND gen_${generator}
+                ${CMAKE_SOURCE_DIR}/src/generated/${generator}_leaves.inc
+            DEPENDS gen_${generator})
+        if(LIBNEO_BUILD_TESTING)
+            add_test(NAME generated_${generator}_leaves_current
+                COMMAND ${CMAKE_COMMAND}
+                    -DGENERATOR=$<TARGET_FILE:gen_${generator}>
+                    -DOUTPUT=${CMAKE_BINARY_DIR}/gen_check/${generator}_leaves.inc
+                    -DREFERENCE=${CMAKE_SOURCE_DIR}/src/generated/${generator}_leaves.inc
+                    -P ${CMAKE_SOURCE_DIR}/cmake/CheckGenerated.cmake)
+        endif()
+    endforeach()
+endif()
 target_link_libraries(boozer PRIVATE nctools fortio::fortio)
 set_property(TARGET boozer PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})

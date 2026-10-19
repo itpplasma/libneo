@@ -18,6 +18,8 @@ module boozer_sub
                            evaluate_batch_spline_3d_scalar_cubic_der2_rmix, &
                            evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
+    use boozer_regular, only: build_boozer_regular, boozer_regular_field, &
+                              boozer_regular_enabled
     use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
@@ -41,6 +43,8 @@ module boozer_sub
     real(dp), parameter :: TWOPI = 2.0_dp*3.14159265358979_dp
     integer, parameter :: MAX_FIELD3D_QUANTITIES = 3
     integer, parameter :: BOOZER_SECDERS_RADIAL_MIXED = 3
+    ! Innermost flux surface sampled by compute_boozer_data.
+    real(dp), parameter :: BOOZER_S_MIN = 1.0e-6_dp
 
 
     ! Device-accessible Boozer runtime state shared by host and OpenACC code.
@@ -203,8 +207,28 @@ contains
         call build_boozer_bcovar_tp_batch_spline
         call build_boozer_field3d_batch_spline
         call build_boozer_delt_delp_batch_splines
+        if (boozer_regular_enabled) call build_boozer_regular_internal
 
     end subroutine get_boozer_coordinates_impl
+
+    !> Regular near-axis field from the internal VMEC->Boozer grid data. The
+    !> innermost grid node holds data sampled at rho = sqrt(BOOZER_S_MIN).
+    subroutine build_boozer_regular_internal
+        use vector_potentail_mod, only: torflux
+        use new_vmec_stuff_mod, only: nper
+        use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, hs_B, &
+                                          s_Bcovar_tp_B
+        real(dp), allocatable :: rho_tor(:)
+        integer :: i_rho
+
+        allocate (rho_tor(ns_B))
+        do i_rho = 1, ns_B
+            rho_tor(i_rho) = max(real(i_rho - 1, dp)*hs_B, sqrt(BOOZER_S_MIN))
+        end do
+        call build_boozer_regular(boozer_regular_field, rho_tor, bmod_grid, &
+                                  s_Bcovar_tp_B(1, 1, :), s_Bcovar_tp_B(2, 1, :), &
+                                  aphi_batch_spline, torflux, nper, ns_s_B, ns_tp_B)
+    end subroutine build_boozer_regular_internal
 
     subroutine splint_boozer_coord(r, vartheta_B, varphi_B, mode_secders, &
                                    A_theta, A_phi, dA_theta_dr, dA_phi_dr, &
@@ -843,7 +867,7 @@ contains
 
         implicit none
 
-        real(dp), parameter :: s_min = 1.0e-6_dp, rho_min = sqrt(s_min)
+        real(dp), parameter :: rho_min = sqrt(BOOZER_S_MIN)
 
         integer :: i, i_rho, i_theta, i_phi, npoilag, nder, nshift
         integer :: ibeg, iend, nqua
@@ -1301,6 +1325,7 @@ contains
             delt_delp_B_batch_spline_ready = .false.
         end if
         if (allocated(delt_delp_B_grid)) deallocate (delt_delp_B_grid)
+        call boozer_regular_field%destroy()
     end subroutine reset_boozer_batch_splines
 
     subroutine build_boozer_aphi_batch_spline
@@ -1610,6 +1635,10 @@ contains
         field3d_batch_spline_ready = .true.
         field3d_num_quantities = 1
         deallocate (y_bmod)
+        if (boozer_regular_enabled) &
+            call build_boozer_regular(boozer_regular_field, d%rho, d%Bmod, &
+                                      d%B_theta, d%B_phi, aphi_batch_spline, &
+                                      torflux, nper, ns_s_B, ns_tp_B)
         end if
 
         if (d%has_rk_tables) then

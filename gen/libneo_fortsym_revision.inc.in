@@ -1,0 +1,2 @@
+! Configured from CMakeLists.txt LIBNEO_FORTSYM_REVISION; do not edit.
+character(*), parameter :: fortsym_revision = '@LIBNEO_FORTSYM_REVISION@'
