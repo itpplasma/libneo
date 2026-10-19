@@ -1,12 +1,13 @@
-# Reverse-dependency gate: on every libneo PR, build and fast-test each
-# downstream code against this PR's libneo and gate on green. Keeps libneo main
+# Reverse-dependency gate: in the merge queue, build and fast-test each
+# downstream code against the queued libneo merge commit and gate on green. Keeps libneo main
 # always working with the downstreams, with breakage attributed to the PR that
 # caused it.
 #
 # ci/downstreams is the single source of the gated set: one row per downstream.
 # Add a downstream by appending a row there; nothing in this file changes. Each
 # row's workflow is dispatched with `-f libneo_ref=<sha>` for the fast tier.
-# Label the libneo PR `full-ci` to also run each downstream's slow suite,
+# Label a libneo PR `full-ci` to run the gate on the PR itself, including each
+# downstream's slow suite,
 # dispatched per that downstream's own convention (the row's `full` column, see
 # ci/downstreams). Fast-only downstreams keep their slow suite on their own PRs.
 #
@@ -19,6 +20,7 @@ name: downstream-gate
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+  merge_group:
 
 permissions:
   contents: read
@@ -27,22 +29,22 @@ concurrency:
   # Only commits cancel a running gate. A label event (skipped by the job `if:`
   # unless full-ci) must never cancel it: a skipped required check passes. The
   # full-ci label gets its own group so a later label cannot replace its pending run.
-  group: downstream-gate-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name == 'full-ci' && 'full' || 'std' }}
+  group: downstream-gate-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name == 'full-ci' && 'full' || 'std' }}
   cancel-in-progress: ${{ github.event.action != 'labeled' }}
 
 jobs:
   gate:
     runs-on: ubuntu-24.04
-    # Skip drafts and forks. On a `labeled` event run only when the label is
-    # `full-ci`, so unrelated label changes do not re-dispatch the whole gate.
-    # Upper layers of a PR stack (base is another PR branch) skip the gate
-    # unless labeled `full-ci`; the bottom layer and normal PRs into main run it.
+    # Full tier: always in the merge queue. Pull requests (including stacked
+    # layers) skip it unless labeled `full-ci`; drafts and forks are skipped. On
+    # a `labeled` event run only when the label is `full-ci`, so unrelated label
+    # changes do not re-dispatch the whole gate.
     if: >-
-      github.event.pull_request.draft == false &&
+      github.event_name == 'merge_group' ||
+      (github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci') &&
-      (github.event.pull_request.base.ref == github.event.repository.default_branch ||
-       contains(github.event.pull_request.labels.*.name, 'full-ci'))
+      contains(github.event.pull_request.labels.*.name, 'full-ci'))
     steps:
       - uses: actions/checkout@v6
 
@@ -52,7 +54,7 @@ jobs:
       - name: Dispatch downstream CI against this PR's libneo and gate on green
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
-          REF: ${{ github.event.pull_request.head.sha }}
+          REF: ${{ github.event.pull_request.head.sha || github.sha }}
           FULL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
         run: |
           set -u
