@@ -44,26 +44,69 @@ def _require_close(name, left, right, *, rtol=1.0e-8, atol=1.0e-12):
         raise ValueError(f"axisymmetric and perturbation {name} are incompatible")
 
 
+def _resample_surfaces(data, surfaces):
+    """Copy spectra/profiles to covered surfaces; never extrapolate a field."""
+    from scipy.interpolate import CubicSpline
+
+    source = np.asarray(data.s, dtype=float)
+    if (source.size < 2 or not np.all(np.isfinite(source))
+            or np.any(np.diff(source) <= 0)):
+        raise ValueError("radial grids must be finite and strictly increasing")
+    if surfaces[0] < source[0] or surfaces[-1] > source[-1]:
+        raise ValueError("radial grids have insufficient overlap")
+    for surface in range(data.nsurf):
+        if (list(zip(data.m[surface], data.n[surface]))
+                != list(zip(data.m[0], data.n[0]))):
+            raise ValueError("mode ordering changes between surfaces")
+    result = SimpleNamespace(**vars(data))
+    result.nsurf = len(surfaces)
+    result.s = surfaces.copy()
+    for name in _PROFILE_NAMES[1:] + _COEFFICIENTS:
+        values = np.asarray(getattr(data, name), dtype=float)
+        setattr(result, name, CubicSpline(source, values, axis=0,
+                                         extrapolate=False)(surfaces))
+    result.m = [np.asarray(data.m[0]).copy() for _ in surfaces]
+    result.n = [np.asarray(data.n[0]).copy() for _ in surfaces]
+    return result
+
+
+def _align_pair(axis, perturbation):
+    # Retain the equilibrium's uniform half-grid on the common support. GPEC
+    # spectra may have a nonuniform radial grid and zero (unspecified) metadata.
+    axis_s = np.asarray(axis.s, dtype=float)
+    pert_s = np.asarray(perturbation.s, dtype=float)
+    for grid in (axis_s, pert_s):
+        if (grid.size < 2 or not np.all(np.isfinite(grid))
+                or np.any(np.diff(grid) <= 0)):
+            raise ValueError("radial grids must be finite and strictly increasing")
+    if np.array_equal(axis_s, pert_s):
+        # Still validate mode ordering and copy both inputs.
+        surfaces = axis_s
+    else:
+        surfaces = axis_s[(axis_s >= pert_s[0]) & (axis_s <= pert_s[-1])]
+    if len(surfaces) < 2:
+        raise ValueError("radial grids have insufficient overlap")
+    return (_resample_surfaces(axis, surfaces),
+            _resample_surfaces(perturbation, surfaces))
+
+
 def _validate_pair(axis, perturbation):
-    if axis.nsurf != perturbation.nsurf:
-        raise ValueError("axisymmetric and perturbation surface counts differ")
-    _require_close("radial grids", axis.s, perturbation.s)
-    _require_close("iota profiles", axis.iota, perturbation.iota)
-    _require_close("toroidal-current profiles", axis.Itor, perturbation.Itor)
-    _require_close(
-        "poloidal-current profiles",
-        np.asarray(axis.Jpol_divided_by_nper) * axis.nper,
-        np.asarray(perturbation.Jpol_divided_by_nper) * perturbation.nper,
-    )
-    _require_close("toroidal fluxes", axis.flux, perturbation.flux)
-    _require_close("minor radii", axis.a, perturbation.a)
-    _require_close("major radii", axis.R, perturbation.R)
+    for name, left, right in (
+        ("iota profiles", axis.iota, perturbation.iota),
+        ("toroidal-current profiles", axis.Itor, perturbation.Itor),
+        ("poloidal-current profiles",
+         np.asarray(axis.Jpol_divided_by_nper) * axis.nper,
+         np.asarray(perturbation.Jpol_divided_by_nper) * perturbation.nper),
+        ("toroidal fluxes", axis.flux, perturbation.flux),
+        ("minor radii", axis.a, perturbation.a),
+        ("major radii", axis.R, perturbation.R),
+    ):
+        # A perturbation-only spectrum has no equilibrium profiles/header.
+        if np.any(np.asarray(right) != 0):
+            _require_close(name, left, right)
     for surface in range(axis.nsurf):
         if np.any(np.asarray(axis.n[surface]) != 0):
             raise ValueError("the axisymmetric .bc file contains n != 0 modes")
-        modes = list(zip(perturbation.m[surface], perturbation.n[surface]))
-        if modes != list(zip(perturbation.m[0], perturbation.n[0])):
-            raise ValueError("perturbation mode ordering changes between surfaces")
 
 
 def combine_boozer_data(axis, perturbation=None, *, scale=1.0,
@@ -73,7 +116,10 @@ def combine_boozer_data(axis, perturbation=None, *, scale=1.0,
     ``geometry='axisymmetric'`` adds only the perturbation's magnetic-field
     coefficients. ``geometry='full'`` also adds its R, Z, and toroidal phase
     coefficients. The coefficients are appended because the files may use
-    disjoint mode sets and different field-period declarations.
+    disjoint mode sets and different field-period declarations. Differing radial
+    grids are matched by cubic interpolation onto equilibrium surfaces within
+    their common support. Equilibrium profiles always come from ``axis``;
+    zero perturbation profiles/header values mean unspecified metadata.
     """
     if geometry not in ("axisymmetric", "full"):
         raise ValueError("geometry must be 'axisymmetric' or 'full'")
@@ -86,9 +132,10 @@ def combine_boozer_data(axis, perturbation=None, *, scale=1.0,
         output_nper = axis.nper
         profile_source = axis
     else:
+        axis, perturbation = _align_pair(axis, perturbation)
         _validate_pair(axis, perturbation)
         output_nper = perturbation.nper
-        profile_source = perturbation
+        profile_source = axis
 
     combined = SimpleNamespace(
         comments=list(axis.comments),
@@ -200,6 +247,10 @@ def convert_neo2bc_to_chartmap(
         "neo2bc_perturbation_scale": float(scale),
         "neo2bc_axis_phase_scale": float(combined.nper / combined.axis_nper),
         "neo2bc_geometry": geometry,
+        "neo2bc_s_min": float(combined.s[0]),
+        "neo2bc_s_max": float(combined.s[-1]),
+        "neo2bc_radial_matching": "equilibrium half-grid on common support; cubic",
+
     }
     if perturbation_path is not None:
         attrs.update(

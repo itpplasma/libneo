@@ -240,17 +240,71 @@ def test_axis_cylindrical_angle_is_invariant_when_output_nper_changes(
         )
 
 
-def test_rejects_incompatible_radial_grids(manufactured_bc):
+def test_matches_nonuniform_perturbation_grid_and_preserves_axis(tmp_path):
     from libneo.boozer import BoozerFile
     from libneo.neo2bc_to_chartmap import combine_boozer_data
 
-    axis_path, perturbation_path = manufactured_bc
-    axis = BoozerFile(str(axis_path))
-    perturbation = BoozerFile(str(perturbation_path))
-    perturbation.s[1] += 1.0e-3
+    axis_path, pert_path = tmp_path / "axis.bc", tmp_path / "pert.bc"
+    _write_bc(axis_path, perturbation=False)
+    _write_bc(pert_path, perturbation=True, surfaces=(.2, .31, .6, .8, .95))
+    axis, pert = BoozerFile(str(axis_path)), BoozerFile(str(pert_path))
+    original_s = np.array(pert.s).copy()
+    # Affine radial amplitudes have an independent exact interpolation oracle.
+    for k, surface in enumerate(pert.s):
+        pert.bmnc[k] = np.array([2*surface + 1, 3*surface - 2])
+    pert.iota = np.zeros(pert.nsurf)
+    pert.Itor = np.zeros(pert.nsurf)
+    pert.Jpol_divided_by_nper = np.zeros(pert.nsurf)
+    pert.flux = pert.a = pert.R = 0.
+    combined = combine_boozer_data(axis, pert)
+    np.testing.assert_allclose(combined.s, axis.s)
+    np.testing.assert_allclose(combined.iota, axis.iota)
+    np.testing.assert_allclose(combined.Itor, axis.Itor)
+    for k, surface in enumerate(combined.s):
+        np.testing.assert_allclose(combined.bmnc[k][-2:],
+                                   [2*surface + 1, 3*surface - 2])
+    np.testing.assert_array_equal(pert.s, original_s)
+    assert pert.nsurf == 5
 
-    with pytest.raises(ValueError, match="radial grids"):
-        combine_boozer_data(axis, perturbation, scale=1.0)
+
+def test_partial_overlap_never_extrapolates(manufactured_bc):
+    from libneo.boozer import BoozerFile
+    from libneo.neo2bc_to_chartmap import combine_boozer_data
+
+    axis_path, pert_path = manufactured_bc
+    axis, pert = BoozerFile(str(axis_path)), BoozerFile(str(pert_path))
+    pert.s = np.array([.3, .4, .55, .7, .8])
+    combined = combine_boozer_data(axis, pert)
+    np.testing.assert_allclose(combined.s, np.asarray(axis.s)[1:4])
+    assert combined.nsurf == 3
+    pert.s = np.linspace(.96, .99, 5)
+    with pytest.raises(ValueError, match="insufficient overlap"):
+        combine_boozer_data(axis, pert)
+
+
+@pytest.mark.parametrize("bad_grid", [[.2, .3, .3, .7, .9],
+                                      [.2, .4, .3, .7, .9],
+                                      [.2, .3, float('nan'), .7, .9]])
+def test_rejects_invalid_radial_grids(manufactured_bc, bad_grid):
+    from libneo.boozer import BoozerFile
+    from libneo.neo2bc_to_chartmap import combine_boozer_data
+
+    axis_path, pert_path = manufactured_bc
+    axis, pert = BoozerFile(str(axis_path)), BoozerFile(str(pert_path))
+    pert.s = bad_grid
+    with pytest.raises(ValueError, match="strictly increasing"):
+        combine_boozer_data(axis, pert)
+
+
+def test_rejects_conflicting_equilibrium_metadata(manufactured_bc):
+    from libneo.boozer import BoozerFile
+    from libneo.neo2bc_to_chartmap import combine_boozer_data
+
+    axis_path, pert_path = manufactured_bc
+    axis, pert = BoozerFile(str(axis_path)), BoozerFile(str(pert_path))
+    pert.iota = np.asarray(pert.iota) + .1
+    with pytest.raises(ValueError, match="iota profiles"):
+        combine_boozer_data(axis, pert)
 
 
 def test_minus_phase_source_preserves_perturbation_mode_sign(manufactured_bc):
