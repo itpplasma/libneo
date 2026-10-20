@@ -843,6 +843,7 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
   real(dp), dimension(:), allocatable, save :: rad_w, zet_w ! points "convex wall"
   real(dp), dimension(:), allocatable, save :: rho_w, tht_w
   real(dp), dimension(nrhotht), save :: rho_wall, tht_wall ! polar coords of CW
+  real(dp), save :: rho_wall_min = 0.0_dp ! inscribed radius of the tabulated wall
   real(dp), save :: delta = 1.0_dp
   !----------- load the convex wall once (lazy init) ---------------------------
   ! stretch_coords runs on every field evaluation (the hot path), so the convex
@@ -915,6 +916,7 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
     end do
     tht_wall(1) = 0.
     rho_wall(1) = rho_wall(nrhotht)
+    rho_wall_min = minval(rho_wall)
 
   end if
   !$omp end critical
@@ -923,6 +925,12 @@ subroutine stretch_coords(r,z,rm,zm,outside_boundary)
   rm = r
   zm = z
   rho = sqrt((r-R0)**2 + (z-Z0)**2)
+  ! rho_c below interpolates linearly between tabulated wall radii, so it never
+  ! drops below their minimum: points inside that circle are never stretched.
+  if (rho < rho_wall_min) then
+     if (present(outside_boundary)) outside_boundary = .false.
+     return
+  end if
   tht = atan2(z-Z0,(r-R0))
   if(tht .lt. 0.) tht = tht + TWOPI
   i = modulo(int(tht/htht), nrhotht-1) + 1
