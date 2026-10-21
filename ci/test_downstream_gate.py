@@ -140,6 +140,13 @@ class DownstreamGateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(data["dispatched"], 1)
 
+    def test_report_only_run_is_not_awaited(self):
+        result, data = self.exercise(["failure"], blocking="no")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(any(call[:2] == ["run", "view"]
+                             for call in data["calls"]))
+        self.assertIn("dispatched for informative results", result.stdout)
+
     def test_report_only_failure_stays_nonblocking(self):
         result, _ = self.exercise(["failure"], blocking="no")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

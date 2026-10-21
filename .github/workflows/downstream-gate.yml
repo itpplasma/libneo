@@ -19,7 +19,11 @@ name: downstream-gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
   merge_group:
   push:
     branches:
@@ -32,16 +36,17 @@ concurrency:
   # Only commits cancel a running gate. A label event (skipped by the job `if:`
   # unless full-ci) must never cancel it: a skipped required check passes. The
   # full-ci label gets its own group so a later label cannot replace its pending run.
-  group: downstream-gate-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name == 'full-ci' && 'full' || 'std' }}
-  cancel-in-progress: ${{ github.event.action != 'labeled' }}
-
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   gate:
-    runs-on: ubuntu-24.04
+    runs-on:
     # Full tier: always in the merge queue. Pull requests (including stacked
     # layers) skip it unless labeled `full-ci`; drafts and forks are skipped. On
     # a `labeled` event run only when the label is `full-ci`, so unrelated label
     # changes do not re-dispatch the whole gate.
+      - self-hosted
+      - itp-ubuntu24
     if: >-
       (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (github.event_name == 'merge_group' || (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && contains(github.event.pull_request.labels.*.name, 'full-ci')))
     steps:
@@ -139,6 +144,8 @@ jobs:
                 return 1
               fi
               echo "https://github.com/itpplasma/$repo/actions/runs/$run_id"
+              # Informative downstreams never make this required gate wait.
+              [ "${blocks:-1}" -eq 1 ] || return 0
               await_run "$repo" "$run_id"; rc=$?
               [ "$rc" -eq 2 ] || return "$rc"
               echo "::warning::$repo ($wf) retry $attempt/3 after cancellation"
@@ -171,7 +178,9 @@ jobs:
                 done
               fi
             fi
-            if [ "$rc" = 0 ]; then
+            if [ "$blocks" = 0 ]; then
+              echo "$repo: dispatched for informative results"
+            elif [ "$rc" = 0 ]; then
               echo "$repo: green"
             elif [ "$blocks" = 1 ]; then
               echo "::error::$repo CI red against libneo $REF"; fail=1
