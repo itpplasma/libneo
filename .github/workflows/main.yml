@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   GNU:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","itp-build"]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -32,17 +32,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run native checks in the build container
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          SCI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SCI_MATRIX_BUILD_TYPE: ${{ matrix.build_type }}
+          SCI_CONDITION_9: ${{ matrix.build_type == 'Release' }}
+          SCI_CONDITION_10: ${{ matrix.build_type == 'Release' }}
+          SCI_CONDITION_11: ${{ matrix.build_type == 'Release' }}
+          SCI_CONDITION_12: ${{ matrix.build_type == 'Release' }}
+        run: |-
+          ci/run.sh main-GNU
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
+        if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Check dependency pins
         run: |
           python ci/sync_dependency_pins.py --check
           python ci/test_dependency_pins.py
 
+        if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Install system dependencies
         run: |
           set -euo pipefail
@@ -62,12 +79,14 @@ jobs:
             openmpi-bin \
             pkg-config
 
+        if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Install Python build dependencies
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -c constraints/ci-python.txt numpy
 
+        if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Build
         run: |
           if [ "${{ matrix.build_type }}" = "Release" ]; then
@@ -78,14 +97,17 @@ jobs:
             cmake --build build --parallel
           fi
 
+        if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Install Python dependencies for tests
         run: |
           python -m pip install -c constraints/ci-python.txt ".[dev]"
 
+        if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Test
         run: |
           cd build && ctest --output-on-failure
 
+        if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Upload GEQDSK plots
         if: matrix.build_type == 'Release'
         uses: actions/upload-artifact@v6
@@ -95,12 +117,12 @@ jobs:
           if-no-files-found: ignore
 
       - name: Editable install of libneo
-        if: matrix.build_type == 'Release'
+        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
         run: |
           python -m pip install -e .
 
       - name: Run Python tests (pytest)
-        if: matrix.build_type == 'Release'
+        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
         env:
           PYTHONFAULTHANDLER: "1"
           LIBNEO_DEBUG_BOOZER: "1"
@@ -109,14 +131,14 @@ jobs:
           python -m pytest python/tests -vv -s
 
       - name: Build ASCOT5 and install a5py
-        if: matrix.build_type == 'Release'
+        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
         run: |
           git clone --depth 1 --branch 5.6.1 https://github.com/ascot4fusion/ascot5.git build/test/ascot5_compare/ascot5
           make -C build/test/ascot5_compare/ascot5 libascot
           python -m pip install --force-reinstall build/test/ascot5_compare/ascot5
 
       - name: Compare with ASCOT5 reference
-        if: matrix.build_type == 'Release'
+        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/build/test/ascot5_compare/ascot5/build
         run: |
