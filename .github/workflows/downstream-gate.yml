@@ -21,6 +21,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
   merge_group:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -40,11 +43,7 @@ jobs:
     # a `labeled` event run only when the label is `full-ci`, so unrelated label
     # changes do not re-dispatch the whole gate.
     if: >-
-      github.event_name == 'merge_group' ||
-      (github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (github.event.action != 'labeled' || github.event.label.name == 'full-ci') &&
-      contains(github.event.pull_request.labels.*.name, 'full-ci'))
+      (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (github.event_name == 'merge_group' || (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && (github.event.action != 'labeled' || github.event.label.name == 'full-ci') && contains(github.event.pull_request.labels.*.name, 'full-ci')))
     steps:
       - uses: actions/checkout@v6
 
