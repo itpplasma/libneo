@@ -101,7 +101,7 @@ jobs:
           cd build && ctest --output-on-failure
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Upload GEQDSK plots
-        if: 'true'
+        if: '${{ github.event_name != ''pull_request'' || github.event.pull_request.head.repo.fork }}'
         uses: actions/upload-artifact@v6
         with:
           name: geqdsk-plots
@@ -224,7 +224,7 @@ jobs:
           cd build && ctest --output-on-failure
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Upload GEQDSK plots
-        if: 'false'
+        if: '${{ github.event_name == ''unsupported-ci-cell'' }}'
         uses: actions/upload-artifact@v6
         with:
           name: geqdsk-plots
@@ -306,7 +306,7 @@ jobs:
       - GNU_debug
       - docs
     if: >-
-      (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (needs.GNU.result == 'success')
+      (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (needs.GNU_release.result == 'success' && needs.GNU_debug.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read
