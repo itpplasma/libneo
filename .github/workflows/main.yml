@@ -23,20 +23,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  GNU:
+  GNU_release:
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","itp-build"]') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build_type: [Release, Debug]
     env:
       LIBNEO_TESTING: "1"
-
-    name: Build and test (${{ matrix.build_type }})
+    name: Build and test (Release)
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -45,11 +39,11 @@ jobs:
         env:
           SCI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
           SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
-          SCI_MATRIX_BUILD_TYPE: ${{ matrix.build_type }}
-          SCI_CONDITION_9: ${{ matrix.build_type == 'Release' }}
-          SCI_CONDITION_10: ${{ matrix.build_type == 'Release' }}
-          SCI_CONDITION_11: ${{ matrix.build_type == 'Release' }}
-          SCI_CONDITION_12: ${{ matrix.build_type == 'Release' }}
+          SCI_MATRIX_BUILD_TYPE: Release
+          SCI_CONDITION_9: ${{ true }}
+          SCI_CONDITION_10: ${{ true }}
+          SCI_CONDITION_11: ${{ true }}
+          SCI_CONDITION_12: ${{ true }}
         run: |-
           ci/run.sh main-GNU
       - name: Set up Python
@@ -57,13 +51,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Check dependency pins
         run: |
           python ci/sync_dependency_pins.py --check
           python ci/test_dependency_pins.py
-
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Install system dependencies
         run: |
@@ -83,74 +75,64 @@ jobs:
             ninja-build \
             openmpi-bin \
             pkg-config
-
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Install Python build dependencies
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -c constraints/ci-python.txt numpy
-
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Build
         run: |
-          if [ "${{ matrix.build_type }}" = "Release" ]; then
+          if [ "Release" = "Release" ]; then
             make
           else
-            build_type="${{ matrix.build_type }}"
+            build_type="Release"
             cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE="$build_type"
             cmake --build build --parallel
           fi
-
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Install Python dependencies for tests
         run: |
           python -m pip install -c constraints/ci-python.txt ".[dev]"
-
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Test
         run: |
           cd build && ctest --output-on-failure
-
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Upload GEQDSK plots
-        if: matrix.build_type == 'Release'
+        if: 'true'
         uses: actions/upload-artifact@v6
         with:
           name: geqdsk-plots
           path: build/test_artifacts/*.png
           if-no-files-found: ignore
-
       - name: Editable install of libneo
-        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
+        if: ${{ github.event.pull_request.head.repo.fork && (true) }}
         run: |
           python -m pip install -e .
-
       - name: Run Python tests (pytest)
-        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
+        if: ${{ github.event.pull_request.head.repo.fork && (true) }}
         env:
           PYTHONFAULTHANDLER: "1"
           LIBNEO_DEBUG_BOOZER: "1"
         run: |
           python -m pytest test/python -q
           python -m pytest python/tests -vv -s
-
       - name: Build ASCOT5 and install a5py
-        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
+        if: ${{ github.event.pull_request.head.repo.fork && (true) }}
         run: |
           git clone --depth 1 --branch 5.6.1 https://github.com/ascot4fusion/ascot5.git build/test/ascot5_compare/ascot5
           make -C build/test/ascot5_compare/ascot5 libascot
           python -m pip install --force-reinstall build/test/ascot5_compare/ascot5
-
       - name: Compare with ASCOT5 reference
-        if: ${{ github.event.pull_request.head.repo.fork && (matrix.build_type == 'Release') }}
+        if: ${{ github.event.pull_request.head.repo.fork && (true) }}
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/build/test/ascot5_compare/ascot5/build
         run: |
           python test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
-
       - name: Upload test image artifacts
-        if: always() && matrix.build_type == 'Release'
+        if: always() && true
         uses: actions/upload-artifact@v6
         with:
           name: test-images
@@ -162,7 +144,129 @@ jobs:
             build/test_artifacts/**/*.jpg
             build/test_artifacts/**/*.jpeg
           if-no-files-found: warn
-
+    if: >-
+      github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
+  GNU_debug:
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","itp-build"]') }}
+    env:
+      LIBNEO_TESTING: "1"
+    name: Build and test (Debug)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run native checks in the build container
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          SCI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          SCI_MATRIX_BUILD_TYPE: Debug
+          SCI_CONDITION_9: ${{ false }}
+          SCI_CONDITION_10: ${{ false }}
+          SCI_CONDITION_11: ${{ false }}
+          SCI_CONDITION_12: ${{ false }}
+        run: |-
+          ci/run.sh main-GNU
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Check dependency pins
+        run: |
+          python ci/sync_dependency_pins.py --check
+          python ci/test_dependency_pins.py
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Install system dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake \
+            gfortran \
+            libfftw3-dev \
+            libgsl-dev \
+            hdf5-tools \
+            libnetcdf-dev \
+            netcdf-bin \
+            libopenblas-dev \
+            liblapack-dev \
+            libopenmpi-dev \
+            ninja-build \
+            openmpi-bin \
+            pkg-config
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Install Python build dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -c constraints/ci-python.txt numpy
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Build
+        run: |
+          if [ "Debug" = "Release" ]; then
+            make
+          else
+            build_type="Debug"
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE="$build_type"
+            cmake --build build --parallel
+          fi
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Install Python dependencies for tests
+        run: |
+          python -m pip install -c constraints/ci-python.txt ".[dev]"
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Test
+        run: |
+          cd build && ctest --output-on-failure
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Upload GEQDSK plots
+        if: 'false'
+        uses: actions/upload-artifact@v6
+        with:
+          name: geqdsk-plots
+          path: build/test_artifacts/*.png
+          if-no-files-found: ignore
+      - name: Editable install of libneo
+        if: ${{ github.event.pull_request.head.repo.fork && (false) }}
+        run: |
+          python -m pip install -e .
+      - name: Run Python tests (pytest)
+        if: ${{ github.event.pull_request.head.repo.fork && (false) }}
+        env:
+          PYTHONFAULTHANDLER: "1"
+          LIBNEO_DEBUG_BOOZER: "1"
+        run: |
+          python -m pytest test/python -q
+          python -m pytest python/tests -vv -s
+      - name: Build ASCOT5 and install a5py
+        if: ${{ github.event.pull_request.head.repo.fork && (false) }}
+        run: |
+          git clone --depth 1 --branch 5.6.1 https://github.com/ascot4fusion/ascot5.git build/test/ascot5_compare/ascot5
+          make -C build/test/ascot5_compare/ascot5 libascot
+          python -m pip install --force-reinstall build/test/ascot5_compare/ascot5
+      - name: Compare with ASCOT5 reference
+        if: ${{ github.event.pull_request.head.repo.fork && (false) }}
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/build/test/ascot5_compare/ascot5/build
+        run: |
+          python test/scripts/test_ascot5_compare.py --build-dir build --output-dir build/test/ascot5_compare
+      - name: Upload test image artifacts
+        if: always() && false
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-images
+          path: |
+            build/test/**/*.png
+            build/test/**/*.jpg
+            build/test/**/*.jpeg
+            build/test_artifacts/**/*.png
+            build/test_artifacts/**/*.jpg
+            build/test_artifacts/**/*.jpeg
+          if-no-files-found: warn
     if: >-
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
   docs:
@@ -197,7 +301,10 @@ jobs:
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
   dashboard:
     name: Build test dashboard
-    needs: [GNU, docs]
+    needs:
+      - GNU_release
+      - GNU_debug
+      - docs
     if: >-
       (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (needs.GNU.result == 'success')
     runs-on: ubuntu-latest
