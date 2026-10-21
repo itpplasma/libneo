@@ -101,7 +101,6 @@ jobs:
           cd build && ctest --output-on-failure
         if: ${{ github.event.pull_request.head.repo.fork }}
       - name: Upload GEQDSK plots
-        if: '${{ github.event_name != ''pull_request'' || github.event.pull_request.head.repo.fork }}'
         uses: actions/upload-artifact@v6
         with:
           name: geqdsk-plots
@@ -223,13 +222,6 @@ jobs:
         run: |
           cd build && ctest --output-on-failure
         if: ${{ github.event.pull_request.head.repo.fork }}
-      - name: Upload GEQDSK plots
-        if: '${{ github.event_name == ''unsupported-ci-cell'' }}'
-        uses: actions/upload-artifact@v6
-        with:
-          name: geqdsk-plots
-          path: build/test_artifacts/*.png
-          if-no-files-found: ignore
       - name: Editable install of libneo
         if: ${{ github.event.pull_request.head.repo.fork && (false) }}
         run: |
