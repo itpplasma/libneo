@@ -44,3 +44,18 @@ target_link_libraries(test_spectre_chart_validity.x PRIVATE spectre_field
 add_test(NAME test_spectre_chart_validity
          COMMAND test_spectre_chart_validity.x
                  ${CMAKE_CURRENT_SOURCE_DIR}/data/spectre_test.h5)
+
+add_test(NAME setup_spectre_signed_flux
+         COMMAND ${Python_EXECUTABLE}
+                 ${CMAKE_CURRENT_SOURCE_DIR}/make_signed_flux_fixture.py
+                 ${CMAKE_CURRENT_SOURCE_DIR}/data/spectre_test.h5
+                 ${CMAKE_CURRENT_BINARY_DIR}/spectre_signed_flux.h5)
+set_tests_properties(setup_spectre_signed_flux PROPERTIES
+                     FIXTURES_SETUP spectre_signed_flux)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/signed-flux)
+add_test(NAME test_spectre_signed_flux
+         COMMAND test_spectre_reader.x
+                 ${CMAKE_CURRENT_BINARY_DIR}/spectre_signed_flux.h5 -3.25)
+set_tests_properties(test_spectre_signed_flux PROPERTIES
+                     FIXTURES_REQUIRED spectre_signed_flux
+                     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/signed-flux)

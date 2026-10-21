@@ -14,6 +14,8 @@ module spectre_reader
     end type spectre_volume_t
 
     type :: spectre_data_t
+        ! Signed full-torus flux at the plasma edge [Wb]; tflux is normalized.
+        real(dp) :: phiedge = 0.0_dp
         integer :: Igeometry = 0
         integer :: Nfp = 0
         integer :: Nvol = 0
@@ -95,6 +97,7 @@ contains
         allocate (data%pressure(data%Nvol))
         allocate (data%tflux(data%Mvol), data%pflux(data%Mvol))
 
+        call h5_get(h5id, 'input/physics/phiedge', data%phiedge)
         call h5_get(h5id, 'input/physics/Lrad', data%Lrad)
         call h5_get(h5id, 'output/im', data%im)
         call h5_get(h5id, 'output/in', data%in)

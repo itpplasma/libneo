@@ -15,7 +15,8 @@ program test_spectre_reader
                                         0, 5, 10, -10, -5, 0, 5, 10, -10, -5, &
                                         0, 5, 10]
 
-    character(len=1024) :: fixture
+    character(len=1024) :: fixture, flux_argument
+    real(dp) :: expected_phiedge
     integer :: nfail
 
     nfail = 0
@@ -24,6 +25,10 @@ program test_spectre_reader
         print *, 'usage: test_spectre_reader.x <spectre_test.h5>'
         error stop
     end if
+
+    expected_phiedge = 1.0_dp
+    call get_command_argument(2, flux_argument)
+    if (len_trim(flux_argument) > 0) read(flux_argument, *) expected_phiedge
 
     call test_load_fixture
     call test_reload_after_free
@@ -42,6 +47,7 @@ contains
 
         call load_spectre(trim(fixture), data, ierr)
         call check_int('ierr', ierr, 0)
+        call check_dp('signed global toroidal flux [Wb]', data%phiedge, expected_phiedge)
         call check_sizes(data)
         call check_profiles(data)
         call check_interface_geometry(data)
