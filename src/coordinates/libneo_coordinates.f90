@@ -26,6 +26,9 @@ module libneo_coordinates
     public :: spectre_coordinate_system_t, make_spectre_coordinate_system, &
               validate_spectre_chart
 
+    public :: SPECTRE_SUCCESS, SPECTRE_OUTSIDE_DOMAIN, SPECTRE_NOT_CONVERGED
+    public :: SPECTRE_DOMAIN_UNDETERMINED, SPECTRE_INVALID_VOLUME
+
     public :: validate_chartmap_file
     public :: detect_refcoords_file_type
 

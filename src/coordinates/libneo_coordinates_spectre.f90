@@ -34,6 +34,18 @@ module libneo_coordinates_spectre
     public :: spectre_coordinate_system_t, make_spectre_coordinate_system, &
               validate_spectre_chart
 
+    !> Inverse statuses: only success supplies usable coordinates. All failures
+    !> remain nonzero; outside retains the historical failure value of 1.
+    integer, parameter, public :: SPECTRE_SUCCESS = 0
+    !> Point is certified outside the outermost computational interface.
+    integer, parameter, public :: SPECTRE_OUTSIDE_DOMAIN = 1
+    !> Point is inside, but Newton failed in the requested volume(s).
+    integer, parameter, public :: SPECTRE_NOT_CONVERGED = 2
+    !> Boundary proximity or the sampling budget prevents domain classification.
+    integer, parameter, public :: SPECTRE_DOMAIN_UNDETERMINED = 3
+    !> Warm inverse was given a volume outside 1:Mvol.
+    integer, parameter, public :: SPECTRE_INVALID_VOLUME = 4
+
     type, extends(coordinate_system_t) :: spectre_coordinate_system_t
         integer :: Mvol = 0
         integer :: mn = 0
@@ -47,6 +59,7 @@ module libneo_coordinates_spectre
         procedure :: metric_tensor_der => spectre_metric_tensor_der
         procedure :: from_cyl => spectre_from_cyl
         procedure :: from_cyl_warm => spectre_from_cyl_warm
+        procedure :: domain_status => spectre_domain_status
     end type spectre_coordinate_system_t
 
 contains
@@ -510,7 +523,9 @@ contains
         !> Inverse map: for each volume, seed theta by a coarse poloidal scan
         !> (the SPEC poloidal angle need not track the geometric angle), run a
         !> 2D Newton in (s, theta) at fixed zeta = phi, and accept the volume
-        !> whose converged s lands in [-1, 1].
+        !> whose converged s lands in [-1, 1]. On failure, domain_status
+        !> distinguishes exterior points from numerical failures; unresolved
+        !> boundary membership returns SPECTRE_DOMAIN_UNDETERMINED.
         class(spectre_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: xcyl(3)
         real(dp), intent(out) :: u(3)
@@ -524,7 +539,7 @@ contains
         integer :: lvol
         logical :: converged
 
-        ierr = 1
+        ierr = SPECTRE_DOMAIN_UNDETERMINED
         u = 0.0_dp
         zeta = xcyl(2)
 
@@ -539,15 +554,18 @@ contains
                         u(1) = min(max(u(1), 0.0_dp), real(self%Mvol, dp))
                         u(2) = modulo(theta, TWOPI)
                         u(3) = zeta
-                        ierr = 0
+                        ierr = SPECTRE_SUCCESS
                         return
                     end if
                 end if
             end if
         end do
+        ierr = inverse_failure_status(self, xcyl)
     end subroutine spectre_from_cyl
 
     subroutine spectre_from_cyl_warm(self, xcyl, u, lvol, ierr)
+        !> Try only lvol, leaving u unchanged on failure. Domain statuses refer
+        !> to the entire chart, not to membership in the requested volume.
         class(spectre_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: xcyl(3)
         real(dp), intent(inout) :: u(3)
@@ -561,22 +579,107 @@ contains
         real(dp) :: s0, s, theta
         logical :: converged
 
-        ierr = 1
+        ierr = SPECTRE_INVALID_VOLUME
         if (lvol < 1 .or. lvol > self%Mvol) return
 
         s0 = 2.0_dp*(u(1) - real(lvol - 1, dp)) - 1.0_dp
         call newton_volume(self, lvol, xcyl(1), xcyl(3), xcyl(2), s0, u(2), &
                            tol_res, tol_det, s, theta, converged)
-        if (.not. converged) return
-        if (s < -1.0_dp - s_slack .or. s > 1.0_dp + s_slack) return
+        if (.not. converged) then
+            ierr = inverse_failure_status(self, xcyl)
+            return
+        end if
+        if (s < -1.0_dp - s_slack .or. s > 1.0_dp + s_slack) then
+            ierr = inverse_failure_status(self, xcyl)
+            return
+        end if
 
         if (abs(s + 1.0_dp) <= s_slack) s = -1.0_dp
         if (abs(s - 1.0_dp) <= s_slack) s = 1.0_dp
         u(1) = real(lvol - 1, dp) + 0.5_dp*(s + 1.0_dp)
         u(2) = modulo(theta, TWOPI)
         u(3) = xcyl(2)
-        ierr = 0
+        ierr = SPECTRE_SUCCESS
     end subroutine spectre_from_cyl_warm
+
+    integer function inverse_failure_status(self, xcyl) result(status)
+        class(spectre_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: xcyl(3)
+
+        status = self%domain_status(xcyl)
+        if (status == SPECTRE_SUCCESS) status = SPECTRE_NOT_CONVERGED
+    end function inverse_failure_status
+
+    integer function spectre_domain_status(self, xcyl) result(status)
+        !> Membership in the outermost (Mvol, including vacuum) interface at
+        !> phi = xcyl(2). Assumes a simple outer contour enclosing the stacked
+        !> volumes, as required for a valid SPECTRE chart. Returns SUCCESS for
+        !> inside, OUTSIDE_DOMAIN for outside, DOMAIN_UNDETERMINED otherwise.
+        !>
+        !> The Fourier coefficients bound |d(R,Z)/dtheta| by speed. Each arc
+        !> lies in a ball of radius speed*h about its first endpoint. Only if
+        !> that ball excludes the query point may the arc be replaced by its
+        !> chord without changing winding. Thus unresolved high harmonics or
+        !> proximity to the boundary cannot silently give a false exterior.
+        class(spectre_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: xcyl(3)
+
+        integer, parameter :: max_scan = 8192
+        integer :: i, nscan, winding, lvol
+        real(dp) :: speed, scale, margin, h, angle, a(2), b(2), first(2)
+        real(dp) :: R, Z, dRds, dRdt, dRdz, dZds, dZdt, dZdz
+        logical :: resolved
+
+        status = SPECTRE_DOMAIN_UNDETERMINED
+        if (self%Mvol < 1) return
+        lvol = self%Mvol
+        speed = 0.0_dp
+        scale = max(1.0_dp, abs(xcyl(1)), abs(xcyl(3)))
+        do i = 1, self%mn
+            margin = abs(self%Rbc(i, lvol)) + abs(self%Rbs(i, lvol)) &
+                     + abs(self%Zbc(i, lvol)) + abs(self%Zbs(i, lvol))
+            speed = speed + real(abs(self%im(i)), dp)*margin
+            scale = scale + margin
+        end do
+        if (speed <= 0.0_dp) return
+        margin = 64.0_dp*epsilon(1.0_dp)*scale
+        call spectre_geom(self, lvol, 1.0_dp, 0.0_dp, xcyl(2), R, Z, &
+                          dRds, dRdt, dRdz, dZds, dZdt, dZdz)
+        first(1) = R - xcyl(1)
+        first(2) = Z - xcyl(3)
+
+        nscan = 32
+        do while (nscan <= max_scan)
+            h = TWOPI/real(nscan, dp)
+            a = first
+            angle = 0.0_dp
+            resolved = .true.
+            do i = 1, nscan
+                if (norm2(a) <= speed*h + margin) then
+                    resolved = .false.
+                    exit
+                end if
+                if (i == nscan) then
+                    b = first
+                else
+                    call spectre_geom(self, lvol, 1.0_dp, real(i, dp)*h, &
+                                      xcyl(2), R, Z, dRds, dRdt, dRdz, &
+                                      dZds, dZdt, dZdz)
+                    b(1) = R - xcyl(1)
+                    b(2) = Z - xcyl(3)
+                end if
+                angle = angle + atan2(a(1)*b(2) - a(2)*b(1), dot_product(a, b))
+                a = b
+            end do
+            if (resolved) then
+                winding = nint(angle/TWOPI)
+                if (winding == 0) status = SPECTRE_OUTSIDE_DOMAIN
+                if (abs(winding) == 1) status = SPECTRE_SUCCESS
+                return
+            end if
+            nscan = 2*nscan
+        end do
+    end function spectre_domain_status
 
     pure function spectre_seed_theta(self, lvol, R_tgt, Z_tgt, zeta) result(theta0)
         class(spectre_coordinate_system_t), intent(in) :: self

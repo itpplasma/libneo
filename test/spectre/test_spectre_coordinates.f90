@@ -3,7 +3,7 @@ program test_spectre_coordinates
     use spectre_reader, only: spectre_data_t, load_spectre, free_spectre
     use libneo_coordinates, only: coordinate_system_t, &
                                   spectre_coordinate_system_t, &
-                                  make_spectre_coordinate_system
+                                  make_spectre_coordinate_system, SPECTRE_SUCCESS
     use util_for_test, only: print_test, print_ok, print_fail
 
     implicit none
@@ -91,7 +91,7 @@ contains
 
             call cs%evaluate_cyl(u, xcyl)
             call cs%from_cyl(xcyl, u2, jerr)
-            if (jerr /= 0) then
+            if (jerr /= SPECTRE_SUCCESS) then
                 bad_vol = bad_vol + 1
                 cycle
             end if
@@ -136,7 +136,7 @@ contains
             class default
                 jerr = 1
             end select
-            if (jerr /= 0) exit
+            if (jerr /= SPECTRE_SUCCESS) exit
             worst_rho = max(worst_rho, abs(u_warm(1) - u_ref(1)))
             dtheta = modulo(u_warm(2) - u_ref(2) + 0.5_dp*twopi, twopi) &
                 - 0.5_dp*twopi
@@ -144,7 +144,7 @@ contains
             if (u_warm(3) /= xcyl(2)) jerr = 1
         end do
 
-        if (jerr == 0 .and. worst_rho < 1.0e-8_dp &
+        if (jerr == SPECTRE_SUCCESS .and. worst_rho < 1.0e-8_dp &
             .and. worst_theta < 1.0e-8_dp) then
             call print_ok
         else
@@ -178,10 +178,11 @@ contains
             end select
             worst = max(worst, abs(u_lo(1) - real(k, dp)))
             worst = max(worst, abs(u_hi(1) - real(k, dp)))
-            if (jerr_lo /= 0 .or. jerr_hi /= 0) exit
+            if (jerr_lo /= SPECTRE_SUCCESS .or. jerr_hi /= SPECTRE_SUCCESS) exit
         end do
 
-        if (jerr_lo == 0 .and. jerr_hi == 0 .and. worst < 1.0e-8_dp) then
+        if (jerr_lo == SPECTRE_SUCCESS .and. jerr_hi == SPECTRE_SUCCESS &
+            .and. worst < 1.0e-8_dp) then
             call print_ok
         else
             print *, '    ierr_lo =', jerr_lo, ' ierr_hi =', jerr_hi, &

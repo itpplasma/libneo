@@ -26,6 +26,11 @@ add_test(NAME test_spectre_coordinates
                  ${CMAKE_CURRENT_SOURCE_DIR}/data/spectre_test.h5
                  ${CMAKE_CURRENT_SOURCE_DIR}/data/reference_eval.dat)
 
+add_executable(test_spectre_inverse_status.x test_spectre_inverse_status.f90)
+target_link_libraries(test_spectre_inverse_status.x PRIVATE coordinates
+                                                            spectre_support)
+add_test(NAME test_spectre_inverse_status COMMAND test_spectre_inverse_status.x)
+
 add_executable(test_spectre_field.x test_spectre_field.f90)
 target_link_libraries(test_spectre_field.x PRIVATE spectre_field
                                                    spectre_support
