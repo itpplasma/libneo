@@ -292,19 +292,37 @@ jobs:
 
     if: >-
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
+  publication-source:
+    name: Resolve admitted publication artifacts
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor == 'github-merge-queue[bot]'
+    runs-on: [self-hosted, itp-light]
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run-id: ${{ steps.source.outputs.run-id }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ci/publication_source.py
   dashboard:
     name: Build test dashboard
     needs:
       - GNU_release
       - GNU_debug
       - docs
+      - publication-source
     if: >-
-      (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (needs.GNU_release.result == 'success' && needs.GNU_debug.result == 'success')
+      always() && (needs.publication-source.outputs.run-id != '' ||
+      (needs.GNU_release.result == 'success' && needs.GNU_debug.result == 'success' && needs.docs.result == 'success'))
     runs-on:
       - self-hosted
       - itp-ubuntu24
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
       pull-requests: read
@@ -337,6 +355,8 @@ jobs:
       - name: Download image artifacts
         uses: actions/download-artifact@v4
         with:
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.publication-source.outputs.run-id || github.run_id }}
           name: test-images
           path: image-artifacts
 
@@ -430,6 +450,8 @@ jobs:
       - name: Download docs artifact
         uses: actions/download-artifact@v4
         with:
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.publication-source.outputs.run-id || github.run_id }}
           name: docs-html
           path: docs-html
 
@@ -457,8 +479,7 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    if: >-
-      (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (github.event_name == 'push' || github.event_name == 'pull_request')
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     needs: dashboard
     runs-on:
       - self-hosted
