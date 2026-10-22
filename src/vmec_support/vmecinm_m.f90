@@ -39,7 +39,8 @@ contains
         use libneo_kinds, only: dp
         !use math_constants, only: PI
         use new_vmec_stuff_mod, only: netcdffile, vmec_B_scale, vmec_RZ_scale, rmajor, &
-                                      raxis_cc, zaxis_cs, raxis_cs, zaxis_cc
+                                      raxis_cc, zaxis_cs, raxis_cs, zaxis_cc, &
+                                      lambda_half_to_full
         use nctools_module, only: nc_open, nc_close, nc_get
 
         real(dp), parameter :: fac_b0 = 1d4, fac_r0 = 1d2, EPS = 1d-10, pi=3.14159265358979d0
@@ -121,15 +122,20 @@ contains
         ! added by Christopher Albert, 2020-02-11
         almnc(:, 0) = 0d0
         almns(:, 0) = 0d0
-        do i = 1, kparb - 1
-            almnc(:, i) = 0.5d0*(lmnc(:, i + 1) + lmnc(:, i))
-            almns(:, i) = 0.5d0*(lmns(:, i + 1) + lmns(:, i))
-        end do
-        almnc(:, kparb) = lmnc(:, kparb) &
-          & + 0.5d0*(lmnc(:, kparb) - lmnc(:, kparb - 1))
+        if (trim(lambda_half_to_full) == 'cubic' .and. kparb >= 4) then
+            call lambda_half_to_full_cubic(lmnc, almnc, kparb)
+            call lambda_half_to_full_cubic(lmns, almns, kparb)
+        else
+            do i = 1, kparb - 1
+                almnc(:, i) = 0.5d0*(lmnc(:, i + 1) + lmnc(:, i))
+                almns(:, i) = 0.5d0*(lmns(:, i + 1) + lmns(:, i))
+            end do
+            almnc(:, kparb) = lmnc(:, kparb) &
+              & + 0.5d0*(lmnc(:, kparb) - lmnc(:, kparb - 1))
 
-        almns(:, kparb) = lmns(:, kparb) &
-          & + 0.5d0*(lmns(:, kparb) - lmns(:, kparb - 1))
+            almns(:, kparb) = lmns(:, kparb) &
+              & + 0.5d0*(lmns(:, kparb) - lmns(:, kparb - 1))
+        end if
 
 ! Fallback if rmajor defined by volume is not given
         if (abs(rmajor - 0d0) < EPS) rmajor = rmnc(1, 0)
@@ -147,6 +153,32 @@ contains
         call nc_close(ncid)
 
     end subroutine vmecin
+
+    !> Full-mesh lambda at s_i = i*hs, i = 1..kparb, from the half-mesh rows
+    !> 1..kparb at s = (j - 1/2)*hs by four-point Lagrange interpolation
+    !> (centred inside, one-sided at the edge). Row 0 is left untouched.
+    subroutine lambda_half_to_full_cubic(lhalf, lfull, kparb)
+        use libneo_kinds, only: dp
+        integer, intent(in) :: kparb
+        real(dp), intent(in) :: lhalf(:, 0:)
+        real(dp), intent(inout) :: lfull(:, 0:)
+
+        integer :: i, j, k, jbeg
+        real(dp) :: w(4)
+
+        do i = 1, kparb
+            jbeg = max(1, min(i - 1, kparb - 3))
+            do j = 1, 4
+                w(j) = 1d0
+                do k = 1, 4
+                    if (k /= j) w(j) = w(j)*(dble(i) - (dble(jbeg + k - 1) - 0.5d0)) &
+                                       /(dble(jbeg + j - 1) - dble(jbeg + k - 1))
+                end do
+            end do
+            lfull(:, i) = w(1)*lhalf(:, jbeg) + w(2)*lhalf(:, jbeg + 1) &
+                          + w(3)*lhalf(:, jbeg + 2) + w(4)*lhalf(:, jbeg + 3)
+        end do
+    end subroutine lambda_half_to_full_cubic
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine stevvo(RT0, R0i, L1i, cbfi, bz0i, bf0)
