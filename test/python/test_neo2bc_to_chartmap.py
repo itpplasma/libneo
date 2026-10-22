@@ -285,3 +285,73 @@ def test_converter_accepts_first_half_grid_surface(tmp_path):
         nzeta=8,
     )
     assert output.is_file()
+
+
+def test_nonuniform_surfaces_keep_radial_field_and_currents(tmp_path):
+    """Nonuniform source labels must survive the intermediate boozmn file."""
+    netCDF4 = pytest.importorskip("netCDF4")
+    from libneo.neo2bc_to_chartmap import convert_neo2bc_to_chartmap
+
+    surfaces = (0.02, 0.07, 0.19, 0.36, 0.61, 0.83, 0.98)
+    axis = tmp_path / "nonuniform.bc"
+    _write_bc(axis, perturbation=False, surfaces=surfaces)
+    text = axis.read_text()
+    for s in surfaces:
+        text = text.replace(
+            f" {s:.8e}  4.0e-1  5.00000000e+05  2.0e4",
+            f" {s:.8e} {0.4 + 0.1*s:.12e} {5e5 + 1e5*s:.12e} 2.0e4",
+        )
+    lines = text.splitlines()
+    index = 0
+    for j, line in enumerate(lines):
+        if line.startswith("  0  0 "):
+            lines[j] = line.replace("  2.0  0.0", f"  {2 + 0.2*surfaces[index]**2:.12e}  0.0")
+            index += 1
+    axis.write_text("\n".join(lines) + "\n")
+    output = tmp_path / "chartmap.nc"
+    convert_neo2bc_to_chartmap(axis, output, nrho=19, ntheta=12, nzeta=4)
+    with netCDF4.Dataset(output) as ds:
+        rho = np.asarray(ds["rho"][:])
+        theta = np.asarray(ds["theta"][:])
+        interior = (rho**2 > surfaces[1]) & (rho**2 < surfaces[-2])
+        expected = 2 + 0.2*rho[interior]**4 + 0.1*np.cos(theta[:, None])
+        np.testing.assert_allclose(ds["Bmod"][0, :, interior]/1e4, expected, rtol=2e-10)
+        s = np.asarray(ds["s"][:])
+        np.testing.assert_allclose(ds["B_phi"][:]/1e6, (5e5 + 1e5*rho**2)*2e-7, rtol=2e-10)
+        torflux = float(ds.torflux)
+        expected_a = -torflux*(0.4*s + 0.05*s*s)
+        np.testing.assert_allclose(ds["A_phi"][:], expected_a, rtol=2e-10)
+
+
+def test_converter_retains_perturbation_knots_on_distinct_grids(tmp_path):
+    netCDF4 = pytest.importorskip("netCDF4")
+    from scipy.interpolate import CubicSpline
+    from libneo.boozer import BoozerFile
+    from libneo.neo2bc_to_chartmap import convert_neo2bc_to_chartmap
+
+    axis, pert = tmp_path/"axis.bc", tmp_path/"pert.bc"
+    coarse = (.02, .07, .19, .36, .61, .83, .98)
+    fine = (.02, .07, .19, .33, .45, .49, .5, .51, .57, .61, .83, .98)
+    _write_bc(axis, perturbation=False, surfaces=coarse)
+    _write_bc(pert, perturbation=True, surfaces=fine)
+    lines = pert.read_text().splitlines()
+    index = 0
+    for j, line in enumerate(lines):
+        if line.startswith(" -1  1 "):
+            amplitude = .02*(1 + np.exp(-((fine[index] - .5)/.03)**2))
+            lines[j] = line.replace("  2.0e-2  -3.0e-2", f"  {amplitude:.14e}  -3.0e-2")
+            index += 1
+    pert.write_text("\n".join(lines)+"\n")
+    output = tmp_path/"field.nc"
+    convert_neo2bc_to_chartmap(axis, output, perturbation=pert, nrho=25, ntheta=12, nzeta=6)
+    source = BoozerFile(str(pert))
+    with netCDF4.Dataset(output) as ds:
+        s = np.asarray(ds["rho"][:])**2
+        interior = (s > .19) & (s < .83)
+        s = s[interior]
+        theta, zeta = float(ds["theta"][2]), float(ds["zeta"][1])
+        phase = np.asarray(source.m[0])*theta + np.asarray(source.n[0])*source.nper*zeta
+        cos = CubicSpline(source.s, np.asarray(source.bmnc), axis=0)(s)
+        sin = CubicSpline(source.s, np.asarray(source.bmns), axis=0)(s)
+        expected = 2 + .1*np.cos(theta) + cos@np.cos(phase) + sin@np.sin(phase)
+        np.testing.assert_allclose(ds["Bmod"][1, 2, interior]/1e4, expected, atol=2e-10)

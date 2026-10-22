@@ -48,6 +48,7 @@ def _read_boozmn(filename):
         d["nfp"] = int(var("nfp_b"))
         d["lasym"] = bool(var("lasym__logical__"))
         d["jlist"] = var("jlist").astype(int)
+        explicit_s = var("libneo_s_half") if "libneo_s_half" in ds.variables else None
         d["ixm"] = var("ixm_b").astype(int)
         d["ixn"] = var("ixn_b").astype(int)
         d["iota"] = var("iota_b")
@@ -73,11 +74,12 @@ def _read_boozmn(filename):
             d["rmns"] = var("rmns_b")
             d["zmnc"] = var("zmnc_b")
             d["pmnc"] = var("pmnc_b")
-    d["s_half"] = (d["jlist"] - 1.5) / (d["ns"] - 1)
+    d["s_half"] = (explicit_s if explicit_s is not None
+                   else (d["jlist"] - 1.5) / (d["ns"] - 1))
     return d
 
 
-def _interp_coeffs(coeffs, ixm, rho_half, rho_out):
+def _interp_coeffs(coeffs, ixm, rho_half, rho_out, *, coordinate="rho"):
     """Interpolate packed Fourier coefficients from the half grid to rho_out.
 
     Cubic spline in rho per mode; below the innermost half-grid surface the
@@ -86,7 +88,9 @@ def _interp_coeffs(coeffs, ixm, rho_half, rho_out):
     """
     from scipy.interpolate import CubicSpline
 
-    out = CubicSpline(rho_half, coeffs, axis=0)(rho_out)
+    source, target = ((rho_half**2, rho_out**2) if coordinate == "s"
+                      else (rho_half, rho_out))
+    out = CubicSpline(source, coeffs, axis=0)(target)
     inner = rho_out < rho_half[0]
     if np.any(inner):
         ratio = rho_out[inner, None] / rho_half[0]
@@ -199,6 +203,7 @@ def convert_boozmn_to_chartmap(
     covariant_sign=1,
     chartmap_attrs=None,
     netcdf_format="NETCDF4",
+    field_radial_coordinate="rho",
 ):
     """Read a boozmn file and write a libneo Boozer chartmap.
 
@@ -208,6 +213,8 @@ def convert_boozmn_to_chartmap(
     """
     from scipy.interpolate import CubicSpline
 
+    if field_radial_coordinate not in ("rho", "s"):
+        raise ValueError("field_radial_coordinate must be rho or s")
     if covariant_sign not in (-1, 1):
         raise ValueError("covariant_sign must be -1 or 1")
     if not 0.0 <= rho_min < 1.0:
@@ -331,10 +338,12 @@ def convert_boozmn_to_chartmap(
         B_theta[0] = 0.0
         rk_B_theta[0] = 0.0
 
-    bmnc_g = _interp_coeffs(d["bmnc"], d["ixm"], rho_half, rho_grid)
+    bmnc_g = _interp_coeffs(d["bmnc"], d["ixm"], rho_half, rho_grid,
+                              coordinate=field_radial_coordinate)
     Bmod = _fourier_eval(bmnc_g, d["ixm"], d["ixn"], theta_geom, zeta_geom, "cos")
     if d["lasym"]:
-        bmns_g = _interp_coeffs(d["bmns"], d["ixm"], rho_half, rho_grid)
+        bmns_g = _interp_coeffs(d["bmns"], d["ixm"], rho_half, rho_grid,
+                                  coordinate=field_radial_coordinate)
         Bmod += _fourier_eval(
             bmns_g, d["ixm"], d["ixn"], theta_geom, zeta_geom, "sin"
         )

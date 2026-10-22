@@ -44,20 +44,58 @@ def _require_close(name, left, right, *, rtol=1.0e-8, atol=1.0e-12):
         raise ValueError(f"axisymmetric and perturbation {name} are incompatible")
 
 
-def _validate_pair(axis, perturbation):
+def _resample_surfaces(data, surfaces):
+    from scipy.interpolate import CubicSpline
+
+    result = SimpleNamespace(**vars(data))
+    result.nsurf = len(surfaces)
+    result.s = surfaces.copy()
+    for name in _PROFILE_NAMES[1:] + _COEFFICIENTS:
+        values = np.asarray(getattr(data, name), dtype=float)
+        setattr(result, name, CubicSpline(data.s, values, axis=0,
+                                         extrapolate=False)(surfaces))
+    result.m = [np.asarray(data.m[0]).copy() for _ in surfaces]
+    result.n = [np.asarray(data.n[0]).copy() for _ in surfaces]
+    return result
+
+
+def _align_pair(axis, perturbation):
+    for data in (axis, perturbation):
+        grid = np.asarray(data.s, dtype=float)
+        if (grid.size < 2 or not np.all(np.isfinite(grid))
+                or np.any(np.diff(grid) <= 0)):
+            raise ValueError("radial grids must be finite and strictly increasing")
+        modes = list(zip(data.m[0], data.n[0]))
+        if any(list(zip(m, n)) != modes for m, n in zip(data.m, data.n)):
+            raise ValueError("mode ordering changes between surfaces")
+    lo = max(axis.s[0], perturbation.s[0])
+    hi = min(axis.s[-1], perturbation.s[-1])
+    surfaces = np.unique(np.concatenate((axis.s, perturbation.s)))
+    surfaces = surfaces[(surfaces >= lo) & (surfaces <= hi)]
+    if len(surfaces) < 2:
+        raise ValueError("radial grids have insufficient overlap")
+    return (_resample_surfaces(axis, surfaces),
+            _resample_surfaces(perturbation, surfaces))
+
+
+def _validate_pair(axis, perturbation, *, allow_unspecified=False):
     if axis.nsurf != perturbation.nsurf:
         raise ValueError("axisymmetric and perturbation surface counts differ")
     _require_close("radial grids", axis.s, perturbation.s)
-    _require_close("iota profiles", axis.iota, perturbation.iota)
-    _require_close("toroidal-current profiles", axis.Itor, perturbation.Itor)
-    _require_close(
-        "poloidal-current profiles",
-        np.asarray(axis.Jpol_divided_by_nper) * axis.nper,
-        np.asarray(perturbation.Jpol_divided_by_nper) * perturbation.nper,
+    pairs = (
+        ("iota profiles", axis.iota, perturbation.iota),
+        ("toroidal-current profiles", axis.Itor, perturbation.Itor),
+        ("poloidal-current profiles",
+         np.asarray(axis.Jpol_divided_by_nper) * axis.nper,
+         np.asarray(perturbation.Jpol_divided_by_nper) * perturbation.nper),
+        ("toroidal fluxes", axis.flux, perturbation.flux),
+        ("minor radii", axis.a, perturbation.a),
+        ("major radii", axis.R, perturbation.R),
     )
-    _require_close("toroidal fluxes", axis.flux, perturbation.flux)
-    _require_close("minor radii", axis.a, perturbation.a)
-    _require_close("major radii", axis.R, perturbation.R)
+    for name, left, right in pairs:
+        if allow_unspecified and not np.any(np.asarray(right) != 0):
+            continue
+        _require_close(name, left, right)
     for surface in range(axis.nsurf):
         if np.any(np.asarray(axis.n[surface]) != 0):
             raise ValueError("the axisymmetric .bc file contains n != 0 modes")
@@ -67,13 +105,17 @@ def _validate_pair(axis, perturbation):
 
 
 def combine_boozer_data(axis, perturbation=None, *, scale=1.0,
-                        geometry="axisymmetric", source_phase="neo2-plus"):
+                        geometry="axisymmetric", source_phase="neo2-plus",
+                        resample=False):
     """Return composed Boozer data without modifying either input.
 
     ``geometry='axisymmetric'`` adds only the perturbation's magnetic-field
     coefficients. ``geometry='full'`` also adds its R, Z, and toroidal phase
     coefficients. The coefficients are appended because the files may use
     disjoint mode sets and different field-period declarations.
+    ``resample`` retains both radial knot sets on their common support,
+    takes equilibrium profiles from the carrier, and permits a perturbation
+    file to omit its equilibrium metadata by supplying zeros.
     """
     if geometry not in ("axisymmetric", "full"):
         raise ValueError("geometry must be 'axisymmetric' or 'full'")
@@ -86,9 +128,11 @@ def combine_boozer_data(axis, perturbation=None, *, scale=1.0,
         output_nper = axis.nper
         profile_source = axis
     else:
-        _validate_pair(axis, perturbation)
+        if resample:
+            axis, perturbation = _align_pair(axis, perturbation)
+        _validate_pair(axis, perturbation, allow_unspecified=resample)
         output_nper = perturbation.nper
-        profile_source = perturbation
+        profile_source = axis if resample else perturbation
 
     combined = SimpleNamespace(
         comments=list(axis.comments),
@@ -144,7 +188,7 @@ def combine_boozer_data(axis, perturbation=None, *, scale=1.0,
 
 def combine_neo2_boozer_files(axis, perturbation=None, *, scale=1.0,
                                geometry="axisymmetric",
-                               source_phase="neo2-plus"):
+                               source_phase="neo2-plus", resample=False):
     """Read and compose an axisymmetric NEO-2 .bc and optional perturbation."""
     from libneo.boozer import BoozerFile
 
@@ -158,6 +202,7 @@ def combine_neo2_boozer_files(axis, perturbation=None, *, scale=1.0,
         scale=scale,
         geometry=geometry,
         source_phase=source_phase,
+        resample=resample,
     )
 
 
@@ -187,6 +232,7 @@ def convert_neo2bc_to_chartmap(
         scale=scale,
         geometry=geometry,
         source_phase=source_phase,
+        resample=True,
     )
     attrs = {
         "booz2chartmap_source": str(axis),
@@ -201,6 +247,9 @@ def convert_neo2bc_to_chartmap(
         "neo2bc_perturbation_scale": float(scale),
         "neo2bc_axis_phase_scale": float(combined.nper / combined.axis_nper),
         "neo2bc_geometry": geometry,
+        "neo2bc_s_min": float(combined.s[0]),
+        "neo2bc_s_max": float(combined.s[-1]),
+        "neo2bc_radial_matching": "union of source knots on common support; cubic in s",
     }
     if perturbation_path is not None:
         attrs.update(
@@ -210,7 +259,7 @@ def convert_neo2bc_to_chartmap(
 
     with tempfile.TemporaryDirectory(prefix="libneo-neo2bc-") as directory:
         boozmn = Path(directory) / "composed.boozmn.nc"
-        write_boozmn(combined, boozmn, source=axis)
+        write_boozmn(combined, boozmn, source=axis, explicit_surfaces=True)
         return convert_boozmn_to_chartmap(
             boozmn,
             output,
@@ -221,6 +270,7 @@ def convert_neo2bc_to_chartmap(
             covariant_sign=covariant_sign,
             chartmap_attrs=attrs,
             netcdf_format="NETCDF3_64BIT_OFFSET",
+            field_radial_coordinate="s",
         )
 
 
