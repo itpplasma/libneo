@@ -180,7 +180,8 @@ contains
                                               delphi_V(i_theta, :))
         end do
 
-        delphi_V = denomjac*delphi_V + Gbeg
+        ! Boozer condition (iota B_vartheta + B_varphi) dG = dw - B_vartheta dlambda
+        delphi_V = denomjac*(delphi_V - bcov_vartheta_B*alam) + Gbeg
         deltheta_V = aiota*delphi_V + alam
 
         do i_phi = 1, n_phi
