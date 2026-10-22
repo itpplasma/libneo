@@ -19,7 +19,12 @@
 !>    inversion theta_V + Delta(theta_V) = theta_B.
 !> The stencil chosen by the binary search is a discrete choice. It is frozen
 !> in the derivative, so the derivative is exact only away from stencil switch
-!> points, where the primal itself jumps at the interpolation-error level.
+!> points, where the primal itself jumps at the interpolation-error level. For
+!> stellarator-symmetric data the angle shifts vanish at the symmetry points,
+!> a moving node then lands exactly on its target and the stencil is a tie:
+!> the value is continuous there but the two one-sided derivatives differ by
+!> the interpolation error of p'(x), and the tangent returns the one-sided
+!> derivative of the stencil the binary search picks.
 module boozer_surface
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use spl_three_to_five_sub, only: spl_per
