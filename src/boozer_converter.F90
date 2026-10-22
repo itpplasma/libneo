@@ -20,6 +20,7 @@ module boozer_sub
                            destroy_batch_splines_1d, destroy_batch_splines_3d
     use boozer_regular, only: build_boozer_regular, boozer_regular_field, &
                               boozer_regular_enabled
+    use boozer_surface, only: boozer_angle_grid_t, boozer_surface_transform
     use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
@@ -861,33 +862,25 @@ contains
                                           hs_B, h_theta_B, h_phi_B, &
                                           s_Bcovar_tp_B, &
                                           use_B_r, use_del_tp_B
-        use binsrc_sub, only: binsrc
-        use plag_coeff_sub, only: plag_coeff
         use spline_vmec_sub
 
         implicit none
 
         real(dp), parameter :: rho_min = sqrt(BOOZER_S_MIN)
 
-        integer :: i, i_rho, i_theta, i_phi, npoilag, nder, nshift
-        integer :: ibeg, iend, nqua
+        integer :: i_rho, i_theta, i_phi, nqua
         real(dp) :: s, theta, varphi, A_theta, A_phi
         real(dp) :: dA_theta_ds, dA_phi_ds, aiota
         real(dp) :: sqg, alam, dl_ds, dl_dt, dl_dp
         real(dp) :: Bctrvr_vartheta, Bctrvr_varphi
         real(dp) :: Bcovar_r, Bcovar_vartheta, Bcovar_varphi
         real(dp) :: Bcovar_vartheta_B, Bcovar_varphi_B
-        real(dp) :: denomjac, G00, Gbeg, aper
-        real(dp) :: per_theta, per_phi, gridcellnum
-        real(dp), allocatable :: wint_t(:), wint_p(:), theta_V(:), theta_B(:)
-        real(dp), allocatable :: phi_V(:), phi_B(:), aiota_arr(:), rho_tor(:)
+        type(boozer_angle_grid_t) :: grid
+        real(dp), allocatable :: aiota_arr(:), rho_tor(:)
         real(dp), allocatable :: Bcovar_theta_V(:, :), Bcovar_varphi_V(:, :)
         real(dp), allocatable :: bmod_Vg(:, :), alam_2D(:, :)
         real(dp), allocatable :: sqrt_g_ss(:, :)
         real(dp), allocatable :: deltheta_BV_Vg(:, :), delphi_BV_Vg(:, :)
-        real(dp), allocatable :: splcoe_t(:, :)
-        real(dp), allocatable :: splcoe_p(:, :), coef(:, :)
-        real(dp), allocatable :: perqua_t(:, :), perqua_p(:, :)
         real(dp), allocatable :: perqua_2D(:, :, :), Gfunc(:, :, :)
         real(dp), allocatable :: Bcovar_symfl(:, :, :, :)
 
@@ -895,11 +888,9 @@ contains
         ! drops it so its one-time field setup carries no unused metric grid.
         nqua = 6
         if (use_B_r) nqua = 7
-        gridcellnum = real((n_theta_B - 1)*(n_phi_B - 1), dp)
-
-        npoilag = ns_tp_B + 1
-        nder = 0
-        nshift = npoilag/2
+        grid = boozer_angle_grid_t(n_theta=n_theta_B, n_phi=n_phi_B, &
+                                   ns_tp=ns_tp_B, h_theta=h_theta_B, &
+                                   h_phi=h_phi_B)
 
         print *, 'Transforming to Boozer coordinates'
 
@@ -908,8 +899,6 @@ contains
         else
             print *, 'B_r is not computed'
         end if
-
-        G00 = 0.0_dp
 
         allocate (rho_tor(ns_B))
         allocate (aiota_arr(1))
@@ -929,18 +918,7 @@ contains
         if (use_B_r) allocate (sqrt_g_ss(n_theta_B, n_phi_B))
         allocate (deltheta_BV_Vg(n_theta_B, n_phi_B))
         allocate (delphi_BV_Vg(n_theta_B, n_phi_B))
-        allocate (wint_t(0:ns_tp_B), wint_p(0:ns_tp_B))
-        allocate (coef(0:nder, npoilag))
-        allocate (theta_V(2 - n_theta_B:2*n_theta_B - 1))
-        allocate (theta_B(2 - n_theta_B:2*n_theta_B - 1))
-        allocate (phi_V(2 - n_phi_B:2*n_phi_B - 1))
-        allocate (phi_B(2 - n_phi_B:2*n_phi_B - 1))
-        allocate (perqua_t(nqua, 2 - n_theta_B:2*n_theta_B - 1))
-        allocate (perqua_p(nqua, 2 - n_phi_B:2*n_phi_B - 1))
         allocate (perqua_2D(nqua, n_theta_B, n_phi_B))
-
-        allocate (splcoe_t(0:ns_tp_B, n_theta_B))
-        allocate (splcoe_p(0:ns_tp_B, n_phi_B))
 
 ! allocate data arrays for Boozer data:
         if (.not. allocated(s_Bcovar_tp_B)) &
@@ -953,27 +931,6 @@ contains
         call ensure_grid_4d(delt_delp_V_grid, ns_B, n_theta_B, n_phi_B, 2)
         if (use_del_tp_B) call ensure_grid_4d(delt_delp_B_grid, ns_B, n_theta_B, &
                                               n_phi_B, 2)
-
-        do i = 0, ns_tp_B
-            wint_t(i) = h_theta_B**(i + 1)/real(i + 1, dp)
-            wint_p(i) = h_phi_B**(i + 1)/real(i + 1, dp)
-        end do
-
-        ! Set theta_V and phi_V linear, with value 0 at index 1 and stepsize h.
-        ! Then expand this in both directions beyond 1:n_theta_B.
-        do i_theta = 1, n_theta_B
-            theta_V(i_theta) = real(i_theta - 1, dp)*h_theta_B
-        end do
-        per_theta = real(n_theta_B - 1, dp)*h_theta_B
-        theta_V(2 - n_theta_B:0) = theta_V(1:n_theta_B - 1) - per_theta
-        theta_V(n_theta_B + 1:2*n_theta_B - 1) = theta_V(2:n_theta_B) + per_theta
-
-        do i_phi = 1, n_phi_B
-            phi_V(i_phi) = real(i_phi - 1, dp)*h_phi_B
-        end do
-        per_phi = real(n_phi_B - 1, dp)*h_phi_B
-        phi_V(2 - n_phi_B:0) = phi_V(1:n_phi_B - 1) - per_phi
-        phi_V(n_phi_B + 1:2*n_phi_B - 1) = phi_V(2:n_phi_B) + per_phi
 
         do i_rho = 1, ns_B
             rho_tor(i_rho) = max(real(i_rho - 1, dp)*hs_B, rho_min)
@@ -1010,116 +967,17 @@ contains
                 end do
             end do
 
-! covariant components $B_\vartheta$ and $B_\varphi$ of Boozer coordinates:
-            Bcovar_vartheta_B = sum(Bcovar_theta_V(2:n_theta_B, 2:n_phi_B))/gridcellnum
-            Bcovar_varphi_B = sum(Bcovar_varphi_V(2:n_theta_B, 2:n_phi_B))/gridcellnum
+            perqua_2D(3, :, :) = bmod_Vg
+            if (use_B_r) perqua_2D(7, :, :) = sqrt_g_ss
+
+            call boozer_surface_transform(grid, aiota, alam_2D, Bcovar_theta_V, &
+                                          Bcovar_varphi_V, perqua_2D, &
+                                          Bcovar_vartheta_B, Bcovar_varphi_B, &
+                                          deltheta_BV_Vg, delphi_BV_Vg)
             s_Bcovar_tp_B(1, 1, i_rho) = Bcovar_vartheta_B
             s_Bcovar_tp_B(2, 1, i_rho) = Bcovar_varphi_B
-
-            denomjac = 1.0_dp/(aiota*Bcovar_vartheta_B + Bcovar_varphi_B)
-            Gbeg = G00 + Bcovar_vartheta_B*denomjac*alam_2D(1, 1)
-
-            splcoe_t(0, :) = Bcovar_theta_V(:, 1)
-
-            call spl_per(ns_tp_B, n_theta_B, h_theta_B, splcoe_t)
-
-            delphi_BV_Vg(1, 1) = 0.0_dp
-            do i_theta = 1, n_theta_B - 1
-                delphi_BV_Vg(i_theta + 1, 1) = &
-                    delphi_BV_Vg(i_theta, 1) &
-                    + sum(wint_t*splcoe_t(:, i_theta))
-            end do
-            ! Remove linear increasing component from delphi_BV_Vg
-            aper = (delphi_BV_Vg(n_theta_B, 1) &
-                    - delphi_BV_Vg(1, 1))/real(n_theta_B - 1, dp)
-            do i_theta = 2, n_theta_B
-                delphi_BV_Vg(i_theta, 1) = &
-                    delphi_BV_Vg(i_theta, 1) - aper*real(i_theta - 1, dp)
-            end do
-
-            do i_theta = 1, n_theta_B
-                splcoe_p(0, :) = Bcovar_varphi_V(i_theta, :)
-
-                call spl_per(ns_tp_B, n_phi_B, h_phi_B, splcoe_p)
-
-                do i_phi = 1, n_phi_B - 1
-                    delphi_BV_Vg(i_theta, i_phi + 1) = &
-                        delphi_BV_Vg(i_theta, i_phi) &
-                        + sum(wint_p*splcoe_p(:, i_phi))
-                end do
-                aper = (delphi_BV_Vg(i_theta, n_phi_B) &
-                        - delphi_BV_Vg(i_theta, 1))/real(n_phi_B - 1, dp)
-                do i_phi = 2, n_phi_B
-                    delphi_BV_Vg(i_theta, i_phi) = &
-                        delphi_BV_Vg(i_theta, i_phi) &
-                        - aper*real(i_phi - 1, dp)
-                end do
-            end do
-
-! difference between Boozer and VMEC toroidal angle,
-! $\Delta \varphi_{BV}=\varphi_B-\varphi=G$:
-            delphi_BV_Vg = denomjac*delphi_BV_Vg + Gbeg
-! difference between Boozer and VMEC poloidal angle,
-! $\Delta \vartheta_{BV}=\vartheta_B-\theta$:
-            deltheta_BV_Vg = aiota*delphi_BV_Vg + alam_2D
-
             delt_delp_V_grid(i_rho, :, :, 1) = deltheta_BV_Vg
             delt_delp_V_grid(i_rho, :, :, 2) = delphi_BV_Vg
-
-! At this point, all quantities are specified on
-! equidistant grid in VMEC angles $(\theta,\varphi)$
-
-! Re-interpolate to equidistant grid in $(\vartheta_B,\varphi)$:
-
-            do i_phi = 1, n_phi_B
-                perqua_t(1, 1:n_theta_B) = deltheta_BV_Vg(:, i_phi)
-                perqua_t(2, 1:n_theta_B) = delphi_BV_Vg(:, i_phi)
-                perqua_t(3, 1:n_theta_B) = bmod_Vg(:, i_phi)
-                perqua_t(4:6, 1:n_theta_B) = perqua_2D(4:6, :, i_phi)
-                if (use_B_r) perqua_t(7, 1:n_theta_B) = sqrt_g_ss(:, i_phi)
-                ! Extend range of theta values
-                perqua_t(:, 2 - n_theta_B:0) = perqua_t(:, 1:n_theta_B - 1)
-                perqua_t(:, n_theta_B + 1:2*n_theta_B - 1) = perqua_t(:, 2:n_theta_B)
-                theta_B = theta_V + perqua_t(1, :)
-                do i_theta = 1, n_theta_B
-
-                    call binsrc(theta_B, 2 - n_theta_B, 2*n_theta_B - 1, &
-                                theta_V(i_theta), i)
-
-                    ibeg = i - nshift
-                    iend = ibeg + ns_tp_B
-
-                    call plag_coeff(npoilag, nder, theta_V(i_theta), &
-                                    theta_B(ibeg:iend), coef)
-
-                    perqua_2D(:, i_theta, i_phi) = matmul(perqua_t(:, ibeg:iend), &
-                                                          coef(0, :))
-                end do
-            end do
-
-! End re-interpolate to equidistant grid in $(\vartheta_B,\varphi)$
-
-! Re-interpolate to equidistant grid in $(\vartheta_B,\varphi_B)$:
-
-            do i_theta = 1, n_theta_B
-                perqua_p(:, 1:n_phi_B) = perqua_2D(:, i_theta, :)
-                perqua_p(:, 2 - n_phi_B:0) = perqua_p(:, 1:n_phi_B - 1)
-                ! Extend range of phi values
-                perqua_p(:, n_phi_B + 1:2*n_phi_B - 1) = perqua_p(:, 2:n_phi_B)
-                phi_B = phi_V + perqua_p(2, :)
-                do i_phi = 1, n_phi_B
-
-                    call binsrc(phi_B, 2 - n_phi_B, 2*n_phi_B - 1, phi_V(i_phi), i)
-
-                    ibeg = i - nshift
-                    iend = ibeg + ns_tp_B
-
-                    call plag_coeff(npoilag, nder, phi_V(i_phi), phi_B(ibeg:iend), coef)
-
-                    perqua_2D(:, i_theta, i_phi) = matmul(perqua_p(:, ibeg:iend), &
-                                                          coef(0, :))
-                end do
-            end do
 
             if (use_del_tp_B) then
                 delt_delp_B_grid(i_rho, :, :, 1) = perqua_2D(1, :, :)
@@ -1127,8 +985,6 @@ contains
             end if
             bmod_grid(i_rho, :, :) = perqua_2D(3, :, :)
             if (use_B_r) sqrt_g_ss_grid(i_rho, :, :) = perqua_2D(7, :, :)
-
-! End re-interpolate to equidistant grid in $(\vartheta_B,\varphi_B)$
 
             if (use_B_r) then
                 aiota_arr(i_rho) = aiota
@@ -1147,9 +1003,7 @@ contains
 
         if (use_B_r) deallocate (sqrt_g_ss)
         deallocate (Bcovar_theta_V, Bcovar_varphi_V, bmod_Vg, alam_2D, &
-                    deltheta_BV_Vg, delphi_BV_Vg, &
-                    wint_t, wint_p, coef, theta_V, theta_B, phi_V, phi_B, &
-                    perqua_t, perqua_p, perqua_2D)
+                    deltheta_BV_Vg, delphi_BV_Vg, perqua_2D)
 
         print *, 'done'
 
