@@ -80,8 +80,11 @@ def _bc_to_mode_arrays(bc):
     return m0, n0, rmnc, zmns, pmns, bmnc, rmns, zmnc, pmnc, bmns, lasym
 
 
-def write_boozmn(bc, output, source=None):
+def write_boozmn(bc, output, source=None, *, explicit_surfaces=False):
     """Write a boozmn NetCDF from a BoozerFile object.
+
+    ``explicit_surfaces`` permits a libneo-only interchange extension for
+    nonuniform grids; third-party booz_xform readers must not consume it.
 
     Parameters
     ----------
@@ -112,15 +115,24 @@ def write_boozmn(bc, output, source=None):
     ns = int(round(1.0 / np.mean(ds))) + 1
     jlist_f = s_bc * (ns - 1) + 1.5
     jlist = np.rint(jlist_f).astype(int)
-    if (np.ptp(ds) > 1e-2 * np.mean(ds)
-            or np.max(np.abs(jlist - jlist_f)) > 0.25
-            or jlist[0] < 2 or jlist[-1] > ns
-            or np.any(np.diff(jlist) != 1)):
-        raise ValueError(
-            "bc_to_booz_xform requires a uniform .bc s-grid that lands on the "
-            "booz_xform half-grid; resampling a non-uniform grid is not "
-            "implemented."
-        )
+    aligned = (np.ptp(ds) <= 1e-2 * np.mean(ds)
+               and np.max(np.abs(jlist - jlist_f)) <= 0.25
+               and jlist[0] >= 2 and jlist[-1] <= ns
+               and np.all(np.diff(jlist) == 1))
+    if not aligned:
+        if not explicit_surfaces:
+            raise ValueError(
+                "bc_to_booz_xform requires a uniform .bc s-grid that lands on "
+                "the booz_xform half-grid; use explicit_surfaces only with "
+                "libneo's chartmap reader."
+            )
+        if (not np.all(np.isfinite(s_bc)) or np.any(ds <= 0)
+                or s_bc[0] <= 0 or s_bc[-1] >= 1):
+            raise ValueError("explicit surfaces must increase strictly inside (0, 1)")
+        # Private interchange extension: index surface functions without
+        # changing any Fourier coefficient or source radial coordinate.
+        ns = nsurf + 1
+        jlist = np.arange(2, nsurf + 2)
 
     # Build mode arrays from .bc.
     m0, n0, rmnc_h, zmns_h, pmns_h, bmnc_h, rmns_h, zmnc_h, pmnc_h, bmns_h, lasym = (
@@ -173,6 +185,9 @@ def write_boozmn(bc, output, source=None):
         _var("lasym__logical__", "i4", (), int(lasym))
 
         _var("jlist", "i4", ("comput_surfs",), jlist)
+        if not aligned:
+            _var("libneo_s_half", "f8", ("comput_surfs",), s_bc)
+            ds.libneo_radial_grid = "explicit source surfaces; not booz_xform half-grid"
         _var("ixm_b", "i4", ("mn_mode",), ixm)
         _var("ixn_b", "i4", ("mn_mode",), ixn)
 
