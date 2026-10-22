@@ -357,6 +357,7 @@ endif()
 add_library(boozer STATIC
     src/boozer_chartmap_types.f90
     src/boozer_rk_tables.f90
+    src/boozer_surface.f90
     src/boozer_converter.F90
     src/boozer_regular.f90
     src/boozer_chartmap.f90
