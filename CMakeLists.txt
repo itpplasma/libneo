@@ -503,6 +503,11 @@ add_executable(vmec_to_chartmap.x
 )
 target_link_libraries(vmec_to_chartmap.x neo)
 
+add_executable(boozer_spectrum_ad.x
+    app/boozer_spectrum_ad.f90
+)
+target_link_libraries(boozer_spectrum_ad.x neo)
+
 add_executable(near_axis_field_diag.x
     app/near_axis_field_diag.f90
 )
