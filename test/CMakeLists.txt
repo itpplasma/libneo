@@ -121,12 +121,6 @@ target_link_libraries(test_axis_healing_mode.x
   neo
 )
 
-add_executable(test_geqdsk_tools.x source/test_geqdsk_tools.f90)
-target_link_libraries(test_geqdsk_tools.x
-  ${MAIN_LIB}
-  ${MAGFIE_LIB}
-)
-
 add_executable(test_geqdsk_derivative_cache.x source/test_geqdsk_derivative_cache.f90)
 target_link_libraries(test_geqdsk_derivative_cache.x ${MAIN_LIB} ${MAGFIE_LIB})
 
@@ -316,7 +310,6 @@ add_test(NAME test_boozer_coordinates_exports
 add_test(NAME test_boozer_symplectic_table
   COMMAND test_boozer_symplectic_table.x
 )
-add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
 add_test(NAME test_geqdsk_derivative_cache COMMAND test_geqdsk_derivative_cache.x)
 add_test(NAME test_eqfile_empty_boundaries COMMAND test_eqfile_empty_boundaries.x)
 set_tests_properties(test_eqfile_empty_boundaries PROPERTIES
@@ -366,13 +359,6 @@ add_test(NAME test_coordinate_systems COMMAND test_coordinate_systems.x)
 # add_test(NAME test_analytical_gs_circular COMMAND test_analytical_gs_circular.x)  # TODO: update for new interface
 add_test(NAME test_analytical_circular COMMAND test_analytical_circular.x)
 add_test(NAME test_nctools_nc_get3 COMMAND test_nctools_nc_get3.x)
-
-# These tests use fixed relative paths ../../test/resources/... in the sources.
-# Run them from ${CMAKE_SOURCE_DIR}/test/source so those paths resolve to
-# ${CMAKE_SOURCE_DIR}/test/resources/...
-set_tests_properties(test_geqdsk_tools PROPERTIES
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/source
-)
 
 # test_ascot5_compare is run separately in CI workflow (not in ctest)
 # because a5py requires libascot.so at import time, which the test builds

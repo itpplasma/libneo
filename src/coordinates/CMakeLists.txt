@@ -3,7 +3,6 @@ add_library(coordinates STATIC
     flux_pseudocartesian.f90
     vmec_coordinates.f90
     geoflux_coordinates.f90
-    ../magfie/geqdsk_tools.f90
     libneo_coordinate_conventions.f90
     libneo_coordinates_base.f90
     libneo_coordinates_vmec.f90
@@ -18,6 +17,7 @@ add_library(coordinates STATIC
 
 target_link_libraries(coordinates PUBLIC
     neo_util
+    LIBNEO::geqdsk
     nctools
     vmec_support
     interpolate

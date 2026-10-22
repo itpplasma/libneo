@@ -273,6 +273,23 @@ add_subdirectory(src/interpolate)
 add_subdirectory(src/odeint)
 add_subdirectory(src/field)
 
+# Tier 1: G-EQDSK I/O and COCOS need only util, also without numerics.
+add_library(geqdsk STATIC src/magfie/geqdsk_tools.f90)
+target_link_libraries(geqdsk PUBLIC neo_util)
+set_property(TARGET geqdsk PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Fortran_MODULE_DIRECTORY})
+add_library(LIBNEO::geqdsk ALIAS geqdsk)
+
+# The existing format/convention test also qualifies the light target alone.
+if(LIBNEO_BUILD_TESTING)
+    add_executable(test_geqdsk_tools.x test/source/test_geqdsk_tools.f90)
+    target_link_libraries(test_geqdsk_tools.x PRIVATE LIBNEO::geqdsk)
+    add_test(NAME test_geqdsk_tools COMMAND test_geqdsk_tools.x)
+    set_tests_properties(test_geqdsk_tools PROPERTIES
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/test/source
+        LABELS "unit;geqdsk" TIMEOUT 60)
+endif()
+
 # Tier 1: depends on Tier 0
 add_subdirectory(src/vmec_support)
 
