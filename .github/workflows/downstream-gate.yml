@@ -113,6 +113,9 @@ jobs:
           # this PR's libneo — retry a few times with backoff before giving up.
           run_wf() {
             local repo=$1 wf=$2; shift 2
+            if [ "$repo" = KAMEL ] && [ "$wf" = ci.yml ]; then
+              set -- "$@" -f "inputs[skip_macos]=true"
+            fi
             local run_id="" attempt rc
             for attempt in 1 2 3; do
               # The dispatch response identifies this run even when another PR
