@@ -1,4 +1,8 @@
-"""Independent manufactured-mode tests for NEO-2 .bc chartmap conversion."""
+"""Independent manufactured-mode tests against the installed libneo package.
+
+Install the branch being tested in the test environment. Modifying a package's
+__path__ can mix worktree modules with modules from an existing editable install.
+"""
 
 from __future__ import annotations
 
@@ -6,14 +10,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
-import libneo
-
-
-SOURCE_PACKAGE = str(Path(__file__).resolve().parents[2] / "python" / "libneo")
-if SOURCE_PACKAGE not in libneo.__path__:
-    libneo.__path__.insert(0, SOURCE_PACKAGE)
-
 
 SURFACES = (0.25, 5.0 / 12.0, 7.0 / 12.0, 0.75, 11.0 / 12.0)
 
