@@ -1057,8 +1057,9 @@ contains
             end do
 
 ! difference between Boozer and VMEC toroidal angle,
-! $\Delta \varphi_{BV}=\varphi_B-\varphi=G$:
-            delphi_BV_Vg = denomjac*delphi_BV_Vg + Gbeg
+! $\Delta \varphi_{BV}=\varphi_B-\varphi=G$, from
+! $(\iota B_\vartheta + B_\varphi) \partial G = \partial w - B_\vartheta \partial\lambda$:
+            delphi_BV_Vg = denomjac*(delphi_BV_Vg - Bcovar_vartheta_B*alam_2D) + Gbeg
 ! difference between Boozer and VMEC poloidal angle,
 ! $\Delta \vartheta_{BV}=\vartheta_B-\theta$:
             deltheta_BV_Vg = aiota*delphi_BV_Vg + alam_2D
