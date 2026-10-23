@@ -54,7 +54,9 @@ module boozer_vmec_ad
     use spl_three_to_five_sub, only: spl_reg, spl_per
     use boozer_hybrid, only: boozer_hybrid_t, hybrid_surface_t, boozer_hybrid_init, &
                              hybrid_surface, hybrid_surface_jvp, hybrid_surface_vjp, &
-                             NSPEC
+                             NSPEC, hybrid_diag_t, hybrid_surface_diag, SFL_COVARIANT, &
+                             SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST, SFL_STRAIGHT_CURRENT, &
+                             SFL_PEST, sfl_route_name
     use boozer_surface, only: boozer_angle_grid_t, boozer_surface_lin_t, &
                               boozer_surface_lin_init, boozer_surface_jvp, &
                               boozer_surface_vjp
@@ -67,6 +69,8 @@ module boozer_vmec_ad
     public :: wout_tangent_alloc, spectrum_alloc, boozer_ad_perturb
     public :: boozer_field_kernel, sqrt_g_ss_kernel, boozer_ad_surface_data
     public :: BOOZER_HYBRID, BOOZER_LEGACY
+    public :: SFL_COVARIANT, SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST, SFL_STRAIGHT_CURRENT, &
+              SFL_PEST, sfl_route_name, hybrid_diag_t, boozer_ad_diagnostics
 
     integer, parameter :: BOOZER_HYBRID = 1, BOOZER_LEGACY = 2
 
@@ -238,7 +242,8 @@ contains
     !> construction, n_theta and n_phi (> 0) override the hybrid grid.
     subroutine boozer_ad_init(ctx, wout_file, mboz, nboz, radial_spline_order, &
                               angular_spline_order, grid_refinement, &
-                              spline_vmec_state, construction, n_theta, n_phi)
+                              spline_vmec_state, construction, n_theta, n_phi, route, &
+                              mnu, nnu)
         use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm, ns_A, &
                                       vmec_B_scale, vmec_RZ_scale
         use spline_vmec_sub, only: spline_vmec_data, vmec_angular_grid
@@ -248,16 +253,20 @@ contains
         integer, intent(in), optional :: radial_spline_order, angular_spline_order
         integer, intent(in), optional :: grid_refinement
         logical, intent(in), optional :: spline_vmec_state
-        integer, intent(in), optional :: construction, n_theta, n_phi
+        integer, intent(in), optional :: construction, n_theta, n_phi, route, mnu, nnu
         integer :: nth, nph
         real(dp) :: h_theta, h_phi
 
         if (present(construction)) ctx%construction = construction
         select case (ctx%construction)
         case (BOOZER_HYBRID)
-            call hybrid_init(ctx, wout_file, mboz, nboz, n_theta, n_phi)
+            call hybrid_init(ctx, wout_file, mboz, nboz, n_theta, n_phi, route, mnu, nnu)
             return
         case (BOOZER_LEGACY)
+            if (present(route)) then
+                if (route /= SFL_COVARIANT) &
+                    error stop 'boozer_ad_init: the legacy construction has only sfl_covariant'
+            end if
         case default
             error stop 'boozer_ad_init: construction must be BOOZER_HYBRID or BOOZER_LEGACY'
         end select
@@ -1044,13 +1053,14 @@ contains
 
     !> Context of the hybrid construction: the shared fields that spectrum_alloc,
     !> wout_tangent_alloc and the CLI read.
-    subroutine hybrid_init(ctx, wout_file, mboz, nboz, n_theta, n_phi)
+    subroutine hybrid_init(ctx, wout_file, mboz, nboz, n_theta, n_phi, route, mnu, nnu)
         type(boozer_ad_context_t), intent(inout) :: ctx
         character(len=*), intent(in) :: wout_file
         integer, intent(in) :: mboz, nboz
-        integer, intent(in), optional :: n_theta, n_phi
+        integer, intent(in), optional :: n_theta, n_phi, route, mnu, nnu
 
-        call boozer_hybrid_init(ctx%hyb, wout_file, mboz, nboz, n_theta, n_phi)
+        call boozer_hybrid_init(ctx%hyb, wout_file, mboz, nboz, n_theta, n_phi, route, &
+                                mnu, nnu)
         associate (h => ctx%hyb)
             ctx%nstrm = h%mnmax
             ctx%kpar = h%ns - 1
@@ -1158,5 +1168,22 @@ contains
         t%rmajor = sum(out_b%rmajor)
         if (present(out)) out = y
     end subroutine hybrid_vjp
+
+    !> Route diagnostics of the hybrid construction on the surfaces s_list
+    !> (boozer_hybrid hybrid_diag_t: defects of the route properties, resonant
+    !> residuals of the Jacobian routes, averaged force balance).
+    subroutine boozer_ad_diagnostics(ctx, s_list, diag)
+        type(boozer_ad_context_t), intent(in) :: ctx
+        real(dp), intent(in) :: s_list(:)
+        type(hybrid_diag_t), allocatable, intent(out) :: diag(:)
+        integer :: js
+
+        if (ctx%construction /= BOOZER_HYBRID) &
+            error stop 'boozer_ad_diagnostics: needs the hybrid construction'
+        allocate (diag(size(s_list)))
+        do js = 1, size(s_list)
+            call hybrid_surface_diag(ctx%hyb, s_list(js), diag(js))
+        end do
+    end subroutine boozer_ad_diagnostics
 
 end module boozer_vmec_ad
