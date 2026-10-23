@@ -54,6 +54,7 @@
 !> eps_q above tolerance are hard errors unless allow_poor_equilibrium is set.
 module efit_sfl
     use, intrinsic :: iso_fortran_env, only: dp => real64, error_unit
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use geqdsk_tools, only: geqdsk_t, geqdsk_read, geqdsk_deinit
     use spl_three_to_five_sub, only: spl_reg
     implicit none
@@ -78,6 +79,7 @@ module efit_sfl
 
     type :: efit_sfl_config_t
         integer :: route = EFIT_SFL_COVARIANT
+        integer :: exp_bpol = -1              ! -1 infer, 0 Wb/rad, 1 Wb
         integer :: n_theta = 1024             ! geometric angles per contour (even)
         integer :: n_q = 128                  ! q nodes for the toroidal flux
         real(dp) :: psi_edge = huge(1.0_dp)   ! file psi gauge and units; default sibry
@@ -165,14 +167,55 @@ contains
         type(efit_sfl_status_t), intent(out), optional :: status
         type(efit_sfl_status_t) :: st
         real(dp) :: c
+        integer :: ios, flux_exponent
+        logical :: identified
 
         self%cfg = cfg
-        call geqdsk_read(self%g, gfile)
+        if (cfg%exp_bpol < -1 .or. cfg%exp_bpol > 1) then
+            call set_status(st, EFIT_SFL_ERR_INPUT, 0, -1.0_dp, 0.0_dp, 0.0_dp, &
+                            'exp_bpol must be -1 (infer), 0 (Wb/rad), or 1 (Wb)')
+            call finish_status(self, st, status)
+            return
+        end if
+        call geqdsk_read(self%g, gfile, ios)
+        if (ios == 0) then
+            if (self%g%nw < 6 .or. self%g%nh < 6) ios = 1
+        end if
+        if (ios /= 0) then
+            call set_status(st, EFIT_SFL_ERR_INPUT, 0, -1.0_dp, 0.0_dp, 0.0_dp, &
+                            'cannot read G-EQDSK file '//trim(gfile))
+            call finish_status(self, st, status)
+            return
+        end if
+        if (any(.not. ieee_is_finite([self%g%rdim, self%g%zdim, self%g%rleft, self%g%zmid, &
+            self%g%rmaxis, self%g%zmaxis, self%g%simag, self%g%sibry, self%g%bcentr])) .or. &
+            any(.not. ieee_is_finite(self%g%psirz)) .or. any(.not. ieee_is_finite(self%g%fpol)) .or. &
+            any(.not. ieee_is_finite(self%g%pres)) .or. any(.not. ieee_is_finite(self%g%pprime)) .or. &
+            any(.not. ieee_is_finite(self%g%ffprim)) .or. any(.not. ieee_is_finite(self%g%qpsi))) then
+            call set_status(st, EFIT_SFL_ERR_INPUT, 0, -1.0_dp, 0.0_dp, 0.0_dp, &
+                            'nonfinite G-EQDSK geometry, flux, field, or profile data')
+            call finish_status(self, st, status)
+            return
+        end if
         call setup(self, st)
         if (st%code == EFIT_SFL_OK) then
-            c = gs_fit_factor(self)
+            c = gs_fit_factor(self, identified)
+            flux_exponent = cfg%exp_bpol
+            if (flux_exponent == -1) then
+                if (.not. identified) then
+                    call set_status(st, EFIT_SFL_ERR_INPUT, 0, -1.0_dp, 0.0_dp, 0.0_dp, &
+                        'cannot infer poloidal-flux units from the Grad-Shafranov source; '// &
+                        'specify exp_bpol=0 (Wb/rad) or 1 (Wb)')
+                    call finish_status(self, st, status)
+                    return
+                end if
+                flux_exponent = 0
+                if (c /= 0.0_dp) then
+                    if (abs(log(abs(c)/(twopi**2))) < abs(log(abs(c)))) flux_exponent = 1
+                end if
+            end if
             ! psi in Wb (COCOS 11-18) instead of Wb/rad: Delta* psi = (2 pi)^2 x rhs.
-            if (abs(log(abs(c)/(twopi**2))) < abs(log(abs(c)))) then
+            if (flux_exponent == 1) then
                 self%g%psirz = self%g%psirz/twopi
                 self%g%simag = self%g%simag/twopi
                 self%g%sibry = self%g%sibry/twopi
@@ -1074,8 +1117,9 @@ contains
     ! -------------------------------------------------------------- checks
 
     !> Least-squares factor c in Delta* psi = c x gsrhs over the window nodes.
-    real(dp) function gs_fit_factor(self)
+    real(dp) function gs_fit_factor(self, identified)
         type(efit_sfl_t), intent(in) :: self
+        logical, intent(out), optional :: identified
         real(dp) :: num, den, d, rhs, w
         integer :: j, k
 
@@ -1089,7 +1133,13 @@ contains
                 den = den + w*rhs**2
             end do
         end do
+        ! Zero or nonfinite source norm does not determine the flux convention.
+        gs_fit_factor = 0.0_dp
+        if (present(identified)) identified = .false.
+        if (.not. ieee_is_finite(den) .or. .not. ieee_is_finite(num)) return
+        if (den <= 0.0_dp) return
         gs_fit_factor = num/den
+        if (present(identified)) identified = ieee_is_finite(gs_fit_factor)
     end function gs_fit_factor
 
     logical function in_window(self, j)

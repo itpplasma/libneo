@@ -61,43 +61,69 @@ contains
     if (allocated(geqdsk%psirz)) deallocate(geqdsk%psirz)
   end subroutine geqdsk_deinit
 
-  subroutine geqdsk_read(geqdsk, fname)
+  subroutine geqdsk_read(geqdsk, fname, ierr)
     type(geqdsk_t), intent(inout) :: geqdsk
     character(len = *), intent(in) :: fname
-    integer :: fid, kw, kh, idum
+    integer, intent(out), optional :: ierr
+    integer :: fid, kw, kh, idum, ios
+    logical :: opened
     real(dp) :: xdum
 
+    if (present(ierr)) ierr = 0
+    opened = .false.
     call geqdsk_deinit(geqdsk)
     geqdsk%fname = fname
-    open(newunit = fid, file = geqdsk%fname, status = 'old', form = 'formatted', action = 'read')
-    read (fid, format_2000) geqdsk%header, idum, geqdsk%nw, geqdsk%nh
+    open(newunit = fid, file = geqdsk%fname, status = 'old', form = 'formatted', &
+         action = 'read', iostat = ios)
+    if (ios /= 0) goto 900
+    opened = .true.
+    read (fid, format_2000, iostat = ios) geqdsk%header, idum, geqdsk%nw, geqdsk%nh
+    if (ios /= 0) goto 900
+    if (geqdsk%nw < 2 .or. geqdsk%nh < 2) goto 900
     allocate(geqdsk%fpol(geqdsk%nw))
     allocate(geqdsk%pres(geqdsk%nw))
     allocate(geqdsk%ffprim(geqdsk%nw))
     allocate(geqdsk%pprime(geqdsk%nw))
     allocate(geqdsk%qpsi(geqdsk%nw))
     allocate(geqdsk%psirz(geqdsk%nw, geqdsk%nh))
-    read (fid, format_2020) geqdsk%rdim, geqdsk%zdim, geqdsk%rcentr, geqdsk%rleft, geqdsk%zmid
-    read (fid, format_2020) geqdsk%rmaxis, geqdsk%zmaxis, geqdsk%simag, geqdsk%sibry, geqdsk%bcentr
-    read (fid, format_2020) geqdsk%current, (xdum, kw = 1, 4)
-    read (fid, format_2020) (xdum, kw = 1, 5)
-    read (fid, format_2020) (geqdsk%fpol(kw), kw = 1, geqdsk%nw)
-    read (fid, format_2020) (geqdsk%pres(kw), kw = 1, geqdsk%nw)
-    read (fid, format_2020) (geqdsk%ffprim(kw), kw = 1, geqdsk%nw)
-    read (fid, format_2020) (geqdsk%pprime(kw), kw = 1, geqdsk%nw)
-    read (fid, format_2020) ((geqdsk%psirz(kw, kh), kw = 1, geqdsk%nw), kh = 1, geqdsk%nh)
-    read (fid, format_2020) (geqdsk%qpsi(kw), kw = 1, geqdsk%nw)
-    read (fid, format_2022) geqdsk%nbbbs, geqdsk%limitr
+    read (fid, format_2020, iostat = ios) geqdsk%rdim, geqdsk%zdim, geqdsk%rcentr, geqdsk%rleft, geqdsk%zmid
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) geqdsk%rmaxis, geqdsk%zmaxis, geqdsk%simag, geqdsk%sibry, geqdsk%bcentr
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) geqdsk%current, (xdum, kw = 1, 4)
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) (xdum, kw = 1, 5)
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) (geqdsk%fpol(kw), kw = 1, geqdsk%nw)
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) (geqdsk%pres(kw), kw = 1, geqdsk%nw)
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) (geqdsk%ffprim(kw), kw = 1, geqdsk%nw)
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) (geqdsk%pprime(kw), kw = 1, geqdsk%nw)
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) ((geqdsk%psirz(kw, kh), kw = 1, geqdsk%nw), kh = 1, geqdsk%nh)
+    if (ios /= 0) goto 900
+    read (fid, format_2020, iostat = ios) (geqdsk%qpsi(kw), kw = 1, geqdsk%nw)
+    if (ios /= 0) goto 900
+    read (fid, format_2022, iostat = ios) geqdsk%nbbbs, geqdsk%limitr
+    if (ios /= 0) goto 900
+    if (geqdsk%nbbbs < 0 .or. geqdsk%limitr < 0) goto 900
     allocate(geqdsk%rbbbs(geqdsk%nbbbs))
     allocate(geqdsk%zbbbs(geqdsk%nbbbs))
     allocate(geqdsk%rlim(geqdsk%limitr))
     allocate(geqdsk%zlim(geqdsk%limitr))
     ! An empty boundary or limiter list has no record (FreeGS writes limitr = 0).
-    if (geqdsk%nbbbs > 0) &
-         read (fid, format_2020) (geqdsk%rbbbs(kw), geqdsk%zbbbs(kw), kw = 1, geqdsk%nbbbs)
-    if (geqdsk%limitr > 0) &
-         read (fid, format_2020) (geqdsk%rlim(kw), geqdsk%zlim(kw), kw = 1, geqdsk%limitr)
+    if (geqdsk%nbbbs > 0) then
+      read (fid, format_2020, iostat = ios) (geqdsk%rbbbs(kw), geqdsk%zbbbs(kw), kw = 1, geqdsk%nbbbs)
+      if (ios /= 0) goto 900
+    end if
+    if (geqdsk%limitr > 0) then
+      read (fid, format_2020, iostat = ios) (geqdsk%rlim(kw), geqdsk%zlim(kw), kw = 1, geqdsk%limitr)
+      if (ios /= 0) goto 900
+    end if
     close(fid)
+    opened = .false.
 
     geqdsk%rdim = geqdsk%rdim * length_si_to_cgs
     geqdsk%zdim = geqdsk%zdim * length_si_to_cgs
@@ -138,6 +164,15 @@ contains
     ! cache repeatedly used values
     allocate(geqdsk%fprime(geqdsk%nw))
     geqdsk%fprime(:) = geqdsk%ffprim / geqdsk%fpol
+    return
+900 continue
+    if (opened) close(fid)
+    call geqdsk_deinit(geqdsk)
+    if (present(ierr)) then
+      ierr = 1
+      return
+    end if
+    error stop 'Cannot read G-EQDSK file'
   end subroutine geqdsk_read
 
   subroutine geqdsk_write(geqdsk, fname)
