@@ -92,8 +92,11 @@ contains
     allocate(geqdsk%zbbbs(geqdsk%nbbbs))
     allocate(geqdsk%rlim(geqdsk%limitr))
     allocate(geqdsk%zlim(geqdsk%limitr))
-    read (fid, format_2020) (geqdsk%rbbbs(kw), geqdsk%zbbbs(kw), kw = 1, geqdsk%nbbbs)
-    read (fid, format_2020) (geqdsk%rlim(kw), geqdsk%zlim(kw), kw = 1, geqdsk%limitr)
+    ! An empty boundary or limiter list has no record (FreeGS writes limitr = 0).
+    if (geqdsk%nbbbs > 0) &
+         read (fid, format_2020) (geqdsk%rbbbs(kw), geqdsk%zbbbs(kw), kw = 1, geqdsk%nbbbs)
+    if (geqdsk%limitr > 0) &
+         read (fid, format_2020) (geqdsk%rlim(kw), geqdsk%zlim(kw), kw = 1, geqdsk%limitr)
     close(fid)
 
     geqdsk%rdim = geqdsk%rdim * length_si_to_cgs
