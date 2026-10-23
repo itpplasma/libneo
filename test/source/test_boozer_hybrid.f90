@@ -26,13 +26,19 @@ program test_boozer_hybrid
                               spectrum_alloc, boozer_ad_perturb, boozer_field_kernel, &
                               sqrt_g_ss_kernel, BOOZER_HYBRID, BOOZER_LEGACY
     use boozer_hybrid, only: hybrid_field_kernel
+    use boozer_hybrid_quality, only: sfl_quality_config_t
     implicit none
 
     real(dp), parameter :: s_list(3) = [0.15_dp, 0.5_dp, 0.85_dp]
+    !> The test wouts are the coarse public bench files (ns <= 50), which fail
+    !> the equilibrium-quality check; the transform itself is tested here.
+    type(sfl_quality_config_t) :: coarse
     logical :: failed
     integer(int64) :: seed_state
 
     failed = .false.
+    coarse%allow_poor_equilibrium = .true.
+    coarse%override_reason = 'coarse public test wout (ns <= 50)'
     seed_state = 12345
     call check_kernel()
     call check_case('wout.nc', 8, 6, 'QA', .true.)
@@ -117,13 +123,13 @@ contains
         character(len=80) :: tag
 
         print '(a)', ' '//label//' ('//wout//')'
-        call boozer_ad_init(ctx, wout, mboz, nboz)
+        call boozer_ad_init(ctx, wout, mboz, nboz, quality=coarse)
         if (ctx%construction /= BOOZER_HYBRID) call report('default is hybrid', 1.0_dp, 0.0_dp)
         call boozer_ad_primal(ctx, s_list, y)
         b00 = y%bmnc(1, :)
 
         call boozer_ad_init(cfine, wout, mboz, nboz, n_theta=2*ctx%grid%n_theta, &
-                            n_phi=merge(1, 2*ctx%grid%n_phi, ctx%axisym))
+                            n_phi=merge(1, 2*ctx%grid%n_phi, ctx%axisym), quality=coarse)
         call boozer_ad_primal(cfine, s_list, yf)
         ! Acceptance of the design (boozer-bench design/sfl.md, section 12):
         ! 1e-10 of B_00 up to mid radius, 1e-8 at the edge.
