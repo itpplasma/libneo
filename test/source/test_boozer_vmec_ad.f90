@@ -1,6 +1,8 @@
 !> Derivatives of the VMEC -> Boozer spectrum (boozer_vmec_ad).
 !>
-!> Checks, on the reference QA wout:
+!> Checks, on the reference QA wout with the linear and the cubic lambda
+!> half -> full mesh map and on li383 (net toroidal current, so the -I*lambda
+!> term of the angle potential matters) with the cubic map:
 !>  - the FortSym field kernel reproduces vmec_field and its Jacobian matches
 !>    central differences of the kernel;
 !>  - the surface core JVP matches central differences of the primal
@@ -27,7 +29,9 @@ program test_boozer_vmec_ad
     call boozer_ad_init(ctx, 'wout.nc', 8, 6, grid_refinement=3)
     call check_kernel()
     call check_core()
-    call check_full()
+    call check_full('QA, linear lambda')
+    call check_case('wout.nc', 'cubic', 'QA, cubic lambda')
+    call check_case('wout_li383.nc', 'cubic', 'li383, cubic lambda')
     if (failed) error stop 'test_boozer_vmec_ad FAILED'
     print *, 'test_boozer_vmec_ad PASSED'
 
@@ -171,7 +175,18 @@ contains
                                       bt + e*btd, bp + e*bpd, q, gi, gg, dth, dph)
     end subroutine core_primal
 
-    subroutine check_full()
+    subroutine check_case(wout, lambda_map, label)
+        use new_vmec_stuff_mod, only: lambda_half_to_full
+        character(*), intent(in) :: wout, lambda_map, label
+
+        lambda_half_to_full = lambda_map
+        call boozer_ad_init(ctx, wout, 8, 6, grid_refinement=3)
+        call check_full(label)
+        lambda_half_to_full = 'linear'
+    end subroutine check_case
+
+    subroutine check_full(label)
+        character(*), intent(in) :: label
         type(boozer_wout_tangent_t) :: t, tb
         type(boozer_spectrum_t) :: y0, yd, yb, yp, ym
         real(dp) :: lhs, rhs, eps, scale, err
@@ -183,7 +198,7 @@ contains
                 do i = 1, ctx%nstrm
                     t%rmnc(i, j) = 1.0e-3_dp*s*cos(0.7_dp*i)/(1 + ctx%xm(i))**2
                     t%zmns(i, j) = 1.0e-3_dp*s*sin(1.3_dp*i)/(1 + ctx%xm(i))**2
-                    t%lmns(i, j) = 1.0e-2_dp*s*cos(2.1_dp*i)/(1 + ctx%xm(i))**2
+                    t%lmns(i, j) = 1.0e-2_dp*sin(4*s)*cos(2.1_dp*i)/(1 + ctx%xm(i))**2
                 end do
                 t%iotaf(j) = 0.05_dp*(1 - s**2)
             end associate
@@ -208,6 +223,7 @@ contains
               + sum(yb%i*yd%i)
         rhs = sum(tb%rmnc*t%rmnc) + sum(tb%zmns*t%zmns) + sum(tb%lmns*t%lmns) &
               + sum(tb%iotaf*t%iotaf)
+        print '(a)', '  '//label
         call report('full adjoint duality', abs(lhs - rhs)/abs(lhs), 1.0e-12_dp)
 
         eps = 1.0e-4_dp
@@ -234,23 +250,22 @@ contains
     subroutine respline(t, eps)
         use new_vmec_stuff_mod, only: rmnc, zmns, almns, aiota, kpar
         use vmec_alloc_sub, only: new_allocate_vmec_stuff, new_deallocate_vmec_stuff
+        use vmecin_sub, only: lambda_half_to_full_map
         use spline_vmec_sub, only: initialize_vmec_data_and_arrays, &
                                    setup_poloidal_flux_splines, &
                                    setup_angular_grid_and_fourier_synthesis, &
                                    spline_over_phi, spline_over_theta, spline_over_s
         type(boozer_wout_tangent_t), intent(in) :: t
         real(dp), intent(in) :: eps
-        integer :: i
+        real(dp), allocatable :: dlam(:, :)
 
         call new_allocate_vmec_stuff()
         call initialize_vmec_data_and_arrays()
         rmnc = rmnc + eps*ctx%fac_r*t%rmnc
         zmns = zmns + eps*ctx%fac_r*t%zmns
-        do i = 1, kpar - 1
-            almns(:, i) = almns(:, i) + eps*0.5_dp*(t%lmns(:, i + 1) + t%lmns(:, i))
-        end do
-        almns(:, kpar) = almns(:, kpar) + eps*(1.5_dp*t%lmns(:, kpar) &
-                                               - 0.5_dp*t%lmns(:, kpar - 1))
+        allocate (dlam(size(t%lmns, 1), 0:kpar))
+        call lambda_half_to_full_map(t%lmns, dlam, kpar)
+        almns = almns + eps*dlam
         aiota = aiota + eps*t%iotaf
         call setup_poloidal_flux_splines()
         call setup_angular_grid_and_fourier_synthesis()

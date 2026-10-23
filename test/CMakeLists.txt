@@ -694,7 +694,7 @@ add_test(NAME test_boozer_vmec_ad
 set_tests_properties(test_boozer_vmec_ad PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383")
 
 add_executable(test_lambda_half_to_full.x source/test_lambda_half_to_full.f90)
 target_link_libraries(test_lambda_half_to_full.x neo)
