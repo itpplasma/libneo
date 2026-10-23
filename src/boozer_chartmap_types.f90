@@ -15,6 +15,7 @@ module boozer_chartmap_types
         integer :: n_theta = 0 !< internal field grid, endpoint-included
         integer :: n_phi = 0 !< internal field grid, endpoint-included
         integer :: nfp = 1
+        integer :: regular_radial_factor = 1 !< optional regular-representation policy
         real(dp) :: torflux = 0.0_dp
         real(dp) :: rmajor = 0.0_dp !< metres, derived from innermost-surface geometry
         real(dp) :: aminor = 0.0_dp !< metres; metadata or edge-area equivalent radius

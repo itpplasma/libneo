@@ -18,9 +18,16 @@ module boozer_sub
                            evaluate_batch_spline_3d_scalar_cubic_der2_rmix, &
                            evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
-    use boozer_regular, only: build_boozer_regular, boozer_regular_field, &
+    use boozer_regular, only: build_boozer_regular, build_boozer_regular_hybrid, &
+                              boozer_regular_field, &
                               boozer_regular_enabled
     use boozer_surface, only: boozer_angle_grid_t, boozer_surface_transform
+    use boozer_hybrid, only: boozer_hybrid_t, hybrid_surface_t, &
+                             boozer_hybrid_init, hybrid_surface, hybrid_grid
+    use boozer_vmec_ad, only: BOOZER_HYBRID, BOOZER_LEGACY
+    use boozer_hybrid_quality, only: sfl_quality_config_t, sfl_quality_t, &
+                                     sfl_status_t, sfl_quality_check, sfl_raise, &
+                                     SFL_OK, SFL_ERR_INPUT
     use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
@@ -39,6 +46,16 @@ module boozer_sub
     public :: build_boozer_from_chartmap
     public :: sync_boozer_state, boozer_state
     public :: BOOZER_SECDERS_RADIAL_MIXED
+    public :: BOOZER_HYBRID, BOOZER_LEGACY
+    public :: sfl_quality_config_t, sfl_quality_t, sfl_status_t, boozer_quality
+    public :: boozer_construction
+    public :: boozer_regular_radial_factor
+
+    !> Active VMEC input, including an explicitly logged quality override.
+    type(sfl_quality_t), save :: boozer_quality
+    character(len=8), save, protected :: boozer_construction = 'unset'
+    !> Representation policy, separate from the active field's quality provenance.
+    integer, save, protected :: boozer_regular_radial_factor = 1
 
     ! Constants
     real(dp), parameter :: TWOPI = 2.0_dp*3.14159265358979_dp
@@ -107,21 +124,55 @@ module boozer_sub
 
 contains
 
-    !> Initialize Boozer coordinates using VMEC field (backward compatibility)
+    !> Initialize covariant Boozer coordinates. The default rebuilds the field
+    !> from VMEC primaries with spectral quadrature and checks input quality.
+    !> BOOZER_LEGACY explicitly retains the former grid construction.
     subroutine get_boozer_coordinates(vmec_file, &
                                       radial_spline_order, &
                                       angular_spline_order, &
-                                      grid_refinment)
+                                      grid_refinment, construction, quality, status)
         use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm
         use spline_vmec_sub, only: spline_vmec_data
 
         character(len=*), intent(in), optional :: vmec_file
         integer, intent(in), optional :: radial_spline_order, angular_spline_order, grid_refinment
+        integer, intent(in), optional :: construction
+        type(sfl_quality_config_t), intent(in), optional :: quality
+        type(sfl_status_t), intent(out), optional :: status
+        type(sfl_status_t) :: checked
+        type(sfl_quality_t) :: checked_quality
+        integer :: selected
+        character(len=1024) :: filename
+        character(len=*), parameter :: invalid_construction = &
+            'get_boozer_coordinates: construction must be '// &
+            'BOOZER_HYBRID or BOOZER_LEGACY'
 
+        selected = BOOZER_HYBRID
+        if (present(construction)) selected = construction
+        filename = netcdffile
+        if (present(vmec_file)) filename = vmec_file
+        if (len_trim(filename) == 0) filename = 'wout.nc'
+        select case (selected)
+        case (BOOZER_HYBRID)
+            call sfl_quality_check(trim(filename), checked_quality, quality, checked)
+        case (BOOZER_LEGACY)
+            checked_quality = sfl_quality_t()
+        case default
+            checked%code = SFL_ERR_INPUT
+            allocate (character(len=len(invalid_construction)) :: checked%message)
+            checked%message = invalid_construction
+        end select
+        if (present(status)) status = checked
+        if (checked%code /= SFL_OK .and. .not. checked%overridden) then
+            if (present(status)) return
+            call sfl_raise(checked)
+        end if
         if (.not. present(vmec_file)) then
             ! No-argument entry: VMEC is assumed already splined by the caller.
             call reset_boozer_batch_splines()
-            call get_boozer_coordinates_impl()
+            call get_boozer_coordinates_impl(selected, trim(filename))
+            boozer_quality = checked_quality
+            boozer_construction = merge('hybrid', 'legacy', selected == BOOZER_HYBRID)
             call sync_boozer_state()
             return
         end if
@@ -151,7 +202,9 @@ contains
         call spline_vmec_data()
 
         call reset_boozer_batch_splines()
-        call get_boozer_coordinates_impl()
+        call get_boozer_coordinates_impl(selected, trim(filename))
+        boozer_quality = checked_quality
+        boozer_construction = merge('hybrid', 'legacy', selected == BOOZER_HYBRID)
         call sync_boozer_state()
 
     end subroutine get_boozer_coordinates
@@ -183,7 +236,7 @@ contains
         end if
     end subroutine sync_boozer_state
 
-    subroutine get_boozer_coordinates_impl
+    subroutine get_boozer_coordinates_impl(construction, filename)
 
         use vector_potentail_mod, only: ns, hs
         use new_vmec_stuff_mod, only: n_theta, n_phi, h_theta, h_phi, ns_s, ns_tp
@@ -191,18 +244,25 @@ contains
                                           hs_B, h_theta_B, h_phi_B, use_B_r
 
         implicit none
+        integer, intent(in) :: construction
+        character(len=*), intent(in) :: filename
 
         ns_s_B = ns_s
         ns_tp_B = ns_tp
         ns_B = ns
         n_theta_B = n_theta
         n_phi_B = n_phi
+        boozer_regular_radial_factor = merge(2, 1, construction == BOOZER_HYBRID)
 
         hs_B = hs*real(ns - 1, dp)/real(ns_B - 1, dp)
         h_theta_B = h_theta*real(n_theta - 1, dp)/real(n_theta_B - 1, dp)
         h_phi_B = h_phi*real(n_phi - 1, dp)/real(n_phi_B - 1, dp)
 
-        call compute_boozer_data
+        if (construction == BOOZER_HYBRID) then
+            call compute_boozer_data_hybrid(filename)
+        else
+            call compute_boozer_data
+        end if
 
         call build_boozer_aphi_batch_spline
         call build_boozer_bcovar_tp_batch_spline
@@ -215,10 +275,7 @@ contains
     !> Regular near-axis field from the internal VMEC->Boozer grid data. The
     !> innermost grid node holds data sampled at rho = sqrt(BOOZER_S_MIN).
     subroutine build_boozer_regular_internal
-        use vector_potentail_mod, only: torflux
-        use new_vmec_stuff_mod, only: nper
-        use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, hs_B, &
-                                          s_Bcovar_tp_B
+        use boozer_coordinates_mod, only: ns_B, hs_B, s_Bcovar_tp_B
         real(dp), allocatable :: rho_tor(:)
         integer :: i_rho
 
@@ -226,10 +283,24 @@ contains
         do i_rho = 1, ns_B
             rho_tor(i_rho) = max(real(i_rho - 1, dp)*hs_B, sqrt(BOOZER_S_MIN))
         end do
-        call build_boozer_regular(boozer_regular_field, rho_tor, bmod_grid, &
-                                  s_Bcovar_tp_B(1, 1, :), s_Bcovar_tp_B(2, 1, :), &
-                                  aphi_batch_spline, torflux, nper, ns_s_B, ns_tp_B)
+        call build_boozer_regular_from_polar(rho_tor, bmod_grid, &
+                                           s_Bcovar_tp_B(1, 1, :), s_Bcovar_tp_B(2, 1, :))
     end subroutine build_boozer_regular_internal
+
+    subroutine build_boozer_regular_from_polar(rho, bmod, btheta, bphi)
+        use vector_potentail_mod, only: torflux
+        use new_vmec_stuff_mod, only: nper
+        use boozer_coordinates_mod, only: ns_s_B, ns_tp_B
+        real(dp), intent(in) :: rho(:), bmod(:, :, :), btheta(:), bphi(:)
+
+        if (boozer_regular_radial_factor == 2) then
+            call build_boozer_regular_hybrid(boozer_regular_field, rho, bmod, btheta, bphi, &
+                                            aphi_batch_spline, torflux, nper, ns_s_B, ns_tp_B)
+        else
+            call build_boozer_regular(boozer_regular_field, rho, bmod, btheta, bphi, &
+                                     aphi_batch_spline, torflux, nper, ns_s_B, ns_tp_B)
+        end if
+    end subroutine build_boozer_regular_from_polar
 
     subroutine splint_boozer_coord(r, vartheta_B, varphi_B, mode_secders, &
                                    A_theta, A_phi, dA_theta_dr, dA_phi_dr, &
@@ -856,6 +927,137 @@ contains
 
     end subroutine boozer_to_vmec
 
+    !> Populate the existing rho-grid/spline contract from the shared R1
+    !> transform. No legacy angular or radial differentiation enters B_rho.
+    subroutine compute_boozer_data_hybrid(filename)
+        use boozer_coordinates_mod, only: ns_s_B, ns_B, n_theta_B, n_phi_B, &
+                                          hs_B, h_theta_B, h_phi_B, &
+                                          s_Bcovar_tp_B, use_B_r, use_del_tp_B
+        use new_vmec_stuff_mod, only: vmec_B_scale, vmec_RZ_scale
+        character(len=*), intent(in) :: filename
+        type(boozer_hybrid_t) :: h
+        type(hybrid_surface_t) :: sv
+        real(dp), allocatable :: theta(:), phi(:), values(:, :, :), shifts(:, :, :)
+        real(dp) :: rho, covar_scale
+        integer :: i, nt, np, mb, nb
+
+        call boozer_hybrid_init(h, filename, 1, 0)
+        ! The radial covector and metric have a broader spectrum than |B|.
+        ! Resolve them with twice the usual output cutoff, on the unchanged
+        ! source quadrature grid, before sampling the consumer's spline grid.
+        mb = 4*(h%mmax + 1)
+        nb = 4*h%nmax
+        call boozer_hybrid_init(h, filename, mb, nb, &
+                                n_theta=2*mb + 8, n_phi=2*nb + 8)
+        call setup_hybrid_aphi(h)
+        nt = n_theta_B - 1
+        np = n_phi_B - 1
+        allocate (theta(nt), phi(np), values(5, nt, np), shifts(2, nt, np))
+        do i = 1, nt
+            theta(i) = real(i - 1, dp)*h_theta_B
+        end do
+        do i = 1, np
+            phi(i) = real(i - 1, dp)*h_phi_B
+        end do
+        if (allocated(s_Bcovar_tp_B)) deallocate (s_Bcovar_tp_B)
+        allocate (s_Bcovar_tp_B(2, ns_s_B + 1, ns_B))
+        s_Bcovar_tp_B = 0.0_dp
+        call ensure_grid_3d(bmod_grid, ns_B, n_theta_B, n_phi_B)
+        call ensure_grid_4d(delt_delp_V_grid, ns_B, n_theta_B, n_phi_B, 2)
+        if (use_B_r) then
+            call ensure_grid_3d(br_grid, ns_B, n_theta_B, n_phi_B)
+            call ensure_grid_3d(sqrt_g_ss_grid, ns_B, n_theta_B, n_phi_B)
+        end if
+        if (use_del_tp_B) call ensure_grid_4d(delt_delp_B_grid, ns_B, &
+                                              n_theta_B, n_phi_B, 2)
+        covar_scale = 1.0e6_dp*vmec_B_scale*vmec_RZ_scale
+        do i = 1, ns_B
+            rho = max(real(i - 1, dp)*hs_B, sqrt(BOOZER_S_MIN))
+            call hybrid_surface(h, rho*rho, sv, with_spectrum=.false.)
+            call hybrid_grid(h, sv, theta, phi, values, shifts, use_B_r)
+            s_Bcovar_tp_B(1, 1, i) = covar_scale*sv%ci
+            s_Bcovar_tp_B(2, 1, i) = covar_scale*sv%cg
+            bmod_grid(i, 1:nt, 1:np) = 1.0e4_dp*vmec_B_scale*values(1, :, :)
+            if (use_B_r) then
+                sqrt_g_ss_grid(i, 1:nt, 1:np) = &
+                    1.0e-2_dp*values(2, :, :)/vmec_RZ_scale
+                ! The spline stores B_rho; splint_boozer_coord returns B_s.
+                br_grid(i, 1:nt, 1:np) = 2.0_dp*rho*covar_scale*values(3, :, :)
+            end if
+            delt_delp_V_grid(i, 1:nt, 1:np, 1) = shifts(1, :, :)
+            delt_delp_V_grid(i, 1:nt, 1:np, 2) = shifts(2, :, :)
+            if (use_del_tp_B) then
+                delt_delp_B_grid(i, 1:nt, 1:np, 1) = values(4, :, :)
+                delt_delp_B_grid(i, 1:nt, 1:np, 2) = values(5, :, :)
+            end if
+        end do
+        call close_grid(bmod_grid)
+        if (use_B_r) then
+            call close_grid(br_grid)
+            call close_grid(sqrt_g_ss_grid)
+        end if
+        do i = 1, 2
+            call close_grid(delt_delp_V_grid(:, :, :, i))
+            if (use_del_tp_B) call close_grid(delt_delp_B_grid(:, :, :, i))
+        end do
+
+    contains
+
+        subroutine close_grid(v)
+            real(dp), intent(inout) :: v(:, :, :)
+
+            v(:, n_theta_B, 1:np) = v(:, 1, 1:np)
+            v(:, :, n_phi_B) = v(:, :, 1)
+        end subroutine close_grid
+    end subroutine compute_boozer_data_hybrid
+
+    !> Integrate the same half-mesh iota spline that defines the hybrid field.
+    !> Its integral is exact before the existing full-mesh A_phi spline is
+    !> constructed, so the public s label and interpolation order are retained.
+    subroutine setup_hybrid_aphi(h)
+        use vector_potentail_mod, only: ns, hs, torflux, sA_phi
+        use new_vmec_stuff_mod, only: ns_A
+        type(boozer_hybrid_t), intent(in) :: h
+        real(dp), allocatable :: co(:, :), integral(:)
+        real(dp) :: step, x0, s, t
+        integer :: n, i, j
+
+        n = h%ns - 1
+        step = 1.0_dp/real(h%ns - 1, dp)
+        x0 = 0.5_dp*step
+        allocate (co(0:5, n), integral(n))
+        co = 0.0_dp
+        co(0, :) = h%iotas(1:)
+        call spl_reg(5, n, step, co)
+        integral(1) = -primitive(co(:, 1), -x0)
+        do j = 2, n
+            integral(j) = integral(j - 1) + primitive(co(:, j - 1), step)
+        end do
+        if (allocated(sA_phi)) deallocate (sA_phi)
+        allocate (sA_phi(ns_A + 1, ns))
+        sA_phi = 0.0_dp
+        do i = 1, ns
+            s = real(i - 1, dp)*hs
+            j = max(1, min(n - 1, floor((s - x0)/step) + 1))
+            t = s - (x0 + real(j - 1, dp)*step)
+            sA_phi(1, i) = -torflux*(integral(j) + primitive(co(:, j), t))
+        end do
+        call spl_reg(ns_A, ns, hs, sA_phi)
+
+    contains
+
+        pure real(dp) function primitive(c, x) result(v)
+            real(dp), intent(in) :: c(0:5), x
+            integer :: k
+
+            v = c(5)/6.0_dp
+            do k = 4, 0, -1
+                v = c(k)/real(k + 1, dp) + x*v
+            end do
+            v = x*v
+        end function primitive
+    end subroutine setup_hybrid_aphi
+
     subroutine compute_boozer_data
         ! Computes Boozer coordinate transformations and magnetic field data
         use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, n_theta_B, n_phi_B, &
@@ -1136,6 +1338,8 @@ contains
             rk_num_points, rk_x_min, rk_h_step, rk_inv_h_step, rk_period, &
             rk_inv_period, rk_tables_ready
 
+        boozer_quality = sfl_quality_t()
+        boozer_construction = 'unset'
         if (allocated(rk_field_table)) then
             !$acc exit data delete(rk_field_table)
             deallocate (rk_field_table)
@@ -1180,6 +1384,7 @@ contains
         end if
         if (allocated(delt_delp_B_grid)) deallocate (delt_delp_B_grid)
         call boozer_regular_field%destroy()
+        boozer_regular_radial_factor = 1
     end subroutine reset_boozer_batch_splines
 
     subroutine build_boozer_aphi_batch_spline
@@ -1409,6 +1614,11 @@ contains
                 field_angular_order < 3 .or. field_angular_order > 5) then
             error stop 'Boozer chartmap spline orders must be between 3 and 5'
         end if
+        ! Imported fields do not inherit the previous VMEC input's quality.
+        boozer_construction = 'chartmap'
+        if (d%regular_radial_factor /= 1 .and. d%regular_radial_factor /= 2) &
+            error stop 'Boozer chartmap regular_radial_factor must be 1 or 2'
+        boozer_regular_radial_factor = d%regular_radial_factor
 
         ! Apply the VMEC scaling knobs so a chartmap behaves like a VMEC run
         ! (matches boozer_chartmap_field_t and test_chartmap_scaling). Base files
@@ -1490,9 +1700,7 @@ contains
         field3d_num_quantities = 1
         deallocate (y_bmod)
         if (boozer_regular_enabled) &
-            call build_boozer_regular(boozer_regular_field, d%rho, d%Bmod, &
-                                      d%B_theta, d%B_phi, aphi_batch_spline, &
-                                      torflux, nper, ns_s_B, ns_tp_B)
+            call build_boozer_regular_from_polar(d%rho, d%Bmod, d%B_theta, d%B_phi)
         end if
 
         if (d%has_rk_tables) then

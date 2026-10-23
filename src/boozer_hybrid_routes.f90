@@ -387,7 +387,12 @@ contains
         integer :: i
 
         do i = 1, h%mnmax
-            a(i) = dot_product(sv%rdd(:, ROW_FULL0 + mod(h%xm(i), 2)), c(i, :))
+            if (allocated(sv%axis_rdd) .and. abs(h%xm(i)) >= 2) then
+                a(i) = dot_product(sv%axis_rdd(:, abs(h%xm(i))), c(i, :))
+                cycle
+            end if
+            a(i) = hybrid_radial_second(sv%rdd(:, ROW_FULL0 + mod(h%xm(i), 2)), &
+                                       c(i, :), mod(h%xm(i), 2))
         end do
     end subroutine radial_amp2
 
@@ -399,7 +404,12 @@ contains
         integer :: i
 
         do i = 1, h%mnmax
-            cb(i, :) = cb(i, :) + ab(i)*sv%rdd(:, ROW_FULL0 + mod(h%xm(i), 2))
+            if (allocated(sv%axis_rdd) .and. abs(h%xm(i)) >= 2) then
+                cb(i, :) = cb(i, :) + ab(i)*sv%axis_rdd(:, abs(h%xm(i)))
+                cycle
+            end if
+            call hybrid_radial_second_t(sv%rdd(:, ROW_FULL0 + mod(h%xm(i), 2)), &
+                                        mod(h%xm(i), 2), ab(i), cb(i, :))
         end do
     end subroutine radial_amp2_t
 
@@ -514,12 +524,35 @@ contains
         pressure_derivative = dot_product(sv%rd(:, ROW_FULL0), h%presf)
     end function pressure_derivative
 
+    module subroutine hybrid_covariant_radial(h, sv)
+        type(boozer_hybrid_t), intent(in) :: h
+        type(hybrid_surface_t), intent(inout) :: sv
+        real(dp), allocatable :: ws(:), wst(:), wsp(:)
+        integer :: p, npt
+
+        npt = h%nt*h%np
+        call radial_field(h, sv)
+        sv%ckp = sv%iotap*sv%ci + sv%iota*sv%cip + sv%cgp
+        allocate (ws(npt), wst(npt), wsp(npt))
+        call potential(h, sv%kr(2, :), sv%kr(3, :), ws, wst, wsp)
+        allocate (sv%nus(npt), sv%beta(npt), sv%jb(NBIN, npt), sv%db(npt))
+        sv%nus = (ws - sv%cip*sv%lam - sv%ci*sv%y(7, :) - sv%ckp*sv%nuc)/sv%ck
+        do p = 1, npt
+            call route_beta_kernel([sv%kr(1, p), sv%f(2, p), sv%f(3, p), sv%x(8, p), sv%x(9, p), &
+                                    sv%y(7, p), sv%nuc(p), sv%nutc(p), sv%nupc(p), sv%nus(p), &
+                                    sv%iota, sv%iotap], sv%beta(p), sv%jb(:, p))
+        end do
+        sv%db = (1.0_dp + sv%x(8, :) + sv%iota*sv%nutc)*(1.0_dp + sv%nupc) &
+                - (sv%x(9, :) + sv%iota*sv%nupc)*sv%nutc
+        sv%bmean = sum(sv%db*sv%beta)/real(npt, dp)
+    end subroutine hybrid_covariant_radial
+
     module subroutine route_hamada2(h, sv)
         type(boozer_hybrid_t), intent(in) :: h
         type(hybrid_surface_t), intent(inout) :: sv
-        real(dp), allocatable :: ws(:), wst(:), wsp(:), etaf(:), etat(:), etap(:)
+        real(dp), allocatable :: etaf(:), etat(:), etap(:)
         real(dp) :: pmax
-        integer :: p, npt
+        integer :: npt
 
         npt = h%nt*h%np
         sv%pprime = pressure_derivative(h, sv)
@@ -532,20 +565,8 @@ contains
                 'pressure gradient; use sfl_jacobian_const (Hamada I) or sfl_covariant.'
             error stop 'boozer_hybrid: sfl_straight_current needs p'' /= 0'
         end if
-        call radial_field(h, sv)
-        sv%ckp = sv%iotap*sv%ci + sv%iota*sv%cip + sv%cgp
-        allocate (ws(npt), wst(npt), wsp(npt), etaf(npt), etat(npt), etap(npt))
-        call potential(h, sv%kr(2, :), sv%kr(3, :), ws, wst, wsp)
-        allocate (sv%nus(npt), sv%beta(npt), sv%jb(NBIN, npt), sv%db(npt), sv%eta(npt))
-        sv%nus = (ws - sv%cip*sv%lam - sv%ci*sv%y(7, :) - sv%ckp*sv%nuc)/sv%ck
-        do p = 1, npt
-            call route_beta_kernel([sv%kr(1, p), sv%f(2, p), sv%f(3, p), sv%x(8, p), sv%x(9, p), &
-                                    sv%y(7, p), sv%nuc(p), sv%nutc(p), sv%nupc(p), sv%nus(p), &
-                                    sv%iota, sv%iotap], sv%beta(p), sv%jb(:, p))
-        end do
-        sv%db = (1.0_dp + sv%x(8, :) + sv%iota*sv%nutc)*(1.0_dp + sv%nupc) &
-                - (sv%x(9, :) + sv%iota*sv%nupc)*sv%nutc
-        sv%bmean = sum(sv%db*sv%beta)/real(npt, dp)
+        call hybrid_covariant_radial(h, sv)
+        allocate (etaf(npt), etat(npt), etap(npt), sv%eta(npt))
         sv%den = sv%cgp + sv%iota*sv%cip
         if (abs(sv%den) <= 1.0e-12_dp*abs(sv%ck)) then
             write (error_unit, '(a, f8.5, a, es10.3, a, es10.3)') &
@@ -851,9 +872,16 @@ contains
         real(dp), intent(in) :: c(:, 0:)
         logical, intent(in) :: half
         real(dp), intent(out) :: a(:), as(:)
-        integer :: i, r
+        integer :: i, r, mesh, m
 
+        mesh = merge(2, 1, half)
         do i = 1, h%mnmax
+            m = abs(h%xm(i))
+            if (allocated(sv%axis_rv) .and. m >= 2) then
+                a(i) = dot_product(sv%axis_rv(:, m, mesh), c(i, :))
+                as(i) = dot_product(sv%axis_rd(:, m, mesh), c(i, :))
+                cycle
+            end if
             r = row_index(half, mod(h%xm(i), 2))
             a(i) = dot_product(sv%rv(:, r), c(i, :))
             as(i) = dot_product(sv%rd(:, r), c(i, :))
@@ -866,9 +894,16 @@ contains
         real(dp), intent(in) :: ab(:), asb(:)
         logical, intent(in) :: half
         real(dp), intent(inout) :: cb(:, 0:)
-        integer :: i, r
+        integer :: i, r, mesh, m
 
+        mesh = merge(2, 1, half)
         do i = 1, h%mnmax
+            m = abs(h%xm(i))
+            if (allocated(sv%axis_rv) .and. m >= 2) then
+                cb(i, :) = cb(i, :) + ab(i)*sv%axis_rv(:, m, mesh) &
+                            + asb(i)*sv%axis_rd(:, m, mesh)
+                cycle
+            end if
             r = row_index(half, mod(h%xm(i), 2))
             cb(i, :) = cb(i, :) + ab(i)*sv%rv(:, r) + asb(i)*sv%rd(:, r)
         end do

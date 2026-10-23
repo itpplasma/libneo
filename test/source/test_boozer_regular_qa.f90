@@ -11,7 +11,10 @@
 program test_boozer_regular_qa
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use boozer_coordinates_mod, only: use_B_r
-    use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord
+    use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord, &
+                          BOOZER_HYBRID, BOOZER_LEGACY
+    use boozer_hybrid, only: boozer_hybrid_t, hybrid_surface_t, &
+                             boozer_hybrid_init, hybrid_surface
     use boozer_chartmap, only: export_boozer_chartmap, load_boozer_from_chartmap
     use boozer_regular, only: regular_field_t, set_boozer_regular_enabled, &
                               eval_boozer_regular, REGULAR_FIRST
@@ -22,17 +25,27 @@ program test_boozer_regular_qa
     !> Larmor-radius parameter of a fusion alpha in the converter's CGS units.
     real(dp), parameter :: RO0 = 3.0e5_dp
     integer, parameter :: N_THETA = 16
-    integer :: n_fail
+    integer, parameter :: CONSTRUCTIONS(2) = [BOOZER_HYBRID, BOOZER_LEGACY]
+    character(6), parameter :: NAMES(2) = [character(6) :: 'hybrid', 'legacy']
+    real(dp) :: physical_coefficient
+    integer :: n_fail, construction, ic
 
     n_fail = 0
     use_B_r = .false.
     call set_boozer_regular_enabled(.true.)
-    call get_boozer_coordinates('wout.nc', radial_spline_order=5, &
-                                angular_spline_order=5, grid_refinment=5)
-    call check_source('internal VMEC->Boozer')
-    call export_boozer_chartmap('regular_qa.chartmap.nc')
-    call load_boozer_from_chartmap('regular_qa.chartmap.nc')
-    call check_source('Boozer chartmap')
+    physical_coefficient = source_coefficient()
+    print '(a,es18.10)', 'Cartesian source near-axis max|h_theta|/s: ', &
+        physical_coefficient
+    do ic = 1, size(CONSTRUCTIONS)
+        construction = CONSTRUCTIONS(ic)
+        call get_boozer_coordinates('wout.nc', radial_spline_order=5, &
+                                    angular_spline_order=5, grid_refinment=5, &
+                                    construction=construction)
+        call check_source(trim(NAMES(ic))//' internal VMEC->Boozer')
+        call export_boozer_chartmap('regular_qa.chartmap.nc')
+        call load_boozer_from_chartmap('regular_qa.chartmap.nc')
+        call check_source(trim(NAMES(ic))//' Boozer chartmap')
+    end do
     if (n_fail > 0) then
         print *, 'test_boozer_regular_qa: FAILED checks:', n_fail
         error stop 1
@@ -71,7 +84,7 @@ contains
         type(regular_field_t) :: f, f_axis
         real(dp) :: s, rho, theta, b0, grad0, b, db(3), hth, hph, ath, aph
         real(dp) :: spread(2), hmax(2), cone(2), bmin(2), bmax(2), pmin(2), pmax(2)
-        real(dp) :: hth_ref, ratio_prev(2), ratio(2), pth
+        real(dp) :: hth_ref, ratio_prev(2), ratio(2), pth, coefficient, previous
         integer :: ir, it, iv
 
         print '(/,2a)', 'source: ', label
@@ -83,6 +96,7 @@ contains
         print '(a)', '       s  spread(B)/B0     max|hth|  cone/B0      '// &
             'p_th/s range (v_par=+-1)  [legacy | regular]'
         ratio_prev = 0.0_dp
+        previous = 0.0_dp
         do ir = 2, 10
             s = 10.0_dp**(-ir)
             rho = sqrt(s)
@@ -124,8 +138,17 @@ contains
                 spread(2), hmax(2), cone(2), pmin(2), pmax(2), ''
             call expect(label//': regular |B| spread O(rho)', &
                         spread(2) <= 2.5_dp*rho*grad0/b0 + 1.0e-14_dp)
-            call expect(label//': regular h_theta O(s)', &
-                        hmax(2) <= 2.0e2_dp*s*hth_ref + 1.0e-300_dp)
+            coefficient = hmax(2)/s
+            if (construction == BOOZER_HYBRID) then
+                if (ir >= 4) call expect(label//': Cartesian h_theta coefficient', &
+                    abs(coefficient/physical_coefficient - 1) <= 1.0e-2_dp)
+                if (ir >= 7) call expect(label//': h_theta coefficient converges', &
+                    abs(coefficient - previous) <= 1.0e-3_dp*abs(coefficient))
+            else
+                call expect(label//': regular h_theta O(s)', &
+                            hmax(2) <= 2.0e2_dp*s*hth_ref + 1.0e-300_dp)
+            end if
+            previous = coefficient
             call expect(label//': regular cone vanishes', abs(cone(2)) <= 1.0e1_dp*rho)
             call expect(label//': regular p_theta/s one sign', &
                         pmin(2)*pmax(2) > 0.0_dp)
@@ -180,7 +203,8 @@ contains
         ! A_phi(s) is resampled onto the rho nodes as A0 + s a(rho).
         call expect(label//': A equals (s,theta) evaluation', &
                     err(4) <= 1.0e-12_dp .and. err(5) <= 1.0e-8_dp)
-        ! Both evaluations interpolate the same nodal |B| on 50 radial nodes.
+        ! Both evaluations represent the same polar field. The hybrid regular
+        ! representation resamples that field onto twice as many radial intervals.
         ! Against central differences of the (s, theta) evaluation on an 8x
         ! finer radial grid, d|B|/ds errs by up to 1.5e-2 (regular) and
         ! 1.7e-2 (legacy) of this scale; the radial interpolation error
@@ -189,5 +213,130 @@ contains
         call expect(label//': grad |B| equals (s,theta) evaluation', &
                     err(6) <= 1.0e-2_dp)
     end subroutine check_against_legacy
+
+    !> Independent Cartesian curl(A), with I=<B.e_theta> and the source angle
+    !> map. Only the primary radial rows and periodic nu potential are shared.
+    real(dp) function source_coefficient() result(coefficient)
+        type(boozer_hybrid_t) :: h
+        type(hybrid_surface_t) :: sv
+        real(dp), allocatable :: amplitudes(:, :)
+        real(dp) :: b(3), et(3), map(3), iota, ci, bmin, theta, phi
+        real(dp) :: nu, nut, nup, a, bb, c, d, determinant, f1, f2
+        real(dp), parameter :: S = 1.0e-8_dp
+        integer :: k, m, full, half, it, ip, iteration
+
+        call boozer_hybrid_init(h, 'wout.nc', 16, 16, n_theta=72, n_phi=72)
+        if (h%lasym) error stop 'source_coefficient: symmetric QA fixture required'
+        call hybrid_surface(h, S, sv, with_spectrum=.false.)
+        allocate (amplitudes(5, h%mnmax))
+        do k = 1, h%mnmax
+            m = h%xm(k)
+            full = 1 + mod(m, 2)
+            half = 3 + mod(m, 2)
+            if (m >= 2) then
+                amplitudes(:, k) = [dot_product(sv%axis_rv(:, m, 1), h%rmnc(k, :)), &
+                    dot_product(sv%axis_rv(:, m, 1), h%zmns(k, :)), &
+                    dot_product(sv%axis_rv(:, m, 2), h%lmns(k, :)), &
+                    dot_product(sv%axis_rd(:, m, 1), h%rmnc(k, :)), &
+                    dot_product(sv%axis_rd(:, m, 1), h%zmns(k, :))]
+            else
+                amplitudes(:, k) = [dot_product(sv%rv(:, full), h%rmnc(k, :)), &
+                    dot_product(sv%rv(:, full), h%zmns(k, :)), &
+                    dot_product(sv%rv(:, half), h%lmns(k, :)), &
+                    dot_product(sv%rd(:, full), h%rmnc(k, :)), &
+                    dot_product(sv%rd(:, full), h%zmns(k, :))]
+            end if
+        end do
+        iota = dot_product(sv%rv(:, 3), h%iotas)
+        ci = 0
+        do ip = 1, h%np
+            do it = 1, h%nt
+                call primary_field(h, amplitudes, iota, h%theta(it), h%phi(ip), &
+                                   b, et, map)
+                ci = ci + dot_product(b, et)
+            end do
+        end do
+        ci = ci/real(h%nt*h%np, dp)
+        bmin = huge(1.0_dp)
+        do it = 0, N_THETA - 1
+            theta = TWOPI*real(it, dp)/real(N_THETA, dp)
+            phi = PHI0
+            do iteration = 1, 30
+                call primary_field(h, amplitudes, iota, theta, phi, b, et, map)
+                nu = periodic_value(h, sv%nu, theta, phi)
+                nut = periodic_value(h, sv%nut, theta, phi)
+                nup = periodic_value(h, sv%nup, theta, phi)
+                f1 = theta + map(1) + iota*nu - TWOPI*real(it, dp)/N_THETA
+                f2 = phi + nu - PHI0
+                if (abs(f1) + abs(f2) < 1.0e-13_dp) exit
+                a = 1 + map(2) + iota*nut
+                bb = map(3) + iota*nup
+                c = nut
+                d = 1 + nup
+                determinant = a*d - bb*c
+                theta = theta - (d*f1 - bb*f2)/determinant
+                phi = phi - (a*f2 - c*f1)/determinant
+            end do
+            call expect('source Boozer inverse converges', iteration <= 30)
+            call primary_field(h, amplitudes, iota, theta, phi, b, et, map)
+            bmin = min(bmin, norm2(b))
+        end do
+        coefficient = 100*abs(ci)/(S*bmin) ! CGS covector/field converts m to cm.
+        call expect('physical h_theta coefficient is positive', coefficient > 0)
+    end function source_coefficient
+
+    subroutine primary_field(h, amplitudes, iota, theta, phi, b, et, map)
+        type(boozer_hybrid_t), intent(in) :: h
+        real(dp), intent(in) :: amplitudes(:, :), iota, theta, phi
+        real(dp), intent(out) :: b(3), et(3), map(3)
+        real(dp) :: ct(h%mnmax), sn(h%mnmax), es(3), ep(3)
+        real(dp) :: r, rs, rt, rp, zs, zt, zp, lt, lp
+
+        ct = cos(h%xm*theta - h%xn*phi)
+        sn = sin(h%xm*theta - h%xn*phi)
+        r = sum(amplitudes(1, :)*ct)
+        rs = sum(amplitudes(4, :)*ct)
+        rt = -sum(h%xm*amplitudes(1, :)*sn)
+        rp = sum(h%xn*amplitudes(1, :)*sn)
+        zs = sum(amplitudes(5, :)*sn)
+        zt = sum(h%xm*amplitudes(2, :)*ct)
+        zp = -sum(h%xn*amplitudes(2, :)*ct)
+        lt = sum(h%xm*amplitudes(3, :)*ct)
+        lp = -sum(h%xn*amplitudes(3, :)*ct)
+        es = [rs*cos(phi), rs*sin(phi), zs]
+        et = [rt*cos(phi), rt*sin(phi), zt]
+        ep = [rp*cos(phi) - r*sin(phi), rp*sin(phi) + r*cos(phi), zp]
+        b = -h%phiedge/(TWOPI*dot_product(es, cross(et, ep))) &
+            *((iota - lp)*et + (1 + lt)*ep)
+        map = [sum(amplitudes(3, :)*sn), lt, lp]
+    end subroutine primary_field
+
+    real(dp) function periodic_value(h, field, theta, phi) result(value)
+        type(boozer_hybrid_t), intent(in) :: h
+        real(dp), intent(in) :: field(:), theta, phi
+        real(dp) :: wt(h%nt), wp(h%np), delta
+        integer :: k
+
+        wt = 1
+        wp = 1
+        do k = 1, h%nt
+            delta = modulo(theta - h%theta(k) + TWOPI/2, TWOPI) - TWOPI/2
+            if (abs(delta) > 1.0e-12_dp) wt(k) = &
+                sin(h%nt*delta/2)/(h%nt*tan(delta/2))
+        end do
+        do k = 1, h%np
+            delta = modulo((phi - h%phi(k))*h%nfp + TWOPI/2, TWOPI) - TWOPI/2
+            if (abs(delta) > 1.0e-12_dp) wp(k) = &
+                sin(h%np*delta/2)/(h%np*tan(delta/2))
+        end do
+        value = sum(matmul(wt, reshape(field, [h%nt, h%np]))*wp)
+    end function periodic_value
+
+    pure function cross(a, b) result(c)
+        real(dp), intent(in) :: a(3), b(3)
+        real(dp) :: c(3)
+        c = [a(2)*b(3) - a(3)*b(2), a(3)*b(1) - a(1)*b(3), &
+             a(1)*b(2) - a(2)*b(1)]
+    end function cross
 
 end program test_boozer_regular_qa

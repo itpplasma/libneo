@@ -12,7 +12,7 @@ program test_boozer_covariant_identity
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use boozer_coordinates_mod, only: use_B_r, use_del_tp_B
     use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord, &
-                          delthe_delphi_BV
+                          delthe_delphi_BV, BOOZER_LEGACY
     use spline_vmec_sub, only: vmec_field
     use new_vmec_stuff_mod, only: nper
     implicit none
@@ -33,7 +33,8 @@ program test_boozer_covariant_identity
     pi = acos(-1.0_dp)
     use_B_r = .false.
     use_del_tp_B = .false.
-    call get_boozer_coordinates("wout_li383.nc")
+    ! This regression integrates the legacy spline field as its oracle.
+    call get_boozer_coordinates("wout_li383.nc", construction=BOOZER_LEGACY)
 
     err = 0.0_dp
     do k = 1, size(s_list)
