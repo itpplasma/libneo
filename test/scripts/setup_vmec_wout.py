@@ -20,6 +20,17 @@ WOUT_URL = (
 )
 WOUT_SHA256 = "333ab8cef64c4b4f406e76209266fc3bf4d7976e9c28c162983c2120e112e771"
 
+# NCSX li383 with net toroidal current (Boozer I != 0), booz_xform test files.
+LI383_URL = (
+    "https://raw.githubusercontent.com/hiddenSymmetries/booz_xform/main/tests/"
+    "test_files/wout_li383_1.4m.nc"
+)
+LI383_SHA256 = "6508955581628d8a67992d340fe3a82c160c1a183925d8dfb1f955a4dd596a3f"
+FIXTURES = {
+    "qa": ("wout.nc", WOUT_URL, WOUT_SHA256),
+    "li383": ("wout_li383.nc", LI383_URL, LI383_SHA256),
+}
+
 
 def sha256sum(path: Path) -> str:
     h = hashlib.sha256()
@@ -35,16 +46,16 @@ def validate_wout(path: Path) -> None:
             raise RuntimeError("wout fixture missing nfp variable")
 
 
-def download_wout(path: Path) -> None:
+def download_wout(path: Path, url: str = WOUT_URL, sha: str = WOUT_SHA256) -> None:
     tmp_path = path.with_suffix(path.suffix + ".tmp")
     try:
-        with urllib.request.urlopen(WOUT_URL, timeout=120) as response, tmp_path.open(
+        with urllib.request.urlopen(url, timeout=120) as response, tmp_path.open(
             "wb"
         ) as handle:
             handle.write(response.read())
         got = sha256sum(tmp_path)
-        if got != WOUT_SHA256:
-            raise RuntimeError(f"sha256 mismatch: expected {WOUT_SHA256}, got {got}")
+        if got != sha:
+            raise RuntimeError(f"sha256 mismatch: expected {sha}, got {got}")
         tmp_path.replace(path)
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -57,20 +68,22 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="Directory in which to place wout.nc",
     )
+    parser.add_argument("--case", choices=sorted(FIXTURES), default="qa")
     args = parser.parse_args(argv)
 
+    name, url, sha = FIXTURES[args.case]
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    outfile = out_dir / "wout.nc"
+    outfile = out_dir / name
 
     if outfile.exists() and outfile.stat().st_size > 0:
         got = sha256sum(outfile)
-        if got == WOUT_SHA256:
+        if got == sha:
             validate_wout(outfile)
             return 0
         outfile.unlink()
 
-    download_wout(outfile)
+    download_wout(outfile, url, sha)
     validate_wout(outfile)
     return 0
 
