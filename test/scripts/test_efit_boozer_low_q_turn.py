@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(dir=pathlib.Path.cwd()) as temporary:
         "0 nwindow_r\n0 nwindow_z\n1 ieqfile\n")
     psimax = 0.99 * (sibry - simag) * 1e8
     (root / "efit_to_boozer.inp").write_text(
-        f"3600\n500\n500\n10000\n100\n40\n{psimax:.17g}\n")
+        f"3600\n500\n500\n10000\n100\n40\n{psimax:.17g}\n2 construction (legacy)\n")
     subprocess.run([str(binary)], cwd=root, check=True, capture_output=True)
     rows = [list(map(float, line.split()))
             for line in (root / "flux_functions.dat").read_text().splitlines()[1:]]
