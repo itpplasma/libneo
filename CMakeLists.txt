@@ -398,7 +398,7 @@ if(LIBNEO_FORTSYM_BUILD)
     # disables globally with -fno-realloc-lhs.
     target_compile_options(libneo_gen_support PUBLIC
         $<$<Fortran_COMPILER_ID:GNU>:-frealloc-lhs>)
-    foreach(generator boozer_regular boozer_field_jacobian boozer_hybrid_field)
+    foreach(generator boozer_regular boozer_field_jacobian boozer_hybrid_field efit_sfl)
         add_executable(gen_${generator} gen/gen_${generator}.f90)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}
@@ -492,6 +492,10 @@ add_executable(efit_to_boozer.x
     app/efit_to_boozer.f90
 )
 target_link_libraries(efit_to_boozer.x efit_to_boozer)
+add_executable(efit_sfl_check.x
+    app/efit_sfl_check.f90
+)
+target_link_libraries(efit_sfl_check.x efit_to_boozer)
 add_executable(hamada_to_boozer.x
     src/efit_to_boozer/field_line_integration_for_converter.f90
     src/efit_to_boozer/rhs_converter.f90

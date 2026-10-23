@@ -3,6 +3,9 @@
   use field_sub
   use efit_to_boozer_mod
   use input_files, only : gfile
+  use efit_sfl, only : efit_sfl_t, efit_sfl_config_t, efit_sfl_surface_t, efit_sfl_status_t, &
+                       efit_sfl_transform, efit_sfl_diag_write, efit_sfl_gs_map, efit_sfl_raise
+  use efit_sfl_magdata, only : efit_to_boozer_read_options, efit_sfl_magdata_init
 !
   implicit none
   integer, parameter :: cdp = kind((1.0d0, 1.0d0))
@@ -21,6 +24,20 @@
   double precision, dimension(:), allocatable :: Rmn_c,Rmn_s,Zmn_c,Zmn_s,almn_c,almn_s,Bmn_c,Bmn_s
   double complex,   dimension(:), allocatable :: calE,calEm_times_Jb
 !
+! Construction of the angles: 1 = flux-surface contours of the G-EQDSK primaries
+! (module efit_sfl, default), 2 = legacy field-line integration.
+  integer, parameter :: CONSTRUCTION_CONTOUR = 1, CONSTRUCTION_LEGACY = 2
+  integer :: construction,write_gs_map
+  type(efit_sfl_t) :: sfl
+  type(efit_sfl_status_t) :: sfl_status
+  type(efit_sfl_config_t) :: sfl_cfg
+  type(efit_sfl_surface_t), dimension(:), allocatable :: sfl_out
+  double precision, dimension(:), allocatable :: s_out
+  double precision, dimension(:,:), allocatable :: gs_res,gs_mask
+  double precision :: flux_hdr,a_hdr,r_hdr,psitor_hdr
+  character(len=512) :: override_line
+  character(len=128) :: construction_note
+!
   open(1,file='efit_to_boozer.inp',status='old',action='read')
   read (1,*) nstep    !number of integration steps
   read (1,*) nlabel   !grid size over radial variable
@@ -31,6 +48,9 @@
   read (1,*) nsurf    !number of flux surfaces in Boozer file
   read (1,*) mpol     !number of poloidal modes in Boozer file
   read (1,*) psimax   !psi at plasma boundary
+! Optional lines (defaults if absent): construction, route, allow_poor_equilibrium,
+! override_reason, n_theta of the contours, write_gs_map.
+  call efit_to_boozer_read_options(1, construction, sfl_cfg, write_gs_map)
   close(1)
 !
   allocate(rbeg(nlabel),rsmall(nlabel),qsaf(nlabel),psi_pol(0:nlabel))
@@ -39,6 +59,12 @@
   allocate(R_spl(0:nspl,0:ntheta,nlabel),Z_spl(0:nspl,0:ntheta,nlabel),bmod_spl(0:nspl,0:ntheta,nlabel))
   allocate(sqgnorm_spl(0:nspl,0:ntheta,nlabel),Gfunc_spl(0:nspl,0:ntheta,nlabel))
 !
+! Primaries and consistency checks of the G-EQDSK (hard error unless overridden).
+! The legacy construction reproduces the previous program without checks.
+  if (construction == CONSTRUCTION_CONTOUR) then
+    call efit_sfl_magdata_init(sfl, sfl_cfg, sigma, sfl_status)
+    call efit_sfl_raise(sfl_status)
+  else
   call flint_for_Boozer(nstep,nsurfmax,nlabel,ntheta,      &
                         rmn,rmx,zmn,zmx,raxis,zaxis,sigma, &
                         rbeg,rsmall,qsaf,                  &
@@ -49,10 +75,53 @@
                         bmod_spl(0,1:ntheta,:),            &
                         sqgnorm_spl(0,1:ntheta,:),         &
                         Gfunc_spl(0,1:ntheta,:))
+  endif
 !
   call spline_magdata_in_symfluxcoord
 !
   print *,'Splining done'
+!
+  override_line=''
+  construction_note=''
+  if (construction == CONSTRUCTION_CONTOUR) then
+  open(1,file='efit_sfl_diag.dat')
+  call efit_sfl_diag_write(sfl, 1)
+  close(1)
+  if (write_gs_map /= 0) then
+    allocate(gs_res(sfl%nw,sfl%nh),gs_mask(sfl%nw,sfl%nh))
+    call efit_sfl_gs_map(sfl, gs_res, gs_mask)
+    open(1,file='efit_sfl_gsmap.dat')
+    write (1,*) '# R [cm], Z [cm], (Delta* psi - gsrhs)/max|gsrhs|, inside psi_edge'
+    do it=1,sfl%nh
+      do i=1,sfl%nw
+        write (1,'(4es24.15)') sfl%g%R_eqd(i), sfl%g%Z_eqd(it), gs_res(i,it), gs_mask(i,it)
+      enddo
+    enddo
+    close(1)
+  endif
+  if (sfl%diag%override) write (override_line,'(a,i0,1x,es10.3,a,es10.3,a,a)') &
+      '; sfl override: ', sfl%diag%status%code, sfl%diag%status%value, ' > ', &
+      sfl%diag%status%tol, ': ', trim(sfl_cfg%override_reason)
+!
+  write (construction_note,'(a,i0,a)') &
+      ' (contour SFL route ', sfl_cfg%route, ', pprime = file p''(psi) dpsi/ds)'
+  endif
+  if (construction == CONSTRUCTION_CONTOUR) then
+    allocate(s_out(nsurf),sfl_out(nsurf))
+    do is=1,nsurf
+      s_out(is)=(dfloat(is)-0.5d0)/dfloat(nsurf)
+    enddo
+    call efit_sfl_transform(sfl, s_out, mpol, sfl_out)
+    psitor_hdr=sfl%psitor_max
+    a_hdr=sfl%rminor
+    r_hdr=sfl%r0
+    sigma=sfl%sig_theta
+  else
+    psitor_hdr=psitor_max
+    a_hdr=rsmall(nlabel)
+    r_hdr=raxis
+  endif
+  flux_hdr=sigma*psitor_hdr*1d-8*twopi
 !
   nt=ntheta
 !
@@ -101,29 +170,49 @@
   open(iunit,file='fromefit.bc')
   open(iunit_lhs,file='fromefit_neo_lhs.bc')                                                !<=25.07.2023
   open(iunit_rhs,file='fromefit_neo_rhs.bc')                                                !<=25.07.2023
-  write(iunit,*) 'CC Boozer-coordinate data file generated from EFIT equilibrium file'
-  write(iunit_lhs,*) 'CC Boozer-coordinate data file generated from EFIT equilibrium file'  !<=25.07.2023
-  write(iunit_rhs,*) 'CC Boozer-coordinate data file generated from EFIT equilibrium file'  !<=25.07.2023
+! NEO-2 (neo_sub.f90) and NEO-RT (boozer_read) skip exactly five header lines, so
+! the construction and an override are recorded inside the existing CC lines.
+  write(iunit,*) 'CC Boozer-coordinate data file generated from EFIT equilibrium file', &
+                 trim(construction_note)
+  write(iunit_lhs,*) 'CC Boozer-coordinate data file generated from EFIT equilibrium file', &
+                     trim(construction_note)
+  write(iunit_rhs,*) 'CC Boozer-coordinate data file generated from EFIT equilibrium file', &
+                     trim(construction_note)
   write(iunit,*) 'CC Boozer file format: E. Strumberger'
   write(iunit_lhs,*) 'CC Boozer file format: left handed set (s,theta,phi)'                 !<=25.07.2023
   write(iunit_rhs,*) 'CC Boozer file format: right handed set (s,theta,phi)'                !<=25.07.2023
   write(iunit,*) 'CC Authors: S.V. Kasilov, C.G. Albert'
   write(iunit_lhs,*) 'CC Authors: S.V. Kasilov, C.G. Albert'                                !<=25.07.2023
   write(iunit_rhs,*) 'CC Authors: S.V. Kasilov, C.G. Albert'                                !<=25.07.2023
-  write(iunit,*) 'CC Original EFIT equilibrium file: ',trim(gfile)
-  write(iunit_lhs,*) 'CC Original EFIT equilibrium file: ',trim(gfile)                      !<=25.07.2023
-  write(iunit_rhs,*) 'CC Original EFIT equilibrium file: ',trim(gfile)                      !<=25.07.2023
+  write(iunit,*) 'CC Original EFIT equilibrium file: ',trim(gfile),trim(override_line)
+  write(iunit_lhs,*) 'CC Original EFIT equilibrium file: ',trim(gfile),trim(override_line)
+  write(iunit_rhs,*) 'CC Original EFIT equilibrium file: ',trim(gfile),trim(override_line)
   write(iunit,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'
   write(iunit_lhs,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'    !<=25.07.2023
   write(iunit_rhs,*) 'm0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]'    !<=25.07.2023
-  write(iunit,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2
-  write(iunit_lhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
-  write(iunit_rhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, sigma*psitor_max*1d-8*twopi, rsmall(nlabel)*1d-2, raxis*1d-2  !<=25.07.2023
+  write(iunit,'(4i6,3es25.16)') mpol, 0, nsurf, 1, flux_hdr, a_hdr*1d-2, r_hdr*1d-2
+  write(iunit_lhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, flux_hdr, a_hdr*1d-2, r_hdr*1d-2  !<=25.07.2023
+  write(iunit_rhs,'(4i6,3es25.16)') mpol, 0, nsurf, 1, flux_hdr, a_hdr*1d-2, r_hdr*1d-2  !<=25.07.2023
 !
   phi=0.d0
 !
   do is=1,nsurf
     s=hs*(dfloat(is)-0.5d0)
+    if (construction == CONSTRUCTION_CONTOUR) then
+      aiota=sfl_out(is)%iota
+      B_phi=sfl_out(is)%curr_g
+      B_theta=sfl_out(is)%curr_i
+      pprime=sfl_out(is)%pp_file
+      sqrtg00=sfl_out(is)%sqrtg00
+      Rmn_c=sfl_out(is)%rmnc
+      Rmn_s=sfl_out(is)%rmns
+      Zmn_c=sfl_out(is)%zmnc
+      Zmn_s=sfl_out(is)%zmns
+      almn_c=sfl_out(is)%vmnc
+      almn_s=sfl_out(is)%vmns
+      Bmn_c=sfl_out(is)%bmnc
+      Bmn_s=sfl_out(is)%bmns
+    else
     sqrtg00=0.d0
     do it=1,nt
       theta=htheta*dfloat(it)
@@ -180,6 +269,7 @@
       Bmn_c(m)=real(four_ampl)
       Bmn_s(m)=dimag(four_ampl)
     enddo
+    endif
 !
 ! test Fourier expansion
 !do it=1,nt
@@ -204,11 +294,11 @@
     write(iunit_rhs,*) '                                             [A]           [A]             [Pa]         (dV/ds)/nper'  !<=25.07.2023
     ! Radial geometry derivatives require full precision in all surface records.
     write(iunit,'(6es25.16)') s, aiota, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,              &
-                                                      -sigma*sqrtg00*psitor_max*1d-6*twopi**2
+                                                      -sigma*sqrtg00*psitor_hdr*1d-6*twopi**2
     write(iunit_lhs,'(6es25.16)') s, aiota*sigma_lhs, -B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,            &               !<=25.07.2023
-                                                      -abs(sqrtg00*psitor_max)*1d-6*twopi**2                                   !<=25.07.2023
+                                                      -abs(sqrtg00*psitor_hdr)*1d-6*twopi**2                                   !<=25.07.2023
     write(iunit_rhs,'(6es25.16)') s, aiota*sigma_rhs, B_phi*5.d0, -sigma*B_theta*5.d0, pprime*1.d-1,             &               !<=25.07.2023
-                                                      abs(sqrtg00*psitor_max)*1d-6*twopi**2                                    !<=25.07.2023
+                                                      abs(sqrtg00*psitor_hdr)*1d-6*twopi**2                                    !<=25.07.2023
     write(iunit,*) '    m    n      rmnc [m]         rmns [m]         zmnc [m]         zmns [m]'   &
                    //'         vmnc [ ]         vmns [ ]         bmnc [T]         bmns [T]'
     write(iunit_lhs,*) '    m    n      rmnc [m]         rmns [m]         zmnc [m]         zmns [m]'   &                       !<=25.07.2023

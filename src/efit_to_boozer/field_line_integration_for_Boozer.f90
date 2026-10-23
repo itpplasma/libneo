@@ -18,6 +18,7 @@
   integer, parameter :: niter_axis=20  !number of iterations for finding axis
   integer, parameter :: niter=10       !number of iterations for Newton method
   integer, parameter :: nstep_min=10   !minimum number of steps
+  integer, parameter :: niter_cross=30 !bracketed Newton for the closing crossing
 !
   integer :: nstep,nsurfmax,nlabel,ntheta
   integer :: i,j,nsurf,nmap,isurf,iter
@@ -36,7 +37,8 @@
   double precision :: psi_axis,h,sig,phi_sep,sigma
 !
   double precision, dimension(neq_ax)        :: yax
-  double precision, dimension(neq)           :: ymet
+  double precision, dimension(neq)           :: ymet,yprev,dyrhs
+  double precision :: dlo,dhi,dphi,dnew
   double precision, dimension(nlabel)        :: rbeg,rsmall,qsaf,psi_pol,psi_tor_vac,psi_tor_plas,C_const
   double precision, dimension(ntheta,nlabel) :: R_ts,Z_ts,bmod_ts,sqgnorm_ts,Gfunc_ts
 !
@@ -224,15 +226,33 @@
     enddo
     sig=ymet(2)-zaxis
     do while(sig*(ymet(2)-zaxis).gt.0.d0)
+      yprev=ymet
       call odeint_allroutines(ymet,neq,phi,phiout,relerr,rhs_surf)
       phi_sep=phi_sep+phiout
     enddo
-! Newton method
-    do iter=1,niter
-      phiout=(zaxis-ymet(2))/dz_dphi
-      call odeint_allroutines(ymet,neq,phi,phiout,relerr,rhs_surf)
-      phi_sep=phi_sep+phiout
+! The closing crossing lies inside the last step [0,h] from yprev. Plain
+! Newton from the step end can jump to another crossing when the step ends
+! near the bottom of the surface (dZ/dphi small, q of order 0.5), so the
+! Newton iterate is kept inside the bracket, with bisection as fallback.
+    phi_sep=phi_sep-h
+    dlo=0.d0
+    dhi=h
+    dphi=h
+    do iter=1,niter_cross
+      ymet=yprev
+      call odeint_allroutines(ymet,neq,phi,dphi,relerr,rhs_surf)
+      if (sig*(ymet(2)-zaxis) > 0.d0) then
+        dlo=dphi
+      else
+        dhi=dphi
+      endif
+      call rhs_surf(dphi,ymet,dyrhs)
+      dnew=dphi+(zaxis-ymet(2))/dz_dphi
+      if (abs(dnew-dphi) <= 1.d-12*h) exit
+      if (.not. (dnew > dlo .and. dnew < dhi)) dnew=0.5d0*(dlo+dhi)
+      dphi=dnew
     enddo
+    phi_sep=phi_sep+dphi
 !
     aiota=2.d0*pi/phi_sep
     rrr=ymet(1)

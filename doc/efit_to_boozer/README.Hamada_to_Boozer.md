@@ -11,6 +11,8 @@ First, run in this directory `efit_to_boozer.x` converter. Necessary inputs for 
 
 Last file here is EFIT file mentioned in `field_divB0.inp` and `convexwall.dat` should match this input file.
 
+With `construction` 1 (line 8 of `efit_to_boozer.inp`, default) the angles come from the flux-surface contours of the EQDSK file and the efit_to_boozer.x output is not read; 2 selects the legacy field-line integration.
+
 Second, run in the same directory `hamada_to_boozer.x` converter. It uses the iput for `efit_to_boozer.x`,
 output from efit_to_boozer.x, and the following extra input specific for `hamada_to_boozer.x`:
 
