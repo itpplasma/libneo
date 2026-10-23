@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 from _efit_to_boozer import efit_to_boozer
+from python.tests.efit_solovev import _write_solovev
 from efit_to_boozer.boozer import (get_boozer_harmonics_divide_f_by_B0, get_boozer_harmonics,
     get_boozer_transform, get_B0_of_s_theta_boozer, get_boozer_harmonics_divide_f_by_B0_1D,
     get_magnetic_axis)
@@ -23,16 +24,16 @@ def _debug(msg: str) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _set_test_cwd(monkeypatch):
-    target = Path(__file__).parent
-    monkeypatch.chdir(target)
-    _debug(f"cwd set to {Path.cwd()}")
-    repo_root = target.resolve().parents[1]
-    convex_src = (target / '../../test/resources/convexwall.dat').resolve()
-    _debug(f"convexwall source: {convex_src}")
-    _debug(f"convexwall source exists: {convex_src.exists()}")
-    _debug(f"test.geqdsk present: {(target / 'test.geqdsk').exists()}")
-    _debug(f"field_divB0.inp present: {(target / 'field_divB0.inp').exists()}")
+def _set_test_cwd(monkeypatch, tmp_path):
+    # Use a consistent analytic equilibrium for the default contour API.
+    from libneo.eqdsk_to_boozer_chartmap import _write_inp, _write_field_divB0_inp
+
+    gfile = tmp_path / "solovev.geqdsk"
+    _write_solovev(gfile)
+    _write_inp(tmp_path / "efit_to_boozer.inp", str(gfile),
+               nlabel=64, ntheta_int=128, nsurfmax=64, nsurf=64)
+    _write_field_divB0_inp(tmp_path / "field_divB0.inp", str(gfile))
+    monkeypatch.chdir(tmp_path)
 
 
 def _figure_path(name: str) -> Path:
@@ -359,7 +360,6 @@ def test_get_magnetic_axis():
     assert np.isfinite(Z_axis)
     _debug("done test_get_magnetic_axis")
 
-
 MAST = Path(__file__).resolve().parents[2]/"test"/"resources"/"freegs_mast_129.geqdsk"
 
 
@@ -385,7 +385,10 @@ def test_construction_contour_and_legacy(tmp_path, monkeypatch):
     s = (np.arange(nsurf)+0.5)/nsurf
     iota = {}
     for construction in (1, 2):
-        init_efit_to_boozer(construction)
+        if construction == 2:
+            assert efit_to_boozer.init(2) is None
+        else:
+            init_efit_to_boozer(construction)
         try:
             iota[construction] = np.array([1/efit_to_boozer.magdata(
                 1, np.float64(sk), np.float64(0.0), np.float64(0.0))[0] for sk in s])
@@ -403,10 +406,16 @@ def test_construction_contour_and_legacy(tmp_path, monkeypatch):
     np.testing.assert_allclose(iota[1], np.asarray(bc.iota), rtol=1e-6)
 
 
+
 def test_construction_contour_error_raises():
     """The contour construction rejects input_efit_file.dat (psirz sign opposite
     to simag and sibry); init returns the efit_sfl message as an exception."""
     from efit_to_boozer.boozer import init_efit_to_boozer
+    from libneo.eqdsk_to_boozer_chartmap import _write_field_divB0_inp
+
+    historical = Path(__file__).resolve().parents[2]/"test/resources/input_efit_file.dat"
+    _write_field_divB0_inp("field_divB0.inp", str(historical),
+                         convexfile=str(historical.parent/"convexwall.dat"))
 
     with pytest.raises(RuntimeError, match="efit_sfl: invalid input"):
         init_efit_to_boozer(1)
