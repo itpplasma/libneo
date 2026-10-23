@@ -15,12 +15,29 @@ module efit_to_boozer
 
 contains
 
-   subroutine init
+   !> Reads efit_to_boozer.inp from the working directory and builds the grids
+   !> of magdata. construction: 0 = as in efit_to_boozer.inp (default 1),
+   !> 1 = flux-surface contours (efit_sfl), 2 = legacy field-line integration.
+   !> ierr /= 0 (efit_sfl status code) with errmsg if the contour construction
+   !> rejects the equilibrium; magdata must not be used then.
+   subroutine init(construction, ierr, errmsg)
 
-      integer :: nstep, nsurfmax, nsurf, nt, mpol, inp_label
+      use efit_sfl, only: efit_sfl_t, efit_sfl_config_t, efit_sfl_status_t
+      use efit_sfl_magdata, only: efit_to_boozer_read_options, efit_sfl_magdata_init
+
+      integer, intent(in) :: construction
+      !f2py integer optional, intent(in) :: construction = 0
+      integer, intent(out) :: ierr
+      character(len=1024), intent(out) :: errmsg
+      integer :: nstep, nsurfmax, nsurf, nt, mpol, inp_label, construction_inp, write_gs_map
       double precision :: hs, htheta, oneovernt, twoovernt, sigma
+      type(efit_sfl_t) :: sfl
+      type(efit_sfl_config_t) :: sfl_cfg
+      type(efit_sfl_status_t) :: sfl_status
 
       call deinit
+      ierr = 0
+      errmsg = ''
 
       open (1, file='efit_to_boozer.inp', status='old', action='read')
       read (1, *) nstep    !number of integration steps
@@ -32,13 +49,24 @@ contains
       read (1, *) nsurf    !number of flux surfaces in Boozer file
       read (1, *) mpol     !number of poloidal modes in Boozer file
       read (1, *) psimax   !psi at plasma boundary
+      call efit_to_boozer_read_options(1, construction_inp, sfl_cfg, write_gs_map)
       close (1)
+      if (construction /= 0) construction_inp = construction
 
       allocate (rbeg(nlabel), rsmall(nlabel), qsaf(nlabel), psi_pol(0:nlabel))
       allocate (psi_tor_vac(nlabel), psi_tor(0:nlabel), C_const(nlabel))
       allocate (R_spl(0:nspl, 0:ntheta, nlabel), Z_spl(0:nspl, 0:ntheta, nlabel), bmod_spl(0:nspl, 0:ntheta, nlabel))
       allocate (sqgnorm_spl(0:nspl, 0:ntheta, nlabel), Gfunc_spl(0:nspl, 0:ntheta, nlabel))
 
+      if (construction_inp == 1) then
+         call efit_sfl_magdata_init(sfl, sfl_cfg, sigma, sfl_status)
+         if (sfl_status%code /= 0 .and. .not. sfl_status%overridden) then
+            ierr = sfl_status%code
+            if (allocated(sfl_status%message)) errmsg = sfl_status%message
+            call deinit
+            return
+         end if
+      else
       call flint_for_Boozer(nstep, nsurfmax, nlabel, ntheta, &
                             rmn, rmx, zmn, zmx, raxis, zaxis, sigma, &
                             rbeg, rsmall, qsaf, &
@@ -49,6 +77,7 @@ contains
                             bmod_spl(0, 1:ntheta, :), &
                             sqgnorm_spl(0, 1:ntheta, :), &
                             Gfunc_spl(0, 1:ntheta, :))
+      end if
 
       call spline_magdata_in_symfluxcoord
 
