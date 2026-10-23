@@ -21,8 +21,10 @@ def write_input(path: Path, route: int) -> None:
         ds.createDimension("s", 2)
         ds.createVariable("s", "f8", ("s",))[:] = [0.25, 0.5]
         for key, value in (("mboz", 6), ("nboz", 4), ("grid_refinement", 0),
-                           ("route", route), ("diagnostics", 1)):
+                           ("route", route), ("diagnostics", 1),
+                           ("allow_poor_equilibrium", 1)):
             ds.createVariable(key, "i4", ())[...] = value
+        ds.override_reason = "coarse public test wout (ns <= 50)"
 
 
 def main() -> int:
