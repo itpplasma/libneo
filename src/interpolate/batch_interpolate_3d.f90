@@ -891,7 +891,7 @@ contains
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(out) :: y_batch(:, :)  ! (n_quantities, n_points)
 
-        integer :: ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap
+        integer :: ipt, iq, k1, k2, k3, i1, i2, i3
         integer :: nq, order1, order2, order3
         integer :: num_points(3)
         logical :: periodic(3)
@@ -899,7 +899,7 @@ contains
         real(dp) :: x_norm1, x_norm2, x_norm3
         real(dp) :: x_local1, x_local2, x_local3
         real(dp) :: x_min(3), h_step(3), period(3)
-        real(dp) :: t, w, v, w2, yq
+        real(dp) :: v, w2, yq
 
         if (size(x, 1) /= 3) then
             error stop "evaluate_batch_splines_3d_many: First dimension of x must be 3"
@@ -942,7 +942,7 @@ contains
         real(dp), intent(in) :: x(:, :)
         real(dp), intent(inout) :: y_batch(:, :)
 
-        integer :: ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap
+        integer :: ipt, iq, k1, k2, k3, i1, i2, i3
         integer :: nq, order1, order2, order3
         integer :: num_points(3)
         logical :: periodic(3)
@@ -950,7 +950,7 @@ contains
         real(dp) :: x_norm1, x_norm2, x_norm3
         real(dp) :: x_local1, x_local2, x_local3
         real(dp) :: x_min(3), h_step(3), period(3)
-        real(dp) :: t, w, v, w2, yq
+        real(dp) :: v, w2, yq
 
         if (size(x, 1) /= 3) then
             error stop "evaluate_batch_splines_3d_many_resident: x first dim must be 3"
@@ -975,9 +975,9 @@ contains
         period(3) = h_step(3)*real(num_points(3) - 1, dp)
 
         !$acc parallel loop present(spl%coeff, x, y_batch) &
-        !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3, k_wrap) &
+        !$acc& private(ipt, iq, k1, k2, k3, i1, i2, i3) &
         !$acc& private(xj1, xj2, xj3, x_norm1, x_norm2, x_norm3) &
-        !$acc& private(x_local1, x_local2, x_local3, t, w, v, w2, yq)
+        !$acc& private(x_local1, x_local2, x_local3, v, w2, yq)
         do ipt = 1, size(x, 2)
             include "spline3d_many_point_body.inc"
         end do
