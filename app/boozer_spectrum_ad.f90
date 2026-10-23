@@ -29,6 +29,21 @@
 !> diag_Gprime, diag_n_zeroed (exactly resonant modes set to zero) and the
 !> near-resonant modes of the Jacobian routes res_surface, res_m, res_n,
 !> res_dist (iota m - n N), res_f (|f_mn|) and res_amp (|f_mn/(iota m - n N)|).
+!>
+!> Equilibrium quality (hybrid construction, boozer_hybrid_quality): every
+!> run first checks the wout file and stops with an actionable message if a
+!> metric exceeds its tolerance. in.nc may hold the integer
+!> allow_poor_equilibrium (1: continue, the override and the global attribute
+!> override_reason of in.nc are printed and written to out.nc), the integer
+!> quality_n_check and the scalars quality_rho_min, quality_rho_max. out.nc
+!> holds the global attributes sfl_quality_code, sfl_quality_message,
+!> sfl_allow_poor_equilibrium, sfl_override_reason and the variables
+!> quality_value, quality_tol, quality_s_worst (eps_rad, eps_fb, eps_js,
+!> eps_lam, d_fam, res_f), per check surface quality_s, quality_iota,
+!> quality_eps_fb, quality_eps_js, quality_eps_lam, quality_d_fam, and per
+!> rational surface quality_res_s, quality_res_m, quality_res_n,
+!> quality_res_f. Mode quality runs only the check (no stop, the status is
+!> written) and needs no s, mboz, nboz in in.nc.
 program boozer_spectrum_ad
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use netcdf
@@ -37,7 +52,9 @@ program boozer_spectrum_ad
                               boozer_spectrum_t, boozer_ad_init, boozer_ad_primal, &
                               boozer_ad_jvp, boozer_ad_vjp, wout_tangent_alloc, &
                               spectrum_alloc, BOOZER_HYBRID, SFL_COVARIANT, &
-                              sfl_route_name, hybrid_diag_t, boozer_ad_diagnostics
+                              sfl_route_name, hybrid_diag_t, boozer_ad_diagnostics, &
+                              sfl_quality_config_t, sfl_quality_t, sfl_status_t
+    use boozer_hybrid_quality, only: sfl_quality_check, NMETRIC
     implicit none
 
     character(len=1024) :: mode, wout, fin, fout
@@ -47,6 +64,9 @@ program boozer_spectrum_ad
     real(dp), allocatable :: s(:)
     integer :: ncid, mboz, nboz, refine, nsurf, construction, nth, nph, route, mnu, nnu
     integer :: want_diag
+    type(sfl_quality_config_t) :: qcfg
+    type(sfl_quality_t) :: qrep
+    type(sfl_status_t) :: qstat
     type(hybrid_diag_t), allocatable :: diag(:)
     integer(int64) :: c0, c1, rate
 
@@ -60,6 +80,15 @@ program boozer_spectrum_ad
     call get_command_argument(4, fout)
 
     call check(nf90_open(trim(fin), NF90_NOWRITE, ncid))
+    call read_quality_config()
+    if (trim(mode) == 'quality') then
+        call check(nf90_close(ncid))
+        call system_clock(c0, rate)
+        call sfl_quality_check(trim(wout), qrep, qcfg, qstat)
+        call system_clock(c1)
+        call write_quality_only()
+        stop
+    end if
     nsurf = dim_len(ncid, 's')
     allocate (s(nsurf))
     call get_var(ncid, 's', s)
@@ -78,7 +107,7 @@ program boozer_spectrum_ad
     want_diag = get_int_opt(ncid, 'diagnostics', 0)
     call boozer_ad_init(ctx, trim(wout), mboz, nboz, grid_refinement=refine, &
                         construction=construction, n_theta=nth, n_phi=nph, route=route, &
-                        mnu=mnu, nnu=nnu)
+                        mnu=mnu, nnu=nnu, quality=qcfg)
     call system_clock(c0, rate)
     select case (trim(mode))
     case ('primal')
@@ -170,8 +199,92 @@ contains
             call check(nf90_put_var(ncid, v(21), t%iotas))
         end if
         if (allocated(diag)) call write_diagnostics(dsurf)
+        if (construction == BOOZER_HYBRID) call write_quality(ctx%quality)
         call check(nf90_close(ncid))
     end subroutine write_output
+
+    subroutine read_quality_config()
+        integer :: alen
+        character(len=256) :: reason
+
+        qcfg%allow_poor_equilibrium = get_int_opt(ncid, 'allow_poor_equilibrium', 0) == 1
+        qcfg%n_check = get_int_opt(ncid, 'quality_n_check', qcfg%n_check)
+        call get_opt0(ncid, 'quality_rho_min', qcfg%rho_window(1))
+        call get_opt0(ncid, 'quality_rho_max', qcfg%rho_window(2))
+        if (nf90_inquire_attribute(ncid, NF90_GLOBAL, 'override_reason', len=alen) &
+            == NF90_NOERR) then
+            reason = ''
+            call check(nf90_get_att(ncid, NF90_GLOBAL, 'override_reason', reason))
+            qcfg%override_reason = reason
+        end if
+    end subroutine read_quality_config
+
+    subroutine write_quality_only()
+        call check(nf90_create(trim(fout), NF90_CLOBBER, ncid))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'mode', 'quality'))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'seconds', &
+                                real(c1 - c0, dp)/real(rate, dp)))
+        call check(nf90_enddef(ncid))
+        call write_quality(qrep)
+        call check(nf90_close(ncid))
+    end subroutine write_quality_only
+
+    !> Equilibrium-quality record and override, appended to the output file.
+    subroutine write_quality(q)
+        type(sfl_quality_t), intent(in) :: q
+        integer :: dm, dc, dr, v(14), k, nr
+
+        nr = size(q%res_s)
+        call check(nf90_redef(ncid))
+        call check(nf90_def_dim(ncid, 'quality_metric', NMETRIC, dm))
+        call check(nf90_def_dim(ncid, 'quality_surface', size(q%s), dc))
+        call check(nf90_def_dim(ncid, 'quality_rational', max(nr, 1), dr))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'sfl_quality_code', q%status%code))
+        if (allocated(q%status%message)) then
+            call check(nf90_put_att(ncid, NF90_GLOBAL, 'sfl_quality_message', &
+                                    q%status%message//' '))
+        end if
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'sfl_allow_poor_equilibrium', &
+                                merge(1, 0, q%overridden)))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'sfl_override_reason', &
+                                trim(q%override_reason)//' '))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'quality_metrics', &
+                                'eps_rad eps_fb eps_js eps_lam d_fam res_f'))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'quality_n_rational', nr))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'quality_rho_window', q%rho_window))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'wout_fsq', [q%fsqr, q%fsqz, q%fsql]))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'wout_ftolv', q%ftolv))
+        k = 0
+        call def(v, k, 'quality_value', NF90_DOUBLE, [dm])
+        call def(v, k, 'quality_tol', NF90_DOUBLE, [dm])
+        call def(v, k, 'quality_s_worst', NF90_DOUBLE, [dm])
+        call def(v, k, 'quality_s', NF90_DOUBLE, [dc])
+        call def(v, k, 'quality_iota', NF90_DOUBLE, [dc])
+        call def(v, k, 'quality_eps_fb', NF90_DOUBLE, [dc])
+        call def(v, k, 'quality_eps_js', NF90_DOUBLE, [dc])
+        call def(v, k, 'quality_eps_lam', NF90_DOUBLE, [dc])
+        call def(v, k, 'quality_d_fam', NF90_DOUBLE, [dc])
+        call def(v, k, 'quality_res_s', NF90_DOUBLE, [dr])
+        call def(v, k, 'quality_res_m', NF90_INT, [dr])
+        call def(v, k, 'quality_res_n', NF90_INT, [dr])
+        call def(v, k, 'quality_res_f', NF90_DOUBLE, [dr])
+        call check(nf90_enddef(ncid))
+        call check(nf90_put_var(ncid, v(1), q%value))
+        call check(nf90_put_var(ncid, v(2), q%tol))
+        call check(nf90_put_var(ncid, v(3), q%s_worst))
+        call check(nf90_put_var(ncid, v(4), q%s))
+        call check(nf90_put_var(ncid, v(5), q%iota))
+        call check(nf90_put_var(ncid, v(6), q%eps_fb))
+        call check(nf90_put_var(ncid, v(7), q%eps_js))
+        call check(nf90_put_var(ncid, v(8), q%eps_lam))
+        call check(nf90_put_var(ncid, v(9), q%d_fam))
+        if (nr > 0) then
+            call check(nf90_put_var(ncid, v(10), q%res_s))
+            call check(nf90_put_var(ncid, v(11), q%res_m))
+            call check(nf90_put_var(ncid, v(12), q%res_n))
+            call check(nf90_put_var(ncid, v(13), q%res_f))
+        end if
+    end subroutine write_quality
 
     !> Route diagnostics, appended to the output file.
     subroutine write_diagnostics(dsurf)

@@ -935,3 +935,21 @@ add_test(NAME test_hamada_to_boozer_legacy_low_q
     $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x> 2)
 set_tests_properties(test_hamada_to_boozer_legacy_low_q PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_sfl_quality.x source/test_sfl_quality.f90)
+target_link_libraries(test_sfl_quality.x neo)
+add_test(NAME test_sfl_quality
+  COMMAND test_sfl_quality.x)
+set_tests_properties(test_sfl_quality PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  FIXTURES_REQUIRED "vmec_wout_li383;vmec_wout_circular_tokamak")
+
+add_test(
+  NAME test_sfl_quality_cli
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/check_sfl_quality_cli.py
+          $<TARGET_FILE:boozer_spectrum_ad.x> ${CMAKE_CURRENT_BINARY_DIR}/wout_li383.nc)
+set_tests_properties(test_sfl_quality_cli PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  PASS_REGULAR_EXPRESSION "check_sfl_quality_cli PASSED"
+  FIXTURES_REQUIRED vmec_wout_li383)

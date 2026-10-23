@@ -360,6 +360,7 @@ add_library(boozer STATIC
     src/boozer_surface.f90
     src/boozer_hybrid.f90
     src/boozer_hybrid_routes.f90
+    src/boozer_hybrid_quality.f90
     src/boozer_vmec_ad.f90
     src/boozer_converter.F90
     src/boozer_regular.f90

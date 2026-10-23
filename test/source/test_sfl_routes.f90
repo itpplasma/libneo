@@ -32,14 +32,20 @@ program test_sfl_routes
                              hybrid_field_kernel, sfl_route_name, route_weight_kernel, &
                              route_radial_kernel, route_beta_kernel, SFL_COVARIANT, &
                              SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST, SFL_STRAIGHT_CURRENT, SFL_PEST
+    use boozer_hybrid_quality, only: sfl_quality_config_t
     implicit none
 
     real(dp), parameter :: s_list(3) = [0.15_dp, 0.5_dp, 0.85_dp]
     real(dp), parameter :: MU0 = 16.0e-7_dp*atan(1.0_dp)
+    !> The test wouts are the coarse public bench files (ns <= 50), which fail
+    !> the equilibrium-quality check; the transform itself is tested here.
+    type(sfl_quality_config_t) :: coarse
     logical :: failed
     integer(int64) :: seed_state
 
     failed = .false.
+    coarse%allow_poor_equilibrium = .true.
+    coarse%override_reason = 'coarse public test wout (ns <= 50)'
     seed_state = 4242
     call check_kernels()
     call check_properties('wout.nc', 'QA', [2, 3, 5])
@@ -291,12 +297,12 @@ contains
 
         do ir = 1, size(routes)
             print '(a)', ' '//trim(sfl_route_name(routes(ir)))//': '//label//' ('//wout//')'
-            call boozer_ad_init(ctx, wout, mboz, nboz, route=routes(ir))
+            call boozer_ad_init(ctx, wout, mboz, nboz, route=routes(ir), quality=coarse)
             call boozer_ad_primal(ctx, s_list, y)
             b00 = y%bmnc(1, :)
             call boozer_ad_init(cfine, wout, mboz, nboz, n_theta=2*ctx%grid%n_theta, &
                                 n_phi=merge(1, 2*ctx%grid%n_phi, ctx%axisym), &
-                                route=routes(ir))
+                                route=routes(ir), quality=coarse)
             call boozer_ad_primal(cfine, s_list, yf)
             do j = 1, size(s_list)
                 err = max(maxval(abs(yf%bmnc(:, j) - y%bmnc(:, j))), &
