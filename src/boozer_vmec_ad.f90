@@ -60,6 +60,8 @@ module boozer_vmec_ad
     use boozer_surface, only: boozer_angle_grid_t, boozer_surface_lin_t, &
                               boozer_surface_lin_init, boozer_surface_jvp, &
                               boozer_surface_vjp
+    use boozer_hybrid_quality, only: sfl_quality_config_t, sfl_quality_t, sfl_status_t, &
+                                     sfl_quality_check
 
     implicit none
     private
@@ -71,6 +73,7 @@ module boozer_vmec_ad
     public :: BOOZER_HYBRID, BOOZER_LEGACY
     public :: SFL_COVARIANT, SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST, SFL_STRAIGHT_CURRENT, &
               SFL_PEST, sfl_route_name, hybrid_diag_t, boozer_ad_diagnostics
+    public :: sfl_quality_config_t, sfl_quality_t, sfl_status_t
 
     integer, parameter :: BOOZER_HYBRID = 1, BOOZER_LEGACY = 2
 
@@ -84,6 +87,9 @@ module boozer_vmec_ad
     type :: boozer_ad_context_t
         integer :: construction = BOOZER_HYBRID
         type(boozer_hybrid_t) :: hyb
+        !> Equilibrium-quality record of the wout file (hybrid construction),
+        !> with the override flag and reason that writers record.
+        type(sfl_quality_t) :: quality
         type(boozer_angle_grid_t) :: grid
         type(boozer_surface_lin_t) :: lin
         integer :: nstrm = 0, kpar = 0, ns = 0, nper = 1, ns_s = 5, ns_A = 5
@@ -240,10 +246,16 @@ contains
     !> construction selects BOOZER_HYBRID (default) or BOOZER_LEGACY. The
     !> spline orders, grid_refinement and spline_vmec_state apply to the legacy
     !> construction, n_theta and n_phi (> 0) override the hybrid grid.
+    !> The hybrid construction first checks the equilibrium quality of the file
+    !> (boozer_hybrid_quality, configuration quality): a failing check stops
+    !> with an actionable message unless quality%allow_poor_equilibrium is set
+    !> (then the override is printed and kept in ctx%quality) or status is
+    !> present (then the caller handles status%code). The record is
+    !> ctx%quality.
     subroutine boozer_ad_init(ctx, wout_file, mboz, nboz, radial_spline_order, &
                               angular_spline_order, grid_refinement, &
                               spline_vmec_state, construction, n_theta, n_phi, route, &
-                              mnu, nnu)
+                              mnu, nnu, quality, status)
         use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm, ns_A, &
                                       vmec_B_scale, vmec_RZ_scale
         use spline_vmec_sub, only: spline_vmec_data, vmec_angular_grid
@@ -254,12 +266,15 @@ contains
         integer, intent(in), optional :: grid_refinement
         logical, intent(in), optional :: spline_vmec_state
         integer, intent(in), optional :: construction, n_theta, n_phi, route, mnu, nnu
+        type(sfl_quality_config_t), intent(in), optional :: quality
+        type(sfl_status_t), intent(out), optional :: status
         integer :: nth, nph
         real(dp) :: h_theta, h_phi
 
         if (present(construction)) ctx%construction = construction
         select case (ctx%construction)
         case (BOOZER_HYBRID)
+            call sfl_quality_check(wout_file, ctx%quality, quality, status)
             call hybrid_init(ctx, wout_file, mboz, nboz, n_theta, n_phi, route, mnu, nnu)
             return
         case (BOOZER_LEGACY)
