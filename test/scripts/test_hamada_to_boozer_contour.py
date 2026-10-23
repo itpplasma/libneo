@@ -14,6 +14,9 @@ import tempfile
 
 efit_binary = pathlib.Path(sys.argv[1]).resolve()
 hamada_binary = pathlib.Path(sys.argv[2]).resolve()
+# Optional third argument 2: the legacy field-line construction (closing-crossing
+# regression on this q ~ 0.5 case; iota then carries the legacy ODE error).
+construction = int(sys.argv[3]) if len(sys.argv) > 3 else 1
 resources = pathlib.Path(__file__).resolve().parents[1] / "resources"
 gfile = resources / "freegs_mast_129.geqdsk"
 
@@ -49,7 +52,7 @@ with tempfile.TemporaryDirectory(dir=pathlib.Path.cwd()) as temporary:
         "0 nwindow_r\n0 nwindow_z\n1 ieqfile\n")
     psimax = 0.99 * (sibry - simag) * 1e8
     (root / "efit_to_boozer.inp").write_text(
-        f"3600\n500\n1024\n10000\n{nsurf}\n24\n{psimax:.17g}\n1 construction (contour)\n")
+        f"3600\n500\n1024\n10000\n{nsurf}\n24\n{psimax:.17g}\n{construction} construction\n")
     subprocess.run([str(efit_binary)], cwd=root, check=True, capture_output=True)
     # MARS inputs: mpolmax, nrhopol, theta_H0, theta_B0, ntor; Hamada b_m = b0 delta_m0.
     (root / "mars_data_dimensions_and_extra.in").write_text(f"{mpolmax}\n{nrho}\n0.0\n0.0\n0\n")
@@ -70,7 +73,7 @@ for s, iota, rows in converted:
         expected = b0 if m == 0 else 0.0
         worst_mode = max(worst_mode, abs(bc - expected) / b0, abs(bs) / b0)
 # pert.bc writes 8 significant digits.
-assert worst_iota < 1e-7, worst_iota
+assert worst_iota < (1e-7 if construction == 1 else 1e-4), worst_iota
 assert worst_mode < 1e-7, worst_mode
-print(f"hamada_to_boozer contour: max |iota/iota_efit - 1| = {worst_iota:.2e}, "
+print(f"hamada_to_boozer construction {construction}: max |iota/iota_efit - 1| = {worst_iota:.2e}, "
       f"m = 0 conversion error = {worst_mode:.2e}: PASS")
