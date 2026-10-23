@@ -7,9 +7,13 @@
 !>    central differences of the kernel;
 !>  - the surface core JVP matches central differences of the primal
 !>    boozer_surface_transform, and core VJP/JVP satisfy adjoint duality;
-!>  - the full JVP matches central differences of the complete libneo
-!>    pipeline (wout harmonics perturbed in memory, VMEC data re-splined), and
-!>    the full VJP is its adjoint.
+!>  - the field data that the transform synthesizes from the harmonics equal
+!>    splint_vmec_data at the grid nodes, and so do the spectra;
+!>  - the full JVP (including |grad s| and the edge-flux scaling) matches
+!>    central differences of the complete libneo pipeline (wout harmonics and
+!>    toroidal flux perturbed in memory, VMEC data re-splined), and the full
+!>    VJP is its adjoint;
+!>  - the circular tokamak (axisymmetric, n_max = 0) runs with the cubic map.
 program test_boozer_vmec_ad
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use boozer_surface, only: boozer_angle_grid_t, boozer_surface_lin_t, &
@@ -18,7 +22,8 @@ program test_boozer_vmec_ad
     use boozer_vmec_ad, only: boozer_ad_context_t, boozer_wout_tangent_t, &
                               boozer_spectrum_t, boozer_ad_init, boozer_ad_primal, &
                               boozer_ad_jvp, boozer_ad_vjp, wout_tangent_alloc, &
-                              spectrum_alloc, boozer_field_kernel
+                              spectrum_alloc, boozer_field_kernel, &
+                              sqrt_g_ss_kernel, boozer_ad_surface_data
     implicit none
 
     type(boozer_ad_context_t) :: ctx
@@ -26,12 +31,15 @@ program test_boozer_vmec_ad
     logical :: failed
 
     failed = .false.
-    call boozer_ad_init(ctx, 'wout.nc', 8, 6, grid_refinement=3)
+    call boozer_ad_init(ctx, 'wout.nc', 8, 6, grid_refinement=3, &
+                        spline_vmec_state=.true.)
     call check_kernel()
     call check_core()
+    call check_synthesis('QA, linear lambda')
     call check_full('QA, linear lambda')
     call check_case('wout.nc', 'cubic', 'QA, cubic lambda')
     call check_case('wout_li383.nc', 'cubic', 'li383, cubic lambda')
+    call check_case('wout_circular_tokamak.nc', 'cubic', 'circular tokamak, cubic lambda')
     if (failed) error stop 'test_boozer_vmec_ad FAILED'
     print *, 'test_boozer_vmec_ad PASSED'
 
@@ -87,7 +95,103 @@ contains
         end do
         call report('kernel value vs vmec_field', err_f, 1.0e-12_dp)
         call report('kernel Jacobian vs FD', err_j, 1.0e-6_dp)
+        call check_gss_kernel()
     end subroutine check_kernel
+
+    !> |grad s| against the (1,1) entry of the inverse covariant metric (by
+    !> Gaussian elimination) and its gradient against central differences.
+    subroutine check_gss_kernel()
+        use spline_vmec_sub, only: splint_vmec_data, metric_tensor_vmec
+        real(dp) :: x(10), g(3, 3), sqg, f, fp, fm, jac(7), jd(7), y(3), h
+        real(dp) :: A_phi, A_theta, aphis, athetas, aiota, alam, ls, Z, err_f, err_j
+        integer :: ip, k
+
+        err_f = 0.0_dp
+        err_j = 0.0_dp
+        do ip = 1, 3
+            call splint_vmec_data(s_list(ip), 0.3_dp*ip, 0.2_dp*ip, A_phi, A_theta, &
+                                  aphis, athetas, aiota, x(1), Z, alam, x(2), x(3), &
+                                  x(4), x(5), x(6), x(7), ls, x(8), x(9))
+            call sqrt_g_ss_kernel(x(1:7), f, jac)
+            call metric_tensor_vmec(x(1), x(2), x(3), x(4), x(5), x(6), x(7), g, sqg)
+            call solve3(g, [1.0_dp, 0.0_dp, 0.0_dp], y)
+            err_f = max(err_f, abs(f - sqrt(y(1)))/f)
+            do k = 1, 7
+                h = 1.0e-6_dp*max(abs(x(k)), 1.0e-3_dp)
+                x(k) = x(k) + h
+                call sqrt_g_ss_kernel(x(1:7), fp, jd)
+                x(k) = x(k) - 2*h
+                call sqrt_g_ss_kernel(x(1:7), fm, jd)
+                x(k) = x(k) + h
+                jd(k) = (fp - fm)/(2*h)
+                err_j = max(err_j, abs(jd(k) - jac(k))/maxval(abs(jac)))
+            end do
+        end do
+        call report('|grad s| kernel vs inverse metric', err_f, 1.0e-12_dp)
+        call report('|grad s| kernel gradient vs FD', err_j, 1.0e-7_dp)
+    end subroutine check_gss_kernel
+
+    subroutine solve3(a_in, b_in, x)
+        real(dp), intent(in) :: a_in(3, 3), b_in(3)
+        real(dp), intent(out) :: x(3)
+        real(dp) :: a(3, 3), b(3), fct
+        integer :: i, j, p
+
+        a = a_in
+        b = b_in
+        do i = 1, 3
+            p = maxloc(abs(a(i:3, i)), 1) + i - 1
+            a([i, p], :) = a([p, i], :)
+            b([i, p]) = b([p, i])
+            do j = i + 1, 3
+                fct = a(j, i)/a(i, i)
+                a(j, :) = a(j, :) - fct*a(i, :)
+                b(j) = b(j) - fct*b(i)
+            end do
+        end do
+        do i = 3, 1, -1
+            x(i) = (b(i) - dot_product(a(i, i + 1:3), x(i + 1:3)))/a(i, i)
+        end do
+    end subroutine solve3
+
+    !> Field data synthesized from the harmonics versus splint_vmec_data, and
+    !> the spectra of both paths.
+    subroutine check_synthesis(label)
+        character(*), intent(in) :: label
+        real(dp), allocatable :: xh(:, :, :), xs(:, :, :), lh(:, :), ls(:, :)
+        type(boozer_spectrum_t) :: yh, ys
+        real(dp) :: ih, is, err
+        integer :: j, q
+
+        print '(a)', '  '//label
+        allocate (xh(10, ctx%grid%n_theta, ctx%grid%n_phi))
+        allocate (xs(10, ctx%grid%n_theta, ctx%grid%n_phi))
+        allocate (lh(ctx%grid%n_theta, ctx%grid%n_phi), ls(ctx%grid%n_theta, ctx%grid%n_phi))
+        err = 0.0_dp
+        do j = 1, size(s_list)
+            call boozer_ad_surface_data(ctx, s_list(j), xh, lh, ih)
+            call boozer_ad_surface_data(ctx, s_list(j), xs, ls, is, from_splines=.true.)
+            ! Components that vanish identically (phi derivatives of an
+            ! axisymmetric case) are measured against R (lengths) or lambda_t.
+            do q = 1, 10
+                err = max(err, maxval(abs(xh(q, :, :) - xs(q, :, :))) &
+                          /max(maxval(abs(xs(q, :, :))), &
+                               merge(maxval(abs(xs(1, :, :))), &
+                                     maxval(abs(xs(8, :, :))), q <= 7)))
+            end do
+            err = max(err, maxval(abs(lh - ls))/maxval(abs(ls)), abs(ih - is)/abs(is))
+        end do
+        call report('synthesized field data vs splint_vmec_data', err, 1.0e-11_dp)
+        call boozer_ad_primal(ctx, s_list, yh)
+        call boozer_ad_primal(ctx, s_list, ys, from_splines=.true.)
+        err = max(maxval(abs(yh%bmnc - ys%bmnc))/maxval(abs(ys%bmnc)), &
+                  maxval(abs(yh%numns - ys%numns))/maxval(abs(ys%numns)), &
+                  maxval(abs(yh%gradsmnc - ys%gradsmnc))/maxval(abs(ys%gradsmnc)), &
+                  maxval(abs(yh%iota - ys%iota))/maxval(abs(ys%iota)), &
+                  maxval(abs(yh%g - ys%g))/maxval(abs(ys%g)), &
+                  maxval(abs(yh%psi_edge - ys%psi_edge))/maxval(abs(ys%psi_edge)))
+        call report('spectra from harmonics vs from splines', err, 1.0e-11_dp)
+    end subroutine check_synthesis
 
     subroutine check_core()
         type(boozer_angle_grid_t) :: grid
@@ -180,7 +284,8 @@ contains
         character(*), intent(in) :: wout, lambda_map, label
 
         lambda_half_to_full = lambda_map
-        call boozer_ad_init(ctx, wout, 8, 6, grid_refinement=3)
+        call boozer_ad_init(ctx, wout, 8, 6, grid_refinement=3, spline_vmec_state=.true.)
+        call check_synthesis(label)
         call check_full(label)
         lambda_half_to_full = 'linear'
     end subroutine check_case
@@ -203,6 +308,8 @@ contains
                 t%iotaf(j) = 0.05_dp*(1 - s**2)
             end associate
         end do
+        t%phiedge = 0.3_dp*ctx%phiedge
+        t%rmajor = 0.1_dp
         call boozer_ad_jvp(ctx, s_list, t, y0, yd)
 
         call spectrum_alloc(ctx, size(s_list), yb)
@@ -216,21 +323,27 @@ contains
             yb%iota(j) = 0.3_dp*j
             yb%g(j) = -0.2_dp*j
             yb%i(j) = 1.7_dp
+            yb%gradsmnc(:, j) = [(0.4_dp*cos(0.8_dp*i + j), i=1, ctx%mnboz)]
+            yb%gradsmns(:, j) = [(0.1_dp*sin(0.3_dp*i*j), i=1, ctx%mnboz)]
+            yb%psi_edge(j) = 0.9_dp*j
+            yb%rmajor(j) = -0.4_dp
         end do
         call boozer_ad_vjp(ctx, s_list, yb, tb)
         lhs = sum(yb%bmnc*yd%bmnc) + sum(yb%bmns*yd%bmns) + sum(yb%numns*yd%numns) &
               + sum(yb%numnc*yd%numnc) + sum(yb%iota*yd%iota) + sum(yb%g*yd%g) &
-              + sum(yb%i*yd%i)
+              + sum(yb%i*yd%i) + sum(yb%gradsmnc*yd%gradsmnc) &
+              + sum(yb%gradsmns*yd%gradsmns) + sum(yb%psi_edge*yd%psi_edge) &
+              + sum(yb%rmajor*yd%rmajor)
         rhs = sum(tb%rmnc*t%rmnc) + sum(tb%zmns*t%zmns) + sum(tb%lmns*t%lmns) &
-              + sum(tb%iotaf*t%iotaf)
+              + sum(tb%iotaf*t%iotaf) + tb%phiedge*t%phiedge + tb%rmajor*t%rmajor
         print '(a)', '  '//label
         call report('full adjoint duality', abs(lhs - rhs)/abs(lhs), 1.0e-12_dp)
 
         eps = 1.0e-4_dp
         call respline(t, eps)
-        call boozer_ad_primal(ctx, s_list, yp)
+        call boozer_ad_primal(ctx, s_list, yp, from_splines=.true.)
         call respline(t, -eps)
-        call boozer_ad_primal(ctx, s_list, ym)
+        call boozer_ad_primal(ctx, s_list, ym, from_splines=.true.)
         call respline(t, 0.0_dp)
         scale = maxval(abs(yd%bmnc))
         err = maxval(abs((yp%bmnc - ym%bmnc)/(2*eps) - yd%bmnc))/scale
@@ -242,6 +355,14 @@ contains
         err = max(maxval(abs((yp%g - ym%g)/(2*eps) - yd%g))/maxval(abs(yd%g)), &
                   maxval(abs((yp%i - ym%i)/(2*eps) - yd%i))/maxval(abs(yd%i)))
         call report('full JVP G, I vs FD', err, 1.0e-6_dp)
+        err = maxval(abs((yp%gradsmnc - ym%gradsmnc)/(2*eps) - yd%gradsmnc)) &
+              /maxval(abs(yd%gradsmnc))
+        call report('full JVP |grad s| vs FD', err, 1.0e-5_dp)
+        err = maxval(abs((yp%psi_edge - ym%psi_edge)/(2*eps) - yd%psi_edge)) &
+              /maxval(abs(yd%psi_edge))
+        call report('full JVP psi_edge vs FD', err, 1.0e-10_dp)
+        call report('JVP R = tangent of Rmajor_p', maxval(abs(yd%rmajor - t%rmajor)), &
+                    0.0_dp)
         print '(a, 3es12.4)', '  primal iota, G, I (s=0.5): ', y0%iota(2), y0%g(2), y0%i(2)
     end subroutine check_full
 
@@ -249,6 +370,7 @@ contains
     !> as spline_vmec_data does after reading the file.
     subroutine respline(t, eps)
         use new_vmec_stuff_mod, only: rmnc, zmns, almns, aiota, kpar
+        use vector_potentail_mod, only: torflux
         use vmec_alloc_sub, only: new_allocate_vmec_stuff, new_deallocate_vmec_stuff
         use vmecin_sub, only: lambda_half_to_full_map
         use spline_vmec_sub, only: initialize_vmec_data_and_arrays, &
@@ -267,6 +389,7 @@ contains
         call lambda_half_to_full_map(t%lmns, dlam, kpar)
         almns = almns + eps*dlam
         aiota = aiota + eps*t%iotaf
+        torflux = torflux*(1 + eps*t%phiedge/ctx%phiedge)
         call setup_poloidal_flux_splines()
         call setup_angular_grid_and_fourier_synthesis()
         call new_deallocate_vmec_stuff()
