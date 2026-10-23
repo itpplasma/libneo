@@ -36,12 +36,25 @@
 !> from the file and passed through as the scalar input rmajor. Only
 !> stellarator-symmetric input harmonics are differentiated.
 !>
+!> Two constructions are available (boozer_ad_init argument construction).
+!> BOOZER_HYBRID, the default, is module boozer_hybrid: the field is rebuilt
+!> only from the primaries rmnc, zmns, lmns (half mesh, as stored), iotas and
+!> phi_edge with exact angular derivatives and the Boozer spectrum follows by
+!> spectral quadrature without re-interpolation. Its tangent inputs are rmnc,
+!> zmns, lmns, iotas, phiedge and rmajor (iotaf is not used, its tangent is
+!> ignored); lasym arrays enter the primal and are held fixed. BOOZER_LEGACY
+!> is the construction described above (the path of get_boozer_coordinates),
+!> kept for regression; it uses iotaf and ignores the iotas tangent.
+!>
 !> Units: inputs in wout units (m, T, Wb); spectra of B in T, of |grad s| in
 !> 1/m, nu in rad, G and I in T m, psi_edge = phi_edge/(2 pi) in Wb (rabe's
 !> psi_tor_edge), R in m.
 module boozer_vmec_ad
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use spl_three_to_five_sub, only: spl_reg, spl_per
+    use boozer_hybrid, only: boozer_hybrid_t, hybrid_surface_t, boozer_hybrid_init, &
+                             hybrid_surface, hybrid_surface_jvp, hybrid_surface_vjp, &
+                             NSPEC
     use boozer_surface, only: boozer_angle_grid_t, boozer_surface_lin_t, &
                               boozer_surface_lin_init, boozer_surface_jvp, &
                               boozer_surface_vjp
@@ -53,6 +66,9 @@ module boozer_vmec_ad
     public :: boozer_ad_init, boozer_ad_primal, boozer_ad_jvp, boozer_ad_vjp
     public :: wout_tangent_alloc, spectrum_alloc, boozer_ad_perturb
     public :: boozer_field_kernel, sqrt_g_ss_kernel, boozer_ad_surface_data
+    public :: BOOZER_HYBRID, BOOZER_LEGACY
+
+    integer, parameter :: BOOZER_HYBRID = 1, BOOZER_LEGACY = 2
 
     integer, parameter :: NIN = 10, NGSS = 7
     integer, parameter :: FAMILY_RZ = 1, FAMILY_L = 2
@@ -62,6 +78,8 @@ module boozer_vmec_ad
 
     !> Explicit state of the differentiated transform, built from a wout file.
     type :: boozer_ad_context_t
+        integer :: construction = BOOZER_HYBRID
+        type(boozer_hybrid_t) :: hyb
         type(boozer_angle_grid_t) :: grid
         type(boozer_surface_lin_t) :: lin
         integer :: nstrm = 0, kpar = 0, ns = 0, nper = 1, ns_s = 5, ns_A = 5
@@ -93,6 +111,8 @@ module boozer_vmec_ad
     !> toroidal flux (scaling the phi profile) and Rmajor_p.
     type :: boozer_wout_tangent_t
         real(dp), allocatable :: rmnc(:, :), zmns(:, :), lmns(:, :), iotaf(:)
+        !> half-mesh iota (hybrid construction only)
+        real(dp), allocatable :: iotas(:)
         real(dp) :: phiedge = 0.0_dp, rmajor = 0.0_dp
     end type boozer_wout_tangent_t
 
@@ -174,6 +194,8 @@ contains
 
         allocate (t%rmnc(ctx%nstrm, 0:ctx%kpar), t%zmns(ctx%nstrm, 0:ctx%kpar))
         allocate (t%lmns(ctx%nstrm, 0:ctx%kpar), t%iotaf(0:ctx%kpar))
+        allocate (t%iotas(0:ctx%kpar))
+        t%iotas = 0.0_dp
         t%rmnc = 0.0_dp
         t%zmns = 0.0_dp
         t%lmns = 0.0_dp
@@ -211,9 +233,12 @@ contains
     !> get_boozer_coordinates would set them. With spline_vmec_state the VMEC
     !> splines of spline_vmec_sub are built as well (only needed to compare
     !> with splint_vmec_data, see boozer_ad_primal(from_splines=.true.)).
+    !> construction selects BOOZER_HYBRID (default) or BOOZER_LEGACY. The
+    !> spline orders, grid_refinement and spline_vmec_state apply to the legacy
+    !> construction, n_theta and n_phi (> 0) override the hybrid grid.
     subroutine boozer_ad_init(ctx, wout_file, mboz, nboz, radial_spline_order, &
                               angular_spline_order, grid_refinement, &
-                              spline_vmec_state)
+                              spline_vmec_state, construction, n_theta, n_phi)
         use new_vmec_stuff_mod, only: netcdffile, ns_s, ns_tp, multharm, ns_A, &
                                       vmec_B_scale, vmec_RZ_scale
         use spline_vmec_sub, only: spline_vmec_data, vmec_angular_grid
@@ -223,9 +248,19 @@ contains
         integer, intent(in), optional :: radial_spline_order, angular_spline_order
         integer, intent(in), optional :: grid_refinement
         logical, intent(in), optional :: spline_vmec_state
-        integer :: n_theta, n_phi
+        integer, intent(in), optional :: construction, n_theta, n_phi
+        integer :: nth, nph
         real(dp) :: h_theta, h_phi
 
+        if (present(construction)) ctx%construction = construction
+        select case (ctx%construction)
+        case (BOOZER_HYBRID)
+            call hybrid_init(ctx, wout_file, mboz, nboz, n_theta, n_phi)
+            return
+        case (BOOZER_LEGACY)
+        case default
+            error stop 'boozer_ad_init: construction must be BOOZER_HYBRID or BOOZER_LEGACY'
+        end select
         netcdffile = wout_file
         ns_s = 5
         ns_tp = 5
@@ -243,8 +278,8 @@ contains
         ctx%fac_b = 1.0e4_dp*vmec_B_scale
         call read_wout_data(ctx)
         call vmec_angular_grid(ctx%mmax, ctx%nmax, multharm, ctx%nper, ns_tp, &
-                               n_theta, n_phi, h_theta, h_phi)
-        ctx%grid = boozer_angle_grid_t(n_theta=n_theta, n_phi=n_phi, ns_tp=ns_tp, &
+                               nth, nph, h_theta, h_phi)
+        ctx%grid = boozer_angle_grid_t(n_theta=nth, n_phi=nph, ns_tp=ns_tp, &
                                        h_theta=h_theta, h_phi=h_phi)
         call boozer_surface_lin_init(ctx%grid, ctx%lin)
         call build_lambda_map(ctx)
@@ -264,6 +299,17 @@ contains
         real(dp), intent(in) :: eps
         real(dp) :: scale
 
+        if (ctx%construction == BOOZER_HYBRID) then
+            ctx%hyb%rmnc = ctx%hyb%rmnc + eps*t%rmnc
+            ctx%hyb%zmns = ctx%hyb%zmns + eps*t%zmns
+            ctx%hyb%lmns = ctx%hyb%lmns + eps*t%lmns
+            ctx%hyb%iotas = ctx%hyb%iotas + eps*t%iotas
+            scale = 1.0_dp + eps*t%phiedge/ctx%phiedge
+            ctx%hyb%phiedge = ctx%hyb%phiedge*scale
+            ctx%phiedge = ctx%phiedge*scale
+            ctx%rmajor = ctx%rmajor + eps*t%rmajor
+            return
+        end if
         ctx%r0 = ctx%r0 + eps*ctx%fac_r*t%rmnc
         ctx%z0 = ctx%z0 + eps*ctx%fac_r*t%zmns
         ctx%l0 = ctx%l0 + eps*matmul(t%lmns, transpose(ctx%lam_map))
@@ -841,7 +887,19 @@ contains
         logical, intent(in), optional :: from_splines
         type(boozer_wout_tangent_t) :: zero
         type(boozer_spectrum_t) :: dummy
+        type(hybrid_surface_t) :: sv
+        integer :: js
 
+        if (ctx%construction == BOOZER_HYBRID) then
+            call spectrum_alloc(ctx, size(s_list), out)
+            do js = 1, size(s_list)
+                call hybrid_surface(ctx%hyb, s_list(js), sv)
+                call hybrid_store(out, js, sv%spec, sv%iota, sv%ci, sv%cg)
+            end do
+            out%psi_edge = ctx%phiedge/(8.0_dp*atan(1.0_dp))
+            out%rmajor = ctx%rmajor
+            return
+        end if
         call wout_tangent_alloc(ctx, zero)
         call boozer_ad_jvp(ctx, s_list, zero, out, dummy, from_splines)
     end subroutine boozer_ad_primal
@@ -862,6 +920,10 @@ contains
         real(dp), allocatable :: dthv(:, :), dphv(:, :), q2(:, :, :)
         real(dp), allocatable :: dthv_d(:, :), dphv_d(:, :), q2_d(:, :, :)
 
+        if (ctx%construction == BOOZER_HYBRID) then
+            call hybrid_jvp(ctx, s_list, t, out, out_d)
+            return
+        end if
         spl = .false.
         if (present(from_splines)) spl = from_splines
         nt = ctx%grid%n_theta
@@ -919,6 +981,14 @@ contains
         real(dp), allocatable :: q2_b(:, :, :), dthv_b(:, :), dphv_b(:, :)
         real(dp), allocatable :: bt_b(:, :), bp_b(:, :), q2(:, :, :)
 
+        if (ctx%construction == BOOZER_HYBRID) then
+            if (present(out)) then
+                call hybrid_vjp(ctx, s_list, out_b, t, out)
+            else
+                call hybrid_vjp(ctx, s_list, out_b, t)
+            end if
+            return
+        end if
         nt = ctx%grid%n_theta
         np = ctx%grid%n_phi
         call wout_tangent_alloc(ctx, t)
@@ -971,5 +1041,122 @@ contains
         t%rmajor = sum(out_b%rmajor)
         if (present(out)) out = y
     end subroutine boozer_ad_vjp
+
+    !> Context of the hybrid construction: the shared fields that spectrum_alloc,
+    !> wout_tangent_alloc and the CLI read.
+    subroutine hybrid_init(ctx, wout_file, mboz, nboz, n_theta, n_phi)
+        type(boozer_ad_context_t), intent(inout) :: ctx
+        character(len=*), intent(in) :: wout_file
+        integer, intent(in) :: mboz, nboz
+        integer, intent(in), optional :: n_theta, n_phi
+
+        call boozer_hybrid_init(ctx%hyb, wout_file, mboz, nboz, n_theta, n_phi)
+        associate (h => ctx%hyb)
+            ctx%nstrm = h%mnmax
+            ctx%kpar = h%ns - 1
+            ctx%ns = h%ns
+            ctx%nper = h%nfp
+            ctx%mmax = h%mmax
+            ctx%nmax = h%nmax*h%nfp
+            ctx%axisym = h%axisym
+            ctx%mboz = h%mboz
+            ctx%nboz = h%nboz
+            ctx%mnboz = h%mnboz
+            allocate (ctx%xm_b(h%mnboz), ctx%xn_b(h%mnboz))
+            ctx%xm_b = h%xm_b
+            ctx%xn_b = h%xn_b
+            ctx%phiedge = h%phiedge
+            ctx%rmajor = h%rmajor
+            ctx%grid%n_theta = h%nt
+            ctx%grid%n_phi = h%np
+        end associate
+    end subroutine hybrid_init
+
+    subroutine hybrid_store(sp, j, spec, iota, ci, cg)
+        type(boozer_spectrum_t), intent(inout) :: sp
+        integer, intent(in) :: j
+        real(dp), intent(in) :: spec(:, :), iota, ci, cg
+
+        sp%bmnc(:, j) = spec(1, :)
+        sp%bmns(:, j) = spec(2, :)
+        sp%numnc(:, j) = spec(3, :)
+        sp%numns(:, j) = spec(4, :)
+        sp%gradsmnc(:, j) = spec(5, :)
+        sp%gradsmns(:, j) = spec(6, :)
+        sp%iota(j) = iota
+        sp%i(j) = ci
+        sp%g(j) = cg
+    end subroutine hybrid_store
+
+    subroutine hybrid_jvp(ctx, s_list, t, out, out_d)
+        type(boozer_ad_context_t), intent(in) :: ctx
+        real(dp), intent(in) :: s_list(:)
+        type(boozer_wout_tangent_t), intent(in) :: t
+        type(boozer_spectrum_t), intent(out) :: out, out_d
+        type(hybrid_surface_t) :: sv
+        real(dp), allocatable :: spec_d(:, :)
+        real(dp) :: rel, iota_d, ci_d, cg_d
+        integer :: js
+
+        call spectrum_alloc(ctx, size(s_list), out)
+        call spectrum_alloc(ctx, size(s_list), out_d)
+        allocate (spec_d(NSPEC, ctx%mnboz))
+        rel = t%phiedge/ctx%phiedge
+        do js = 1, size(s_list)
+            call hybrid_surface(ctx%hyb, s_list(js), sv)
+            call hybrid_store(out, js, sv%spec, sv%iota, sv%ci, sv%cg)
+            call hybrid_surface_jvp(ctx%hyb, sv, t%rmnc, t%zmns, t%lmns, t%iotas, &
+                                    spec_d, iota_d, ci_d, cg_d)
+            call hybrid_store(out_d, js, spec_d, iota_d, ci_d, cg_d)
+            ! Flux scaling: B, G, I, psi_edge are proportional to phi_edge.
+            out_d%bmnc(:, js) = out_d%bmnc(:, js) + rel*out%bmnc(:, js)
+            out_d%bmns(:, js) = out_d%bmns(:, js) + rel*out%bmns(:, js)
+            out_d%g(js) = out_d%g(js) + rel*out%g(js)
+            out_d%i(js) = out_d%i(js) + rel*out%i(js)
+        end do
+        out%psi_edge = ctx%phiedge/(8.0_dp*atan(1.0_dp))
+        out_d%psi_edge = rel*out%psi_edge
+        out%rmajor = ctx%rmajor
+        out_d%rmajor = t%rmajor
+    end subroutine hybrid_jvp
+
+    subroutine hybrid_vjp(ctx, s_list, out_b, t, out)
+        type(boozer_ad_context_t), intent(in) :: ctx
+        real(dp), intent(in) :: s_list(:)
+        type(boozer_spectrum_t), intent(in) :: out_b
+        type(boozer_wout_tangent_t), intent(out) :: t
+        type(boozer_spectrum_t), intent(out), optional :: out
+        type(hybrid_surface_t) :: sv
+        type(boozer_spectrum_t) :: y
+        real(dp), allocatable :: spec_b(:, :)
+        real(dp) :: flux_b
+        integer :: js
+
+        call wout_tangent_alloc(ctx, t)
+        call spectrum_alloc(ctx, size(s_list), y)
+        allocate (spec_b(NSPEC, ctx%mnboz))
+        flux_b = 0.0_dp
+        do js = 1, size(s_list)
+            call hybrid_surface(ctx%hyb, s_list(js), sv)
+            call hybrid_store(y, js, sv%spec, sv%iota, sv%ci, sv%cg)
+            spec_b(1, :) = out_b%bmnc(:, js)
+            spec_b(2, :) = out_b%bmns(:, js)
+            spec_b(3, :) = out_b%numnc(:, js)
+            spec_b(4, :) = out_b%numns(:, js)
+            spec_b(5, :) = out_b%gradsmnc(:, js)
+            spec_b(6, :) = out_b%gradsmns(:, js)
+            call hybrid_surface_vjp(ctx%hyb, sv, spec_b, out_b%iota(js), out_b%i(js), &
+                                    out_b%g(js), t%rmnc, t%zmns, t%lmns, t%iotas)
+            flux_b = flux_b + sum(out_b%bmnc(:, js)*y%bmnc(:, js)) &
+                     + sum(out_b%bmns(:, js)*y%bmns(:, js)) &
+                     + out_b%g(js)*y%g(js) + out_b%i(js)*y%i(js)
+        end do
+        y%psi_edge = ctx%phiedge/(8.0_dp*atan(1.0_dp))
+        y%rmajor = ctx%rmajor
+        flux_b = flux_b + sum(out_b%psi_edge*y%psi_edge)
+        t%phiedge = flux_b/ctx%phiedge
+        t%rmajor = sum(out_b%rmajor)
+        if (present(out)) out = y
+    end subroutine hybrid_vjp
 
 end module boozer_vmec_ad

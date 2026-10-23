@@ -3,16 +3,19 @@
 !> Usage: boozer_spectrum_ad.x primal|jvp|vjp <wout.nc> <in.nc> <out.nc>
 !>
 !> in.nc holds s(nsurf), the integers mboz, nboz and grid_refinement, optionally
-!> the integer lambda_cubic (1 selects lambda_half_to_full = 'cubic', default 0 =
-!> 'linear'), and for
-!> jvp the wout-shaped tangents rmnc, zmns, lmns (ns x mnmax) and iotaf (ns)
+!> the integer construction (1 = hybrid, the default; 2 = legacy), the integers
+!> n_theta and n_phi (hybrid grid override, default 0 = automatic), the integer
+!> lambda_cubic (legacy only: 1 selects lambda_half_to_full = 'cubic', default
+!> 0 = 'linear'), and for
+!> jvp the wout-shaped tangents rmnc, zmns, lmns (ns x mnmax), iotaf (ns, legacy)
+!> and iotas (ns, hybrid)
 !> and the scalars phiedge (edge toroidal flux, scaling the phi profile) and
 !> rmajor (Rmajor_p), for vjp the cotangents bmnc_b, bmns_b, numns_b, numnc_b,
 !> gradsmnc_b, gradsmns_b (nsurf x mnboz) and iota, G, I, psi_edge, R (nsurf).
 !> Absent arrays are zero. out.nc receives xm_b, xn_b, the primal spectrum
 !> (with |grad s| = gradsmnc_b, psi_edge and R as rabe uses them) and either
 !> its tangent (prefix d_) or the wout cotangents rmnc, zmns, lmns, iotaf,
-!> phiedge and rmajor. Units: m, T, T m, 1/m and Wb.
+!> iotas, phiedge and rmajor. Units: m, T, T m, 1/m and Wb.
 program boozer_spectrum_ad
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use netcdf
@@ -20,7 +23,7 @@ program boozer_spectrum_ad
     use boozer_vmec_ad, only: boozer_ad_context_t, boozer_wout_tangent_t, &
                               boozer_spectrum_t, boozer_ad_init, boozer_ad_primal, &
                               boozer_ad_jvp, boozer_ad_vjp, wout_tangent_alloc, &
-                              spectrum_alloc
+                              spectrum_alloc, BOOZER_HYBRID
     implicit none
 
     character(len=1024) :: mode, wout, fin, fout
@@ -28,7 +31,7 @@ program boozer_spectrum_ad
     type(boozer_wout_tangent_t) :: t
     type(boozer_spectrum_t) :: y, yd, yb
     real(dp), allocatable :: s(:)
-    integer :: ncid, mboz, nboz, refine, nsurf
+    integer :: ncid, mboz, nboz, refine, nsurf, construction, nth, nph
     integer(int64) :: c0, c1, rate
 
     if (command_argument_count() /= 4) then
@@ -50,7 +53,11 @@ program boozer_spectrum_ad
     lambda_half_to_full = 'linear'
     if (get_int_opt(ncid, 'lambda_cubic', 0) == 1) lambda_half_to_full = 'cubic'
 
-    call boozer_ad_init(ctx, trim(wout), mboz, nboz, grid_refinement=refine)
+    construction = get_int_opt(ncid, 'construction', BOOZER_HYBRID)
+    nth = get_int_opt(ncid, 'n_theta', 0)
+    nph = get_int_opt(ncid, 'n_phi', 0)
+    call boozer_ad_init(ctx, trim(wout), mboz, nboz, grid_refinement=refine, &
+                        construction=construction, n_theta=nth, n_phi=nph)
     call system_clock(c0, rate)
     select case (trim(mode))
     case ('primal')
@@ -61,6 +68,7 @@ program boozer_spectrum_ad
         call get_opt2(ncid, 'zmns', t%zmns)
         call get_opt2(ncid, 'lmns', t%lmns)
         call get_opt1(ncid, 'iotaf', t%iotaf)
+        call get_opt1(ncid, 'iotas', t%iotas)
         call get_opt0(ncid, 'phiedge', t%phiedge)
         call get_opt0(ncid, 'rmajor', t%rmajor)
         call boozer_ad_jvp(ctx, s, t, y, yd)
@@ -98,6 +106,7 @@ contains
                                 real(c1 - c0, dp)/real(rate, dp)))
         call check(nf90_put_att(ncid, NF90_GLOBAL, 'n_theta', ctx%grid%n_theta))
         call check(nf90_put_att(ncid, NF90_GLOBAL, 'n_phi', ctx%grid%n_phi))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'construction', construction))
         call check(nf90_put_att(ncid, NF90_GLOBAL, 'lambda_half_to_full', &
                                 trim(lambda_half_to_full)))
         k = 0
@@ -115,6 +124,7 @@ contains
             call def(v, k, 'iotaf', NF90_DOUBLE, [dns])
             call def0(v, k, 'phiedge')
             call def0(v, k, 'rmajor')
+            call def(v, k, 'iotas', NF90_DOUBLE, [dns])
         end if
         call check(nf90_enddef(ncid))
         call check(nf90_put_var(ncid, v(1), ctx%xm_b))
@@ -129,6 +139,7 @@ contains
             call check(nf90_put_var(ncid, v(18), t%iotaf))
             call check(nf90_put_var(ncid, v(19), t%phiedge))
             call check(nf90_put_var(ncid, v(20), t%rmajor))
+            call check(nf90_put_var(ncid, v(21), t%iotas))
         end if
         call check(nf90_close(ncid))
     end subroutine write_output

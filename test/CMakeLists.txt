@@ -718,6 +718,21 @@ set_tests_properties(test_boozer_vmec_ad PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS "setup_vmec_wout;setup_vmec_wout_li383;setup_vmec_wout_circular_tokamak")
 
+add_test(
+  NAME setup_vmec_wout_updown_tokamak
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case updown_tokamak
+)
+
+add_executable(test_boozer_hybrid.x source/test_boozer_hybrid.f90)
+target_link_libraries(test_boozer_hybrid.x neo)
+add_test(NAME test_boozer_hybrid
+  COMMAND test_boozer_hybrid.x)
+set_tests_properties(test_boozer_hybrid PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383;setup_vmec_wout_circular_tokamak;setup_vmec_wout_updown_tokamak")
+
 add_executable(test_lambda_half_to_full.x source/test_lambda_half_to_full.f90)
 target_link_libraries(test_lambda_half_to_full.x neo)
 add_test(NAME test_lambda_half_to_full COMMAND test_lambda_half_to_full.x)
