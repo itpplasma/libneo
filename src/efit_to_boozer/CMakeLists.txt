@@ -160,7 +160,7 @@ add_custom_command(
   "${CMAKE_SOURCE_DIR}/src/util/binsrc.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/rhs.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/spline_and_interpolate_magdata.f90"
-  -m _efit_to_boozer --lower skip: python_error init_legacy init_contour oddorderspline polleg binomial odeint_allroutines', alloc_odeint odeint rkck rkqs :
+  -m _efit_to_boozer --lower skip: python_error init_legacy init_contour contour_transform_worker oddorderspline polleg binomial odeint_allroutines', alloc_odeint odeint rkck rkqs :
 )
 
 Python_add_library(_efit_to_boozer WITH_SOABI

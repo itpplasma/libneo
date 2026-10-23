@@ -13,8 +13,16 @@ length_cgs_to_si = 1e-2
 debug = False
 
 
-def write_boozer_head(filename, version, shot: int, m0b, n0b, nsurf_fmt, nfp, psi_tor_a, aminor, Rmajor):
+def _boozer_float_format(precision, default):
+  if precision is None:
+    return default
+  if precision != 16:
+    raise ValueError("precision must be None (historical format) or 16")
+  return "24.16e"
+
+def write_boozer_head(filename, version, shot: int, m0b, n0b, nsurf_fmt, nfp, psi_tor_a, aminor, Rmajor, *, precision=None):
   import getpass
+  float_format = _boozer_float_format(precision, "12.6e")
 
   global_variables_head_line=" m0b   n0b  nsurf  nper    flux [Tm^2]        a [m]          R [m]"
 
@@ -25,10 +33,10 @@ def write_boozer_head(filename, version, shot: int, m0b, n0b, nsurf_fmt, nfp, ps
     outfile.write("CC shot: {:4d}".format(shot) + '\n')
     outfile.write(global_variables_head_line + '\n')
     outfile.write("{:4d}  {:4d}  {:3d} {:4d}  ".format(m0b, n0b, nsurf_fmt, nfp))
-    outfile.write("{:12.6e}   {:12.6e}   {:12.6e}".format(psi_tor_a, aminor, Rmajor))
+    outfile.write(f"{psi_tor_a:{float_format}}   {aminor:{float_format}}   {Rmajor:{float_format}}")
     outfile.write("\n")
 
-def append_boozer_block_head(filename, s, iota, bsubvB, bsubuB, pprime, vp, enfp):
+def append_boozer_block_head(filename, s, iota, bsubvB, bsubuB, pprime, vp, enfp, *, precision=None):
   import numpy as np
   import scipy.constants
 
@@ -36,44 +44,47 @@ def append_boozer_block_head(filename, s, iota, bsubvB, bsubuB, pprime, vp, enfp
 
   _append_boozer_block_head(filename, s, iota,
     -2.0*np.pi/mu0*bsubvB/enfp, -2.0*np.pi/mu0*bsubuB, pprime,
-    -4.0*np.pi**2*vp/enfp)
+    -4.0*np.pi**2*vp/enfp, precision=precision)
 
-def _append_boozer_block_head(filename, s, iota, Jpol_divided_by_nper, Itor, pprime, sqrt_g_00):
+def _append_boozer_block_head(filename, s, iota, Jpol_divided_by_nper, Itor, pprime, sqrt_g_00, *, precision=None):
+  float_format = " {:" + _boozer_float_format(precision, "16.8e") + "}"
   with open(filename, 'a') as outfile:
     outfile.write('        s               iota           Jpol/nper          '+
     'Itor            pprime         sqrt g(0,0)\n')
     outfile.write('                                          [A]           '+
     '[A]             [Pa]         (dV/ds)/nper\n')
-    outfile.write(' {:16.8e}'.format(s))
-    outfile.write(' {:16.8e}'.format(iota))
-    outfile.write(' {:16.8e}'.format(Jpol_divided_by_nper))
-    outfile.write(' {:16.8e}'.format(Itor))
-    outfile.write(' {:16.8e}'.format(pprime))
-    outfile.write(' {:16.8e}'.format(sqrt_g_00))
+    outfile.write(float_format.format(s))
+    outfile.write(float_format.format(iota))
+    outfile.write(float_format.format(Jpol_divided_by_nper))
+    outfile.write(float_format.format(Itor))
+    outfile.write(float_format.format(pprime))
+    outfile.write(float_format.format(sqrt_g_00))
     outfile.write('\n')
 
-def append_boozer_block(filename, mb, nb, rmnb, zmnb, vmnb, bmnb, enfp):
+def append_boozer_block(filename, mb, nb, rmnb, zmnb, vmnb, bmnb, enfp, *, precision=None):
   from numpy import array, int32
   _append_boozer_block(filename, mb, array(nb/enfp, dtype=int32),
       rmnb.real, -rmnb.imag,
       zmnb.real, -zmnb.imag,
       vmnb.real, -vmnb.imag,
-      bmnb.real, -bmnb.imag)
+      bmnb.real, -bmnb.imag, precision=precision)
 
-def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, bmnc, bmns):
+def _append_boozer_block(filename, mb, nb, rmnc, rmns, zmnc, zmns, vmnc, vmns, bmnc, bmns, *, precision=None):
+  float_format = " {:" + _boozer_float_format(precision, "16.8e") + "}"
+  pair_format = float_format + float_format
   with open(filename, 'a') as f:
     f.write('    m    n      rmnc [m]         rmns [m]         zmnc [m]  '+
             '       zmns [m]         vmnc [ ]         vmns [ ]         '+
             'bmnc [T]         bmns [T]\n')
     for k in range(len(mb)):
       f.write(' {:4d} {:4d}'.format(mb[k], nb[k]))
-      f.write(' {:16.8e} {:16.8e}'.format(rmnc[k], rmns[k]))
-      f.write(' {:16.8e} {:16.8e}'.format(zmnc[k], zmns[k]))
-      f.write(' {:16.8e} {:16.8e}'.format(vmnc[k], vmns[k]))
-      f.write(' {:16.8e} {:16.8e}'.format(bmnc[k], bmns[k]))
+      f.write(pair_format.format(rmnc[k], rmns[k]))
+      f.write(pair_format.format(zmnc[k], zmns[k]))
+      f.write(pair_format.format(vmnc[k], vmns[k]))
+      f.write(pair_format.format(bmnc[k], bmns[k]))
       f.write('\n')
 
-def append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc, enfp):
+def append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc, enfp, *, precision=None):
   from numpy import array, int32
   _append_boozer_block_stellerator_symmetry(filename,
                                             mb,
@@ -81,18 +92,19 @@ def append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns,
                                             rmnc,
                                             zmns,
                                             vmns,
-                                            bmnc)
+                                            bmnc, precision=precision)
 
-def _append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc):
+def _append_boozer_block_stellerator_symmetry(filename, mb, nb, rmnc, zmns, vmns, bmnc, *, precision=None):
+  float_format = " {:" + _boozer_float_format(precision, "16.8e") + "}"
   with open(filename, 'a') as f:
     f.write('    m    n      rmnc [m]         zmns [m]  '+
             '       vmns [ ]         bmnc [T]\n')
     for k in range(len(mb)):
       f.write(' {:4d} {:4d}'.format(mb[k], nb[k]))
-      f.write(' {:16.8e}'.format(rmnc[k]))
-      f.write(' {:16.8e}'.format(zmns[k]))
-      f.write(' {:16.8e}'.format(vmns[k]))
-      f.write(' {:16.8e}'.format(bmnc[k]))
+      f.write(float_format.format(rmnc[k]))
+      f.write(float_format.format(zmns[k]))
+      f.write(float_format.format(vmns[k]))
+      f.write(float_format.format(bmnc[k]))
       f.write('\n')
 
 
@@ -800,19 +812,19 @@ class BoozerFile:
       else:
         self.read_boozer(filename)
 
-  def write(self, filename: str):
+  def write(self, filename: str, *, precision=None):
     write_boozer_head(filename, '', 0, self.m0b, self.n0b, self.nsurf,
-      self.nper, self.flux, self.a, self.R)
+      self.nper, self.flux, self.a, self.R, precision=precision)
 
     for i in range(self.nsurf):
       _append_boozer_block_head(filename, self.s[i], self.iota[i],
         self.Jpol_divided_by_nper[i], self.Itor[i], self.pprime[i],
-        self.sqrt_g_00[i])
+        self.sqrt_g_00[i], precision=precision)
       _append_boozer_block(filename, self.m[i], self.n[i],
         self.rmnc[i], self.rmns[i],
         self.zmnc[i], self.zmns[i],
         self.vmnc[i], self.vmns[i],
-        self.bmnc[i], self.bmns[i])
+        self.bmnc[i], self.bmns[i], precision=precision)
 
   def contours_in_r_z_plane(self, phi: float, nplotsurf: int, outfile: str, add_last_flux_surface:bool = False):
     """Write outfile with contours based on data, at specified toroidal angle.

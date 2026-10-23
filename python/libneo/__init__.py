@@ -37,3 +37,4 @@ except (ImportError, RuntimeError):
 
 # Boozer chartmap writer (libneo-defined extended chartmap format)
 from .boozer_chartmap_writer import write_boozer_chartmap, apply_left_handed_flip
+from .eqdsk_to_boozer import convert_eqdsk_to_bc
