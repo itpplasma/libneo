@@ -23,7 +23,8 @@ program test_boozer_vmec_ad
                               boozer_spectrum_t, boozer_ad_init, boozer_ad_primal, &
                               boozer_ad_jvp, boozer_ad_vjp, wout_tangent_alloc, &
                               spectrum_alloc, boozer_field_kernel, &
-                              sqrt_g_ss_kernel, boozer_ad_surface_data
+                              sqrt_g_ss_kernel, boozer_ad_surface_data, &
+                              boozer_ad_perturb
     implicit none
 
     type(boozer_ad_context_t) :: ctx
@@ -292,6 +293,7 @@ contains
 
     subroutine check_full(label)
         character(*), intent(in) :: label
+        type(boozer_ad_context_t) :: cp
         type(boozer_wout_tangent_t) :: t, tb
         type(boozer_spectrum_t) :: y0, yd, yb, yp, ym
         real(dp) :: lhs, rhs, eps, scale, err
@@ -363,6 +365,18 @@ contains
         call report('full JVP psi_edge vs FD', err, 1.0e-10_dp)
         call report('JVP R = tangent of Rmajor_p', maxval(abs(yd%rmajor - t%rmajor)), &
                     0.0_dp)
+        cp = ctx
+        call boozer_ad_perturb(cp, t, eps)
+        call boozer_ad_primal(cp, s_list, yp)
+        cp = ctx
+        call boozer_ad_perturb(cp, t, -eps)
+        call boozer_ad_primal(cp, s_list, ym)
+        err = max(maxval(abs((yp%bmnc - ym%bmnc)/(2*eps) - yd%bmnc))/scale, &
+                  maxval(abs((yp%gradsmnc - ym%gradsmnc)/(2*eps) - yd%gradsmnc)) &
+                  /maxval(abs(yd%gradsmnc)), &
+                  maxval(abs((yp%g - ym%g)/(2*eps) - yd%g))/maxval(abs(yd%g)), &
+                  maxval(abs((yp%rmajor - ym%rmajor)/(2*eps) - yd%rmajor)))
+        call report('full JVP vs FD of boozer_ad_perturb', err, 1.0e-5_dp)
         print '(a, 3es12.4)', '  primal iota, G, I (s=0.5): ', y0%iota(2), y0%g(2), y0%i(2)
     end subroutine check_full
 

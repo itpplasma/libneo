@@ -51,7 +51,7 @@ module boozer_vmec_ad
 
     public :: boozer_ad_context_t, boozer_wout_tangent_t, boozer_spectrum_t
     public :: boozer_ad_init, boozer_ad_primal, boozer_ad_jvp, boozer_ad_vjp
-    public :: wout_tangent_alloc, spectrum_alloc
+    public :: wout_tangent_alloc, spectrum_alloc, boozer_ad_perturb
     public :: boozer_field_kernel, sqrt_g_ss_kernel, boozer_ad_surface_data
 
     integer, parameter :: NIN = 10, NGSS = 7
@@ -251,6 +251,28 @@ contains
         call build_angular_operators(ctx)
         call build_boozer_modes(ctx, mboz, nboz)
     end subroutine boozer_ad_init
+
+    !> Shift the wout data held by ctx by eps*t, as reading a wout file with
+    !> rmnc + eps*t%rmnc, ..., phi*(1 + eps*t%phiedge/phi_edge) and
+    !> Rmajor_p + eps*t%rmajor would (the healing classes stay those of the
+    !> original file). This is the in-memory perturbation for finite
+    !> differences of boozer_ad_primal; the transform does not read the
+    !> VMEC splines of spline_vmec_sub, so re-splining those has no effect.
+    subroutine boozer_ad_perturb(ctx, t, eps)
+        type(boozer_ad_context_t), intent(inout) :: ctx
+        type(boozer_wout_tangent_t), intent(in) :: t
+        real(dp), intent(in) :: eps
+        real(dp) :: scale
+
+        ctx%r0 = ctx%r0 + eps*ctx%fac_r*t%rmnc
+        ctx%z0 = ctx%z0 + eps*ctx%fac_r*t%zmns
+        ctx%l0 = ctx%l0 + eps*matmul(t%lmns, transpose(ctx%lam_map))
+        ctx%iota0 = ctx%iota0 + eps*t%iotaf
+        scale = 1.0_dp + eps*t%phiedge/ctx%phiedge
+        ctx%torflux = ctx%torflux*scale
+        ctx%phiedge = ctx%phiedge*scale
+        ctx%rmajor = ctx%rmajor + eps*t%rmajor
+    end subroutine boozer_ad_perturb
 
     !> vmecin data (as spline_vmec_data reads them), the healing classes and
     !> the primal coefficients.
