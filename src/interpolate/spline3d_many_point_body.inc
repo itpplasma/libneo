@@ -1,27 +1,15 @@
 if (periodic(1)) then
-    t = x(1, ipt) - x_min(1)
-    k_wrap = int(t/period(1))
-    w = t - real(k_wrap, dp)*period(1)
-    if (w < 0.0_dp) w = w + period(1)
-    xj1 = w + x_min(1)
+    xj1 = modulo(x(1, ipt) - x_min(1), period(1)) + x_min(1)
 else
     xj1 = x(1, ipt)
 end if
 if (periodic(2)) then
-    t = x(2, ipt) - x_min(2)
-    k_wrap = int(t/period(2))
-    w = t - real(k_wrap, dp)*period(2)
-    if (w < 0.0_dp) w = w + period(2)
-    xj2 = w + x_min(2)
+    xj2 = modulo(x(2, ipt) - x_min(2), period(2)) + x_min(2)
 else
     xj2 = x(2, ipt)
 end if
 if (periodic(3)) then
-    t = x(3, ipt) - x_min(3)
-    k_wrap = int(t/period(3))
-    w = t - real(k_wrap, dp)*period(3)
-    if (w < 0.0_dp) w = w + period(3)
-    xj3 = w + x_min(3)
+    xj3 = modulo(x(3, ipt) - x_min(3), period(3)) + x_min(3)
 else
     xj3 = x(3, ipt)
 end if

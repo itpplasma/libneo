@@ -16,7 +16,7 @@ program test_batch_interpolate_many
     use batch_interpolate, only: destroy_batch_splines_1d, destroy_batch_splines_2d, &
                                  destroy_batch_splines_3d
     use batch_interpolate, only: evaluate_batch_splines_1d, evaluate_batch_splines_2d, &
-                                 evaluate_batch_splines_3d
+                                 evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
     use batch_interpolate, only: evaluate_batch_splines_1d_many, &
                                  evaluate_batch_splines_2d_many, &
                                  evaluate_batch_splines_3d_many
@@ -35,8 +35,73 @@ program test_batch_interpolate_many
     call test_1d()
     call test_2d()
     call test_3d()
+    call test_3d_large_periodic_coordinates()
 
 contains
+
+    subroutine test_3d_large_periodic_coordinates()
+        type(BatchSplineData3D) :: spl
+        real(dp), parameter :: long_x(4) = [100000.123_dp, -100000.456_dp, &
+                                           10000000000.789_dp, -10000000000.123_dp]
+        ! Exact binary64 arguments reduced modulo the exact binary64 number 3.7,
+        ! independently calculated with 80-digit decimal arithmetic.
+        real(dp), parameter :: reduced_x(4) = [0.22300000000206754_dp, &
+            3.143999999999213_dp, 3.3889990773986742_dp, 0.9770012888122634_dp]
+        real(dp) :: x(3, 4), canonical(3), expected(2, 4), many(2, 4)
+        real(dp) :: resident(2, 4), single(2), derivative_value(2), dy(3, 2)
+        integer :: order, axis, ip
+
+        do order = 3, 5
+            spl%order = order
+            spl%num_points = 2
+            spl%num_quantities = 2
+            spl%x_min = 0.0_dp
+            spl%h_step = 3.7_dp
+            spl%inv_h_step = 1.0_dp/spl%h_step
+            spl%period = spl%h_step
+            allocate (spl%coeff(2, 0:order, 0:order, 0:order, 2, 2, 2))
+            ! A known linear tensor polynomial in each canonical cell. No spline
+            ! construction or second evaluator supplies the expected values.
+            spl%coeff = 0.0_dp
+            spl%coeff(1, 0, 0, 0, :, :, :) = 2.0_dp
+            spl%coeff(1, 1, 0, 0, :, :, :) = 0.25_dp
+            spl%coeff(1, 0, 1, 0, :, :, :) = 0.5_dp
+            spl%coeff(1, 0, 0, 1, :, :, :) = -0.125_dp
+            spl%coeff(2, 0, 0, 0, :, :, :) = -3.0_dp
+            spl%coeff(2, 1, 0, 0, :, :, :) = -0.5_dp
+            spl%coeff(2, 0, 1, 0, :, :, :) = 0.125_dp
+            spl%coeff(2, 0, 0, 1, :, :, :) = 0.25_dp
+            do axis = 1, 3
+                spl%periodic = .false.
+                spl%periodic(axis) = .true.
+                do ip = 1, 4
+                    canonical = [0.125_dp, 0.25_dp, 0.375_dp]
+                    x(:, ip) = canonical
+                    x(axis, ip) = long_x(ip)
+                    canonical(axis) = reduced_x(ip)
+                    expected(1, ip) = 2.0_dp + 0.25_dp*canonical(1) &
+                        + 0.5_dp*canonical(2) - 0.125_dp*canonical(3)
+                    expected(2, ip) = -3.0_dp - 0.5_dp*canonical(1) &
+                        + 0.125_dp*canonical(2) + 0.25_dp*canonical(3)
+                    call evaluate_batch_splines_3d(spl, x(:, ip), single)
+                    call assert_close("3d large periodic single", single, &
+                                      expected(:, ip), 2.0e-14_dp)
+                    call evaluate_batch_splines_3d_der(spl, x(:, ip), &
+                                                       derivative_value, dy)
+                    call assert_close("3d large periodic derivative value", &
+                                      derivative_value, expected(:, ip), 2.0e-14_dp)
+                end do
+                call evaluate_batch_splines_3d_many(spl, x, many)
+                call evaluate_batch_splines_3d_many_resident(spl, x, resident)
+                call assert_close("3d large periodic many", reshape(many, [8]), &
+                                  reshape(expected, [8]), 2.0e-14_dp)
+                call assert_close("3d large periodic resident", &
+                                  reshape(resident, [8]), &
+                                  reshape(expected, [8]), 2.0e-14_dp)
+            end do
+            call destroy_batch_splines_3d(spl)
+        end do
+    end subroutine test_3d_large_periodic_coordinates
 
     pure subroutine lcg_init(rng, seed)
         type(lcg_t), intent(inout) :: rng
