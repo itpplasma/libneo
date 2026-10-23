@@ -1,10 +1,7 @@
 """Convert an EQDSK/g-file axisymmetric equilibrium to a libneo Boozer chartmap.
 
-Uses the efit_to_boozer Fortran/f2py module (_efit_to_boozer) that is already
-built at runtime (see build/_efit_to_boozer*.so).  The module reads the
-efit_to_boozer.inp config file from the current directory, which in turn points
-at the g-file.  This front end writes that .inp file from the arguments and
-then calls the module.
+Uses the native EFIT contour construction with hard equilibrium-consistency
+checks. The optional override requires a reason, which is logged by Fortran.
 
 Output convention
 -----------------
@@ -13,10 +10,10 @@ even though the field strength and surface functions are axisymmetric.
 Geometry varies with
 phi_cyl = zeta - G_of_thb(theta_B); Bmod is independent of zeta.
 Surface functions:
-  B_phi (G*cm) = C_norm - iota*B_theta (covariant toroidal field)
+  B_phi (G*cm) = native contour covariant toroidal field
   B_theta (G*cm) = signed poloidal circulation / (2*pi)
   A_phi(s) = -torflux * integral_0^s iota(s') ds'
-torflux = -psitor_max (negative: left-handed SIMPLE convention)
+torflux = -sign(F)*abs(psitor_max) (left-handed SIMPLE convention)
 """
 
 from __future__ import annotations
@@ -46,7 +43,7 @@ _INP_TEMPLATE = """\
 {nsurf}        nsurf    - number of flux surfaces in Boozer file
 {mpol}         mpol     - number of poloidal modes in Boozer file
 {psimax}
-{construction}         construction - 1 flux-surface contours, 2 legacy field lines
+{construction}         construction - 1 contours, 2 legacy field lines
 """
 
 
@@ -132,53 +129,35 @@ def convert_eqdsk_to_chartmap(
     convexwall=None,
     psimax=None,
     construction=1,
+    n_q=128,
+    allow_poor_equilibrium=False,
+    override_reason="",
+    exp_bpol=-1,
 ):
     """Read an EQDSK g-file and write a libneo Boozer chartmap.
 
-    The efit_to_boozer f2py module is loaded lazily and run inside a temporary
-    directory so its inp/output files do not pollute the caller's cwd.
+    The contour construction uses the file LCFS by default. ``psimax`` is an
+    optional axis-relative poloidal flux boundary in CGS. ``ntheta_int`` and
+    ``n_q`` set the contour and toroidal-flux integration grids. Historical
+    field-line scan arguments are retained for call compatibility.
 
-    Parameters
-    ----------
-    nsurfmax : int
-        Number of starting points for the separatrix search in efit_to_boozer.
-        Smaller values run faster; 200 is sufficient for most EFIT files.
-    nsurf : int
-        Number of flux surfaces in the Boozer file.  Must be >= nlabel.
-    convexwall : path-like or None
-        Path to a convex wall file for stretch_coords.  If None a default
-        circular wall is generated from the g-file boundary.
-    psimax : float or None
-        Poloidal flux at the plasma boundary in CGS (G*cm^2/rad), signed
-        value as interpolated by field_eq from the g-file psi map.  The
-        flux-surface scan stops at the first surface with psi beyond this
-        value.  If None, the boundary is located purely by the field-line
-        integration leaving the computational box; that fails for synthetic
-        equilibria without an X-point, whose psi keeps rising to the box
-        edge (the scan then runs to nsurfmax and the last box-confined
-        surface, not the LCFS, becomes s = 1).  With the contour
-        construction, None places s = 1 at the file's boundary flux sibry.
-    construction : int
-        1 (default) flux-surface contours of the g-file (efit_sfl, with
-        consistency checks raising RuntimeError), 2 legacy field-line
-        integration.
+    ``construction=2`` explicitly selects historical field-line integration.
+    ``exp_bpol`` selects flux units: -1 to infer, 0 for Wb/rad, 1 for Wb.
+    Poor equilibria are rejected unless ``allow_poor_equilibrium=True`` and
+    a nonempty ``override_reason`` is supplied. The override is logged.
     """
+    if construction not in (1, 2):
+        raise ValueError("Chartmap construction must be 1 (contour) or 2 (legacy)")
     if not isinstance(nzeta, int) or nzeta < 8:
         raise ValueError("nzeta must be an integer >=8 for periodic Cartesian splines")
-    import _efit_to_boozer as _etb
-    from _efit_to_boozer import efit_to_boozer_mod
-    from efit_to_boozer.boozer import get_boozer_transform, get_magnetic_axis
+    from efit_to_boozer.boozer import get_boozer_transform
     from scipy.interpolate import CubicSpline
 
     gfile = str(Path(gfile).resolve())
     from libneo.eqdsk_base import read_eqdsk
     eq = read_eqdsk(gfile)
-    # The field-line scan advances phi positively in either field direction.
-    # Its q and toroidal-flux signs therefore need the geometric orientation
-    # used by get_boozer_transform (increasing counter-clockwise theta).
-    q_orientation = np.sign(eq["fprof"][0] *
-                            (eq["PsiedgeVs"]-eq["PsiaxisVs"]))
-    if q_orientation == 0:
+    # A flux interval and a toroidal field are both needed for flux labels.
+    if eq["fprof"][0] * (eq["PsiedgeVs"]-eq["PsiaxisVs"]) == 0:
         raise ValueError("Distinct boundary flux and nonzero toroidal field required")
     if convexwall is not None:
         convexwall = str(Path(convexwall).resolve())
@@ -187,21 +166,17 @@ def convert_eqdsk_to_chartmap(
     with tempfile.TemporaryDirectory() as tmpdir:
         os.chdir(tmpdir)
         try:
-            # Without an explicit psimax the boundary is located purely by
-            # the field-line integration (efit_to_boozer's historical 1e10
-            # placeholder disables the flux-based stop).
+            # Retain the historical deck files for compatibility. Contours
+            # use the file LCFS unless psimax explicitly selects an inner edge.
             inp_kwargs = dict(
                 nstep=nstep,
                 nlabel=nlabel,
                 ntheta_int=ntheta_int,
                 nsurfmax=nsurfmax,
-                nsurf=nsurf,
+                nsurf=nsurf, construction=construction,
             )
             if psimax is not None:
                 inp_kwargs["psimax"] = psimax
-            elif construction == 1:
-                inp_kwargs["psimax"] = 1e300
-            inp_kwargs["construction"] = construction
             _write_inp("efit_to_boozer.inp", gfile, **inp_kwargs)
             if convexwall is None:
                 from libneo.eqdsk_base import read_eqdsk
@@ -218,89 +193,33 @@ def convert_eqdsk_to_chartmap(
 
             # Native chartmap readers require a uniform rho grid, reaching
             # the normalized outer surface and beginning close to the axis.
-            # efit_to_boozer's outer surface is its last closed scanned contour.
+            # The outer surface is the file LCFS or the explicit psimax contour.
             rho_grid = np.linspace(0.01, 1.0, nrho)
             surface_s = rho_grid**2
             # A_phi has its own independent uniform s abscissa. Its entries
             # are not paired by index with the geometry's uniform rho grid.
             s_grid = np.linspace(surface_s[0], 1.0, nrho)
 
-            # Boozer transform per surface: splines r(theta_B), dth(theta_B),
-            # G(theta_B), q; stored on stor[0..nrho-1] (stor[-1] is not used).
-            # get_boozer_transform calls efit_to_boozer.init() internally from
-            # the current directory (tmpdir), so do not call init() separately.
+            # The geometry and I/G use the same native contour quadrature.
             num_theta_boozer = 64
             stor = np.append(surface_s, 1.0 + 1.0 / nrho)  # sentinel
-            (r_of_thb, dth_of_thb, G_of_thb,
-             _theta_b, _theta_g, _theta_sf, B0_of_thb) = get_boozer_transform(
-                stor, num_theta_boozer
-            )
-
-            # psitor_max available after init (called inside get_boozer_transform).
-            # SIMPLE/boozer_chartmap convention: torflux < 0 (left-handed).
-            psitor_max_cgs = float(efit_to_boozer_mod.psitor_max)
-            torflux_si = -np.copysign(abs(psitor_max_cgs), eq["fprof"][0]) * 1.0e-8
-
-            R_axis_si, Z_axis_si = get_magnetic_axis()  # in SI (m)
-
-            # Per-surface surface functions C_norm (= B_phi Boozer, CGS G*cm)
-            # and q from magdata at theta=0.
-            psi_dum = np.float64(0.0)
-            C_norm_arr = np.zeros(nrho)
-            q_arr = np.zeros(nrho)
-            for k, sk in enumerate(surface_s):
-                s_f = np.float64(sk)
-                psi_f = np.float64(0.0)
-                th_f = np.float64(0.0)
-                (q, _dq, Cn, *_rest) = _etb.efit_to_boozer.magdata(
-                    1, s_f, psi_f, th_f
+            if construction == 2:
+                transform, metadata = _legacy_transform(stor, num_theta_boozer, eq)
+            else:
+                transform, metadata = get_boozer_transform(
+                    stor, num_theta_boozer, gfile=gfile,
+                    n_theta=ntheta_int + ntheta_int % 2, n_q=n_q, psimax=psimax,
+                    allow_poor_equilibrium=allow_poor_equilibrium,
+                    override_reason=override_reason, exp_bpol=exp_bpol, return_metadata=True,
                 )
-                C_norm_arr[k] = Cn
-                q_arr[k] = q_orientation*abs(q)
-
-            # Covariant B surface functions (CGS G*cm).
-            # magdata returns C = G + iota*I, not the toroidal covariant G.
-            # B_theta = I(s), the Boozer covariant poloidal component, from
-            # Ampere's law: 2*pi*I = loop integral of B_pol along the flux
-            # surface (only the enclosed toroidal current contributes).
-            # NOTE: I is NOT G/q. The field-line pitch iota is the ratio of
-            # the CONTRAvariant components; the covariant ratio I/G measures
-            # enclosed current. For a tokamak I << G/q, and writing G/q here
-            # inflates the field-line length factor (G + iota*I) and slows
-            # every traced orbit's parallel dynamics by O(1/q^2).
-            # B_pol = |grad psi| / R from the g-file psi map itself: taking
-            # sqrt(B^2 - B_tor^2) instead would difference two nearly equal
-            # interpolants and lose all accuracy on inner surfaces.
-            from libneo.eqdsk_base import read_eqdsk
-            from scipy.interpolate import RectBivariateSpline
-            eq_amp = read_eqdsk(gfile)
-            psi_spl = RectBivariateSpline(
-                np.asarray(eq_amp["R"]) * METER_TO_CM,
-                np.asarray(eq_amp["Z"]) * METER_TO_CM,
-                np.asarray(eq_amp["PsiVs"]).T * 1.0e8,  # Wb/rad -> G*cm^2/rad
-            )
-            B_theta_cgs = np.zeros(nrho)    # G*cm
-            ntheta_amp = 2048
-            thb_amp = np.linspace(0.0, TWOPI, ntheta_amp, endpoint=False)
-            for k in range(nrho):
-                r_amp = np.asarray(r_of_thb[k](thb_amp), dtype=float)
-                dth_amp = np.asarray(dth_of_thb[k](thb_amp), dtype=float)
-                th_geom = thb_amp + dth_amp
-                R_amp = (R_axis_si + r_amp * np.cos(th_geom)) * METER_TO_CM
-                Z_amp = (Z_axis_si + r_amp * np.sin(th_geom)) * METER_TO_CM
-                dR = (np.roll(R_amp, -1) - np.roll(R_amp, 1)) / 2.0
-                dZ = (np.roll(Z_amp, -1) - np.roll(Z_amp, 1)) / 2.0
-                dl = np.hypot(dR, dZ)  # cm
-                dpsi_dR = psi_spl(R_amp, Z_amp, dx=1, grid=False)
-                dpsi_dZ = psi_spl(R_amp, Z_amp, dy=1, grid=False)
-                # Signed circulation of B_pol = (-psi_Z, psi_R)/R along
-                # increasing theta, so the sign of I follows the enclosed
-                # current direction instead of being forced positive.
-                B_R = -dpsi_dZ / R_amp  # G
-                B_Z = dpsi_dR / R_amp   # G
-                B_theta_cgs[k] = np.sum(B_R * dR + B_Z * dZ) / TWOPI  # G*cm
-
-            B_phi_cgs = C_norm_arr - B_theta_cgs/q_arr
+            (r_of_thb, dth_of_thb, G_of_thb,
+             _theta_b, _theta_g, _theta_sf, B0_of_thb) = transform
+            torflux_si = -np.copysign(abs(metadata["psitor_max"]),
+                                      eq["fprof"][0]) * 1.0e-8
+            R_axis_si, Z_axis_si = metadata["axis"]
+            q_arr = 1.0 / metadata["iota"]
+            B_theta_cgs = metadata["curr_i"]
+            B_phi_cgs = metadata["curr_g"]
 
             # A_phi(s) = -torflux * integral_0^s iota(s') ds'
             # iota = 1/q.  Use a cubic spline on s_grid.
@@ -341,7 +260,6 @@ def convert_eqdsk_to_chartmap(
                     Y[k, j, :] = R_cyl * np.sin(phi_cyl)  # m
                     Z[k, j, :] = Z_cyl                     # m
 
-            _etb.efit_to_boozer.deinit()
         finally:
             os.chdir(orig_dir)
 
@@ -351,7 +269,7 @@ def convert_eqdsk_to_chartmap(
     Z_cgs = Z * METER_TO_CM
     A_phi_cgs = A_phi_si * TESLA_METER2_TO_GAUSS_CM2
     torflux_cgs = torflux_si * TESLA_METER2_TO_GAUSS_CM2
-    # B_phi and B_theta are already in CGS G*cm from magdata.
+    # B_phi and B_theta are already in CGS G*cm from the native contours.
 
     write_boozer_chartmap(
         output,
@@ -371,6 +289,39 @@ def convert_eqdsk_to_chartmap(
         eqdsk2chartmap_source=str(gfile),
     )
     return torflux_cgs
+
+
+def _legacy_transform(stor, num_theta, eq):
+    """Retain historical field-line geometry and circulation for construction 2."""
+    import _efit_to_boozer as native
+    from efit_to_boozer.boozer import get_boozer_transform, get_magnetic_axis
+    from scipy.interpolate import RectBivariateSpline
+
+    transform = get_boozer_transform(stor, num_theta, 2)
+    radius, dtheta = transform[:2]
+    axis = get_magnetic_axis(method="legacy")
+    surfaces = stor[:-1]
+    values = np.array([native.efit_to_boozer.magdata(
+        1, np.float64(s), np.float64(0.0), np.float64(0.0))[:3] for s in surfaces])
+    q = np.sign(eq["fprof"][0]*(eq["PsiedgeVs"]-eq["PsiaxisVs"]))*np.abs(values[:, 0])
+    psi = RectBivariateSpline(np.asarray(eq["R"])*METER_TO_CM,
+                              np.asarray(eq["Z"])*METER_TO_CM,
+                              np.asarray(eq["PsiVs"]).T*1e8)
+    theta = np.linspace(0, TWOPI, 2048, endpoint=False)
+    current_i = np.zeros(len(surfaces))
+    for k in range(len(surfaces)):
+        angle = theta+dtheta[k](theta)
+        r = (axis[0]+radius[k](theta)*np.cos(angle))*METER_TO_CM
+        z = (axis[1]+radius[k](theta)*np.sin(angle))*METER_TO_CM
+        dr = (np.roll(r, -1)-np.roll(r, 1))/2
+        dz = (np.roll(z, -1)-np.roll(z, 1))/2
+        current_i[k] = np.sum(-psi(r, z, dy=1, grid=False)/r*dr
+                              + psi(r, z, dx=1, grid=False)/r*dz)/TWOPI
+    metadata = dict(axis=axis, iota=1/q, curr_i=current_i,
+                    curr_g=values[:, 2]-current_i/q,
+                    psitor_max=float(native.efit_to_boozer_mod.psitor_max))
+    native.efit_to_boozer.deinit()
+    return transform, metadata
 
 
 def main(argv=None):
@@ -395,8 +346,11 @@ def main(argv=None):
                         help="starting points for separatrix search")
     parser.add_argument("--nsurf", type=int, default=2000,
                         help="flux surfaces in Boozer file")
-    parser.add_argument("--construction", type=int, choices=[1, 2], default=1,
-                        help="1 flux-surface contours, 2 legacy field lines")
+    parser.add_argument("--construction", type=int, choices=[1, 2], default=1)
+    parser.add_argument("--exp-bpol", type=int, choices=[-1, 0, 1], default=-1,
+                        help="poloidal-flux units: -1 infer, 0 Wb/rad, 1 Wb")
+    parser.add_argument("--allow-poor-equilibrium", action="store_true")
+    parser.add_argument("--override-reason", default="")
     args = parser.parse_args(argv)
 
     torflux = convert_eqdsk_to_chartmap(
@@ -409,7 +363,9 @@ def main(argv=None):
         ntheta_int=args.ntheta_int,
         nsurfmax=args.nsurfmax,
         nsurf=args.nsurf,
-        construction=args.construction,
+        construction=args.construction, exp_bpol=args.exp_bpol,
+        allow_poor_equilibrium=args.allow_poor_equilibrium,
+        override_reason=args.override_reason,
     )
     print(f"Done. torflux={torflux:.6e} G cm^2")
 
