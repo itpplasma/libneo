@@ -56,6 +56,10 @@ module boozer_vmec_ad
         integer, allocatable :: xm(:), xn(:), xm_b(:), xn_b(:)
         integer, allocatable :: hclass(:, :)
         real(dp), allocatable :: heal(:, :, :)
+        !> Half -> full mesh map of lambda, full(i) = sum_j lam_map(i, j) half(j),
+        !> tabulated from vmecin's map with the lambda_half_to_full option
+        !> that is active at boozer_ad_init.
+        real(dp), allocatable :: lam_map(:, :)
         real(dp), allocatable :: d_theta(:, :), d_phi(:, :)
         complex(dp), allocatable :: e_t(:, :), de_t(:, :), e_p(:, :), de_p(:, :)
     end type boozer_ad_context_t
@@ -170,6 +174,7 @@ contains
         ctx%fac_b = 1.0e4_dp*vmec_B_scale
 
         call read_modes_and_healing(ctx)
+        call build_lambda_map(ctx)
         call build_angular_operators(ctx)
         call build_boozer_modes(ctx, mboz, nboz)
     end subroutine boozer_ad_init
@@ -404,20 +409,31 @@ contains
         end do
     end subroutine radial_weights
 
-    !> Transpose of the vmecin half -> full mesh conversion of lambda.
-    pure function lambda_full_to_half_t(wf) result(wh)
+    !> Matrix of vmecin's half -> full mesh map of lambda, by applying the map
+    !> to unit vectors (it is linear for both the linear and the cubic option).
+    subroutine build_lambda_map(ctx)
+        use vmecin_sub, only: lambda_half_to_full_map
+        type(boozer_ad_context_t), intent(inout) :: ctx
+        real(dp) :: eh(1, 0:ctx%kpar), ef(1, 0:ctx%kpar)
+        integer :: j
+
+        allocate (ctx%lam_map(0:ctx%kpar, 0:ctx%kpar))
+        do j = 0, ctx%kpar
+            eh = 0.0_dp
+            eh(1, j) = 1.0_dp
+            call lambda_half_to_full_map(eh, ef, ctx%kpar)
+            ctx%lam_map(:, j) = ef(1, :)
+        end do
+    end subroutine build_lambda_map
+
+    !> Transpose of the half -> full mesh map of lambda applied to full-mesh
+    !> weights wf(0:kpar).
+    pure function lambda_full_to_half_t(ctx, wf) result(wh)
+        type(boozer_ad_context_t), intent(in) :: ctx
         real(dp), intent(in) :: wf(0:)
         real(dp) :: wh(0:size(wf) - 1)
-        integer :: kp, i
 
-        kp = size(wf) - 1
-        wh = 0.0_dp
-        do i = 1, kp - 1
-            wh(i + 1) = wh(i + 1) + 0.5_dp*wf(i)
-            wh(i) = wh(i) + 0.5_dp*wf(i)
-        end do
-        wh(kp) = wh(kp) + 1.5_dp*wf(kp)
-        wh(kp - 1) = wh(kp - 1) - 0.5_dp*wf(kp)
+        wh = matmul(wf, ctx%lam_map)
     end function lambda_full_to_half_t
 
     !> Primal field data and kernel Jacobian on the VMEC grid of surface s.
@@ -478,7 +494,7 @@ contains
             crs = ctx%fac_r*dot_product(wd(:, crz), t%rmnc(i, :))
             cz = ctx%fac_r*dot_product(wv(:, crz), t%zmns(i, :))
             czs = ctx%fac_r*dot_product(wd(:, crz), t%zmns(i, :))
-            cl = dot_product(lambda_full_to_half_t(wv(:, cll)), t%lmns(i, :))
+            cl = dot_product(lambda_full_to_half_t(ctx, wv(:, cll)), t%lmns(i, :))
             do b = 1, ctx%grid%n_phi
                 do a = 1, ctx%grid%n_theta
                     ee = ctx%e_t(a, m)*ctx%e_p(b, n)
@@ -538,7 +554,7 @@ contains
             cll = ctx%hclass(i, FAMILY_L)
             t%rmnc(i, :) = t%rmnc(i, :) + ctx%fac_r*(cr*wv(:, crz) + crs*wd(:, crz))
             t%zmns(i, :) = t%zmns(i, :) + ctx%fac_r*(cz*wv(:, crz) + czs*wd(:, crz))
-            t%lmns(i, :) = t%lmns(i, :) + cl*lambda_full_to_half_t(wv(:, cll))
+            t%lmns(i, :) = t%lmns(i, :) + cl*lambda_full_to_half_t(ctx, wv(:, cll))
         end do
     end subroutine linear_vjp
 
