@@ -829,8 +829,10 @@ add_subdirectory(jorek)
 # Exercise the production projection with an analytic map and independent field weight.
 add_executable(test_efit_boozer_projection.x
   ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_to_boozer_mod.f90
+  ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_sfl.f90
   source/boozer_projection_fixture.f90
   ${CMAKE_SOURCE_DIR}/app/efit_to_boozer.f90)
+target_link_libraries(test_efit_boozer_projection.x geqdsk interpolate)
 set_target_properties(test_efit_boozer_projection.x PROPERTIES
   Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/projection_modules)
 target_include_directories(test_efit_boozer_projection.x BEFORE PRIVATE
@@ -877,3 +879,17 @@ set_tests_properties(test_sfl_quality_cli PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   PASS_REGULAR_EXPRESSION "check_sfl_quality_cli PASSED"
   DEPENDS setup_vmec_wout_li383)
+
+# EFIT straight-field-line construction on a synthetic Solov'ev G-EQDSK.
+add_executable(test_efit_sfl.x source/test_efit_sfl.f90)
+target_link_libraries(test_efit_sfl.x efit_to_boozer)
+add_test(NAME test_efit_sfl COMMAND test_efit_sfl.x)
+set_tests_properties(test_efit_sfl PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# Field-line turn detection on a public FreeGS MAST case (q near 0.5).
+add_test(NAME test_efit_boozer_low_q_turn
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_low_q_turn.py
+    $<TARGET_FILE:efit_to_boozer.x>)
+set_tests_properties(test_efit_boozer_low_q_turn PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
