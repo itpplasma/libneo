@@ -845,6 +845,7 @@ contains
         do k = 1, h%np
             ep(k, :) = exp(IU*h%kn(k)*phi)
         end do
+        allocate (c(h%nt, h%np))
         c = matmul(matmul(h%ft, reshape(v, [h%nt, h%np])), transpose(h%fp)) &
             /real(h%nt*h%np, dp)
         f = real(matmul(matmul(et, c), ep), dp)
