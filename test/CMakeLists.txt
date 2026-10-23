@@ -790,3 +790,11 @@ add_test(NAME test_efit_boozer_projection
     $<TARGET_FILE:test_efit_boozer_projection.x>)
 set_tests_properties(test_efit_boozer_projection PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# Field-line turn detection on a public FreeGS MAST case (q near 0.5).
+add_test(NAME test_efit_boozer_low_q_turn
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_low_q_turn.py
+    $<TARGET_FILE:efit_to_boozer.x>)
+set_tests_properties(test_efit_boozer_low_q_turn PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
