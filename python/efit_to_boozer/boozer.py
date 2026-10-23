@@ -12,10 +12,25 @@ length_cgs_to_si = 1e-2
 debug = False
 
 
-def get_boozer_transform(stor, num_theta):
+def init_efit_to_boozer(construction=0):
+    """Read efit_to_boozer.inp in the working directory and build the magdata grids.
+
+    construction: 0 as in efit_to_boozer.inp (line 8, default 1), 1 flux-surface
+    contours of the G-EQDSK (efit_sfl), 2 legacy field-line integration.
+    Raises RuntimeError with the efit_sfl message if the contour construction
+    rejects the equilibrium.
+    """
+    ierr, errmsg = _efit_to_boozer.efit_to_boozer.init(construction)
+    if ierr != 0:
+        if isinstance(errmsg, bytes):
+            errmsg = errmsg.decode(errors="replace")
+        raise RuntimeError(f"efit_to_boozer init failed (code {ierr}): {str(errmsg).strip()}")
+
+
+def get_boozer_transform(stor, num_theta, construction=0):
     from scipy.interpolate import CubicSpline
 
-    _efit_to_boozer.efit_to_boozer.init()
+    init_efit_to_boozer(construction)
 
     ns = stor.shape[0]
 
@@ -99,10 +114,10 @@ def get_angles_G_and_B0(s, num_theta):
     return r, th_boozers, th_geoms, theta_symflux, Gs, B0mod
 
 
-def get_B0_of_s_theta_boozer(stor, num_theta):
+def get_B0_of_s_theta_boozer(stor, num_theta, construction=0):
   from scipy.interpolate import CubicSpline
 
-  _efit_to_boozer.efit_to_boozer.init()
+  init_efit_to_boozer(construction)
 
   ns = stor.shape[0]
 
