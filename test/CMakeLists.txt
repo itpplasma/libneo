@@ -831,6 +831,7 @@ add_executable(test_efit_boozer_projection.x
   ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_to_boozer_mod.f90
   ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_sfl.f90
   source/boozer_projection_fixture.f90
+  ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_sfl_magdata.f90
   ${CMAKE_SOURCE_DIR}/app/efit_to_boozer.f90)
 target_link_libraries(test_efit_boozer_projection.x geqdsk interpolate)
 set_target_properties(test_efit_boozer_projection.x PROPERTIES
@@ -865,3 +866,11 @@ add_executable(test_efit_sfl.x source/test_efit_sfl.f90)
 target_link_libraries(test_efit_sfl.x efit_to_boozer)
 add_test(NAME test_efit_sfl COMMAND test_efit_sfl.x)
 set_tests_properties(test_efit_sfl PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# hamada_to_boozer.x with the contour construction (public FreeGS MAST case).
+add_test(NAME test_hamada_to_boozer_contour
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_contour.py
+    $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x>)
+set_tests_properties(test_hamada_to_boozer_contour PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

@@ -65,7 +65,7 @@ module efit_sfl
     public :: efit_sfl_init, efit_sfl_transform, efit_sfl_jvp, efit_sfl_vjp, &
               efit_sfl_raise, efit_sfl_diag_write, efit_sfl_gs_map, efit_sfl_s_of_x, &
               efit_sfl_perturb, &
-              efit_sfl_x_of_s
+              efit_sfl_x_of_s, efit_sfl_symflux
 
     integer, parameter, public :: EFIT_SFL_COVARIANT = 1, EFIT_SFL_JACOBIAN_B2 = 2, &
                                   EFIT_SFL_JACOBIAN_CONST = 3, EFIT_SFL_STRAIGHT_CURRENT = 4, &
@@ -983,6 +983,32 @@ contains
         call resolution_check(self, s_list, mpol, out)
         if (present(status)) status = st
     end subroutine efit_sfl_transform
+
+    !> Surface x over the symmetry-flux (PEST) angle theta, the angle of the
+    !> legacy magdata grids: spectra of R, Z, v = -nu/(2 pi) with nu of the
+    !> configured route, and |B|, by quadrature over theta_g; flux functions
+    !> as in efit_sfl_transform. The contour is returned for further integrals.
+    subroutine efit_sfl_symflux(self, x, mpol, sv, ct, st)
+        type(efit_sfl_t), intent(in) :: self
+        real(dp), intent(in) :: x
+        integer, intent(in) :: mpol
+        type(efit_sfl_surface_t), intent(inout) :: sv
+        type(contour_t), intent(out) :: ct
+        type(efit_sfl_status_t), intent(inout) :: st
+        real(dp) :: g(self%nt), u(self%nt), jb(self%nt), fld(self%nt, 4)
+
+        call contour(self, x, ct, st)
+        if (st%code /= EFIT_SFL_OK) return
+        call surface_map(self, EFIT_SFL_PEST, mpol, ct, sv, g, u, jb)
+        call route_integrand(self, self%cfg%route, ct, g)
+        fld(:, 1) = ct%r
+        fld(:, 2) = ct%z
+        fld(:, 3) = -matmul(self%aop, g)/twopi
+        fld(:, 4) = ct%out(3, :)
+        call spectra(mpol, th_grid(self%nt), fld, jb, u, sv)
+        sv%x = x
+        sv%psi = ct%psit
+    end subroutine efit_sfl_symflux
 
     !> Recompute the outermost surface with 2 n_theta and record the change of
     !> b_mn relative to b_00 in eps_theta of that surface (warning above 1e-9).

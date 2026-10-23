@@ -33,7 +33,9 @@ def chartmap_path(tmp_path_factory):
     from libneo.eqdsk_to_boozer_chartmap import convert_eqdsk_to_chartmap
 
     out = tmp_path_factory.mktemp("chartmap") / "efit_boozer.nc"
-    convert_eqdsk_to_chartmap(EFIT, out, convexwall=str(CONVEX))
+    # Legacy field lines: the contour construction rejects this file, whose
+    # psirz has the opposite sign of simag and sibry.
+    convert_eqdsk_to_chartmap(EFIT, out, convexwall=str(CONVEX), construction=2)
     return out
 
 
@@ -99,7 +101,8 @@ def test_limiter_boundary_both_flux_directions(tmp_path, sign, toroidal_sign):
     write_eqdsk(path, d)
     output = tmp_path/"chartmap.nc"
     convert_eqdsk_to_chartmap(path, output, nrho=24, ntheta=48, nstep=360,
-        nlabel=32, ntheta_int=64, nsurfmax=400, nsurf=64, psimax=sign*.5e8)
+        nlabel=32, ntheta_int=64, nsurfmax=400, nsurf=64, psimax=sign*.5e8,
+        construction=2)  # pprime = ffprim = 0: not a Grad-Shafranov equilibrium
     with netCDF4.Dataset(output) as ds:
         x, y, z = [np.asarray(ds.variables[n][:]) for n in ["x", "y", "z"]]
         minor = np.sqrt((np.hypot(x, y)*.01-10)**2+(z*.01)**2)
