@@ -1,6 +1,7 @@
 !> Derivatives of the VMEC -> Boozer spectrum (boozer_vmec_ad).
 !>
-!> Checks, on the reference QA wout:
+!> Checks, on the reference QA wout and on li383 (net toroidal current, so the
+!> -I*lambda term of the angle potential matters):
 !>  - the FortSym field kernel reproduces vmec_field and its Jacobian matches
 !>    central differences of the kernel;
 !>  - the surface core JVP matches central differences of the primal
@@ -27,7 +28,8 @@ program test_boozer_vmec_ad
     call boozer_ad_init(ctx, 'wout.nc', 8, 6, grid_refinement=3)
     call check_kernel()
     call check_core()
-    call check_full()
+    call check_full('QA')
+    call check_case('wout_li383.nc', 'li383')
     if (failed) error stop 'test_boozer_vmec_ad FAILED'
     print *, 'test_boozer_vmec_ad PASSED'
 
@@ -171,7 +173,15 @@ contains
                                       bt + e*btd, bp + e*bpd, q, gi, gg, dth, dph)
     end subroutine core_primal
 
-    subroutine check_full()
+    subroutine check_case(wout, label)
+        character(*), intent(in) :: wout, label
+
+        call boozer_ad_init(ctx, wout, 8, 6, grid_refinement=3)
+        call check_full(label)
+    end subroutine check_case
+
+    subroutine check_full(label)
+        character(*), intent(in) :: label
         type(boozer_wout_tangent_t) :: t, tb
         type(boozer_spectrum_t) :: y0, yd, yb, yp, ym
         real(dp) :: lhs, rhs, eps, scale, err
@@ -208,6 +218,7 @@ contains
               + sum(yb%i*yd%i)
         rhs = sum(tb%rmnc*t%rmnc) + sum(tb%zmns*t%zmns) + sum(tb%lmns*t%lmns) &
               + sum(tb%iotaf*t%iotaf)
+        print '(a)', '  '//label
         call report('full adjoint duality', abs(lhs - rhs)/abs(lhs), 1.0e-12_dp)
 
         eps = 1.0e-4_dp
