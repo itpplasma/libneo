@@ -32,9 +32,9 @@ if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
 endif()
 
 # Numerics-heavy components (neo core, magfie, collisions, transport,
-# coordinates, vmec_field, efit_to_boozer) pull fortnum and require BLAS/LAPACK.
-# Consumers that only link the light targets (interpolate, vmec_support, boozer,
-# field, nctools, util, ...) set this OFF to skip those dependencies entirely.
+# coordinates, vmec_field, efit_to_boozer) pull fortnum. Consumers that only link
+# light targets set this OFF to skip those components and fortnum. Boozer's
+# equilibrium-quality checks still require BLAS/LAPACK.
 option(LIBNEO_BUILD_NUMERICS "Build numerics-heavy components requiring BLAS/LAPACK and fortnum" ON)
 option(LIBNEO_BUILD_JOREK "Build the HDF5-backed JOREK restart component" ${LIBNEO_BUILD_NUMERICS})
 option(LIBNEO_DETERMINISTIC_FP
@@ -353,7 +353,10 @@ if(LIBNEO_BUILD_NUMERICS)
     add_library(LIBNEO::spectre_field ALIAS spectre_field)
 endif()
 
-# Tier 2: Boozer chartmap conversion (depends on vmec_support + interpolate + util).
+# Tier 2: Boozer chartmap conversion and BLAS/LAPACK-backed quality checks.
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
+
 add_library(boozer STATIC
     src/boozer_chartmap_types.f90
     src/boozer_rk_tables.f90
@@ -370,7 +373,8 @@ add_library(boozer STATIC
     src/field/boozmn_reader.f90
     src/field/bc_file.f90
 )
-target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
+target_link_libraries(boozer PUBLIC
+    vmec_support interpolate neo_util LAPACK::LAPACK BLAS::BLAS)
 
 # FortSym generators for the pointwise leaves in src/generated. The checked-in
 # output is the build input; regeneration needs a FortSym build tree at the
@@ -424,14 +428,11 @@ set_property(TARGET boozer PROPERTY
 add_library(LIBNEO::boozer ALIAS boozer)
 
 # Everything below is numerics-heavy (neo core, magfie, collisions, transport,
-# efit_to_boozer, apps, tests, Python bindings) and needs BLAS/LAPACK + fortnum.
+# efit_to_boozer, apps, tests, Python bindings) and needs fortnum as well.
 # Light consumers stop here.
 if(NOT LIBNEO_BUILD_NUMERICS)
     return()
 endif()
-
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
 
 # Aggregate libneo core. neo owns only poincare and re-exports every decomposed
 # sub-target so monolithic consumers can keep linking LIBNEO::neo.
