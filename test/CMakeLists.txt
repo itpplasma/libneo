@@ -695,6 +695,14 @@ set_tests_properties(test_boozer_hybrid_grid PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS "setup_vmec_wout;setup_vmec_wout_li383")
 
+add_executable(test_boozer_hybrid_resample.x source/test_boozer_hybrid_resample.f90)
+target_link_libraries(test_boozer_hybrid_resample.x neo)
+add_test(NAME test_boozer_hybrid_resample COMMAND test_boozer_hybrid_resample.x)
+set_tests_properties(test_boozer_hybrid_resample PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383")
+
 add_executable(test_sfl_radial_second.x source/test_sfl_radial_second.f90)
 target_link_libraries(test_sfl_radial_second.x neo)
 add_test(NAME test_sfl_radial_second COMMAND test_sfl_radial_second.x)
