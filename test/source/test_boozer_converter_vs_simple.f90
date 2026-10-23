@@ -10,7 +10,7 @@ program test_boozer_converter_vs_simple
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use boozer_coordinates_mod, only: use_B_r
     use vector_potentail_mod, only: torflux
-    use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord
+    use boozer_sub, only: get_boozer_coordinates, splint_boozer_coord, BOOZER_LEGACY
     implicit none
 
     ! reltol pins the well-conditioned quantities (|B|, sqrt(g), the large
@@ -40,7 +40,8 @@ program test_boozer_converter_vs_simple
 
     use_B_r = .true.
     call get_boozer_coordinates(wout_file, radial_spline_order=5, &
-                                angular_spline_order=5, grid_refinment=3)
+                                angular_spline_order=5, grid_refinment=3, &
+                                construction=BOOZER_LEGACY)
 
     stor = [0.1_dp, 0.3_dp, 0.5_dp, 0.7_dp, 0.9_dp]
     theta = [0.0_dp, 1.0_dp, 3.14_dp, 0.5_dp, 2.0_dp]
