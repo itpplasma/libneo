@@ -160,9 +160,6 @@ contains
    subroutine contour_transform(gfile, s_list, mpol, n_theta, n_q, route, &
       use_psi_edge, psi_edge_rel, allow_poor_equilibrium, override_reason, &
       coefficients, fluxes, state, status_code, overridden, message, exp_bpol)
-      use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-      use efit_sfl, only: efit_sfl_t, efit_sfl_config_t, efit_sfl_status_t, &
-         efit_sfl_surface_t, efit_sfl_init, efit_sfl_transform, EFIT_SFL_OK
       character(len=*), intent(in) :: gfile, override_reason
       double precision, intent(in) :: s_list(:), psi_edge_rel
       integer, intent(in) :: mpol, n_theta, n_q, route
@@ -171,6 +168,50 @@ contains
       logical, intent(in) :: use_psi_edge, allow_poor_equilibrium
       double precision, intent(out) :: coefficients(8, 0:mpol, size(s_list)), &
          fluxes(3, size(s_list)), state(4)
+      integer, intent(out) :: status_code
+      logical, intent(out) :: overridden
+      character(len=4096), intent(out) :: message
+      double precision :: physical(2, size(s_list)), rminor
+
+      call contour_transform_worker(gfile, s_list, mpol, n_theta, n_q, route, &
+         use_psi_edge, psi_edge_rel, allow_poor_equilibrium, override_reason, &
+         coefficients, fluxes, state, physical, rminor, status_code, overridden, message, .false., exp_bpol)
+   end subroutine contour_transform
+
+   subroutine contour_transform_extended(gfile, s_list, mpol, n_theta, n_q, route, &
+      use_psi_edge, psi_edge_rel, allow_poor_equilibrium, override_reason, &
+      coefficients, fluxes, state, physical, rminor, status_code, overridden, message, exp_bpol)
+      character(len=*), intent(in) :: gfile, override_reason
+      double precision, intent(in) :: s_list(:), psi_edge_rel
+      integer, intent(in) :: mpol, n_theta, n_q, route
+      integer, intent(in), optional :: exp_bpol
+      !f2py integer optional, intent(in) :: exp_bpol = -1
+      logical, intent(in) :: use_psi_edge, allow_poor_equilibrium
+      double precision, intent(out) :: coefficients(8, 0:mpol, size(s_list)), &
+         fluxes(3, size(s_list)), state(4), physical(2, size(s_list)), rminor
+      integer, intent(out) :: status_code
+      logical, intent(out) :: overridden
+      character(len=4096), intent(out) :: message
+
+      call contour_transform_worker(gfile, s_list, mpol, n_theta, n_q, route, &
+         use_psi_edge, psi_edge_rel, allow_poor_equilibrium, override_reason, &
+         coefficients, fluxes, state, physical, rminor, status_code, overridden, message, .true., exp_bpol)
+   end subroutine contour_transform_extended
+
+   subroutine contour_transform_worker(gfile, s_list, mpol, n_theta, n_q, route, &
+      use_psi_edge, psi_edge_rel, allow_poor_equilibrium, override_reason, &
+      coefficients, fluxes, state, physical, rminor, status_code, overridden, message, check_finite, exp_bpol)
+      use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+      use efit_sfl, only: efit_sfl_t, efit_sfl_config_t, efit_sfl_status_t, &
+         efit_sfl_surface_t, efit_sfl_init, efit_sfl_transform, EFIT_SFL_OK
+      character(len=*), intent(in) :: gfile, override_reason
+      double precision, intent(in) :: s_list(:), psi_edge_rel
+      integer, intent(in) :: mpol, n_theta, n_q, route
+      integer, intent(in), optional :: exp_bpol
+      !f2py integer optional, intent(in) :: exp_bpol = -1
+      logical, intent(in) :: use_psi_edge, allow_poor_equilibrium, check_finite
+      double precision, intent(out) :: coefficients(8, 0:mpol, size(s_list)), &
+         fluxes(3, size(s_list)), state(4), physical(2, size(s_list)), rminor
       integer, intent(out) :: status_code
       logical, intent(out) :: overridden
       character(len=4096), intent(out) :: message
@@ -183,6 +224,8 @@ contains
       coefficients = 0.0d0
       fluxes = 0.0d0
       state = 0.0d0
+      physical = 0.0d0
+      rminor = 0.0d0
       status_code = 7
       overridden = .false.
       message = 'Invalid contour transform sizes, route, or flux labels'
@@ -240,11 +283,24 @@ contains
          coefficients(7, :, k) = surfaces(k)%bmnc
          coefficients(8, :, k) = surfaces(k)%bmns
          fluxes(:, k) = [surfaces(k)%iota, surfaces(k)%curr_i, surfaces(k)%curr_g]
+         physical(:, k) = [surfaces(k)%pp_file, surfaces(k)%sqrtg00]
       end do
       state = [equilibrium%r0, equilibrium%z0, equilibrium%psitor_max, &
          equilibrium%sig_theta]
+      rminor = equilibrium%rminor
+      if (check_finite) then
+         if (any(.not. ieee_is_finite(coefficients)) .or. any(.not. ieee_is_finite(fluxes)) .or. &
+             any(.not. ieee_is_finite(state)) .or. any(.not. ieee_is_finite(physical)) .or. &
+             .not. ieee_is_finite(rminor)) then
+            status_code = 7
+            overridden = .false.
+            message = 'EFIT contour transform produced nonfinite output'
+            call python_error(trim(message))
+            return
+         end if
+      end if
       if (.not. overridden) message = ''
-   end subroutine contour_transform
+   end subroutine contour_transform_worker
 
    subroutine init_legacy
 
