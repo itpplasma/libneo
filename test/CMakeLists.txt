@@ -874,7 +874,7 @@ set_tests_properties(test_efit_boozer_projection PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(test_sfl_routes.x source/test_sfl_routes.f90)
-target_link_libraries(test_sfl_routes.x neo)
+target_link_libraries(test_sfl_routes.x LIBNEO::boozer)
 add_test(NAME test_sfl_routes
   COMMAND test_sfl_routes.x)
 set_tests_properties(test_sfl_routes PROPERTIES
@@ -892,7 +892,7 @@ set_tests_properties(test_sfl_route_error PROPERTIES
   DEPENDS setup_vmec_wout)
 
 add_executable(test_sfl_quality.x source/test_sfl_quality.f90)
-target_link_libraries(test_sfl_quality.x neo)
+target_link_libraries(test_sfl_quality.x LIBNEO::boozer)
 add_test(NAME test_sfl_quality
   COMMAND test_sfl_quality.x)
 set_tests_properties(test_sfl_quality PROPERTIES
