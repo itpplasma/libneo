@@ -64,6 +64,7 @@ endif("${isSystemDir}" STREQUAL "-1")
 add_library(efit_to_boozer STATIC
     efit_to_boozer_mod.f90
     efit_sfl.f90
+    efit_sfl_magdata.f90
     field_line_integration_for_Boozer.f90
     rhs.f90
     spline_and_interpolate_magdata.f90
