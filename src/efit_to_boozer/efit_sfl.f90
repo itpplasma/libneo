@@ -18,9 +18,20 @@
 !>       g = (bg - h <bg>/q)/(f + <bg>/q)
 !>   jacobian_b2 (Boozer, J B^2 flux function): g = q jb/<jb> - h
 !>   jacobian_const (Hamada, J flux function):  g = q jc/<jc> - h
+!>   straight_current (Hamada II, current lines straight):
+!>       g = (q a - h <a>)/(<a> - q sig_f F'),  a = -jc Delta* psi/R^2
 !>   pest: g = 0,
 !> and theta* = theta_g + A(h + g)/q, phi* = phi + nu, d theta*/d theta_g =
-!> (h + g)/q. Both Boozer routes agree analytically in axisymmetry (J.grad psi
+!> (h + g)/q. straight_current is R4 of the design, phi_H = phi_B + eta with
+!> eta = -(beta - <beta>_B)/(G' + iota I'), in tangential form: in axisymmetry
+!> Ampere's law gives d beta/d theta_B = I' - J_B (curl B).grad phi_B, so beta
+!> needs no radial derivative, and the straightness of curl B in (theta*,
+!> phi*), with (curl B).grad phi = -Delta* psi/R^2 and (curl B).grad theta_g =
+!> sig_f F'/jc, is solved for g directly (same angles up to the gauge
+!> nu(theta_g = 0) = 0). The divisor is |<a> - q sig_f F'| = q |G' + iota I'|
+!> ds/|dpsi| and vanishes with p' (EFIT_SFL_ERR_NO_PRESSURE). In equilibrium the
+!> route equals jacobian_const (d_family = d_H). Both Boozer routes agree
+!> analytically in axisymmetry (J.grad psi
 !> = 0 identically), so their difference measures round-off only. Spectra are
 !> quadratures over theta_g with the angle-map Jacobian, without
 !> re-interpolation, in the convention of fromefit.bc (nu(theta_g = 0) = 0, theta
@@ -57,8 +68,10 @@ module efit_sfl
               efit_sfl_x_of_s
 
     integer, parameter, public :: EFIT_SFL_COVARIANT = 1, EFIT_SFL_JACOBIAN_B2 = 2, &
-                                  EFIT_SFL_JACOBIAN_CONST = 3, EFIT_SFL_PEST = 5
+                                  EFIT_SFL_JACOBIAN_CONST = 3, EFIT_SFL_STRAIGHT_CURRENT = 4, &
+                                  EFIT_SFL_PEST = 5
     integer, parameter, public :: EFIT_SFL_OK = 0, EFIT_SFL_ERR_FORCE_BALANCE = 2, &
+                                  EFIT_SFL_ERR_NO_PRESSURE = 4, &
                                   EFIT_SFL_ERR_GS = 5, &
                                   EFIT_SFL_ERR_Q = 6, EFIT_SFL_ERR_INPUT = 7
     real(dp), parameter :: pi = 3.14159265358979323846_dp, twopi = 2.0_dp*pi
@@ -331,12 +344,13 @@ contains
         end do
     end subroutine psi_eval
 
-    !> Transpose of psi_eval for the value and the first derivatives.
+    !> Transpose of psi_eval for the value and the first (vb(1:3)) and, if
+    !> size(vb) = 6, the second derivatives.
     pure subroutine psi_eval_t(self, r, z, vb, cb)
         type(efit_sfl_t), intent(in) :: self
-        real(dp), intent(in) :: r, z, vb(3)
+        real(dp), intent(in) :: r, z, vb(:)
         real(dp), intent(inout) :: cb(:, :, 0:, 0:)
-        real(dp) :: t, u, tk(0:5), uk(0:5), dtk(0:5), duk(0:5)
+        real(dp) :: t, u, tk(0:5), uk(0:5), dtk(0:5), duk(0:5), ddtk(0:5), dduk(0:5)
         integer :: i, j, k, l
 
         call locate(self, r, z, i, j, t, u)
@@ -344,19 +358,62 @@ contains
         uk(0) = 1.0_dp
         dtk(0) = 0.0_dp
         duk(0) = 0.0_dp
+        ddtk(0:1) = 0.0_dp
+        dduk(0:1) = 0.0_dp
         do k = 1, 5
             tk(k) = tk(k - 1)*t
             uk(k) = uk(k - 1)*u
             dtk(k) = real(k, dp)*tk(k - 1)
             duk(k) = real(k, dp)*uk(k - 1)
         end do
+        do k = 2, 5
+            ddtk(k) = real(k*(k - 1), dp)*tk(k - 2)
+            dduk(k) = real(k*(k - 1), dp)*uk(k - 2)
+        end do
         do l = 0, 5
             do k = 0, 5
                 cb(i, j, k, l) = cb(i, j, k, l) + vb(1)*tk(k)*uk(l) + vb(2)*dtk(k)*uk(l) &
                                  + vb(3)*tk(k)*duk(l)
+                if (size(vb) == 6) cb(i, j, k, l) = cb(i, j, k, l) + vb(4)*ddtk(k)*uk(l) &
+                    + vb(5)*dtk(k)*duk(l) + vb(6)*tk(k)*dduk(l)
             end do
         end do
     end subroutine psi_eval_t
+
+    !> Third derivatives (RRR, RRZ, RZZ, ZZZ) of psi from coefficients c.
+    pure subroutine psi_eval3(self, c, r, z, v)
+        type(efit_sfl_t), intent(in) :: self
+        real(dp), intent(in) :: c(0:, 0:, :, :), r, z
+        real(dp), intent(out) :: v(4)
+        real(dp) :: t, u, a(0:5, 0:3)
+        integer :: i, j, k, l, d
+
+        call locate(self, r, z, i, j, t, u)
+        a = 0.0_dp
+        do k = 0, 5
+            do d = 0, 3
+                do l = 5, d, -1
+                    a(k, d) = real(fall(l, d), dp)*c(k, l, i, j) + u*a(k, d)
+                end do
+            end do
+        end do
+        v = 0.0_dp
+        do k = 5, 0, -1
+            if (k >= 3) v(1) = real(fall(k, 3), dp)*a(k, 0) + t*v(1)
+            if (k >= 2) v(2) = real(fall(k, 2), dp)*a(k, 1) + t*v(2)
+            if (k >= 1) v(3) = real(k, dp)*a(k, 2) + t*v(3)
+            v(4) = a(k, 3) + t*v(4)
+        end do
+    contains
+        pure integer function fall(n, m)
+            integer, intent(in) :: n, m
+            integer :: p
+            fall = 1
+            do p = 0, m - 1
+                fall = fall*(n - p)
+            end do
+        end function fall
+    end subroutine psi_eval3
 
     pure subroutine locate(self, r, z, i, j, t, u)
         type(efit_sfl_t), intent(in) :: self
@@ -777,7 +834,7 @@ contains
         integer, intent(in) :: route
         type(contour_t), intent(in) :: ct
         real(dp), intent(out) :: g(:)
-        real(dp) :: q, r
+        real(dp) :: q, r, a(size(g))
 
         q = sum(ct%out(1, :))/real(self%nt, dp)
         select case (route)
@@ -788,10 +845,36 @@ contains
             g = q*ct%out(5, :)/(sum(ct%out(5, :))/real(self%nt, dp)) - ct%out(1, :)
         case (EFIT_SFL_JACOBIAN_CONST)
             g = q*ct%out(4, :)/(sum(ct%out(4, :))/real(self%nt, dp)) - ct%out(1, :)
+        case (EFIT_SFL_STRAIGHT_CURRENT)
+            a = -ct%out(4, :)*(ct%prr - ct%praw/ct%r + ct%pzz)/ct%r**2
+            r = sum(a)/real(self%nt, dp)
+            g = (q*a - ct%out(1, :)*r)/(r - q*self%sig_f*ct%fpsi)
         case default
             g = 0.0_dp
         end select
     end subroutine route_integrand
+
+    !> NO_PRESSURE check of straight_current: the divisor per ds, |G' + iota I'|,
+    !> against |K| = |G + iota I| = f + <bg>/q, and the file p'.
+    subroutine straight_current_check(self, ct, st)
+        type(efit_sfl_t), intent(in) :: self
+        type(contour_t), intent(in) :: ct
+        type(efit_sfl_status_t), intent(inout) :: st
+        real(dp) :: q, ma, den, ck, pp, pmax, dummy
+
+        q = sum(ct%out(1, :))/real(self%nt, dp)
+        ma = -sum(ct%out(4, :)*(ct%prr - ct%praw/ct%r + ct%pzz)/ct%r**2)/real(self%nt, dp)
+        den = (ma/q - self%sig_f*ct%fpsi)*abs(self%psi_edge - self%psi_ax)*self%phi1/q
+        ck = ct%f + sum(ct%out(2, :))/real(self%nt, dp)/q
+        call prof_eval(self, self%cpp, ct%xf, pp, dummy)
+        pmax = maxval(abs(self%g%pprime))
+        if (pmax == 0.0_dp .or. abs(pp) <= 1.0e-8_dp*pmax .or. abs(den) < 1.0e-8_dp*ck) &
+            call set_status(st, EFIT_SFL_ERR_NO_PRESSURE, 0, -1.0_dp, abs(den)/ck, 1.0e-8_dp, &
+                'route straight_current (Hamada II) needs p'' /= 0, but p''(psi) = '//fmt(pp)// &
+                ' (max |pprime| '//fmt(pmax)//') and |G'' + iota I''|/|K| = '//fmt(abs(den)/ck)// &
+                '. eta = -(beta - <beta>)/(G'' + iota I'') is undefined without pressure '// &
+                'gradient; use jacobian_const (Hamada I, route 3) or covariant (route 1)')
+    end subroutine straight_current_check
 
     !> Quadrature b_m = w_m sum_j f_j J_j exp(i m theta*_j) over the points
     !> 1, 1 + stride, ... of the uniform grid th.
@@ -851,12 +934,15 @@ contains
         sv%vmnc = 0; sv%vmns = 0; sv%bmnc = 0; sv%bmns = 0
     end subroutine alloc_surface
 
-    !> Spectra on the surfaces s_list with the configured route.
-    subroutine efit_sfl_transform(self, s_list, mpol, out)
+    !> Spectra on the surfaces s_list with the configured route. An error
+    !> (no surface, or straight_current without p') is returned in status if
+    !> present, raised otherwise.
+    subroutine efit_sfl_transform(self, s_list, mpol, out, status)
         type(efit_sfl_t), intent(in) :: self
         real(dp), intent(in) :: s_list(:)
         integer, intent(in) :: mpol
         type(efit_sfl_surface_t), intent(out) :: out(:)
+        type(efit_sfl_status_t), intent(out), optional :: status
         type(efit_sfl_status_t) :: st
         type(contour_t) :: ct
         type(efit_sfl_surface_t) :: alt
@@ -867,9 +953,15 @@ contains
             out(is)%s = s_list(is)
             out(is)%x = efit_sfl_x_of_s(self, s_list(is))
             call contour(self, out(is)%x, ct, st)
+            if (st%code == EFIT_SFL_OK .and. self%cfg%route == EFIT_SFL_STRAIGHT_CURRENT) &
+                call straight_current_check(self, ct, st)
             if (st%code /= EFIT_SFL_OK) then
                 st%s = s_list(is)
                 st%isurf = is
+                if (present(status)) then
+                    status = st
+                    return
+                end if
                 call efit_sfl_raise(st)
             end if
             out(is)%psi = ct%psit
@@ -877,8 +969,11 @@ contains
             call flux_functions(self, ct, out(is))
             other = merge(EFIT_SFL_JACOBIAN_B2, EFIT_SFL_COVARIANT, &
                           self%cfg%route == EFIT_SFL_COVARIANT)
+            ! d_H: Hamada II against Hamada I measures the force residual
+            if (self%cfg%route == EFIT_SFL_STRAIGHT_CURRENT) other = EFIT_SFL_JACOBIAN_CONST
             if (self%cfg%route == EFIT_SFL_COVARIANT .or. &
-                self%cfg%route == EFIT_SFL_JACOBIAN_B2) then
+                self%cfg%route == EFIT_SFL_JACOBIAN_B2 .or. &
+                self%cfg%route == EFIT_SFL_STRAIGHT_CURRENT) then
                 call surface_map(self, other, mpol, ct, alt, g, u, jb)
                 b00 = abs(out(is)%bmnc(0))
                 out(is)%d_family = max(maxval(abs(out(is)%bmnc - alt%bmnc)), &
@@ -886,6 +981,7 @@ contains
             end if
         end do
         call resolution_check(self, s_list, mpol, out)
+        if (present(status)) status = st
     end subroutine efit_sfl_transform
 
     !> Recompute the outermost surface with 2 n_theta and record the change of
@@ -1187,7 +1283,7 @@ contains
         else
             where = 'file level'
         end if
-        if (code == EFIT_SFL_ERR_INPUT) then
+        if (code == EFIT_SFL_ERR_INPUT .or. code == EFIT_SFL_ERR_NO_PRESSURE) then
             call put('efit_sfl: invalid input at '//trim(where)//': '//cause//'.')
         else
             call put('efit_sfl: inconsistent equilibrium at '//trim(where)//': '//cause// &
@@ -1417,7 +1513,11 @@ contains
             mb = sum(ct%out(2, :))/real(self%nt, dp)
             dmb = sum(dout(2, :))/real(self%nt, dp)
             call route_integrand(self, self%cfg%route, ct, g)
-            call route_jvp(self, self%cfg%route, ct, dout, df, dg)
+            if (self%cfg%route == EFIT_SFL_STRAIGHT_CURRENT) then
+                call straight_current_jvp(self, ct, dc, dcf, dpsit, dout, drr, dzz, dg)
+            else
+                call route_jvp(self, self%cfg%route, ct, dout, df, dg)
+            end if
             a = h + g
             da = dh + dg
             nu = matmul(self%aop, g)
@@ -1648,7 +1748,11 @@ contains
         outb(3, :) = fldb(:, 4)
         fb = self%sig_f*sb%curr_g
         outb(2, :) = self%sig_f*sb%curr_i/real(self%nt, dp)
-        call route_vjp(self, self%cfg%route, ct, gb, outb, fb, qb)
+        if (self%cfg%route == EFIT_SFL_STRAIGHT_CURRENT) then
+            call straight_current_vjp(self, ct, gb, outb, qb, fldb(:, 1), fldb(:, 2), cb, cfb, psitb)
+        else
+            call route_vjp(self, self%cfg%route, ct, gb, outb, fb, qb)
+        end if
         outb(1, :) = outb(1, :) + qb/real(self%nt, dp)
         call contour_vjp(self, ct, outb, fldb(:, 1), fldb(:, 2), fb, cb, cfb, psitb, r0_b)
     end subroutine surface_vjp
@@ -1692,5 +1796,106 @@ contains
         case default
         end select
     end subroutine route_vjp
+
+    !> Pointwise pieces of straight_current: Delta* psi (ds), its derivatives
+    !> along R and Z at fixed coefficients (third derivatives of the spline),
+    !> a = -jc ds/R^2, and fs = sig_f F'(psi) with its x_file derivative factor.
+    pure subroutine straight_current_parts(self, ct, ds, dsr, dsz, a, fs, fxx, i, t)
+        type(efit_sfl_t), intent(in) :: self
+        type(contour_t), intent(in) :: ct
+        real(dp), intent(out) :: ds(:), dsr(:), dsz(:), a(:), fs, fxx, t
+        integer, intent(out) :: i
+        real(dp) :: v3(4), xc
+        integer :: k
+
+        do k = 1, self%nt
+            ds(k) = ct%prr(k) - ct%praw(k)/ct%r(k) + ct%pzz(k)
+            call psi_eval3(self, self%cpsi, ct%r(k), ct%z(k), v3)
+            dsr(k) = v3(1) - ct%prr(k)/ct%r(k) + ct%praw(k)/ct%r(k)**2 + v3(3)
+            dsz(k) = v3(2) - ct%prz(k)/ct%r(k) + v3(4)
+        end do
+        a = -ct%out(4, :)*ds/ct%r**2
+        fs = self%sig_f*ct%fpsi
+        ! d^2 F/dx_file^2 (zero beyond [0, 1], where F is held constant)
+        xc = max(0.0_dp, min(1.0_dp, ct%xf))
+        i = max(1, min(self%nw - 1, floor(xc/self%hx) + 1))
+        t = xc - real(i - 1, dp)*self%hx
+        fxx = 0.0_dp
+        do k = 5, 2, -1
+            fxx = real(k*(k - 1), dp)*self%cf(k, i) + t*fxx
+        end do
+        if (ct%xf /= xc) fxx = 0.0_dp
+    end subroutine straight_current_parts
+
+    !> Tangent of the straight_current integrand g = (q a - h <a>)/(<a> - q fs).
+    pure subroutine straight_current_jvp(self, ct, dc, dcf, dpsit, dout, drr, dzz, dg)
+        type(efit_sfl_t), intent(in) :: self
+        type(contour_t), intent(in) :: ct
+        real(dp), intent(in) :: dc(0:, 0:, :, :), dcf(0:, :), dpsit, dout(:, :), drr(:), dzz(:)
+        real(dp), intent(out) :: dg(:)
+        real(dp), dimension(self%nt) :: ds, dsr, dsz, a, da, dds
+        real(dp) :: v(6), q, dq, ma, dma, fs, dfs, fxx, t, den, dden, dfx, dummy, hpsi
+        integer :: k, i
+
+        call straight_current_parts(self, ct, ds, dsr, dsz, a, fs, fxx, i, t)
+        do k = 1, self%nt
+            call psi_eval(self, dc, ct%r(k), ct%z(k), v)
+            dds(k) = v(4) - v(2)/ct%r(k) + v(6) + dsr(k)*drr(k) + dsz(k)*dzz(k)
+        end do
+        da = -(dout(4, :)*ds + ct%out(4, :)*dds)/ct%r**2 - 2.0_dp*a*drr/ct%r
+        hpsi = self%g%sibry - self%g%simag
+        call prof_eval(self, dcf, ct%xf, dummy, dfx)
+        dfs = self%sig_f*(dfx + fxx*dpsit/hpsi)/hpsi
+        q = sum(ct%out(1, :))/real(self%nt, dp)
+        dq = sum(dout(1, :))/real(self%nt, dp)
+        ma = sum(a)/real(self%nt, dp)
+        dma = sum(da)/real(self%nt, dp)
+        den = ma - q*fs
+        dden = dma - dq*fs - q*dfs
+        dg = (dq*a + q*da - dout(1, :)*ma - ct%out(1, :)*dma)/den &
+             - (q*a - ct%out(1, :)*ma)*dden/den**2
+    end subroutine straight_current_jvp
+
+    !> Transpose of straight_current_jvp: bars to the kernel outputs (outb),
+    !> q (qb), the point positions (rb, zb), the spline coefficients, fpol and
+    !> psi_t.
+    subroutine straight_current_vjp(self, ct, gb, outb, qb, rb, zb, cb, cfb, psitb)
+        type(efit_sfl_t), intent(in) :: self
+        type(contour_t), intent(in) :: ct
+        real(dp), intent(in) :: gb(:)
+        real(dp), intent(inout) :: outb(:, :), qb, rb(:), zb(:), cb(:, :, 0:, 0:), cfb(:), psitb
+        real(dp), dimension(self%nt) :: ds, dsr, dsz, a, g, nb, ab, dsb
+        real(dp) :: q, ma, fs, fxx, t, den, denb, mab, fsb, hpsi
+        integer :: k, i, kk
+
+        call straight_current_parts(self, ct, ds, dsr, dsz, a, fs, fxx, i, t)
+        q = sum(ct%out(1, :))/real(self%nt, dp)
+        ma = sum(a)/real(self%nt, dp)
+        den = ma - q*fs
+        g = (q*a - ct%out(1, :)*ma)/den
+        nb = gb/den
+        denb = -sum(gb*g)/den
+        qb = qb + sum(nb*a) - denb*fs
+        ab = q*nb
+        outb(1, :) = outb(1, :) - nb*ma
+        mab = -sum(nb*ct%out(1, :)) + denb
+        fsb = -denb*q
+        ab = ab + mab/real(self%nt, dp)
+        outb(4, :) = outb(4, :) - ab*ds/ct%r**2
+        dsb = -ab*ct%out(4, :)/ct%r**2
+        rb = rb - 2.0_dp*ab*a/ct%r + dsb*dsr
+        zb = zb + dsb*dsz
+        do k = 1, self%nt
+            call psi_eval_t(self, ct%r(k), ct%z(k), &
+                            [0.0_dp, -dsb(k)/ct%r(k), 0.0_dp, dsb(k), 0.0_dp, dsb(k)], cb)
+        end do
+        hpsi = self%g%sibry - self%g%simag
+        psitb = psitb + fsb*self%sig_f*fxx/hpsi**2
+        if (ct%xf == max(0.0_dp, min(1.0_dp, ct%xf))) then
+            do kk = 1, 5
+                cfb = cfb + fsb*self%sig_f/hpsi*real(kk, dp)*t**(kk - 1)*self%wf(i, :, kk)
+            end do
+        end if
+    end subroutine straight_current_vjp
 
 end module efit_sfl

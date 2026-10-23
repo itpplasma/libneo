@@ -10,8 +10,8 @@ program test_efit_sfl
     implicit none
 
     real(dp), parameter :: pi = 3.14159265358979323846_dp, mu0 = 4.0e-7_dp*pi
-    real(dp), parameter :: r0s = 1.7_dp, aa = 0.092_dp, bb = 0.079_dp, cc = 0.2_dp, &
-                           dd = 0.01_dp, b0 = 2.0_dp, psib = 0.2_dp
+    real(dp), parameter :: r0s = 1.7_dp, bb = 0.079_dp, dd = 0.01_dp, b0 = 2.0_dp, psib = 0.2_dp
+    real(dp) :: aa = 0.092_dp, cc = 0.2_dp   ! a = -4 b, c = 2 for the p' = 0 file
     integer, parameter :: mp = 12
     integer :: nfail = 0
     real(dp) :: rax, zax, psiax
@@ -22,12 +22,20 @@ program test_efit_sfl
     call write_solovev('solovev_qpsi.geqdsk', 65, 'qpsi')
     call write_solovev('solovev_cocos11.geqdsk', 65, 'cocos11')
     call write_solovev('solovev_flip.geqdsk', 65, 'flip')
+    aa = -4*bb
+    cc = 2.0_dp
+    call analytic_axis(rax, zax, psiax)
+    call write_solovev('solovev_nopressure.geqdsk', 65, 'nopressure')
+    aa = 0.092_dp
+    cc = 0.2_dp
+    call analytic_axis(rax, zax, psiax)
 
     call test_checks()
     call test_errors()
     call test_routes_and_boozer_property()
     call test_conventions()
     call test_resolution()
+    call test_straight_current()
     call test_derivatives()
 
     if (nfail > 0) then
@@ -217,10 +225,31 @@ contains
         call check(d < 1e-12_dp, 'n_theta 256 -> 512', d, 1e-12_dp)
     end subroutine test_resolution
 
+    !> Hamada II (straight current lines) coincides with Hamada I in
+    !> equilibrium (d_H, design section 9 C1-C6); without p' it is undefined.
+    subroutine test_straight_current()
+        type(efit_sfl_t) :: e
+        type(efit_sfl_surface_t) :: o(3), h(3)
+        type(efit_sfl_status_t) :: st
+        real(dp) :: ss(3) = [0.1_dp, 0.5_dp, 0.9_dp], d
+
+        call init(e, 'solovev_ok.geqdsk', EFIT_SFL_STRAIGHT_CURRENT, 512, .false.)
+        call efit_sfl_transform(e, ss, 40, o)
+        call init(e, 'solovev_ok.geqdsk', EFIT_SFL_JACOBIAN_CONST, 512, .false.)
+        call efit_sfl_transform(e, ss, 40, h)
+        d = maxval(abs([o(2)%rmnc - h(2)%rmnc, o(2)%zmns - h(2)%zmns]))/h(2)%rmnc(0)
+        call check(maxval(o%d_family) < 1e-6_dp .and. d < 1e-6_dp, &
+                   'straight_current = jacobian_const in equilibrium (d_H)', &
+                   max(maxval(o%d_family), d), 1e-6_dp)
+        call init(e, 'solovev_nopressure.geqdsk', EFIT_SFL_STRAIGHT_CURRENT, 128, .false.)
+        call efit_sfl_transform(e, ss, mp, o, st)
+        call check(st%code == EFIT_SFL_ERR_NO_PRESSURE .and. index(st%message, 'p''') > 0, &
+                   'p'' = 0 raises SFL_ERR_NO_PRESSURE', st%value, 1e-8_dp)
+    end subroutine test_straight_current
+
     subroutine test_derivatives()
         integer :: route
         do route = 1, 5
-            if (route == 4) cycle
             call derivatives(route)
         end do
     end subroutine test_derivatives
@@ -270,6 +299,16 @@ contains
         end do
         write (lab, '(a, i0)') 'FD V-curve minimum, route ', route
         call check(best < 1e-8_dp, trim(lab), best, 1e-8_dp)
+        ! Gram form <J t, J t> = <t, J^T J t>, free of the cancellation of the
+        ! fixed seed (3e3 for route 4, whose divisor is proportional to p')
+        call efit_sfl_vjp(e, ss, mp, od, tb)
+        lhs = 0
+        do i = 1, 3
+            lhs = lhs + dotp(od(i), od(i))
+        end do
+        rhs = sum(t%psirz*tb%psirz) + sum(t%fpol*tb%fpol)
+        write (lab, '(a, i0)') 'adjoint duality (Gram), route ', route
+        call check(abs(lhs - rhs) < 1e-13_dp*lhs, trim(lab), abs(lhs - rhs)/lhs, 1e-13_dp)
     end subroutine derivatives
 
     subroutine seed(b, i)
@@ -373,7 +412,7 @@ contains
                 psirz(i, j) = psi_a(rg(i), zg(j))
             end do
         end do
-        pp = -(8*bb + 2*aa)/mu0
+        pp = -(8*bb + 2*aa)/mu0   ! 0 for 'nopressure'
         fpol = sqrt((r0s*b0)**2 - 4*cc*(ps - psib))
         pres = pp*(ps - psib)
         ffp = -2*cc
