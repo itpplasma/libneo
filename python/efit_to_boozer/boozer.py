@@ -86,6 +86,26 @@ def get_contour_transform(gfile, s, mpol, *, n_theta=1024, n_q=128, route=1,
     ``exp_bpol`` is -1 to infer units, 0 for Wb/rad, or 1 for Wb; an
     unidentified source requires explicit units even with a quality override.
     """
+    return _get_contour_transform(gfile, s, mpol, n_theta=n_theta, n_q=n_q,
+                                  route=route, psimax=psimax,
+                                  allow_poor_equilibrium=allow_poor_equilibrium,
+                                  override_reason=override_reason, exp_bpol=exp_bpol)
+
+
+def get_contour_transform_extended(gfile, s, mpol, **options):
+    """Add native pressure derivative, volume factor, radius and orientation.
+
+    ``pp_file`` and ``sqrtg00`` retain native Gaussian units and signs;
+    ``rminor`` is in cm and ``sig_theta`` is the native poloidal orientation.
+    Other entries and options have the contract of :func:`get_contour_transform`.
+    """
+    return _get_contour_transform(gfile, s, mpol, extended_metadata=True, **options)
+
+
+def _get_contour_transform(gfile, s, mpol, *, n_theta=1024, n_q=128, route=1,
+                          psimax=None, allow_poor_equilibrium=False,
+                          override_reason="", exp_bpol=-1, extended_metadata=False):
+    """Read either flat native layout and apply the shared CCW orientation."""
     gfile, psimax = _contour_input(gfile, psimax)
     s = np.asarray(s, dtype=float)
     if s.ndim != 1 or not len(s) or not np.all(np.isfinite(s)):
@@ -94,13 +114,16 @@ def get_contour_transform(gfile, s, mpol, *, n_theta=1024, n_q=128, route=1,
         raise ValueError("psimax must be finite")
     if allow_poor_equilibrium and not override_reason.strip():
         raise ValueError("allow_poor_equilibrium requires an explicit override_reason")
-    coefficients, fluxes, state, code, overridden, message = (
-        _efit_to_boozer.efit_to_boozer.contour_transform(
-            gfile, s, mpol, n_theta, n_q, route, psimax is not None,
-            0.0 if psimax is None else psimax, allow_poor_equilibrium,
-            override_reason, exp_bpol=exp_bpol,
-        )
-    )
+    native = _efit_to_boozer.efit_to_boozer
+    transform = (native.contour_transform_extended if extended_metadata
+                 else native.contour_transform)
+    result = transform(gfile, s, mpol, n_theta, n_q, route, psimax is not None,
+                       0.0 if psimax is None else psimax, allow_poor_equilibrium,
+                       override_reason, exp_bpol=exp_bpol)
+    if extended_metadata:
+        coefficients, fluxes, state, physical, rminor, code, overridden, message = result
+    else:
+        coefficients, fluxes, state, code, overridden, message = result
     if isinstance(message, bytes):
         message = message.decode().strip()
     else:
@@ -121,6 +144,9 @@ def get_contour_transform(gfile, s, mpol, *, n_theta=1024, n_q=128, route=1,
         status_code=int(code), overridden=bool(overridden), message=message,
         gfile=gfile,
     )
+    if extended_metadata:
+        metadata.update(pp_file=np.asarray(physical[0]), sqrtg00=np.asarray(physical[1]),
+                        rminor=float(rminor), sig_theta=float(state[3]))
     return metadata
 
 
