@@ -905,3 +905,9 @@ add_test(NAME test_hamada_to_boozer_contour
     $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x>)
 set_tests_properties(test_hamada_to_boozer_contour PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME test_hamada_to_boozer_legacy_low_q
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_contour.py
+    $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x> 2)
+set_tests_properties(test_hamada_to_boozer_legacy_low_q PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
