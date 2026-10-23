@@ -6,7 +6,8 @@ module boozer_chartmap
 
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use boozer_sub, only: build_boozer_from_chartmap, splint_boozer_coord, &
-                          boozer_to_vmec
+                          boozer_to_vmec, boozer_quality, boozer_construction
+    use boozer_sub, only: boozer_regular_radial_factor
     use boozer_chartmap_io, only: read_boozer_chartmap
     use boozer_chartmap_types, only: boozer_chartmap_data_t
 
@@ -302,6 +303,20 @@ contains
                        "att boozer_field")
         call nc_assert(nf90_put_att(ncid, nf90_global, "torflux", torflux), &
                        "att torflux")
+        call nc_assert(nf90_put_att(ncid, nf90_global, &
+            'sfl_construction', trim(boozer_construction)), 'att sfl_construction')
+        call nc_assert(nf90_put_att(ncid, nf90_global, &
+            'regular_radial_factor', boozer_regular_radial_factor), 'att regular_radial_factor')
+        if (boozer_construction == 'hybrid') then
+            call nc_assert(nf90_put_att(ncid, nf90_global, &
+                'sfl_allow_poor_equilibrium', merge(1, 0, boozer_quality%overridden)), &
+                'att sfl_allow_poor_equilibrium')
+            if (boozer_quality%overridden) then
+                call nc_assert(nf90_put_att(ncid, nf90_global, &
+                    'sfl_override_reason', trim(boozer_quality%override_reason)), &
+                    'att sfl_override_reason')
+            end if
+        end if
         ! No rmajor attribute: the chartmap reader derives the major radius
         ! from the innermost-surface geometry (see boozer_chartmap_io).
 
