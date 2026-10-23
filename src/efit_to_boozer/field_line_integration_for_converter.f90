@@ -19,7 +19,6 @@
 ! which corresponds to Eq.(62) in case $\vartheta_{B0} = \vartheta_{H0} = 0$.
 !
   use field_line_integration_for_coverter_mod, only : prop,rmn,rmx,zmn,zmx
-  use rhs_converter_mod, only : dz_dphi
   use field_eq_mod, only : nrad,nzet,rad,zet,icall_eq
   use field_sub
   use odeint_allroutines_sub
@@ -29,6 +28,7 @@
   integer, parameter :: neq=4
   integer, parameter :: niter=10       !number of iterations for Newton method
   integer, parameter :: nstep_min=10   !minimum number of steps
+  integer, parameter :: niter_cross=30 !bracketed Newton for the closing crossing
 !
   integer          :: ntheta,ierr,iter,j
   double precision :: rbeg,zaxis,phimax
@@ -37,6 +37,8 @@
   double precision :: Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
                      ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
   double precision :: relerr,h,phiout,phi_sep,sig
+  double precision :: dlo,dhi,dphi,dnew
+  double precision, dimension(neq) :: yprev
 !
   double precision, dimension(ntheta) :: F_B,F_H,dF_B_dphi
   double precision, dimension(neq)    :: ymet
@@ -93,6 +95,7 @@
   enddo
   sig=ymet(2)-zaxis
   do while(sig*(ymet(2)-zaxis).gt.0.d0)
+    yprev=ymet
     call odeint_allroutines(ymet,neq,phi,phiout,relerr,rhs_converter)
     phi_sep=phi_sep+phiout
     if( ymet(1).lt.rmn .or. ymet(1).gt.rmx .or.            &
@@ -103,12 +106,29 @@
     endif
   enddo
 !
-! Newton method
-  do iter=1,niter
-    phiout=(zaxis-ymet(2))/dz_dphi
-    call odeint_allroutines(ymet,neq,phi,phiout,relerr,rhs_converter)
-    phi_sep=phi_sep+phiout
+! Closing crossing inside the last step, bracketed Newton with bisection
+! fallback (as in flint_for_Boozer: plain Newton from the step end can jump
+! to the inboard crossing when q is of order 0.5).
+  phi_sep=phi_sep-h
+  dlo=0.d0
+  dhi=h
+  dphi=h
+  do iter=1,niter_cross
+    ymet=yprev
+    call odeint_allroutines(ymet,neq,phi,dphi,relerr,rhs_converter)
+    if (sig*(ymet(2)-zaxis) > 0.d0) then
+      dlo=dphi
+    else
+      dhi=dphi
+    endif
+    call field_eq(ymet(1),dphi,ymet(2),Br,Bp,Bz,dBrdR,dBrdp,dBrdZ   &
+                  ,dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ)
+    dnew=dphi+(zaxis-ymet(2))*Bp/(Bz*ymet(1))
+    if (abs(dnew-dphi) <= 1.d-12*h) exit
+    if (.not. (dnew > dlo .and. dnew < dhi)) dnew=0.5d0*(dlo+dhi)
+    dphi=dnew
   enddo
+  phi_sep=phi_sep+dphi
 !
   phimax = phi_sep
 !
