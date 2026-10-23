@@ -841,3 +841,21 @@ add_test(NAME test_efit_boozer_projection
     $<TARGET_FILE:test_efit_boozer_projection.x>)
 set_tests_properties(test_efit_boozer_projection PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_sfl_routes.x source/test_sfl_routes.f90)
+target_link_libraries(test_sfl_routes.x neo)
+add_test(NAME test_sfl_routes
+  COMMAND test_sfl_routes.x)
+set_tests_properties(test_sfl_routes PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383;setup_vmec_wout_circular_tokamak;setup_vmec_wout_updown_tokamak")
+
+add_test(
+  NAME test_sfl_route_error
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/check_sfl_route_error.py
+          $<TARGET_FILE:boozer_spectrum_ad.x> ${CMAKE_CURRENT_BINARY_DIR}/wout.nc)
+set_tests_properties(test_sfl_route_error PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  PASS_REGULAR_EXPRESSION "check_sfl_route_error PASSED"
+  DEPENDS setup_vmec_wout)
