@@ -1,4 +1,5 @@
-!> Derivatives of the VMEC -> Boozer spectrum (boozer_vmec_ad).
+!> Derivatives of the legacy VMEC -> Boozer spectrum (boozer_vmec_ad,
+!> construction = BOOZER_LEGACY; the hybrid default is test_boozer_hybrid).
 !>
 !> Checks, on the reference QA wout with the linear and the cubic lambda
 !> half -> full mesh map and on li383 (net toroidal current, so the -I*lambda
@@ -24,7 +25,7 @@ program test_boozer_vmec_ad
                               boozer_ad_jvp, boozer_ad_vjp, wout_tangent_alloc, &
                               spectrum_alloc, boozer_field_kernel, &
                               sqrt_g_ss_kernel, boozer_ad_surface_data, &
-                              boozer_ad_perturb
+                              boozer_ad_perturb, BOOZER_LEGACY
     implicit none
 
     type(boozer_ad_context_t) :: ctx
@@ -33,7 +34,7 @@ program test_boozer_vmec_ad
 
     failed = .false.
     call boozer_ad_init(ctx, 'wout.nc', 8, 6, grid_refinement=3, &
-                        spline_vmec_state=.true.)
+                        spline_vmec_state=.true., construction=BOOZER_LEGACY)
     call check_kernel()
     call check_core()
     call check_synthesis('QA, linear lambda')
@@ -285,7 +286,8 @@ contains
         character(*), intent(in) :: wout, lambda_map, label
 
         lambda_half_to_full = lambda_map
-        call boozer_ad_init(ctx, wout, 8, 6, grid_refinement=3, spline_vmec_state=.true.)
+        call boozer_ad_init(ctx, wout, 8, 6, grid_refinement=3, spline_vmec_state=.true., &
+                            construction=BOOZER_LEGACY)
         call check_synthesis(label)
         call check_full(label)
         lambda_half_to_full = 'linear'
