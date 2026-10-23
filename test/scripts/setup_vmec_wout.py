@@ -26,9 +26,20 @@ LI383_URL = (
     "test_files/wout_li383_1.4m.nc"
 )
 LI383_SHA256 = "6508955581628d8a67992d340fe3a82c160c1a183925d8dfb1f955a4dd596a3f"
+# Circular tokamak (axisymmetric, n_max = 0, net current), booz_xform test files.
+CIRCULAR_TOKAMAK_URL = (
+    "https://raw.githubusercontent.com/hiddenSymmetries/booz_xform/main/tests/"
+    "test_files/wout_circular_tokamak.nc"
+)
+CIRCULAR_TOKAMAK_SHA256 = (
+    "625c5de8e0eb6041b505ffee17e13d3c1b1837488a6c3d1c9b351ca06bc6749a"
+)
 FIXTURES = {
     "qa": ("wout.nc", WOUT_URL, WOUT_SHA256),
     "li383": ("wout_li383.nc", LI383_URL, LI383_SHA256),
+    "circular_tokamak": (
+        "wout_circular_tokamak.nc", CIRCULAR_TOKAMAK_URL, CIRCULAR_TOKAMAK_SHA256
+    ),
 }
 
 

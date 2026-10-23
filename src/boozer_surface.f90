@@ -472,10 +472,12 @@ contains
     end subroutine boozer_surface_jvp
 
     !> Adjoint of the surface transform: given cotangents of the outputs of
-    !> boozer_surface_jvp, accumulate (+=) cotangents of the inputs.
+    !> boozer_surface_jvp, accumulate (+=) cotangents of the inputs. The
+    !> optional bcov_t, bcov_p and q2 return the primal outputs of the sweep.
     subroutine boozer_surface_vjp(lin, aiota, alam, bt, bp, carried, &
                                   bcov_t_b, bcov_p_b, dtheta_V_b, dphi_V_b, q2_b, &
-                                  aiota_b, alam_b, bt_b, bp_b, carried_b)
+                                  aiota_b, alam_b, bt_b, bp_b, carried_b, &
+                                  bcov_t, bcov_p, q2)
         type(boozer_surface_lin_t), intent(in) :: lin
         real(dp), intent(in) :: aiota, alam(:, :), bt(:, :), bp(:, :)
         real(dp), intent(in) :: carried(:, :, :)
@@ -483,6 +485,7 @@ contains
         real(dp), intent(in) :: dphi_V_b(:, :), q2_b(:, :, :)
         real(dp), intent(inout) :: aiota_b, alam_b(:, :), bt_b(:, :), bp_b(:, :)
         real(dp), intent(inout) :: carried_b(:, :, :)
+        real(dp), intent(out), optional :: bcov_t, bcov_p, q2(:, :, :)
         type(surface_tape_t) :: tp
         integer :: nt, np, nq, ns_tp, i, j
         real(dp) :: cells, dj_b, gbeg_b, bt_mean_b, bp_mean_b, bt_lam_b
@@ -495,6 +498,9 @@ contains
         ns_tp = lin%grid%ns_tp
         nq = size(carried, 1) + 2
         cells = real((nt - 1)*(np - 1), dp)
+        if (present(bcov_t)) bcov_t = tp%bcov_t
+        if (present(bcov_p)) bcov_p = tp%bcov_p
+        if (present(q2)) q2 = tp%q2
 
         allocate (q1_b(nq, nt, np), q0_b(nq, nt, np))
         q1_b = 0.0_dp
