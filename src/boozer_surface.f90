@@ -387,7 +387,7 @@ contains
             tp%raw(i, :) = tp%raw(i, 1) + matmul(lin%k_phi, bp(i, :))
         end do
         allocate (tp%dphi(nt, np), tp%dtheta(nt, np))
-        tp%dphi = tp%denomjac*tp%raw + tp%gbeg
+        tp%dphi = tp%denomjac*(tp%raw - tp%bcov_t*alam) + tp%gbeg
         tp%dtheta = aiota*tp%dphi + alam
 
         allocate (tp%q0(nq, nt, np), tp%q1(nq, nt, np), tp%q2(nq, nt, np))
@@ -453,7 +453,8 @@ contains
         do i = 1, nt
             raw_d(i, :) = raw_d(i, 1) + matmul(lin%k_phi, bp_d(i, :))
         end do
-        dphi_V_d = dj_d*tp%raw + tp%denomjac*raw_d + gbeg_d
+        dphi_V_d = dj_d*(tp%raw - tp%bcov_t*alam) &
+                   + tp%denomjac*(raw_d - bcov_t_d*alam - tp%bcov_t*alam_d) + gbeg_d
         dtheta_V_d = aiota_d*tp%dphi + aiota*dphi_V_d + alam_d
 
         allocate (q0_d(nq, nt, np), q1_d(nq, nt, np))
@@ -484,7 +485,7 @@ contains
         real(dp), intent(inout) :: carried_b(:, :, :)
         type(surface_tape_t) :: tp
         integer :: nt, np, nq, ns_tp, i, j
-        real(dp) :: cells, dj_b, gbeg_b, bt_mean_b, bp_mean_b
+        real(dp) :: cells, dj_b, gbeg_b, bt_mean_b, bp_mean_b, bt_lam_b
         real(dp), allocatable :: q0_b(:, :, :), q1_b(:, :, :), raw_b(:, :)
         real(dp), allocatable :: dphi_b(:, :), dtheta_b(:, :), raw1_b(:)
 
@@ -515,9 +516,11 @@ contains
         dphi_b = dphi_b + aiota*dtheta_b
         alam_b = alam_b + dtheta_b
 
-        dj_b = sum(dphi_b*tp%raw)
+        dj_b = sum(dphi_b*(tp%raw - tp%bcov_t*alam))
         gbeg_b = sum(dphi_b)
         raw_b = tp%denomjac*dphi_b
+        alam_b = alam_b - tp%denomjac*tp%bcov_t*dphi_b
+        bt_lam_b = -tp%denomjac*sum(dphi_b*alam)
 
         allocate (raw1_b(nt))
         do i = 1, nt
@@ -526,7 +529,7 @@ contains
         end do
         bt_b(:, 1) = bt_b(:, 1) + matmul(raw1_b, lin%k_theta)
 
-        bt_mean_b = bcov_t_b + gbeg_b*tp%denomjac*alam(1, 1)
+        bt_mean_b = bcov_t_b + bt_lam_b + gbeg_b*tp%denomjac*alam(1, 1)
         dj_b = dj_b + gbeg_b*tp%bcov_t*alam(1, 1)
         alam_b(1, 1) = alam_b(1, 1) + gbeg_b*tp%bcov_t*tp%denomjac
 
