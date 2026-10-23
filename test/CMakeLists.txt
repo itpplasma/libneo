@@ -867,14 +867,6 @@ add_test(NAME test_efit_boozer_projection
 set_tests_properties(test_efit_boozer_projection PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-# Field-line turn detection on a public FreeGS MAST case (q near 0.5).
-add_test(NAME test_efit_boozer_low_q_turn
-  COMMAND ${Python_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_low_q_turn.py
-    $<TARGET_FILE:efit_to_boozer.x>)
-set_tests_properties(test_efit_boozer_low_q_turn PROPERTIES
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
 # hamada_to_boozer.x on the public EFIT file in test/resources.
 add_test(NAME test_hamada_to_boozer_legacy
   COMMAND ${Python_EXECUTABLE}
@@ -910,3 +902,11 @@ add_executable(test_efit_sfl.x source/test_efit_sfl.f90)
 target_link_libraries(test_efit_sfl.x efit_to_boozer)
 add_test(NAME test_efit_sfl COMMAND test_efit_sfl.x)
 set_tests_properties(test_efit_sfl PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# Field-line turn detection on a public FreeGS MAST case (q near 0.5).
+add_test(NAME test_efit_boozer_low_q_turn
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_low_q_turn.py
+    $<TARGET_FILE:efit_to_boozer.x>)
+set_tests_properties(test_efit_boozer_low_q_turn PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
