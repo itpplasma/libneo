@@ -20,6 +20,14 @@
 !>           f_mn = 2 < D f exp(i(m theta_B - n N phi_B)) > over the VMEC grid
 !>           with D the Jacobian of the angle map, so nothing is
 !>           re-interpolated.
+!>  routes   the covariant route above is SFL_COVARIANT, the default; the
+!>           submodule boozer_hybrid_routes adds SFL_JACOBIAN_B2 and
+!>           SFL_JACOBIAN_CONST (magnetic differential equation in PEST
+!>           angles), SFL_STRAIGHT_CURRENT (Hamada II from the covariant
+!>           route and beta) and SFL_PEST, each with tangent and adjoint, and
+!>           the route diagnostics (hybrid_surface_diag). They change only
+!>           nu; the quadrature is the same. presf (full mesh, an input
+!>           profile) is read for the p' /= 0 check of Hamada II.
 !> Every stage is linear except the pointwise kernel, the quotient by
 !> iota I + G and the phases and D of the quadrature, whose tangents are
 !> written out; the linear stages have hand-written transposes.
@@ -28,7 +36,9 @@
 !> carry the sign of the legacy construction; |B|, nu and |grad s| do not
 !> depend on it. The reference is boozer_bench.primary (oracle and hybrid).
 !> The grid of the default is n_theta = 4 max(mpol-1, mboz) + 8 and
-!> n_phi = 4 max(ntor, nboz) + 8 (n_phi = 1 for axisymmetric files).
+!> n_phi = 4 max(ntor, nboz) + 8 (n_phi = 1 for axisymmetric files); the
+!> other routes (submodule boozer_hybrid_routes) use 4 max(mpol-1, mboz, mnu)
+!> + 8 and 4 max(ntor, nboz, nnu) + 8.
 module boozer_hybrid
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use spl_three_to_five_sub, only: spl_reg
@@ -39,9 +49,25 @@ module boozer_hybrid
     public :: boozer_hybrid_t, hybrid_surface_t, boozer_hybrid_init
     public :: hybrid_surface, hybrid_surface_jvp, hybrid_surface_vjp
     public :: hybrid_field_kernel, hybrid_radial_row
+    public :: hybrid_diag_t, hybrid_surface_diag
+    public :: route_weight_kernel, route_radial_kernel, route_beta_kernel
     public :: NSPEC, NHIN
+    public :: SFL_COVARIANT, SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST, SFL_STRAIGHT_CURRENT, &
+              SFL_PEST, sfl_route_name
 
     integer, parameter :: NHIN = 10, NHOUT = 4, NSPEC = 6
+    !> Straight-field-line routes, named by the condition they enforce:
+    !> SFL_COVARIANT        Boozer, B_theta and B_phi flux functions ('boozer'),
+    !> SFL_JACOBIAN_B2      Boozer, sqrt(g) B^2 flux function,
+    !> SFL_JACOBIAN_CONST   Hamada I, sqrt(g) flux function ('hamada'),
+    !> SFL_STRAIGHT_CURRENT Hamada II, current lines straight (needs p' /= 0),
+    !> SFL_PEST             nu = 0.
+    integer, parameter :: SFL_COVARIANT = 1, SFL_JACOBIAN_B2 = 2, SFL_JACOBIAN_CONST = 3, &
+                          SFL_STRAIGHT_CURRENT = 4, SFL_PEST = 5
+    !> Inputs of the radial field kernel sfl_radial_field beyond the ten of
+    !> boozer_hybrid_field, and of sfl_beta.
+    integer, parameter :: NRIN = 19, NBIN = 12
+    real(dp), parameter :: MU0 = 16.0e-7_dp*atan(1.0_dp)
     integer, parameter :: ROW_FULL0 = 1, ROW_FULL1 = 2, ROW_HALF0 = 3, ROW_HALF1 = 4
     real(dp), parameter :: TWOPI = 8.0_dp*atan(1.0_dp)
     complex(dp), parameter :: IU = (0.0_dp, 1.0_dp)
@@ -52,11 +78,19 @@ module boozer_hybrid
         integer :: nt = 0, np = 0, mboz = 0, nboz = 0, mnboz = 0
         logical :: lasym = .false., axisym = .false.
         real(dp) :: phiedge = 0.0_dp, rmajor = 0.0_dp
+        !> Route and the nu truncation (0 <= m <= mnu, |n| <= nnu field-period
+        !> harmonics) of the magnetic differential equation of the Jacobian
+        !> routes. A mode with |iota m - n N| < res_exact max(1, m) is set to
+        !> zero (as GVEC), one with |iota m - n N| < res_report is reported.
+        integer :: route = SFL_COVARIANT, mnu = 0, nnu = 0
+        real(dp) :: res_exact = 1.0e-10_dp, res_report = 1.0e-2_dp
         !> xn and xn_b include nfp; nmax counts field periods.
         integer, allocatable :: xm(:), xn(:), xm_b(:), xn_b(:)
         !> wout shapes (mnmax, 0:ns-1)
         real(dp), allocatable :: rmnc(:, :), zmns(:, :), lmns(:, :)
         real(dp), allocatable :: rmns(:, :), zmnc(:, :), lmnc(:, :), iotas(:)
+        !> full-mesh pressure (Pa), an input profile; only Hamada II uses p'
+        real(dp), allocatable :: presf(:)
         real(dp), allocatable :: theta(:), phi(:), km(:), kn(:)
         !> exp(i m theta_a) (nt, 0:mmax), i m exp(i m theta_a), exp(-i n N phi_b)
         !> (np, -nmax:nmax), and the DFT matrices exp(-2 pi i k a/n).
@@ -65,15 +99,143 @@ module boozer_hybrid
     end type boozer_hybrid_t
 
     !> Primal state of one surface, kept for the tangent and the adjoint.
+    !> nu, nu_t, nu_p are the potential of the route on the VMEC grid,
+    !> theta* = theta + lambda + iota nu, phi* = phi + nu; nuc, nutc, nupc the
+    !> covariant (Boozer) potential that the routes SFL_COVARIANT and
+    !> SFL_STRAIGHT_CURRENT start from.
     type :: hybrid_surface_t
         real(dp) :: s = 0.0_dp, iota = 0.0_dp, ci = 0.0_dp, cg = 0.0_dp, ck = 0.0_dp
-        real(dp), allocatable :: rv(:, :), rd(:, :)
+        !> rows rv, rd (0:ns-1, 4) and the second derivative rows rdd of the
+        !> full mesh (0:ns-1, 2)
+        real(dp), allocatable :: rv(:, :), rd(:, :), rdd(:, :)
         real(dp), allocatable :: x(:, :), lam(:), f(:, :), jac(:, :, :)
         real(dp), allocatable :: nu(:), nut(:), nup(:), thb(:), phb(:), dj(:)
+        real(dp), allocatable :: nuc(:), nutc(:), nupc(:)
         complex(dp), allocatable :: em(:, :), en(:, :)
         !> spec(1:6, k): bmnc, bmns, numnc, numns, gradsmnc, gradsmns
         real(dp), allocatable :: spec(:, :)
+        !> Jacobian routes: density u = sqrt(g)_V (B^2), its Jacobian ju with
+        !> respect to (R, R_s, R_t, Z_s, Z_t, |B|), the mean ubar, the right-hand
+        !> side g = u/ubar - (1 + lambda_t) in the VMEC measure, the PEST phases
+        !> emp (0:mnu, npt) = exp(i m theta_P), enp (npt, -nnu:nnu) =
+        !> exp(-i n N phi), the analysis fmn and solution cmn (0:mnu, -nnu:nnu),
+        !> the active-mode mask, d_theta_P and d_phi of nu and their derivatives.
+        real(dp) :: ubar = 0.0_dp
+        real(dp), allocatable :: u(:), ju(:, :), g(:), nuth(:), nuph(:), nutt(:), nutp(:)
+        complex(dp), allocatable :: emp(:, :), enp(:, :), fmn(:, :), cmn(:, :)
+        logical, allocatable :: active(:, :)
+        integer :: n_zeroed = 0
+        !> Hamada II: radial data y (9, npt) = (R_ss, R_st, R_sp, Z_ss, Z_st,
+        !> Z_sp, lambda_s, lambda_st, lambda_sp), iota', the radial field kr
+        !> (3, npt) = (B_s, d_s B_theta, d_s B_phi) with Jacobian jr, I', G',
+        !> K' = (iota I + G)', nu_s of the covariant route, beta with Jacobian
+        !> jb, the Boozer angle-map Jacobian db, <beta>_B, G' + iota I' and eta.
+        real(dp) :: iotap = 0.0_dp, cip = 0.0_dp, cgp = 0.0_dp, ckp = 0.0_dp
+        real(dp) :: bmean = 0.0_dp, den = 0.0_dp, pprime = 0.0_dp
+        real(dp), allocatable :: y(:, :), kr(:, :), jr(:, :, :), nus(:), beta(:), jb(:, :)
+        real(dp), allocatable :: db(:), eta(:)
     end type hybrid_surface_t
+
+    !> Diagnostics of one surface (primal only, report). Each d_* is the
+    !> relative variation (max - min)/|mean| of the property on the VMEC grid:
+    !> d_jac of J* = sqrt(g)_V/D, d_jacb2 of J* B^2, d_cur of J* J^phi* (current
+    !> lines straight: J^theta*/J^phi* = iota_J, and J* J^phi* = I'/mu0 in
+    !> Hamada coordinates); d_cov = max(ptp B_theta*, ptp B_phi*)/(|G| + |iota I|).
+    !> d_cur_n = ptp(J* J^phi*)/(|I'| + |G'|) (mu0 = 1) normalizes the current
+    !> defect by the flux-function currents instead of their mean, which stays
+    !> meaningful when the net toroidal current I' is small (quasi-isodynamic
+    !> configurations); Hamada coordinates have J* J^phi* = I', J* J^theta* = -G'.
+    !> defect is the property the route does not enforce (SFL_COVARIANT d_jacb2,
+    !> SFL_JACOBIAN_B2 d_cov, SFL_JACOBIAN_CONST d_cur, SFL_STRAIGHT_CURRENT
+    !> d_jac, SFL_PEST 0). nu_s in J^phi* = J^s nu_s + J^theta nu_t + J^phi
+    !> (1 + nu_p) is a central difference of the route potential (step ds_fd).
+    !> eps_fb is the averaged radial force balance of the covariant fluxes,
+    !> |mu0 p' <sqrt g> + psi'(G' + iota I')| over the sum of the moduli (only
+    !> with p' /= 0). The Jacobian routes list the modes with |iota m - n N| <
+    !> res_report: res_m, res_n, res_dist = iota m - n N, res_f = |f_mn| (the
+    !> resonant residual of the normalized right-hand side) and res_amp =
+    !> |f_mn/(iota m - n N)| (zero for zeroed modes).
+    type :: hybrid_diag_t
+        real(dp) :: s = 0.0_dp, iota = 0.0_dp, ci = 0.0_dp, cg = 0.0_dp
+        real(dp) :: cip = 0.0_dp, cgp = 0.0_dp, pprime = 0.0_dp, eps_fb = -1.0_dp
+        real(dp) :: d_jac = 0.0_dp, d_jacb2 = 0.0_dp, d_cov = 0.0_dp, d_cur = 0.0_dp
+        real(dp) :: d_cur_n = 0.0_dp
+        real(dp) :: defect = 0.0_dp
+        integer :: route = SFL_COVARIANT, n_zeroed = 0
+        integer, allocatable :: res_m(:), res_n(:)
+        real(dp), allocatable :: res_dist(:), res_f(:), res_amp(:)
+    end type hybrid_diag_t
+
+    interface
+        !> FortSym kernels of the routes (gen/gen_sfl_route_kernels.f90):
+        !> sqrt(g)_V and sqrt(g)_V |B|^2 with the Jacobian with respect to
+        !> (R, R_s, R_t, Z_s, Z_t, |B|);
+        module pure subroutine route_weight_kernel(x, f, jac)
+            real(dp), intent(in) :: x(6)
+            real(dp), intent(out) :: f(2), jac(2, 6)
+        end subroutine route_weight_kernel
+        !> (B_s, d_s B_theta, d_s B_phi) at psi' = 1 with the Jacobian with
+        !> respect to (R, R_s, R_t, R_p, Z_s, Z_t, Z_p, lambda_t, lambda_p, iota,
+        !> R_ss, R_st, R_sp, Z_ss, Z_st, Z_sp, lambda_st, lambda_sp, iota');
+        module pure subroutine route_radial_kernel(x, f, jac)
+            real(dp), intent(in) :: x(NRIN)
+            real(dp), intent(out) :: f(3), jac(3, NRIN)
+        end subroutine route_radial_kernel
+        !> beta with the gradient with respect to (B_s, B_theta, B_phi,
+        !> lambda_t, lambda_p, lambda_s, nu, nu_t, nu_p, nu_s, iota, iota').
+        module pure subroutine route_beta_kernel(x, f, jac)
+            real(dp), intent(in) :: x(NBIN)
+            real(dp), intent(out) :: f, jac(NBIN)
+        end subroutine route_beta_kernel
+        !> Jacobian routes (SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST): nu from the
+        !> magnetic differential equation (iota d_thetaP + d_phi) nu = q/<q>_P - 1
+        !> in PEST angles (submodule boozer_hybrid_routes).
+        module subroutine route_mde(h, sv)
+            type(boozer_hybrid_t), intent(in) :: h
+            type(hybrid_surface_t), intent(inout) :: sv
+        end subroutine route_mde
+        module subroutine route_mde_jvp(h, sv, xd, lamd, fd, iota_d, nud, nutd, nupd)
+            type(boozer_hybrid_t), intent(in) :: h
+            type(hybrid_surface_t), intent(in) :: sv
+            real(dp), intent(in) :: xd(:, :), lamd(:), fd(:, :), iota_d
+            real(dp), intent(out) :: nud(:), nutd(:), nupd(:)
+        end subroutine route_mde_jvp
+        module subroutine route_mde_vjp(h, sv, nub, nutb, nupb, xb, lamb, fb, iotab)
+            type(boozer_hybrid_t), intent(in) :: h
+            type(hybrid_surface_t), intent(in) :: sv
+            real(dp), intent(in) :: nub(:), nutb(:), nupb(:)
+            real(dp), intent(inout) :: xb(:, :), lamb(:), fb(:, :), iotab
+        end subroutine route_mde_vjp
+        !> Hamada II (SFL_STRAIGHT_CURRENT): nu = nu_B + eta with
+        !> eta = -(beta - <beta>_B)/(G' + iota I').
+        module subroutine route_hamada2(h, sv)
+            type(boozer_hybrid_t), intent(in) :: h
+            type(hybrid_surface_t), intent(inout) :: sv
+        end subroutine route_hamada2
+        module subroutine route_hamada2_jvp(h, sv, rd, zd, ld, iod, xd, lamd, fd, iota_d, &
+                                            ci_d, ckd, nud, nutd, nupd)
+            type(boozer_hybrid_t), intent(in) :: h
+            type(hybrid_surface_t), intent(in) :: sv
+            real(dp), intent(in) :: rd(:, 0:), zd(:, 0:), ld(:, 0:), iod(0:)
+            real(dp), intent(in) :: xd(:, :), lamd(:), fd(:, :), iota_d, ci_d, ckd
+            real(dp), intent(inout) :: nud(:), nutd(:), nupd(:)
+        end subroutine route_hamada2_jvp
+        module subroutine route_hamada2_vjp(h, sv, nub, nutb, nupb, xb, lamb, fb, iotab, &
+                                            cib, ckb, rb, zb, lb, iob)
+            type(boozer_hybrid_t), intent(in) :: h
+            type(hybrid_surface_t), intent(in) :: sv
+            real(dp), intent(inout) :: nub(:), nutb(:), nupb(:)
+            real(dp), intent(inout) :: xb(:, :), lamb(:), fb(:, :), iotab, cib, ckb
+            real(dp), intent(inout) :: rb(:, 0:), zb(:, 0:), lb(:, 0:), iob(0:)
+        end subroutine route_hamada2_vjp
+        !> Diagnostics of surface s for the route of h.
+        module subroutine hybrid_surface_diag(h, s, d, ds_fd)
+            type(boozer_hybrid_t), intent(in) :: h
+            real(dp), intent(in) :: s
+            type(hybrid_diag_t), intent(out) :: d
+            real(dp), intent(in), optional :: ds_fd
+        end subroutine hybrid_surface_diag
+    end interface
 
 contains
 
@@ -105,16 +267,47 @@ contains
     !> Read the primaries and build the tables. mboz, nboz as booz_xform
     !> (m = 0..mboz-1, |n| <= nboz field-period harmonics). n_theta and n_phi
     !> override the default grid.
-    subroutine boozer_hybrid_init(h, wout_file, mboz, nboz, n_theta, n_phi)
+    !> route selects the straight-field-line route (default SFL_COVARIANT);
+    !> mnu, nnu (> 0) the nu truncation of the Jacobian routes (default
+    !> 4 (mpol - 1) and 4 ntor), res_exact and res_report their resonance
+    !> thresholds.
+    subroutine boozer_hybrid_init(h, wout_file, mboz, nboz, n_theta, n_phi, route, &
+                                  mnu, nnu, res_exact, res_report)
         type(boozer_hybrid_t), intent(out) :: h
         character(len=*), intent(in) :: wout_file
         integer, intent(in) :: mboz, nboz
-        integer, intent(in), optional :: n_theta, n_phi
+        integer, intent(in), optional :: n_theta, n_phi, route, mnu, nnu
+        real(dp), intent(in), optional :: res_exact, res_report
         integer :: a, m, n, k
 
         call read_primaries(h, wout_file)
+        if (present(route)) h%route = route
+        if (h%route < SFL_COVARIANT .or. h%route > SFL_PEST) &
+            error stop 'boozer_hybrid_init: unknown route'
+        ! 4 (mpol - 1), 4 ntor: the truncation error of nu is at round-off
+        ! (1e-14 of B_00 on li383, QA and the sheared ellipstell; 2 (mpol - 1)
+        ! leaves 3e-10 to 6e-8)
+        h%mnu = 4*h%mmax
+        h%nnu = 4*h%nmax
+        if (present(mnu)) then
+            if (mnu > 0) h%mnu = mnu
+        end if
+        if (present(nnu)) then
+            if (nnu > 0) h%nnu = nnu
+        end if
+        if (h%axisym) h%nnu = 0
+        if (present(res_exact)) h%res_exact = res_exact
+        if (present(res_report)) h%res_report = res_report
         h%nt = 4*max(h%mmax, mboz) + 8
         h%np = 4*max(h%nmax, nboz) + 8
+        if (h%route /= SFL_COVARIANT) then
+            ! The PEST analysis and the truncated eta resolve nu up to mnu, nnu,
+            ! and the spectrum in PEST angles is broader than in Boozer angles.
+            ! With the default mnu, nnu, doubling this grid changes the spectra
+            ! of all routes by 1e-15 of B_00 (test_sfl_routes).
+            h%nt = 4*max(h%mmax, mboz, h%mnu) + 8
+            h%np = 4*max(h%nmax, nboz, h%nnu) + 8
+        end if
         if (present(n_theta)) then
             if (n_theta > 0) h%nt = n_theta
         end if
@@ -125,6 +318,9 @@ contains
         if (2*(mboz - 1) >= h%nt) error stop 'boozer_hybrid_init: mboz not resolved'
         if (.not. h%axisym .and. 2*nboz >= h%np) &
             error stop 'boozer_hybrid_init: nboz not resolved'
+        if (h%route /= SFL_COVARIANT .and. (2*h%mnu >= h%nt .or. &
+                                            (.not. h%axisym .and. 2*h%nnu >= h%np))) &
+            error stop 'boozer_hybrid_init: mnu, nnu not resolved by the grid'
         h%mboz = mboz
         h%nboz = nboz
         h%mnboz = nboz + 1 + (mboz - 1)*(2*nboz + 1)
@@ -210,8 +406,9 @@ contains
         h%mmax = maxval(abs(h%xm))
         h%nmax = maxval(abs(h%xn))/h%nfp
         h%axisym = h%nmax == 0
-        allocate (h%iotas(0:h%ns - 1))
+        allocate (h%iotas(0:h%ns - 1), h%presf(0:h%ns - 1))
         call nc_get(ncid, 'iotas', h%iotas)
+        call nc_get(ncid, 'presf', h%presf)
         call get2('rmnc', h%rmnc)
         call get2('zmns', h%zmns)
         call get2('lmns', h%lmns)
@@ -244,12 +441,13 @@ contains
     !> s^(p/2), acting on the wout radial index 0:ns-1. half selects the half
     !> mesh (nodes (j - 1/2) h, j = 1..ns-1), otherwise the full mesh
     !> (nodes j h, with j = 0 dropped for p = 1).
-    subroutine hybrid_radial_row(ns, s, half, p, rv, rd)
+    subroutine hybrid_radial_row(ns, s, half, p, rv, rd, rdd)
         integer, intent(in) :: ns, p
         real(dp), intent(in) :: s
         logical, intent(in) :: half
         real(dp), intent(out) :: rv(0:ns - 1), rd(0:ns - 1)
-        real(dp) :: hs, x0, t, v, dv, r
+        real(dp), intent(out), optional :: rdd(0:ns - 1)
+        real(dp) :: hs, x0, t, v, dv, ddv, r
         real(dp), allocatable :: coef(:, :)
         integer :: j0, nn, i, j, k
 
@@ -271,6 +469,7 @@ contains
         allocate (coef(0:5, nn))
         rv = 0.0_dp
         rd = 0.0_dp
+        if (present(rdd)) rdd = 0.0_dp
         do j = 1, nn
             coef = 0.0_dp
             coef(0, j) = 1.0_dp/sqrt(x0 + real(j - 1, dp)*hs)**p
@@ -286,6 +485,14 @@ contains
             rv(j0 + j - 1) = v*r**p
             rd(j0 + j - 1) = dv*r**p
             if (p == 1) rd(j0 + j - 1) = rd(j0 + j - 1) + 0.5_dp*v/r
+            if (present(rdd)) then
+                ddv = 0.0_dp
+                do k = 5, 2, -1
+                    ddv = real(k*(k - 1), dp)*coef(k, i + 1) + t*ddv
+                end do
+                rdd(j0 + j - 1) = ddv*r**p
+                if (p == 1) rdd(j0 + j - 1) = rdd(j0 + j - 1) + dv/r - 0.25_dp*v/r**3
+            end if
         end do
     end subroutine hybrid_radial_row
 
@@ -529,20 +736,25 @@ contains
         end if
     end function dft2
 
-    !> Primal transform of surface s; sv keeps the state for jvp/vjp.
-    subroutine hybrid_surface(h, s, sv)
+    !> Primal transform of surface s; sv keeps the state for jvp/vjp. With
+    !> with_spectrum = .false. only the potential of the route and the angle map are
+    !> computed (no spectrum).
+    subroutine hybrid_surface(h, s, sv, with_spectrum)
         type(boozer_hybrid_t), intent(in) :: h
         real(dp), intent(in) :: s
         type(hybrid_surface_t), intent(out) :: sv
+        logical, intent(in), optional :: with_spectrum
         real(dp) :: psip
         real(dp), allocatable :: w(:), wt(:), wp(:)
         integer :: p, npt
 
         npt = h%nt*h%np
         sv%s = s
-        allocate (sv%rv(0:h%ns - 1, 4), sv%rd(0:h%ns - 1, 4))
-        call hybrid_radial_row(h%ns, s, .false., 0, sv%rv(:, ROW_FULL0), sv%rd(:, ROW_FULL0))
-        call hybrid_radial_row(h%ns, s, .false., 1, sv%rv(:, ROW_FULL1), sv%rd(:, ROW_FULL1))
+        allocate (sv%rv(0:h%ns - 1, 4), sv%rd(0:h%ns - 1, 4), sv%rdd(0:h%ns - 1, 2))
+        call hybrid_radial_row(h%ns, s, .false., 0, sv%rv(:, ROW_FULL0), sv%rd(:, ROW_FULL0), &
+                               sv%rdd(:, ROW_FULL0))
+        call hybrid_radial_row(h%ns, s, .false., 1, sv%rv(:, ROW_FULL1), sv%rd(:, ROW_FULL1), &
+                               sv%rdd(:, ROW_FULL1))
         call hybrid_radial_row(h%ns, s, .true., 0, sv%rv(:, ROW_HALF0), sv%rd(:, ROW_HALF0))
         call hybrid_radial_row(h%ns, s, .true., 1, sv%rv(:, ROW_HALF1), sv%rd(:, ROW_HALF1))
         allocate (sv%x(NHIN, npt), sv%lam(npt), sv%f(NHOUT, npt), sv%jac(NHOUT, NHIN, npt))
@@ -560,17 +772,34 @@ contains
         sv%ci = sum(sv%f(2, :))/real(npt, dp)
         sv%cg = sum(sv%f(3, :))/real(npt, dp)
         sv%ck = sv%iota*sv%ci + sv%cg
-        allocate (w(npt), wt(npt), wp(npt))
-        call potential(h, sv%f(2, :), sv%f(3, :), w, wt, wp)
         allocate (sv%nu(npt), sv%nut(npt), sv%nup(npt), sv%thb(npt), sv%phb(npt))
         allocate (sv%dj(npt))
-        sv%nu = (w - sv%ci*sv%lam)/sv%ck
-        sv%nut = (wt - sv%ci*sv%x(8, :))/sv%ck
-        sv%nup = (wp - sv%ci*sv%x(9, :))/sv%ck
+        select case (h%route)
+        case (SFL_COVARIANT, SFL_STRAIGHT_CURRENT)
+            allocate (w(npt), wt(npt), wp(npt))
+            call potential(h, sv%f(2, :), sv%f(3, :), w, wt, wp)
+            allocate (sv%nuc(npt), sv%nutc(npt), sv%nupc(npt))
+            sv%nuc = (w - sv%ci*sv%lam)/sv%ck
+            sv%nutc = (wt - sv%ci*sv%x(8, :))/sv%ck
+            sv%nupc = (wp - sv%ci*sv%x(9, :))/sv%ck
+            sv%nu = sv%nuc
+            sv%nut = sv%nutc
+            sv%nup = sv%nupc
+            if (h%route == SFL_STRAIGHT_CURRENT) call route_hamada2(h, sv)
+        case (SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST)
+            call route_mde(h, sv)
+        case default
+            sv%nu = 0.0_dp
+            sv%nut = 0.0_dp
+            sv%nup = 0.0_dp
+        end select
         sv%thb = reshape(spread(h%theta, 2, h%np), [npt]) + sv%lam + sv%iota*sv%nu
         sv%phb = reshape(spread(h%phi, 1, h%nt), [npt]) + sv%nu
         sv%dj = (1.0_dp + sv%x(8, :) + sv%iota*sv%nut)*(1.0_dp + sv%nup) &
                 - (sv%x(9, :) + sv%iota*sv%nup)*sv%nut
+        if (present(with_spectrum)) then
+            if (.not. with_spectrum) return
+        end if
         call phase_tables(h, sv)
         allocate (sv%spec(NSPEC, h%mnboz))
         call project(h, sv, reshape([sv%dj*sv%f(1, :), sv%dj*sv%nu, sv%dj*sv%f(4, :)], &
@@ -749,10 +978,22 @@ contains
         ci_d = sum(fd(2, :))/real(npt, dp)
         cg_d = sum(fd(3, :))/real(npt, dp)
         ckd = iota_d*sv%ci + sv%iota*ci_d + cg_d
-        call potential(h, fd(2, :), fd(3, :), w, wt, wp)
-        nud = (w - ci_d*sv%lam - sv%ci*lamd - sv%nu*ckd)/sv%ck
-        nutd = (wt - ci_d*sv%x(8, :) - sv%ci*xd(8, :) - sv%nut*ckd)/sv%ck
-        nupd = (wp - ci_d*sv%x(9, :) - sv%ci*xd(9, :) - sv%nup*ckd)/sv%ck
+        select case (h%route)
+        case (SFL_COVARIANT, SFL_STRAIGHT_CURRENT)
+            call potential(h, fd(2, :), fd(3, :), w, wt, wp)
+            nud = (w - ci_d*sv%lam - sv%ci*lamd - sv%nuc*ckd)/sv%ck
+            nutd = (wt - ci_d*sv%x(8, :) - sv%ci*xd(8, :) - sv%nutc*ckd)/sv%ck
+            nupd = (wp - ci_d*sv%x(9, :) - sv%ci*xd(9, :) - sv%nupc*ckd)/sv%ck
+            if (h%route == SFL_STRAIGHT_CURRENT) &
+                call route_hamada2_jvp(h, sv, rd, zd, ld, iod, xd, lamd, fd, iota_d, ci_d, &
+                                       ckd, nud, nutd, nupd)
+        case (SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST)
+            call route_mde_jvp(h, sv, xd, lamd, fd, iota_d, nud, nutd, nupd)
+        case default
+            nud = 0.0_dp
+            nutd = 0.0_dp
+            nupd = 0.0_dp
+        end select
         thbd = lamd + iota_d*sv%nu + sv%iota*nud
         phbd = nud
         djd = (xd(8, :) + iota_d*sv%nut + sv%iota*nutd)*(1.0_dp + sv%nup) &
@@ -804,16 +1045,28 @@ contains
         iotab = iotab + sum(ab*sv%nut) + sum(cb*sv%nup)
         nupb = bqb + sv%iota*cb
         xb(9, :) = xb(9, :) + cb
-        ! nu = (w - I lambda)/K and its derivatives
-        cib = ci_b - (sum(nub*sv%lam) + sum(nutb*sv%x(8, :)) + sum(nupb*sv%x(9, :)))/sv%ck
-        lamb = lamb - sv%ci*nub/sv%ck
-        xb(8, :) = xb(8, :) - sv%ci*nutb/sv%ck
-        xb(9, :) = xb(9, :) - sv%ci*nupb/sv%ck
-        ckb = -(sum(nub*sv%nu) + sum(nutb*sv%nut) + sum(nupb*sv%nup))/sv%ck
+        cib = ci_b
+        cgb = cg_b
+        ckb = 0.0_dp
+        select case (h%route)
+        case (SFL_COVARIANT, SFL_STRAIGHT_CURRENT)
+            if (h%route == SFL_STRAIGHT_CURRENT) &
+                call route_hamada2_vjp(h, sv, nub, nutb, nupb, xb, lamb, fb, iotab, cib, ckb, &
+                                       rb, zb, lb, iob)
+            ! nu = (w - I lambda)/K and its derivatives
+            cib = cib - (sum(nub*sv%lam) + sum(nutb*sv%x(8, :)) &
+                         + sum(nupb*sv%x(9, :)))/sv%ck
+            lamb = lamb - sv%ci*nub/sv%ck
+            xb(8, :) = xb(8, :) - sv%ci*nutb/sv%ck
+            xb(9, :) = xb(9, :) - sv%ci*nupb/sv%ck
+            ckb = ckb - (sum(nub*sv%nuc) + sum(nutb*sv%nutc) + sum(nupb*sv%nupc))/sv%ck
+            call potential_t(h, nub/sv%ck, nutb/sv%ck, nupb/sv%ck, fb(2, :), fb(3, :))
+        case (SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST)
+            call route_mde_vjp(h, sv, nub, nutb, nupb, xb, lamb, fb, iotab)
+        end select
         iotab = iotab + ckb*sv%ci
         cib = cib + ckb*sv%iota
-        cgb = cg_b + ckb
-        call potential_t(h, nub/sv%ck, nutb/sv%ck, nupb/sv%ck, fb(2, :), fb(3, :))
+        cgb = cgb + ckb
         fb(2, :) = fb(2, :) + cib/real(npt, dp)
         fb(3, :) = fb(3, :) + cgb/real(npt, dp)
         do p = 1, npt
@@ -822,5 +1075,26 @@ contains
         xb(10, :) = xb(10, :) + iotab/real(npt, dp)
         call field_data_t(h, sv, xb, lamb, rb, zb, lb, iob)
     end subroutine hybrid_surface_vjp
+
+    !> Name of a route as in the design (sfl_covariant, ...), blank padded.
+    pure function sfl_route_name(route) result(name)
+        integer, intent(in) :: route
+        character(len=20) :: name
+
+        select case (route)
+        case (SFL_COVARIANT)
+            name = 'sfl_covariant'
+        case (SFL_JACOBIAN_B2)
+            name = 'sfl_jacobian_b2'
+        case (SFL_JACOBIAN_CONST)
+            name = 'sfl_jacobian_const'
+        case (SFL_STRAIGHT_CURRENT)
+            name = 'sfl_straight_current'
+        case (SFL_PEST)
+            name = 'sfl_pest'
+        case default
+            name = 'unknown'
+        end select
+    end function sfl_route_name
 
 end module boozer_hybrid
