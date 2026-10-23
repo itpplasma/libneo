@@ -11,6 +11,18 @@ First, run in this directory `efit_to_boozer.x` converter. Necessary inputs for 
 
 Last file here is EFIT file mentioned in `field_divB0.inp` and `convexwall.dat` should match this input file.
 
+With `construction` 1 (line 8 of `efit_to_boozer.inp`, default) the angles come from the flux-surface contours of the EQDSK file and the efit_to_boozer.x output is not read; 2 selects the legacy field-line integration.
+
+The remaining optional records are route (9), `allow_poor_equilibrium` (10),
+`override_reason` (11), contour `n_theta` (12), `write_gs_map` (13), and
+`exp_bpol` (14). The flux-unit selector is -1 for automatic inference, 0 for
+Wb/rad, and 1 for Wb. Automatic inference requires a nonzero finite
+Grad-Shafranov source, even when a quality override is requested. Explicit
+units retain all equilibrium checks, and an override requires a reason.
+The exact historical `psimax=+1e10` scan sentinel and positive unset values
+at least `1e299` select the file boundary in contour mode. Other finite signed
+values remain explicit axis-relative boundaries.
+
 Second, run in the same directory `hamada_to_boozer.x` converter. It uses the iput for `efit_to_boozer.x`,
 output from efit_to_boozer.x, and the following extra input specific for `hamada_to_boozer.x`:
 

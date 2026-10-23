@@ -1,9 +1,7 @@
-"""Tests for eqdsk_to_boozer_chartmap on the standard diverted equilibrium.
+"""EFIT chartmaps from a consistent analytic Solov'ev equilibrium.
 
-Drives efit_to_boozer with its standard settings (matching the committed
-efit_to_boozer.inp) on test/resources/input_efit_file.dat, the same g-file the
-efit_to_boozer test suite uses, and checks that the assembled Boozer chartmap is
-structurally and physically consistent.
+The historical EFIT31114 artifact has opposite signs in PSIRZ and the flux
+header and is checked separately for diagnostic rejection.
 """
 
 from pathlib import Path
@@ -11,19 +9,34 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from python.tests.efit_solovev import _write_solovev
+
 TESTS_DIR = Path(__file__).resolve().parent
 RESOURCES = TESTS_DIR.parents[1] / "test" / "resources"
 EFIT = RESOURCES / "input_efit_file.dat"
-CONVEX = RESOURCES / "convexwall.dat"
 
 METER_TO_CM = 1.0e2
+
+
+def test_historical_flux_header_mismatch_is_rejected(tmp_path):
+    from libneo.eqdsk_base import read_eqdsk
+    from libneo.eqdsk_to_boozer_chartmap import convert_eqdsk_to_chartmap
+    from scipy.interpolate import RectBivariateSpline
+
+    eq = read_eqdsk(EFIT)
+    psi = RectBivariateSpline(eq["R"], eq["Z"], eq["PsiVs"].T)
+    # This public legacy artifact has grid-axis psi=+.108122192 while
+    # SIMAG=-.108122148. Its LCFS similarly has the opposite sign to SIBRY.
+    assert psi.ev(eq["Rpsi0"], eq["Zpsi0"]).item() > 0 > eq["PsiaxisVs"]
+    assert np.median(psi.ev(eq["Lcfs"][:, 0], eq["Lcfs"][:, 1])) < 0 < eq["PsiedgeVs"]
+    with pytest.raises(ValueError, match="not star-shaped|leaves the grid"):
+        convert_eqdsk_to_chartmap(EFIT, tmp_path/"invalid.nc", nrho=8,
+                                  ntheta=16, nzeta=8, ntheta_int=128, n_q=32)
 
 
 @pytest.fixture(scope="module")
 def chartmap_path(tmp_path_factory):
     pytest.importorskip("netCDF4")
-    if not EFIT.exists():
-        pytest.skip(f"equilibrium not found: {EFIT}")
     try:
         import _efit_to_boozer  # noqa: F401
         from efit_to_boozer.boozer import get_magnetic_axis  # noqa: F401
@@ -33,7 +46,9 @@ def chartmap_path(tmp_path_factory):
     from libneo.eqdsk_to_boozer_chartmap import convert_eqdsk_to_chartmap
 
     out = tmp_path_factory.mktemp("chartmap") / "efit_boozer.nc"
-    convert_eqdsk_to_chartmap(EFIT, out, convexwall=str(CONVEX))
+    source = out.with_suffix(".geqdsk")
+    _write_solovev(source)
+    convert_eqdsk_to_chartmap(source, out)
     return out
 
 
@@ -82,7 +97,9 @@ def test_limiter_boundary_both_flux_directions(tmp_path, sign, toroidal_sign):
     from libneo.eqdsk_to_boozer_chartmap import convert_eqdsk_to_chartmap
     import netCDF4
 
-    d = read_eqdsk(EFIT)
+    source = tmp_path/"solovev.geqdsk"
+    _write_solovev(source)
+    d = read_eqdsk(source)
     r = np.linspace(8.7, 11.3, 65)
     z = np.linspace(-1.3, 1.3, 65)
     theta = np.linspace(0, 2*np.pi, 129)
@@ -99,7 +116,9 @@ def test_limiter_boundary_both_flux_directions(tmp_path, sign, toroidal_sign):
     write_eqdsk(path, d)
     output = tmp_path/"chartmap.nc"
     convert_eqdsk_to_chartmap(path, output, nrho=24, ntheta=48, nstep=360,
-        nlabel=32, ntheta_int=64, nsurfmax=400, nsurf=64, psimax=sign*.5e8)
+        nlabel=32, ntheta_int=64, nsurfmax=400, nsurf=64, psimax=sign*.5e8,
+        allow_poor_equilibrium=True, exp_bpol=0,
+        override_reason="analytic circular geometry with intentionally zero GS profiles")
     with netCDF4.Dataset(output) as ds:
         x, y, z = [np.asarray(ds.variables[n][:]) for n in ["x", "y", "z"]]
         minor = np.sqrt((np.hypot(x, y)*.01-10)**2+(z*.01)**2)
@@ -125,7 +144,7 @@ def test_geometry_follows_input_flux_surfaces(chartmap_path):
     from libneo.eqdsk_base import read_eqdsk
     from scipy.interpolate import RectBivariateSpline
 
-    eq = read_eqdsk(EFIT)
+    eq = read_eqdsk(chartmap_path.with_suffix(".geqdsk"))
     d = _read_chartmap(chartmap_path)
     r = np.hypot(d["x"][..., 0], d["y"][..., 0])*.01
     z = d["z"][..., 0]*.01
@@ -169,7 +188,7 @@ def test_B_theta_matches_plasma_current(chartmap_path):
     from libneo.eqdsk_base import read_eqdsk
 
     d = _read_chartmap(chartmap_path)
-    Ip = abs(float(read_eqdsk(EFIT)["Ip"]))
+    Ip = abs(float(read_eqdsk(chartmap_path.with_suffix(".geqdsk"))["Ip"]))
     I_edge_expected = 0.2 * Ip  # G*cm
     I_edge = abs(float(d["B_theta"][-1]))
     assert 0.7 * I_edge_expected < I_edge <= 1.05 * I_edge_expected, (
@@ -203,7 +222,7 @@ def test_A_phi_consistent_with_torflux(chartmap_path):
     # In geometric counter-clockwise theta, A_phi is the input COCOS-3
     # poloidal flux relative to the axis. Its sign is independent of B_tor.
     from libneo.eqdsk_base import read_eqdsk
-    eq = read_eqdsk(EFIT)
+    eq = read_eqdsk(chartmap_path.with_suffix(".geqdsk"))
     d = _read_chartmap(chartmap_path)
     A = d["A_phi"]
     assert np.sign(A[-1]) == np.sign(eq["PsiedgeVs"]-eq["PsiaxisVs"])
