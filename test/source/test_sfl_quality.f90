@@ -4,6 +4,9 @@
 !>     reports/scripts/libneo_quality/reference.py: lambda from the stationary
 !>     magnetic energy by jax.hessian instead of the assembled weak form, numpy
 !>     FFT derivatives, pyrabe spline rows) on the check surfaces 1, 8, 16;
+!>     circular surface 1 uses an independent s**(m/2+j), j=0..2, endpoint
+!>     solve matching the pyrabe value and first two derivatives below the
+!>     first positive source knot. The other reference surfaces are unchanged;
 !>  2. the default tolerances reject both files with the expected first code
 !>     and an actionable message (surface, metric, cause, resonance, action,
 !>     override), returned in status instead of stopping;
@@ -23,11 +26,11 @@ program test_sfl_quality
 
     failed = .false.
     call check_reference('wout_circular_tokamak.nc', 7.368343302587206e-06_dp, &
-                         [6.433245436398465e-05_dp, 2.285497830151195e-05_dp, &
+                         [7.878128988601874e-05_dp, 2.285497830151195e-05_dp, &
                           2.975357900882880e-04_dp], &
-                         [7.457937509983472e-04_dp, 3.074045040945442e-05_dp, &
+                         [8.410217911893529e-04_dp, 3.074045040945442e-05_dp, &
                           3.491247588011836e-04_dp], &
-                         [1.654028300014658e-03_dp, 1.151512650679340e-03_dp, &
+                         [1.663730685320132e-03_dp, 1.151512650679340e-03_dp, &
                           1.312227811239188e-03_dp])
     call check_reference('wout_li383.nc', 3.319349848838740e-05_dp, &
                          [2.418495592286882e-03_dp, 2.161437712747278e-04_dp, &

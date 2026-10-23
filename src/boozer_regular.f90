@@ -26,7 +26,7 @@ module boozer_regular
 
     public :: regular_field_t, boozer_regular_t
     public :: REGULAR_VALUE, REGULAR_FIRST, REGULAR_SECOND
-    public :: build_boozer_regular
+    public :: build_boozer_regular, build_boozer_regular_hybrid
     public :: boozer_regular_field, boozer_regular_enabled
     public :: set_boozer_regular_enabled, eval_boozer_regular
 
@@ -108,10 +108,9 @@ contains
         real(dp), intent(in) :: torflux
         integer, intent(in) :: nfp, order_rho, order_angle
 
-        real(dp), allocatable :: rem(:, :, :, :), axis(:, :), flux(:, :)
+        real(dp), allocatable :: rem(:, :, :, :), axis(:, :)
         real(dp), allocatable :: cos_t(:, :), sin_t(:, :)
         real(dp) :: h, x0, w0(3), v0(3), w1(3), a0(3), ac(3, 2), as(3, 2), t
-        real(dp) :: ap(1), dap(1)
         integer :: n_rho, n_theta, n_phi, i, j, k, m, i1, n_fourier
         logical :: axis_node
 
@@ -148,7 +147,7 @@ contains
             end do
         end do
 
-        allocate (rem(n_rho, n_theta, n_phi, 1), axis(n_phi, 6), flux(n_rho, 3))
+        allocate (rem(n_rho, n_theta, n_phi, 1), axis(n_phi, 6))
         do k = 1, n_phi
             do i = 1, 3
                 a0(i) = sum(bmod(i, 1:n_fourier, k))/real(n_fourier, dp)
@@ -183,6 +182,94 @@ contains
         if (axis_node) rem(1, :, :, 1) = 3.0_dp*rem(2, :, :, 1) &
                                          - 3.0_dp*rem(3, :, :, 1) + rem(4, :, :, 1)
 
+        call construct_batch_splines_1d(0.0_dp, TWOPI/real(nfp, dp), axis, &
+                                        order_angle, .true., field%axis)
+        call construct_batch_splines_3d([x0, 0.0_dp, 0.0_dp], &
+                                        [x0 + h*real(n_rho - 1, dp), TWOPI, &
+                                         TWOPI/real(nfp, dp)], rem, &
+                                        [order_rho, order_angle, order_angle], &
+                                        [.false., .true., .true.], field%remainder)
+        call build_regular_flux(field, rho, b_theta, b_phi, aphi, order_rho)
+        field%torflux = torflux
+        field%nfp = nfp
+        field%ready = .true.
+    end subroutine build_boozer_regular
+
+    !> Subtracting the axis jet and dividing by rho**3 does not commute with
+    !> radial interpolation. Sample the existing polar representation at half
+    !> steps before factoring it, while leaving its source grid untouched.
+    subroutine build_boozer_regular_hybrid(field, rho, bmod, btheta, bphi, aphi, &
+                                         torflux, nfp, order_rho, order_angle)
+        type(boozer_regular_t), intent(inout) :: field
+        type(BatchSplineData1D), intent(in) :: aphi
+        real(dp), intent(in) :: torflux
+        integer, intent(in) :: nfp, order_rho, order_angle
+        real(dp), intent(in) :: rho(:), bmod(:, :, :), btheta(:), bphi(:)
+        type(BatchSplineData1D) :: polar
+        real(dp), allocatable :: values(:, :), sample(:), derivative(:)
+        real(dp), allocatable :: refined(:, :, :), rf(:), currents(:, :)
+        integer :: nr, nt, np, nf, channels, i
+        real(dp) :: x0, x1
+
+        nr = size(rho)
+        if (nr < 6) error stop 'build_boozer_regular_hybrid: need at least 6 radial nodes'
+        if (size(bmod, 1) /= nr .or. size(btheta) /= nr .or. size(bphi) /= nr) &
+            error stop 'build_boozer_regular_hybrid: size mismatch'
+        nt = size(bmod, 2)
+        np = size(bmod, 3)
+        nf = 2*(nr - 1) + 1
+        channels = nt*np
+        ! The first datum may be sampled at a clamped positive radius even
+        ! though the polar spline starts at the axis. Nodes 2: define its grid.
+        x0 = rho(2) - (rho(3) - rho(2))
+        if (x0 < 0.25_dp*(rho(3) - rho(2))) x0 = 0.0_dp
+        x1 = x0 + (rho(3) - rho(2))*real(nr - 1, dp)
+        allocate (values(nr, channels + 2), sample(channels + 2), derivative(channels + 2))
+        values(:, 1:channels) = reshape(bmod, [nr, channels])
+        values(:, channels + 1) = btheta
+        values(:, channels + 2) = bphi
+        call construct_batch_splines_1d(x0, x1, values, order_rho, .false., polar)
+        deallocate (values)
+        allocate (rf(nf), refined(nf, nt, np), currents(nf, 2))
+        do i = 1, nf
+            rf(i) = max(rho(1), x0 + (x1 - x0)*real(i - 1, dp)/real(nf - 1, dp))
+            call evaluate_batch_splines_1d_der(polar, rf(i), sample, derivative)
+            refined(i, :, :) = reshape(sample(1:channels), [nt, np])
+            currents(i, :) = sample(channels + 1:channels + 2)
+        end do
+        ! Release the small radial batch before allocating the denser 3D remainder.
+        call destroy_batch_splines_1d(polar)
+        deallocate (sample, derivative)
+        call build_boozer_regular(field, rf, refined, &
+                                 currents(:, 1), currents(:, 2), aphi, &
+                                 torflux, nfp, order_rho, order_angle)
+        ! Refine only B and its factored remainder. Preserve exactly the
+        ! original I/s, (G-G0)/s and Aphi profile construction.
+        call build_regular_flux(field, rho, btheta, bphi, aphi, order_rho)
+    end subroutine build_boozer_regular_hybrid
+
+    !> Preserve the original profile grid independently of the B remainder.
+    subroutine build_regular_flux(field, rho, b_theta, b_phi, aphi, order_rho)
+        type(boozer_regular_t), intent(inout) :: field
+        real(dp), intent(in) :: rho(:), b_theta(:), b_phi(:)
+        type(BatchSplineData1D), intent(in) :: aphi
+        integer, intent(in) :: order_rho
+        real(dp), allocatable :: flux(:, :)
+        real(dp) :: h, x0, w0(3), ap(1), dap(1)
+        integer :: n_rho, i, i1
+        logical :: axis_node
+
+        n_rho = size(rho)
+        h = rho(3) - rho(2)
+        x0 = rho(2) - h
+        axis_node = x0 < 0.25_dp*h
+        i1 = 1
+        if (axis_node) then
+            x0 = 0.0_dp
+            i1 = 2
+        end if
+        w0 = extrapolation_weights(rho(1:3)**2)
+        allocate (flux(n_rho, 3))
         field%g0 = sum(w0*b_phi(1:3))
         call evaluate_batch_splines_1d_der(aphi, 0.0_dp, ap, dap)
         field%a0 = ap(1)
@@ -198,19 +285,10 @@ contains
             flux(1, 3) = dap(1)
         end if
 
-        call construct_batch_splines_1d(0.0_dp, TWOPI/real(nfp, dp), axis, &
-                                        order_angle, .true., field%axis)
-        call construct_batch_splines_3d([x0, 0.0_dp, 0.0_dp], &
-                                        [x0 + h*real(n_rho - 1, dp), TWOPI, &
-                                         TWOPI/real(nfp, dp)], rem, &
-                                        [order_rho, order_angle, order_angle], &
-                                        [.false., .true., .true.], field%remainder)
+        call destroy_batch_splines_1d(field%flux)
         call construct_batch_splines_1d(x0, x0 + h*real(n_rho - 1, dp), flux, &
-                                        order_rho, .false., field%flux)
-        field%torflux = torflux
-        field%nfp = nfp
-        field%ready = .true.
-    end subroutine build_boozer_regular
+                                      order_rho, .false., field%flux)
+    end subroutine build_regular_flux
 
     !> Lagrange weights that extrapolate a quadratic in s to s = 0.
     pure function extrapolation_weights(s) result(w)
