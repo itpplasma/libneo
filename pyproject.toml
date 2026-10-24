@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "libneo"
-version = "0.0.3"
+version = "0.0.4.dev0"
 dependencies = ["numpy", "netCDF4"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
