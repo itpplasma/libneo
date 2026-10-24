@@ -25,6 +25,7 @@ program test_vmec_coordinate_system
     call test_basic_evaluate_cyl(vmec, zeta_period, nerrors)
     call test_evaluate_cart_consistency(vmec, zeta_period, nerrors)
     call test_covariant_basis_fd(vmec, zeta_period, nerrors)
+    call test_covariant_basis_der_fd(vmec, zeta_period, nerrors)
     call test_metric_tensor_properties(vmec, zeta_period, nerrors)
 
     if (nerrors > 0) then
@@ -157,6 +158,48 @@ contains
             nerrors = nerrors + 1
         end if
     end subroutine test_covariant_basis_fd
+
+    subroutine test_covariant_basis_der_fd(vmec, zeta_period, nerrors)
+        type(vmec_coordinate_system_t), intent(in) :: vmec
+        real(dp), intent(in) :: zeta_period
+        integer, intent(inout) :: nerrors
+        real(dp), parameter :: h = 1.0e-5_dp, tol = 1.0e-6_dp
+        real(dp) :: points(3, 4), u(3), shifted(3), basis(3, 3), dbasis(3, 3, 3)
+        real(dp) :: reference(3, 3), plus(3, 3), minus(3, 3), fd(3, 3)
+        real(dp) :: err, max_err
+        integer :: i, j
+
+        points(:, 1) = [0.23_dp, 1.0_dp, 0.2_dp*zeta_period]
+        points(:, 2) = [0.46_dp, 2.2_dp, 0.5_dp*zeta_period]
+        points(:, 3) = [0.67_dp, 4.1_dp, 0.8_dp*zeta_period]
+        points(:, 4) = [0.83_dp, 5.3_dp, 0.9_dp*zeta_period]
+        max_err = 0.0_dp
+        do i = 1, size(points, 2)
+            u = points(:, i)
+            call vmec%covariant_basis_with_der(u, basis, dbasis)
+            call vmec%covariant_basis(u, reference)
+            err = maxval(abs(basis - reference))/max(1.0_dp, maxval(abs(reference)))
+            if (err > 1.0e-12_dp) then
+                print *, '  FAIL: derivative API changes VMEC basis value', i, err
+                nerrors = nerrors + 1
+            end if
+            do j = 1, 3
+                shifted = u
+                shifted(j) = u(j) + h
+                call vmec%covariant_basis(shifted, plus)
+                shifted(j) = u(j) - h
+                call vmec%covariant_basis(shifted, minus)
+                fd = (plus - minus)/(2*h)
+                err = maxval(abs(dbasis(:, :, j) - fd))/max(1.0_dp, maxval(abs(fd)))
+                max_err = max(max_err, err)
+                if (err > tol) then
+                    print *, '  FAIL: VMEC basis derivative FD', i, j, err
+                    nerrors = nerrors + 1
+                end if
+            end do
+        end do
+        print *, '  VMEC basis derivative maximum relative FD error:', max_err
+    end subroutine test_covariant_basis_der_fd
 
     subroutine test_metric_tensor_properties(vmec, zeta_period, nerrors)
         type(vmec_coordinate_system_t), intent(in) :: vmec

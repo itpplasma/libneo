@@ -8,7 +8,9 @@ module libneo_coordinates_chartmap
                                        chartmap_from_cyl_err_out_of_bounds, &
                                        chartmap_from_cyl_err_invalid
     use interpolate, only: BatchSplineData3D, construct_batch_splines_3d, &
-                           evaluate_batch_splines_3d, evaluate_batch_splines_3d_der
+                           evaluate_batch_splines_3d, evaluate_batch_splines_3d_der, &
+                           evaluate_batch_splines_3d_der2
+    use libneo_coordinate_jets, only: rotate_z_vector_der2
     use nctools_module, only: nc_open, nc_close, nc_inq_dim, nc_get
     use math_constants, only: TWOPI
     use netcdf, only: NF90_CHAR, NF90_GLOBAL, NF90_NOERR, nf90_get_att, nf90_get_var, &
@@ -64,6 +66,7 @@ module libneo_coordinates_chartmap
         procedure :: evaluate_cart => chartmap_evaluate_cart
         procedure :: evaluate_cyl => chartmap_evaluate_cyl
         procedure :: covariant_basis => chartmap_covariant_basis
+        procedure :: covariant_basis_with_der => chartmap_covariant_basis_der
         procedure :: jacobian_det => chartmap_jacobian_det
         procedure :: metric_tensor => chartmap_metric_tensor
         procedure :: christoffel => chartmap_christoffel
@@ -646,6 +649,37 @@ contains
             call cart_to_cyl(xcart, x)
         end if
     end subroutine chartmap_evaluate_cyl
+
+    subroutine chartmap_covariant_basis_der(self, u, basis, dbasis)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: basis(3, 3), dbasis(3, 3, 3)
+        real(dp) :: value(3), first(3, 3), second(6, 3), rotated(3), u_eval(3)
+        real(dp) :: rz(2), drz(3, 2), d2rz(6, 2), xmin(3), xmax(3), period
+        if (self%has_spl_rz) then
+            xmin = self%spl_rz%x_min
+            xmax = xmin + self%spl_rz%h_step*real(self%spl_rz%num_points - 1, dp)
+        else
+            xmin = self%spl_cart%x_min
+            xmax = xmin + self%spl_cart%h_step*real(self%spl_cart%num_points - 1, dp)
+        end if
+        u_eval = u
+        u_eval(1) = max(xmin(1), min(u(1), xmax(1)))
+        u_eval(2) = modulo(u(2) - xmin(2), TWOPI) + xmin(2)
+        period = TWOPI/real(self%num_field_periods, dp)
+        u_eval(3) = modulo(u(3) - xmin(3), period) + xmin(3)
+        if (self%has_spl_rz) then
+            call evaluate_batch_splines_3d_der2(self%spl_rz, u_eval, rz, drz, d2rz)
+            value = [rz(1), 0.0_dp, rz(2)]
+            first = 0.0_dp; second = 0.0_dp
+            first(:, 1) = drz(:, 1); first(:, 3) = drz(:, 2)
+            second(:, 1) = d2rz(:, 1); second(:, 3) = d2rz(:, 2)
+        else
+        call evaluate_batch_splines_3d_der2(self%spl_cart, u_eval, value, first, second)
+        end if
+        call rotate_z_vector_der2(u(3), value, transpose(first), transpose(second), &
+                                  rotated, basis, dbasis)
+    end subroutine chartmap_covariant_basis_der
 
     subroutine chartmap_covariant_basis(self, u, e_cov)
         class(chartmap_coordinate_system_t), intent(in) :: self

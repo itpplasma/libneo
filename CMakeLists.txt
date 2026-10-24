@@ -373,7 +373,7 @@ target_link_libraries(boozer PUBLIC vmec_support interpolate neo_util)
 # output is the build input; regeneration needs a FortSym build tree at the
 # pinned revision (configure with -DLIBNEO_FORTSYM_BUILD=<fortsym build>).
 set(LIBNEO_FORTSYM_BUILD "" CACHE PATH "Optional FortSym build tree for regeneration")
-set(LIBNEO_FORTSYM_REVISION "8f4d6ed1d4d0ea829693b1ed7f109cba92643710")
+set(LIBNEO_FORTSYM_REVISION "bcc7b15fe50e81bb7770ceb2f35a641bd555d214")
 if(LIBNEO_FORTSYM_BUILD)
     file(STRINGS "${LIBNEO_FORTSYM_BUILD}/CMakeCache.txt" fortsym_source
         REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL=")
@@ -397,7 +397,7 @@ if(LIBNEO_FORTSYM_BUILD)
     # disables globally with -fno-realloc-lhs.
     target_compile_options(libneo_gen_support PUBLIC
         $<$<Fortran_COMPILER_ID:GNU>:-frealloc-lhs>)
-    foreach(generator boozer_regular boozer_field_jacobian)
+    foreach(generator boozer_regular boozer_field_jacobian coordinate_jets)
         add_executable(gen_${generator} gen/gen_${generator}.f90)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}

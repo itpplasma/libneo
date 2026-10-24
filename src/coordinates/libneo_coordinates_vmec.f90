@@ -1,7 +1,8 @@
 module libneo_coordinates_vmec
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use libneo_coordinates_base, only: coordinate_system_t
-    use spline_vmec_sub, only: splint_vmec_data
+    use spline_vmec_sub, only: splint_vmec_data, splint_vmec_data_d2
+    use libneo_coordinate_jets, only: rotate_z_vector_der2
     use cylindrical_cartesian, only: cyl_to_cart
     use math_constants, only: TWOPI
     implicit none
@@ -14,6 +15,7 @@ module libneo_coordinates_vmec
         procedure :: evaluate_cart => vmec_evaluate_cart
         procedure :: evaluate_cyl => vmec_evaluate_cyl
         procedure :: covariant_basis => vmec_covariant_basis
+        procedure :: covariant_basis_with_der => vmec_covariant_basis_der
         procedure :: metric_tensor => vmec_metric_tensor
         procedure :: christoffel => vmec_christoffel
         procedure :: from_cyl => vmec_from_cyl
@@ -100,6 +102,24 @@ contains
         e_cov(2, 3) = dR_dp*sin_phi + R*cos_phi
         e_cov(3, 3) = dZ_dp
     end subroutine vmec_covariant_basis
+
+    subroutine vmec_covariant_basis_der(self, u, basis, dbasis)
+        class(vmec_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: basis(3, 3), dbasis(3, 3, 3)
+        real(dp) :: ap, at, dap, dat, iota, r, z, lambda, dr(3), dz(3), dl(3)
+        real(dp) :: d2r(6), d2z(6), d2l(6), value(3), first(3, 3), second(3, 6)
+        real(dp) :: rotated(3)
+        associate (unused => self)
+        end associate
+      call splint_vmec_data_d2(u(1), u(2), u(3), ap, at, dap, dat, iota, r, z, lambda, &
+           dr(1), dr(2), dr(3), dz(1), dz(2), dz(3), dl(1), dl(2), dl(3), d2r, d2z, d2l)
+        value = [r, 0.0_dp, z]
+        first = 0.0_dp; second = 0.0_dp
+        first(1, :) = dr; first(3, :) = dz
+        second(1, :) = d2r; second(3, :) = d2z
+        call rotate_z_vector_der2(u(3), value, first, second, rotated, basis, dbasis)
+    end subroutine vmec_covariant_basis_der
 
     subroutine vmec_metric_tensor(self, u, g, ginv, sqrtg)
         class(vmec_coordinate_system_t), intent(in) :: self

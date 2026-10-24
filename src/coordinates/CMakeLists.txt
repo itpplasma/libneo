@@ -4,6 +4,7 @@ add_library(coordinates STATIC
     vmec_coordinates.f90
     geoflux_coordinates.f90
     libneo_coordinate_conventions.f90
+    libneo_coordinate_jets.f90
     libneo_coordinates_base.f90
     libneo_coordinates_vmec.f90
     libneo_coordinates_geoflux.f90
