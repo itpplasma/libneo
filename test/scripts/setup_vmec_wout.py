@@ -34,11 +34,22 @@ CIRCULAR_TOKAMAK_URL = (
 CIRCULAR_TOKAMAK_SHA256 = (
     "625c5de8e0eb6041b505ffee17e13d3c1b1837488a6c3d1c9b351ca06bc6749a"
 )
+# Up-down asymmetric tokamak (lasym = T, axisymmetric), booz_xform test files.
+UPDOWN_TOKAMAK_URL = (
+    "https://raw.githubusercontent.com/hiddenSymmetries/booz_xform/main/tests/"
+    "test_files/wout_up_down_asymmetric_tokamak.nc"
+)
+UPDOWN_TOKAMAK_SHA256 = (
+    "5fb6f1c27f84a1ba226a9509e17d383de60874175293c50fdcd89c51649fd1a9"
+)
 FIXTURES = {
     "qa": ("wout.nc", WOUT_URL, WOUT_SHA256),
     "li383": ("wout_li383.nc", LI383_URL, LI383_SHA256),
     "circular_tokamak": (
         "wout_circular_tokamak.nc", CIRCULAR_TOKAMAK_URL, CIRCULAR_TOKAMAK_SHA256
+    ),
+    "updown_tokamak": (
+        "wout_updown_tokamak.nc", UPDOWN_TOKAMAK_URL, UPDOWN_TOKAMAK_SHA256
     ),
 }
 
