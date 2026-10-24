@@ -357,6 +357,8 @@ endif()
 add_library(boozer STATIC
     src/boozer_chartmap_types.f90
     src/boozer_rk_tables.f90
+    src/boozer_surface.f90
+    src/boozer_vmec_ad.f90
     src/boozer_converter.F90
     src/boozer_regular.f90
     src/boozer_chartmap.f90
@@ -395,7 +397,7 @@ if(LIBNEO_FORTSYM_BUILD)
     # disables globally with -fno-realloc-lhs.
     target_compile_options(libneo_gen_support PUBLIC
         $<$<Fortran_COMPILER_ID:GNU>:-frealloc-lhs>)
-    foreach(generator boozer_regular)
+    foreach(generator boozer_regular boozer_field_jacobian)
         add_executable(gen_${generator} gen/gen_${generator}.f90)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}
@@ -500,6 +502,11 @@ add_executable(vmec_to_chartmap.x
     app/vmec_to_chartmap.f90
 )
 target_link_libraries(vmec_to_chartmap.x neo)
+
+add_executable(boozer_spectrum_ad.x
+    app/boozer_spectrum_ad.f90
+)
+target_link_libraries(boozer_spectrum_ad.x neo)
 
 add_executable(near_axis_field_diag.x
     app/near_axis_field_diag.f90

@@ -703,6 +703,15 @@ set_tests_properties(test_boozer_covariant_identity PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS setup_vmec_wout_li383)
 
+add_executable(test_boozer_vmec_ad.x source/test_boozer_vmec_ad.f90)
+target_link_libraries(test_boozer_vmec_ad.x neo)
+add_test(NAME test_boozer_vmec_ad
+  COMMAND test_boozer_vmec_ad.x)
+set_tests_properties(test_boozer_vmec_ad PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383")
+
 add_executable(test_boozer_angle_roundtrip.x source/test_boozer_angle_roundtrip.f90)
 target_link_libraries(test_boozer_angle_roundtrip.x neo)
 add_test(NAME test_boozer_angle_roundtrip
