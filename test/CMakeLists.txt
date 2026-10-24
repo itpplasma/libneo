@@ -836,3 +836,7 @@ add_test(NAME test_hamada_to_boozer_legacy
     $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x>)
 set_tests_properties(test_hamada_to_boozer_legacy PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_executable(test_coordinate_basis_jets.x source/test_coordinate_basis_jets.f90)
+target_link_libraries(test_coordinate_basis_jets.x neo)
+add_test(NAME test_coordinate_basis_jets COMMAND test_coordinate_basis_jets.x)
+set_tests_properties(test_coordinate_basis_jets PROPERTIES LABELS "unit;chartmap")

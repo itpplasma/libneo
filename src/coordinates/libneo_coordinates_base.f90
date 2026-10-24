@@ -67,6 +67,7 @@ module libneo_coordinates_base
         ! christoffel defaults to the finite-difference fallback so coordinate
         ! systems without an analytic form (e.g. flat Cartesian) need not override
         ! it; analytic charts (VMEC, geoflux, chartmap) override as before.
+        procedure :: covariant_basis_with_der => coordinate_basis_der_unsupported
         procedure :: christoffel => coordinate_system_christoffel_default
         procedure :: cov_to_cart => coordinate_system_cov_to_cart
         procedure :: ctr_to_cart => coordinate_system_ctr_to_cart
@@ -146,6 +147,17 @@ contains
         call self%covariant_basis(u, e_cov)
         v_cart = matmul(e_cov, v_ctr)
     end subroutine coordinate_system_ctr_to_cart
+
+    ! Optional capability: existing value-only coordinate classes remain valid.
+    ! dbasis(a,i,j) = d basis(a,i)/d u(j), in the chart's native coordinates.
+    subroutine coordinate_basis_der_unsupported(self, u, basis, dbasis)
+        class(coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: basis(3, 3), dbasis(3, 3, 3)
+        call self%covariant_basis(u, basis)
+        dbasis = 0.0_dp
+        error stop 'analytic covariant basis derivative unavailable for this chart'
+    end subroutine coordinate_basis_der_unsupported
 
     subroutine coordinate_system_christoffel_fd(self, u, Gamma, h)
         !> Christoffel symbols of the second kind from central differences of the
