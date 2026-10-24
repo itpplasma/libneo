@@ -20,6 +20,12 @@ WOUT_URL = (
 )
 WOUT_SHA256 = "333ab8cef64c4b4f406e76209266fc3bf4d7976e9c28c162983c2120e112e771"
 
+# Landreman-Paul QH (nfp = 4), same source and resolution as the QA file.
+QH_URL = (
+    "https://github.com/hiddenSymmetries/simsopt/raw/master/tests/test_files/"
+    "wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc"
+)
+QH_SHA256 = "249c397d67357949b2ab4690145224736d8388f5332f23c67c9cb0bf2aa9931e"
 # NCSX li383 with net toroidal current (Boozer I != 0), booz_xform test files.
 LI383_URL = (
     "https://raw.githubusercontent.com/hiddenSymmetries/booz_xform/main/tests/"
@@ -45,6 +51,7 @@ UPDOWN_TOKAMAK_SHA256 = (
 FIXTURES = {
     "qa": ("wout.nc", WOUT_URL, WOUT_SHA256),
     "li383": ("wout_li383.nc", LI383_URL, LI383_SHA256),
+    "qh": ("wout_qh.nc", QH_URL, QH_SHA256),
     "circular_tokamak": (
         "wout_circular_tokamak.nc", CIRCULAR_TOKAMAK_URL, CIRCULAR_TOKAMAK_SHA256
     ),

@@ -943,12 +943,15 @@ contains
 
         call boozer_hybrid_init(h, filename, 1, 0)
         ! The radial covector and metric have a broader spectrum than |B|.
-        ! Resolve them with twice the usual output cutoff, on the unchanged
-        ! source quadrature grid, before sampling the consumer's spline grid.
+        ! Resolve them with twice the usual output cutoff before sampling the
+        ! consumer's spline grid. The quadrature keeps the default grid of
+        ! boozer_hybrid_init, 4 max(mpol - 1, mboz) + 8 by 4 max(ntor, nboz) + 8,
+        ! as booz_xform does. A grid of only 2 mboz + 8 aliases the D-weighted
+        ! integrand into the top modes, which are small in |B| but enter dB/dphi
+        ! with the factor n N.
         mb = 4*(h%mmax + 1)
         nb = 4*h%nmax
-        call boozer_hybrid_init(h, filename, mb, nb, &
-                                n_theta=2*mb + 8, n_phi=2*nb + 8)
+        call boozer_hybrid_init(h, filename, mb, nb)
         call setup_hybrid_aphi(h)
         nt = n_theta_B - 1
         np = n_phi_B - 1
