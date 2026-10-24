@@ -48,9 +48,15 @@ module boozer_hybrid
 
     public :: boozer_hybrid_t, hybrid_surface_t, boozer_hybrid_init
     public :: hybrid_surface, hybrid_surface_jvp, hybrid_surface_vjp
+    public :: hybrid_grid, hybrid_covariant_radial
     public :: hybrid_field_kernel, hybrid_radial_row
+    public :: hybrid_axis_row, boozer_axis_continuation_weights
+    public :: hybrid_radial_second, hybrid_radial_second_t
     public :: hybrid_diag_t, hybrid_surface_diag
     public :: route_weight_kernel, route_radial_kernel, route_beta_kernel
+    !> Shared with the routes submodule. GCC 12 otherwise omits their symbols
+    !> from the parent object at -O3, leaving the submodule unable to link.
+    public :: synth, synth_t, radial_amp, radial_amp_t, dft2, potential, potential_t
     public :: NSPEC, NHIN
     public :: SFL_COVARIANT, SFL_JACOBIAN_B2, SFL_JACOBIAN_CONST, SFL_STRAIGHT_CURRENT, &
               SFL_PEST, sfl_route_name
@@ -108,6 +114,9 @@ module boozer_hybrid
         !> rows rv, rd (0:ns-1, 4) and the second derivative rows rdd of the
         !> full mesh (0:ns-1, 2)
         real(dp), allocatable :: rv(:, :), rd(:, :), rdd(:, :)
+        !> Scalar-primary continuation below the first positive source knot, indexed
+        !> by m >= 2 and full/half mesh. The original four rows stay intact.
+        real(dp), allocatable :: axis_rv(:, :, :), axis_rd(:, :, :), axis_rdd(:, :)
         real(dp), allocatable :: x(:, :), lam(:), f(:, :), jac(:, :, :)
         real(dp), allocatable :: nu(:), nut(:), nup(:), thb(:), phb(:), dj(:)
         real(dp), allocatable :: nuc(:), nutc(:), nupc(:)
@@ -167,6 +176,12 @@ module boozer_hybrid
     end type hybrid_diag_t
 
     interface
+        !> Exact radial covector of the covariant route, shared by Hamada II
+        !> and the compatibility grid adapter.
+        module subroutine hybrid_covariant_radial(h, sv)
+            type(boozer_hybrid_t), intent(in) :: h
+            type(hybrid_surface_t), intent(inout) :: sv
+        end subroutine hybrid_covariant_radial
         !> FortSym kernels of the routes (gen/gen_sfl_route_kernels.f90):
         !> sqrt(g)_V and sqrt(g)_V |B|^2 with the Jacobian with respect to
         !> (R, R_s, R_t, Z_s, Z_t, |B|);
@@ -240,6 +255,7 @@ module boozer_hybrid
 contains
 
     include 'generated/boozer_hybrid_field_leaves.inc'
+    include 'generated/boozer_axis_continuation_leaves.inc'
 
     !> |B|, B_theta, B_phi (VMEC covariant) and |grad s| at psi' = 1 and their
     !> Jacobian with respect to x = (R, R_s, R_t, R_p, Z_s, Z_t, Z_p,
@@ -496,6 +512,64 @@ contains
         end do
     end subroutine hybrid_radial_row
 
+    !> Scalar Fourier primaries R, Z and lambda must scale as rho**|m|.
+    !> Below the first positive source knot, continue in that regular basis with a
+    !> quadratic in s matching the parity spline's value and first two
+    !> derivatives. Above the join the original operator is unchanged.
+    subroutine hybrid_axis_row(ns, s, half, m, rv, rd, rdd)
+        integer, intent(in) :: ns, m
+        real(dp), intent(in) :: s
+        logical, intent(in) :: half
+        real(dp), intent(out) :: rv(0:ns - 1), rd(0:ns - 1)
+        real(dp), intent(out), optional :: rdd(0:ns - 1)
+        real(dp) :: anchor, w(3, 3), va(0:ns - 1), da(0:ns - 1), dda(0:ns - 1)
+
+        if (s <= 0.0_dp) error stop 'hybrid_axis_row: s must be positive'
+        anchor = 1.0_dp/real(ns - 1, dp)
+        if (half) anchor = 0.5_dp*anchor
+        if (abs(m) < 2 .or. s >= anchor) then
+            call hybrid_radial_row(ns, s, half, mod(abs(m), 2), rv, rd, rdd)
+            return
+        end if
+        call hybrid_radial_row(ns, anchor, half, mod(abs(m), 2), va, da, dda)
+        call boozer_axis_continuation_weights(abs(m), s/anchor, w)
+        rv = w(1, 1)*va + w(1, 2)*anchor*da + w(1, 3)*anchor**2*dda
+        rd = w(2, 1)*va/anchor + w(2, 2)*da + w(2, 3)*anchor*dda
+        if (present(rdd)) &
+            rdd = w(3, 1)*va/anchor**2 + w(3, 2)*da/anchor + w(3, 3)*dda
+    end subroutine hybrid_axis_row
+
+    !> An even-parity spline reproduces constants, whose second derivative
+    !> vanishes. Center its data before contraction to avoid cancellation of
+    !> O(ns**2) weights on the major-radius component. Odd parity retains its
+    !> s**(1/2) factor and the original row application.
+    pure real(dp) function hybrid_radial_second(row, c, parity) result(value)
+        real(dp), intent(in) :: row(0:), c(0:)
+        integer, intent(in) :: parity
+        integer :: anchor
+
+        if (parity == 0) then
+            anchor = maxloc(abs(row), dim=1) - 1
+            value = dot_product(row, c - c(anchor))
+        else
+            value = dot_product(row, c)
+        end if
+    end function hybrid_radial_second
+
+    !> Transpose of the same centered linear operator, including its anchor.
+    pure subroutine hybrid_radial_second_t(row, parity, ab, cb)
+        real(dp), intent(in) :: row(0:), ab
+        integer, intent(in) :: parity
+        real(dp), intent(inout) :: cb(0:)
+        integer :: anchor
+
+        cb = cb + ab*row
+        if (parity == 0) then
+            anchor = maxloc(abs(row), dim=1) - 1
+            cb(anchor) = cb(anchor) - ab*sum(row)
+        end if
+    end subroutine hybrid_radial_second_t
+
     !> Fourier synthesis f = Re sum_i (ac_i - i as_i) exp(i(m theta - n phi)) and
     !> its exact angular derivatives on the grid.
     subroutine synth(h, ac, as, f, ft, fp)
@@ -550,9 +624,16 @@ contains
         real(dp), intent(in) :: c(:, 0:)
         logical, intent(in) :: half
         real(dp), intent(out) :: a(:), as(:)
-        integer :: i, r
+        integer :: i, r, mesh, m
 
+        mesh = merge(2, 1, half)
         do i = 1, h%mnmax
+            m = abs(h%xm(i))
+            if (allocated(sv%axis_rv) .and. m >= 2) then
+                a(i) = dot_product(sv%axis_rv(:, m, mesh), c(i, :))
+                as(i) = dot_product(sv%axis_rd(:, m, mesh), c(i, :))
+                cycle
+            end if
             r = row_index(half, mod(h%xm(i), 2))
             a(i) = dot_product(sv%rv(:, r), c(i, :))
             as(i) = dot_product(sv%rd(:, r), c(i, :))
@@ -565,9 +646,16 @@ contains
         real(dp), intent(in) :: ab(:), asb(:)
         logical, intent(in) :: half
         real(dp), intent(inout) :: cb(:, 0:)
-        integer :: i, r
+        integer :: i, r, mesh, m
 
+        mesh = merge(2, 1, half)
         do i = 1, h%mnmax
+            m = abs(h%xm(i))
+            if (allocated(sv%axis_rv) .and. m >= 2) then
+                cb(i, :) = cb(i, :) + ab(i)*sv%axis_rv(:, m, mesh) &
+                            + asb(i)*sv%axis_rd(:, m, mesh)
+                cycle
+            end if
             r = row_index(half, mod(h%xm(i), 2))
             cb(i, :) = cb(i, :) + ab(i)*sv%rv(:, r) + asb(i)*sv%rd(:, r)
         end do
@@ -746,8 +834,9 @@ contains
         logical, intent(in), optional :: with_spectrum
         real(dp) :: psip
         real(dp), allocatable :: w(:), wt(:), wp(:)
-        integer :: p, npt
+        integer :: p, npt, m
 
+        if (s <= 0.0_dp) error stop 'hybrid_surface: s must be positive'
         npt = h%nt*h%np
         sv%s = s
         allocate (sv%rv(0:h%ns - 1, 4), sv%rd(0:h%ns - 1, 4), sv%rdd(0:h%ns - 1, 2))
@@ -757,6 +846,17 @@ contains
                                sv%rdd(:, ROW_FULL1))
         call hybrid_radial_row(h%ns, s, .true., 0, sv%rv(:, ROW_HALF0), sv%rd(:, ROW_HALF0))
         call hybrid_radial_row(h%ns, s, .true., 1, sv%rv(:, ROW_HALF1), sv%rd(:, ROW_HALF1))
+        if (s < 1.0_dp/real(h%ns - 1, dp) .and. h%mmax >= 2) then
+            allocate (sv%axis_rv(0:h%ns - 1, 2:h%mmax, 2), &
+                      sv%axis_rd(0:h%ns - 1, 2:h%mmax, 2), &
+                      sv%axis_rdd(0:h%ns - 1, 2:h%mmax))
+            do m = 2, h%mmax
+                call hybrid_axis_row(h%ns, s, .false., m, &
+                    sv%axis_rv(:, m, 1), sv%axis_rd(:, m, 1), sv%axis_rdd(:, m))
+                call hybrid_axis_row(h%ns, s, .true., m, &
+                    sv%axis_rv(:, m, 2), sv%axis_rd(:, m, 2))
+            end do
+        end if
         allocate (sv%x(NHIN, npt), sv%lam(npt), sv%f(NHOUT, npt), sv%jac(NHOUT, NHIN, npt))
         call field_data(h, sv, h%rmnc, h%zmns, h%lmns, h%rmns, h%zmnc, h%lmnc, h%iotas, &
                         sv%x, sv%lam, sv%iota)
@@ -806,6 +906,80 @@ contains
                                     [npt, 3]), sv%spec)
     end subroutine hybrid_surface
 
+    !> Covariant-route values on an arbitrary uniform consumer angle grid.
+    !> The rows are |B|, |grad s|, B_s, theta_B-theta and phi_B-phi, in SI.
+    !> Both the moving-node projection and synthesis are spectral. The source
+    !> shifts are separately synthesized in VMEC angles, for the forward map.
+    subroutine hybrid_grid(h, sv, theta, phi, values, shifts_v, with_radial)
+        type(boozer_hybrid_t), intent(in) :: h
+        type(hybrid_surface_t), intent(inout) :: sv
+        real(dp), intent(in) :: theta(:), phi(:)
+        real(dp), intent(out) :: values(:, :, :), shifts_v(:, :, :)
+        logical, intent(in) :: with_radial
+        real(dp), allocatable :: u(:, :), spec(:, :)
+        complex(dp), allocatable :: et(:, :), ep(:, :), c(:, :)
+        integer :: nf, k, j, m, n, npt
+
+        if (h%route /= SFL_COVARIANT) &
+            error stop 'hybrid_grid: the compatibility grid supports only sfl_covariant'
+        npt = h%nt*h%np
+        allocate (u(npt, 5), spec(10, h%mnboz))
+        u(:, 1) = sv%f(1, :)
+        u(:, 2) = sv%f(4, :)
+        u(:, 3) = 0.0_dp
+        if (with_radial) then
+            if (.not. allocated(sv%beta)) call hybrid_covariant_radial(h, sv)
+            u(:, 3) = sv%beta
+        end if
+        u(:, 4) = sv%lam + sv%iota*sv%nu
+        u(:, 5) = sv%nu
+        do j = 1, 5
+            u(:, j) = sv%dj*u(:, j)
+        end do
+        if (.not. allocated(sv%em)) call phase_tables(h, sv)
+        call project(h, sv, u, spec)
+        allocate (et(size(theta), 0:h%mboz - 1))
+        allocate (ep(-h%nboz:h%nboz, size(phi)))
+        allocate (c(0:h%mboz - 1, -h%nboz:h%nboz))
+        do m = 0, h%mboz - 1
+            et(:, m) = exp(IU*real(m, dp)*theta)
+        end do
+        do n = -h%nboz, h%nboz
+            ep(n, :) = exp(-IU*real(n*h%nfp, dp)*phi)
+        end do
+        do nf = 1, 5
+            c = 0.0_dp
+            do k = 1, h%mnboz
+                c(h%xm_b(k), h%xn_b(k)/h%nfp) = &
+                    cmplx(spec(2*nf - 1, k), -spec(2*nf, k), dp)
+            end do
+            values(nf, :, :) = real(matmul(matmul(et, c), ep), dp)
+        end do
+        call resample_vmec(h, sv%lam + sv%iota*sv%nu, theta, phi, shifts_v(1, :, :))
+        call resample_vmec(h, sv%nu, theta, phi, shifts_v(2, :, :))
+    end subroutine hybrid_grid
+
+    !> Fourier resampling on the source chart; no moving-node interpolation.
+    subroutine resample_vmec(h, v, theta, phi, f)
+        type(boozer_hybrid_t), intent(in) :: h
+        real(dp), intent(in) :: v(:), theta(:), phi(:)
+        real(dp), intent(out) :: f(:, :)
+        complex(dp), allocatable :: et(:, :), ep(:, :), c(:, :)
+        integer :: k
+
+        allocate (et(size(theta), h%nt), ep(h%np, size(phi)))
+        do k = 1, h%nt
+            et(:, k) = exp(IU*h%km(k)*theta)
+        end do
+        do k = 1, h%np
+            ep(k, :) = exp(IU*h%kn(k)*phi)
+        end do
+        allocate (c(h%nt, h%np))
+        c = matmul(matmul(h%ft, reshape(v, [h%nt, h%np])), transpose(h%fp)) &
+            /real(h%nt*h%np, dp)
+        f = real(matmul(matmul(et, c), ep), dp)
+    end subroutine resample_vmec
+
     subroutine phase_tables(h, sv)
         type(boozer_hybrid_t), intent(in) :: h
         type(hybrid_surface_t), intent(inout) :: sv
@@ -847,15 +1021,16 @@ contains
         real(dp), intent(in) :: u(:, :)
         real(dp), intent(out) :: spec(:, :)
         complex(dp), allocatable :: w(:, :), sm(:, :)
-        integer :: k, mb
+        integer :: k, mb, nf
 
         mb = h%mboz
-        allocate (w(3*mb, h%nt*h%np), sm(3*mb, -h%nboz:h%nboz))
-        do k = 1, 3
+        nf = size(u, 2)
+        allocate (w(nf*mb, h%nt*h%np), sm(nf*mb, -h%nboz:h%nboz))
+        do k = 1, nf
             w((k - 1)*mb + 1:k*mb, :) = sv%em*spread(u(:, k), 1, mb)
         end do
         sm = matmul(w, sv%en)
-        do k = 1, 3
+        do k = 1, nf
             call select_modes(h, sm((k - 1)*mb + 1:k*mb, :), spec(2*k - 1, :), spec(2*k, :))
         end do
     end subroutine project
