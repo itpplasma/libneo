@@ -814,3 +814,11 @@ add_test(NAME test_efit_boozer_low_q_turn
     $<TARGET_FILE:efit_to_boozer.x>)
 set_tests_properties(test_efit_boozer_low_q_turn PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# hamada_to_boozer.x on the public EFIT file in test/resources.
+add_test(NAME test_hamada_to_boozer_legacy
+  COMMAND ${Python_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_legacy.py
+    $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x>)
+set_tests_properties(test_hamada_to_boozer_legacy PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

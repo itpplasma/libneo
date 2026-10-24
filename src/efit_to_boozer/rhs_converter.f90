@@ -14,9 +14,9 @@
 !
   implicit none
 !
-  integer, parameter :: ndim = 4
+! odeint_allroutines calls derivs with assumed-shape arrays (derivative_function).
 !
-  double precision, dimension(ndim) :: y,dy
+  double precision, dimension(:) :: y,dy
   double precision :: R,phi,Z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ,   &
                       dBpdR,dBpdp,dBpdZ,dBzdR,dBzdp,dBzdZ
 !
