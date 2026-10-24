@@ -119,17 +119,8 @@ contains
         end if
         ! Convert half-mesh to full mesh for lambda
         ! added by Christopher Albert, 2020-02-11
-        almnc(:, 0) = 0d0
-        almns(:, 0) = 0d0
-        do i = 1, kparb - 1
-            almnc(:, i) = 0.5d0*(lmnc(:, i + 1) + lmnc(:, i))
-            almns(:, i) = 0.5d0*(lmns(:, i + 1) + lmns(:, i))
-        end do
-        almnc(:, kparb) = lmnc(:, kparb) &
-          & + 0.5d0*(lmnc(:, kparb) - lmnc(:, kparb - 1))
-
-        almns(:, kparb) = lmns(:, kparb) &
-          & + 0.5d0*(lmns(:, kparb) - lmns(:, kparb - 1))
+        call lambda_half_to_full_map(lmnc, almnc, kparb)
+        call lambda_half_to_full_map(lmns, almns, kparb)
 
 ! Fallback if rmajor defined by volume is not given
         if (abs(rmajor - 0d0) < EPS) rmajor = rmnc(1, 0)
@@ -147,6 +138,55 @@ contains
         call nc_close(ncid)
 
     end subroutine vmecin
+
+    !> Full-mesh lambda rows 1..kparb from the half-mesh rows with the map
+    !> selected by lambda_half_to_full ('cubic' needs kparb >= 4, otherwise the
+    !> two-point average with linear extrapolation at the edge). Row 0 (axis)
+    !> is set to zero. The map is linear; boozer_vmec_ad tabulates its matrix.
+    subroutine lambda_half_to_full_map(lhalf, lfull, kparb)
+        use libneo_kinds, only: dp
+        use new_vmec_stuff_mod, only: lambda_half_to_full
+        integer, intent(in) :: kparb
+        real(dp), intent(in) :: lhalf(:, 0:)
+        real(dp), intent(inout) :: lfull(:, 0:)
+        integer :: i
+
+        lfull(:, 0) = 0d0
+        if (trim(lambda_half_to_full) == 'cubic' .and. kparb >= 4) then
+            call lambda_half_to_full_cubic(lhalf, lfull, kparb)
+        else
+            do i = 1, kparb - 1
+                lfull(:, i) = 0.5d0*(lhalf(:, i + 1) + lhalf(:, i))
+            end do
+            lfull(:, kparb) = lhalf(:, kparb) + 0.5d0*(lhalf(:, kparb) - lhalf(:, kparb - 1))
+        end if
+    end subroutine lambda_half_to_full_map
+
+    !> Full-mesh lambda at s_i = i*hs, i = 1..kparb, from the half-mesh rows
+    !> 1..kparb at s = (j - 1/2)*hs by four-point Lagrange interpolation
+    !> (centred inside, one-sided at the edge). Row 0 is left untouched.
+    subroutine lambda_half_to_full_cubic(lhalf, lfull, kparb)
+        use libneo_kinds, only: dp
+        integer, intent(in) :: kparb
+        real(dp), intent(in) :: lhalf(:, 0:)
+        real(dp), intent(inout) :: lfull(:, 0:)
+
+        integer :: i, j, k, jbeg
+        real(dp) :: w(4)
+
+        do i = 1, kparb
+            jbeg = max(1, min(i - 1, kparb - 3))
+            do j = 1, 4
+                w(j) = 1d0
+                do k = 1, 4
+                    if (k /= j) w(j) = w(j)*(dble(i) - (dble(jbeg + k - 1) - 0.5d0)) &
+                                       /(dble(jbeg + j - 1) - dble(jbeg + k - 1))
+                end do
+            end do
+            lfull(:, i) = w(1)*lhalf(:, jbeg) + w(2)*lhalf(:, jbeg + 1) &
+                          + w(3)*lhalf(:, jbeg + 2) + w(4)*lhalf(:, jbeg + 3)
+        end do
+    end subroutine lambda_half_to_full_cubic
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine stevvo(RT0, R0i, L1i, cbfi, bz0i, bf0)

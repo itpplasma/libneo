@@ -17,6 +17,9 @@
     integer          :: ns_tp=5 !<- spline order for R,Z,lambda over theta and varphi
     double precision :: rmajor=1d0,h_theta,h_phi
     double precision :: vmec_B_scale=1d0, vmec_RZ_scale=1d0
+    ! Half-to-full mesh map of the wout lambda: 'linear' (two-point average)
+    ! or 'cubic' (four-point Lagrange in s, fourth order).
+    character(len=8) :: lambda_half_to_full = 'linear'
     double precision, dimension(:),     allocatable :: axm,axn,soa
     double precision, dimension(:),     allocatable :: aiota,s,sps,phi
     double precision, dimension(:,:),   allocatable :: almnc,rmnc,zmnc

@@ -2,7 +2,9 @@
 !>
 !> Usage: boozer_spectrum_ad.x primal|jvp|vjp <wout.nc> <in.nc> <out.nc>
 !>
-!> in.nc holds s(nsurf), the integers mboz, nboz and grid_refinement, and for
+!> in.nc holds s(nsurf), the integers mboz, nboz and grid_refinement, optionally
+!> the integer lambda_cubic (1 selects lambda_half_to_full = 'cubic', default 0 =
+!> 'linear'), and for
 !> jvp the wout-shaped tangents rmnc, zmns, lmns (ns x mnmax) and iotaf (ns),
 !> for vjp the cotangents bmnc_b, bmns_b, numns_b, numnc_b (nsurf x mnboz)
 !> and iota, G, I (nsurf). Absent arrays are zero. out.nc receives xm_b, xn_b,
@@ -11,6 +13,7 @@
 program boozer_spectrum_ad
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use netcdf
+    use new_vmec_stuff_mod, only: lambda_half_to_full
     use boozer_vmec_ad, only: boozer_ad_context_t, boozer_wout_tangent_t, &
                               boozer_spectrum_t, boozer_ad_init, boozer_ad_primal, &
                               boozer_ad_jvp, boozer_ad_vjp, wout_tangent_alloc, &
@@ -41,6 +44,8 @@ program boozer_spectrum_ad
     mboz = get_int(ncid, 'mboz')
     nboz = get_int(ncid, 'nboz')
     refine = get_int(ncid, 'grid_refinement')
+    lambda_half_to_full = 'linear'
+    if (get_int_opt(ncid, 'lambda_cubic', 0) == 1) lambda_half_to_full = 'cubic'
 
     call boozer_ad_init(ctx, trim(wout), mboz, nboz, grid_refinement=refine)
     call system_clock(c0, rate)
@@ -85,6 +90,8 @@ contains
                                 real(c1 - c0, dp)/real(rate, dp)))
         call check(nf90_put_att(ncid, NF90_GLOBAL, 'n_theta', ctx%grid%n_theta))
         call check(nf90_put_att(ncid, NF90_GLOBAL, 'n_phi', ctx%grid%n_phi))
+        call check(nf90_put_att(ncid, NF90_GLOBAL, 'lambda_half_to_full', &
+                                trim(lambda_half_to_full)))
         k = 0
         call def(v, k, 'xm_b', NF90_INT, [dmn])
         call def(v, k, 'xn_b', NF90_INT, [dmn])
@@ -168,6 +175,16 @@ contains
         call check(nf90_inq_varid(id, name, varid))
         call check(nf90_get_var(id, varid, get_int))
     end function get_int
+
+    integer function get_int_opt(id, name, default)
+        integer, intent(in) :: id, default
+        character(*), intent(in) :: name
+        integer :: varid
+
+        get_int_opt = default
+        if (nf90_inq_varid(id, name, varid) /= NF90_NOERR) return
+        call check(nf90_get_var(id, varid, get_int_opt))
+    end function get_int_opt
 
     subroutine get_var(id, name, a)
         integer, intent(in) :: id
