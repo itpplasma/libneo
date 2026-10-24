@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GOLDEN_FILE="$SCRIPT_DIR/golden_odeint_dynamic.f90"
+GOLDEN_FILE="${1:-$SCRIPT_DIR/golden_odeint_dynamic.f90}"
 
 # Detect OS and set appropriate sed command
 if [[ "$OSTYPE" == "darwin"* ]]; then
