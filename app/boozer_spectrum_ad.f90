@@ -5,11 +5,14 @@
 !> in.nc holds s(nsurf), the integers mboz, nboz and grid_refinement, optionally
 !> the integer lambda_cubic (1 selects lambda_half_to_full = 'cubic', default 0 =
 !> 'linear'), and for
-!> jvp the wout-shaped tangents rmnc, zmns, lmns (ns x mnmax) and iotaf (ns),
-!> for vjp the cotangents bmnc_b, bmns_b, numns_b, numnc_b (nsurf x mnboz)
-!> and iota, G, I (nsurf). Absent arrays are zero. out.nc receives xm_b, xn_b,
-!> the primal spectrum and either its tangent (prefix d_) or the wout
-!> cotangents rmnc, zmns, lmns and iotaf. Units: m, T and T m.
+!> jvp the wout-shaped tangents rmnc, zmns, lmns (ns x mnmax) and iotaf (ns)
+!> and the scalars phiedge (edge toroidal flux, scaling the phi profile) and
+!> rmajor (Rmajor_p), for vjp the cotangents bmnc_b, bmns_b, numns_b, numnc_b,
+!> gradsmnc_b, gradsmns_b (nsurf x mnboz) and iota, G, I, psi_edge, R (nsurf).
+!> Absent arrays are zero. out.nc receives xm_b, xn_b, the primal spectrum
+!> (with |grad s| = gradsmnc_b, psi_edge and R as rabe uses them) and either
+!> its tangent (prefix d_) or the wout cotangents rmnc, zmns, lmns, iotaf,
+!> phiedge and rmajor. Units: m, T, T m, 1/m and Wb.
 program boozer_spectrum_ad
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use netcdf
@@ -58,6 +61,8 @@ program boozer_spectrum_ad
         call get_opt2(ncid, 'zmns', t%zmns)
         call get_opt2(ncid, 'lmns', t%lmns)
         call get_opt1(ncid, 'iotaf', t%iotaf)
+        call get_opt0(ncid, 'phiedge', t%phiedge)
+        call get_opt0(ncid, 'rmajor', t%rmajor)
         call boozer_ad_jvp(ctx, s, t, y, yd)
     case ('vjp')
         call spectrum_alloc(ctx, nsurf, yb)
@@ -68,8 +73,11 @@ program boozer_spectrum_ad
         call get_opt1(ncid, 'iota', yb%iota)
         call get_opt1(ncid, 'G', yb%g)
         call get_opt1(ncid, 'I', yb%i)
-        call boozer_ad_primal(ctx, s, y)
-        call boozer_ad_vjp(ctx, s, yb, t)
+        call get_opt2(ncid, 'gradsmnc_b', yb%gradsmnc)
+        call get_opt2(ncid, 'gradsmns_b', yb%gradsmns)
+        call get_opt1(ncid, 'psi_edge', yb%psi_edge)
+        call get_opt1(ncid, 'R', yb%rmajor)
+        call boozer_ad_vjp(ctx, s, yb, t, y)
     case default
         error stop 'mode must be primal, jvp or vjp'
     end select
@@ -80,7 +88,7 @@ program boozer_spectrum_ad
 contains
 
     subroutine write_output()
-        integer :: dsurf, dmn, dns, dmnmax, v(32), k
+        integer :: dsurf, dmn, dns, dmnmax, v(40), k
 
         call check(nf90_create(trim(fout), NF90_CLOBBER, ncid))
         call check(nf90_def_dim(ncid, 'surface', nsurf, dsurf))
@@ -105,18 +113,22 @@ contains
             call def(v, k, 'zmns', NF90_DOUBLE, [dmnmax, dns])
             call def(v, k, 'lmns', NF90_DOUBLE, [dmnmax, dns])
             call def(v, k, 'iotaf', NF90_DOUBLE, [dns])
+            call def0(v, k, 'phiedge')
+            call def0(v, k, 'rmajor')
         end if
         call check(nf90_enddef(ncid))
         call check(nf90_put_var(ncid, v(1), ctx%xm_b))
         call check(nf90_put_var(ncid, v(2), ctx%xn_b))
         call check(nf90_put_var(ncid, v(3), s))
-        call put_spectrum(v(4:10), y)
-        if (trim(mode) == 'jvp') call put_spectrum(v(11:17), yd)
+        call put_spectrum(v(4:14), y)
+        if (trim(mode) == 'jvp') call put_spectrum(v(15:25), yd)
         if (trim(mode) == 'vjp') then
-            call check(nf90_put_var(ncid, v(11), t%rmnc))
-            call check(nf90_put_var(ncid, v(12), t%zmns))
-            call check(nf90_put_var(ncid, v(13), t%lmns))
-            call check(nf90_put_var(ncid, v(14), t%iotaf))
+            call check(nf90_put_var(ncid, v(15), t%rmnc))
+            call check(nf90_put_var(ncid, v(16), t%zmns))
+            call check(nf90_put_var(ncid, v(17), t%lmns))
+            call check(nf90_put_var(ncid, v(18), t%iotaf))
+            call check(nf90_put_var(ncid, v(19), t%phiedge))
+            call check(nf90_put_var(ncid, v(20), t%rmajor))
         end if
         call check(nf90_close(ncid))
     end subroutine write_output
@@ -130,6 +142,14 @@ contains
         call check(nf90_def_var(ncid, name, xtype, dims, v(k)))
     end subroutine def
 
+    subroutine def0(v, k, name)
+        integer, intent(inout) :: v(:), k
+        character(*), intent(in) :: name
+
+        k = k + 1
+        call check(nf90_def_var(ncid, name, NF90_DOUBLE, v(k)))
+    end subroutine def0
+
     subroutine def_spectrum(v, k, prefix, dsurf, dmn)
         integer, intent(inout) :: v(:), k
         character(*), intent(in) :: prefix
@@ -142,10 +162,14 @@ contains
         call def(v, k, prefix//'iota', NF90_DOUBLE, [dsurf])
         call def(v, k, prefix//'G', NF90_DOUBLE, [dsurf])
         call def(v, k, prefix//'I', NF90_DOUBLE, [dsurf])
+        call def(v, k, prefix//'gradsmnc_b', NF90_DOUBLE, [dmn, dsurf])
+        call def(v, k, prefix//'gradsmns_b', NF90_DOUBLE, [dmn, dsurf])
+        call def(v, k, prefix//'psi_edge', NF90_DOUBLE, [dsurf])
+        call def(v, k, prefix//'R', NF90_DOUBLE, [dsurf])
     end subroutine def_spectrum
 
     subroutine put_spectrum(v, sp)
-        integer, intent(in) :: v(7)
+        integer, intent(in) :: v(11)
         type(boozer_spectrum_t), intent(in) :: sp
 
         call check(nf90_put_var(ncid, v(1), sp%bmnc))
@@ -155,6 +179,10 @@ contains
         call check(nf90_put_var(ncid, v(5), sp%iota))
         call check(nf90_put_var(ncid, v(6), sp%g))
         call check(nf90_put_var(ncid, v(7), sp%i))
+        call check(nf90_put_var(ncid, v(8), sp%gradsmnc))
+        call check(nf90_put_var(ncid, v(9), sp%gradsmns))
+        call check(nf90_put_var(ncid, v(10), sp%psi_edge))
+        call check(nf90_put_var(ncid, v(11), sp%rmajor))
     end subroutine put_spectrum
 
     integer function dim_len(id, name)
@@ -195,6 +223,16 @@ contains
         call check(nf90_inq_varid(id, name, varid))
         call check(nf90_get_var(id, varid, a))
     end subroutine get_var
+
+    subroutine get_opt0(id, name, a)
+        integer, intent(in) :: id
+        character(*), intent(in) :: name
+        real(dp), intent(inout) :: a
+        integer :: varid
+
+        if (nf90_inq_varid(id, name, varid) /= NF90_NOERR) return
+        call check(nf90_get_var(id, varid, a))
+    end subroutine get_opt0
 
     subroutine get_opt1(id, name, a)
         integer, intent(in) :: id

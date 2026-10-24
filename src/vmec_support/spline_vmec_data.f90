@@ -78,6 +78,25 @@ contains
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+   !> Equidistant angle grid of the VMEC splines (and of the Boozer grid) for the
+   !> largest mode numbers m_max and n_max (n_max as in the wout xn, i.e. including
+   !> the field periods). Axisymmetric data (n_max = 0) are constant in phi; a short
+   !> periodic grid keeps the angular splines and the Boozer grid well defined.
+   pure subroutine vmec_angular_grid(m_max, n_max, multharm, nper, ns_tp, n_theta, &
+                                     n_phi, h_theta, h_phi)
+      integer, intent(in) :: m_max, n_max, multharm, nper, ns_tp
+      integer, intent(out) :: n_theta, n_phi
+      real(dp), intent(out) :: h_theta, h_phi
+      real(dp) :: twopi
+
+      n_theta = m_max*multharm + 1
+      n_phi = n_max*multharm + 1
+      if (n_max == 0) n_phi = 2*ns_tp + 1
+      twopi = 8.d0*atan2(1.d0, 1.d0)
+      h_theta = twopi/dble(n_theta - 1)
+      h_phi = twopi/dble((n_phi - 1)*nper)
+   end subroutine vmec_angular_grid
+
    subroutine setup_angular_grid_and_fourier_synthesis
       use new_vmec_stuff_mod, only: axm, axn, multharm, nper, nstrm, &
                                     n_theta, n_phi, h_theta, h_phi, sR, sZ, slam, ns_s, ns_tp
@@ -101,11 +120,9 @@ contains
 
       print *, 'VMEC ns = ', ns, ' m_max = ', m_max, ' n_max = ', n_max
 
-      n_theta = m_max*multharm + 1
-      n_phi = n_max*multharm + 1
+      call vmec_angular_grid(m_max, n_max, multharm, nper, ns_tp, n_theta, n_phi, &
+                             h_theta, h_phi)
       twopi = 8.d0*atan2(1.d0, 1.d0)
-      h_theta = twopi/dble(n_theta - 1)
-      h_phi = twopi/dble((n_phi - 1)*nper)
 
       ! Setup exponential arrays
       nsize_exp_imt = (n_theta - 1)*m_max
