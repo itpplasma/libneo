@@ -359,6 +359,7 @@ add_library(boozer STATIC
     src/boozer_rk_tables.f90
     src/boozer_surface.f90
     src/boozer_hybrid.f90
+    src/boozer_hybrid_routes.f90
     src/boozer_vmec_ad.f90
     src/boozer_converter.F90
     src/boozer_regular.f90
@@ -398,7 +399,8 @@ if(LIBNEO_FORTSYM_BUILD)
     # disables globally with -fno-realloc-lhs.
     target_compile_options(libneo_gen_support PUBLIC
         $<$<Fortran_COMPILER_ID:GNU>:-frealloc-lhs>)
-    foreach(generator boozer_regular boozer_field_jacobian coordinate_jets boozer_hybrid_field)
+    foreach(generator boozer_regular boozer_field_jacobian coordinate_jets boozer_hybrid_field
+            sfl_route_kernels)
         add_executable(gen_${generator} gen/gen_${generator}.f90)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}
