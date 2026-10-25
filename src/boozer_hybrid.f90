@@ -170,20 +170,20 @@ module boozer_hybrid
         !> FortSym kernels of the routes (gen/gen_sfl_route_kernels.f90):
         !> sqrt(g)_V and sqrt(g)_V |B|^2 with the Jacobian with respect to
         !> (R, R_s, R_t, Z_s, Z_t, |B|);
-        module pure subroutine route_weight_kernel(x, f, jac)
+        pure module subroutine route_weight_kernel(x, f, jac)
             real(dp), intent(in) :: x(6)
             real(dp), intent(out) :: f(2), jac(2, 6)
         end subroutine route_weight_kernel
         !> (B_s, d_s B_theta, d_s B_phi) at psi' = 1 with the Jacobian with
         !> respect to (R, R_s, R_t, R_p, Z_s, Z_t, Z_p, lambda_t, lambda_p, iota,
         !> R_ss, R_st, R_sp, Z_ss, Z_st, Z_sp, lambda_st, lambda_sp, iota');
-        module pure subroutine route_radial_kernel(x, f, jac)
+        pure module subroutine route_radial_kernel(x, f, jac)
             real(dp), intent(in) :: x(NRIN)
             real(dp), intent(out) :: f(3), jac(3, NRIN)
         end subroutine route_radial_kernel
         !> beta with the gradient with respect to (B_s, B_theta, B_phi,
         !> lambda_t, lambda_p, lambda_s, nu, nu_t, nu_p, nu_s, iota, iota').
-        module pure subroutine route_beta_kernel(x, f, jac)
+        pure module subroutine route_beta_kernel(x, f, jac)
             real(dp), intent(in) :: x(NBIN)
             real(dp), intent(out) :: f, jac(NBIN)
         end subroutine route_beta_kernel
