@@ -74,3 +74,18 @@ add_executable(test_cyl_grid_field.x test_cyl_grid_field.f90)
 target_link_libraries(test_cyl_grid_field.x PRIVATE neo
                                                     util_for_test)
 add_test(NAME test_cyl_grid_field COMMAND test_cyl_grid_field.x)
+
+add_executable(test_makegrid_coils.x test_makegrid_coils.f90)
+target_link_libraries(test_makegrid_coils.x PRIVATE neo
+                                                    util_for_test)
+add_test(NAME test_makegrid_coils COMMAND test_makegrid_coils.x)
+
+add_executable(makegrid_coils_oracle.x makegrid_coils_oracle.f90)
+target_link_libraries(makegrid_coils_oracle.x PRIVATE neo)
+add_test(NAME test_makegrid_coils_python_oracle
+         COMMAND ${Python_EXECUTABLE}
+                 ${PROJECT_SOURCE_DIR}/test/scripts/compare_makegrid_coils.py
+                 --exe $<TARGET_FILE:makegrid_coils_oracle.x>
+                 --work-dir ${CMAKE_BINARY_DIR}/test/field/makegrid_oracle)
+set_tests_properties(test_makegrid_coils test_makegrid_coils_python_oracle
+                     PROPERTIES LABELS "field")
