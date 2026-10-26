@@ -10,12 +10,15 @@ program test_chartmap_invert_cart
     !     represent) reports CHARTMAP_OUTSIDE, never a spurious interior root;
     !   - an axis point (rho ~ 0) is handled by the X/Y regularization (no NaN, theta
     !     recovered modulo the axis gauge).
+    ! Also checks a cold inverse with a tiny chart step and excessive physical error.
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use libneo_coordinates, only: coordinate_system_t, chartmap_coordinate_system_t, &
-        make_chartmap_coordinate_system, BOOZER, &
+        make_chartmap_coordinate_system, BOOZER, CYL, &
         CHARTMAP_LOCATED, CHARTMAP_CLAMPED_EDGE, &
         CHARTMAP_OUTSIDE, CHARTMAP_NO_ROOT
     use math_constants, only: TWOPI
+    use interpolate, only: construct_batch_splines_3d
     use netcdf
     implicit none
 
@@ -26,6 +29,7 @@ program test_chartmap_invert_cart
 
     call write_boozer_file(filename)
     call run_invert_checks(filename, nerrors)
+    call check_small_chart_step(nerrors)
 
     if (nerrors > 0) then
         print *, "FAILED: ", nerrors, " error(s) detected in invert_cart tests"
@@ -302,6 +306,100 @@ contains
             print *, "  PASS: past-edge target reports OUTSIDE, rho clamped to 1"
         end if
     end subroutine check_outside
+
+    ! A dimensionless Newton correction below 1e-10 can still remove a physical
+    ! error above 1e-10 cm. Use an analytic circular CYL chart with a weakly
+    ! nonlinear radial label, leaving the coordinate object's tolerance unchanged.
+    subroutine check_small_chart_step(nerrors)
+        integer, intent(inout) :: nerrors
+        integer, parameter :: nr = 5, nt = 8, nz = 4
+        real(dp), parameter :: r0 = 4000.0_dp, a = 40.0_dp, bend = 1.0e-10_dp
+        type(chartmap_coordinate_system_t) :: ccs
+        real(dp) :: batch(nr, nt + 1, nz + 1, 2), rho, theta, radius
+        real(dp) :: target(3), seed(3), recovered(3), back(3), axis(3), edge(3)
+        real(dp) :: basis(3, 3), residual(3), radial_step, tol_cm, initial_error
+        integer :: ir, it, iz, ierr
+
+        do iz = 1, nz
+            do it = 1, nt
+                theta = TWOPI*real(it - 1, dp)/real(nt, dp)
+                do ir = 1, nr
+                    rho = real(ir - 1, dp)/real(nr - 1, dp)
+                    radius = a*(rho + bend*rho*(1.0_dp - rho))
+                    batch(ir, it, iz, 1) = r0 + radius*cos(theta)
+                    batch(ir, it, iz, 2) = radius*sin(theta)
+                end do
+            end do
+        end do
+        batch(:, nt + 1, 1:nz, :) = batch(:, 1, 1:nz, :)
+        batch(:, :, nz + 1, :) = batch(:, :, 1, :)
+        call construct_batch_splines_3d([0.0_dp, 0.0_dp, 0.0_dp], &
+            [1.0_dp, TWOPI, TWOPI], batch, [3, 3, 3], &
+            [.false., .true., .true.], ccs%spl_rz)
+        ccs%has_spl_rz = .true.
+        ccs%nrho = nr
+        ccs%ntheta = nt
+        ccs%nzeta = nz
+        ccs%num_field_periods = 1
+        ccs%zeta_convention = CYL
+
+        target = [r0 + a*(0.5_dp + 0.25_dp*bend), 0.0_dp, 0.0_dp]
+        tol_cm = max(1.0e-10_dp, ccs%tol_newton, &
+            100.0_dp*epsilon(1.0_dp)*norm2(target))
+        call ccs%evaluate_cart([0.5_dp, 0.0_dp, 0.0_dp], back)
+        if (.not. all(ieee_is_finite(back))) then
+            print *, "  FAIL: small-step analytic map is nonfinite"
+            nerrors = nerrors + 1
+            return
+        end if
+        if (norm2(back - target) >= tol_cm) then
+            print *, "  FAIL: small-step analytic root is not represented"
+            nerrors = nerrors + 1
+            return
+        end if
+
+        ! At theta=zeta=0 this is the cold solver's radial seed. Symmetry makes
+        ! its Newton correction radial, so the public basis supplies the step.
+        call ccs%evaluate_cart([0.0_dp, 0.0_dp, 0.0_dp], axis)
+        call ccs%evaluate_cart([1.0_dp, 0.0_dp, 0.0_dp], edge)
+        seed = [norm2(target - axis)/norm2(edge - axis), 0.0_dp, 0.0_dp]
+        call ccs%evaluate_cart(seed, back)
+        call ccs%covariant_basis(seed, basis)
+        residual = target - back
+        initial_error = norm2(residual)
+        radial_step = dot_product(basis(:, 1), residual)/sum(basis(:, 1)**2)
+        if (.not. ieee_is_finite(initial_error) .or. &
+            .not. ieee_is_finite(radial_step)) then
+            print *, "  FAIL: small-step precondition is nonfinite"
+            nerrors = nerrors + 1
+            return
+        end if
+        if (initial_error <= tol_cm .or. abs(radial_step) <= 0.0_dp .or. &
+            abs(radial_step) >= 1.0e-10_dp) then
+            print *, "  FAIL: small-step precondition missing", &
+                initial_error, radial_step, tol_cm
+            nerrors = nerrors + 1
+            return
+        end if
+
+        call ccs%from_cart(target, recovered, ierr)
+        if (ierr /= 0 .or. .not. all(ieee_is_finite(recovered))) then
+            print *, "  FAIL: small-step Cartesian inverse rejected root", ierr
+            nerrors = nerrors + 1
+            return
+        end if
+        call ccs%evaluate_cart(recovered, back)
+        if (.not. all(ieee_is_finite(back))) then
+            print *, "  FAIL: small-step Cartesian inverse returned nonfinite map"
+            nerrors = nerrors + 1
+            return
+        end if
+        if (norm2(back - target) >= tol_cm) then
+            print *, "  FAIL: small-step inverse exceeds physical tolerance", &
+                norm2(back - target), tol_cm
+            nerrors = nerrors + 1
+        end if
+    end subroutine check_small_chart_step
 
     ! Reactor-scale synthetic Boozer chartmap, nfp = 3, with a genuinely
     ! non-cylindrical toroidal angle so the inverse exercises the Boozer-phi reseed.

@@ -1285,7 +1285,7 @@ contains
         real(dp) :: delta(3)
         real(dp) :: xw, yw, xw_new, yw_new, zeta_new
         real(dp) :: res_norm, res_norm_new
-        real(dp) :: tol_res, tol_step
+        real(dp) :: tol_res
         real(dp) :: step_norm
         integer :: iter
         logical :: success
@@ -1306,7 +1306,6 @@ contains
         ierr = chartmap_from_cyl_ok
         tol_res = max(1.0e-10_dp, self%tol_newton, &
                       100.0_dp*epsilon(1.0_dp)*sqrt(sum(x_target**2)))
-        tol_step = max(1.0e-10_dp, self%tol_newton)
         xw = rho*cos(theta)
         yw = rho*sin(theta)
         do iter = 1, 60
@@ -1315,10 +1314,9 @@ contains
             if (ierr /= chartmap_from_cyl_ok) exit
             if (res_norm < tol_res) exit
             step_norm = sqrt(sum(delta**2))
-            if (step_norm < tol_step) then
-                ierr = chartmap_from_cyl_err_max_iter
-                exit
-            end if
+            ! A small chart-coordinate correction can still reduce the physical
+            ! residual. Let the bounded descent search try it; the residual
+            ! convergence criterion above remains unchanged.
             call chartmap_line_search_xy(self, x_target, xw, yw, zeta, delta, &
                                          res_norm, xw_new, yw_new, zeta_new, &
                                          res_norm_new, success)
