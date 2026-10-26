@@ -1,6 +1,11 @@
 program hamada_to_boozer
   use binsrc_sub, only: binsrc
   use plag_coeff_sub, only: plag_coeff
+  use efit_to_boozer_mod, only: psimax
+  use efit_sfl, only: efit_sfl_t, efit_sfl_config_t, efit_sfl_status_t, efit_sfl_surface_t, &
+                      contour_t, efit_sfl_symflux, efit_sfl_x_of_s, efit_sfl_raise, &
+                      EFIT_SFL_COVARIANT, EFIT_SFL_JACOBIAN_CONST
+  use efit_sfl_magdata, only: efit_to_boozer_read_options, efit_sfl_load, efit_sfl_symflux_eval
 !
   implicit none
 !
@@ -10,7 +15,14 @@ program hamada_to_boozer
   integer :: mpolmax,nrhopol,iunit,iunit1,iunit2,irhopol,ntor
   integer :: mdum_half,mdum_full
   integer :: nstep,nlabel,ntheta,nsurf,idummy,ilabel
-  integer :: is, ibeg, iend, m, mm, ierr
+  integer :: is, ibeg, iend, m, mm, ierr, j
+  integer :: construction, write_gs_map
+  double precision :: theta, nu_B, nu_H, dnu_B, dummy4(4)
+  type(efit_sfl_t) :: sfl_B, sfl_H
+  type(efit_sfl_config_t) :: sfl_cfg
+  type(efit_sfl_status_t) :: sfl_status
+  type(efit_sfl_surface_t) :: sv_B, sv_H
+  type(contour_t) :: ct
 !
   double precision :: boexp,dummy,raxis,zaxis,fourier_series_factor
   double precision :: hs, rho_pol_s ,twopi, aiota, phimax, theta_B0, theta_H0, step_dft
@@ -74,7 +86,19 @@ program hamada_to_boozer
   read(iunit1,*) ntheta    !grid size over poloidal angle for the discrete Fourier transform
   read(iunit1,*) idummy
   read(iunit1,*) nsurf     !number of flux surfaces in Boozer file
+  read(iunit1,*) idummy
+  read(iunit1,*) psimax    !psi at plasma boundary
+! construction 1 (default): Boozer and Hamada angles from the flux-surface contours
+! of the G-EQDSK (efit_sfl); 2: legacy, efit_to_boozer output and field-line integration
+  call efit_to_boozer_read_options(iunit1, construction, sfl_cfg, write_gs_map)
   close(iunit1)
+  if (construction == 1) then
+    sfl_cfg%route = EFIT_SFL_COVARIANT
+    call efit_sfl_load(sfl_B, sfl_cfg, sfl_status)
+    call efit_sfl_raise(sfl_status)
+    sfl_H = sfl_B
+    sfl_H%cfg%route = EFIT_SFL_JACOBIAN_CONST
+  else
 !
   open(iunit1,file='box_size_axis.dat')
   read(iunit1,*) dummy
@@ -95,6 +119,7 @@ program hamada_to_boozer
   close(iunit1)
 !
   psi_tor = psi_tor/psi_tor(nlabel)
+  endif
 !
 ! End read efit_to_boozer data
 !--------------------------------------------
@@ -107,6 +132,9 @@ program hamada_to_boozer
   do is=1,nsurf
     s(is)=hs*(dfloat(is)-0.5d0)
 !
+    if (construction == 1) then
+      rho_pol_s = sqrt(efit_sfl_x_of_s(sfl_B, s(is)))
+    else
     call binsrc(psi_tor(0:nlabel),0,nlabel,s(is),ibeg)
 !
     ibeg=max(1,ibeg-nplag/2)
@@ -121,6 +149,7 @@ program hamada_to_boozer
 ! poloidal radius and starting R value for s-grid of Bozzer file:
     rho_pol_s = sqrt(abs(sum(coef(0,:)*psi_pol(ibeg:iend))))
     R_beg_s(is) = sum(coef(0,:)*R_beg(ibeg:iend))
+    endif
 !
 !
     call binsrc(rho_pol(1:nrhopol),1,nrhopol,rho_pol_s,ibeg)
@@ -190,9 +219,28 @@ program hamada_to_boozer
 !
   do is=1,nsurf
 !
+    if (construction == 1) then
+! Along the field line from theta = 0, phi = q theta with theta the symmetry-flux angle
+! and theta_B,H = theta + iota nu_B,H(theta), normalized as in the legacy branch.
+      call efit_sfl_symflux(sfl_B, efit_sfl_x_of_s(sfl_B, s(is)), sfl_B%nt/4, sv_B, ct, sfl_status)
+      if (sfl_status%code == 0) &
+        call efit_sfl_symflux(sfl_H, efit_sfl_x_of_s(sfl_H, s(is)), sfl_H%nt/4, sv_H, ct, sfl_status)
+      call efit_sfl_raise(sfl_status)
+      aiota = sv_B%iota
+      phimax = twopi/aiota
+      do j=1,ntheta
+        theta = twopi*dble(j)/dble(ntheta)
+        call efit_sfl_symflux_eval(sv_B, theta, dummy4(1), dummy4(2), nu_B, dummy4(3), dnu_B)
+        call efit_sfl_symflux_eval(sv_H, theta, dummy4(1), dummy4(2), nu_H, dummy4(3), dummy4(4))
+        F_B(j) = (theta + aiota*nu_B)/twopi
+        F_H(j) = (theta + aiota*nu_H)/twopi
+        dF_B_dphi(j) = aiota*(1.d0 + aiota*dnu_B)/twopi
+      enddo
+    else
     call field_line_integration_for_coverter(R_beg_s(is),zaxis,ntheta,phimax,F_B,F_H,dF_B_dphi,ierr)
 !
     aiota = twopi/phimax
+    endif
     step_dft = phimax/dble(ntheta)
     F_B = F_B + theta_B0
     F_H = F_H + theta_H0

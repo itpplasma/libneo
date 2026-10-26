@@ -8,7 +8,8 @@ import tempfile
 binary = pathlib.Path(sys.argv[1]).resolve()
 with tempfile.TemporaryDirectory(dir=pathlib.Path.cwd()) as temporary:
     root = pathlib.Path(temporary)
-    (root / "efit_to_boozer.inp").write_text("1\n4\n16384\n4\n3\n32\n1\n")
+    # construction 2: the legacy field-line projection exercised by this fixture
+    (root / "efit_to_boozer.inp").write_text("1\n4\n16384\n4\n3\n32\n1\n2\n")
     subprocess.run([str(binary)], cwd=root, check=True, capture_output=True)
     lines = iter((root / "fromefit_neo_lhs.bc").read_text().splitlines())
     for _ in range(6):

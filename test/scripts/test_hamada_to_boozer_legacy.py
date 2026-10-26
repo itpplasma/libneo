@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory(dir=pathlib.Path.cwd()) as temporary:
         "0 ipert\n1 iequil\n0.00 ampl\n0 ntor\n0.99 cutoff\n4 icftype\n"
         f"'{gfile.name}' gfile\n'' pfile\n'convexwall.dat' convexfile\n'' fluxdatapath\n"
         "0 nwindow_r\n0 nwindow_z\n1 ieqfile\n")
-    (root / "efit_to_boozer.inp").write_text(f"3600\n500\n1024\n10000\n{nsurf}\n24\n1e10\n")
+    (root / "efit_to_boozer.inp").write_text(f"3600\n500\n1024\n10000\n{nsurf}\n24\n1e10\n2 construction (legacy)\n")
     subprocess.run([str(efit_binary)], cwd=root, check=True, capture_output=True)
     # MARS inputs: mpolmax, nrhopol, theta_H0, theta_B0, ntor; Hamada b_m = b0 delta_m0.
     (root / "mars_data_dimensions_and_extra.in").write_text(f"{mpolmax}\n{nrho}\n0.0\n0.0\n0\n")
