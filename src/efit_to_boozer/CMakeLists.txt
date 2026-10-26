@@ -61,9 +61,17 @@ if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "$ORIGIN")
 endif("${isSystemDir}" STREQUAL "-1")
 
+# Input validation relies on IEEE finite checks even in optimized builds.
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+  set_source_files_properties(efit_sfl.f90 efit_sfl_magdata.f90
+    f2py_interfaces/f2py_efit_to_boozer.f90
+    PROPERTIES COMPILE_OPTIONS "-fno-finite-math-only")
+endif()
+
 add_library(efit_to_boozer STATIC
     efit_to_boozer_mod.f90
     efit_sfl.f90
+    efit_sfl_magdata.f90
     field_line_integration_for_Boozer.f90
     rhs.f90
     spline_and_interpolate_magdata.f90
@@ -152,7 +160,7 @@ add_custom_command(
   "${CMAKE_SOURCE_DIR}/src/util/binsrc.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/rhs.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/spline_and_interpolate_magdata.f90"
-  -m _efit_to_boozer --lower skip: oddorderspline polleg binomial odeint_allroutines', alloc_odeint odeint rkck rkqs :
+  -m _efit_to_boozer --lower skip: python_error init_legacy init_contour oddorderspline polleg binomial odeint_allroutines', alloc_odeint odeint rkck rkqs :
 )
 
 Python_add_library(_efit_to_boozer WITH_SOABI
@@ -160,6 +168,7 @@ Python_add_library(_efit_to_boozer WITH_SOABI
   "${CMAKE_CURRENT_BINARY_DIR}/_efit_to_boozer-f2pywrappers.f"
   "${CMAKE_CURRENT_BINARY_DIR}/_efit_to_boozer-f2pywrappers2.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/f2py_interfaces/f2py_efit_to_boozer.f90"
+  "${CMAKE_CURRENT_SOURCE_DIR}/f2py_interfaces/efit_python_error.c"
 )
 
 target_link_libraries(_efit_to_boozer PUBLIC fortranobject efit_to_boozer)

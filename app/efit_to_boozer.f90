@@ -3,8 +3,9 @@
   use field_sub
   use efit_to_boozer_mod
   use input_files, only : gfile
-  use efit_sfl, only : efit_sfl_t, efit_sfl_config_t, efit_sfl_surface_t, efit_sfl_init, &
-                       efit_sfl_transform, efit_sfl_diag_write, efit_sfl_gs_map
+  use efit_sfl, only : efit_sfl_t, efit_sfl_config_t, efit_sfl_surface_t, efit_sfl_status_t, &
+                       efit_sfl_transform, efit_sfl_diag_write, efit_sfl_gs_map, efit_sfl_raise
+  use efit_sfl_magdata, only : efit_to_boozer_read_options, efit_sfl_magdata_init
 !
   implicit none
   integer, parameter :: cdp = kind((1.0d0, 1.0d0))
@@ -26,8 +27,9 @@
 ! Construction of the angles: 1 = flux-surface contours of the G-EQDSK primaries
 ! (module efit_sfl, default), 2 = legacy field-line integration.
   integer, parameter :: CONSTRUCTION_CONTOUR = 1, CONSTRUCTION_LEGACY = 2
-  integer :: construction,ios,write_gs_map
+  integer :: construction,write_gs_map
   type(efit_sfl_t) :: sfl
+  type(efit_sfl_status_t) :: sfl_status
   type(efit_sfl_config_t) :: sfl_cfg
   type(efit_sfl_surface_t), dimension(:), allocatable :: sfl_out
   double precision, dimension(:), allocatable :: s_out
@@ -48,14 +50,7 @@
   read (1,*) psimax   !psi at plasma boundary
 ! Optional lines (defaults if absent): construction, route, allow_poor_equilibrium,
 ! override_reason, n_theta of the contours, write_gs_map.
-  construction=CONSTRUCTION_CONTOUR
-  write_gs_map=0
-  read (1,*,iostat=ios) construction
-  if (ios == 0) read (1,*,iostat=ios) sfl_cfg%route
-  if (ios == 0) read (1,*,iostat=ios) sfl_cfg%allow_poor_equilibrium
-  if (ios == 0) read (1,*,iostat=ios) sfl_cfg%override_reason
-  if (ios == 0) read (1,*,iostat=ios) sfl_cfg%n_theta
-  if (ios == 0) read (1,*,iostat=ios) write_gs_map
+  call efit_to_boozer_read_options(1, construction, sfl_cfg, write_gs_map)
   close(1)
 !
   allocate(rbeg(nlabel),rsmall(nlabel),qsaf(nlabel),psi_pol(0:nlabel))
@@ -64,6 +59,12 @@
   allocate(R_spl(0:nspl,0:ntheta,nlabel),Z_spl(0:nspl,0:ntheta,nlabel),bmod_spl(0:nspl,0:ntheta,nlabel))
   allocate(sqgnorm_spl(0:nspl,0:ntheta,nlabel),Gfunc_spl(0:nspl,0:ntheta,nlabel))
 !
+! Primaries and consistency checks of the G-EQDSK (hard error unless overridden).
+! The legacy construction reproduces the previous program without checks.
+  if (construction == CONSTRUCTION_CONTOUR) then
+    call efit_sfl_magdata_init(sfl, sfl_cfg, sigma, sfl_status)
+    call efit_sfl_raise(sfl_status)
+  else
   call flint_for_Boozer(nstep,nsurfmax,nlabel,ntheta,      &
                         rmn,rmx,zmn,zmx,raxis,zaxis,sigma, &
                         rbeg,rsmall,qsaf,                  &
@@ -74,18 +75,15 @@
                         bmod_spl(0,1:ntheta,:),            &
                         sqgnorm_spl(0,1:ntheta,:),         &
                         Gfunc_spl(0,1:ntheta,:))
+  endif
 !
   call spline_magdata_in_symfluxcoord
 !
   print *,'Splining done'
 !
-! Primaries and consistency checks of the G-EQDSK (hard error unless overridden).
-! The legacy construction reproduces the previous program without checks.
   override_line=''
   construction_note=''
   if (construction == CONSTRUCTION_CONTOUR) then
-  if (psimax < 1.d299) sfl_cfg%psi_edge_rel=psimax
-  call efit_sfl_init(sfl, trim(gfile), sfl_cfg)
   open(1,file='efit_sfl_diag.dat')
   call efit_sfl_diag_write(sfl, 1)
   close(1)
