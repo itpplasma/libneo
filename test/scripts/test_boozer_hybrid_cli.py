@@ -42,7 +42,7 @@ def read_output(path):
     return arrays, construction
 
 
-def write_input(path, construction=None, iotas=None, seed=None):
+def write_input(path, construction=None, iotas=None, seed=None, override=None):
     with Dataset(path, "w", format="NETCDF3_CLASSIC") as data:
         data.createDimension("s", len(SURFACES))
         data.createVariable("s", "f8", ("s",))[:] = SURFACES
@@ -55,6 +55,9 @@ def write_input(path, construction=None, iotas=None, seed=None):
             data.createVariable("iotas", "f8", ("radius",))[:] = iotas
         if seed is not None:
             data.createVariable("iota", "f8", ("s",))[:] = seed
+        if override is not None:
+            data.createVariable("allow_poor_equilibrium", "i4")[...] = 1
+            data.setncattr("override_reason", override)
 
 
 def run_cli(binary, root, label, mode, wout, **inputs):
@@ -94,6 +97,7 @@ def check_selector(binary, original, root, ns):
     ):
         arrays, construction = run_cli(
             binary, root, label, "primal", wout, construction=selection,
+            override="selector test: inconsistent profiles by construction",
         )
         require(construction == (selection or 1), f"wrong {label} construction")
         error = float(np.max(np.abs(arrays["iota"] - expected)))
