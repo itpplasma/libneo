@@ -38,6 +38,7 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(tilted_coil_generate_geometry PROPERTIES
+    FIXTURES_SETUP tilted_coil_geom
     LABELS "magfie;tilted_coil"
     TIMEOUT 300
 )
@@ -48,7 +49,8 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(tilted_coil_fourier_modes PROPERTIES
-    DEPENDS tilted_coil_generate_geometry
+    FIXTURES_REQUIRED tilted_coil_geom
+    FIXTURES_SETUP tilted_coil_fourier
     LABELS "magfie;tilted_coil"
     TIMEOUT 300
 )
@@ -59,7 +61,7 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(tilted_coil_field_validation PROPERTIES
-    DEPENDS tilted_coil_fourier_modes
+    FIXTURES_REQUIRED "tilted_coil_geom;tilted_coil_fourier"
     LABELS "magfie;tilted_coil"
     TIMEOUT 300
 )
