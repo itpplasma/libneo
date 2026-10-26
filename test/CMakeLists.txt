@@ -372,6 +372,7 @@ if(LIBNEO_TESTING_ENABLED)
             --exe $<TARGET_FILE:test_geoflux.x>
             --data-dir ${TEST_OUTPUT_DIR}/scripts
   )
+  set_tests_properties(test_geoflux PROPERTIES FIXTURES_SETUP geoflux_data)
 
   add_test(
     NAME test_geqdsk_plot
@@ -380,7 +381,7 @@ if(LIBNEO_TESTING_ENABLED)
             --output-dir ${TEST_OUTPUT_DIR}/scripts
             --basename geqdsk
   )
-  set_tests_properties(test_geqdsk_plot PROPERTIES DEPENDS test_geoflux)
+  set_tests_properties(test_geqdsk_plot PROPERTIES FIXTURES_REQUIRED geoflux_data)
 
   add_test(
     NAME test_geoflux_plot
@@ -390,7 +391,7 @@ if(LIBNEO_TESTING_ENABLED)
             --output-dir ${TEST_OUTPUT_DIR}/scripts
             --basename geoflux
   )
-  set_tests_properties(test_geoflux_plot PROPERTIES DEPENDS test_geoflux)
+  set_tests_properties(test_geoflux_plot PROPERTIES FIXTURES_REQUIRED geoflux_data)
 
   add_test(
     NAME test_geoflux_coordinate_system
@@ -400,7 +401,7 @@ if(LIBNEO_TESTING_ENABLED)
   )
   set_tests_properties(test_geoflux_coordinate_system PROPERTIES
     FAIL_REGULAR_EXPRESSION "STOP"
-    DEPENDS test_geoflux)
+    FIXTURES_REQUIRED geoflux_data)
 endif()
 
 ## Custom tests
@@ -412,12 +413,14 @@ endif()
 # contains 'STOP'.
 add_test(NAME test_arnoldi_setup
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/source/setup_test_arnoldi.py)
-set_tests_properties(test_arnoldi_setup PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_tests_properties(test_arnoldi_setup PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  FIXTURES_SETUP arnoldi)
 
 add_test(NAME test_arnoldi COMMAND test_arnoldi.x)
 set_tests_properties(test_arnoldi PROPERTIES 
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS test_arnoldi_setup
+  FIXTURES_REQUIRED arnoldi
   FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_system_utility
@@ -429,12 +432,14 @@ add_test(
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_chartmap_volume.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
+set_tests_properties(setup_chartmap_volume PROPERTIES FIXTURES_SETUP chartmap_volume)
 
 add_test(
   NAME setup_vmec_wout
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
+set_tests_properties(setup_vmec_wout PROPERTIES FIXTURES_SETUP vmec_wout)
 
 add_test(
   NAME setup_vmec_chartmap_python
@@ -443,7 +448,8 @@ add_test(
 )
 set_tests_properties(setup_vmec_chartmap_python PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout
+  FIXTURES_REQUIRED vmec_wout
+  FIXTURES_SETUP vmec_chartmap_python
 )
 
 add_test(
@@ -453,7 +459,7 @@ add_test(
 )
 set_tests_properties(validate_vmec_rho_lcfs_auto PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout
+  FIXTURES_REQUIRED vmec_wout
 )
 
 add_test(
@@ -464,7 +470,7 @@ add_test(
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_chartmap_python
+  FIXTURES_REQUIRED vmec_chartmap_python
 )
 
 add_test(
@@ -476,7 +482,7 @@ add_test(
 )
 set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_chartmap_python
+  FIXTURES_REQUIRED vmec_chartmap_python
 )
 
 add_test(
@@ -487,7 +493,7 @@ add_test(
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_cli PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_chartmap_python
+  FIXTURES_REQUIRED vmec_chartmap_python
 )
 
 add_test(
@@ -499,7 +505,7 @@ add_test(
 )
 set_tests_properties(plot_vmec_map2disc_chartmap_boundary_cli PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_chartmap_python
+  FIXTURES_REQUIRED vmec_chartmap_python
 )
 
 add_test(
@@ -511,7 +517,7 @@ add_test(
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_chartmap_python
+  FIXTURES_REQUIRED vmec_chartmap_python
 )
 
 add_test(
@@ -524,14 +530,14 @@ add_test(
 )
 set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_chartmap_python
+  FIXTURES_REQUIRED vmec_chartmap_python
 )
 
 add_test(NAME test_chartmap_coordinates
   COMMAND test_chartmap_coordinates.x)
 set_tests_properties(test_chartmap_coordinates PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
-  DEPENDS setup_chartmap_volume)
+  FIXTURES_REQUIRED chartmap_volume)
 
 add_test(NAME test_chartmap_validator
   COMMAND test_chartmap_validator.x)
@@ -590,7 +596,7 @@ add_test(NAME test_vmec_chartmap_generator
 set_tests_properties(test_vmec_chartmap_generator PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_python_chartmap_generator.x source/test_python_chartmap_generator.f90)
 target_link_libraries(test_python_chartmap_generator.x chartmap_test_utils)
@@ -599,7 +605,7 @@ add_test(NAME test_python_chartmap_generator
 set_tests_properties(test_python_chartmap_generator PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_chartmap_python)
+  FIXTURES_REQUIRED vmec_chartmap_python)
 
 add_executable(test_vmec_coordinate_system.x source/test_vmec_coordinate_system.f90)
 target_link_libraries(test_vmec_coordinate_system.x neo)
@@ -608,7 +614,7 @@ add_test(NAME test_vmec_coordinate_system
 set_tests_properties(test_vmec_coordinate_system PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_splint_vmec_data_d3.x source/test_splint_vmec_data_d3.f90)
 target_link_libraries(test_splint_vmec_data_d3.x neo)
@@ -617,7 +623,7 @@ add_test(NAME test_splint_vmec_data_d3
 set_tests_properties(test_splint_vmec_data_d3 PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_vmec_from_cyl.x source/test_vmec_from_cyl.f90)
 target_link_libraries(test_vmec_from_cyl.x neo)
@@ -626,7 +632,7 @@ add_test(NAME test_vmec_from_cyl
 set_tests_properties(test_vmec_from_cyl PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_vector_conversion.x source/test_vector_conversion.f90)
 target_link_libraries(test_vector_conversion.x neo ${MAGFIE_LIB})
@@ -635,7 +641,7 @@ add_test(NAME test_vector_conversion
 set_tests_properties(test_vector_conversion PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_chartmap_volume)
+  FIXTURES_REQUIRED chartmap_volume)
 
 add_executable(test_geoflux_coordinate_system.x source/test_geoflux_coordinate_system.f90)
 target_link_libraries(test_geoflux_coordinate_system.x neo ${MAGFIE_LIB})
@@ -653,7 +659,7 @@ add_test(NAME test_chartmap_matches_vmec
 set_tests_properties(test_chartmap_matches_vmec PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(bench_boozer_resolution.x source/bench_boozer_resolution.f90)
 target_link_libraries(bench_boozer_resolution.x neo)
@@ -676,7 +682,7 @@ add_test(NAME test_boozer_regular_qa
 set_tests_properties(test_boozer_regular_qa PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_boozer_converter_vs_simple.x source/test_boozer_converter_vs_simple.f90)
 target_link_libraries(test_boozer_converter_vs_simple.x neo)
@@ -685,18 +691,22 @@ add_test(NAME test_boozer_converter_vs_simple
 set_tests_properties(test_boozer_converter_vs_simple PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_test(
   NAME setup_vmec_wout_li383
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case li383
 )
+set_tests_properties(setup_vmec_wout_li383 PROPERTIES FIXTURES_SETUP vmec_wout_li383)
 
 add_test(
   NAME setup_vmec_wout_circular_tokamak
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case circular_tokamak
+)
+set_tests_properties(setup_vmec_wout_circular_tokamak PROPERTIES
+  FIXTURES_SETUP vmec_wout_circular_tokamak
 )
 
 add_executable(test_boozer_covariant_identity.x
@@ -707,7 +717,7 @@ add_test(NAME test_boozer_covariant_identity
 set_tests_properties(test_boozer_covariant_identity PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout_li383)
+  FIXTURES_REQUIRED vmec_wout_li383)
 
 add_executable(test_boozer_vmec_ad.x source/test_boozer_vmec_ad.f90)
 target_link_libraries(test_boozer_vmec_ad.x neo)
@@ -716,12 +726,15 @@ add_test(NAME test_boozer_vmec_ad
 set_tests_properties(test_boozer_vmec_ad PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383;setup_vmec_wout_circular_tokamak")
+  FIXTURES_REQUIRED "vmec_wout;vmec_wout_li383;vmec_wout_circular_tokamak")
 
 add_test(
   NAME setup_vmec_wout_updown_tokamak
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case updown_tokamak
+)
+set_tests_properties(setup_vmec_wout_updown_tokamak PROPERTIES
+  FIXTURES_SETUP vmec_wout_updown_tokamak
 )
 
 add_executable(test_boozer_hybrid.x source/test_boozer_hybrid.f90)
@@ -731,7 +744,7 @@ add_test(NAME test_boozer_hybrid
 set_tests_properties(test_boozer_hybrid PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383;setup_vmec_wout_circular_tokamak;setup_vmec_wout_updown_tokamak")
+  FIXTURES_REQUIRED "vmec_wout;vmec_wout_li383;vmec_wout_circular_tokamak;vmec_wout_updown_tokamak")
 
 add_test(NAME test_boozer_hybrid_cli
   COMMAND ${Python_EXECUTABLE}
@@ -740,7 +753,7 @@ add_test(NAME test_boozer_hybrid_cli
           ${CMAKE_CURRENT_BINARY_DIR}/wout.nc)
 set_tests_properties(test_boozer_hybrid_cli PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout
+  FIXTURES_REQUIRED vmec_wout
   TIMEOUT 120)
 
 add_executable(test_lambda_half_to_full.x source/test_lambda_half_to_full.f90)
@@ -755,7 +768,7 @@ add_test(NAME test_boozer_angle_roundtrip
 set_tests_properties(test_boozer_angle_roundtrip PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_boozer_chartmap_roundtrip.x source/test_boozer_chartmap_roundtrip.f90)
 target_link_libraries(test_boozer_chartmap_roundtrip.x neo)
@@ -764,7 +777,7 @@ add_test(NAME test_boozer_chartmap_roundtrip
 set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_boozmn_reader.x source/test_boozmn_reader.f90)
 target_link_libraries(test_boozmn_reader.x neo)
@@ -789,7 +802,7 @@ add_test(NAME test_delthe_delphi_bv_d2
 set_tests_properties(test_delthe_delphi_bv_d2 PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_delthe_delphi_bv_d3.x source/test_delthe_delphi_bv_d3.f90)
 target_link_libraries(test_delthe_delphi_bv_d3.x neo)
@@ -798,7 +811,7 @@ add_test(NAME test_delthe_delphi_bv_d3
 set_tests_properties(test_delthe_delphi_bv_d3 PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_chartmap_vmec_mapping.x source/test_chartmap_vmec_mapping.f90)
 target_link_libraries(test_chartmap_vmec_mapping.x neo)
@@ -807,7 +820,7 @@ add_test(NAME test_chartmap_vmec_mapping
 set_tests_properties(test_chartmap_vmec_mapping PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_chartmap_derivatives.x source/test_chartmap_derivatives.f90)
 target_link_libraries(test_chartmap_derivatives.x neo)
@@ -816,7 +829,7 @@ add_test(NAME test_chartmap_derivatives
 set_tests_properties(test_chartmap_derivatives PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
 
 add_executable(test_refcoords_file_detection.x source/test_refcoords_file_detection.f90)
 target_link_libraries(test_refcoords_file_detection.x neo)
@@ -879,7 +892,7 @@ add_test(NAME test_sfl_routes
 set_tests_properties(test_sfl_routes PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383;setup_vmec_wout_circular_tokamak;setup_vmec_wout_updown_tokamak")
+  FIXTURES_REQUIRED "vmec_wout;vmec_wout_li383;vmec_wout_circular_tokamak;vmec_wout_updown_tokamak")
 
 add_test(
   NAME test_sfl_route_error
@@ -888,4 +901,4 @@ add_test(
 set_tests_properties(test_sfl_route_error PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   PASS_REGULAR_EXPRESSION "check_sfl_route_error PASSED"
-  DEPENDS setup_vmec_wout)
+  FIXTURES_REQUIRED vmec_wout)
