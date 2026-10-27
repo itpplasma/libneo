@@ -13,6 +13,9 @@ module field_sub
     use projection_fixture
     implicit none
 contains
+    subroutine read_field_input
+    end subroutine
+
     subroutine field_eq(r,phi,z,br,bp,bz,brr,brp,brz,bpr,bpp,bpz,bzr,bzp,bzz)
         real(8), intent(in) :: r,phi,z
         real(8), intent(out) :: br,bp,bz,brr,brp,brz,bpr,bpp,bpz,bzr,bzp,bzz

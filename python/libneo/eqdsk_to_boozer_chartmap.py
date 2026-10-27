@@ -46,11 +46,12 @@ _INP_TEMPLATE = """\
 {nsurf}        nsurf    - number of flux surfaces in Boozer file
 {mpol}         mpol     - number of poloidal modes in Boozer file
 {psimax}
+{construction}         construction - 1 flux-surface contours, 2 legacy field lines
 """
 
 
 def _write_inp(path, gfile, *, nstep=3600, nlabel=500, ntheta_int=500,
-               nsurfmax=10000, nsurf=2000, mpol=12, psimax=1e10):
+               nsurfmax=10000, nsurf=2000, mpol=12, psimax=1e10, construction=1):
     """Write efit_to_boozer.inp pointing at gfile.
 
     psimax: poloidal flux boundary value in CGS (G*cm^2); controls when the
@@ -63,6 +64,7 @@ def _write_inp(path, gfile, *, nstep=3600, nlabel=500, ntheta_int=500,
         _INP_TEMPLATE.format(
             nstep=nstep, nlabel=nlabel, ntheta_int=ntheta_int,
             nsurfmax=nsurfmax, nsurf=nsurf, mpol=mpol, psimax=psimax,
+            construction=construction,
         )
     )
 
@@ -129,6 +131,7 @@ def convert_eqdsk_to_chartmap(
     nsurf=2000,
     convexwall=None,
     psimax=None,
+    construction=1,
 ):
     """Read an EQDSK g-file and write a libneo Boozer chartmap.
 
@@ -153,7 +156,12 @@ def convert_eqdsk_to_chartmap(
         integration leaving the computational box; that fails for synthetic
         equilibria without an X-point, whose psi keeps rising to the box
         edge (the scan then runs to nsurfmax and the last box-confined
-        surface, not the LCFS, becomes s = 1).
+        surface, not the LCFS, becomes s = 1).  With the contour
+        construction, None places s = 1 at the file's boundary flux sibry.
+    construction : int
+        1 (default) flux-surface contours of the g-file (efit_sfl, with
+        consistency checks raising RuntimeError), 2 legacy field-line
+        integration.
     """
     if not isinstance(nzeta, int) or nzeta < 8:
         raise ValueError("nzeta must be an integer >=8 for periodic Cartesian splines")
@@ -191,6 +199,9 @@ def convert_eqdsk_to_chartmap(
             )
             if psimax is not None:
                 inp_kwargs["psimax"] = psimax
+            elif construction == 1:
+                inp_kwargs["psimax"] = 1e300
+            inp_kwargs["construction"] = construction
             _write_inp("efit_to_boozer.inp", gfile, **inp_kwargs)
             if convexwall is None:
                 from libneo.eqdsk_base import read_eqdsk
@@ -384,6 +395,8 @@ def main(argv=None):
                         help="starting points for separatrix search")
     parser.add_argument("--nsurf", type=int, default=2000,
                         help="flux surfaces in Boozer file")
+    parser.add_argument("--construction", type=int, choices=[1, 2], default=1,
+                        help="1 flux-surface contours, 2 legacy field lines")
     args = parser.parse_args(argv)
 
     torflux = convert_eqdsk_to_chartmap(
@@ -396,6 +409,7 @@ def main(argv=None):
         ntheta_int=args.ntheta_int,
         nsurfmax=args.nsurfmax,
         nsurf=args.nsurf,
+        construction=args.construction,
     )
     print(f"Done. torflux={torflux:.6e} G cm^2")
 

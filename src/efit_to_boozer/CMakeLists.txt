@@ -63,6 +63,8 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 add_library(efit_to_boozer STATIC
     efit_to_boozer_mod.f90
+    efit_sfl.f90
+    efit_sfl_magdata.f90
     field_line_integration_for_Boozer.f90
     rhs.f90
     spline_and_interpolate_magdata.f90
@@ -72,6 +74,7 @@ target_link_libraries(efit_to_boozer
     LAPACK::LAPACK
     neo
     magfie
+    geqdsk
 )
 
 # The static Fortran library is usable without the optional f2py wrapper.  In

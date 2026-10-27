@@ -43,7 +43,8 @@ def test_prescribed_circular_flux_boundary(tmp_path, scan, polarity):
     _write_convex_wall_from_lcfs(tmp_path/"convexwall.dat", boundary[:, 0], boundary[:, 1])
     _write_inp(tmp_path/"efit_to_boozer.inp", str(gfile), nlabel=512,
                ntheta_int=256, nsurfmax=scan, nsurf=2000, mpol=12,
-               psimax=polarity*radius**2/2*1e8)
+               psimax=polarity*radius**2/2*1e8,
+               construction=2)  # legacy: the profile columns are zero (no GS)
     _write_field_divB0_inp(tmp_path/"field_divB0.inp", str(gfile),
                           convexfile="convexwall.dat")
     proc = subprocess.run([str(Path(binary).resolve())], cwd=tmp_path,
