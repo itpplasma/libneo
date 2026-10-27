@@ -68,6 +68,9 @@ module libneo_coordinates_base
         ! systems without an analytic form (e.g. flat Cartesian) need not override
         ! it; analytic charts (VMEC, geoflux, chartmap) override as before.
         procedure :: covariant_basis_with_der => coordinate_basis_der_unsupported
+        procedure :: cart_and_covariant_basis => coordinate_cart_and_basis
+        procedure :: cart_and_covariant_basis_with_der => &
+            coordinate_cart_and_basis_der
         procedure :: christoffel => coordinate_system_christoffel_default
         procedure :: cov_to_cart => coordinate_system_cov_to_cart
         procedure :: ctr_to_cart => coordinate_system_ctr_to_cart
@@ -158,6 +161,24 @@ contains
         dbasis = 0.0_dp
         error stop 'analytic covariant basis derivative unavailable for this chart'
     end subroutine coordinate_basis_der_unsupported
+
+    ! Charts that evaluate the position with the basis override these to avoid a
+    ! second chart evaluation.
+    subroutine coordinate_cart_and_basis(self, u, x, e_cov)
+        class(coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3), e_cov(3, 3)
+        call self%evaluate_cart(u, x)
+        call self%covariant_basis(u, e_cov)
+    end subroutine coordinate_cart_and_basis
+
+    subroutine coordinate_cart_and_basis_der(self, u, x, basis, dbasis)
+        class(coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3), basis(3, 3), dbasis(3, 3, 3)
+        call self%evaluate_cart(u, x)
+        call self%covariant_basis_with_der(u, basis, dbasis)
+    end subroutine coordinate_cart_and_basis_der
 
     subroutine coordinate_system_christoffel_fd(self, u, Gamma, h)
         !> Christoffel symbols of the second kind from central differences of the

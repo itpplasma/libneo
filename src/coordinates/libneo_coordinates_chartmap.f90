@@ -67,6 +67,8 @@ module libneo_coordinates_chartmap
         procedure :: evaluate_cyl => chartmap_evaluate_cyl
         procedure :: covariant_basis => chartmap_covariant_basis
         procedure :: covariant_basis_with_der => chartmap_covariant_basis_der
+        procedure :: cart_and_covariant_basis => chartmap_cart_and_covariant_basis
+        procedure :: cart_and_covariant_basis_with_der => chartmap_cart_and_basis_der
         procedure :: jacobian_det => chartmap_jacobian_det
         procedure :: metric_tensor => chartmap_metric_tensor
         procedure :: christoffel => chartmap_christoffel
@@ -654,7 +656,16 @@ contains
         class(chartmap_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: basis(3, 3), dbasis(3, 3, 3)
-        real(dp) :: value(3), first(3, 3), second(6, 3), rotated(3), u_eval(3)
+        real(dp) :: x(3)
+
+        call chartmap_cart_and_basis_der(self, u, x, basis, dbasis)
+    end subroutine chartmap_covariant_basis_der
+
+    subroutine chartmap_cart_and_basis_der(self, u, x, basis, dbasis)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3), basis(3, 3), dbasis(3, 3, 3)
+        real(dp) :: value(3), first(3, 3), second(6, 3), u_eval(3)
         real(dp) :: rz(2), drz(3, 2), d2rz(6, 2), xmin(3), xmax(3), period
         if (self%has_spl_rz) then
             xmin = self%spl_rz%x_min
@@ -678,8 +689,8 @@ contains
         call evaluate_batch_splines_3d_der2(self%spl_cart, u_eval, value, first, second)
         end if
         call rotate_z_vector_der2(u(3), value, transpose(first), transpose(second), &
-                                  rotated, basis, dbasis)
-    end subroutine chartmap_covariant_basis_der
+                                  x, basis, dbasis)
+    end subroutine chartmap_cart_and_basis_der
 
     subroutine chartmap_covariant_basis(self, u, e_cov)
         class(chartmap_coordinate_system_t), intent(in) :: self
@@ -692,6 +703,14 @@ contains
         call chartmap_eval_cart_der(self, u, vals, dvals)
         e_cov = dvals
     end subroutine chartmap_covariant_basis
+
+    subroutine chartmap_cart_and_covariant_basis(self, u, x, e_cov)
+        class(chartmap_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3), e_cov(3, 3)
+
+        call chartmap_eval_cart_der(self, u, x, e_cov)
+    end subroutine chartmap_cart_and_covariant_basis
 
     !> Signed Jacobian determinant det(dx/du) of the forward map, from the analytic
     !> covariant basis. metric_tensor's sqrtg = sqrt(abs(det g)) = |jacobian_det|

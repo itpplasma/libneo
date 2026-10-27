@@ -26,6 +26,7 @@ program test_vmec_coordinate_system
     call test_evaluate_cart_consistency(vmec, zeta_period, nerrors)
     call test_covariant_basis_fd(vmec, zeta_period, nerrors)
     call test_covariant_basis_der_fd(vmec, zeta_period, nerrors)
+    call test_cart_and_covariant_basis(vmec, zeta_period, nerrors)
     call test_metric_tensor_properties(vmec, zeta_period, nerrors)
 
     if (nerrors > 0) then
@@ -200,6 +201,35 @@ contains
         end do
         print *, '  VMEC basis derivative maximum relative FD error:', max_err
     end subroutine test_covariant_basis_der_fd
+
+    subroutine test_cart_and_covariant_basis(vmec, zeta_period, nerrors)
+        type(vmec_coordinate_system_t), intent(in) :: vmec
+        real(dp), intent(in) :: zeta_period
+        integer, intent(inout) :: nerrors
+        real(dp), parameter :: tol = 1.0e-13_dp
+        real(dp) :: u(3), x(3), basis(3, 3), dbasis(3, 3, 3)
+        real(dp) :: x_ref(3), basis_ref(3, 3), dbasis_ref(3, 3, 3)
+        integer :: i
+
+        do i = 1, 4
+            u = [0.11_dp + 0.2_dp*i, 1.3_dp*i, (0.23_dp*i - 0.4_dp)*zeta_period]
+            call vmec%evaluate_cart(u, x_ref)
+            call vmec%covariant_basis(u, basis_ref)
+            call vmec%cart_and_covariant_basis(u, x, basis)
+            if (maxval(abs(x - x_ref)) > tol*maxval(abs(x_ref)) .or. &
+                maxval(abs(basis - basis_ref)) > tol*maxval(abs(basis_ref))) then
+                print *, '  FAIL: VMEC position and basis differ from separate calls', i
+                nerrors = nerrors + 1
+            end if
+            call vmec%covariant_basis_with_der(u, basis_ref, dbasis_ref)
+            call vmec%cart_and_covariant_basis_with_der(u, x, basis, dbasis)
+            if (maxval(abs(x - x_ref)) > tol*maxval(abs(x_ref)) .or. &
+                any(basis /= basis_ref) .or. any(dbasis /= dbasis_ref)) then
+                print *, '  FAIL: VMEC position and basis jet differ from separate calls', i
+                nerrors = nerrors + 1
+            end if
+        end do
+    end subroutine test_cart_and_covariant_basis
 
     subroutine test_metric_tensor_properties(vmec, zeta_period, nerrors)
         type(vmec_coordinate_system_t), intent(in) :: vmec

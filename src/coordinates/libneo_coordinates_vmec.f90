@@ -16,6 +16,8 @@ module libneo_coordinates_vmec
         procedure :: evaluate_cyl => vmec_evaluate_cyl
         procedure :: covariant_basis => vmec_covariant_basis
         procedure :: covariant_basis_with_der => vmec_covariant_basis_der
+        procedure :: cart_and_covariant_basis => vmec_cart_and_covariant_basis
+        procedure :: cart_and_covariant_basis_with_der => vmec_cart_and_basis_der
         procedure :: metric_tensor => vmec_metric_tensor
         procedure :: christoffel => vmec_christoffel
         procedure :: from_cyl => vmec_from_cyl
@@ -70,6 +72,16 @@ contains
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: e_cov(3, 3)
 
+        real(dp) :: x(3)
+
+        call vmec_cart_and_covariant_basis(self, u, x, e_cov)
+    end subroutine vmec_covariant_basis
+
+    subroutine vmec_cart_and_covariant_basis(self, u, x, e_cov)
+        class(vmec_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3), e_cov(3, 3)
+
         real(dp) :: s, theta, varphi
         real(dp) :: A_phi, A_theta, dA_phi_ds, dA_theta_ds, aiota
         real(dp) :: R, Z, alam, dR_ds, dR_dt, dR_dp, dZ_ds, dZ_dt, dZ_dp
@@ -87,6 +99,8 @@ contains
                               dA_theta_ds, aiota, R, Z, alam, dR_ds, dR_dt, &
                               dR_dp, dZ_ds, dZ_dt, dZ_dp, dl_ds, dl_dt, dl_dp)
 
+        call cyl_to_cart([R, varphi, Z], x)
+
         cos_phi = cos(varphi)
         sin_phi = sin(varphi)
 
@@ -101,15 +115,23 @@ contains
         e_cov(1, 3) = dR_dp*cos_phi - R*sin_phi
         e_cov(2, 3) = dR_dp*sin_phi + R*cos_phi
         e_cov(3, 3) = dZ_dp
-    end subroutine vmec_covariant_basis
+    end subroutine vmec_cart_and_covariant_basis
 
     subroutine vmec_covariant_basis_der(self, u, basis, dbasis)
         class(vmec_coordinate_system_t), intent(in) :: self
         real(dp), intent(in) :: u(3)
         real(dp), intent(out) :: basis(3, 3), dbasis(3, 3, 3)
+        real(dp) :: x(3)
+
+        call vmec_cart_and_basis_der(self, u, x, basis, dbasis)
+    end subroutine vmec_covariant_basis_der
+
+    subroutine vmec_cart_and_basis_der(self, u, x, basis, dbasis)
+        class(vmec_coordinate_system_t), intent(in) :: self
+        real(dp), intent(in) :: u(3)
+        real(dp), intent(out) :: x(3), basis(3, 3), dbasis(3, 3, 3)
         real(dp) :: ap, at, dap, dat, iota, r, z, lambda, dr(3), dz(3), dl(3)
         real(dp) :: d2r(6), d2z(6), d2l(6), value(3), first(3, 3), second(3, 6)
-        real(dp) :: rotated(3)
         associate (unused => self)
         end associate
       call splint_vmec_data_d2(u(1), u(2), u(3), ap, at, dap, dat, iota, r, z, lambda, &
@@ -118,8 +140,8 @@ contains
         first = 0.0_dp; second = 0.0_dp
         first(1, :) = dr; first(3, :) = dz
         second(1, :) = d2r; second(3, :) = d2z
-        call rotate_z_vector_der2(u(3), value, first, second, rotated, basis, dbasis)
-    end subroutine vmec_covariant_basis_der
+        call rotate_z_vector_der2(u(3), value, first, second, x, basis, dbasis)
+    end subroutine vmec_cart_and_basis_der
 
     subroutine vmec_metric_tensor(self, u, g, ginv, sqrtg)
         class(vmec_coordinate_system_t), intent(in) :: self
