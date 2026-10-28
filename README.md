@@ -1,251 +1,75 @@
 # libneo
-Common code for plasma codes of ITPcp, in particular for different NEO-2 versions.
 
-## Role in the KIN6D/TIAGO stack
+libneo is the shared Fortran library and Python package of the plasma theory
+group at ITPcp, TU Graz. It collects equilibrium and magnetic-field readers,
+coordinate conversions and numerical utilities used by NEO-2, NEO-RT, SIMPLE,
+KAMEL, MEPHIT and related codes.
 
-libneo is the shared **interchange, convention and reusable field-utility
-layer**, not the owner of a universal equilibrium model or reconstruction
-framework.
+Status: research infrastructure under active development; interfaces may
+change.
 
-KIN6D should reuse libneo readers/converters when they already cover formats
-such as GEQDSK, VMEC wout, Boozer/boozmn/chartmaps, SPECTRE/SPEC, JOREK or
-coil data. The adapter boundary must normalize units, coordinate/phase/sign
-conventions and provenance into physical data. KIN6D may then evaluate native
-residuals, re-solve the corresponding equilibrium model and certify the
-result; importing a VMEC or EQDSK object does not make nested surfaces or that
-source code's equations fundamental.
+## Contents
 
-TIAGO continues to reuse libneo for coil/interchange utilities while owning
-diagnostic inference/UQ. libneo should not acquire KIN6D solver policy or TIAGO
-posterior semantics merely to connect the projects.
+- Magnetic-field representations and readers: G-EQDSK, VMEC `wout`, Boozer
+  (`.bc`, `boozmn`), chartmap, mgrid, SPECTRE, JOREK, coil files and
+  Biot-Savart fields (`src/field`, `src/magfie`).
+- Coordinate systems and conversions, including VMEC, chartmap and geometric
+  flux coordinates (`src/coordinates`).
+- Converters from EFIT/G-EQDSK and Hamada coordinates to Boozer coordinates
+  (`efit_to_boozer.x`, `hamada_to_boozer.x`) and from VMEC to chartmaps
+  (`vmec_to_chartmap.x`).
+- Splines and batch interpolation, ODE integration, collision frequencies,
+  Poincare plots of field lines.
+- HDF5 and NetCDF access through [Fortio](https://github.com/lazy-fortran/fortio)
+  (`hdf5_tools`, `nctools`), without linking the system HDF5 or NetCDF libraries.
+- Python package `libneo` with chartmap generators, VMEC/NEMEC/EQDSK tools,
+  coil conversion and ASCOT5 field export; MATLAB classes in `matlab/`.
 
-Add new format/convention support here when it has multiple consumers or is
-clearly generic. Keep one-off machine acquisition and plasma-model-specific
-stationary solves in their owning projects.
+## Building
 
-### Demand-driven modernization
+Requirements: CMake 3.22 or newer, Ninja, GCC and gfortran, BLAS/LAPACK.
+CMake fetches Fortio and [Fortnum](https://github.com/lazy-fortran/fortnum) at
+configure time (revisions pinned in `fpm.toml`). On Debian or Ubuntu,
+`setup/debian.sh` installs the system packages; for computing clusters, load the
+modules in `setup/<machine>.sh`.
 
-KIN6D is expected to become a major new libneo consumer. That is a reason to
-improve libneo, not to fork its useful mathematics. Whenever KIN6D starts using
-a libneo path, treat the touched code with a boy-scout rule: add an independent
-regression/oracle for the real use case, fix generic bugs and convention errors
-here, and make bounded refactors that improve reentrancy, accuracy,
-differentiability or testability for all consumers.
+    make          # configure and build in build/ with CMake and Ninja
+    make test     # run the CTest suite
 
-Do not rewrite unrelated historical subsystems merely because KIN6D exists.
-Preserve compatible entry points or provide migration shims so NEO-2, SIMPLE,
-MEPHIT, TIAGO and other consumers can adopt the improved implementation.
+Codes that use libneo usually fetch it through CMake; NEO-2, NEO-RT and KAMEL
+accept `LIBNEO_REF=<branch|tag|sha>` to select a revision.
 
-Generic spatial field derivatives, interpolation/error diagnostics and
-representation-level enclosures belong here when they are reusable. Physical
-equilibrium/kinetic residuals, implicit parameter adjoints, validated
-stationary solves and model-error bounds remain KIN6D responsibilities. An old
-evaluator that is too costly to make rigorous may remain an importer into a
-canonical KIN6D representation rather than being duplicated.
+## Python package
 
-## Getting started
-
-### Prerequisites
-`libneo` requires CMake, Ninja, GCC+GFortran, OpenMPI, 
-a BLAS/LAPACK (OpenBLAS or MKL) and FFTW, NetCDF+NetCDF-Fortran 
-and HDF5 including development headers.
-
-For your own Debian or Ubuntu system, run `setup/debian.sh`.
-For usage on common computing clusters, load the modules in `setup/<machine>.sh`.
-
-### Build
-For convenience, the build process can be automatically started by running
-
-    make
-
-directly in the `libneo` directory. This will create a `build` subdirectory
-and run `cmake` with `ninja` internally. 
-
-Fortio and Fortnum revisions are defined in `fpm.toml`. Both the main CMake
-build and standalone `h5merge` read those defaults. To test another revision,
-configure with `-DFORTIO_REF=<ref>` or `-DFORTNUM_REF=<ref>`; local source
-overrides remain available through CMake's FetchContent options.
-
-After changing a revision in `fpm.toml`, run
-`python3 ci/sync_dependency_pins.py` to regenerate the Nix inputs and lockfile.
-CI checks their consistency with `python3 ci/sync_dependency_pins.py --check`.
-
-### Install Python interface
-The Python interface is located in the `python` subdirectory. This interface
-is only built if `python`, `numpy` and `f90wrap` are available. Please activate
-a suitable `venv` first, and then run
+Inside a virtual environment, from the repository root:
 
     pip install -e .
 
-in the `libneo` directory for an editable build.
-
-## doc
-Documentation, this includes user documentation and interface
-documentation. The latter is generated via doxygen.
-
-## matlab
-Matlab library that contains various functions, classes and code interfaces for general and specific uses.
-
-### EFIT
-A class to read/write/modify equilibrium g-files (commonly wrongly called efit files).
-
-### GPEC_interface
-A minimalist interface to run the code GPEC together with DCON.
-
-### InputFile
-A class that can be used to read/create/modify inputfiles that contain Fortran Namelists.
-
-### KIN
-A class that can write .kin files (kinetic profiles saved column wise)
-
-### KiLCA_interface
-Interface to prepare/run/postprocess the code KiLCA. A compiled version of KiLCA is needed (see [here](https://github.com/itpplasma/KiLCA))
-
-### Shared
-Shared classes and functions of the Matlab library.
-
-### Utility
-Classes and functions that have a general use for many application.
-
-## python
-Python interface package and scripts/functions.
-
-### Chartmap generators
-Generate `*.chartmap.nc` volumes compatible with `libneo_coordinates`.
-
-For map2disc-generated chartmaps, `zeta` is the cylindrical toroidal angle
-(`zeta_convention=cyl`) and `rho` is a geometric disk radius (`rho_convention=unknown`).
-
-#### VMEC angle conventions (`phi`, `zeta`, `nfp`)
-VMEC documentation commonly writes Fourier factors as `exp(i*(m*theta - n*zeta))`.
-In VMEC `wout_*.nc` files:
-
-- `xm` stores poloidal mode numbers `m`.
-- `xn` stores signed toroidal mode numbers including field periods: `xn = n*nfp`.
-- `zeta`/`varphi` is the geometric toroidal angle in radians (often `atan2(y,x)`); some
-  tools reduce it modulo one field period (`2*pi/nfp`), but this does not change the
-  Fourier phase because `xn` already contains `nfp`.
-
-So the consistent real-space evaluation with `wout` coefficients is:
-
-- `cos(m*theta - xn*zeta)` and `sin(m*theta - xn*zeta)` (i.e. keep the minus inside).
-
-For the magnetic axis, VMEC stores `zaxis_cs` but uses the same phase convention, so:
-
-- `Z_axis(zeta) = sum_n zaxis_cs(n) * sin(-n*nfp*zeta)` (using `sin(-x) = -sin(x)`).
-
-#### NEMEC to VMEC conversion
-
-`nemec2vmec` converts text NEMEC `wout.*` files to VMEC-style NetCDF `wout.nc`
-files:
-
-    nemec2vmec wout.nemec wout.nc
-
-The converter targets VMEC wout conventions. The NEMEC output manual distributed
-with Strumberger/Tichmann data defines the same geometric phase:
-
-- `R` and `Z` use `cos(m*theta - n*zeta*nfp)` and
-  `sin(m*theta - n*zeta*nfp)`.
-- The output stores `hphip = (1 / (2*pi)) * dPhi/ds`; VMEC `phipf` and `phips`
-  store `dPhi/ds`, so `nemec2vmec` writes `-2*pi*hphip` for AUG-like NEMEC
-  equilibria where `Phi` decreases from axis to edge.
-- `signgs` is written as `-1`, matching VMEC's negative Jacobian convention.
-
-The VMEC-side convention is cross-checked against [STELLOPT `read_wout_mod.f90`][stellopt-wout]
-and [DESC `vmec.py`][desc-vmec]:
-`xn` includes `nfp`, and real-space evaluation uses `m*theta - xn*zeta`.
-
-[stellopt-wout]: https://github.com/PrincetonUniversity/STELLOPT/blob/develop/LIBSTELL/Sources/Modules/read_wout_mod.f90
-[desc-vmec]: https://github.com/PlasmaControl/DESC/blob/master/desc/vmec.py
-
-Install dependencies:
-
-    pip install -e ".[chartmap]"
-
-Python API:
-
-    from libneo.chartmap import write_chartmap_from_vmec_boundary
-    write_chartmap_from_vmec_boundary("wout.nc", "wout.chartmap.nc", nrho=33, ntheta=65, nzeta=33)
-
-CLI:
+The Fortran wrappers are built only if `numpy` and `f90wrap` are available.
+Optional extras: `.[chartmap]` for the chartmap generators, `.[dev]` for tests.
+Example:
 
     libneo-write-chartmap from-vmec wout.nc wout.chartmap.nc --nrho 33 --ntheta 65 --nzeta 33
 
-VMEC with cubic Hermite extension beyond LCFS (no map2disc dependency, C1 continuous):
+## Documentation
 
-    libneo-write-chartmap from-vmec-extended wout.nc wout.chartmap.nc \
-        --nrho-vmec 25 --boundary-offset 0.15
+- [doc/python.md](doc/python.md): Python package, chartmaps, VMEC and NEMEC
+  conventions, coil and ASCOT5 tools.
+- [doc/efit_to_boozer/](doc/efit_to_boozer/README.md): EFIT to Boozer
+  converter.
+- [doc/Poincare.md](doc/Poincare.md): Poincare plot module.
+- [doc/ascot5.md](doc/ascot5.md): ASCOT5 field export.
+- [doc/matlab.md](doc/matlab.md): MATLAB library.
+- `doc/UserDoc/`: LaTeX user documentation of older modules.
+- `docs/`: Sphinx documentation of the Python interface, built in CI.
 
-This mode uses exact VMEC coordinates inside the LCFS and extends beyond using cubic
-Hermite interpolation along coordinate line tangents, providing C1 continuity at the
-boundary suitable for symplectic integrators.
+## Contributing
 
-VMEC extended to STL wall boundary (no map2disc dependency, C1 continuous):
-
-    libneo-write-chartmap from-vmec-to-wall wout.nc wall.stl wout.chartmap.nc \
-        --rho-lcfs 0.8 --nrho 33 --ntheta 65 --nzeta 33
-
-STL unit handling:
-- STL has no unit metadata; libneo assumes **meters** by default.
-- For engineer CAD STLs in **mm**, pass `--stl-units mm` (or `--stl-scale 1e-3`).
-
-This mode combines VMEC coordinates inside the LCFS with linear interpolation
-to a wall boundary extracted from an STL file. The radial coordinate `rho` ranges from
-0 to 1, where `rho <= rho_lcfs` corresponds to VMEC surfaces (with `s = (rho/rho_lcfs)^2`)
-and `rho = 1` lies exactly on the wall boundary. Poloidal points are matched between
-the LCFS and wall by aligning both curves to start at their outboard midplane and
-interpolating by fractional position along the curve.
-
-### Coils format converter
-Convert STELLOPT coils format to simple biotsavart format:
-
-    python -m libneo.convert_coils_to_simple input.coils output.simple
-
-The simple format is compatible with libneo's `neo_biotsavart` module and SIMPLE code.
-
-### ASCOT5 helpers
-- `libneo.ascot5.field_from_vmec` – sample a VMEC equilibrium using the f2py-generated
-  `_magfie` wrappers and produce an ASCOT5-compatible `B_3DS` field (keeps CGS
-  internally; converts to SI during export).
-- `libneo.ascot5.field_from_mgrid` – convert an ASCOT5 mgrid NetCDF file into the same
-  `B3DSField` dataclass, enabling a unified write path.
-- `libneo.ascot5.write_b3ds_hdf5` – emit the field to HDF5 with the correct metadata
-  layout. See `doc/ascot5.md` for workflow details and troubleshooting.
-
-## src
-Fortran source files for the library.
-Subfolders contain source for additional tools, also compiled into
-libneo.
-
-### hdf5_tools
-Interface to hdf5, to simplify calls.
-
-### magfie
-
-### MC
-
-
-### poincare
-Poincare plot generation for magnetic field lines. Computes field line trajectories 
-and their intersections with toroidal cross-sections to visualize magnetic islands, 
-chaos regions, and flux surface structure.
-
-## tests
-Contains resources for tests of the library.
-
-## Merging
-
-- Pull requests, including every layer of a stacked PR, run the fast CI tier.
-  Label a PR `full-ci` to run the full tier on it before queueing.
-- Review a stack layer by layer. When it is ready, collapse it into one PR into
-  `main` (retarget the top layer to `main`); the lower PRs then show as merged.
-- Click "Merge when ready" (or `gh pr merge --merge --auto`). The PR enters the
-  merge queue, the full CI tier runs on the exact merge result, and on success
-  it lands on `main` as a merge commit. `main` itself is not re-tested on push.
-- A branch need not be up to date with `main`. Merge `main` into a PR only
-  when it conflicts.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for dependency pins and the merge
+workflow, and [CODING_STANDARD.md](CODING_STANDARD.md) for conventions.
 
 ## License
-Original libneo code is MIT-licensed, see `LICENSE`. Vendored third-party
-code and linked libraries carry their own licenses with their own obligations;
-`THIRD_PARTY.md` lists them.
+
+Original libneo code is MIT-licensed, see [LICENSE](LICENSE). Vendored
+third-party code and linked libraries carry their own licenses;
+[THIRD_PARTY.md](THIRD_PARTY.md) lists them.
