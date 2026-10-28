@@ -1,0 +1,144 @@
+#!/bin/bash
+# Reverse-dependency gate: build and fast-test each downstream code against the
+# libneo commit REF and fail unless every blocking downstream is green.
+#
+# ci/downstreams is the single source of the gated set: one row per downstream.
+# Each row's workflow is dispatched with `-f libneo_ref=<sha>` for the fast tier.
+# FULL=true also runs each downstream's slow suite, dispatched per that
+# downstream's own convention (the row's `full` column, see ci/downstreams).
+#
+# Needs GH_TOKEN with actions:write on the downstreams (dispatch + read their
+# runs). REF must be a commit on origin, so the downstream's FetchContent can
+# resolve it.
+set -u
+fail=0
+
+# Block until a dispatched run reaches a terminal state and return its
+# TRUE verdict. gh run watch is best-effort: it can exit nonzero on a
+# transient API hiccup while the run is still in progress, so its exit
+# status is never trusted. The run's own status/conclusion is
+# authoritative, re-queried with tolerance for transient read failures
+# so a watch or query glitch is never mistaken for a failed run.
+# Returns 0 success, 2 cancelled (retryable by the caller), 1 any
+# other terminal state or timeout.
+# Polls with plain run-view reads: gh run watch re-queries every few
+# seconds and five sequential downstream waits can exhaust the shared
+# hourly API quota of the token, which then kills the gate itself.
+await_run() {
+  local repo=$1 run_id=$2 deadline=$((SECONDS + 5400)) misses=0 state
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    state=$(gh run view "$run_id" -R "itpplasma/$repo" \
+              --json status,conclusion \
+              -q '"\(.status) \(.conclusion)"' 2>/dev/null)
+    if [ -z "$state" ]; then
+      misses=$((misses + 1))
+      [ "$misses" -ge 10 ] && {
+        echo "::error::$repo run $run_id: cannot read status after retries"
+        return 1
+      }
+      sleep 30; continue
+    fi
+    misses=0
+    case "$state" in
+      "completed success") return 0 ;;
+      "completed cancelled")
+        echo "::warning::$repo run $run_id was cancelled (likely superseded by a concurrent dispatch)"
+        return 2 ;;
+      "completed "*)
+        echo "::error::$repo run $run_id concluded ${state#completed }"
+        return 1 ;;
+    esac
+    sleep 30
+  done
+  echo "::error::$repo run $run_id did not finish within timeout"
+  return 1
+}
+
+# Dispatch one workflow against libneo REF and wait for its run.
+# Always sends libneo_ref=$REF; extra API input fields are appended. Returns
+# non-zero only on a dispatch failure, a run that never appears, or a
+# genuine non-success conclusion.
+#
+# Downstream workflow_dispatch runs can share a concurrency group
+# keyed only on the workflow name (not on libneo_ref or PR), so two
+# libneo PRs dispatching the same downstream at nearly the same time
+# can cancel each other's run. That cancellation says nothing about
+# this PR's libneo — retry a few times with backoff before giving up.
+run_wf() {
+  local repo=$1 wf=$2; shift 2
+  if [ "$repo" = KAMEL ] && [ "$wf" = ci.yml ]; then
+    set -- "$@" -f "inputs[skip_macos]=true"
+  fi
+  local run_id="" attempt rc
+  for attempt in 1 2 3; do
+    # The dispatch response identifies this run even when another PR
+    # dispatches the same workflow concurrently. Never select a run
+    # from the repository-wide latest list. Retry transient API errors.
+    dispatched=0
+    for _ in 1 2 3; do
+      if run_id=$(gh api --method POST \
+           "repos/itpplasma/$repo/actions/workflows/$wf/dispatches" \
+           -H "Accept: application/vnd.github+json" \
+           -H "X-GitHub-Api-Version: 2022-11-28" \
+           -f ref=main -F return_run_details=true \
+           -f "inputs[libneo_ref]=$REF" "$@" \
+           --jq '.workflow_run_id // empty'); then
+        dispatched=1; break
+      fi
+      sleep 30
+    done
+    if [ "$dispatched" -ne 1 ]; then
+      echo "::error::failed to dispatch $repo ($wf) — missing workflow_dispatch trigger or persistent API error"
+      return 1
+    fi
+    if ! [[ "$run_id" =~ ^[1-9][0-9]*$ ]]; then
+      echo "::error::$repo ($wf): dispatch returned no valid run ID"
+      return 1
+    fi
+    echo "https://github.com/itpplasma/$repo/actions/runs/$run_id"
+    # Informative downstreams never make this required gate wait.
+    [ "${blocks:-1}" -eq 1 ] || return 0
+    await_run "$repo" "$run_id"; rc=$?
+    [ "$rc" -eq 2 ] || return "$rc"
+    echo "::warning::$repo ($wf) retry $attempt/3 after cancellation"
+    sleep $((attempt * 20))
+  done
+  echo "::error::$repo ($wf) cancelled on every retry"
+  return 1
+}
+
+# FULL=true also runs each downstream's
+# slow suite, dispatched per that downstream's own convention (the
+# ci/downstreams full column); otherwise only the sub-minute fast tier.
+while read -r repo wf blocking full_ci; do
+  [ -z "${repo:-}" ] && continue
+  # blocking=no rows are dispatched and reported but never set fail.
+  blocks=1
+  [ "${blocking:-yes}" != yes ] && blocks=0
+  echo "::group::$repo ($wf) against libneo $REF (full=$FULL, blocking=$blocks)"
+  rc=0
+  if [ "$FULL" = true ] && [ "${full_ci:-no}" = yes ]; then
+    # self: the downstream's one workflow carries its own slow tier.
+    run_wf "$repo" "$wf" -f "inputs[full]=true" || rc=1
+  else
+    run_wf "$repo" "$wf" || rc=1
+    if [ "$FULL" = true ] && [ "${full_ci:-no}" != no ]; then
+      # extra workflows: the downstream keeps its slow suite separate.
+      IFS=',' read -ra extra <<< "$full_ci"
+      for ewf in "${extra[@]}"; do
+        run_wf "$repo" "$ewf" || rc=1
+      done
+    fi
+  fi
+  if [ "$blocks" = 0 ]; then
+    echo "$repo: dispatched for informative results"
+  elif [ "$rc" = 0 ]; then
+    echo "$repo: green"
+  elif [ "$blocks" = 1 ]; then
+    echo "::error::$repo CI red against libneo $REF"; fail=1
+  else
+    echo "::warning::$repo CI red against libneo $REF — report-only, not failing the gate"
+  fi
+  echo "::endgroup::"
+done < <(grep -vE '^[[:space:]]*#|^[[:space:]]*$' ci/downstreams)
+exit $fail

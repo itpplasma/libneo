@@ -1,0 +1,103 @@
+name: nightly
+
+# The slow tier once a night on main: the full native suites (slow tests,
+# pytest, ASCOT5 comparison) and the downstream gate. When a job fails, the
+# triage job bisects that job's command between the last green nightly and
+# this commit and files or updates one issue labelled nightly-failure; the
+# next green nightly closes it. Job commands live in ci/nightly-jobs.json.
+
+on:
+  schedule:
+    - cron: "23 1 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Also run each downstream's slow suite (ci/downstreams full column)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and test (Release)
+    runs-on: [self-hosted, itp-build]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 ci/nightly_triage.py run "Build and test (Release)"
+
+  debug:
+    name: Build and test (Debug)
+    runs-on: [self-hosted, itp-build]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 ci/nightly_triage.py run "Build and test (Debug)"
+
+  downstream:
+    name: Downstream gate
+    # Waiting on downstream runs must not hold a test runner they need.
+    runs-on: [self-hosted, itp-light]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+      - env:
+          RELEASE_BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
+          NIGHTLY_FULL: ${{ inputs.full || false }}
+        run: python3 ci/nightly_triage.py run "Downstream gate"
+
+  triage:
+    name: Bisect failing jobs and report
+    needs: [release, debug, downstream]
+    if: failure()
+    runs-on: [self-hosted, itp-build]
+    timeout-minutes: 600
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Provide the GitHub CLI for the downstream gate
+        run: |
+          if ! command -v gh >/dev/null; then
+            curl -fsSL https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_amd64.tar.gz \
+              | tar -xz -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/gh_2.63.2_linux_amd64/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Bisect and file or update the nightly-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
+          NIGHTLY_FULL: ${{ inputs.full || false }}
+        run: python3 ci/nightly_triage.py failure
+
+  close:
+    name: Close the nightly-failure issue
+    needs: [release, debug, downstream]
+    runs-on: [self-hosted, itp-light]
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Close the issue once the nightly is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ci/nightly_triage.py success

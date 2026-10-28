@@ -1,0 +1,5 @@
+{
+  "Build and test (Release)": "LIBNEO_TESTING=1 SCI_MATRIX_BUILD_TYPE=Release SCI_CONDITION_9=true SCI_CONDITION_10=true SCI_CONDITION_11=true SCI_CONDITION_12=true ci/run.sh main-GNU",
+  "Build and test (Debug)": "LIBNEO_TESTING=1 SCI_MATRIX_BUILD_TYPE=Debug SCI_CONDITION_9=false SCI_CONDITION_10=false SCI_CONDITION_11=false SCI_CONDITION_12=false ci/run.sh main-GNU",
+  "Downstream gate": "GH_TOKEN=\"$RELEASE_BOT_TOKEN\" REF=\"$(git rev-parse HEAD)\" FULL=\"${NIGHTLY_FULL:-false}\" ci/downstream_gate.sh"
+}
