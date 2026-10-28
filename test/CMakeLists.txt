@@ -611,6 +611,7 @@ target_link_libraries(test_python_chartmap_generator.x chartmap_test_utils)
 add_test(NAME test_python_chartmap_generator
   COMMAND test_python_chartmap_generator.x)
 set_tests_properties(test_python_chartmap_generator PROPERTIES
+  LABELS slow
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_chartmap_python)
