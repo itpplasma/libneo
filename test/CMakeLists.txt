@@ -885,6 +885,7 @@ target_link_libraries(test_sfl_routes.x neo)
 add_test(NAME test_sfl_routes
   COMMAND test_sfl_routes.x)
 set_tests_properties(test_sfl_routes PROPERTIES
+  LABELS slow
   FAIL_REGULAR_EXPRESSION "FAIL"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED "vmec_wout;vmec_wout_li383;vmec_wout_circular_tokamak;vmec_wout_updown_tokamak")

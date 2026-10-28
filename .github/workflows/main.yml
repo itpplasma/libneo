@@ -39,10 +39,12 @@ jobs:
           SCI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
           SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
           SCI_MATRIX_BUILD_TYPE: Release
-          SCI_CONDITION_9: ${{ true }}
-          SCI_CONDITION_10: ${{ true }}
-          SCI_CONDITION_11: ${{ true }}
-          SCI_CONDITION_12: ${{ true }}
+          # The merge queue runs the fast tier; pytest, ASCOT5 and slow tests run nightly.
+          SCI_CONDITION_9: ${{ github.event_name != 'merge_group' }}
+          SCI_CONDITION_10: ${{ github.event_name != 'merge_group' }}
+          SCI_CONDITION_11: ${{ github.event_name != 'merge_group' }}
+          SCI_CONDITION_12: ${{ github.event_name != 'merge_group' }}
+          SCI_CTEST_ARGS: ${{ github.event_name == 'merge_group' && '-LE slow' || '' }}
         run: |-
           ci/run.sh main-GNU
       - name: Set up Python
@@ -165,6 +167,7 @@ jobs:
           SCI_CONDITION_10: ${{ false }}
           SCI_CONDITION_11: ${{ false }}
           SCI_CONDITION_12: ${{ false }}
+          SCI_CTEST_ARGS: ${{ github.event_name == 'merge_group' && '-LE slow' || '' }}
         run: |-
           ci/run.sh main-GNU
       - name: Set up Python

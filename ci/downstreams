@@ -1,13 +1,13 @@
-# Downstream codes gated on every libneo PR. This file is the single source of
-# the gated set: add a downstream by appending one row; the gate workflow needs
-# no edit. The chosen workflow must accept a `libneo_ref` input.
+# Downstream codes gated against libneo main in the nightly run (nightly.yml,
+# ci/downstream_gate.sh). This file is the single source of the gated set: add a
+# downstream by appending one row; the gate script needs no edit. The chosen workflow must accept a `libneo_ref` input.
 #
 # Columns: <repo> <workflow> <blocking> <full>
 #   workflow   dispatched with `-f libneo_ref=<sha>` to build + fast-test the
-#              downstream against this PR's libneo. Must accept that input on
+#              downstream against the libneo commit. Must accept that input on
 #              the downstream's default branch.
-#   blocking   yes = a red run fails the libneo PR. no = report-only.
-#   full       what to also run when the libneo PR is labeled `full-ci`. The
+#   blocking   yes = a red run fails the gate. no = report-only.
+#   full       what to also run when the nightly is dispatched with full=true. The
 #              downstream picks its own convention; the gate does not force one:
 #                no              fast-only; the slow suite runs on the
 #                                downstream's own PRs instead.
