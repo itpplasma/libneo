@@ -48,7 +48,8 @@ jobs:
 
   downstream:
     name: Downstream gate
-    runs-on: [self-hosted, itp-ubuntu24]
+    # Waiting on downstream runs must not hold a test runner they need.
+    runs-on: [self-hosted, itp-light]
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
