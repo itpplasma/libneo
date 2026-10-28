@@ -326,6 +326,7 @@ add_test(NAME test_rng COMMAND test_rng.x)
 add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
 add_test(NAME test_spline_cgls_global COMMAND test_spline_cgls_global.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
+set_tests_properties(test_interpolate PROPERTIES LABELS slow)
 add_test(NAME test_batch_interpolate COMMAND test_batch_interpolate.x)
 add_test(NAME test_batch_interpolate_der3 COMMAND test_batch_interpolate_der3.x)
 add_test(NAME test_batch_interpolate_many COMMAND test_batch_interpolate_many.x)
@@ -447,6 +448,7 @@ add_test(
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(setup_vmec_chartmap_python PROPERTIES
+  LABELS slow
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_wout
   FIXTURES_SETUP vmec_chartmap_python
@@ -469,6 +471,7 @@ add_test(
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python.chartmap.nc
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python PROPERTIES
+  LABELS slow
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_chartmap_python
 )
@@ -481,6 +484,7 @@ add_test(
           --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python.chartmap_boundary.png
 )
 set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python PROPERTIES
+  LABELS slow
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_chartmap_python
 )
@@ -492,6 +496,7 @@ add_test(
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap.nc
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_cli PROPERTIES
+  LABELS slow
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_chartmap_python
 )
@@ -504,6 +509,7 @@ add_test(
           --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap_boundary.png
 )
 set_tests_properties(plot_vmec_map2disc_chartmap_boundary_cli PROPERTIES
+  LABELS slow
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_chartmap_python
 )
@@ -516,6 +522,7 @@ add_test(
           --boundary-offset 0.5
 )
 set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
+  LABELS slow
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_chartmap_python
 )
@@ -529,6 +536,7 @@ add_test(
           --boundary-offset 0.5
 )
 set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python_padded PROPERTIES
+  LABELS slow
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_chartmap_python
 )
