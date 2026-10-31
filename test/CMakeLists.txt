@@ -952,7 +952,7 @@ add_test(NAME test_coordinate_basis_jets COMMAND test_coordinate_basis_jets.x)
 set_tests_properties(test_coordinate_basis_jets PROPERTIES LABELS "unit;chartmap")
 
 add_executable(test_sfl_routes.x source/test_sfl_routes.f90)
-target_link_libraries(test_sfl_routes.x neo)
+target_link_libraries(test_sfl_routes.x LIBNEO::boozer)
 add_test(NAME test_sfl_routes
   COMMAND test_sfl_routes.x)
 set_tests_properties(test_sfl_routes PROPERTIES
@@ -999,7 +999,7 @@ set_tests_properties(test_hamada_to_boozer_legacy_low_q PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(test_sfl_quality.x source/test_sfl_quality.f90)
-target_link_libraries(test_sfl_quality.x neo)
+target_link_libraries(test_sfl_quality.x LIBNEO::boozer)
 add_test(NAME test_sfl_quality
   COMMAND test_sfl_quality.x)
 set_tests_properties(test_sfl_quality PROPERTIES
