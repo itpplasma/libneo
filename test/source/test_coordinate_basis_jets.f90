@@ -10,6 +10,7 @@ program test_coordinate_basis_jets
     real(dp) :: values(nr, nt, np, 3), u(3), b(3, 3), db(3, 3, 3)
     real(dp) :: bp(3, 3), bm(3, 3), shifted(3), fd(3, 3), rho, theta, step
     real(dp) :: expected(3, 3, 3), c, s, cp, sp, err
+    real(dp) :: x(3), x_ref(3), bv(3, 3), bj(3, 3), dbj(3, 3, 3)
     integer :: i, j, k, kind, axis
 
     call check_direction_derivative()
@@ -43,6 +44,16 @@ program test_coordinate_basis_jets
         do i = 1, 3
             u = [10.0_dp**(-i - 1), 0.37_dp, 0.42_dp + period]
             call chart%covariant_basis_with_der(u, b, db)
+            call chart%evaluate_cart(u, x_ref)
+            call chart%covariant_basis(u, bv)
+            call chart%cart_and_covariant_basis(u, x, bp)
+            if (maxval(abs(x - x_ref)) > 1.0e-12_dp*maxval(abs(x_ref)) .or. &
+                maxval(abs(bp - bv)) > 1.0e-12_dp*maxval(abs(bv))) &
+                error stop 'chart position and basis differ from separate calls'
+            call chart%cart_and_covariant_basis_with_der(u, x, bj, dbj)
+            if (maxval(abs(x - x_ref)) > 1.0e-12_dp*maxval(abs(x_ref)) .or. &
+                any(bj /= b) .or. any(dbj /= db)) &
+                error stop 'chart position and basis jet differ from separate calls'
             c = cos(u(2)); s = sin(u(2)); cp = cos(u(3)); sp = sin(u(3))
             expected = 0.0_dp
             expected(:, 1, 2) = [-35*s*cp, -35*s*sp, 35*c]
