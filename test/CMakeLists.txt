@@ -702,6 +702,68 @@ set_tests_properties(test_boozer_converter_vs_simple PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_wout)
 
+add_executable(test_boozer_hybrid_grid.x source/test_boozer_hybrid_grid.f90)
+target_link_libraries(test_boozer_hybrid_grid.x neo)
+add_test(NAME test_boozer_hybrid_grid COMMAND test_boozer_hybrid_grid.x)
+set_tests_properties(test_boozer_hybrid_grid PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383")
+
+add_executable(test_boozer_hybrid_resample.x source/test_boozer_hybrid_resample.f90)
+target_link_libraries(test_boozer_hybrid_resample.x neo)
+add_test(NAME test_boozer_hybrid_resample COMMAND test_boozer_hybrid_resample.x)
+set_tests_properties(test_boozer_hybrid_resample PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383")
+
+add_test(
+  NAME setup_vmec_wout_qh
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case qh
+)
+
+add_test(
+  NAME setup_booz_xform_qh
+  COMMAND ${Python_EXECUTABLE} -m libneo.run_booz_xform
+          ${CMAKE_CURRENT_BINARY_DIR}/wout_qh.nc
+          ${CMAKE_CURRENT_BINARY_DIR}/boozmn_qh.nc
+          --mboz 32 --nboz 32 --surfaces 34,43,47
+)
+set_tests_properties(setup_booz_xform_qh PROPERTIES
+  DEPENDS setup_vmec_wout_qh)
+
+add_executable(test_boozer_hybrid_vs_booz_xform.x
+  source/test_boozer_hybrid_vs_booz_xform.f90)
+target_link_libraries(test_boozer_hybrid_vs_booz_xform.x neo)
+add_test(NAME test_boozer_hybrid_vs_booz_xform
+  COMMAND test_boozer_hybrid_vs_booz_xform.x)
+set_tests_properties(test_boozer_hybrid_vs_booz_xform PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS setup_booz_xform_qh)
+
+add_executable(test_sfl_radial_second.x source/test_sfl_radial_second.f90)
+target_link_libraries(test_sfl_radial_second.x neo)
+add_test(NAME test_sfl_radial_second COMMAND test_sfl_radial_second.x)
+set_tests_properties(test_sfl_radial_second PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_executable(test_boozer_axis_continuation.x source/test_boozer_axis_continuation.f90)
+target_link_libraries(test_boozer_axis_continuation.x neo)
+add_test(NAME test_boozer_axis_continuation COMMAND test_boozer_axis_continuation.x)
+set_tests_properties(test_boozer_axis_continuation PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_executable(test_boozer_axis_ad.x source/test_boozer_axis_ad.f90)
+target_link_libraries(test_boozer_axis_ad.x neo)
+add_test(NAME test_boozer_axis_ad COMMAND test_boozer_axis_ad.x)
+set_tests_properties(test_boozer_axis_ad PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "setup_vmec_wout;setup_vmec_wout_li383")
+
 add_test(
   NAME setup_vmec_wout_li383
   COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py

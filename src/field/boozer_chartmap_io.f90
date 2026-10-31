@@ -26,7 +26,7 @@ contains
         character(len=*), intent(in) :: filename
         type(boozer_chartmap_data_t), intent(out) :: d
 
-        integer :: ncid, status, dimid, varid
+        integer :: ncid, status, dimid, varid, attribute_type, attribute_length
         integer :: n_rho, n_theta_geom, n_phi_geom
         real(dp), allocatable :: theta_geom(:), zeta_geom(:)
         real(dp), allocatable :: bmod_file(:, :, :)
@@ -72,6 +72,19 @@ contains
             "att torflux")
         status = nf90_get_att(ncid, nf90_global, "aminor_m", d%aminor)
         if (status /= nf90_noerr) d%aminor = 0.0_dp
+        status = nf90_inquire_attribute(ncid, nf90_global, "regular_radial_factor", &
+                                       xtype=attribute_type, len=attribute_length)
+        if (status == nf90_enotatt) then
+            d%regular_radial_factor = 1
+        else
+            call check(status, "att regular_radial_factor")
+            if (attribute_type /= nf90_int) error stop 'chartmap regular_radial_factor must be NC_INT'
+            if (attribute_length /= 1) error stop 'chartmap regular_radial_factor must be scalar'
+            call check(nf90_get_att(ncid, nf90_global, "regular_radial_factor", d%regular_radial_factor), &
+                       "get regular_radial_factor")
+        end if
+        if (d%regular_radial_factor /= 1 .and. d%regular_radial_factor /= 2) &
+            error stop 'chartmap regular_radial_factor must be 1 or 2'
         call require_scalar_variable(ncid, "num_field_periods")
         call check(nf90_inq_varid(ncid, "num_field_periods", varid), &
             "inq_var num_field_periods")
