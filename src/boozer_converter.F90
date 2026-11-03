@@ -42,6 +42,7 @@ module boozer_sub
     public :: splint_boozer_coord_device
     public :: splint_boozer_rk_device, boozer_rk_device_supported
     public :: splint_boozer_rmix_device, boozer_rmix_field_t
+    public :: get_boozer_batch_splines
     public :: reset_boozer_batch_splines
     public :: vmec_to_boozer, boozer_to_vmec
     public :: delthe_delphi_BV
@@ -94,7 +95,7 @@ module boozer_sub
     !$acc declare create(boozer_state)
 
     ! Batch spline data for 3D field quantities (Bmod, sqrt_g_ss, optionally B_r)
-    type(BatchSplineData3D), save :: field3d_batch_spline = BatchSplineData3D( &
+    type(BatchSplineData3D), save, target :: field3d_batch_spline = BatchSplineData3D( &
         order=[0, 0, 0], num_points=[0, 0, 0], periodic=.false., &
         h_step=1.0_dp, x_min=1.0_dp, inv_h_step=1.0_dp, period=1.0_dp, &
         num_quantities=0)
@@ -109,13 +110,13 @@ module boozer_sub
     ! A_phi, dA_phi/ds, B_theta, dB_theta/ds, B_phi, dB_phi/ds.
 
     ! Batch spline for A_phi (vector potential)
-    type(BatchSplineData1D), save :: aphi_batch_spline = BatchSplineData1D( &
+    type(BatchSplineData1D), save, target :: aphi_batch_spline = BatchSplineData1D( &
         order=0, num_points=0, periodic=.false., x_min=1.0_dp, &
         h_step=1.0_dp, inv_h_step=1.0_dp, period=1.0_dp, num_quantities=0)
     logical, save :: aphi_batch_spline_ready = .false.
 
     ! Batch spline for B_theta, B_phi covariant components
-    type(BatchSplineData1D), save :: bcovar_tp_batch_spline = BatchSplineData1D( &
+    type(BatchSplineData1D), save, target :: bcovar_tp_batch_spline = BatchSplineData1D( &
         order=0, num_points=0, periodic=.false., x_min=1.0_dp, &
         h_step=1.0_dp, inv_h_step=1.0_dp, period=1.0_dp, num_quantities=0)
     logical, save :: bcovar_tp_batch_spline_ready = .false.
@@ -703,6 +704,25 @@ contains
         fld%d2B_vartheta = d2y1d(1)*drhods2 - dy1d(1)*d2rhods2m
         fld%d2B_varphi = d2y1d(2)*drhods2 - dy1d(2)*d2rhods2m
     end subroutine splint_boozer_rmix_device
+
+    !> Read-only views of the batch splines behind splint_boozer_rmix_device,
+    !> for back ends that keep their own device copy. `ready` is false, and
+    !> the pointers are null, before the Boozer field has been built.
+    subroutine get_boozer_batch_splines(aphi, bcov, field3d, ready)
+        type(BatchSplineData1D), pointer, intent(out) :: aphi, bcov
+        type(BatchSplineData3D), pointer, intent(out) :: field3d
+        logical, intent(out) :: ready
+
+        aphi => null()
+        bcov => null()
+        field3d => null()
+        ready = aphi_batch_spline_ready .and. bcovar_tp_batch_spline_ready .and. &
+                field3d_batch_spline_ready
+        if (.not. ready) return
+        aphi => aphi_batch_spline
+        bcov => bcovar_tp_batch_spline
+        field3d => field3d_batch_spline
+    end subroutine get_boozer_batch_splines
 
     logical function boozer_rk_device_supported()
         use boozer_rk_tables, only: rk_tables_ready
