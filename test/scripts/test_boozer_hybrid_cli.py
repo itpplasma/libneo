@@ -46,7 +46,10 @@ def write_input(path, construction=None, iotas=None, seed=None, override=None):
     with Dataset(path, "w", format="NETCDF3_CLASSIC") as data:
         data.createDimension("s", len(SURFACES))
         data.createVariable("s", "f8", ("s",))[:] = SURFACES
-        for name, value in (("mboz", 8), ("nboz", 6), ("grid_refinement", 3)):
+        # Four quality surfaces instead of 16: this test checks dispatch and
+        # derivatives; the quality check has its own tests.
+        for name, value in (("mboz", 8), ("nboz", 6), ("grid_refinement", 3),
+                            ("quality_n_check", 4)):
             data.createVariable(name, "i4")[...] = value
         if construction is not None:
             data.createVariable("construction", "i4")[...] = construction
