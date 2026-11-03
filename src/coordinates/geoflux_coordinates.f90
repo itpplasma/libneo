@@ -654,7 +654,10 @@ contains
 
         ! Three-point Gauss-Legendre is exact for the quintic q(psi) spline on
         ! each grid interval, so the integral carries only the spline error.
-        real(dp), parameter :: gl_x(3) = [-sqrt(0.6_dp), 0.0_dp, sqrt(0.6_dp)]
+        ! The nodes are +-sqrt(3/5), written out because nvfortran rejects
+        ! sqrt in an array constant.
+        real(dp), parameter :: gl_x(3) = [-0.774596669241483377035853079956479922_dp, &
+                                        0.0_dp, 0.774596669241483377035853079956479922_dp]
         real(dp), parameter :: gl_w(3) = [5.0_dp, 8.0_dp, 5.0_dp] / 9.0_dp
         type(SplineData1D) :: q_of_psi
         integer :: i, k, npsi
