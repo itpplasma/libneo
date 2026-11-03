@@ -380,7 +380,7 @@ target_link_libraries(boozer PUBLIC
 # output is the build input; regeneration needs a FortSym build tree at the
 # pinned revision (configure with -DLIBNEO_FORTSYM_BUILD=<fortsym build>).
 set(LIBNEO_FORTSYM_BUILD "" CACHE PATH "Optional FortSym build tree for regeneration")
-set(LIBNEO_FORTSYM_REVISION "bcc7b15fe50e81bb7770ceb2f35a641bd555d214")
+set(LIBNEO_FORTSYM_REVISION "3cdb53a9494ef034d19cb621a4e082b31da66157")
 if(LIBNEO_FORTSYM_BUILD)
     file(STRINGS "${LIBNEO_FORTSYM_BUILD}/CMakeCache.txt" fortsym_source
         REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL=")
@@ -397,15 +397,18 @@ if(LIBNEO_FORTSYM_BUILD)
         ${CMAKE_BINARY_DIR}/gen_include/libneo_fortsym_revision.inc @ONLY)
     add_library(libneo_gen_support STATIC gen/libneo_gen_support.f90)
     target_include_directories(libneo_gen_support PUBLIC
-        ${LIBNEO_FORTSYM_BUILD}/include ${CMAKE_BINARY_DIR}/gen_include)
+        ${LIBNEO_FORTSYM_BUILD}/include ${LIBNEO_FORTSYM_BUILD}/_deps/fortgen-build/include
+        ${CMAKE_BINARY_DIR}/gen_include)
     target_link_libraries(libneo_gen_support PUBLIC
-        ${LIBNEO_FORTSYM_BUILD}/lib/libfortsym${CMAKE_SHARED_LIBRARY_SUFFIX})
+        ${LIBNEO_FORTSYM_BUILD}/lib/libfortsym${CMAKE_SHARED_LIBRARY_SUFFIX}
+        ${LIBNEO_FORTSYM_BUILD}/lib/libfortgen${CMAKE_SHARED_LIBRARY_SUFFIX})
     # The generators use standard reallocation on assignment, which libneo
     # disables globally with -fno-realloc-lhs.
     target_compile_options(libneo_gen_support PUBLIC
         $<$<Fortran_COMPILER_ID:GNU>:-frealloc-lhs>)
     foreach(generator boozer_regular boozer_field_jacobian coordinate_jets boozer_hybrid_field
-            sfl_route_kernels efit_sfl boozer_axis_continuation)
+            sfl_route_kernels efit_sfl boozer_axis_continuation spline1d_horner
+            spline3d_horner)
         add_executable(gen_${generator} gen/gen_${generator}.f90)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}
