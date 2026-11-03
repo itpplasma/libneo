@@ -52,6 +52,9 @@ contains
 
         integer :: iq, k, idx, nq, N
         real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+        ! Locals for the generated kernel's explicit-shape outputs; device code
+        ! cannot pack a non-contiguous actual argument.
+        real(dp) :: yl(1), dyl(1), d2yl(1)
 
 #ifdef _OPENACC
         !$acc routine seq
@@ -70,6 +73,14 @@ contains
         x_norm = (xj - x_min)/h_step
         idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
         x_local = (x_norm - real(idx - 1, dp))*h_step
+
+        if (N == 5 .and. nq == 1) then
+            call spline1d_o5_d2_nq1(spl%coeff(1, 0, idx), x_local, yl, dyl, d2yl)
+            y(1) = yl(1)
+            dy(1) = dyl(1)
+            d2y(1) = d2yl(1)
+            return
+        end if
 
         do iq = 1, nq
             y(iq) = spl%coeff(iq, N, idx)
@@ -104,6 +115,7 @@ contains
 
         integer :: iq, k, idx, nq, N
         real(dp) :: xj, x_norm, x_local, x_min, h_step, period
+        real(dp) :: yl(1), dyl(1), d2yl(1), d3yl(1)
 
 #ifdef _OPENACC
         !$acc routine seq
@@ -122,6 +134,15 @@ contains
         x_norm = (xj - x_min)/h_step
         idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
         x_local = (x_norm - real(idx - 1, dp))*h_step
+
+        if (N == 5 .and. nq == 1) then
+            call spline1d_o5_d3_nq1(spl%coeff(1, 0, idx), x_local, yl, dyl, d2yl, d3yl)
+            y(1) = yl(1)
+            dy(1) = dyl(1)
+            d2y(1) = d2yl(1)
+            d3y(1) = d3yl(1)
+            return
+        end if
 
         do iq = 1, nq
             y(iq) = spl%coeff(iq, N, idx)
@@ -1193,4 +1214,5 @@ contains
       end do
    end subroutine evaluate_batch_spline_1d_pair_quintic_der
 
+#include "../generated/spline1d_horner_leaves.inc"
 end module batch_interpolate_1d

@@ -1,6 +1,7 @@
 program test_batch_interpolate_der_nq1
     ! Guards the single-quantity specialisation of the 3D first-derivative
-    ! batch-spline evaluator (evaluate_batch_splines_3d_der_core_nq1).
+    ! batch-spline evaluator (evaluate_batch_splines_3d_der_core_nq1), which
+    ! serves every order combination except the all-quintic one.
     !
     ! The specialisation exists for speed: the general kernel indexes coefficient
     ! arrays whose leading dimension is MAX_QUANTITIES, so with num_quantities = 1
@@ -103,7 +104,9 @@ contains
     subroutine check_dispatch_equivalence_bitwise(nfail)
         integer, intent(inout) :: nfail
 
-        integer, parameter :: order(3) = [5, 5, 5]
+        ! Quintic splines take the generated cell kernels; mixed orders keep
+        ! the nq1 kernel.
+        integer, parameter :: order(3) = [5, 4, 3]
         integer, parameter :: ngrid(3) = [14, 12, 11]
         integer, parameter :: npts = 500
         logical, parameter :: periodic(3) = [.true., .true., .true.]

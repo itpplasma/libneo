@@ -9,10 +9,14 @@ module libneo_gen_support
     use fortsym_engine_native, only: native_engine_t, make_native_engine
     use fortsym_string, only: str_t, str, chars
     use fortsym_kernel, only: kernel_spec_t, kernel_binding_t, emit_kernel
+    use fortgen_horner_emit, only: horner_kernel_spec_t, emit_horner_kernel
+    use fortgen_kernel_target, only: TARGET_FORTRAN_OPENACC
+    use fortgen_string, only: fg_str_t => str_t, fortgen_str => str, &
+                              fortgen_chars => chars
     implicit none
     private
     include 'libneo_fortsym_revision.inc'
-    public :: fortsym_revision, leaf_writer_t, binding
+    public :: fortsym_revision, leaf_writer_t, binding, write_spline_leaf
 
     !> Writes generated leaves into one file. The generator owns the arena; the
     !> writer owns the output unit, the simplifying engine and leaf conventions.
@@ -120,5 +124,50 @@ contains
         source = emit_kernel(roots, spec, ok, message=message)
         if (.not. ok) error stop message
         write (w%unit, '(a)') chars(source)
+    end subroutine
+
+    !> Emit the cell kernel spline<d>d_o<degree...>_<d<order>|rmix>_nq<nq|n> of
+    !> a fixed-degree batch spline: value and derivatives up to `order` of the
+    !> local polynomial for nq quantities (nq = 0: runtime count). `rmix` asks
+    !> for the value, the gradient and the second derivatives along direction 1.
+    subroutine write_spline_leaf(unit, d, degree, nq, order, rmix)
+        integer, intent(in) :: unit, d, degree, nq, order
+        logical, intent(in) :: rmix
+        type(horner_kernel_spec_t) :: spec
+        type(fg_str_t) :: source
+        character(:), allocatable :: message, name
+        character(16) :: text
+        logical :: ok
+
+        write (text, '(i0)') d
+        name = 'spline'//trim(text)//'d_o'
+        write (text, '(i0)') degree
+        name = name//repeat(trim(text), d)//'_'
+        if (rmix) then
+            name = name//'rmix'
+            allocate (spec%orders(3, 7))
+            spec%orders = reshape([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, &
+                                   2, 0, 0, 1, 1, 0, 1, 0, 1], [3, 7])
+        else
+            write (text, '(i0)') order
+            name = name//'d'//trim(text)
+        end if
+        if (nq == 0) then
+            name = name//'_nqn'
+        else
+            write (text, '(i0)') nq
+            name = name//'_nq'//trim(text)
+        end if
+        spec%name = fortgen_str(name)
+        spec%dimension = d
+        spec%degree = 0
+        spec%degree(1:d) = degree
+        spec%nq = nq
+        spec%max_order = order
+        spec%target = TARGET_FORTRAN_OPENACC
+        source = emit_horner_kernel(spec, ok, message)
+        if (.not. ok) error stop message
+        write (unit, '(a)') ''
+        write (unit, '(a)') fortgen_chars(source)
     end subroutine
 end module libneo_gen_support

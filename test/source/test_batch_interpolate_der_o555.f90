@@ -1,15 +1,14 @@
 program test_batch_interpolate_der_o555
-    ! Guards the quintic multi-quantity specialisation of the 3D first-derivative
-    ! batch-spline evaluator (evaluate_batch_splines_3d_der_core_o555).
+    ! Guards the quintic multi-quantity path of the 3D first-derivative
+    ! batch-spline evaluator (generated cell kernels).
     !
     ! The specialisation exists for speed: SIMPLE's SPECTRE full orbit spends
     ! most of its time in quintic four-quantity first-derivative evaluations.
     ! Two oracles, neither a recording of this kernel's output:
     !
-    !   1. Agreement with the general reference kernel, which performs the same
-    !      Horner recurrences in the same order for any degree: bitwise when the
-    !      test is run with the argument "bitwise" (LIBNEO_DETERMINISTIC_FP
-    !      builds, where FMA contraction is off), else to 1e-13 relative.
+    !   1. Agreement with the general reference kernel to 1e-12 relative. The
+    !      generated kernel orders the derivative recurrences differently, so
+    !      the two agree to round-off, not bitwise.
     !   2. Value and first derivatives agree with evaluate_batch_splines_3d_der2,
     !      a separate kernel family, and the value with evaluate_batch_splines_3d.
     !
@@ -26,11 +25,6 @@ program test_batch_interpolate_der_o555
     implicit none
 
     integer :: nfail
-    logical :: bitwise
-    character(len=16) :: arg
-
-    call get_command_argument(1, arg)
-    bitwise = trim(arg) == "bitwise"
     nfail = 0
     call check_case(4, [.true., .true., .true.], nfail)
     call check_case(4, [.false., .true., .true.], nfail)
@@ -120,7 +114,7 @@ contains
             " periodic=", periodic, ": mismatches vs reference ", nbad, &
             ", worst value diff ", worst_val, ", worst rel derivative diff ", &
             worst_der
-        if ((bitwise .and. nbad > 0) .or. .not. (worst_ref < tol)) then
+        if (.not. (worst_ref < tol)) then
             write (error_unit, "(a,es10.3)") &
                 "  differs from the general reference kernel, worst rel ", worst_ref
             nfail = nfail + 1
