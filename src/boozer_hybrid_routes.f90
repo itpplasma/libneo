@@ -94,13 +94,6 @@ contains
         t = reshape(spread(h%theta, 2, h%np), [h%nt*h%np])
     end function grid_theta
 
-    function grid_phi(h) result(t)
-        type(boozer_hybrid_t), intent(in) :: h
-        real(dp) :: t(h%nt*h%np)
-
-        t = reshape(spread(h%phi, 1, h%nt), [h%nt*h%np])
-    end function grid_phi
-
     !> Exact angular derivatives of the trigonometric interpolant of f on the
     !> uniform VMEC grid (numpy fftfreq ordering, as potential).
     subroutine grid_deriv(h, f, ft, fp)
@@ -189,16 +182,18 @@ contains
         integer :: m, n, npt
 
         npt = h%nt*h%np
-        allocate (sv%emp(0:h%mnu, npt), sv%enp(npt, -h%nnu:h%nnu), e1(npt))
+        allocate (sv%emp(0:h%mnu, npt), sv%enp(h%np, -h%nnu:h%nnu), e1(npt))
         e1 = exp(IU*(grid_theta(h) + sv%lam))
         sv%emp(0, :) = (1.0_dp, 0.0_dp)
         do m = 1, h%mnu
             sv%emp(m, :) = sv%emp(m - 1, :)*e1
         end do
-        e1 = exp(-IU*real(h%nfp, dp)*grid_phi(h))
+        ! exp(-i n N phi) depends on the phi column only, so the n sums run
+        ! over np columns instead of nt*np points.
+        e1(1:h%np) = exp(-IU*real(h%nfp, dp)*h%phi)
         sv%enp(:, 0) = (1.0_dp, 0.0_dp)
         do n = 1, h%nnu
-            sv%enp(:, n) = sv%enp(:, n - 1)*e1
+            sv%enp(:, n) = sv%enp(:, n - 1)*e1(1:h%np)
             sv%enp(:, -n) = conjg(sv%enp(:, n))
         end do
     end subroutine pest_tables
@@ -209,8 +204,18 @@ contains
         type(hybrid_surface_t), intent(in) :: sv
         real(dp), intent(in) :: v(:)
         complex(dp) :: a(0:h%mnu, -h%nnu:h%nnu)
+        complex(dp) :: w(0:h%mnu, h%np)
+        integer :: i, j, p
 
-        a = matmul(sv%emp*spread(v, 1, h%mnu + 1), sv%enp)
+        w = (0.0_dp, 0.0_dp)
+        p = 0
+        do j = 1, h%np
+            do i = 1, h%nt
+                p = p + 1
+                w(:, j) = w(:, j) + sv%emp(:, p)*v(p)
+            end do
+        end do
+        a = matmul(w, sv%enp)
     end function pest_sum
 
     !> Synthesis at the grid points of c (0:mnu, -nnu:nnu): v = Re sum c E,
@@ -225,10 +230,9 @@ contains
         real(dp), intent(out), optional :: vtt(:), vtp(:)
         complex(dp), allocatable :: cn(:, :), t1(:, :), t2(:, :)
         real(dp) :: rm(0:h%mnu)
-        integer :: m, n, p
+        integer :: j, m, n, p
 
-        allocate (cn(0:h%mnu, -h%nnu:h%nnu), t1(0:h%mnu, h%nt*h%np))
-        allocate (t2(0:h%mnu, h%nt*h%np))
+        allocate (cn(0:h%mnu, -h%nnu:h%nnu), t1(0:h%mnu, h%np), t2(0:h%mnu, h%np))
         do n = -h%nnu, h%nnu
             cn(:, n) = -IU*real(n*h%nfp, dp)*c(:, n)
         end do
@@ -238,11 +242,12 @@ contains
         t1 = matmul(c, transpose(sv%enp))
         t2 = matmul(cn, transpose(sv%enp))
         do p = 1, h%nt*h%np
-            v(p) = real(sum(sv%emp(:, p)*t1(:, p)))
-            vth(p) = real(sum(IU*rm*sv%emp(:, p)*t1(:, p)))
-            vph(p) = real(sum(sv%emp(:, p)*t2(:, p)))
-            if (present(vtt)) vtt(p) = -real(sum(rm**2*sv%emp(:, p)*t1(:, p)))
-            if (present(vtp)) vtp(p) = real(sum(IU*rm*sv%emp(:, p)*t2(:, p)))
+            j = (p - 1)/h%nt + 1
+            v(p) = real(sum(sv%emp(:, p)*t1(:, j)))
+            vth(p) = real(sum(IU*rm*sv%emp(:, p)*t1(:, j)))
+            vph(p) = real(sum(sv%emp(:, p)*t2(:, j)))
+            if (present(vtt)) vtt(p) = -real(sum(rm**2*sv%emp(:, p)*t1(:, j)))
+            if (present(vtp)) vtp(p) = real(sum(IU*rm*sv%emp(:, p)*t2(:, j)))
         end do
     end subroutine pest_synth
 

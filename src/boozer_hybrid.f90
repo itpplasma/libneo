@@ -126,8 +126,8 @@ module boozer_hybrid
         !> Jacobian routes: density u = sqrt(g)_V (B^2), its Jacobian ju with
         !> respect to (R, R_s, R_t, Z_s, Z_t, |B|), the mean ubar, the right-hand
         !> side g = u/ubar - (1 + lambda_t) in the VMEC measure, the PEST phases
-        !> emp (0:mnu, npt) = exp(i m theta_P), enp (npt, -nnu:nnu) =
-        !> exp(-i n N phi), the analysis fmn and solution cmn (0:mnu, -nnu:nnu),
+        !> emp (0:mnu, npt) = exp(i m theta_P), enp (np, -nnu:nnu) =
+        !> exp(-i n N phi) on the phi grid, the analysis fmn and solution cmn (0:mnu, -nnu:nnu),
         !> the active-mode mask, d_theta_P and d_phi of nu and their derivatives.
         real(dp) :: ubar = 0.0_dp
         real(dp), allocatable :: u(:), ju(:, :), g(:), nuth(:), nuph(:), nutt(:), nutp(:)
