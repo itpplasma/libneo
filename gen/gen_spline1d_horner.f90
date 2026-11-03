@@ -1,6 +1,7 @@
 program gen_spline1d_horner
-    ! Quintic single-quantity 1D batch spline cell kernels up to the second and
-    ! third derivative.
+    ! Quintic 1D batch spline cell kernels: one quantity up to the second and
+    ! third derivative, two quantities (a field's covariant components) up to
+    ! the second.
     use libneo_gen_support, only: fortsym_revision, write_spline_leaf
     implicit none
     character(256) :: path
@@ -16,5 +17,6 @@ program gen_spline1d_horner
     do order = 2, 3
         call write_spline_leaf(unit, 1, 5, 1, order, .false.)
     end do
+    call write_spline_leaf(unit, 1, 5, 2, 2, .false.)
     close (unit)
 end program gen_spline1d_horner

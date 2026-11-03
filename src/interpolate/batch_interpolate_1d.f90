@@ -37,6 +37,8 @@ module batch_interpolate_1d
     public :: evaluate_batch_spline_1d_pair_cubic_der
     public :: evaluate_batch_spline_1d_scalar_quintic_der
     public :: evaluate_batch_spline_1d_pair_quintic_der
+    public :: evaluate_batch_spline_1d_scalar_quintic_der2
+    public :: evaluate_batch_spline_1d_pair_quintic_der2
     public :: evaluate_batch_splines_1d_many_der
     public :: evaluate_batch_splines_1d_many_der2
     public :: evaluate_batch_splines_1d_many_der3
@@ -54,7 +56,7 @@ contains
         real(dp) :: xj, x_norm, x_local, x_min, h_step, period
         ! Locals for the generated kernel's explicit-shape outputs; device code
         ! cannot pack a non-contiguous actual argument.
-        real(dp) :: yl(1), dyl(1), d2yl(1)
+        real(dp) :: yl(2), dyl(2), d2yl(2)
 
 #ifdef _OPENACC
         !$acc routine seq
@@ -75,10 +77,18 @@ contains
         x_local = (x_norm - real(idx - 1, dp))*h_step
 
         if (N == 5 .and. nq == 1) then
-            call spline1d_o5_d2_nq1(spl%coeff(1, 0, idx), x_local, yl, dyl, d2yl)
+            call spline1d_o5_d2_nq1(spl%coeff(1, 0, idx), x_local, yl(1:1), &
+                                    dyl(1:1), d2yl(1:1))
             y(1) = yl(1)
             dy(1) = dyl(1)
             d2y(1) = d2yl(1)
+            return
+        end if
+        if (N == 5 .and. nq == 2) then
+            call spline1d_o5_d2_nq2(spl%coeff(1, 0, idx), x_local, yl, dyl, d2yl)
+            y(1:2) = yl
+            dy(1:2) = dyl
+            d2y(1:2) = d2yl
             return
         end if
 
@@ -1213,6 +1223,59 @@ contains
          y2 = spl%coeff(2, k, idx) + x_local*y2
       end do
    end subroutine evaluate_batch_spline_1d_pair_quintic_der
+
+    ! Quintic second-derivative evaluators with scalar or explicit-shape
+    ! outputs. Device callers pass bare addresses instead of building array
+    ! descriptors, and the cell is located as in
+    ! evaluate_batch_splines_1d_der2, so the results agree bitwise.
+    subroutine evaluate_batch_spline_1d_scalar_quintic_der2(spl, x, y, dy, d2y)
+        !$acc routine seq
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
+        real(dp), intent(out) :: y, dy, d2y
+
+        real(dp) :: x_local, yl(1), dyl(1), d2yl(1)
+        integer :: idx
+
+        call locate_cell_1d(spl, x, idx, x_local)
+        call spline1d_o5_d2_nq1(spl%coeff(1, 0, idx), x_local, yl, dyl, d2yl)
+        y = yl(1)
+        dy = dyl(1)
+        d2y = d2yl(1)
+    end subroutine evaluate_batch_spline_1d_scalar_quintic_der2
+
+    subroutine evaluate_batch_spline_1d_pair_quintic_der2(spl, x, y, dy, d2y)
+        !$acc routine seq
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
+        real(dp), intent(out) :: y(2), dy(2), d2y(2)
+
+        real(dp) :: x_local
+        integer :: idx
+
+        call locate_cell_1d(spl, x, idx, x_local)
+        call spline1d_o5_d2_nq2(spl%coeff(1, 0, idx), x_local, y, dy, d2y)
+    end subroutine evaluate_batch_spline_1d_pair_quintic_der2
+
+    pure subroutine locate_cell_1d(spl, x, idx, x_local)
+        !$acc routine seq
+        type(BatchSplineData1D), intent(in) :: spl
+        real(dp), intent(in) :: x
+        integer, intent(out) :: idx
+        real(dp), intent(out) :: x_local
+
+        real(dp) :: xj, x_norm, period
+
+        period = spl%h_step*real(spl%num_points - 1, dp)
+        if (spl%periodic) then
+            xj = modulo(x - spl%x_min, period) + spl%x_min
+        else
+            xj = x
+        end if
+        x_norm = (xj - spl%x_min)/spl%h_step
+        idx = max(0, min(spl%num_points - 2, int(x_norm))) + 1
+        x_local = (x_norm - real(idx - 1, dp))*spl%h_step
+    end subroutine locate_cell_1d
 
 #include "../generated/spline1d_horner_leaves.inc"
 end module batch_interpolate_1d

@@ -37,6 +37,7 @@ module batch_interpolate_3d
     public :: evaluate_batch_splines_3d_der_nq1_o355
     public :: evaluate_batch_splines_3d_der_general
     public :: evaluate_batch_spline_3d_scalar_quintic_der
+    public :: evaluate_batch_spline_3d_scalar_quintic_der2_rmix
     public :: evaluate_batch_spline_3d_scalar_cubic_der2
     public :: evaluate_batch_spline_3d_scalar_cubic_der2_rmix
     public :: evaluate_batch_splines_3d_der3
@@ -1709,6 +1710,38 @@ contains
         dy(1) = derivative_x1_x3(0) + x_local(3)*dy(1)
         dy(2) = derivative_x2_x3(0) + x_local(3)*dy(2)
     end subroutine evaluate_batch_spline_3d_scalar_quintic_der
+
+    ! Value, gradient and the x1 second derivatives (d2/dx1^2, d2/dx1dx2,
+    ! d2/dx1dx3) of a single-quantity [5,5,5] spline. Unlike
+    ! evaluate_batch_splines_3d_der2_rmix it holds only this cell kernel, so a
+    ! device caller does not save and restore the registers of the other
+    ! orders and quantity counts on every call.
+    subroutine evaluate_batch_spline_3d_scalar_quintic_der2_rmix(spl, x, y, dy, &
+                                                                 d2y_rmix)
+        !$acc routine seq
+        type(BatchSplineData3D), intent(in) :: spl
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: y
+        real(dp), intent(out) :: dy(3)
+        real(dp), intent(out) :: d2y_rmix(3)
+
+        real(dp) :: yl(1), dyl(3, 1), d2l(3, 1)
+        real(dp) :: x1, x2, x3
+        integer :: i1, i2, i3
+
+#ifndef _OPENACC
+        if (spl%num_quantities /= 1 .or. any(spl%order /= 5)) then
+            error stop "evaluate_batch_spline_3d_scalar_quintic_der2_rmix: "// &
+                "needs one quantity of order [5, 5, 5]"
+        end if
+#endif
+        call locate_cell_3d(spl, x, i1, i2, i3, x1, x2, x3)
+        call spline3d_o555_rmix_nq1(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
+                                    yl, dyl, d2l)
+        y = yl(1)
+        dy = dyl(:, 1)
+        d2y_rmix = d2l(:, 1)
+    end subroutine evaluate_batch_spline_3d_scalar_quintic_der2_rmix
 
     recursive subroutine evaluate_batch_splines_3d_der_nq1_o355( &
             spl, x, y_batch, dy_batch)

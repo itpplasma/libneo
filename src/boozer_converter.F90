@@ -8,6 +8,8 @@ module boozer_sub
                            evaluate_batch_spline_1d_pair_cubic_der, &
                            evaluate_batch_spline_1d_scalar_quintic_der, &
                            evaluate_batch_spline_1d_pair_quintic_der, &
+                           evaluate_batch_spline_1d_scalar_quintic_der2, &
+                           evaluate_batch_spline_1d_pair_quintic_der2, &
                            evaluate_batch_splines_3d_der, &
                            evaluate_batch_splines_3d_der_nq1_o355, &
                            evaluate_batch_splines_3d_der2, &
@@ -16,6 +18,7 @@ module boozer_sub
                            evaluate_batch_spline_3d_scalar_quintic_der, &
                            evaluate_batch_spline_3d_scalar_cubic_der2, &
                            evaluate_batch_spline_3d_scalar_cubic_der2_rmix, &
+                           evaluate_batch_spline_3d_scalar_quintic_der2_rmix, &
                            evaluate_batch_splines_3d_der3, &
                            destroy_batch_splines_1d, destroy_batch_splines_3d
     use boozer_regular, only: build_boozer_regular, build_boozer_regular_hybrid, &
@@ -38,6 +41,7 @@ module boozer_sub
     public :: splint_boozer_coord
     public :: splint_boozer_coord_device
     public :: splint_boozer_rk_device, boozer_rk_device_supported
+    public :: splint_boozer_rmix_device, boozer_rmix_field_t
     public :: reset_boozer_batch_splines
     public :: vmec_to_boozer, boozer_to_vmec
     public :: delthe_delphi_BV
@@ -64,6 +68,17 @@ module boozer_sub
     ! Innermost flux surface sampled by compute_boozer_data.
     real(dp), parameter :: BOOZER_S_MIN = 1.0e-6_dp
 
+
+    !> Field of splint_boozer_rmix_device: A_phi with its first two radial
+    !> derivatives, the covariant components B_vartheta and B_varphi with
+    !> theirs, |B| with its gradient and its second derivatives along s,
+    !> s-vartheta and s-varphi.
+    type :: boozer_rmix_field_t
+        real(dp) :: A_phi, dA_phi_dr, d2A_phi_dr2
+        real(dp) :: B_vartheta, dB_vartheta, d2B_vartheta
+        real(dp) :: B_varphi, dB_varphi, d2B_varphi
+        real(dp) :: Bmod, dBmod(3), d2Bmod(3)
+    end type boozer_rmix_field_t
 
     ! Device-accessible Boozer runtime state shared by host and OpenACC code.
     ! sync_boozer_state copies the libneo globals into this object so that
@@ -615,6 +630,79 @@ contains
         end if
 
     end subroutine splint_boozer_coord_device
+
+    !> Radial-mixed field of splint_boozer_coord_device, without A_theta and
+    !> B_r, for device Newton steps. The arguments are values and one output
+    !> record, so the call saves and restores far fewer registers than one
+    !> with twenty-odd output addresses.
+    subroutine splint_boozer_rmix_device(r, vartheta_B, varphi_B, fld)
+        !$acc routine seq
+        real(dp), value :: r, vartheta_B, varphi_B
+        type(boozer_rmix_field_t), intent(out) :: fld
+
+        integer :: nq
+        real(dp) :: r_eval, rho_tor, drhods, drhods2, d2rhods2m
+        real(dp) :: x_eval(3), y1d(2), dy1d(2), d2y1d(2)
+        real(dp) :: y_eval(MAX_FIELD3D_QUANTITIES)
+        real(dp) :: dy_eval(3, MAX_FIELD3D_QUANTITIES)
+        real(dp) :: d2y_eval(3, MAX_FIELD3D_QUANTITIES)
+
+        r_eval = abs(r)
+        if (aphi_batch_spline%order == 5) then
+            call evaluate_batch_spline_1d_scalar_quintic_der2( &
+                aphi_batch_spline, r_eval, fld%A_phi, fld%dA_phi_dr, fld%d2A_phi_dr2)
+        else
+            call evaluate_batch_splines_1d_der2(aphi_batch_spline, r_eval, &
+                                                y1d(1:1), dy1d(1:1), d2y1d(1:1))
+            fld%A_phi = y1d(1)
+            fld%dA_phi_dr = dy1d(1)
+            fld%d2A_phi_dr2 = d2y1d(1)
+        end if
+
+        rho_tor = sqrt(r_eval)
+        x_eval(1) = rho_tor
+        x_eval(2) = modulo(vartheta_B, TWOPI)
+        x_eval(3) = modulo(varphi_B, TWOPI/real(boozer_state%nper, dp))
+        drhods = 0.5_dp/rho_tor
+        drhods2 = drhods**2
+        d2rhods2m = drhods2/rho_tor
+
+        nq = boozer_state%num_quantities
+        if (nq == 1 .and. all(field3d_batch_spline%order == [5, 5, 5])) then
+            call evaluate_batch_spline_3d_scalar_quintic_der2_rmix( &
+                field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1), &
+                d2y_eval(:, 1))
+        else if (nq == 1 .and. all(field3d_batch_spline%order == [3, 3, 3])) then
+            call evaluate_batch_spline_3d_scalar_cubic_der2_rmix( &
+                field3d_batch_spline, x_eval, y_eval(1), dy_eval(:, 1), &
+                d2y_eval(:, 1))
+        else
+            call evaluate_batch_splines_3d_der2_rmix(field3d_batch_spline, x_eval, &
+                                                     y_eval(1:nq), dy_eval(:, 1:nq), &
+                                                     d2y_eval(:, 1:nq))
+        end if
+        fld%Bmod = y_eval(1)
+        fld%dBmod(1) = dy_eval(1, 1)*drhods
+        fld%dBmod(2) = dy_eval(2, 1)
+        fld%dBmod(3) = dy_eval(3, 1)
+        fld%d2Bmod(1) = d2y_eval(1, 1)*drhods2 - dy_eval(1, 1)*d2rhods2m
+        fld%d2Bmod(2) = d2y_eval(2, 1)*drhods
+        fld%d2Bmod(3) = d2y_eval(3, 1)*drhods
+
+        if (bcovar_tp_batch_spline%order == 5) then
+            call evaluate_batch_spline_1d_pair_quintic_der2( &
+                bcovar_tp_batch_spline, rho_tor, y1d, dy1d, d2y1d)
+        else
+            call evaluate_batch_splines_1d_der2(bcovar_tp_batch_spline, rho_tor, &
+                                                y1d, dy1d, d2y1d)
+        end if
+        fld%B_vartheta = y1d(1)
+        fld%B_varphi = y1d(2)
+        fld%dB_vartheta = dy1d(1)*drhods
+        fld%dB_varphi = dy1d(2)*drhods
+        fld%d2B_vartheta = d2y1d(1)*drhods2 - dy1d(1)*d2rhods2m
+        fld%d2B_varphi = d2y1d(2)*drhods2 - dy1d(2)*d2rhods2m
+    end subroutine splint_boozer_rmix_device
 
     logical function boozer_rk_device_supported()
         use boozer_rk_tables, only: rk_tables_ready

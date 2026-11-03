@@ -25,7 +25,9 @@ module batch_interpolate
                                     evaluate_batch_spline_1d_scalar_cubic_der, &
                                     evaluate_batch_spline_1d_pair_cubic_der, &
                                     evaluate_batch_spline_1d_scalar_quintic_der, &
-                                    evaluate_batch_spline_1d_pair_quintic_der
+                                    evaluate_batch_spline_1d_pair_quintic_der, &
+                                    evaluate_batch_spline_1d_scalar_quintic_der2, &
+                                    evaluate_batch_spline_1d_pair_quintic_der2
     use batch_interpolate_2d, only: construct_batch_splines_2d, &
                                     construct_batch_splines_2d_lines, &
                                     construct_batch_splines_2d_resident, &
@@ -51,6 +53,7 @@ module batch_interpolate
                                     evaluate_batch_splines_3d_der2, &
                                     evaluate_batch_spline_3d_scalar_cubic_der, &
                                     evaluate_batch_spline_3d_scalar_quintic_der, &
+                                    evaluate_batch_spline_3d_scalar_quintic_der2_rmix, &
                                     evaluate_batch_spline_3d_scalar_cubic_der2, &
                                     evaluate_batch_spline_3d_scalar_cubic_der2_rmix, &
                                     evaluate_batch_splines_3d_der3, &
@@ -84,6 +87,8 @@ module batch_interpolate
     public :: evaluate_batch_spline_1d_pair_cubic_der
     public :: evaluate_batch_spline_1d_scalar_quintic_der
     public :: evaluate_batch_spline_1d_pair_quintic_der
+    public :: evaluate_batch_spline_1d_scalar_quintic_der2
+    public :: evaluate_batch_spline_1d_pair_quintic_der2
 
     ! Re-export 2D routines from batch_interpolate_2d
     public :: construct_batch_splines_2d, destroy_batch_splines_2d
@@ -108,6 +113,7 @@ module batch_interpolate
     public :: evaluate_batch_splines_3d_der2, evaluate_batch_splines_3d_der3
     public :: evaluate_batch_spline_3d_scalar_cubic_der
     public :: evaluate_batch_spline_3d_scalar_quintic_der
+    public :: evaluate_batch_spline_3d_scalar_quintic_der2_rmix
     public :: evaluate_batch_spline_3d_scalar_cubic_der2
     public :: evaluate_batch_spline_3d_scalar_cubic_der2_rmix
     public :: evaluate_batch_splines_3d_der2_rmix

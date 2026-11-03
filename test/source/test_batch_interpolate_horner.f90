@@ -13,12 +13,15 @@ program test_batch_interpolate_horner
                                  destroy_batch_splines_1d, &
                                  evaluate_batch_splines_1d_der2, &
                                  evaluate_batch_splines_1d_der3, &
+                                 evaluate_batch_spline_1d_scalar_quintic_der2, &
+                                 evaluate_batch_spline_1d_pair_quintic_der2, &
                                  construct_batch_splines_3d, &
                                  destroy_batch_splines_3d, &
                                  evaluate_batch_splines_3d, &
                                  evaluate_batch_splines_3d_der, &
                                  evaluate_batch_splines_3d_der2, &
-                                 evaluate_batch_splines_3d_der2_rmix
+                                 evaluate_batch_splines_3d_der2_rmix, &
+                                 evaluate_batch_spline_3d_scalar_quintic_der2_rmix
     implicit none
 
     integer, parameter :: qp = selected_real_kind(30)
@@ -32,6 +35,7 @@ program test_batch_interpolate_horner
     end do
     call check_3d(3, [.true., .true., .true.], nfail)
     call check_1d(1, .false., nfail)
+    call check_1d(2, .false., nfail)
     call check_1d(3, .true., nfail)
 
     if (nfail > 0) then
@@ -55,6 +59,7 @@ contains
         real(dp) :: x(3), u(3), xl(3)
         real(dp) :: v(nq), dv(3, nq), v2(nq), dv2(3, nq), d2v(6, nq)
         real(dp) :: v3(nq), dv3(3, nq), d2r(3, nq), v0(nq)
+        real(dp) :: vs, dvs(3), d2s(3)
         integer :: ip, iq, j, cell(3), nbad
 
         call random_seed(put=[(31*j + nq, j=1, 64)])
@@ -71,6 +76,15 @@ contains
             call evaluate_batch_splines_3d_der2(spl, x, v2, dv2, d2v)
             call evaluate_batch_splines_3d_der2_rmix(spl, x, v3, dv3, d2r)
             call locate(spl, x, cell, xl)
+            if (nq == 1) then
+                call evaluate_batch_spline_3d_scalar_quintic_der2_rmix(spl, x, vs, &
+                                                                       dvs, d2s)
+                call expect3(spl, 1, cell, xl, [0, 0, 0], vs, nbad)
+                do j = 1, 3
+                    call expect3(spl, 1, cell, xl, unit(j), dvs(j), nbad)
+                    call expect3(spl, 1, cell, xl, hessian(:, j), d2s(j), nbad)
+                end do
+            end if
             do iq = 1, nq
                 call expect3(spl, iq, cell, xl, [0, 0, 0], v0(iq), nbad)
                 call expect3(spl, iq, cell, xl, [0, 0, 0], v(iq), nbad)
@@ -105,6 +119,7 @@ contains
         type(BatchSplineData1D) :: spl
         real(dp) :: y(ngrid, nq), u, x, h, xl, xn
         real(dp) :: v(nq), d1(nq), d2(nq), w(nq), e1(nq), e2(nq), e3(nq)
+        real(dp) :: p(2), dp1(2), dp2(2)
         integer :: ip, iq, idx, nbad, j
 
         call random_seed(put=[(17*j + nq, j=1, 64)])
@@ -118,6 +133,12 @@ contains
             x = x_min + dyadic(u)*(x_max - x_min)
             call evaluate_batch_splines_1d_der2(spl, x, v, d1, d2)
             call evaluate_batch_splines_1d_der3(spl, x, w, e1, e2, e3)
+            if (nq == 1) then
+                call evaluate_batch_spline_1d_scalar_quintic_der2(spl, x, p(1), &
+                                                                  dp1(1), dp2(1))
+            else if (nq == 2) then
+                call evaluate_batch_spline_1d_pair_quintic_der2(spl, x, p, dp1, dp2)
+            end if
             xn = (x - x_min)/h
             idx = max(0, min(ngrid - 2, int(xn)))
             xl = (xn - real(idx, dp))*h
@@ -129,6 +150,11 @@ contains
                 call expect1(spl%coeff(iq, :, idx + 1), xl, 1, e1(iq), nbad)
                 call expect1(spl%coeff(iq, :, idx + 1), xl, 2, e2(iq), nbad)
                 call expect1(spl%coeff(iq, :, idx + 1), xl, 3, e3(iq), nbad)
+                if (nq <= 2) then
+                    call expect1(spl%coeff(iq, :, idx + 1), xl, 0, p(iq), nbad)
+                    call expect1(spl%coeff(iq, :, idx + 1), xl, 1, dp1(iq), nbad)
+                    call expect1(spl%coeff(iq, :, idx + 1), xl, 2, dp2(iq), nbad)
+                end if
             end do
         end do
         if (nbad > 0) then
