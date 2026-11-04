@@ -508,7 +508,7 @@ contains
         integer :: p, npt
 
         npt = h%nt*h%np
-        psip = -h%phiedge/TWOPI
+        psip = real(h%signgs, dp)*h%phiedge/TWOPI
         allocate (sv%y(9, npt), sv%kr(3, npt), sv%jr(3, NRIN, npt))
         call field_data2(h, sv, h%rmnc, h%zmns, h%lmns, h%rmns, h%zmnc, h%lmnc, h%iotas, &
                          sv%y, sv%iotap)
@@ -780,7 +780,7 @@ contains
         d%route = h%route
         d%pprime = pressure_derivative(h, sv)
         if (d%pprime /= 0.0_dp) then
-            psip = -h%phiedge/TWOPI
+            psip = real(h%signgs, dp)*h%phiedge/TWOPI
             t1 = MU0*d%pprime*sum(sqgv)/real(npt, dp)
             t2 = psip*(sv%cgp + sv%iota*sv%cip)
             d%eps_fb = abs(t1 + t2)/(abs(t1) + abs(t2))

@@ -83,6 +83,7 @@ module boozer_hybrid
         integer :: ns = 0, mnmax = 0, nfp = 1, mmax = 0, nmax = 0
         integer :: nt = 0, np = 0, mboz = 0, nboz = 0, mnboz = 0
         logical :: lasym = .false., axisym = .false.
+        integer :: signgs = -1
         real(dp) :: phiedge = 0.0_dp, rmajor = 0.0_dp
         !> Route and the nu truncation (0 <= m <= mnu, |n| <= nnu field-period
         !> harmonics) of the magnetic differential equation of the Jacobian
@@ -444,10 +445,11 @@ contains
     end subroutine dft_matrix
 
     subroutine read_primaries(h, wout_file)
+        use netcdf, only: nf90_inq_varid, nf90_noerr
         use nctools_module, only: nc_open, nc_close, nc_get, nc_inq_dim
         type(boozer_hybrid_t), intent(inout) :: h
         character(len=*), intent(in) :: wout_file
-        integer :: ncid, lens(2), lasym_int
+        integer :: ncid, lens(2), lasym_int, signgs_varid
         real(dp), allocatable :: axm(:), axn(:), phi(:), buf(:, :)
 
         call nc_open(trim(wout_file), ncid)
@@ -461,6 +463,10 @@ contains
         allocate (axm(h%mnmax), axn(h%mnmax), phi(h%ns), buf(h%mnmax, h%ns))
         call nc_get(ncid, 'xm', axm)
         call nc_get(ncid, 'xn', axn)
+        h%signgs = -1
+        if (nf90_inq_varid(ncid, 'signgs', signgs_varid) == nf90_noerr) &
+            call nc_get(ncid, 'signgs', h%signgs)
+        if (abs(h%signgs) /= 1) error stop 'VMEC signgs must be +1 or -1'
         call nc_get(ncid, 'phi', phi)
         h%phiedge = phi(h%ns)
         allocate (h%xm(h%mnmax), h%xn(h%mnmax))
@@ -731,7 +737,7 @@ contains
         allocate (sv%x(NHIN, npt), sv%lam(npt), sv%f(NHOUT, npt), sv%jac(NHOUT, NHIN, npt))
         call field_data(h, sv, h%rmnc, h%zmns, h%lmns, h%rmns, h%zmnc, h%lmnc, h%iotas, &
                         sv%x, sv%lam, sv%iota)
-        psip = -h%phiedge/TWOPI
+        psip = real(h%signgs, dp)*h%phiedge/TWOPI
         do p = 1, npt
             call hybrid_field_kernel(sv%x(:, p), sv%f(:, p), sv%jac(:, :, p))
         end do

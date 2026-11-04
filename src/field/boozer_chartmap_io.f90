@@ -69,7 +69,12 @@ contains
 
         ! Scalars.
         call check(nf90_get_att(ncid, nf90_global, "torflux", d%torflux), &
-            "att torflux")
+                   "att torflux")
+        status = nf90_get_att(ncid, nf90_global, "signgs", d%signgs)
+        if (status /= nf90_noerr) d%signgs = -1
+        if (abs(d%signgs) /= 1) then
+            error stop "chartmap signgs must be +1 or -1"
+        end if
         status = nf90_get_att(ncid, nf90_global, "aminor_m", d%aminor)
         if (status /= nf90_noerr) d%aminor = 0.0_dp
         status = nf90_inquire_attribute(ncid, nf90_global, "regular_radial_factor", &

@@ -380,7 +380,7 @@ contains
             sqgv = x(1, :)*(x(3, :)*x(5, :) - x(2, :)*x(6, :))
             call hybrid_radial_row(h%ns, sv%s, .false., 0, rv, rd)
             pp = dot_product(rd, h%presf)
-            psip = -h%phiedge/TWOPI
+            psip = real(h%signgs, dp)*h%phiedge/TWOPI
             a = MU0*pp*sum(sqgv)/real(npt, dp)
             b = psip*sum(dbp*(1.0_dp + x(8, :)))/real(npt, dp)
             c = psip*sum(dbt*(sv%iota - x(9, :)))/real(npt, dp)
