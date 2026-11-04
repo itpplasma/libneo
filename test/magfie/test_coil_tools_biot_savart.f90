@@ -897,135 +897,45 @@ contains
     end subroutine test_fourier_mode_convergence
 
     !> Given: Identical helical coil configuration
-    !> When: Computing with both Fourier and direct methods 
-    !> Then: Analyze coordinate systems and current scaling to identify source of discrepancy
+    !> Compare all cylindrical components away from the coil filament.
     subroutine test_comparison_fourier_vs_direct_helical_coil
-        type(coil_t), allocatable :: coils_fourier(:), coils_direct(:)
+        type(coil_t), allocatable :: coils(:)
         complex(dp), allocatable :: Bn(:, :, :, :, :)
-        real(dp), allocatable :: Bvac(:, :, :, :), Ic(:)
-        real(dp), parameter :: Rmin = 0.5_dp, Rmax = 1.5_dp
-        real(dp), parameter :: Zmin = -0.5_dp, Zmax = 0.5_dp
-        integer, parameter :: nR = 8, nZ = 8, nseg = 32
-        real(dp) :: B_fourier_reconstructed, B_direct, error_rel, max_error
-        real(dp) :: current_scale_factor, analytical_check
-        logical :: test_passed
-        integer :: kR, kZ, kphi, n
-        real(dp) :: debug_Bn_sum, debug_direct_sum
+        real(dp), allocatable :: Bvac(:, :, :, :), currents(:)
+        real(dp), parameter :: rmin = 0.2_dp, rmax = 0.5_dp
+        real(dp), parameter :: zmin = 1.5_dp, zmax = 2.0_dp
+        integer, parameter :: nr = 3, nz = 3, nseg = 32
+        real(dp) :: reconstructed(3), direct(3), phi, error_rel, max_error
+        integer :: kr, kz, kphi, n
 
-        call print_test("comparison Fourier vs direct helical coil - coordinate analysis")
-
-        ! CRITICAL ANALYSIS: Both methods should output in cylindrical coordinates
-        ! From coil_tools.f90 analysis:
-        ! - biot_savart_sum_coils: BXYZ computed, then converted to cylindrical (lines 391-393)
-        ! - biot_savart_fourier: BXYZ computed, same conversion to cylindrical (lines 467-469)
-        ! Both use: BR = Bx*cos(phi) + By*sin(phi), Bphi = By*cos(phi) - Bx*sin(phi)
-        
-        write(*,'(A)') '  COORDINATE ANALYSIS:'  
-        write(*,'(A)') '  Both methods convert BXYZ -> (BR, Bphi, BZ) using identical transformations'
-        write(*,'(A)') '  Issue must be in: (1) current scaling, (2) array indexing, (3) reconstruction'
-
-        ! Given: Create identical helical coils for both methods
-        allocate(coils_fourier(1), coils_direct(1), Ic(1))
-        call create_helical_coil(coils_fourier(1), nseg)
-        call create_helical_coil(coils_direct(1), nseg)
-        
-        ! CRITICAL: Check current scaling
-        ! Fourier method uses coils directly (no current array)
-        ! Direct method uses Ic current array - this could be the scaling issue!
-        Ic(1) = 1.0_dp  ! Unit current
-
-        write(*,'(A,ES12.4)') '  Current scaling: Ic = ', Ic(1)
-        write(*,'(A,I0)') '  Coil segments: nseg = ', nseg
-        write(*,'(A,I0)') '  Fourier modes: nmax = ', nmax
-
-        ! When: Compute with both methods
-        call biot_savart_fourier(coils_fourier, nmax, Rmin, Rmax, Zmin, Zmax, &
-                                nR, nphi, nZ, Bn)
-        call biot_savart_sum_coils(coils_direct, Ic, Rmin, Rmax, Zmin, Zmax, &
-                                  nR, nphi, nZ, Bvac)
-
-        ! DEBUGGING: Check raw field magnitudes before comparison
-        debug_Bn_sum = 0.0_dp
-        debug_direct_sum = 0.0_dp
-        
-        do kZ = 1, nZ
-            do kR = 1, nR
-                ! Sum all Fourier modes for total field magnitude
-                do n = 0, nmax
-                    debug_Bn_sum = debug_Bn_sum + abs(Bn(n, 1, kR, kZ, 1))
-                end do
-                debug_direct_sum = debug_direct_sum + abs(Bvac(1, kZ, 1, kR))
-            end do
-        end do
-        
-        write(*,'(A,ES12.4)') '  Total Fourier field magnitude: ', debug_Bn_sum
-        write(*,'(A,ES12.4)') '  Total direct field magnitude: ', debug_direct_sum
-        write(*,'(A,ES12.4)') '  Ratio (Fourier/Direct): ', debug_Bn_sum/debug_direct_sum
-
-        ! Then: Compare results (reconstruct Fourier at phi=0 with ALL modes)
-        test_passed = .true.
+        call print_test("Fourier reconstruction against direct helical coil")
+        allocate (coils(1), currents(1))
+        call create_helical_coil(coils(1), nseg)
+        currents = 1.0_dp
+        call biot_savart_fourier(coils, nmax, rmin, rmax, zmin, zmax, &
+                                 nr, nphi, nz, Bn)
+        call biot_savart_sum_coils(coils, currents, rmin, rmax, zmin, zmax, &
+                                   nr, nphi, nz, Bvac)
         max_error = 0.0_dp
-        kphi = 1  ! Compare at phi = 0
-        
-        do kZ = 1, nZ
-            do kR = 1, nR
-                ! Reconstruct FULL Fourier B_R at phi=0: sum over n of Bn*exp(i*n*0) = sum of real parts
-                B_fourier_reconstructed = 0.0_dp
-                do n = 0, nmax
-                    B_fourier_reconstructed = B_fourier_reconstructed + real(Bn(n, 1, kR, kZ, 1), dp)
-                end do
-                B_direct = Bvac(1, kZ, kphi, kR)  ! B_R direct
-                
-                if (abs(B_direct) > 1.0e-12_dp) then
-                    error_rel = abs(B_fourier_reconstructed - B_direct) / abs(B_direct)
+        do kr = 1, nr
+            do kz = 1, nz
+                do kphi = 1, nphi
+                    phi = 2.0_dp*pi*real(kphi - 1, dp)/real(nphi, dp)
+                    reconstructed = real(Bn(0, :, kr, kz, 1), dp)
+                    do n = 1, nmax
+                        reconstructed = reconstructed + 2.0_dp*real( &
+                                    Bn(n, :, kr, kz, 1)*exp(cmplx(0.0_dp, n*phi, dp)), dp)
+                    end do
+                    direct = Bvac(:, kz, kphi, kr)
+                    error_rel = sqrt(sum((reconstructed - direct)**2)/sum(direct**2))
                     max_error = max(max_error, error_rel)
-                    if (error_rel > comparison_tolerance .and. kR <= 3 .and. kZ <= 3) then
-                        write(*,'(A,2I0,A,ES12.4,A,ES12.4,A,ES12.4)') &
-                            'Large mismatch at R,Z=', kR, kZ, ', Fourier=', B_fourier_reconstructed, &
-                            ', Direct=', B_direct, ', error=', error_rel
-                    end if
-                end if
+                end do
             end do
         end do
-
-        write(*,'(A,ES12.4,A,F6.2,A)') '  Maximum relative error: ', max_error, ' (', max_error*100.0_dp, '%)'
-
-        ! ANALYSIS: Try to identify the root cause
-        if (max_error > 0.1_dp) then  ! More than 10%
-            write(*,'(A)') '  DIAGNOSIS: Large error indicates systematic issue'
-            
-            ! Check if it is a simple scaling factor
-            current_scale_factor = debug_direct_sum / debug_Bn_sum
-            write(*,'(A,ES12.4)') '  Potential current scaling factor: ', current_scale_factor
-            
-            if (abs(current_scale_factor - 1.0_dp) > 0.01_dp) then
-                write(*,'(A)') '  ISSUE IDENTIFIED: Current scaling mismatch between methods!'
-                write(*,'(A)') '  Fourier method may use different current normalization than direct method'
-            end if
-            
-        else if (max_error > 0.01_dp) then  ! 1-10%
-            write(*,'(A)') '  DIAGNOSIS: Moderate error - likely numerical/reconstruction differences'
-        else
-            write(*,'(A)') '  DIAGNOSIS: Good agreement - methods are consistent'
-        end if
-
-        ! For helical coil, allow higher tolerance than circular due to complexity
-        ! But document the findings for user analysis - do not stop execution yet
-        if (max_error > 0.5_dp) then  ! 50% - definitely a bug
-            write(*,'(A)') '  CRITICAL: Large systematic error detected - continuing analysis'
-            test_passed = .false.
-        else
-            test_passed = .true.
-        end if
-
-        ! Allow test to continue for analysis - will stop after coordinate analysis
-        ! if (.not. test_passed) then
-        !     call print_fail
-        !     error stop "Fourier vs direct helical coil comparison test failed - systematic error detected"
-        ! end if
-
-        call coil_deinit(coils_fourier(1))
-        call coil_deinit(coils_direct(1))
+        write (*, '(a,es12.4)') 'Maximum Fourier/direct relative error: ', max_error
+        if (.not. (max_error < comparison_tolerance)) &
+            error stop 'Fourier reconstruction disagrees with direct coil field'
+        call coil_deinit(coils(1))
         call print_ok
     end subroutine test_comparison_fourier_vs_direct_helical_coil
 

@@ -397,6 +397,8 @@ contains
 !$omp end parallel do
    end subroutine biot_savart_sum_coils
 
+! B(phi) = real(Bn(0)) + 2*real(sum(Bn(n)*exp(i*n*phi), n=1:nmax)).
+! Bn stores nonnegative complex Fourier modes per unit coil current.
    subroutine biot_savart_fourier(coils, nmax, &
                                   Rmin, Rmax, Zmin, Zmax, nR, nphi, nZ, Bn)
       use fortnum_fft, only: fft_r2c, fortnum_fft_plan_t, fft_plan_init
