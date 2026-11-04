@@ -230,10 +230,12 @@ def convert_boozmn_to_chartmap(
     buco_h = d["buco"][j]
     bvco_h = d["bvco"][j]
 
+    geometry_flux = _derive_psi_prime(d)
     if np.any(d["phi"] != 0.0):
-        torflux_si = -float(d["phi"][-1]) / TWOPI
+        # VMEC flux magnitude does not specify the orientation of Boozer angles.
+        torflux_si = np.copysign(abs(float(d["phi"][-1])) / TWOPI, geometry_flux)
     else:
-        torflux_si = _derive_psi_prime(d)
+        torflux_si = geometry_flux
 
     rho_grid = np.linspace(rho_min, 1.0, nrho)
     s_grid = rho_grid**2
@@ -392,6 +394,7 @@ def convert_boozmn_to_chartmap(
     X, Y, Z = X * METER_TO_CM, Y * METER_TO_CM, Z * METER_TO_CM
 
     attrs = {
+        "signgs": np.int32(np.sign(geometry_flux * np.median(bvco_h + iota_h * buco_h))),
         "booz2chartmap_source": str(boozmn),
         "booz2chartmap_covariant_sign": np.int32(covariant_sign),
         "booz2chartmap_rho_min": float(rho_min),

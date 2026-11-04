@@ -442,3 +442,29 @@ def test_chartmap_explicit_covariant_sign_changes_only_covariants(
     import netCDF4
     with netCDF4.Dataset(negative) as dataset:
         assert dataset.booz2chartmap_covariant_sign == -1
+
+
+@pytest.mark.parametrize("reflected", [False, True])
+def test_explicit_flux_respects_poloidal_orientation(boozmn_path, tmp_path, reflected):
+    import shutil
+    import netCDF4
+    from libneo.booz_xform_to_boozer_chartmap import convert_boozmn_to_chartmap
+
+    source = tmp_path / "explicit.nc"
+    output = tmp_path / "chart.nc"
+    shutil.copyfile(boozmn_path, source)
+    with netCDF4.Dataset(source, "r+") as dataset:
+        ns = dataset["phi_b"].size
+        dataset["phi_b"][:] = np.linspace(0.0, -2.0*np.pi, ns)
+        if reflected:
+            for name in ("ixn_b", "iota_b", "buco_b", "rmns_b", "zmns_b",
+                         "bmns_b", "pmns_b"):
+                if name in dataset.variables:
+                    dataset[name][:] = -dataset[name][:]
+    convert_boozmn_to_chartmap(source, output, nrho=12, ntheta=24, nzeta=2)
+    # circ.bc has negative Jacobian and toroidal covariant; theta reversal
+    # reverses the oriented flux and keeps its independently specified magnitude.
+    expected_flux = -1.0e8 if reflected else 1.0e8
+    with netCDF4.Dataset(output) as dataset:
+        assert float(dataset.torflux) == pytest.approx(expected_flux, rel=1.0e-14)
+        assert int(dataset.signgs) == (1 if reflected else -1)
