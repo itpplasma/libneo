@@ -1152,7 +1152,10 @@ contains
         case (4)
             call spline3d_o555_d0_nq4(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
                                       yl)
-        case (5:MAX_QUANTITIES)
+        case (5)
+            call spline3d_o555_d0_nq5(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
+                                      yl)
+        case (6:MAX_QUANTITIES)
             call spline3d_o555_d0_nqn(nq, spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, &
                                       x2, x3, yl)
         case default
@@ -1189,7 +1192,10 @@ contains
         case (4)
             call spline3d_o555_d1_nq4(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
                                       yl, dyl)
-        case (5:MAX_QUANTITIES)
+        case (5)
+            call spline3d_o555_d1_nq5(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
+                                      yl, dyl)
+        case (6:MAX_QUANTITIES)
             call spline3d_o555_d1_nqn(nq, spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, &
                                       x2, x3, yl, dyl)
         case default
@@ -1229,7 +1235,10 @@ contains
         case (4)
             call spline3d_o555_d2_nq4(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
                                       yl, dyl, d2l)
-        case (5:MAX_QUANTITIES)
+        case (5)
+            call spline3d_o555_d2_nq5(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
+                                      yl, dyl, d2l)
+        case (6:MAX_QUANTITIES)
             call spline3d_o555_d2_nqn(nq, spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, &
                                       x2, x3, yl, dyl, d2l)
         case default
@@ -1271,7 +1280,10 @@ contains
         case (4)
             call spline3d_o555_rmix_nq4(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
                                         yl, dyl, d2l)
-        case (5:MAX_QUANTITIES)
+        case (5)
+            call spline3d_o555_rmix_nq5(spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, x2, x3, &
+                                        yl, dyl, d2l)
+        case (6:MAX_QUANTITIES)
             call spline3d_o555_rmix_nqn(nq, spl%coeff(1, 0, 0, 0, i1, i2, i3), x1, &
                                         x2, x3, yl, dyl, d2l)
         case default
