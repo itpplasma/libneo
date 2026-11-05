@@ -1,5 +1,5 @@
 program gen_spline3d_horner
-    ! Quintic 3D batch spline cell kernels for nq = 1..4 and a runtime nq.
+    ! Quintic 3D batch spline cell kernels for nq = 1..5 and a runtime nq.
     use libneo_gen_support, only: fortsym_revision, write_spline_leaf
     implicit none
     character(256) :: path
@@ -12,7 +12,7 @@ program gen_spline3d_horner
     write (unit, '(a)') '! FortSym revision: '//fortsym_revision
     write (unit, '(a)') '! Regenerate with: cmake --build <build> --target '// &
         'regenerate_gen_spline3d_horner'
-    do nq = 0, 4
+    do nq = 0, 5
         do order = 0, 2
             call write_spline_leaf(unit, 3, 5, nq, order, .false.)
         end do
