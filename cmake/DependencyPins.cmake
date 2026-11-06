@@ -2,8 +2,8 @@
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/../fpm.toml")
 file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/../fpm.toml" _libneo_dependencies
-    REGEX "^(fortio|fortnum) = ")
-foreach(_libneo_dependency IN ITEMS fortio fortnum)
+    REGEX "^(fortio|fortnum|fortfem) = ")
+foreach(_libneo_dependency IN ITEMS fortio fortnum fortfem)
     set(_libneo_found OFF)
     foreach(_libneo_line IN LISTS _libneo_dependencies)
         if(_libneo_line MATCHES "^${_libneo_dependency} = ")

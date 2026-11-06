@@ -262,6 +262,40 @@ if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
     endif()
 endif()
 
+# fortfem: B-spline curl complex with FEM-BEM exterior coupling for the
+# frozen-current vector potential. Declared after fortnum so it reuses that
+# target; fortfem fetches its own fortsparse and fortplot pins. libneo's
+# directory options (-fno-realloc-lhs, OpenACC) do not apply to that subtree.
+if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortfem_api)
+    get_directory_property(_libneo_compile_options COMPILE_OPTIONS)
+    set_directory_properties(PROPERTIES COMPILE_OPTIONS "-fPIC")
+    set(FORTFEM_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    if(DEFINED FORTFEM_SOURCE_DIR)
+        get_filename_component(_fortfem_source "${FORTFEM_SOURCE_DIR}" ABSOLUTE
+            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        if(NOT IS_DIRECTORY "${_fortfem_source}")
+            message(FATAL_ERROR
+                "FORTFEM_SOURCE_DIR='${_fortfem_source}' is not a directory")
+        endif()
+        add_subdirectory("${_fortfem_source}" "${CMAKE_CURRENT_BINARY_DIR}/fortfem"
+            EXCLUDE_FROM_ALL)
+    else()
+        # Only the targets libneo links get built.
+        set(_fortfem_exclude)
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+            set(_fortfem_exclude EXCLUDE_FROM_ALL)
+        endif()
+        FetchContent_Declare(
+            fortfem
+            GIT_REPOSITORY https://github.com/lazy-fortran/fortfem.git
+            GIT_TAG ${FORTFEM_REF}
+            ${_fortfem_exclude}
+        )
+        FetchContent_MakeAvailable(fortfem)
+    endif()
+    set_directory_properties(PROPERTIES COMPILE_OPTIONS "${_libneo_compile_options}")
+endif()
+
 # Tier 0: no internal libneo dependencies
 add_subdirectory(src/util)
 add_subdirectory(src/nctools)
