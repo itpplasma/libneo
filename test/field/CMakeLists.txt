@@ -48,6 +48,10 @@ add_executable(test_fortfem_meridian.x test_fortfem_meridian.f90)
 target_link_libraries(test_fortfem_meridian.x PRIVATE fortfem::api)
 add_test(NAME test_fortfem_meridian COMMAND test_fortfem_meridian.x)
 
+add_executable(test_free_boundary_coils.x test_free_boundary_coils.f90)
+target_link_libraries(test_free_boundary_coils.x PRIVATE frozen_current fortio::fortio)
+add_test(NAME test_free_boundary_coils COMMAND test_free_boundary_coils.x)
+
 add_executable(test_mgrid.x test_mgrid.f90)
 target_link_libraries(test_mgrid.x PRIVATE neo
                                            util_for_test)
@@ -72,6 +76,7 @@ set_tests_properties(
     test_field
     test_mgrid
     test_fortfem_meridian
+    test_free_boundary_coils
     test_stretch_coords
     PROPERTIES LABELS "field")
 

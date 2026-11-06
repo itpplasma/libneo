@@ -641,6 +641,15 @@ set_tests_properties(test_vmec_from_cyl PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_wout)
 
+add_executable(test_vmec_equilibrium_source.x source/test_vmec_equilibrium_source.f90)
+target_link_libraries(test_vmec_equilibrium_source.x neo frozen_current fortio::fortio)
+add_test(NAME test_vmec_equilibrium_source
+  COMMAND test_vmec_equilibrium_source.x)
+set_tests_properties(test_vmec_equilibrium_source PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  FIXTURES_REQUIRED vmec_wout)
+
 add_executable(test_vector_conversion.x source/test_vector_conversion.f90)
 target_link_libraries(test_vector_conversion.x neo ${MAGFIE_LIB})
 add_test(NAME test_vector_conversion
