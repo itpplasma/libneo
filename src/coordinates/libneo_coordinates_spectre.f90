@@ -94,46 +94,177 @@ contains
         !> grid resolves 32 points per period of the highest harmonic over one
         !> toroidal period of the chart; the magnetic axis (s = -1 in volume 1)
         !> is excluded.
+        !>
+        !> The geometry of an interior volume blends its two interfaces linearly
+        !> in s, and that of the axis volume is a polynomial in sbar = (s+1)/2
+        !> per poloidal mode number m. Each angle pair therefore needs the
+        !> Fourier sums of every interface and one partial sum per m, after
+        !> which every radial sample costs O(1) (O(m_max) in the axis volume).
         class(spectre_coordinate_system_t), intent(in) :: self
         integer, intent(out) :: ierr
 
         integer, parameter :: NS = 64
-        integer :: lvol, i, j, k, nth, nze, nperiod, sign0, sign_jac
-        real(dp) :: s, theta, zeta, jac
-        real(dp) :: R, Z, dRds, dRdt, dRdz, dZds, dZdt, dZdz
+        integer :: lvol, i, j, k, ii, m, nth, nze, nperiod, mmax, nmax, nvol
+        integer, allocatable :: state(:, :)
+        real(dp), allocatable :: cm(:, :), sm(:, :), cn(:, :), sn(:, :)
+        real(dp), allocatable :: rf(:, :), dm(:, :), fj(:, :), dfj(:, :)
+        real(dp) :: c, s_arg, ct, st, cz, sz, s, theta, zeta, alss, blss
+        real(dp) :: geo(6), jac, dr, dz, sbar
 
         ierr = 0
-        nth = 32*max(1, maxval(abs(self%im)))
+        nvol = self%Mvol
+        mmax = max(1, maxval(abs(self%im)))
+        nmax = maxval(abs(self%in))
+        nth = 32*mmax
         nperiod = 0
         do i = 1, self%mn
             nperiod = gcd(nperiod, abs(self%in(i)))
         end do
         nze = 1
-        if (nperiod > 0) nze = 32*maxval(abs(self%in))/nperiod
-        do lvol = 1, self%Mvol
-            sign0 = 0
-            do i = merge(1, 0, lvol == 1), NS
-                s = -1.0_dp + 2.0_dp*real(i, dp)/real(NS, dp)
-                do k = 0, nze - 1
-                    zeta = TWOPI*real(k, dp)/real(nze*max(nperiod, 1), dp)
-                    do j = 0, nth - 1
-                        theta = TWOPI*real(j, dp)/real(nth, dp)
-                        call spectre_geom(self, lvol, s, theta, zeta, R, Z, &
-                                          dRds, dRdt, dRdz, dZds, dZdt, dZdz)
-                        jac = R*(dRdt*dZds - dRds*dZdt)
-                        sign_jac = 0
-                        if (jac > 0.0_dp) sign_jac = 1
-                        if (jac < 0.0_dp) sign_jac = -1
-                        if (sign0 == 0) sign0 = sign_jac
-                        if (sign_jac /= sign0) then
-                            ierr = lvol
-                            return
+        if (nperiod > 0) nze = 32*nmax/nperiod
+        allocate (cm(0:mmax, 0:nth - 1), sm(0:mmax, 0:nth - 1))
+        allocate (cn(0:nmax, 0:nze - 1), sn(0:nmax, 0:nze - 1))
+        do j = 0, nth - 1
+            theta = TWOPI*real(j, dp)/real(nth, dp)
+            do m = 0, mmax
+                cm(m, j) = cos(m*theta)
+                sm(m, j) = sin(m*theta)
+            end do
+        end do
+        do k = 0, nze - 1
+            zeta = TWOPI*real(k, dp)/real(nze*max(nperiod, 1), dp)
+            do m = 0, nmax
+                cn(m, k) = cos(m*zeta)
+                sn(m, k) = sin(m*zeta)
+            end do
+        end do
+        ! Radial weights of the axis volume, as in spectre_geom.
+        allocate (fj(0:mmax, 1:NS), dfj(0:mmax, 1:NS))
+        do i = 1, NS
+            sbar = real(i, dp)/real(NS, dp)
+            do m = 0, mmax
+                if (m == 0) then
+                    fj(m, i) = sbar*sbar
+                    dfj(m, i) = sbar
+                else
+                    fj(m, i) = sbar**m
+                    dfj(m, i) = 0.5_dp*real(m, dp)*sbar**(m - 1)
+                end if
+            end do
+        end do
+        ! state(lvol, k): 0 nothing seen, -1/1 that sign so far, 3 only zero
+        ! Jacobians so far, 2 mixed; combined over k afterwards.
+        allocate (state(nvol, 0:nze - 1))
+        state = 0
+        !$omp parallel do schedule(dynamic) default(none) &
+        !$omp shared(self, state, cm, sm, cn, sn, fj, dfj, nth, nze, nvol, mmax) &
+        !$omp private(k, j, ii, m, lvol, i, c, s_arg, ct, st, cz, sz, rf, dm, &
+        !$omp s, alss, blss, geo, jac, dr, dz)
+        do k = 0, nze - 1
+            ! rf(1:4, l): R, dR/dtheta, Z, dZ/dtheta on interface l.
+            ! dm(1:4, m): the same for the axis-volume difference at mode m.
+            allocate (rf(4, 0:nvol), dm(4, 0:mmax))
+            do j = 0, nth - 1
+                rf = 0.0_dp
+                dm = 0.0_dp
+                do ii = 1, self%mn
+                    m = self%im(ii)
+                    ct = cm(abs(m), j)
+                    st = sign(1.0_dp, real(m, dp))*sm(abs(m), j)
+                    cz = cn(abs(self%in(ii)), k)
+                    sz = sign(1.0_dp, real(self%in(ii), dp))*sn(abs(self%in(ii)), k)
+                    c = ct*cz + st*sz
+                    s_arg = st*cz - ct*sz
+                    rf(1, :) = rf(1, :) + self%Rbc(ii, 0:nvol)*c &
+                               + self%Rbs(ii, 0:nvol)*s_arg
+                    rf(2, :) = rf(2, :) + real(m, dp)*(-self%Rbc(ii, 0:nvol)*s_arg &
+                                                       + self%Rbs(ii, 0:nvol)*c)
+                    rf(3, :) = rf(3, :) + self%Zbc(ii, 0:nvol)*c &
+                               + self%Zbs(ii, 0:nvol)*s_arg
+                    rf(4, :) = rf(4, :) + real(m, dp)*(-self%Zbc(ii, 0:nvol)*s_arg &
+                                                       + self%Zbs(ii, 0:nvol)*c)
+                    dm(1, abs(m)) = dm(1, abs(m)) &
+                                    + (self%Rbc(ii, 1) - self%Rbc(ii, 0))*c &
+                                    + (self%Rbs(ii, 1) - self%Rbs(ii, 0))*s_arg
+                    dm(2, abs(m)) = dm(2, abs(m)) + real(m, dp)* &
+                                    (-(self%Rbc(ii, 1) - self%Rbc(ii, 0))*s_arg &
+                                     + (self%Rbs(ii, 1) - self%Rbs(ii, 0))*c)
+                    dm(3, abs(m)) = dm(3, abs(m)) &
+                                    + (self%Zbc(ii, 1) - self%Zbc(ii, 0))*c &
+                                    + (self%Zbs(ii, 1) - self%Zbs(ii, 0))*s_arg
+                    dm(4, abs(m)) = dm(4, abs(m)) + real(m, dp)* &
+                                    (-(self%Zbc(ii, 1) - self%Zbc(ii, 0))*s_arg &
+                                     + (self%Zbs(ii, 1) - self%Zbs(ii, 0))*c)
+                end do
+                do lvol = 1, nvol
+                    if (state(lvol, k) == 2) cycle
+                    do i = merge(1, 0, lvol == 1), NS
+                        ! geo: R, dR/ds, dR/dtheta, Z, dZ/ds, dZ/dtheta
+                        if (lvol == 1) then
+                            geo = [rf(1, 0), 0.0_dp, rf(2, 0), rf(3, 0), 0.0_dp, &
+                                   rf(4, 0)]
+                            do m = 0, mmax
+                                geo(1) = geo(1) + fj(m, i)*dm(1, m)
+                                geo(2) = geo(2) + dfj(m, i)*dm(1, m)
+                                geo(3) = geo(3) + fj(m, i)*dm(2, m)
+                                geo(4) = geo(4) + fj(m, i)*dm(3, m)
+                                geo(5) = geo(5) + dfj(m, i)*dm(3, m)
+                                geo(6) = geo(6) + fj(m, i)*dm(4, m)
+                            end do
+                        else
+                            s = -1.0_dp + 2.0_dp*real(i, dp)/real(NS, dp)
+                            alss = 0.5_dp*(1.0_dp - s)
+                            blss = 0.5_dp*(1.0_dp + s)
+                            dr = 0.5_dp*(rf(1, lvol) - rf(1, lvol - 1))
+                            dz = 0.5_dp*(rf(3, lvol) - rf(3, lvol - 1))
+                            geo = [alss*rf(1, lvol - 1) + blss*rf(1, lvol), dr, &
+                                   alss*rf(2, lvol - 1) + blss*rf(2, lvol), &
+                                   alss*rf(3, lvol - 1) + blss*rf(3, lvol), dz, &
+                                   alss*rf(4, lvol - 1) + blss*rf(4, lvol)]
                         end if
+                        jac = geo(1)*(geo(3)*geo(5) - geo(2)*geo(6))
+                        call accumulate_sign(state(lvol, k), jac)
                     end do
                 end do
             end do
+            deallocate (rf, dm)
+        end do
+        !$omp end parallel do
+        do lvol = 1, nvol
+            m = 0
+            do k = 0, nze - 1
+                call merge_sign(m, state(lvol, k))
+            end do
+            if (m == 2) then
+                ierr = lvol
+                return
+            end if
         end do
     end subroutine validate_spectre_chart
+
+    pure subroutine accumulate_sign(state, jac)
+        !> state: 0 nothing seen, -1/1 that sign so far, 3 only zeros so far,
+        !> 2 mixed. An exactly zero Jacobian is its own sign class.
+        integer, intent(inout) :: state
+        real(dp), intent(in) :: jac
+        integer :: sign_jac
+        sign_jac = 3
+        if (jac > 0.0_dp) sign_jac = 1
+        if (jac < 0.0_dp) sign_jac = -1
+        call merge_sign(state, sign_jac)
+    end subroutine accumulate_sign
+
+    pure subroutine merge_sign(state, other)
+        !> Combines two sign states of accumulate_sign.
+        integer, intent(inout) :: state
+        integer, intent(in) :: other
+        if (other == 0 .or. state == 2) return
+        if (state == 0) then
+            state = other
+        else if (other /= state) then
+            state = 2
+        end if
+    end subroutine merge_sign
 
     pure recursive integer function gcd(a, b) result(g)
         integer, intent(in) :: a, b
