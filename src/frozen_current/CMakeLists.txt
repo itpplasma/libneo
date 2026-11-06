@@ -6,8 +6,9 @@ add_library(frozen_current STATIC
     equilibrium_source.f90
     vmec_equilibrium_source.f90
     free_boundary_coils.f90
+    frozen_current_field.f90
 )
-target_link_libraries(frozen_current PUBLIC vmec_support neo_field fortnum)
+target_link_libraries(frozen_current PUBLIC vmec_support neo_field fortnum fortfem::api)
 target_link_libraries(frozen_current PRIVATE fortio::fortio)
 if(ENABLE_OPENMP)
     target_link_libraries(frozen_current PUBLIC OpenMP::OpenMP_Fortran)

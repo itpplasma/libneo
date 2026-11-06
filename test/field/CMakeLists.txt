@@ -52,6 +52,11 @@ add_executable(test_free_boundary_coils.x test_free_boundary_coils.f90)
 target_link_libraries(test_free_boundary_coils.x PRIVATE frozen_current fortio::fortio)
 add_test(NAME test_free_boundary_coils COMMAND test_free_boundary_coils.x)
 
+add_executable(test_frozen_current_field.x test_frozen_current_field.f90)
+target_link_libraries(test_frozen_current_field.x PRIVATE frozen_current)
+add_test(NAME test_frozen_current_field COMMAND test_frozen_current_field.x)
+set_tests_properties(test_frozen_current_field PROPERTIES LABELS "field;slow")
+
 add_executable(test_mgrid.x test_mgrid.f90)
 target_link_libraries(test_mgrid.x PRIVATE neo
                                            util_for_test)
