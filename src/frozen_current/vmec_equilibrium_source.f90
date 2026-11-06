@@ -20,6 +20,7 @@ module neo_vmec_equilibrium_source
     contains
         procedure :: sample_volume => vmec_sample_volume
         procedure :: sample_surface => vmec_sample_surface
+        procedure :: boundary_curve => vmec_boundary_curve
     end type vmec_equilibrium_source_t
 
 contains
@@ -95,6 +96,18 @@ contains
         end do
         !$omp end parallel do
     end subroutine vmec_sample_surface
+
+    subroutine vmec_boundary_curve(self, phi, theta, r, z)
+        class(vmec_equilibrium_source_t), intent(in) :: self
+        real(dp), intent(in) :: phi, theta(:)
+        real(dp), intent(out) :: r(:), z(:)
+        real(dp) :: sqg, b(3)
+        integer :: j
+
+        do j = 1, size(theta)
+            call vmec_point(1.0_dp, theta(j), phi, sqg, b, r(j), z(j))
+        end do
+    end subroutine vmec_boundary_curve
 
     !> Field (B_R, B_phi, B_Z), Jacobian, position and the area vector
     !> e_theta x e_zeta of the surface s = const at one VMEC point.

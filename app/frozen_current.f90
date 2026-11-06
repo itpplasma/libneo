@@ -10,8 +10,10 @@
 !> |curl A_p - B_p| relative to |B_p|.  With a BEAMS3D file as template it
 !> writes a copy whose B_R, B_PHI, B_Z are the frozen-current field
 !> (export_part 'total'), its plasma part ('plasma') or its coil part
-!> ('coils').  extcur and mgrid_mode, when given, replace the wout values,
-!> for example to evaluate another code's coil set.
+!> ('coils'); except for 'coils', S_ARR outside the plasma becomes the
+!> continued flux label of neo_flux_label.  extcur and mgrid_mode, when
+!> given, replace the wout values, for example to evaluate another code's
+!> coil set.
 program frozen_current_app
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use omp_lib, only: omp_get_wtime
@@ -141,10 +143,10 @@ program frozen_current_app
         case ('plasma')
             plasma_only%plasma = field%plasma
             call write_beams3d_field(trim(beams3d_template), trim(beams3d_output), &
-                                     plasma_only)
+                                     plasma_only, src)
         case default
             call write_beams3d_field(trim(beams3d_template), trim(beams3d_output), &
-                                     field)
+                                     field, src)
         end select
         print '(a,a,a,f8.1,a)', ' wrote ', trim(beams3d_output), ' (', &
             omp_get_wtime() - t1, ' s)'

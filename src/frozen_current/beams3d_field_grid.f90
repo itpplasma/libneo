@@ -15,6 +15,9 @@ module neo_beams3d_field_grid
                           h5_close, h5_get, h5_add
     use neo_field_base, only: field_t
     use neo_frozen_current_leaves, only: cart_to_cyl
+    use neo_equilibrium_source, only: equilibrium_source_t
+    use neo_flux_label, only: boundary_section_t, boundary_section, &
+                              continued_flux_label
     implicit none
     private
 
@@ -81,9 +84,12 @@ contains
     end subroutine beams3d_grid_field
 
     !> Grid and flux labels of template, field of field, written to output.
-    subroutine write_beams3d_field(template, output, field)
+    !> With src, S_ARR outside the boundary of src is replaced by the
+    !> continued flux label of neo_flux_label (inside it is kept, at most 1).
+    subroutine write_beams3d_field(template, output, field, src)
         character(*), intent(in) :: template, output
         class(field_t), intent(in) :: field
+        class(equilibrium_source_t), intent(in), optional :: src
 
         type(beams3d_grid_t) :: grid
         real(dp), allocatable :: br(:, :, :), bphi(:, :, :), bz(:, :, :)
@@ -101,6 +107,7 @@ contains
         call h5_get(h5id, 'S_ARR', s_arr)
         call h5_get(h5id, 'U_ARR', u_arr)
         call h5_close(h5id)
+        if (present(src)) call continue_labels(src, grid, s_arr)
         call beams3d_grid_field(field, grid, br, bphi, bz)
         call h5_create(output, h5id)
         call h5_add(h5id, 'nr', nr)
@@ -120,5 +127,29 @@ contains
         call h5_close(h5id)
         call h5_deinit()
     end subroutine write_beams3d_field
+
+    subroutine continue_labels(src, grid, s_arr)
+        class(equilibrium_source_t), intent(in) :: src
+        type(beams3d_grid_t), intent(in) :: grid
+        real(dp), intent(inout) :: s_arr(:, :, :)
+
+        real(dp), parameter :: m_to_cm = 100.0_dp
+        integer, parameter :: ntheta = 1024
+        type(boundary_section_t) :: sec
+        integer :: i, j, k
+
+        do j = 1, size(grid%phi)
+            call boundary_section(src, grid%phi(j), ntheta, sec)
+            !$omp parallel do collapse(2) default(shared) private(i, k)
+            do k = 1, size(grid%z)
+                do i = 1, size(grid%r)
+                    s_arr(i, j, k) = continued_flux_label(sec, grid%r(i)*m_to_cm, &
+                                                          grid%z(k)*m_to_cm, &
+                                                          s_arr(i, j, k))
+                end do
+            end do
+            !$omp end parallel do
+        end do
+    end subroutine continue_labels
 
 end module neo_beams3d_field_grid

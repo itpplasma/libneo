@@ -7,6 +7,7 @@ add_library(frozen_current STATIC
     vmec_equilibrium_source.f90
     free_boundary_coils.f90
     frozen_current_field.f90
+    flux_label.f90
     beams3d_field_grid.f90
 )
 target_link_libraries(frozen_current PUBLIC vmec_support neo_field fortnum fortfem::api)
