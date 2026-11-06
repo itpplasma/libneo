@@ -13,7 +13,6 @@
 !> outputs (b, bt, bp, gss) and their partial derivatives with respect to the
 !> ten inputs (r, rs, rt, rp, zs, zt, zp, lt, lp, iota).
 program gen_boozer_hybrid_field
-    use fortsym_arena, only: arena_t
     use fortsym_expr, only: expr_t, sym, sqrt, operator(+), operator(-), &
                             operator(*), operator(/), operator(**)
     use fortsym_diff, only: diff
@@ -24,7 +23,6 @@ program gen_boozer_hybrid_field
         'rp', 'zs', 'zt', 'zp', 'lt', 'lp', 'iota']
     character(8), parameter :: outputs(nout) = [character(8) :: 'b', 'bt', 'bp', 'gss']
     type(leaf_writer_t) :: w
-    type(arena_t), target :: arena
     type(expr_t) :: x(nin), gtt, gtp, gpp, sqg, bu, bv, bcu, bcv, f(nout)
     type(expr_t) :: roots(nout*(nin + 1))
     character(16) :: names(nout*(nin + 1))
@@ -33,10 +31,8 @@ program gen_boozer_hybrid_field
 
     path = 'src/generated/boozer_hybrid_field_leaves.inc'
     if (command_argument_count() >= 1) call get_command_argument(1, path)
-
-    call arena%init()
     do k = 1, nin
-        x(k) = sym(arena, trim(inputs(k)))
+        x(k) = sym(trim(inputs(k)))
     end do
     associate (r => x(1), rs => x(2), rt => x(3), rp => x(4), zs => x(5), &
                zt => x(6), zp => x(7), lt => x(8), lp => x(9), iota => x(10))
@@ -54,7 +50,7 @@ program gen_boozer_hybrid_field
         f(4) = sqrt((gtt*gpp - gtp**2)/sqg**2)
     end associate
 
-    call w%open(arena, 'gen_boozer_hybrid_field', trim(path))
+    call w%open('gen_boozer_hybrid_field', trim(path))
     n = 0
     do i = 1, nout
         n = n + 1

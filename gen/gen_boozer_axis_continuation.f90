@@ -3,7 +3,6 @@
 !> The endpoint jet is [c(a), a*c'(a), a**2*c''(a)]. This generates its
 !> linear map to [c(s), a*c'(s), a**2*c''(s)] and proves the C2 join.
 program gen_boozer_axis_continuation
-    use fortsym_arena, only: arena_t
     use fortsym_expr, only: expr_t, sym, operator(+), operator(-), &
                             operator(*), operator(/), operator(**)
     use fortsym_diff, only: diff
@@ -11,7 +10,6 @@ program gen_boozer_axis_continuation
     use fortsym_check, only: suite_t, suite_begin, suite_end, check_identity
     use libneo_gen_support, only: leaf_writer_t, fortsym_revision
     implicit none
-    type(arena_t), target :: arena
     type(leaf_writer_t) :: w
     type(suite_t) :: proof
     type(expr_t) :: q, x, u0, u1, u2, one, zero
@@ -28,19 +26,18 @@ program gen_boozer_axis_continuation
     receipt = 'boozer_axis_continuation_proof.json'
     if (command_argument_count() >= 1) call get_command_argument(1, path)
     if (command_argument_count() >= 2) call get_command_argument(2, receipt)
-    call arena%init()
-    q = sym(arena, 'q')
-    x = sym(arena, 'x')
-    u0 = sym(arena, 'u0')
-    u1 = sym(arena, 'u1')
-    u2 = sym(arena, 'u2')
+    q = sym('q')
+    x = sym('x')
+    u0 = sym('u0')
+    u1 = sym('u1')
+    u2 = sym('u2')
     one = 1 + 0*x
     zero = 0*x
     p(1) = 1 - q*(x - 1) + q*(q + 1)*(x - 1)**2/2
     p(2) = (x - 1) - q*(x - 1)**2
     p(3) = (x - 1)**2/2
 
-    call w%open(arena, 'gen_boozer_axis_continuation', trim(path))
+    call w%open('gen_boozer_axis_continuation', trim(path))
     call suite_begin(proof, 'scalar Fourier primary C2 axis continuation')
     do j = 1, 3
         jets(1, j) = u0*p(j)

@@ -16,7 +16,6 @@
 !> inputs (r, rs, rt, rp, zs, zt, zp, lt, lp, aphis); athetas = A_theta' is
 !> the fixed toroidal-flux scale.
 program gen_boozer_field_jacobian
-    use fortsym_arena, only: arena_t
     use fortsym_expr, only: expr_t, sym, sqrt, operator(+), operator(-), &
                             operator(*), operator(/), operator(**)
     use fortsym_diff, only: diff
@@ -27,7 +26,6 @@ program gen_boozer_field_jacobian
         'rp', 'zs', 'zt', 'zp', 'lt', 'lp', 'aphis']
     character(8), parameter :: outputs(3) = [character(8) :: 'b', 'bt', 'bp']
     type(leaf_writer_t) :: w
-    type(arena_t), target :: arena
     type(expr_t) :: x(nin), athetas, cj, gv22, gv23, gv33, g22, g23, g33
     type(expr_t) :: sqg, bctr_t, bctr_p, bcov_t, bcov_p, f(3)
     type(expr_t) :: roots(3*(nin + 1))
@@ -37,12 +35,10 @@ program gen_boozer_field_jacobian
 
     path = 'src/generated/boozer_field_jacobian_leaves.inc'
     if (command_argument_count() >= 1) call get_command_argument(1, path)
-
-    call arena%init()
     do k = 1, nin
-        x(k) = sym(arena, trim(inputs(k)))
+        x(k) = sym(trim(inputs(k)))
     end do
-    athetas = sym(arena, 'athetas')
+    athetas = sym('athetas')
     associate (r => x(1), rs => x(2), rt => x(3), rp => x(4), zs => x(5), &
                zt => x(6), zp => x(7), lt => x(8), lp => x(9), aphis => x(10))
         cj = 1/(1 + lt)
@@ -62,7 +58,7 @@ program gen_boozer_field_jacobian
         f(3) = bcov_p + bcov_t*lp
     end associate
 
-    call w%open(arena, 'gen_boozer_field_jacobian', trim(path))
+    call w%open('gen_boozer_field_jacobian', trim(path))
     n = 0
     do i = 1, 3
         n = n + 1

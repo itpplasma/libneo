@@ -3,25 +3,25 @@
 ! CMakeLists.txt, delivered as the configured include file
 ! libneo_fortsym_revision.inc.
 module libneo_gen_support
-    use fortsym_arena, only: arena_t
     use fortsym_expr, only: expr_t
     use fortsym_engine, only: engine_result_t
     use fortsym_engine_native, only: native_engine_t, make_native_engine
     use fortsym_string, only: str_t, str, chars
-    use fortsym_kernel, only: kernel_spec_t, kernel_binding_t, emit_kernel
+    use fortsym_kernel, only: kernel_spec_t, emit_kernel
     use fortgen_horner_emit, only: horner_kernel_spec_t, emit_horner_kernel
+    use fortgen_derivative_set, only: partials, radial_mixed
     use fortgen_kernel_target, only: TARGET_FORTRAN_OPENACC
     use fortgen_string, only: fg_str_t => str_t, fortgen_str => str, &
                               fortgen_chars => chars
     implicit none
     private
     include 'libneo_fortsym_revision.inc'
-    public :: fortsym_revision, leaf_writer_t, binding, write_spline_leaf
+    public :: fortsym_revision, leaf_writer_t, write_spline_leaf
 
-    !> Writes generated leaves into one file. The generator owns the arena; the
-    !> writer owns the output unit, the simplifying engine and leaf conventions.
+    !> Writes generated leaves into one file. The writer owns the output unit,
+    !> the simplifying engine of the current FortSym context and the leaf
+    !> conventions; kernel inputs bound with fortsym_jet's bind apply.
     type :: leaf_writer_t
-        type(arena_t), pointer :: arena => null()
         type(native_engine_t) :: engine
         character(:), allocatable :: generator
         integer :: unit = -1
@@ -34,13 +34,11 @@ module libneo_gen_support
         procedure :: simplify => writer_simplify
     end type
 contains
-    subroutine writer_open(w, arena, generator, path)
+    subroutine writer_open(w, generator, path)
         class(leaf_writer_t), intent(inout) :: w
-        type(arena_t), intent(inout), target :: arena
         character(*), intent(in) :: generator, path
 
-        w%arena => arena
-        w%engine = make_native_engine(arena)
+        w%engine = make_native_engine()
         w%generator = generator
         open (newunit=w%unit, file=path, status='replace', action='write')
     end subroutine
@@ -80,26 +78,12 @@ contains
         r = res%value
     end function
 
-    !> A binding of an opaque applied function (or one of its partial
-    !> derivatives, by argument index) to a kernel argument name.
-    function binding(head, indices, replacement) result(b)
-        character(*), intent(in) :: head, replacement
-        integer, intent(in) :: indices(:)
-        type(kernel_binding_t) :: b
-
-        b%head = str(head)
-        allocate (b%derivative_indices(size(indices)))
-        b%derivative_indices = indices
-        b%replacement = str(replacement)
-    end function
-
     !> Emit one pure elemental leaf subroutine without a module wrapper, so the
     !> consumer can include it next to its hot caller.
-    subroutine writer_emit(w, name, args, outputs, roots, bindings)
+    subroutine writer_emit(w, name, args, outputs, roots)
         class(leaf_writer_t), intent(inout) :: w
         character(*), intent(in) :: name, args(:), outputs(:)
         type(expr_t), intent(in) :: roots(:)
-        type(kernel_binding_t), intent(in), optional :: bindings(:)
         type(kernel_spec_t) :: spec
         type(str_t) :: source
         logical :: ok
@@ -120,7 +104,6 @@ contains
         do j = 1, size(outputs)
             spec%outputs(j) = str(trim(outputs(j)))
         end do
-        if (present(bindings)) spec%bindings = bindings
         source = emit_kernel(roots, spec, ok, message=message)
         if (.not. ok) error stop message
         write (w%unit, '(a)') chars(source)
@@ -145,12 +128,11 @@ contains
         name = name//repeat(trim(text), d)//'_'
         if (rmix) then
             name = name//'rmix'
-            allocate (spec%orders(3, 7))
-            spec%orders = reshape([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, &
-                                   2, 0, 0, 1, 1, 0, 1, 0, 1], [3, 7])
+            spec%derivatives = radial_mixed(d)
         else
             write (text, '(i0)') order
             name = name//'d'//trim(text)
+            spec%derivatives = partials(d, order)
         end if
         if (nq == 0) then
             name = name//'_nqn'
@@ -159,11 +141,9 @@ contains
             name = name//'_nq'//trim(text)
         end if
         spec%name = fortgen_str(name)
-        spec%dimension = d
         spec%degree = 0
         spec%degree(1:d) = degree
         spec%nq = nq
-        spec%max_order = order
         spec%target = TARGET_FORTRAN_OPENACC
         source = emit_horner_kernel(spec, ok, message)
         if (.not. ok) error stop message
