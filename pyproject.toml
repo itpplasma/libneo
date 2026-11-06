@@ -2,7 +2,7 @@
 requires = [
     "scikit-build-core",
     "numpy",
-    "f90wrap @ git+https://github.com/jameskermode/f90wrap.git",
+    "f90wrap @ git+https://github.com/jameskermode/f90wrap.git@05ba8ab50da57ff84221374e40478871be7de938",
 ]
 build-backend = "scikit_build_core.build"
 
@@ -17,7 +17,7 @@ classifiers = [
 [project.optional-dependencies]
 chartmap = [
     "netCDF4",
-    "map2disc @ git+https://github.com/itpplasma/map2disc.git",
+    "map2disc @ git+https://github.com/itpplasma/map2disc.git@14da2f094ab2505a639b9cd04af57f5c0dbfaa54",
     "shapely",
     "scipy",
     "trimesh",
@@ -32,7 +32,7 @@ dev = [
   "h5py",
   "trimesh",
   "pytest",
-  "map2disc @ git+https://github.com/itpplasma/map2disc.git",
+  "map2disc @ git+https://github.com/itpplasma/map2disc.git@14da2f094ab2505a639b9cd04af57f5c0dbfaa54",
 ]
 docs = [
   "sphinx",

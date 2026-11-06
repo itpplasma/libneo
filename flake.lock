@@ -21,17 +21,17 @@
     "fortfem": {
       "flake": false,
       "locked": {
-        "lastModified": 1793982733,
-        "narHash": "sha256-cdKyuxgrchfDvCVm1w+puiDdnTUI0eDgfnE2y5nZLfA=",
+        "lastModified": 1794001048,
+        "narHash": "sha256-4YfrlGKXFGy7h68fX8IJDYDC2hbIKHgS7qSKBOYKgcM=",
         "owner": "lazy-fortran",
         "repo": "fortfem",
-        "rev": "a85428f70af5e83cadf308dd92e5886e9c88f700",
+        "rev": "9c5358a8e92f8b0fdee5264a0de15de8d4f1acb1",
         "type": "github"
       },
       "original": {
         "owner": "lazy-fortran",
         "repo": "fortfem",
-        "rev": "a85428f70af5e83cadf308dd92e5886e9c88f700",
+        "rev": "9c5358a8e92f8b0fdee5264a0de15de8d4f1acb1",
         "type": "github"
       }
     },
@@ -66,23 +66,6 @@
         "owner": "lazy-fortran",
         "repo": "fortnum",
         "rev": "30c14fe2b4674655a3cac9b2525c60aa7bc31738",
-        "type": "github"
-      }
-    },
-    "fortplot": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793315808,
-        "narHash": "sha256-JGT0hd4FGGv/xJWswbe9K3J5IbxwLgc5dbFDerAnB9c=",
-        "owner": "lazy-fortran",
-        "repo": "fortplot",
-        "rev": "19dd002c32fed1bdaa657089e6d3c9bfa9648dcf",
-        "type": "github"
-      },
-      "original": {
-        "owner": "lazy-fortran",
-        "repo": "fortplot",
-        "rev": "19dd002c32fed1bdaa657089e6d3c9bfa9648dcf",
         "type": "github"
       }
     },
@@ -125,7 +108,6 @@
         "fortfem": "fortfem",
         "fortio": "fortio",
         "fortnum": "fortnum",
-        "fortplot": "fortplot",
         "fortsparse": "fortsparse",
         "nixpkgs": "nixpkgs"
       }

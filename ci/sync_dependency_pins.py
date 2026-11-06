@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Regenerate Nix dependency pins from fpm.toml, or check their consistency.
 
-fpm.toml pins Fortio, Fortnum and FortFEM. FortSparse and FortPlot follow the
-revisions that FortFEM's CMake build fetches at its pinned commit.
+fpm.toml pins Fortio, Fortnum and FortFEM. FortSparse follows the revision
+that FortFEM's CMake build fetches at its pinned commit.
 """
 
 import argparse
@@ -13,7 +13,7 @@ import subprocess
 import tomllib
 
 DIRECT = ("fortio", "fortnum", "fortfem")
-TRANSITIVE = ("fortsparse", "fortplot")
+TRANSITIVE = ("fortsparse",)
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--check", action="store_true")
