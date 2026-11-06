@@ -264,12 +264,15 @@ endif()
 
 # fortfem: B-spline curl complex with FEM-BEM exterior coupling for the
 # frozen-current vector potential. Declared after fortnum so it reuses that
-# target; fortfem fetches its own fortsparse and fortplot pins. libneo's
-# directory options (-fno-realloc-lhs, OpenACC) do not apply to that subtree.
+# target; fortfem fetches its own fortsparse pin. Without plotting, fortfem
+# leaves fortplot, and with it the fortplot pins of libneo consumers, alone.
+# libneo's directory options (-fno-realloc-lhs, OpenACC) do not apply to that
+# subtree.
 if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortfem_api)
     get_directory_property(_libneo_compile_options COMPILE_OPTIONS)
     set_directory_properties(PROPERTIES COMPILE_OPTIONS "-fPIC")
     set(FORTFEM_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(FORTFEM_WITH_PLOT OFF CACHE BOOL "" FORCE)
     if(DEFINED FORTFEM_SOURCE_DIR)
         get_filename_component(_fortfem_source "${FORTFEM_SOURCE_DIR}" ABSOLUTE
             BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -13,22 +13,17 @@
       flake = false;
     };
     fortfem = {
-      url = "github:lazy-fortran/fortfem/a85428f70af5e83cadf308dd92e5886e9c88f700";
+      url = "github:lazy-fortran/fortfem/9c5358a8e92f8b0fdee5264a0de15de8d4f1acb1";
       flake = false;
     };
-    # FortFEM's own CMake pins of its dependencies.
+    # FortFEM's own CMake pin of its sparse solver dependency.
     fortsparse = {
       url = "github:lazy-fortran/fortsparse/d2d912b95139871b9c8b2fdd695574496bc98810";
       flake = false;
     };
-    fortplot = {
-      url = "github:lazy-fortran/fortplot/19dd002c32fed1bdaa657089e6d3c9bfa9648dcf";
-      flake = false;
-    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, fortio, fortnum, fortfem, fortsparse,
-    fortplot }:
+  outputs = { self, nixpkgs, flake-utils, fortio, fortnum, fortfem, fortsparse }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -69,7 +64,6 @@
             "-DFETCHCONTENT_SOURCE_DIR_FORTNUM=${fortnum}"
             "-DFETCHCONTENT_SOURCE_DIR_FORTFEM=${fortfem}"
             "-DFETCHCONTENT_SOURCE_DIR_FORTSPARSE=${fortsparse}"
-            "-DFETCHCONTENT_SOURCE_DIR_FORTPLOT=${fortplot}"
           ];
         };
 

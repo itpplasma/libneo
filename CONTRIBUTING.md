@@ -11,7 +11,7 @@ revision, configure with `-DFORTIO_REF=<ref>`, `-DFORTNUM_REF=<ref>` or
 `-DFORTFEM_REF=<ref>`; local source overrides remain available through CMake's
 FetchContent options or `-DFORTNUM_SOURCE_DIR=<dir>` and
 `-DFORTFEM_SOURCE_DIR=<dir>`. FortFEM uses libneo's Fortnum and fetches its own
-FortSparse and FortPlot pins.
+FortSparse pin; libneo builds it without plotting, so it does not fetch FortPlot.
 
 After changing a revision in `fpm.toml`, run
 `python3 ci/sync_dependency_pins.py` to regenerate the Nix inputs and lockfile.
