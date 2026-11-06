@@ -550,6 +550,11 @@ add_executable(vmec_to_chartmap.x
 )
 target_link_libraries(vmec_to_chartmap.x neo)
 
+add_executable(frozen_current.x
+    app/frozen_current.f90
+)
+target_link_libraries(frozen_current.x frozen_current)
+
 add_executable(boozer_spectrum_ad.x
     app/boozer_spectrum_ad.f90
 )
