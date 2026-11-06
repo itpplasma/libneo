@@ -61,6 +61,10 @@ add_executable(test_beams3d_field_grid.x test_beams3d_field_grid.f90)
 target_link_libraries(test_beams3d_field_grid.x PRIVATE frozen_current neo)
 add_test(NAME test_beams3d_field_grid COMMAND test_beams3d_field_grid.x)
 
+add_executable(test_flux_label.x test_flux_label.f90)
+target_link_libraries(test_flux_label.x PRIVATE frozen_current neo)
+add_test(NAME test_flux_label COMMAND test_flux_label.x)
+
 add_executable(test_mgrid.x test_mgrid.f90)
 target_link_libraries(test_mgrid.x PRIVATE neo
                                            util_for_test)
@@ -87,6 +91,7 @@ set_tests_properties(
     test_fortfem_meridian
     test_free_boundary_coils
     test_beams3d_field_grid
+    test_flux_label
     test_stretch_coords
     PROPERTIES LABELS "field")
 

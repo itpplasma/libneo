@@ -39,6 +39,7 @@ module neo_equilibrium_source
     contains
         procedure(sample_volume_i), deferred :: sample_volume
         procedure(sample_surface_i), deferred :: sample_surface
+        procedure(boundary_curve_i), deferred :: boundary_curve
     end type equilibrium_source_t
 
     abstract interface
@@ -55,6 +56,14 @@ module neo_equilibrium_source
             type(source_resolution_t), intent(in) :: res
             type(source_points_t), intent(out) :: pts
         end subroutine sample_surface_i
+
+        !> Boundary s = 1 in the plane phi at the angles theta: (R, Z).
+        subroutine boundary_curve_i(self, phi, theta, r, z)
+            import :: equilibrium_source_t, dp
+            class(equilibrium_source_t), intent(in) :: self
+            real(dp), intent(in) :: phi, theta(:)
+            real(dp), intent(out) :: r(:), z(:)
+        end subroutine boundary_curve_i
     end interface
 
 contains
