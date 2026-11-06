@@ -65,6 +65,11 @@ add_executable(test_flux_label.x test_flux_label.f90)
 target_link_libraries(test_flux_label.x PRIVATE frozen_current neo)
 add_test(NAME test_flux_label COMMAND test_flux_label.x)
 
+add_executable(test_frozen_current_limits.x test_frozen_current_limits.f90)
+target_link_libraries(test_frozen_current_limits.x PRIVATE frozen_current)
+add_test(NAME test_frozen_current_limits COMMAND test_frozen_current_limits.x)
+set_tests_properties(test_frozen_current_limits PROPERTIES LABELS "field;slow")
+
 add_executable(test_mgrid.x test_mgrid.f90)
 target_link_libraries(test_mgrid.x PRIVATE neo
                                            util_for_test)
