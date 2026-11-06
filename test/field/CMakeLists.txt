@@ -44,6 +44,10 @@ target_link_libraries(test_field.x PRIVATE neo
                                            util_for_test)
 add_test(NAME test_field COMMAND test_field.x)
 
+add_executable(test_fortfem_meridian.x test_fortfem_meridian.f90)
+target_link_libraries(test_fortfem_meridian.x PRIVATE fortfem::api)
+add_test(NAME test_fortfem_meridian COMMAND test_fortfem_meridian.x)
+
 add_executable(test_mgrid.x test_mgrid.f90)
 target_link_libraries(test_mgrid.x PRIVATE neo
                                            util_for_test)
@@ -67,6 +71,7 @@ set_tests_properties(
     test_spline_field
     test_field
     test_mgrid
+    test_fortfem_meridian
     test_stretch_coords
     PROPERTIES LABELS "field")
 

@@ -5,10 +5,13 @@ and architectural notes in [DESIGN.md](DESIGN.md).
 
 ## Dependency pins
 
-Fortio and Fortnum revisions are defined in `fpm.toml`; both the main CMake
-build and the standalone `h5merge` tool read them. To test another revision,
-configure with `-DFORTIO_REF=<ref>` or `-DFORTNUM_REF=<ref>`; local source
-overrides remain available through CMake's FetchContent options.
+Fortio, Fortnum and FortFEM revisions are defined in `fpm.toml`; both the main
+CMake build and the standalone `h5merge` tool read them. To test another
+revision, configure with `-DFORTIO_REF=<ref>`, `-DFORTNUM_REF=<ref>` or
+`-DFORTFEM_REF=<ref>`; local source overrides remain available through CMake's
+FetchContent options or `-DFORTNUM_SOURCE_DIR=<dir>` and
+`-DFORTFEM_SOURCE_DIR=<dir>`. FortFEM uses libneo's Fortnum and fetches its own
+FortSparse and FortPlot pins.
 
 After changing a revision in `fpm.toml`, run
 `python3 ci/sync_dependency_pins.py` to regenerate the Nix inputs and lockfile.

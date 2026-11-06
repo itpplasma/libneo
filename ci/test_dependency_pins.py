@@ -22,14 +22,15 @@ class DependencyPinsTests(unittest.TestCase):
 cmake_minimum_required(VERSION 3.22)
 project(pin_selection NONE)
 include(cmake/DependencyPins.cmake)
-file(WRITE "${CMAKE_BINARY_DIR}/selected" "${FORTIO_REF}\n${FORTNUM_REF}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/selected" "${FORTIO_REF}\n${FORTNUM_REF}\n${FORTFEM_REF}\n")
 ''')
-        self.set_pins("1", "2")
+        self.set_pins("1", "2", "5")
 
-    def set_pins(self, fortio, fortnum):
+    def set_pins(self, fortio, fortnum, fortfem):
         (self.root / "fpm.toml").write_text(
             f'fortio = {{ rev = "{fortio * 40}" }}\n'
             f'fortnum = {{ rev = "{fortnum * 40}" }}\n'
+            f'fortfem = {{ rev = "{fortfem * 40}" }}\n'
         )
 
     def run_cmake(self, *arguments):
@@ -39,20 +40,20 @@ file(WRITE "${CMAKE_BINARY_DIR}/selected" "${FORTIO_REF}\n${FORTNUM_REF}\n")
 
     def test_manifest_update_reconfigures_existing_build(self):
         selected = self.run_cmake("-S", str(self.root), "-B", str(self.root / "build"))
-        self.assertEqual(selected, ["1" * 40, "2" * 40])
-        self.set_pins("3", "4")
+        self.assertEqual(selected, ["1" * 40, "2" * 40, "5" * 40])
+        self.set_pins("3", "4", "6")
         selected = self.run_cmake("--build", str(self.root / "build"))
-        self.assertEqual(selected, ["3" * 40, "4" * 40])
+        self.assertEqual(selected, ["3" * 40, "4" * 40, "6" * 40])
 
     def test_explicit_override_survives_manifest_update(self):
         selected = self.run_cmake(
             "-S", str(self.root), "-B", str(self.root / "build"),
             "-DFORTIO_REF=review-candidate",
         )
-        self.assertEqual(selected, ["review-candidate", "2" * 40])
-        self.set_pins("3", "4")
+        self.assertEqual(selected, ["review-candidate", "2" * 40, "5" * 40])
+        self.set_pins("3", "4", "6")
         selected = self.run_cmake("--build", str(self.root / "build"))
-        self.assertEqual(selected, ["review-candidate", "4" * 40])
+        self.assertEqual(selected, ["review-candidate", "4" * 40, "6" * 40])
 
 
 if __name__ == "__main__":

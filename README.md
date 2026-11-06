@@ -28,10 +28,11 @@ change.
 ## Building
 
 Requirements: CMake 3.22 or newer, Ninja, GCC and gfortran, BLAS/LAPACK.
-CMake fetches Fortio and [Fortnum](https://github.com/lazy-fortran/fortnum) at
-configure time (revisions pinned in `fpm.toml`). On Debian or Ubuntu,
-`setup/debian.sh` installs the system packages; for computing clusters, load the
-modules in `setup/<machine>.sh`.
+CMake fetches Fortio, [Fortnum](https://github.com/lazy-fortran/fortnum) and
+[FortFEM](https://github.com/lazy-fortran/fortfem) at configure time (revisions
+pinned in `fpm.toml`). On Debian or Ubuntu, `setup/debian.sh` installs the
+system packages; for computing clusters, load the modules in
+`setup/<machine>.sh`.
 
     make          # configure and build in build/ with CMake and Ninja
     make test     # run the CTest suite
