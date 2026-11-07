@@ -1,5 +1,6 @@
-!> Round trip a small synthetic Boozer .bc file through read_bc_file and
-!> check every field of bc_data_t against the values used to write it.
+!> Round trip small synthetic Boozer .bc files, in the six-column
+!> (stellarator-symmetric) and the ten-column layout, through read_bc_file and
+!> check every field of bc_data_t against the values used to write them.
 program test_bc_file
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use bc_file, only: bc_data_t, read_bc_file
@@ -7,6 +8,7 @@ program test_bc_file
     implicit none
 
     character(len=*), parameter :: bc_filename = "test_bc_file_synthetic.bc"
+    character(len=*), parameter :: bc_asym_filename = "test_bc_file_asymmetric.bc"
     real(dp), parameter :: tol = 1.0e-10_dp
 
     integer, parameter :: nsurf = 3, nmode = 4
@@ -19,6 +21,8 @@ program test_bc_file
     real(dp) :: s(nsurf), iota(nsurf), Jpol_over_nper(nsurf), Itor(nsurf)
     real(dp) :: rmnc(nsurf, nmode), zmns(nsurf, nmode)
     real(dp) :: vmns(nsurf, nmode), bmnc(nsurf, nmode)
+    real(dp) :: rmns(nsurf, nmode), zmnc(nsurf, nmode)
+    real(dp) :: vmnc(nsurf, nmode), bmns(nsurf, nmode)
 
     type(bc_data_t) :: d
     logical :: failed
@@ -40,6 +44,10 @@ program test_bc_file
                                   - 0.015625_dp*real(imode, dp)
             bmnc(isurf, imode) = 2.0_dp + 0.5_dp*real(isurf, dp) &
                                   + 0.125_dp*real(imode, dp)
+            rmns(isurf, imode) = 0.01_dp*real(isurf + 2*imode, dp)
+            zmnc(isurf, imode) = -0.02_dp*real(isurf + imode, dp)
+            vmnc(isurf, imode) = 0.003_dp*real(2*isurf - imode, dp)
+            bmns(isurf, imode) = 0.004_dp*real(isurf*imode, dp)
         end do
     end do
 
@@ -86,6 +94,41 @@ program test_bc_file
         end do
     end do
 
+    if (.not. d%symmetric) then
+        print *, "FAIL: six-column file read as asymmetric"
+        failed = .true.
+    end if
+    if (any(d%rmns /= 0) .or. any(d%zmnc /= 0) .or. any(d%vmnc /= 0) &
+        .or. any(d%bmns /= 0)) then
+        print *, "FAIL: asymmetric terms of a six-column file are not zero"
+        failed = .true.
+    end if
+
+    call write_synthetic_bc_file(bc_asym_filename, asymmetric=.true.)
+    call read_bc_file(bc_asym_filename, d)
+    if (d%symmetric) then
+        print *, "FAIL: ten-column file read as symmetric"
+        failed = .true.
+    end if
+    call check_int(d%nmode, nmode, "nmode (asymmetric)", failed)
+    do isurf = 1, nsurf
+        call check_real(d%iota(isurf), iota(isurf), "iota (asymmetric)", failed)
+        do imode = 1, nmode
+            call check_real(d%rmnc(isurf, imode), rmnc(isurf, imode), &
+                            "rmnc (asymmetric)", failed)
+            call check_real(d%rmns(isurf, imode), rmns(isurf, imode), "rmns", failed)
+            call check_real(d%zmnc(isurf, imode), zmnc(isurf, imode), "zmnc", failed)
+            call check_real(d%zmns(isurf, imode), zmns(isurf, imode), &
+                            "zmns (asymmetric)", failed)
+            call check_real(d%vmnc(isurf, imode), vmnc(isurf, imode), "vmnc", failed)
+            call check_real(d%vmns(isurf, imode), vmns(isurf, imode), &
+                            "vmns (asymmetric)", failed)
+            call check_real(d%bmnc(isurf, imode), bmnc(isurf, imode), &
+                            "bmnc (asymmetric)", failed)
+            call check_real(d%bmns(isurf, imode), bmns(isurf, imode), "bmns", failed)
+        end do
+    end do
+
     if (failed) then
         error stop "test_bc_file failed"
     end if
@@ -93,10 +136,15 @@ program test_bc_file
 
 contains
 
-    subroutine write_synthetic_bc_file(filename)
+    subroutine write_synthetic_bc_file(filename, asymmetric)
         character(len=*), intent(in) :: filename
+        logical, intent(in), optional :: asymmetric
 
         integer :: iunit, is, k
+        logical :: asym
+
+        asym = .false.
+        if (present(asymmetric)) asym = asymmetric
 
         open (newunit=iunit, file=trim(filename), status='replace', &
               action='write')
@@ -118,12 +166,23 @@ contains
             write (iunit, '(6ES16.8)') s(is), iota(is), Jpol_over_nper(is), &
                 Itor(is), 0.0_dp, 0.0_dp
 
-            write (iunit, '(A)') '    m    n      rmnc [m]'// &
-                '         zmns [m]         vmns [ ]         bmnc [T]'
-            do k = 1, nmode
-                write (iunit, '(2I6, 4ES16.8)') m(k), n(k), rmnc(is, k), &
-                    zmns(is, k), vmns(is, k), bmnc(is, k)
-            end do
+            if (asym) then
+                write (iunit, '(A)') '    m    n      rmnc [m]         rmns [m]'// &
+                    '         zmnc [m]         zmns [m]         vmnc [ ]'// &
+                    '         vmns [ ]         bmnc [T]         bmns [T]'
+                do k = 1, nmode
+                    write (iunit, '(2I6, 8ES16.8)') m(k), n(k), rmnc(is, k), &
+                        rmns(is, k), zmnc(is, k), zmns(is, k), vmnc(is, k), &
+                        vmns(is, k), bmnc(is, k), bmns(is, k)
+                end do
+            else
+                write (iunit, '(A)') '    m    n      rmnc [m]'// &
+                    '         zmns [m]         vmns [ ]         bmnc [T]'
+                do k = 1, nmode
+                    write (iunit, '(2I6, 4ES16.8)') m(k), n(k), rmnc(is, k), &
+                        zmns(is, k), vmns(is, k), bmnc(is, k)
+                end do
+            end if
         end do
 
         close (iunit)
