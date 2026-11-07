@@ -25,6 +25,10 @@ module bc_file
         real(dp), allocatable :: rmnc(:, :), zmns(:, :) !< (nsurf, nmode) [m]
         real(dp), allocatable :: vmns(:, :) !< (nsurf, nmode) [ ]
         real(dp), allocatable :: bmnc(:, :) !< (nsurf, nmode) [T]
+        !> Stellarator-asymmetric terms, zero in a six-column file.
+        real(dp), allocatable :: rmns(:, :), zmnc(:, :), vmnc(:, :), bmns(:, :)
+        !> False for a ten-column file (m n rmnc rmns zmnc zmns vmnc vmns bmnc bmns).
+        logical :: symmetric = .true.
     end type bc_data_t
 
 contains
@@ -34,7 +38,7 @@ contains
         type(bc_data_t), intent(out) :: d
 
         integer :: iunit, ios, isurf, imode, m_int, n_int
-        real(dp) :: surf_vals(6), row(4)
+        real(dp) :: surf_vals(6), row(8)
         character(len=512) :: line
 
         open (newunit=iunit, file=trim(filename), status='old', &
@@ -61,44 +65,38 @@ contains
                     read (iunit, '(A)', iostat=ios) line
                     if (ios /= 0) error stop "bc_file: truncated mode table"
                 end if
-                read (line, *, iostat=ios) m_int, n_int, row(1:4)
+                call read_mode_row(d, line, m_int, n_int, row, ios)
                 if (ios /= 0) error stop "bc_file: malformed mode table row"
                 if (d%m(imode) /= m_int .or. d%n(imode) /= n_int) then
                     error stop "bc_file: mode table differs between surfaces"
                 end if
-                d%rmnc(isurf, imode) = row(1)
-                d%zmns(isurf, imode) = row(2)
-                d%vmns(isurf, imode) = row(3)
-                d%bmnc(isurf, imode) = row(4)
+                call store_mode(d, isurf, imode, row)
             end do
         end do
         close (iunit)
     end subroutine read_bc_file
 
     !> Read the first surface block to discover the mode table size, detect
-    !! non-stellarator-symmetric files, and allocate all storage.
+    !! the ten-column (non-stellarator-symmetric) layout, and allocate all storage.
     subroutine first_surface_pass(d, iunit, line)
         type(bc_data_t), intent(inout) :: d
         integer, intent(in) :: iunit
         character(len=512), intent(inout) :: line
 
-        integer :: ios, m_int, n_int, nmode
+        integer :: ios, m_int, n_int, nmode, imode
         integer, parameter :: max_modes = 100000
-        real(dp) :: probe(10), row(4)
+        real(dp) :: probe(10), row(8)
         real(dp), allocatable :: m_tmp(:), n_tmp(:), table(:, :)
 
-        allocate (m_tmp(1024), n_tmp(1024), table(1024, 4))
+        allocate (m_tmp(1024), n_tmp(1024), table(1024, 8))
 
         call next_matching_line(iunit, line, is_mode_row, "first mode table row")
         read (line, *, iostat=ios) probe
-        if (ios == 0) then
-            error stop "bc_file: non-stellarator-symmetric .bc files "// &
-                "(10 columns) are not supported"
-        end if
+        d%symmetric = ios /= 0
 
         nmode = 0
         do
-            read (line, *, iostat=ios) m_int, n_int, row
+            call read_mode_row(d, line, m_int, n_int, row, ios)
             if (ios /= 0) exit
             nmode = nmode + 1
             if (nmode > max_modes) error stop "bc_file: mode table too large"
@@ -117,13 +115,50 @@ contains
         allocate (d%Jpol_over_nper(d%nsurf), d%Itor(d%nsurf))
         allocate (d%rmnc(d%nsurf, nmode), d%zmns(d%nsurf, nmode))
         allocate (d%vmns(d%nsurf, nmode), d%bmnc(d%nsurf, nmode))
+        allocate (d%rmns(d%nsurf, nmode), d%zmnc(d%nsurf, nmode))
+        allocate (d%vmnc(d%nsurf, nmode), d%bmns(d%nsurf, nmode))
         d%m = nint(m_tmp(1:nmode))
         d%n = nint(n_tmp(1:nmode))
-        d%rmnc(1, :) = table(1:nmode, 1)
-        d%zmns(1, :) = table(1:nmode, 2)
-        d%vmns(1, :) = table(1:nmode, 3)
-        d%bmnc(1, :) = table(1:nmode, 4)
+        do imode = 1, nmode
+            call store_mode(d, 1, imode, table(imode, :))
+        end do
     end subroutine first_surface_pass
+
+    !> One mode row as (rmnc, zmns, vmns, bmnc, rmns, zmnc, vmnc, bmns); the
+    !! asymmetric four are zero in a six-column file.
+    subroutine read_mode_row(d, line, m_int, n_int, row, ios)
+        type(bc_data_t), intent(in) :: d
+        character(len=512), intent(in) :: line
+        integer, intent(out) :: m_int, n_int, ios
+        real(dp), intent(out) :: row(8)
+
+        real(dp) :: full(8)
+
+        row = 0
+        if (d%symmetric) then
+            read (line, *, iostat=ios) m_int, n_int, row(1:4)
+        else
+            ! File order: rmnc rmns zmnc zmns vmnc vmns bmnc bmns.
+            read (line, *, iostat=ios) m_int, n_int, full
+            row = [full(1), full(4), full(6), full(7), &
+                   full(2), full(3), full(5), full(8)]
+        end if
+    end subroutine read_mode_row
+
+    subroutine store_mode(d, isurf, imode, row)
+        type(bc_data_t), intent(inout) :: d
+        integer, intent(in) :: isurf, imode
+        real(dp), intent(in) :: row(8)
+
+        d%rmnc(isurf, imode) = row(1)
+        d%zmns(isurf, imode) = row(2)
+        d%vmns(isurf, imode) = row(3)
+        d%bmnc(isurf, imode) = row(4)
+        d%rmns(isurf, imode) = row(5)
+        d%zmnc(isurf, imode) = row(6)
+        d%vmnc(isurf, imode) = row(7)
+        d%bmns(isurf, imode) = row(8)
+    end subroutine store_mode
 
     subroutine store_surface_params(d, isurf, surf_vals)
         type(bc_data_t), intent(inout) :: d
@@ -200,7 +235,7 @@ contains
         integer :: n_old
 
         n_old = size(m_tmp)
-        allocate (m_new(2*n_old), n_new(2*n_old), table_new(2*n_old, 4))
+        allocate (m_new(2*n_old), n_new(2*n_old), table_new(2*n_old, 8))
         m_new(1:n_old) = m_tmp
         n_new(1:n_old) = n_tmp
         table_new(1:n_old, :) = table
