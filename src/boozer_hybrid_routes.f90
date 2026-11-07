@@ -205,15 +205,11 @@ contains
         real(dp), intent(in) :: v(:)
         complex(dp) :: a(0:h%mnu, -h%nnu:h%nnu)
         complex(dp) :: w(0:h%mnu, h%np)
-        integer :: i, j, p
+        integer :: j
 
-        w = (0.0_dp, 0.0_dp)
-        p = 0
         do j = 1, h%np
-            do i = 1, h%nt
-                p = p + 1
-                w(:, j) = w(:, j) + sv%emp(:, p)*v(p)
-            end do
+            w(:, j) = matmul(sv%emp(:, (j - 1)*h%nt + 1:j*h%nt), &
+                             cmplx(v((j - 1)*h%nt + 1:j*h%nt), 0.0_dp, kind=dp))
         end do
         a = matmul(w, sv%enp)
     end function pest_sum
@@ -228,11 +224,12 @@ contains
         complex(dp), intent(in) :: c(0:, -h%nnu:)
         real(dp), intent(out) :: v(:), vth(:), vph(:)
         real(dp), intent(out), optional :: vtt(:), vtp(:)
-        complex(dp), allocatable :: cn(:, :), t1(:, :), t2(:, :)
+        complex(dp), allocatable :: cn(:, :), t1(:, :), t2(:, :), tc(:, :), r(:, :)
         real(dp) :: rm(0:h%mnu)
-        integer :: j, m, n, p
+        integer :: j, m, n, cols(2)
 
         allocate (cn(0:h%mnu, -h%nnu:h%nnu), t1(0:h%mnu, h%np), t2(0:h%mnu, h%np))
+        allocate (tc(5, 0:h%mnu), r(5, h%nt))
         do n = -h%nnu, h%nnu
             cn(:, n) = -IU*real(n*h%nfp, dp)*c(:, n)
         end do
@@ -241,13 +238,20 @@ contains
         end do
         t1 = matmul(c, transpose(sv%enp))
         t2 = matmul(cn, transpose(sv%enp))
-        do p = 1, h%nt*h%np
-            j = (p - 1)/h%nt + 1
-            v(p) = real(sum(sv%emp(:, p)*t1(:, j)))
-            vth(p) = real(sum(IU*rm*sv%emp(:, p)*t1(:, j)))
-            vph(p) = real(sum(sv%emp(:, p)*t2(:, j)))
-            if (present(vtt)) vtt(p) = -real(sum(rm**2*sv%emp(:, p)*t1(:, j)))
-            if (present(vtp)) vtp(p) = real(sum(IU*rm*sv%emp(:, p)*t2(:, j)))
+        ! One library product per phi column instead of five reductions per point.
+        do j = 1, h%np
+            tc(1, :) = t1(:, j)
+            tc(2, :) = IU*rm*t1(:, j)
+            tc(3, :) = t2(:, j)
+            tc(4, :) = -rm**2*t1(:, j)
+            tc(5, :) = IU*rm*t2(:, j)
+            cols = [(j - 1)*h%nt + 1, j*h%nt]
+            r = matmul(tc, sv%emp(:, cols(1):cols(2)))
+            v(cols(1):cols(2)) = real(r(1, :))
+            vth(cols(1):cols(2)) = real(r(2, :))
+            vph(cols(1):cols(2)) = real(r(3, :))
+            if (present(vtt)) vtt(cols(1):cols(2)) = real(r(4, :))
+            if (present(vtp)) vtp(cols(1):cols(2)) = real(r(5, :))
         end do
     end subroutine pest_synth
 

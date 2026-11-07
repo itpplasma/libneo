@@ -697,12 +697,14 @@ contains
 
     !> Primal transform of surface s; sv keeps the state for jvp/vjp. With
     !> with_spectrum = .false. only the potential of the route and the angle map are
-    !> computed (no spectrum).
-    subroutine hybrid_surface(h, s, sv, with_spectrum)
+    !> computed (no spectrum). With fields_only = .true. only the radial rows,
+    !> the primaries x, lam, iota, the fields f with their Jacobian and the flux
+    !> functions ci, cg, ck are computed.
+    subroutine hybrid_surface(h, s, sv, with_spectrum, fields_only)
         type(boozer_hybrid_t), intent(in) :: h
         real(dp), intent(in) :: s
         type(hybrid_surface_t), intent(out) :: sv
-        logical, intent(in), optional :: with_spectrum
+        logical, intent(in), optional :: with_spectrum, fields_only
         real(dp) :: psip
         real(dp), allocatable :: w(:), wt(:), wp(:)
         integer :: p, npt, m
@@ -743,6 +745,9 @@ contains
         sv%ci = sum(sv%f(2, :))/real(npt, dp)
         sv%cg = sum(sv%f(3, :))/real(npt, dp)
         sv%ck = sv%iota*sv%ci + sv%cg
+        if (present(fields_only)) then
+            if (fields_only) return
+        end if
         allocate (sv%nu(npt), sv%nut(npt), sv%nup(npt), sv%thb(npt), sv%phb(npt))
         allocate (sv%dj(npt))
         select case (h%route)
@@ -892,13 +897,15 @@ contains
         real(dp), intent(in) :: u(:, :)
         real(dp), intent(out) :: spec(:, :)
         complex(dp), allocatable :: w(:, :), sm(:, :)
-        integer :: k, mb, nf
+        integer :: k, m, mb, nf
 
         mb = h%mboz
         nf = size(u, 2)
         allocate (w(nf*mb, h%nt*h%np), sm(nf*mb, -h%nboz:h%nboz))
         do k = 1, nf
-            w((k - 1)*mb + 1:k*mb, :) = sv%em*spread(u(:, k), 1, mb)
+            do m = 0, mb - 1
+                w((k - 1)*mb + m + 1, :) = sv%em(m, :)*u(:, k)
+            end do
         end do
         sm = matmul(w, sv%en)
         do k = 1, nf
