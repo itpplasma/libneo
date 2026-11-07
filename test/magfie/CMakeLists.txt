@@ -68,6 +68,12 @@ set_tests_properties(tilted_coil_field_validation PROPERTIES
 
 # magfie_with_status reports points outside the LCFS and must print nothing.
 add_executable(test_magfie_cyl_status.x test_magfie_cyl_status.f90)
+# The zero test field yields NaN, which -ffast-math lets the compiler assume away
+# in the test's ieee_is_nan comparison.
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(test_magfie_cyl_status.f90
+        PROPERTIES COMPILE_OPTIONS "-fno-finite-math-only")
+endif()
 target_link_libraries(test_magfie_cyl_status.x PRIVATE
     neo
     magfie
