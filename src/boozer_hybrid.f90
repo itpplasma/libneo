@@ -697,12 +697,14 @@ contains
 
     !> Primal transform of surface s; sv keeps the state for jvp/vjp. With
     !> with_spectrum = .false. only the potential of the route and the angle map are
-    !> computed (no spectrum).
-    subroutine hybrid_surface(h, s, sv, with_spectrum)
+    !> computed (no spectrum). With fields_only = .true. only the radial rows,
+    !> the primaries x, lam, iota, the fields f with their Jacobian and the flux
+    !> functions ci, cg, ck are computed.
+    subroutine hybrid_surface(h, s, sv, with_spectrum, fields_only)
         type(boozer_hybrid_t), intent(in) :: h
         real(dp), intent(in) :: s
         type(hybrid_surface_t), intent(out) :: sv
-        logical, intent(in), optional :: with_spectrum
+        logical, intent(in), optional :: with_spectrum, fields_only
         real(dp) :: psip
         real(dp), allocatable :: w(:), wt(:), wp(:)
         integer :: p, npt, m
@@ -743,6 +745,9 @@ contains
         sv%ci = sum(sv%f(2, :))/real(npt, dp)
         sv%cg = sum(sv%f(3, :))/real(npt, dp)
         sv%ck = sv%iota*sv%ci + sv%cg
+        if (present(fields_only)) then
+            if (fields_only) return
+        end if
         allocate (sv%nu(npt), sv%nut(npt), sv%nup(npt), sv%thb(npt), sv%phb(npt))
         allocate (sv%dj(npt))
         select case (h%route)

@@ -352,9 +352,11 @@ contains
             q%rho(k) = rho
             q%s(k) = rho**2
             call hybrid_surface(h1, q%s(k), sv, with_spectrum=.true.)
-            call hybrid_surface(h1, min(q%s(k) + c%ds_fd, 1.0_dp), svp, with_spectrum=.false.)
+            ! force_balance differences only the fields of the neighbours.
+            call hybrid_surface(h1, min(q%s(k) + c%ds_fd, 1.0_dp), svp, &
+                                fields_only=.true.)
             call hybrid_surface(h1, min(q%s(k) + c%ds_fd, 1.0_dp) - 2.0_dp*c%ds_fd, svm, &
-                                with_spectrum=.false.)
+                                fields_only=.true.)
             call hybrid_surface(h2, q%s(k), sv2, with_spectrum=.true.)
             q%iota(k) = sv%iota
             q%eps_fb(k) = force_balance(h1, sv, svp, svm)
