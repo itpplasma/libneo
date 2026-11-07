@@ -5,8 +5,8 @@ from publication_source import publication_run
 
 class PublicationSource(unittest.TestCase):
     def setUp(self):
-        self.runs = [{'id': 2, 'head_sha': 'other', 'conclusion': 'success'},
-                     {'id': 1, 'head_sha': 'matching', 'conclusion': 'success'}]
+        self.runs = [{'id': 2, 'head_sha': 'other', 'status': 'completed', 'conclusion': 'success'},
+                     {'id': 1, 'head_sha': 'matching', 'status': 'completed', 'conclusion': 'success'}]
         self.jobs = [{'name': name, 'conclusion': 'success', 'labels': ['self-hosted', 'itp-build']}
                      for name in ['Build and test (Release)', 'Build and test (Debug)', 'Build Sphinx docs']]
 
@@ -27,9 +27,13 @@ class PublicationSource(unittest.TestCase):
             self.select()
 
     def test_failure_cannot_borrow_older_success(self):
-        self.runs.insert(0, {'id': 3, 'head_sha': 'matching', 'conclusion': 'failure'})
+        self.runs.insert(0, {'id': 3, 'head_sha': 'matching', 'status': 'completed', 'conclusion': 'failure'})
         with self.assertRaises(RuntimeError):
             self.select()
+
+    def test_running_match_is_pending(self):
+        self.runs.insert(0, {'id': 3, 'head_sha': 'matching', 'status': 'in_progress', 'conclusion': None})
+        self.assertIsNone(self.select())
 
 
 if __name__ == '__main__':

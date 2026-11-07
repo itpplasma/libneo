@@ -2,15 +2,21 @@
 """Find the admitted, owned native artifacts for a queue-bot main push."""
 import json
 import os
+import time
 from urllib.request import Request, urlopen
 
 
 def publication_run(runs, tree, jobs, target_tree):
+    """Return the run id, or None while the matching run is still going."""
     # API order is newest first. Never borrow an older success after a newer
     # matching failure, nor artifacts from a different source tree.
     for run in runs:
         if tree(run['head_sha']) != target_tree:
             continue
+        # The queue merges once the required jobs pass, so this push can start
+        # before the queue run's remaining jobs finish.
+        if run['status'] != 'completed':
+            return None
         if run['conclusion'] != 'success':
             raise RuntimeError('The matching queue validation did not succeed')
         native = {'Build and test (Release)', 'Build and test (Debug)', 'Build Sphinx docs'}
@@ -34,10 +40,18 @@ def main():
             return json.load(response)
     def tree(sha):
         return api('/git/commits/' + sha)['tree']['sha']
-    runs = api('/actions/workflows/main.yml/runs?event=merge_group&status=completed&per_page=100')['workflow_runs']
-    run_id = publication_run(runs, tree,
-                             lambda rid: api(f'/actions/runs/{rid}/jobs?per_page=100')['jobs'],
-                             tree(os.environ['GITHUB_SHA']))
+    target_tree = tree(os.environ['GITHUB_SHA'])
+    deadline = time.monotonic() + 3600
+    while True:
+        runs = api('/actions/workflows/main.yml/runs?event=merge_group&per_page=100')['workflow_runs']
+        run_id = publication_run(runs, tree,
+                                 lambda rid: api(f'/actions/runs/{rid}/jobs?per_page=100')['jobs'],
+                                 target_tree)
+        if run_id is not None:
+            break
+        if time.monotonic() > deadline:
+            raise RuntimeError('The matching queue validation did not complete within an hour')
+        time.sleep(30)
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
         print(f'run-id={run_id}', file=output)
     print(f'Publishing exact-tree owned queue artifacts from run {run_id}')
