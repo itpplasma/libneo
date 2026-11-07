@@ -632,6 +632,15 @@ set_tests_properties(test_splint_vmec_data_d3 PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_wout)
 
+add_executable(test_vmec_angular_grid.x source/test_vmec_angular_grid.f90)
+target_link_libraries(test_vmec_angular_grid.x neo)
+add_test(NAME test_vmec_angular_grid
+  COMMAND test_vmec_angular_grid.x)
+set_tests_properties(test_vmec_angular_grid PROPERTIES
+  FAIL_REGULAR_EXPRESSION "FAIL"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  FIXTURES_REQUIRED vmec_wout)
+
 add_executable(test_vmec_from_cyl.x source/test_vmec_from_cyl.f90)
 target_link_libraries(test_vmec_from_cyl.x neo)
 add_test(NAME test_vmec_from_cyl
