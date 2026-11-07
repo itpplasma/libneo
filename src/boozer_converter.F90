@@ -255,7 +255,7 @@ contains
     subroutine get_boozer_coordinates_impl(construction, filename)
 
         use vector_potentail_mod, only: ns, hs
-        use new_vmec_stuff_mod, only: n_theta, n_phi, h_theta, h_phi, ns_s, ns_tp
+        use new_vmec_stuff_mod, only: n_theta, n_phi, h_theta, h_phi, ns_s, ns_tp, nper
         use boozer_coordinates_mod, only: ns_s_B, ns_tp_B, ns_B, n_theta_B, n_phi_B, &
                                           hs_B, h_theta_B, h_phi_B, use_B_r
 
@@ -267,7 +267,9 @@ contains
         ns_tp_B = ns_tp
         ns_B = ns
         n_theta_B = n_theta
-        n_phi_B = n_phi
+        ! The Boozer spectrum is broader than the VMEC one; keep its toroidal
+        ! sampling at nper times the per-period VMEC spline grid.
+        n_phi_B = (n_phi - 1)*nper + 1
         boozer_regular_radial_factor = merge(2, 1, construction == BOOZER_HYBRID)
 
         hs_B = hs*real(ns - 1, dp)/real(ns_B - 1, dp)

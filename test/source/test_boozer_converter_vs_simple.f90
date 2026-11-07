@@ -14,12 +14,12 @@ program test_boozer_converter_vs_simple
     implicit none
 
     ! reltol pins the well-conditioned quantities (|B|, sqrt(g), the large
-    ! covariant components). abstol is the absolute floor for the near-zero
-    ! covariant components (e.g. B_theta/|B| ~ 1e-5 for QA), whose relative
-    ! agreement is compile/platform-sensitive at the spline-interpolation level;
-    ! 1e-10 absorbs that cross-platform FP noise without loosening the
-    ! relative bound the large quantities meet.
-    real(dp), parameter :: reltol = 1.0e-6_dp, abstol = 1.0e-10_dp
+    ! covariant components). A near-zero component (e.g. B_r/|B| or
+    ! B_theta/|B| for QA) is a small difference of large terms, so its rounding
+    ! error scales with the norm of its vector, not with the component; such a
+    ! component is pinned to normtol times the norm of the reference vector.
+    ! Compile flags (-ffast-math) move B_r/|B| by ~1e-12 of that norm.
+    real(dp), parameter :: reltol = 1.0e-6_dp, normtol = 1.0e-8_dp
     ! sqrt(g^ss) comes back from the field3d spline (the use_B_r quantity). The
     ! cross-check evaluates the VMEC metric at the Boozer->VMEC back-mapped angles,
     ! so the gap carries both the spline and the angle-map interpolation error at
@@ -51,42 +51,46 @@ program test_boozer_converter_vs_simple
     ! (libneo 266f0a3): dump of this converter on the LandremanPaul2021 QA wout
     ! with the call above, in IEEE arithmetic without -ffast-math
     ! (LIBNEO_DETERMINISTIC_FP=ON Release and Debug agree to 1e-9 relative on
-    ! every component above the abstol floor), OpenMP off, es24.16. The
+    ! every component that is not near zero), OpenMP off, es24.16. The
     ! default -ffast-math Release builds deviate from these by up to 9e-7
     ! relative in hcovar(1), inside reltol. The old values, printed by SIMPLE,
     ! are recovered when the one-line fix in boozer_converter.F90 is reverted;
-    ! hcovar(1) moves by up to 1.5e-3.
-    bmod_ref = [5.7024014488297165e+04_dp, 5.7010408565724079e+04_dp, &
-                6.3742758213888395e+04_dp, 5.4218536559310509e+04_dp, &
-                6.1083220183449041e+04_dp]
+    ! hcovar(1) moves by up to 1.5e-3. Regenerated the same way after the VMEC
+    ! splines were cut to one grid per field-period harmonic (vmec_angular_grid);
+    ! |B| moves by 3e-6 relative, the near-zero components by up to 0.4. The
+    ! -ffast-math build now differs by 3e-6 relative in hcovar(1) at point 3,
+    ! 2e-12 of the hcovar norm.
+    bmod_ref = [5.7023915898218831e+04_dp, 5.7010504886152186e+04_dp, &
+                6.3742585757986977e+04_dp, 5.4218401819442726e+04_dp, &
+                6.1083146088868336e+04_dp]
 
-    sqrtg_ref = [-1.5711629692171786e+07_dp, -1.5719091478249371e+07_dp, &
-                 -1.2574007504114840e+07_dp, -1.7379594206976220e+07_dp, &
-                 -1.3692768687444856e+07_dp]
+    sqrtg_ref = [-1.5711682677844336e+07_dp, -1.5719037128943156e+07_dp, &
+                 -1.2574074644779723e+07_dp, -1.7379679457318790e+07_dp, &
+                 -1.3692801102019535e+07_dp]
 
-    bder_ref(1, :) = [-1.7906807458568649e-01_dp, 1.2551537750781945e-13_dp, 3.9743625559456578e-12_dp]
-    bder_ref(2, :) = [-6.5375422581650064e-02_dp, 4.8901135938168951e-02_dp, -4.2593323088762795e-04_dp]
-    bder_ref(3, :) = [7.3646069745247775e-02_dp, 1.3567157160494146e-04_dp, -2.4742999745810688e-05_dp]
-    bder_ref(4, :) = [-6.5308326831054128e-02_dp, 3.9538078645634051e-02_dp, -6.8133275356017421e-04_dp]
-    bder_ref(5, :) = [1.2755348755621345e-02_dp, 1.0110736990951369e-01_dp, -7.9541232004387596e-04_dp]
+    bder_ref(1, :) = [-1.7907053855829624e-01_dp, 1.2967072344785819e-13_dp, 7.4412125914196497e-13_dp]
+    bder_ref(2, :) = [-6.5374266181891280e-02_dp, 4.8899785279615887e-02_dp, -4.0306156892315720e-04_dp]
+    bder_ref(3, :) = [7.3641191464694694e-02_dp, 1.3572079056789834e-04_dp, -2.7929619916060860e-05_dp]
+    bder_ref(4, :) = [-6.5314796304051265e-02_dp, 3.9537058215144659e-02_dp, -6.4354119141415761e-04_dp]
+    bder_ref(5, :) = [1.2780248722588329e-02_dp, 1.0111569424529755e-01_dp, -8.4068682218757778e-04_dp]
 
-    hcovar_ref(1, :) = [-6.8879914015321207e-13_dp, -9.4970348984311343e-04_dp, 1.1151159177107879e+03_dp]
-    hcovar_ref(2, :) = [-4.9484431142031021e-02_dp, -3.8520822187080027e-04_dp, 1.1153790778403820e+03_dp]
-    hcovar_ref(3, :) = [8.2801898437081666e-04_dp, -1.8842726556751220e-04_dp, 9.9757472565813043e+02_dp]
-    hcovar_ref(4, :) = [-5.8937852479543577e-02_dp, -9.8956245376048764e-05_dp, 1.1728116580886781e+03_dp]
-    hcovar_ref(5, :) = [2.8041667802131708e-02_dp, -1.0129727757269436e-05_dp, 1.0410079195571579e+03_dp]
+    hcovar_ref(1, :) = [-2.2167806036228879e-13_dp, -9.4885489523534989e-04_dp, 1.1151177499973994e+03_dp]
+    hcovar_ref(2, :) = [-5.0237629035490783e-02_dp, -3.8304217802806093e-04_dp, 1.1153771049199811e+03_dp]
+    hcovar_ref(3, :) = [8.3287832378138203e-04_dp, -1.8573368564092269e-04_dp, 9.9757735226719717e+02_dp]
+    hcovar_ref(4, :) = [-5.8714015901336361e-02_dp, -9.5231270995312979e-05_dp, 1.1728144948067909e+03_dp]
+    hcovar_ref(5, :) = [2.6387701446538361e-02_dp, -6.4006837727099995e-06_dp, 1.0410091196018464e+03_dp]
 
-    hctrvr_ref(1, :) = [0.0000000000000000e+00_dp, 3.7881309780860245e-04_dp, 8.9676807933386255e-04_dp]
-    hctrvr_ref(2, :) = [0.0000000000000000e+00_dp, 3.7723748026116373e-04_dp, 8.9655630554878090e-04_dp]
-    hctrvr_ref(3, :) = [0.0000000000000000e+00_dp, 4.2022807275822455e-04_dp, 1.0024312499724733e-03_dp]
-    hctrvr_ref(4, :) = [0.0000000000000000e+00_dp, 3.5621175215055277e-04_dp, 8.5265185450072176e-04_dp]
-    hctrvr_ref(5, :) = [0.0000000000000000e+00_dp, 4.0002199333130818e-04_dp, 9.6060748940076399e-04_dp]
+    hctrvr_ref(1, :) = [0.0000000000000000e+00_dp, 3.7881247524635943e-04_dp, 8.9676660553596557e-04_dp]
+    hctrvr_ref(2, :) = [0.0000000000000000e+00_dp, 3.7723814722466378e-04_dp, 8.9655789067847453e-04_dp]
+    hctrvr_ref(3, :) = [0.0000000000000000e+00_dp, 4.2022696582705803e-04_dp, 1.0024286094482797e-03_dp]
+    hctrvr_ref(4, :) = [0.0000000000000000e+00_dp, 3.5621089009888330e-04_dp, 8.5264979103720528e-04_dp]
+    hctrvr_ref(5, :) = [0.0000000000000000e+00_dp, 4.0002153160100901e-04_dp, 9.6060638060777059e-04_dp]
 
-    hcurl_ref(1, :) = [8.9085583472079594e-18_dp, 1.2740515409711441e-05_dp, -8.6345718311747515e-09_dp]
-    hcurl_ref(2, :) = [3.4698763487356165e-06_dp, 4.6481492621064981e-06_dp, -1.7477547111439341e-08_dp]
-    hcurl_ref(3, :) = [1.0763674677055848e-08_dp, -5.7798156246253416e-06_dp, -9.7758240584476320e-09_dp]
-    hcurl_ref(4, :) = [2.6681129003570842e-06_dp, 4.3919396687868103e-06_dp, -5.0461245533506929e-09_dp]
-    hcurl_ref(5, :) = [7.6867998865598596e-06_dp, -9.5911628142014373e-07_dp, 7.0755541664943645e-09_dp]
+    hcurl_ref(1, :) = [9.2032683194852550e-18_dp, 1.2741190872911661e-05_dp, -8.6781482835239594e-09_dp]
+    hcurl_ref(2, :) = [3.4697863701568926e-06_dp, 4.6477196706242760e-06_dp, -1.7540946563452213e-08_dp]
+    hcurl_ref(3, :) = [1.0767550339863233e-08_dp, -5.7793418949634496e-06_dp, -9.9845157961211161e-09_dp]
+    hcurl_ref(4, :) = [2.6680374059447638e-06_dp, 4.3911321611924275e-06_dp, -5.1193946751869634e-09_dp]
+    hcurl_ref(5, :) = [7.6874234172086733e-06_dp, -9.5975315110945984e-07_dp, 6.6575265027294822e-09_dp]
 
     test_failed = .false.
     do case = 1, n_cases
@@ -185,9 +189,11 @@ contains
         real(dp), intent(in) :: val(:), ref(:)
         logical, intent(inout) :: test_failed
         integer :: i
+        real(dp) :: tol_floor
 
+        tol_floor = normtol*norm2(ref)
         do i = 1, size(val)
-            if (abs(val(i) - ref(i)) > abstol .and. &
+            if (abs(val(i) - ref(i)) > tol_floor .and. &
                 abs(val(i) - ref(i)) > reltol*abs(ref(i))) then
                 print *, "---------------------------------------------------"
                 print *, "mismatch in ", name, " component ", i, " case ", case
