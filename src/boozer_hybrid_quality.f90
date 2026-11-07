@@ -441,17 +441,14 @@ contains
     real(dp) function lambda_defect(h, sv) result(eps)
         type(boozer_hybrid_t), intent(in) :: h
         type(hybrid_surface_t), intent(in) :: sv
-        real(dp), allocatable :: e(:, :), u(:, :), v(:, :), a(:, :), rhs(:, :)
-        real(dp), allocatable :: gtt(:), gtp(:), gpp(:), w(:), th(:), ph(:), lrec(:)
-        real(dp), allocatable :: arg(:), wk(:, :)
-        integer, allocatable :: ipiv(:)
-        integer :: npt, nb, k, j, info, par
+        real(dp), allocatable :: e(:, :), a(:, :), rhs(:, :), lrec(:), g(:, :)
+        real(dp), allocatable :: rm(:), rn(:), sg(:)
+        integer, allocatable :: mi(:), ni(:), dc(:)
+        complex(dp), allocatable :: gh(:, :, :), et(:, :), ep(:, :)
+        real(dp) :: ct(h%nt), st(h%nt), cp(h%np), sp(h%np), stt, stp, spp
+        integer :: npt, nb, k, i, j, info, par, l, mm, nn
 
         npt = h%nt*h%np
-        allocate (th(npt), ph(npt), arg(npt), w(npt), gtt(npt), gtp(npt), gpp(npt))
-        allocate (lrec(npt))
-        th = reshape(spread(h%theta, 2, h%np), [npt])
-        ph = reshape(spread(h%phi, 1, h%nt), [npt])
         nb = 0
         do par = 1, merge(2, 1, h%lasym)
             do k = 1, h%mnmax
@@ -459,42 +456,70 @@ contains
                 nb = nb + 1
             end do
         end do
-        allocate (e(npt, nb), u(npt, nb), v(npt, nb))
+        ! Mode k: e = sin (par 1) or cos (par 2) of m theta - n N phi; its
+        ! gradient is sg (m, -n N) times dc = cos (1) or sin (2).
+        allocate (e(npt, nb), mi(nb), ni(nb), rm(nb), rn(nb), sg(nb), dc(nb))
         j = 0
         do par = 1, merge(2, 1, h%lasym)
             do k = 1, h%mnmax
                 if (h%xm(k) == 0 .and. h%xn(k) == 0) cycle
                 j = j + 1
-                arg = real(h%xm(k), dp)*th - real(h%xn(k), dp)*ph
-                if (par == 1) then
-                    e(:, j) = sin(arg)
-                    u(:, j) = real(h%xm(k), dp)*cos(arg)
-                    v(:, j) = -real(h%xn(k), dp)*cos(arg)
-                else
-                    e(:, j) = cos(arg)
-                    u(:, j) = -real(h%xm(k), dp)*sin(arg)
-                    v(:, j) = real(h%xn(k), dp)*sin(arg)
-                end if
+                mi(j) = h%xm(k)
+                ni(j) = h%xn(k)/h%nfp
+                rm(j) = real(h%xm(k), dp)
+                rn(j) = real(h%xn(k), dp)
+                sg(j) = merge(1.0_dp, -1.0_dp, par == 1)
+                dc(j) = par
+                ct = cos(rm(j)*h%theta)
+                st = sin(rm(j)*h%theta)
+                cp = cos(rn(j)*h%phi)
+                sp = sin(rn(j)*h%phi)
+                do l = 1, h%np
+                    if (par == 1) then
+                        e((l - 1)*h%nt + 1:l*h%nt, j) = st*cp(l) - ct*sp(l)
+                    else
+                        e((l - 1)*h%nt + 1:l*h%nt, j) = ct*cp(l) + st*sp(l)
+                    end if
+                end do
             end do
         end do
+        allocate (g(npt, 5))
         associate (x => sv%x)
-            w = 1.0_dp/(x(1, :)*(x(3, :)*x(5, :) - x(2, :)*x(6, :)))
-            gtt = w*(x(3, :)**2 + x(6, :)**2)
-            gtp = w*(x(3, :)*x(4, :) + x(6, :)*x(7, :))
-            gpp = w*(x(1, :)**2 + x(4, :)**2 + x(7, :)**2)
+            g(:, 1) = 1.0_dp/(x(1, :)*(x(3, :)*x(5, :) - x(2, :)*x(6, :)))
+            g(:, 2) = g(:, 1)*(x(3, :)*x(4, :) + x(6, :)*x(7, :))
+            g(:, 3) = g(:, 1)*(x(1, :)**2 + x(4, :)**2 + x(7, :)**2)
+            g(:, 1) = g(:, 1)*(x(3, :)**2 + x(6, :)**2)
         end associate
-        allocate (a(nb, nb), rhs(nb, 1), ipiv(nb), wk(npt, nb))
-        do j = 1, nb
-            wk(:, j) = gtp*u(:, j) - gtt*v(:, j)
+        g(:, 4) = g(:, 1)*sv%iota + g(:, 2)
+        g(:, 5) = g(:, 2)*sv%iota + g(:, 3)
+        ! Grid sums of products of two modes are sums of the metric DFT at the
+        ! sum and difference modes: O(npt (M + N)) instead of O(npt nb**2).
+        mm = 2*h%mmax
+        nn = 2*h%nmax
+        allocate (et(-mm:mm, h%nt), ep(h%np, -nn:nn), gh(-mm:mm, -nn:nn, 5))
+        do i = -mm, mm
+            et(i, :) = exp(IU*real(i, dp)*h%theta)
         end do
-        call dgemm('T', 'N', nb, nb, npt, 1.0_dp, v, npt, wk, npt, 0.0_dp, a, nb)
-        do j = 1, nb
-            wk(:, j) = gtp*v(:, j) - gpp*u(:, j)
+        do i = -nn, nn
+            ep(:, i) = exp(-IU*real(i*h%nfp, dp)*h%phi)
         end do
-        call dgemm('T', 'N', nb, nb, npt, 1.0_dp, u, npt, wk, npt, 1.0_dp, a, nb)
-        rhs(:, 1) = -(matmul(transpose(v), gtt*sv%iota + gtp) &
-                      - matmul(transpose(u), gtp*sv%iota + gpp))
-        call dgesv(nb, 1, a, nb, ipiv, rhs, nb, info)
+        do k = 1, 5
+            gh(:, :, k) = matmul(et, matmul(cmplx(reshape(g(:, k), [h%nt, h%np]), &
+                                                  0.0_dp, kind=dp), ep))
+        end do
+        allocate (a(nb, nb), rhs(nb, 1), lrec(npt))
+        do j = 1, nb
+            do i = 1, nb
+                stt = pair_sum(1, i, j)
+                stp = pair_sum(2, i, j)
+                spp = pair_sum(3, i, j)
+                a(i, j) = -sg(i)*sg(j)*(rn(i)*rn(j)*stt &
+                                        + (rn(i)*rm(j) + rm(i)*rn(j))*stp &
+                                        + rm(i)*rm(j)*spp)
+            end do
+            rhs(j, 1) = sg(j)*(rn(j)*single_sum(4, j) + rm(j)*single_sum(5, j))
+        end do
+        call dense_solve(a, rhs(:, 1), info)
         if (info /= 0) then
             eps = huge(1.0_dp)
             return
@@ -502,7 +527,75 @@ contains
         lrec = matmul(e, rhs(:, 1))
         lrec = lrec - sv%lam
         eps = maxval(abs(lrec - sum(lrec)/real(npt, dp)))
+
+    contains
+
+        !> sum_p g_k D_i D_j, D = cos or sin of the mode phase (dc).
+        real(dp) function pair_sum(kf, i, j) result(r)
+            integer, intent(in) :: kf, i, j
+            complex(dp) :: zs, zd
+
+            zs = gh(mi(i) + mi(j), ni(i) + ni(j), kf)
+            zd = gh(mi(i) - mi(j), ni(i) - ni(j), kf)
+            if (dc(i) == 1 .and. dc(j) == 1) then
+                r = 0.5_dp*real(zd + zs)
+            else if (dc(i) == 2 .and. dc(j) == 2) then
+                r = 0.5_dp*real(zd - zs)
+            else if (dc(i) == 2) then
+                r = 0.5_dp*aimag(zs + zd)
+            else
+                r = 0.5_dp*aimag(zs - zd)
+            end if
+        end function pair_sum
+
+        !> sum_p g_k D_j.
+        real(dp) function single_sum(kf, j) result(r)
+            integer, intent(in) :: kf, j
+
+            if (dc(j) == 1) then
+                r = real(gh(mi(j), ni(j), kf))
+            else
+                r = aimag(gh(mi(j), ni(j), kf))
+            end if
+        end function single_sum
     end function lambda_defect
+
+    !> Gaussian elimination with partial pivoting in a fixed operation order:
+    !> Accelerate's dgesv rounds differently depending on the memory layout, so
+    !> repeated checks of one file would not reproduce bitwise. info = k if the
+    !> k-th pivot is zero.
+    pure subroutine dense_solve(a, b, info)
+        real(dp), intent(inout) :: a(:, :), b(:)
+        integer, intent(out) :: info
+        real(dp) :: row(size(a, 2)), t
+        integer :: n, k, i, p
+
+        n = size(a, 1)
+        info = 0
+        do k = 1, n
+            p = k - 1 + maxloc(abs(a(k:n, k)), 1)
+            if (a(p, k) == 0.0_dp) then
+                info = k
+                return
+            end if
+            if (p /= k) then
+                row = a(k, :)
+                a(k, :) = a(p, :)
+                a(p, :) = row
+                t = b(k)
+                b(k) = b(p)
+                b(p) = t
+            end if
+            a(k + 1:n, k) = a(k + 1:n, k)/a(k, k)
+            do i = k + 1, n
+                a(k + 1:n, i) = a(k + 1:n, i) - a(k + 1:n, k)*a(k, i)
+            end do
+            b(k + 1:n) = b(k + 1:n) - a(k + 1:n, k)*b(k)
+        end do
+        do k = n, 1, -1
+            b(k) = (b(k) - dot_product(a(k, k + 1:n), b(k + 1:n)))/a(k, k)
+        end do
+    end subroutine dense_solve
 
     !> Resonant residual at the rational surfaces iota = n N/m in the window
     !> (m <= mpol - 1, |n| <= ntor, m and n coprime): max over the harmonics

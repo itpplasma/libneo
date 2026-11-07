@@ -892,13 +892,15 @@ contains
         real(dp), intent(in) :: u(:, :)
         real(dp), intent(out) :: spec(:, :)
         complex(dp), allocatable :: w(:, :), sm(:, :)
-        integer :: k, mb, nf
+        integer :: k, m, mb, nf
 
         mb = h%mboz
         nf = size(u, 2)
         allocate (w(nf*mb, h%nt*h%np), sm(nf*mb, -h%nboz:h%nboz))
         do k = 1, nf
-            w((k - 1)*mb + 1:k*mb, :) = sv%em*spread(u(:, k), 1, mb)
+            do m = 0, mb - 1
+                w((k - 1)*mb + m + 1, :) = sv%em(m, :)*u(:, k)
+            end do
         end do
         sm = matmul(w, sv%en)
         do k = 1, nf
