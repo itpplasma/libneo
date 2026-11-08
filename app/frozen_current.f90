@@ -13,7 +13,8 @@
 !> ('coils'); except for 'coils', S_ARR outside the plasma becomes the
 !> continued flux label of neo_flux_label.  extcur and mgrid_mode, when
 !> given, replace the wout values, for example to evaluate another code's
-!> coil set.
+!> coil set.  With field_file it saves the solved field and its coils for
+!> load_frozen_current_field (neo_frozen_current_io).
 program frozen_current_app
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use omp_lib, only: omp_get_wtime
@@ -29,10 +30,12 @@ program frozen_current_app
                                         frozen_current_plasma_cyl
     use neo_beams3d_field_grid, only: write_beams3d_field
     use neo_biotsavart_field, only: biotsavart_field_t
+    use neo_frozen_current_io, only: save_frozen_current_field
     implicit none
 
     character(len=1024) :: wout_file = 'wout.nc', coils_file = 'coils', mgrid_file = ''
     character(len=1024) :: beams3d_template = '', beams3d_output = ''
+    character(len=1024) :: field_file = ''
     character(len=1024) :: input
     character(len=16) :: export_part = 'total'
     character(len=1) :: mgrid_mode = ' '
@@ -42,7 +45,7 @@ program frozen_current_app
     real(dp) :: rmin = 0.0_dp, rmax = 0.0_dp, zmin = 0.0_dp, zmax = 0.0_dp
     namelist /frozen_current/ wout_file, coils_file, mgrid_file, beams3d_template, &
         beams3d_output, ns, ntheta, nzeta, nr, nz, degree, kmax, panels_per_span, &
-        rmin, rmax, zmin, zmax, export_part, mgrid_mode, extcur_in
+        rmin, rmax, zmin, zmax, export_part, mgrid_mode, extcur_in, field_file
 
     real(dp), parameter :: m_to_cm = 100.0_dp
     type(vmec_equilibrium_source_t) :: src
@@ -126,6 +129,8 @@ program frozen_current_app
         print '(a,i4,a,es10.3,a,es10.3)', ' n = ', k*src%nfp, '  energy ', &
             field%plasma%energy(k), '  gauge ', field%plasma%gauge(k)
     end do
+    if (len_trim(field_file) > 0) call save_frozen_current_field(trim(field_file), &
+                                                                 patch, field)
 
     d2 = 0.0_dp
     !$omp parallel do default(shared) private(k, a, b, status) reduction(+:d2)

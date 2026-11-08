@@ -17,6 +17,7 @@ program test_frozen_current_field
                                         frozen_current_plasma_cyl, &
                                         frozen_current_field_t
     use neo_frozen_current_leaves, only: cart_to_cyl, cyl_to_cart
+    use neo_frozen_current_io, only: save_frozen_current_field, load_frozen_current_field
     implicit none
 
     real(dp), parameter :: pi = 3.141592653589793238462643383279502884_dp
@@ -28,7 +29,8 @@ program test_frozen_current_field
     type(source_points_t) :: vol, surf
     type(frozen_current_patch_t) :: patch
     type(frozen_current_plasma_t) :: plasma
-    type(frozen_current_field_t) :: field
+    type(frozen_current_field_t) :: field, loaded
+    real(dp) :: bl(3), dbl(3, 3)
     type(coils_t) :: loop
     real(dp) :: probes(3, 4), err, emax, bref(3), a(3), b(3), ac(3), bc(3)
     real(dp) :: xc(3), dbc(3, 3), fd(3, 3), bp(3), bm(3), e(3), scale
@@ -101,6 +103,18 @@ program test_frozen_current_field
                    "dB matches central differences")
         call check(abs(dbc(1, 1) + dbc(2, 2) + dbc(3, 3)) < 1.0e-12_dp*scale, &
                    "div B vanishes")
+    end do
+
+    ! a saved and loaded field evaluates identically
+    call save_frozen_current_field('frozen_current_test.h5', patch, field)
+    call load_frozen_current_field('frozen_current_test.h5', loaded, status)
+    call check(status == 0, "load")
+    do i = 1, size(probes, 2)
+        xc = cart(probes(:, i))
+        call field%compute_field_jacobian(xc, bc, dbc)
+        call loaded%compute_field_jacobian(xc, bl, dbl)
+        call check(all(bl == bc) .and. all(dbl == dbc), &
+                   "the loaded field equals the saved one")
     end do
 
     ! a curl-free source: the field of a coil loop around V
