@@ -5,6 +5,10 @@ target_link_libraries(test_biotsavart.x PRIVATE neo
                                                 util_for_test)
 add_test(NAME test_biotsavart COMMAND test_biotsavart.x)
 
+add_executable(test_biotsavart_jacobian.x test_biotsavart_jacobian.f90)
+target_link_libraries(test_biotsavart_jacobian.x PRIVATE neo)
+add_test(NAME test_biotsavart_jacobian COMMAND test_biotsavart_jacobian.x)
+
 add_executable(test_example_field.x test_example_field.f90)
 target_link_libraries(test_example_field.x PRIVATE neo
                                                    util_for_test_field
@@ -85,6 +89,7 @@ add_test(NAME test_stretch_coords COMMAND test_stretch_coords.x)
 
 set_tests_properties(
     test_biotsavart
+    test_biotsavart_jacobian
     test_example_field
     test_biotsavart_field
     test_mesh

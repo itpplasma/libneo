@@ -134,6 +134,40 @@ recursive function compute_magnetic_field(coils, x) result(B)
 end function compute_magnetic_field
 
 
+!> A, B and their Jacobians dA(i, j) = dA_i/dx_j, dB(i, j) = dB_i/dx_j, summed
+!> over the segments with the generated exact segment leaf.
+subroutine compute_field_jacobian(coils, x, A, dA, B, dB)
+    type(coils_t), intent(in) :: coils
+    real(dp), intent(in) :: x(3)
+    real(dp), intent(out) :: A(3), dA(3, 3), B(3), dB(3, 3)
+
+    real(dp) :: seg_a(3), seg_b(3), jac_a(3, 3), jac_b(3, 3), c
+    integer :: i
+
+    A = 0.0d0
+    B = 0.0d0
+    dA = 0.0d0
+    dB = 0.0d0
+    do i = 1, size(coils%x) - 1
+        if (coils%current(i) == 0.0d0) cycle
+        call biotsavart_segment_jacobian(x(1), x(2), x(3), &
+                                         coils%x(i), coils%y(i), coils%z(i), &
+                                     coils%x(i + 1), coils%y(i + 1), coils%z(i + 1), &
+                         seg_a(1), seg_a(2), seg_a(3), seg_b(1), seg_b(2), seg_b(3), &
+       jac_a(1, 1), jac_a(1, 2), jac_a(1, 3), jac_a(2, 1), jac_a(2, 2), jac_a(2, 3), &
+                                         jac_a(3, 1), jac_a(3, 2), jac_a(3, 3), &
+       jac_b(1, 1), jac_b(1, 2), jac_b(1, 3), jac_b(2, 1), jac_b(2, 2), jac_b(2, 3), &
+                                         jac_b(3, 1), jac_b(3, 2), jac_b(3, 3))
+        c = coils%current(i)/clight
+        A = A + c*seg_a
+        B = B + c*seg_b
+        dA = dA + c*jac_a
+        dB = dB + c*jac_b
+    end do
+end subroutine compute_field_jacobian
+
+include '../generated/biotsavart_segment_leaves.inc'
+
 recursive function get_segment_vector(coils, i) result(dl)
     type(coils_t), intent(in) :: coils
     integer, intent(in) :: i
