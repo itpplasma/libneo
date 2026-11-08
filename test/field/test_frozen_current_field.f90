@@ -31,7 +31,9 @@ program test_frozen_current_field
     type(frozen_current_field_t) :: field
     type(coils_t) :: loop
     real(dp) :: probes(3, 4), err, emax, bref(3), a(3), b(3), ac(3), bc(3)
-    integer :: status, i
+    real(dp) :: xc(3), dbc(3, 3), fd(3, 3), bp(3), bm(3), e(3), scale
+    real(dp), parameter :: h = 1.0e-6_dp
+    integer :: status, i, j
 
     res%ns = 40
     res%ntheta = 128
@@ -74,6 +76,32 @@ program test_frozen_current_field
     call frozen_current_plasma_cyl(plasma, probes(:, 2), a, b, status)
     call check(norm2(bc - cart_vec(probes(:, 2), b)) < 1.0e-12_dp*norm2(b), &
                "field_t matches the cylindrical evaluation")
+
+    ! exact Jacobian of the plasma part plus a coil loop
+    call circular_loop(loop, 3.0_dp, 2.0_dp, 1.0e3_dp)
+    field%coils = loop
+    do i = 1, size(probes, 2)
+        xc = cart(probes(:, i))
+        call field%compute_field_jacobian(xc, bc, dbc)
+        call field%compute_abfield(xc, ac, bref)
+        call check(norm2(bc - bref) < 1.0e-13_dp*norm2(bref), &
+                   "the Jacobian route gives the same B")
+        do j = 1, 3
+            e = 0.0_dp
+            e(j) = h
+            call field%compute_abfield(xc + e, ac, bp)
+            call field%compute_abfield(xc - e, ac, bm)
+            fd(:, j) = (bp - bm)/(2*h)
+        end do
+        scale = maxval(abs(dbc))
+        print '(a,i2,a,es10.2,a,es10.2)', " probe", i, "  |dB - fd|", &
+            maxval(abs(dbc - fd))/scale, "  |div B|", &
+            abs(dbc(1, 1) + dbc(2, 2) + dbc(3, 3))/scale
+        call check(maxval(abs(dbc - fd)) < 1.0e-6_dp*scale, &
+                   "dB matches central differences")
+        call check(abs(dbc(1, 1) + dbc(2, 2) + dbc(3, 3)) < 1.0e-12_dp*scale, &
+                   "div B vanishes")
+    end do
 
     ! a curl-free source: the field of a coil loop around V
     call circular_loop(loop, 3.0_dp, 2.0_dp, 1.0e3_dp)

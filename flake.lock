@@ -21,17 +21,17 @@
     "fortfem": {
       "flake": false,
       "locked": {
-        "lastModified": 1794001048,
-        "narHash": "sha256-4YfrlGKXFGy7h68fX8IJDYDC2hbIKHgS7qSKBOYKgcM=",
+        "lastModified": 1794172997,
+        "narHash": "sha256-P2772Mkz5/1KSBhj0v9/tC5l8417k/G0pIbd3WMZHco=",
         "owner": "lazy-fortran",
         "repo": "fortfem",
-        "rev": "9c5358a8e92f8b0fdee5264a0de15de8d4f1acb1",
+        "rev": "e871b6c5ab14158e5a482cf93c8c17e855621a52",
         "type": "github"
       },
       "original": {
         "owner": "lazy-fortran",
         "repo": "fortfem",
-        "rev": "9c5358a8e92f8b0fdee5264a0de15de8d4f1acb1",
+        "rev": "e871b6c5ab14158e5a482cf93c8c17e855621a52",
         "type": "github"
       }
     },
