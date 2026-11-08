@@ -15,6 +15,7 @@ add_library(neo_field STATIC
     circular_tokamak_field.f90
     biotsavart.f90
     biotsavart_field.f90
+    guiding_centre_field.f90
     field_mesh.f90
     cyl_grid_field.f90
     mfbe2001.f90
