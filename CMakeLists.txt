@@ -446,7 +446,7 @@ if(LIBNEO_FORTSYM_BUILD)
     foreach(generator boozer_regular boozer_field_jacobian coordinate_jets boozer_hybrid_field
             sfl_route_kernels efit_sfl boozer_axis_continuation spline1d_horner
             spline3d_horner frozen_current_source frozen_current_mms
-            biotsavart_segment)
+            biotsavart_segment cylindrical_vector_jacobian)
         add_executable(gen_${generator} gen/gen_${generator}.f90)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}
