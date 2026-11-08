@@ -13,7 +13,7 @@
       flake = false;
     };
     fortfem = {
-      url = "github:lazy-fortran/fortfem/9c5358a8e92f8b0fdee5264a0de15de8d4f1acb1";
+      url = "github:lazy-fortran/fortfem/e871b6c5ab14158e5a482cf93c8c17e855621a52";
       flake = false;
     };
     # FortFEM's own CMake pin of its sparse solver dependency.
