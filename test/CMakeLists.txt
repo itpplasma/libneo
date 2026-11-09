@@ -1040,3 +1040,10 @@ set_tests_properties(test_sfl_quality_cli PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
   PASS_REGULAR_EXPRESSION "check_sfl_quality_cli PASSED"
   FIXTURES_REQUIRED vmec_wout_li383)
+
+add_executable(test_chartmap_field.x source/test_chartmap_field.f90)
+target_link_libraries(test_chartmap_field.x neo)
+add_test(NAME test_chartmap_field COMMAND test_chartmap_field.x)
+set_tests_properties(test_chartmap_field PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

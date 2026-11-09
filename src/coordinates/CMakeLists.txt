@@ -14,6 +14,7 @@ add_library(coordinates STATIC
     libneo_coordinates.f90
     libneo_chartmap_vmec_generator.f90
     libneo_coordinates_mapping.f90
+    libneo_chartmap_field.f90
 )
 
 target_link_libraries(coordinates PUBLIC
@@ -23,6 +24,7 @@ target_link_libraries(coordinates PUBLIC
     vmec_support
     interpolate
     fortnum
+    field_base
 )
 
 set_property(TARGET coordinates PROPERTY
