@@ -186,6 +186,9 @@ target_link_libraries(test_rng.x ${COMMON_LIBS})
 add_executable(test_polylag_3.x source/test_polylag_3.f90)
 target_link_libraries(test_polylag_3.x ${COMMON_LIBS} ${MAGFIE_LIB})
 
+add_executable(test_lagrange_legacy.x source/test_lagrange_legacy.f90)
+target_link_libraries(test_lagrange_legacy.x ${COMMON_LIBS} ${MAGFIE_LIB})
+
 add_executable(test_interpolate.x source/test_interpolate.f90)
 target_link_libraries(test_interpolate.x ${COMMON_LIBS})
 
@@ -321,6 +324,7 @@ add_test(NAME test_spline_build_lines COMMAND test_spline_build_lines.x)
 add_test(NAME test_species COMMAND test_species.x)
 add_test(NAME test_rng COMMAND test_rng.x)
 add_test(NAME test_polylag_3 COMMAND test_polylag_3.x)
+add_test(NAME test_lagrange_legacy COMMAND test_lagrange_legacy.x)
 add_test(NAME test_spline_cgls_global COMMAND test_spline_cgls_global.x)
 add_test(NAME test_interpolate COMMAND test_interpolate.x)
 set_tests_properties(test_interpolate PROPERTIES LABELS slow)

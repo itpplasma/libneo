@@ -1,207 +1,92 @@
-      module polylag_3
-        integer, parameter :: mp=4
-      contains
-!
-      subroutine indef(u,umin,dum1,nup,indu)
-! defines interval for 1D interpolation on uniform mesh, normally
-! looks for the central interval of stencil, but
-! stops moving of stencil at the boundary (works for mp=4 only!)
-! Input:
-!    u - coordinate of a point (to be interpolated)
-!    umin - minimal value of u
-!    dum1 = 1./h reciprocal to length of mesh interval
-!    nup - total number of mesh points
-! Output:
-!    indu(mp) - relative index of stencil points
-!
-! the power 3 of polinomial is fixed strictly:
-!
-      implicit double precision (a-h,o-z)
-!
-      integer indu(mp)
+!> Cubic (mp = 4 point) Lagrange interpolation on uniform meshes. Legacy
+!> interface kept for field_mesh3d, bdivfree and external callers; the weights
+!> come from plag_coeff_uniform with the reciprocal mesh steps.
+module polylag_3
+    use libneo_kinds, only: dp
+    use plag_coeff_sub, only: plag_coeff_uniform, lagrange_stencil
+    implicit none
 
-      indu(1) = int((u-umin)*dum1)
-      if( indu(1) .le. 0 ) indu(1) = 1
-      indu(mp) = indu(1) + mp - 1
-      if( indu(mp) .gt. nup ) then
-         indu(mp) = nup
-         indu(1) = indu(mp) - mp + 1
-      endif
-      do i=2,mp-1
-         indu(i) = indu(i-1) + 1
-      enddo
+    integer, parameter :: mp = 4
 
-      return
-      end subroutine indef
-!---------------------------------------------------------------------
-      subroutine indsmp(index,nup,indu)
-! defines interval for 1D interpolation on uniform mesh
-! by known index.
-! Normally looks for the central interval of stencil, but
-! stops moving of stencil at the boundary (works for mp=4 only!)
-! Input:
-!    index - number of a cell on the mesh
-!    nup - total number of mesh points
-! Output:
-!    indu(mp) - relative index of stencil points
+contains
 
-! the power 3 of polinomial is fixed strictly:
-      integer indu(mp)
+    !> Stencil around u on the uniform mesh umin + (i - 1)/dum1, i = 1..nup.
+    subroutine indef(u, umin, dum1, nup, indu)
+        real(dp), intent(in) :: u, umin, dum1
+        integer, intent(in) :: nup
+        integer, intent(out) :: indu(mp)
 
-      indu(1) = index - 1
-      if( indu(1) .le. 0 ) indu(1) = 1
-      indu(mp) = indu(1) + mp - 1
-      if( indu(mp) .gt. nup ) then
-         indu(mp) = nup
-         indu(1) = indu(mp) - mp + 1
-      endif
-      do i=2,mp-1
-         indu(i) = indu(i-1) + 1
-      enddo
+        call lagrange_stencil(int((u - umin)*dum1), nup, indu)
+    end subroutine indef
 
-      return
-      end subroutine indsmp
-!---------------------------------------------------------------------
-      subroutine plag1d(x,fp,dxm1,xp,polyl1d,p1x1d)
-! 1D interpolation by means of Lagrange polynomial
-! the power 3 is fixed strictly:
-! uniform mesh (increasingly ordered) in all dimensions is implied
-!
-! Input parameters:
-!   x - coordinate of the point for interpolation
-!   dxm1 - 1./h_x
-!   xp - vertices of stencil
-!
-! Output parameters:
-! polyl1d - polynomial itself
-! poly1x - its derivative
-!
-      implicit double precision (a-h,o-z)
-!
-      dimension cx(mp),xp(mp),cx1(mp),fp(mp)
-!
-      call coefs(x,xp,dxm1,cx)
-      polyl1d = 0.d0
-      do i=1,mp
-         polyl1d = polyl1d + fp(i)*cx(i)
-      enddo
-!
-      call coefs1(x,xp,dxm1,cx1)
-      p1x1d = 0.d0
-      do i=1,mp
-         p1x1d = p1x1d + fp(i)*cx1(i)
-      enddo
-!
-      return
-      end subroutine plag1d
-!---------------------------------------------------------------------
-      subroutine plag3d(x,y,z,fp,dxm1,dym1,dzm1,xp,yp,zp,&
-          polyl3d,poly1x,poly1y,poly1z)
-!
-      implicit double precision (a-h,o-z)
-!
-! 3D interpolation by means of Lagrange polynomial
-! the power 3 is fixed strictly:
-! uniform mesh (increasingly ordered) in all dimensions is implied
-!
-! Input parameters:
-!   x,y,z - coordinates of the point for interpolation
-!   dxm1,dym1,dzm1 - steps in each direction
-!   xp,yp,zp - vertices of stencil
-!
-! Output parameters:
-! polyl3d - polynomial itself
-! poly1x - its x-derivative
-! poly1y - its y-derivative
-! poly1z - its z-derivative
-      dimension cx(mp),cy(mp),cz(mp),fp(mp,mp,mp),xp(mp)
-      dimension yp(mp),zp(mp),cx1(mp),cy1(mp),cz1(mp)
-!
-      call coefs(x,xp,dxm1,cx)
-      call coefs(y,yp,dym1,cy)
-      call coefs(z,zp,dzm1,cz)
-!
-      polyl3d = 0.d0
-      do k=1,mp
-         do j=1,mp
-            do i=1,mp
-               polyl3d = polyl3d + fp(i,j,k)*cx(i)*cy(j)*cz(k)
-            enddo
-         enddo
-      enddo
-!
-      call coefs1(x,xp,dxm1,cx1)
-      call coefs1(y,yp,dym1,cy1)
-      call coefs1(z,zp,dzm1,cz1)
-!
-      poly1x = 0.d0
-      do k=1,mp
-         do j=1,mp
-            do i=1,mp
-               poly1x = poly1x + fp(i,j,k)*cx1(i)*cy(j)*cz(k)
-            enddo
-         enddo
-      enddo
-!
-      poly1y = 0.d0
-      do k=1,mp
-         do j=1,mp
-            do i=1,mp
-               poly1y = poly1y + fp(i,j,k)*cx(i)*cy1(j)*cz(k)
-            enddo
-         enddo
-      enddo
-!
-      poly1z = 0.d0
-      do k=1,mp
-         do j=1,mp
-            do i=1,mp
-               poly1z = poly1z + fp(i,j,k)*cx(i)*cy(j)*cz1(k)
-            enddo
-         enddo
-      enddo
-!
-      return
-      end subroutine plag3d
-!---------------------------------------------------------------------
-      subroutine coefs(u,up,dum1,cu)
-!
-      implicit double precision (a-h,o-z)
-!
-      dimension up(mp),cu(mp)
-      data one6/0.16666666666667d0/
-      du3 = dum1**3
-      cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * (-one6*du3)
-      cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * (0.5d0*du3)
-      cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * (-0.5d0*du3)
-      cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * (one6*du3)
-      return
-      end subroutine coefs
-!---------------------------------------------------------------------
-      subroutine coefs1(u,up,dum1,cu1)
-!
-      implicit double precision (a-h,o-z)
-!
-      dimension up(mp), cu1(mp)
-      data one6/0.16666666666667d0/
-      du3 = dum1**3
-      cu1(1) = (  (u - up(3))*(u - up(4)) &
-               + (u - up(2))*(u - up(4)) &
-               + (u - up(2))*(u - up(3)) &
-              )* (-one6*du3)
-      cu1(2) = (  (u - up(3))*(u - up(4)) &
-               + (u - up(1))*(u - up(4)) &
-               + (u - up(1))*(u - up(3)) &
-              ) * (0.5d0*du3)
-      cu1(3) = (  (u - up(2))*(u - up(4)) &
-               + (u - up(1))*(u - up(4)) &
-               + (u - up(1))*(u - up(2)) &
-              )* (-0.5d0*du3)
-      cu1(4) = (  (u - up(2))*(u - up(3)) &
-               + (u - up(1))*(u - up(3)) &
-               + (u - up(1))*(u - up(2)) &
-              )* (one6*du3)
-      return
-      end subroutine coefs1
-!
-      end module
+    !> Stencil around mesh cell index.
+    subroutine indsmp(index, nup, indu)
+        integer, intent(in) :: index, nup
+        integer, intent(out) :: indu(mp)
+
+        call lagrange_stencil(index - 1, nup, indu)
+    end subroutine indsmp
+
+    subroutine plag1d(x, fp, dxm1, xp, polyl1d, p1x1d)
+        real(dp), intent(in) :: x, fp(mp), dxm1, xp(mp)
+        real(dp), intent(out) :: polyl1d, p1x1d
+
+        real(dp) :: c(0:1, mp)
+
+        call plag_coeff_uniform(mp, 1, x, xp(1), dxm1, c)
+        polyl1d = sum(fp*c(0, :))
+        p1x1d = sum(fp*c(1, :))
+    end subroutine plag1d
+
+    subroutine plag3d(x, y, z, fp, dxm1, dym1, dzm1, xp, yp, zp, &
+                      polyl3d, poly1x, poly1y, poly1z)
+        real(dp), intent(in) :: x, y, z, fp(mp, mp, mp), dxm1, dym1, dzm1
+        real(dp), intent(in) :: xp(mp), yp(mp), zp(mp)
+        real(dp), intent(out) :: polyl3d, poly1x, poly1y, poly1z
+
+        real(dp) :: cx(0:1, mp), cy(0:1, mp), cz(0:1, mp)
+        real(dp) :: f0(mp, mp), f1(mp, mp), g00(mp), g10(mp), g01(mp)
+        integer :: j, k
+
+        call plag_coeff_uniform(mp, 1, x, xp(1), dxm1, cx)
+        call plag_coeff_uniform(mp, 1, y, yp(1), dym1, cy)
+        call plag_coeff_uniform(mp, 1, z, zp(1), dzm1, cz)
+        ! Contract one direction at a time: x, then y, then z.
+        do k = 1, mp
+            do j = 1, mp
+                f0(j, k) = dot_product(fp(:, j, k), cx(0, :))
+                f1(j, k) = dot_product(fp(:, j, k), cx(1, :))
+            end do
+        end do
+        do k = 1, mp
+            g00(k) = dot_product(f0(:, k), cy(0, :))
+            g10(k) = dot_product(f1(:, k), cy(0, :))
+            g01(k) = dot_product(f0(:, k), cy(1, :))
+        end do
+        polyl3d = dot_product(g00, cz(0, :))
+        poly1x = dot_product(g10, cz(0, :))
+        poly1y = dot_product(g01, cz(0, :))
+        poly1z = dot_product(g00, cz(1, :))
+    end subroutine plag3d
+
+    subroutine coefs(u, up, dum1, cu)
+        real(dp), intent(in) :: u, up(mp), dum1
+        real(dp), intent(out) :: cu(mp)
+
+        real(dp) :: c(0:0, mp)
+
+        call plag_coeff_uniform(mp, 0, u, up(1), dum1, c)
+        cu = c(0, :)
+    end subroutine coefs
+
+    subroutine coefs1(u, up, dum1, cu1)
+        real(dp), intent(in) :: u, up(mp), dum1
+        real(dp), intent(out) :: cu1(mp)
+
+        real(dp) :: c(0:1, mp)
+
+        call plag_coeff_uniform(mp, 1, u, up(1), dum1, c)
+        cu1 = c(1, :)
+    end subroutine coefs1
+
+end module polylag_3

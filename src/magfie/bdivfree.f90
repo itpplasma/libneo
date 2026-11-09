@@ -392,118 +392,50 @@ subroutine field_divfree(r,phi,z,Br,Bp,Bz,dBrdR,dBrdp,dBrdZ    &
 end subroutine field_divfree
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+! Legacy external names kept for callers outside libneo; polylag_3 does the work.
 subroutine indef_bdf(u,umin,dum1,nup,indu)
-  ! defines interval for 1D interpolation on uniform mesh, normally
-  ! looks for the central interval of stencil, but
-  ! stops moving of stencil at the boundary (works for mp=4 only!)
-  ! Input:
-  !    u - coordinate of a point (to be interpolated)
-  !    umin - minimal value of u
-  !    dum1 = 1./h reciprocal to length of mesh interval
-  !    nup - total number of mesh points
-  ! Output:
-  !    indu(mp) - relative index of stencil points
-  !
+    use libneo_kinds, only: dp
+    use polylag_3, only: mp, indef
 
-  implicit double precision (a-h,o-z)
+  implicit none
 
-  ! the power 3 of polinomial is fixed strictly:
-  parameter(mp=4)
-  integer indu(mp)
+  real(dp), intent(in) :: u, umin, dum1
+  integer, intent(in) :: nup
+  integer, intent(out) :: indu(mp)
 
-  indu(1) = int((u-umin)*dum1)
-  if( indu(1) .le. 0 ) indu(1) = 1
-  indu(mp) = indu(1) + mp - 1
-  if( indu(mp) .gt. nup ) then
-    indu(mp) = nup
-    indu(1) = indu(mp) - mp + 1
-  end if
-  do i=2,mp-1
-    indu(i) = indu(i-1) + 1
-  end do
+  call indef(u, umin, dum1, nup, indu)
 
 end subroutine indef_bdf
 
 !---------------------------------------------------------------------
-subroutine indsmp_bdf(index_,nup,indu)
-  ! defines interval for 1D interpolation on uniform mesh
-  ! by known index.
-  ! Normally looks for the central interval of stencil, but
-  ! stops moving of stencil at the boundary (works for mp=4 only!)
-  ! Input:
-  !    index - number of a cell on the mesh
-  !    nup - total number of mesh points
-  ! Output:
-  !    indu(mp) - relative index of stencil points
-
-  implicit none
-
-  ! the power 3 of polinomial is fixed strictly:
-  integer, parameter :: mp=4
-
-  integer, intent(in) :: index_, nup
-  integer, intent(out) :: indu(mp)
-
-  integer :: i
-
-  indu(1) = index_ - 1
-  if( indu(1) .le. 0 ) indu(1) = 1
-  indu(mp) = indu(1) + mp - 1
-  if( indu(mp) .gt. nup ) then
-    indu(mp) = nup
-    indu(1) = indu(mp) - mp + 1
-  end if
-  do i=2,mp-1
-    indu(i) = indu(i-1) + 1
-  end do
-
-end subroutine indsmp_bdf
-
-!---------------------------------------------------------------------
 subroutine plag2d_bdf(x,y,fp,dxm1,dym1,xp,yp,polyl2d)
-  ! 2D interpolation by means of Lagrange polynomial
-  ! uniform mesh (increasingly ordered) in all dimensions is implied
-  !
-  ! Input parameters:
-  !   x,y - coordinates of the point for interpolation
-  !   dxm1,dym1 - inverse steps in each direction
-  !   xp,yp - vertices of stencil
-  !
-  ! Output parameters:
-  ! polyl2d - polynomial itself
+    use libneo_kinds, only: dp
+    use polylag_3, only: mp, coefs
 
-  implicit double precision (a-h,o-z)
+    implicit none
 
-  ! the power 3 is fixed strictly:
-  parameter(mp=4)
+    real(dp), intent(in) :: x, y, fp(mp, mp), dxm1, dym1, xp(mp), yp(mp)
+    real(dp), intent(out) :: polyl2d
 
-  dimension cx(mp),cy(mp),fp(mp,mp),xp(mp),yp(mp)
+    real(dp) :: cx(mp), cy(mp)
 
-  call coefs_bdf(x,xp,dxm1,cx)
-  call coefs_bdf(y,yp,dym1,cy)
-
-  polyl2d = 0.d0
-  do j=1,mp
-    do i=1,mp
-      polyl2d = polyl2d + fp(i,j)*cx(i)*cy(j)
-    end do
-  end do
+    call coefs(x, xp, dxm1, cx)
+    call coefs(y, yp, dym1, cy)
+    polyl2d = dot_product(cx, matmul(fp, cy))
 
 end subroutine plag2d_bdf
 
 !---------------------------------------------------------------------
 subroutine coefs_bdf(u,up,dum1,cu)
+    use libneo_kinds, only: dp
+    use polylag_3, only: mp, coefs
 
-  implicit double precision (a-h,o-z)
+    implicit none
 
-  parameter(mp=4)
-  dimension up(mp),cu(mp)
-  data one6/0.16666666666667d0/
-  du3 = dum1**3
-  cu(1) = (u - up(2)) * (u - up(3)) * (u - up(4)) * (-one6*du3)
-  cu(2) = (u - up(1)) * (u - up(3)) * (u - up(4)) * (0.5d0*du3)
-  cu(3) = (u - up(1)) * (u - up(2)) * (u - up(4)) * (-0.5d0*du3)
-  cu(4) = (u - up(1)) * (u - up(2)) * (u - up(3)) * (one6*du3)
+    real(dp), intent(in) :: u, up(mp), dum1
+    real(dp), intent(out) :: cu(mp)
+
+    call coefs(u, up, dum1, cu)
 
 end subroutine coefs_bdf
 

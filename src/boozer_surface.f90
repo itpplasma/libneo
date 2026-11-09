@@ -261,16 +261,16 @@ contains
     pure subroutine lagrange_weights(x, xs, w, d)
         real(dp), intent(in) :: x, xs(:)
         real(dp), intent(out) :: w(size(xs)), d(size(xs), size(xs))
-        real(dp) :: bw(size(xs))
+        real(dp) :: bw(size(xs)), c(0:0, size(xs))
         integer :: n, j, k, l
 
         n = size(xs)
+        call plag_coeff(n, 0, x, xs, c)
+        w = c(0, :)
         do j = 1, n
-            w(j) = 1.0_dp
             bw(j) = 1.0_dp
             do l = 1, n
                 if (l == j) cycle
-                w(j) = w(j)*(x - xs(l))/(xs(j) - xs(l))
                 bw(j) = bw(j)*(xs(j) - xs(l))
             end do
         end do
