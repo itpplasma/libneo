@@ -1,9 +1,10 @@
 !> Cubic (mp = 4 point) Lagrange interpolation on uniform meshes. Legacy
 !> interface kept for field_mesh3d, bdivfree and external callers; the weights
-!> come from plag_coeff_uniform with the reciprocal mesh steps.
+!> come from plag_coeff_uniform, the 3D evaluation from a generated kernel.
 module polylag_3
     use libneo_kinds, only: dp
     use plag_coeff_sub, only: plag_coeff_uniform, lagrange_stencil
+    use libneo_lagrange_point, only: lagrange_point_3d_n4
     implicit none
 
     integer, parameter :: mp = 4
@@ -44,29 +45,14 @@ contains
         real(dp), intent(in) :: xp(mp), yp(mp), zp(mp)
         real(dp), intent(out) :: polyl3d, poly1x, poly1y, poly1z
 
-        real(dp) :: cx(0:1, mp), cy(0:1, mp), cz(0:1, mp)
-        real(dp) :: f0(mp, mp), f1(mp, mp), g00(mp), g10(mp), g01(mp)
-        integer :: j, k
+        real(dp) :: v(1), g(3, 1)
 
-        call plag_coeff_uniform(mp, 1, x, xp(1), dxm1, cx)
-        call plag_coeff_uniform(mp, 1, y, yp(1), dym1, cy)
-        call plag_coeff_uniform(mp, 1, z, zp(1), dzm1, cz)
-        ! Contract one direction at a time: x, then y, then z.
-        do k = 1, mp
-            do j = 1, mp
-                f0(j, k) = dot_product(fp(:, j, k), cx(0, :))
-                f1(j, k) = dot_product(fp(:, j, k), cx(1, :))
-            end do
-        end do
-        do k = 1, mp
-            g00(k) = dot_product(f0(:, k), cy(0, :))
-            g10(k) = dot_product(f1(:, k), cy(0, :))
-            g01(k) = dot_product(f0(:, k), cy(1, :))
-        end do
-        polyl3d = dot_product(g00, cz(0, :))
-        poly1x = dot_product(g10, cz(0, :))
-        poly1y = dot_product(g01, cz(0, :))
-        poly1z = dot_product(g00, cz(1, :))
+        call lagrange_point_3d_n4(fp, (x - xp(1))*dxm1, (y - yp(1))*dym1, &
+                                  (z - zp(1))*dzm1, dxm1, dym1, dzm1, v, g)
+        polyl3d = v(1)
+        poly1x = g(1, 1)
+        poly1y = g(2, 1)
+        poly1z = g(3, 1)
     end subroutine plag3d
 
     subroutine coefs(u, up, dum1, cu)

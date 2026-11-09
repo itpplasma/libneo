@@ -417,7 +417,7 @@ target_link_libraries(boozer PUBLIC
 # output is the build input; regeneration needs a FortSym build tree at the
 # pinned revision (configure with -DLIBNEO_FORTSYM_BUILD=<fortsym build>).
 set(LIBNEO_FORTSYM_BUILD "" CACHE PATH "Optional FortSym build tree for regeneration")
-set(LIBNEO_FORTSYM_REVISION "b9ea95c5a0475b016b1e149875a9bec9d8562533")
+set(LIBNEO_FORTSYM_REVISION "2d6f7d15d3d0fce1738b68d0f5d9a9ffdd1418f7")
 if(LIBNEO_FORTSYM_BUILD)
     file(STRINGS "${LIBNEO_FORTSYM_BUILD}/CMakeCache.txt" fortsym_source
         REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL=")
@@ -446,7 +446,8 @@ if(LIBNEO_FORTSYM_BUILD)
     foreach(generator boozer_regular boozer_field_jacobian coordinate_jets boozer_hybrid_field
             sfl_route_kernels efit_sfl boozer_axis_continuation spline1d_horner
             spline3d_horner frozen_current_source frozen_current_mms
-            biotsavart_segment cylindrical_vector_jacobian guiding_centre_field)
+            biotsavart_segment cylindrical_vector_jacobian guiding_centre_field
+            lagrange_point)
         add_executable(gen_${generator} gen/gen_${generator}.f90)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}
