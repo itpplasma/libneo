@@ -2,6 +2,7 @@ module coil_tools
 
    use iso_fortran_env, only: error_unit
    use libneo_kinds, only: dp
+   use neo_biotsavart, only: segment_field
 
    implicit none
 
@@ -382,9 +383,7 @@ contains
                      dist_i = dist_f
                      XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
                      dist_f = sqrt(sum(XYZ_f*XYZ_f))
-                     BXYZ_c(:) = BXYZ_c + &
-                                 (XYZ_i([2, 3, 1])*XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2])*XYZ_f([2, 3, 1]))* &
-                                 (dist_i + dist_f)/(dist_i*dist_f*(dist_i*dist_f + sum(XYZ_i*XYZ_f)))
+                   BXYZ_c(:) = BXYZ_c + segment_field(XYZ_i, XYZ_f, dist_i, dist_f)
                   end do
                   BXYZ(:) = BXYZ + Ic(kc)*BXYZ_c
                end do
@@ -443,9 +442,7 @@ contains
                      dist_i = dist_f
                      XYZ_f(:) = coils(kc)%XYZ(:, ks) - XYZ_r
                      dist_f = sqrt(sum(XYZ_f*XYZ_f))
-                     BXYZ(:) = BXYZ + &
-                               (XYZ_i([2, 3, 1])*XYZ_f([3, 1, 2]) - XYZ_i([3, 1, 2])*XYZ_f([2, 3, 1]))* &
-                               (dist_i + dist_f)/(dist_i*dist_f*(dist_i*dist_f + sum(XYZ_i*XYZ_f)))
+                     BXYZ(:) = BXYZ + segment_field(XYZ_i, XYZ_f, dist_i, dist_f)
                   end do
                   BR(kphi) = BXYZ(1)*cosphi(kphi) + BXYZ(2)*sinphi(kphi)
                   Bphi(kphi) = BXYZ(2)*cosphi(kphi) - BXYZ(1)*sinphi(kphi)
