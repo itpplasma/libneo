@@ -8,86 +8,28 @@ The file is placed in the specified output directory as ``wout.nc``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 from pathlib import Path
-import urllib.request
 
 from netCDF4 import Dataset
 
-WOUT_URL = (
-    "https://github.com/hiddenSymmetries/simsopt/raw/master/tests/test_files/"
-    "wout_LandremanPaul2021_QA_reactorScale_lowres_reference.nc"
-)
-WOUT_SHA256 = "333ab8cef64c4b4f406e76209266fc3bf4d7976e9c28c162983c2120e112e771"
+from test_data import (PINNED, WOUT_CIRCULAR_TOKAMAK_URL, WOUT_LI383_URL,
+                       WOUT_QA_URL, WOUT_QH_URL, WOUT_UPDOWN_TOKAMAK_URL, download)
 
-# Landreman-Paul QH (nfp = 4), same source and resolution as the QA file.
-QH_URL = (
-    "https://github.com/hiddenSymmetries/simsopt/raw/master/tests/test_files/"
-    "wout_LandremanPaul2021_QH_reactorScale_lowres_reference.nc"
-)
-QH_SHA256 = "249c397d67357949b2ab4690145224736d8388f5332f23c67c9cb0bf2aa9931e"
-# NCSX li383 with net toroidal current (Boozer I != 0), booz_xform test files.
-LI383_URL = (
-    "https://raw.githubusercontent.com/hiddenSymmetries/booz_xform/main/tests/"
-    "test_files/wout_li383_1.4m.nc"
-)
-LI383_SHA256 = "6508955581628d8a67992d340fe3a82c160c1a183925d8dfb1f955a4dd596a3f"
-# Circular tokamak (axisymmetric, n_max = 0, net current), booz_xform test files.
-CIRCULAR_TOKAMAK_URL = (
-    "https://raw.githubusercontent.com/hiddenSymmetries/booz_xform/main/tests/"
-    "test_files/wout_circular_tokamak.nc"
-)
-CIRCULAR_TOKAMAK_SHA256 = (
-    "625c5de8e0eb6041b505ffee17e13d3c1b1837488a6c3d1c9b351ca06bc6749a"
-)
-# Up-down asymmetric tokamak (lasym = T, axisymmetric), booz_xform test files.
-UPDOWN_TOKAMAK_URL = (
-    "https://raw.githubusercontent.com/hiddenSymmetries/booz_xform/main/tests/"
-    "test_files/wout_up_down_asymmetric_tokamak.nc"
-)
-UPDOWN_TOKAMAK_SHA256 = (
-    "5fb6f1c27f84a1ba226a9509e17d383de60874175293c50fdcd89c51649fd1a9"
-)
+# Landreman-Paul QA and QH (nfp = 2, 4); NCSX li383 with net toroidal current
+# (Boozer I != 0); circular and up-down asymmetric (lasym = T) tokamaks.
 FIXTURES = {
-    "qa": ("wout.nc", WOUT_URL, WOUT_SHA256),
-    "li383": ("wout_li383.nc", LI383_URL, LI383_SHA256),
-    "qh": ("wout_qh.nc", QH_URL, QH_SHA256),
-    "circular_tokamak": (
-        "wout_circular_tokamak.nc", CIRCULAR_TOKAMAK_URL, CIRCULAR_TOKAMAK_SHA256
-    ),
-    "updown_tokamak": (
-        "wout_updown_tokamak.nc", UPDOWN_TOKAMAK_URL, UPDOWN_TOKAMAK_SHA256
-    ),
+    "qa": ("wout.nc", WOUT_QA_URL),
+    "li383": ("wout_li383.nc", WOUT_LI383_URL),
+    "qh": ("wout_qh.nc", WOUT_QH_URL),
+    "circular_tokamak": ("wout_circular_tokamak.nc", WOUT_CIRCULAR_TOKAMAK_URL),
+    "updown_tokamak": ("wout_updown_tokamak.nc", WOUT_UPDOWN_TOKAMAK_URL),
 }
-
-
-def sha256sum(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def validate_wout(path: Path) -> None:
     with Dataset(path, "r") as ds:
         if "nfp" not in ds.variables:
             raise RuntimeError("wout fixture missing nfp variable")
-
-
-def download_wout(path: Path, url: str = WOUT_URL, sha: str = WOUT_SHA256) -> None:
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    try:
-        with urllib.request.urlopen(url, timeout=120) as response, tmp_path.open(
-            "wb"
-        ) as handle:
-            handle.write(response.read())
-        got = sha256sum(tmp_path)
-        if got != sha:
-            raise RuntimeError(f"sha256 mismatch: expected {sha}, got {got}")
-        tmp_path.replace(path)
-    finally:
-        tmp_path.unlink(missing_ok=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -100,19 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", choices=sorted(FIXTURES), default="qa")
     args = parser.parse_args(argv)
 
-    name, url, sha = FIXTURES[args.case]
-    out_dir = Path(args.output_dir).resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    outfile = out_dir / name
-
-    if outfile.exists() and outfile.stat().st_size > 0:
-        got = sha256sum(outfile)
-        if got == sha:
-            validate_wout(outfile)
-            return 0
-        outfile.unlink()
-
-    download_wout(outfile, url, sha)
+    name, url = FIXTURES[args.case]
+    outfile = download(url, Path(args.output_dir).resolve() / name, PINNED[url])
     validate_wout(outfile)
     return 0
 

@@ -1,11 +1,16 @@
 import os
 import tempfile
-from urllib.request import urlopen
 
 import pytest
 
 import numpy as np
 from libneo.coils import CoilsFile, Filament
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from test_data import fetch  # noqa: E402
 
 
 STELLOPT_COILS_URL = (
@@ -14,8 +19,7 @@ STELLOPT_COILS_URL = (
 
 
 def _download_text(url: str) -> str:
-    with urlopen(url, timeout=30) as resp:
-        return resp.read().decode("utf-8")
+    return fetch(url).read_text()
 
 
 @pytest.mark.network

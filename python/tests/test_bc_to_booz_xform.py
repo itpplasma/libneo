@@ -4,15 +4,21 @@ from contextlib import redirect_stdout
 import io
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.request import urlopen
 import numpy as np
 import pytest
+import shutil
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "test" / "scripts"))
+from test_data import fetch  # noqa: E402
+
 
 TESTS_DIR = Path(__file__).parent
 CIRC_BC = Path(__file__).resolve().parent / "circ.bc"
 LSP_WOUT_URL = (
-    "https://raw.githubusercontent.com/hiddenSymmetries/simsopt/master/"
-    "tests/test_files/wout_LandremanSenguptaPlunk_section5p3_reference.nc"
+    "https://raw.githubusercontent.com/hiddenSymmetries/simsopt/"
+    "912bdcc729d95433518c71df82b8cc45287908b3/tests/test_files/"
+    "wout_LandremanSenguptaPlunk_section5p3_reference.nc"
 )
 
 R0_expected = 1.64377  # m, from circ.bc header
@@ -20,8 +26,7 @@ A_expected = 0.46      # m
 
 
 def _download(url: str, out_path: Path) -> None:
-    with urlopen(url, timeout=60) as resp, open(out_path, "wb") as f:
-        f.write(resp.read())
+    shutil.copyfile(fetch(url), out_path)
 
 
 @pytest.fixture(scope="module")

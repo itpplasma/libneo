@@ -1,12 +1,17 @@
 import os
 import tempfile
-from urllib.request import urlopen
 
 import numpy as np
 import pytest
 
 from libneo.vmec import VMECGeometry, vmec_to_cylindrical
 from libneo.vmec_to_efit import cfunct as ref_cfunct, sfunct as ref_sfunct
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from test_data import fetch  # noqa: E402
 
 
 STELLOPT_WOUT_URL = (
@@ -15,8 +20,7 @@ STELLOPT_WOUT_URL = (
 
 
 def _download_file(url: str, dst: str) -> None:
-    with urlopen(url, timeout=30) as resp, open(dst, "wb") as f:
-        f.write(resp.read())
+    shutil.copyfile(fetch(url), dst)
 
 
 @pytest.mark.network

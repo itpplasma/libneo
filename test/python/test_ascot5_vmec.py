@@ -3,7 +3,6 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from urllib.request import urlopen
 
 import matplotlib
 
@@ -13,6 +12,10 @@ import numpy as np
 import pytest
 
 from libneo.ascot5 import GAUSS_TO_TESLA, field_from_vmec, write_b3ds_hdf5
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from test_data import fetch  # noqa: E402
 
 
 STELLOPT_WOUT_URL = (
@@ -61,8 +64,7 @@ def test_field_from_vmec_generates_b3ds(tmp_path):
 
     with tempfile.TemporaryDirectory() as td:
         wout_path = os.path.join(td, "wout.nc")
-        with urlopen(STELLOPT_WOUT_URL, timeout=30) as resp, open(wout_path, "wb") as f:
-            f.write(resp.read())
+        shutil.copyfile(fetch(STELLOPT_WOUT_URL), wout_path)
 
         field = field_from_vmec(
             wout_path,
