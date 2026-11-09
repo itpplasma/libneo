@@ -559,6 +559,11 @@ add_executable(frozen_current.x
 )
 target_link_libraries(frozen_current.x frozen_current)
 
+add_executable(frozen_current_chartmap.x
+    app/frozen_current_chartmap.f90
+)
+target_link_libraries(frozen_current_chartmap.x frozen_current coordinates)
+
 add_executable(boozer_spectrum_ad.x
     app/boozer_spectrum_ad.f90
 )
