@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import numpy as np
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "test" / "scripts"))
+from test_data import fetch  # noqa: E402
 
 
 def _is_closed(polyline: np.ndarray, tol: float = 1.0e-10) -> bool:
@@ -125,8 +131,7 @@ import pytest
 @pytest.mark.network
 def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
     import tempfile
-    from urllib.request import urlopen
-
+    
     from pathlib import Path
 
     from libneo.stl_boundary import (
@@ -144,8 +149,7 @@ def test_extract_boundary_slices_from_public_vmec_with_ports(tmp_path) -> None:
     )
 
     def _download_file(url: str, dst: str) -> None:
-        with urlopen(url, timeout=30) as resp, open(dst, "wb") as f:
-            f.write(resp.read())
+        shutil.copyfile(fetch(url), dst)
 
     with tempfile.TemporaryDirectory():
         wout_path = tmp_path / "wout.nc"

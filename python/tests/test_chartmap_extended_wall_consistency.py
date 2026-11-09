@@ -11,15 +11,18 @@ in the coordinate system.
 from __future__ import annotations
 
 from pathlib import Path
-from urllib.request import urlopen
 
 import numpy as np
 import pytest
+import shutil
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "test" / "scripts"))
+from test_data import fetch  # noqa: E402
 
 
 def _download(url: str, out_path: Path) -> None:
-    with urlopen(url, timeout=60) as resp, open(out_path, "wb") as f:
-        f.write(resp.read())
+    shutil.copyfile(fetch(url), out_path)
 
 
 def _figure_path(name: str) -> Path:
