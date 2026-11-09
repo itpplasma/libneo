@@ -4,7 +4,6 @@ add_library(neo_util STATIC
     util.f90
     binsrc.f90
     plag_coeff.f90
-    arnoldi.f90
     rusage_type.f90
     system_utility.f90
     simpson_integration.f90

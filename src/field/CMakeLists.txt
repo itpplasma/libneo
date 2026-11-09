@@ -10,7 +10,6 @@ add_library(LIBNEO::field_base ALIAS field_base)
 # containers they consume.
 add_library(neo_field STATIC
     mesh.f90
-    mesh_2d.f90
     example_field.f90
     circular_tokamak_field.f90
     biotsavart.f90

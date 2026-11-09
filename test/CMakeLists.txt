@@ -57,11 +57,6 @@ target_link_libraries(test_collision_freqs.x
   util_for_test
 )
 
-add_executable(test_arnoldi.x source/test_arnoldi.f90)
-target_link_libraries(test_arnoldi.x
-  ${COMMON_LIBS}
-)
-
 add_executable(test_binsrc.x source/test_binsrc.f90)
 target_link_libraries(test_binsrc.x
   ${COMMON_LIBS}
@@ -404,23 +399,6 @@ if(LIBNEO_TESTING_ENABLED)
 endif()
 
 ## Custom tests
-
-# This requires an additional call to setup_test_arnoldi.py, so use the script
-# instead of calling the executable directly.
-# \note Maybe this could be solved with setup_test_arnoldi.py && test_arnoldi.x.
-# Afterwards fail condition is set: test will fail if the output
-# contains 'STOP'.
-add_test(NAME test_arnoldi_setup
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/source/setup_test_arnoldi.py)
-set_tests_properties(test_arnoldi_setup PROPERTIES
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  FIXTURES_SETUP arnoldi)
-
-add_test(NAME test_arnoldi COMMAND test_arnoldi.x)
-set_tests_properties(test_arnoldi PROPERTIES 
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  FIXTURES_REQUIRED arnoldi
-  FAIL_REGULAR_EXPRESSION "STOP")
 
 add_test(NAME test_system_utility
          COMMAND test_system_utility.x)
