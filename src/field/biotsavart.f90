@@ -88,51 +88,69 @@ end subroutine deallocate_coils_data
 
 
 !> Formula of Hanson and Hirshman (2002)
-recursive function compute_vector_potential(coils, x) result(A)
+!> A per unit I/c of the straight segment from p_i to p_f at distances
+!> d_i = |x - p_i|, d_f = |x - p_f| (Hanson and Hirshman 2002). Consecutive
+!> segments share an endpoint distance, so callers pass it instead of
+!> recomputing it.
+pure function segment_potential(dl, d_i, d_f) result(A)
+    real(dp), intent(in) :: dl(3), d_i, d_f
+    real(dp) :: A(3), len
+
+    len = norm2(dl)
+    A = dl/len*log((d_i + d_f + len)/(d_i + d_f - len))
+end function segment_potential
+
+!> B per unit I/c of the straight segment from p_i to p_f, with r_i = x - p_i,
+!> r_f = x - p_f and their lengths d_i, d_f.
+pure function segment_field(r_i, r_f, d_i, d_f) result(B)
+    real(dp), intent(in) :: r_i(3), r_f(3), d_i, d_f
+    real(dp) :: B(3), c
+
+    c = (d_i + d_f)/(d_i*d_f*(d_i*d_f + dot_product(r_i, r_f)))
+    B(1) = c*(r_i(2)*r_f(3) - r_i(3)*r_f(2))
+    B(2) = c*(r_i(3)*r_f(1) - r_i(1)*r_f(3))
+    B(3) = c*(r_i(1)*r_f(2) - r_i(2)*r_f(1))
+end function segment_field
+
+pure function compute_vector_potential(coils, x) result(A)
     type(coils_t), intent(in) :: coils
     real(dp), intent(in) :: x(3)
 
-    real(dp) :: A(3), dx_i(3), dx_f(3), dl(3), R_i, R_f, L, eps, log_term
+    real(dp) :: A(3), r_i(3), r_f(3), d_i, d_f
     integer :: i
 
     A = 0.0d0
+    r_f = x - [coils%x(1), coils%y(1), coils%z(1)]
+    d_f = norm2(r_f)
     do i = 1, size(coils%x) - 1
-        dl = get_segment_vector(coils, i)
-        dx_i = get_vector_from_segment_start_to_x(coils, i, x)
-        dx_f = get_vector_from_segment_end_to_x(coils, i, x)
-        R_i = calc_norm(dx_i)
-        R_f = calc_norm(dx_f)
-        L = calc_norm(dl)
-        eps = L / (R_i + R_f)
-        log_term = log((1.0d0 + eps) / (1.0d0 - eps))
-        A = A + (coils%current(i) / clight) * (dl / L) * log_term
+        r_i = r_f
+        d_i = d_f
+        r_f = x - [coils%x(i + 1), coils%y(i + 1), coils%z(i + 1)]
+        d_f = norm2(r_f)
+        if (coils%current(i) == 0.0d0) cycle
+        A = A + coils%current(i)/clight*segment_potential(r_i - r_f, d_i, d_f)
     end do
 end function compute_vector_potential
 
-
-recursive function compute_magnetic_field(coils, x) result(B)
+pure function compute_magnetic_field(coils, x) result(B)
     type(coils_t), intent(in) :: coils
     real(dp), intent(in) :: x(3)
 
-    real(dp) :: B(3), dx_i(3), dx_f(3), dl(3), R_i, R_f, L, eps, dx_i_hat(3), dl_hat(3)
+    real(dp) :: B(3), r_i(3), r_f(3), d_i, d_f
     integer :: i
 
     B = 0.0d0
+    r_f = x - [coils%x(1), coils%y(1), coils%z(1)]
+    d_f = norm2(r_f)
     do i = 1, size(coils%x) - 1
-        dl = get_segment_vector(coils, i)
-        dx_i = get_vector_from_segment_start_to_x(coils, i, x)
-        dx_f = get_vector_from_segment_end_to_x(coils, i, x)
-        R_i = calc_norm(dx_i)
-        R_f = calc_norm(dx_f)
-        L = calc_norm(dl)
-        eps = L / (R_i + R_f)
-        dx_i_hat = dx_i / R_i
-        dl_hat = dl / L
-        B = B + (coils%current(i) / clight) * cross_product(dl_hat, dx_i_hat) * &
-                (1 / R_f) * (2*eps / (1.0d0 - eps**2))
+        r_i = r_f
+        d_i = d_f
+        r_f = x - [coils%x(i + 1), coils%y(i + 1), coils%z(i + 1)]
+        d_f = norm2(r_f)
+        if (coils%current(i) == 0.0d0) cycle
+        B = B + coils%current(i)/clight*segment_field(r_i, r_f, d_i, d_f)
     end do
 end function compute_magnetic_field
-
 
 !> A, B and their Jacobians dA(i, j) = dA_i/dx_j, dB(i, j) = dB_i/dx_j, summed
 !> over the segments with the generated exact segment leaf.
@@ -167,61 +185,5 @@ subroutine compute_field_jacobian(coils, x, A, dA, B, dB)
 end subroutine compute_field_jacobian
 
 include '../generated/biotsavart_segment_leaves.inc'
-
-recursive function get_segment_vector(coils, i) result(dl)
-    type(coils_t), intent(in) :: coils
-    integer, intent(in) :: i
-
-    real(dp) :: dl(3)
-
-    dl(1) = coils%x(i+1) - coils%x(i)
-    dl(2) = coils%y(i+1) - coils%y(i)
-    dl(3) = coils%z(i+1) - coils%z(i)
-end function get_segment_vector
-
-
-recursive function get_vector_from_segment_start_to_x(coils, i, x) result(dx_i)
-    type(coils_t), intent(in) :: coils
-    integer, intent(in) :: i
-    real(dp), intent(in) :: x(3)
-
-    real(dp) :: dx_i(3)
-
-    dx_i(1) = x(1) - coils%x(i)
-    dx_i(2) = x(2) - coils%y(i)
-    dx_i(3) = x(3) - coils%z(i)
-end function get_vector_from_segment_start_to_x
-
-
-recursive function get_vector_from_segment_end_to_x(coils, i, x) result(dx_f)
-    type(coils_t), intent(in) :: coils
-    integer, intent(in) :: i
-    real(dp), intent(in) :: x(3)
-
-    real(dp) :: dx_f(3)
-
-    dx_f(1) = x(1) - coils%x(i+1)
-    dx_f(2) = x(2) - coils%y(i+1)
-    dx_f(3) = x(3) - coils%z(i+1)
-end function get_vector_from_segment_end_to_x
-
-
-recursive function calc_norm(v) result(norm)
-    real(dp), intent(in) :: v(3)
-    real(dp) :: norm
-
-    norm = sqrt(v(1)**2 + v(2)**2 + v(3)**2)
-end function calc_norm
-
-
-recursive function cross_product(a, b) result(c)
-    real(dp), intent(in) :: a(3), b(3)
-    real(dp) :: c(3)
-
-    c(1) = a(2)*b(3) - a(3)*b(2)
-    c(2) = a(3)*b(1) - a(1)*b(3)
-    c(3) = a(1)*b(2) - a(2)*b(1)
-end function cross_product
-
 
 end module neo_biotsavart

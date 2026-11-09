@@ -103,7 +103,7 @@ program test_biotsavart
 
     subroutine test_compute_vector_potential_circular_loop
         use neo_biotsavart, only: coils_t, compute_vector_potential, &
-                                     coils_deinit, clight, calc_norm
+                                  coils_deinit, clight
 
         real(dp), parameter :: tol = 1.0e-5
         integer, parameter :: N_TEST = 3
@@ -127,8 +127,8 @@ program test_biotsavart
             A_analytic = vector_potential_circular_loop_on_axis(x(3), 1.0d0, 1.0d0)
             A = compute_vector_potential(coils, x)
             if (any(abs(A - A_analytic)*clight > tol)) then
-                print *, "A = ", calc_norm(A)*clight
-                print *, "A_analytic = ", calc_norm(A_analytic)*clight
+                print *, "A = ", norm2(A)*clight
+                print *, "A_analytic = ", norm2(A_analytic)*clight
                 call print_fail
                 error stop
             end if
@@ -153,7 +153,7 @@ program test_biotsavart
 
     subroutine test_compute_magnetic_field
         use neo_biotsavart, only: coils_t, compute_magnetic_field, &
-                                     coils_deinit, clight, calc_norm
+                                  coils_deinit, clight
 
         real(dp), parameter :: tol = 1.0e-9
         integer, parameter :: N_TEST = 3
@@ -175,9 +175,9 @@ program test_biotsavart
             B = compute_magnetic_field(coils, x)
             B_analytic = magnetic_field_straight_wire(x, large_distance, 1.0d0)
             if (any(abs(B - B_analytic)*clight > tol)) then
-                print *, "B = ", calc_norm(B)*clight
-                print *, "B_analytic = ", calc_norm(B_analytic)*clight
-                print *, "Ratio = ", calc_norm(B) / calc_norm(B_analytic)
+                print *, "B = ", norm2(B)*clight
+                print *, "B_analytic = ", norm2(B_analytic)*clight
+                print *, "Ratio = ", norm2(B)/norm2(B_analytic)
                 call print_fail
                 error stop
             end if
@@ -212,7 +212,7 @@ program test_biotsavart
 
     subroutine test_compute_magnetic_field_circular_loop
         use neo_biotsavart, only: coils_t, compute_magnetic_field, &
-                                     coils_deinit, clight, calc_norm
+                                  coils_deinit, clight
 
         real(dp), parameter :: tol = 1.0e-5
         integer, parameter :: N_TEST = 3
