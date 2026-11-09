@@ -1047,3 +1047,10 @@ add_test(NAME test_chartmap_field COMMAND test_chartmap_field.x)
 set_tests_properties(test_chartmap_field PROPERTIES
   FAIL_REGULAR_EXPRESSION "STOP"
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(test_chartmap_boozer_seam.x source/test_chartmap_boozer_seam.f90)
+target_link_libraries(test_chartmap_boozer_seam.x chartmap_gate_fixtures)
+add_test(NAME test_chartmap_boozer_seam COMMAND test_chartmap_boozer_seam.x)
+set_tests_properties(test_chartmap_boozer_seam PROPERTIES
+  FAIL_REGULAR_EXPRESSION "STOP"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

@@ -24,6 +24,7 @@ module chartmap_gate_fixtures
     public :: write_circular_boozer_chartmap
     public :: write_stellarator_boozer_chartmap
     public :: circular_chart_position
+    public :: stellarator_chart_position
 
     real(dp), parameter, public :: CIRC_R_AXIS = 180.0_dp
     real(dp), parameter, public :: CIRC_A_MINOR = 45.0_dp
@@ -58,6 +59,24 @@ contains
         x(2) = rmaj*sin(phg)
         x(3) = -real(handedness, dp)*r*sin(thg)
     end subroutine circular_chart_position
+
+    ! Analytic map of the nfp = 3 stellarator fixture, in cm. Every toroidal
+    ! harmonic is a multiple of nfp, so advancing zeta by one field period
+    ! rotates the point by 2 pi/3 about the z axis.
+    subroutine stellarator_chart_position(rho, theta, zeta, handedness, x)
+        real(dp), intent(in) :: rho, theta, zeta
+        integer, intent(in) :: handedness
+        real(dp), intent(out) :: x(3)
+        real(dp), parameter :: r0 = 180.0_dp, a = 45.0_dp
+        real(dp) :: phi_geom, rmaj
+
+        phi_geom = zeta + 0.08_dp*rho*sin(theta) + 0.02_dp*sin(3.0_dp*zeta)
+        rmaj = r0 + a*rho*cos(theta) + 0.04_dp*a*rho*cos(theta - 3.0_dp*zeta)
+        x(1) = rmaj*cos(phi_geom)
+        x(2) = rmaj*sin(phi_geom)
+        x(3) = -real(handedness, dp)*(a*rho*sin(theta) + &
+                                      0.02_dp*a*rho*sin(3.0_dp*zeta))
+    end subroutine stellarator_chart_position
 
     subroutine write_circular_boozer_chartmap(path, nrho, ntheta, nzeta, handedness)
         character(len=*), intent(in) :: path
@@ -106,12 +125,9 @@ contains
         integer, intent(in) :: handedness
 
         integer, parameter :: nfp = 3
-        real(dp), parameter :: r0 = 180.0_dp
-        real(dp), parameter :: a = 45.0_dp
         real(dp) :: rho(nrho), theta(ntheta), zeta(nzeta)
         real(dp), allocatable :: x(:, :, :), y(:, :, :), z(:, :, :)
-        real(dp) :: rho_val, theta_val, zeta_val
-        real(dp) :: phi_geom, rmaj, zpos, period
+        real(dp) :: p(3), period
         integer :: ir, it, iz
 
         period = TWOPI/real(nfp, dp)
@@ -130,21 +146,13 @@ contains
         allocate (y(nrho, ntheta, nzeta))
         allocate (z(nrho, ntheta, nzeta))
         do iz = 1, nzeta
-            zeta_val = zeta(iz)
             do it = 1, ntheta
-                theta_val = theta(it)
                 do ir = 1, nrho
-                    rho_val = rho(ir)
-                    phi_geom = zeta_val + 0.08_dp*rho_val*sin(theta_val) + &
-                               0.02_dp*sin(2.0_dp*zeta_val)
-                    rmaj = r0 + a*rho_val*cos(theta_val) + &
-                           0.04_dp*a*rho_val*cos(theta_val - 2.0_dp*zeta_val)
-                    zpos = a*rho_val*sin(theta_val) + &
-                           0.02_dp*a*rho_val*sin(zeta_val)
-
-                    x(ir, it, iz) = rmaj*cos(phi_geom)
-                    y(ir, it, iz) = rmaj*sin(phi_geom)
-                    z(ir, it, iz) = -real(handedness, dp)*zpos
+                    call stellarator_chart_position(rho(ir), theta(it), zeta(iz), &
+                                                    handedness, p)
+                    x(ir, it, iz) = p(1)
+                    y(ir, it, iz) = p(2)
+                    z(ir, it, iz) = p(3)
                 end do
             end do
         end do

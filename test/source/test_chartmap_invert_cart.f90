@@ -440,11 +440,11 @@ contains
                 do ir = 1, nrho
                     rho_val = rho(ir)
                     phi_geom = zeta_val + 0.08_dp*rho_val*sin(theta_val) + &
-                        0.02_dp*sin(2.0_dp*zeta_val)
+                               0.02_dp*sin(3.0_dp*zeta_val)
                     rmaj = r0 + a*rho_val*cos(theta_val) + &
-                        0.04_dp*a*rho_val*cos(theta_val - 2.0_dp*zeta_val)
+                           0.04_dp*a*rho_val*cos(theta_val - 3.0_dp*zeta_val)
                     zpos = a*rho_val*sin(theta_val) + &
-                        0.02_dp*a*rho_val*sin(zeta_val)
+                           0.02_dp*a*rho_val*sin(3.0_dp*zeta_val)
 
                     x(ir, it, iz) = rmaj*cos(phi_geom)
                     y(ir, it, iz) = rmaj*sin(phi_geom)
