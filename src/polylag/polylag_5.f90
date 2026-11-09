@@ -1,5 +1,6 @@
 module neo_polylag_5
     use plag_coeff_sub, only: plag_coeff_uniform, lagrange_stencil
+    use libneo_lagrange_point, only: lagrange_point_3d_n6, lagrange_value_3d_n6
     implicit none
 
     integer, parameter :: dp = kind(1.0d0)
@@ -39,29 +40,14 @@ contains
         real(dp), dimension(mp, mp, mp), intent(in) :: fp
         real(dp), intent(out) :: f, dfdx, dfdy, dfdz
 
-        real(dp) :: cx(0:1, mp), cy(0:1, mp), cz(0:1, mp)
-        real(dp) :: f0(mp, mp), f1(mp, mp), g00(mp), g10(mp), g01(mp)
-        integer :: j, k
+        real(dp) :: v(1), g(3, 1)
 
-        call plag_coeff_uniform(mp, 1, x, xp(1), 1.0_dp/dx, cx)
-        call plag_coeff_uniform(mp, 1, y, yp(1), 1.0_dp/dy, cy)
-        call plag_coeff_uniform(mp, 1, z, zp(1), 1.0_dp/dz, cz)
-        ! Contract one direction at a time: x, then y, then z.
-        do k = 1, mp
-            do j = 1, mp
-                f0(j, k) = dot_product(fp(:, j, k), cx(0, :))
-                f1(j, k) = dot_product(fp(:, j, k), cx(1, :))
-            end do
-        end do
-        do k = 1, mp
-            g00(k) = dot_product(f0(:, k), cy(0, :))
-            g10(k) = dot_product(f1(:, k), cy(0, :))
-            g01(k) = dot_product(f0(:, k), cy(1, :))
-        end do
-        f = dot_product(g00, cz(0, :))
-        dfdx = dot_product(g10, cz(0, :))
-        dfdy = dot_product(g01, cz(0, :))
-        dfdz = dot_product(g00, cz(1, :))
+        call lagrange_point_3d_n6(fp, (x - xp(1))/dx, (y - yp(1))/dy, (z - zp(1))/dz, &
+                                  1.0_dp/dx, 1.0_dp/dy, 1.0_dp/dz, v, g)
+        f = v(1)
+        dfdx = g(1, 1)
+        dfdy = g(2, 1)
+        dfdz = g(3, 1)
     end subroutine get_plag3d
 
     subroutine get_f_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, f)
@@ -70,19 +56,11 @@ contains
         real(dp), dimension(mp, mp, mp), intent(in) :: fp
         real(dp), intent(out) :: f
 
-        real(dp) :: cx(0:0, mp), cy(0:0, mp), cz(0:0, mp), f0(mp, mp), g(mp)
-        integer :: j, k
+        real(dp) :: v(1)
 
-        call plag_coeff_uniform(mp, 0, x, xp(1), 1.0_dp/dx, cx)
-        call plag_coeff_uniform(mp, 0, y, yp(1), 1.0_dp/dy, cy)
-        call plag_coeff_uniform(mp, 0, z, zp(1), 1.0_dp/dz, cz)
-        do k = 1, mp
-            do j = 1, mp
-                f0(j, k) = dot_product(fp(:, j, k), cx(0, :))
-            end do
-            g(k) = dot_product(f0(:, k), cy(0, :))
-        end do
-        f = dot_product(g, cz(0, :))
+        call lagrange_value_3d_n6(fp, (x - xp(1))/dx, (y - yp(1))/dy, (z - zp(1))/dz, &
+                                  1.0_dp/dx, 1.0_dp/dy, 1.0_dp/dz, v)
+        f = v(1)
     end subroutine get_f_plag3d
 
     subroutine get_df_plag3d(x, y, z, xp, yp, zp, fp, dx, dy, dz, dfdx, dfdy, dfdz)
