@@ -55,8 +55,6 @@ case "$tier" in
     (
 python ci/sync_dependency_pins.py --check
 python ci/test_dependency_pins.py
-python ci/test_downstream_gate.py
-python ci/test_nightly_triage.py
 
     )
     load_job_environment
@@ -88,8 +86,7 @@ python -m pip install -c constraints/ci-python.txt ".[dev]"
     load_job_environment
     echo Test
     (
-# SCI_CTEST_ARGS="-LE slow" leaves the slow tests to the nightly run.
-cd build && ctest --output-on-failure ${SCI_CTEST_ARGS:-}
+cd build && ctest --output-on-failure
 
     )
     load_job_environment

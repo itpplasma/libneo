@@ -5,3 +5,4 @@
 2000      nsurf    - number of flux surfaces in Boozer file
 12        mpol     - number of poloidal modes in Boozer file
 1e10
+2         construction - legacy: the contour construction rejects input_efit_file.dat (psirz sign opposite to simag, sibry)

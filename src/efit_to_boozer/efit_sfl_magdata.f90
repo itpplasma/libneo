@@ -10,12 +10,12 @@
 module efit_sfl_magdata
     use efit_sfl, only: efit_sfl_t, efit_sfl_config_t, efit_sfl_status_t, &
                         efit_sfl_surface_t, contour_t, efit_sfl_init, efit_sfl_symflux, &
-                        efit_sfl_x_of_s, EFIT_SFL_OK, EFIT_SFL_ERR_INPUT
+                        efit_sfl_x_of_s, EFIT_SFL_OK
     implicit none
     private
 
     public :: efit_to_boozer_read_options, efit_sfl_load, efit_sfl_magdata_init, &
-              efit_sfl_symflux_eval, efit_sfl_magdata_fill
+              efit_sfl_symflux_eval
 
     integer, parameter :: dp = kind(1.0d0)
 
@@ -23,7 +23,7 @@ contains
 
     !> Optional lines of efit_to_boozer.inp after psimax (defaults if absent):
     !> construction (1 contour, 2 legacy field lines), route,
-    !> allow_poor_equilibrium, override_reason, n_theta of the contours, write_gs_map, exp_bpol (-1 infer, 0 Wb/rad, 1 Wb).
+    !> allow_poor_equilibrium, override_reason, n_theta of the contours, write_gs_map.
     subroutine efit_to_boozer_read_options(unit, construction, cfg, write_gs_map)
         integer, intent(in) :: unit
         integer, intent(out) :: construction, write_gs_map
@@ -39,13 +39,11 @@ contains
         if (ios == 0) read (unit, *, iostat=ios) cfg%override_reason
         if (ios == 0) read (unit, *, iostat=ios) cfg%n_theta
         if (ios == 0) read (unit, *, iostat=ios) write_gs_map
-        if (ios == 0) read (unit, *, iostat=ios) cfg%exp_bpol
     end subroutine efit_to_boozer_read_options
 
     !> Contour construction of the G-EQDSK named in field_divB0.inp with the
     !> edge at psimax of efit_to_boozer.inp (if set). A failed check returns in status.
     subroutine efit_sfl_load(sfl, cfg, status)
-        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         use field_sub, only: read_field_input
         use input_files, only: gfile
         use efit_to_boozer_mod, only: psimax
@@ -54,17 +52,9 @@ contains
         type(efit_sfl_status_t), intent(out) :: status
         type(efit_sfl_config_t) :: c
 
-        if (.not. ieee_is_finite(psimax)) then
-            status = efit_sfl_status_t()
-            status%code = EFIT_SFL_ERR_INPUT
-            allocate (character(len=len('psimax must be finite')) :: status%message)
-            status%message = 'psimax must be finite'
-            return
-        end if
         call read_field_input
         c = cfg
-        ! Only +1e10 and the positive huge/unset range select the file edge.
-        if (psimax /= 1.d10 .and. psimax < 1.d299) c%psi_edge_rel = psimax
+        if (psimax < 1.d299) c%psi_edge_rel = psimax
         call efit_sfl_init(sfl, trim(gfile), c, status)
     end subroutine efit_sfl_load
 
@@ -75,18 +65,14 @@ contains
         type(efit_sfl_config_t), intent(in) :: cfg
         real(dp), intent(out) :: sigma
         type(efit_sfl_status_t), intent(out) :: status
-        type(efit_sfl_status_t) :: accepted
 
         call efit_sfl_load(sfl, cfg, status)
         sigma = sfl%sig_theta
         if (status%code /= EFIT_SFL_OK .and. .not. status%overridden) return
-        accepted = status
-        status = efit_sfl_status_t()
-        call efit_sfl_magdata_fill(sfl, status)
-        if (status%code == EFIT_SFL_OK) status = accepted
+        call fill_grids(sfl, status)
     end subroutine efit_sfl_magdata_init
 
-    subroutine efit_sfl_magdata_fill(sfl, status)
+    subroutine fill_grids(sfl, status)
         use efit_to_boozer_mod, only: nlabel, ntheta, twopi, rmn, rmx, zmn, zmx, &
             raxis, zaxis, rbeg, rsmall, qsaf, psi_pol, psi_tor_vac, psi_tor, C_const, &
             R_spl, Z_spl, bmod_spl, sqgnorm_spl, Gfunc_spl
@@ -136,7 +122,7 @@ contains
         open (1, file='btor_rbig.dat')
         write (1, *) sfl%g%bcentr, sfl%g%rcentr
         close (1)
-    end subroutine efit_sfl_magdata_fill
+    end subroutine fill_grids
 
     !> R, Z, nu, |B| and d nu/d theta at the symmetry-flux angle theta from the
     !> spectra of efit_sfl_symflux (v = -nu/(2 pi)).

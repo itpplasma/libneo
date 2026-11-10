@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import textwrap
 import unittest
 
 
@@ -75,8 +76,14 @@ finish("unexpected gh operation", 1)
 
 class DownstreamGateTests(unittest.TestCase):
     def exercise(self, verdicts, latest="success", **options):
-        production_script = (Path(__file__).resolve().parent /
-                             "downstream_gate.sh").read_text()
+        workflow = (Path(__file__).resolve().parents[1] /
+                    ".github/workflows/downstream-gate.yml")
+        dispatch_step = workflow.read_text().split(
+            "      - name: Dispatch downstream CI", 1
+        )[1]
+        production_script = textwrap.dedent(
+            dispatch_step.split("        run: |\n", 1)[1]
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             executable = root / "gh"
