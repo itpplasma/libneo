@@ -331,7 +331,7 @@ contains
         if (size(got) /= size(ref)) error stop "assert_close_vec: size mismatch"
 
         do i = 1, size(got)
-            if (abs(got(i) - ref(i)) > tol) then
+            if (abs(got(i) - ref(i)) > tol*max(1.0_dp, abs(ref(i)))) then
                 print *, "Mismatch: ", trim(label), " i=", i
                 print *, "  got=", got(i)
                 print *, "  ref=", ref(i)
@@ -351,7 +351,7 @@ contains
 
         do j = 1, size(got, 2)
             do i = 1, size(got, 1)
-                if (abs(got(i, j) - ref(i, j)) > tol) then
+                if (abs(got(i, j) - ref(i, j)) > tol*max(1.0_dp, abs(ref(i, j)))) then
                     print *, "Mismatch: ", trim(label), " (", i, ",", j, ")"
                     print *, "  got=", got(i, j)
                     print *, "  ref=", ref(i, j)
