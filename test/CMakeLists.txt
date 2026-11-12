@@ -33,7 +33,7 @@ if(LIBNEO_DETERMINISTIC_FP)
   add_test(
     NAME deterministic_fp_compile_flags
     COMMAND ${CMAKE_COMMAND}
-      -DCOMPILE_COMMANDS=${CMAKE_BINARY_DIR}/compile_commands.json
+      -DCOMPILE_COMMANDS=${PROJECT_BINARY_DIR}/compile_commands.json
       -DSOURCE_ROOT=${PROJECT_SOURCE_DIR}
       -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_deterministic_fp_flags.cmake
   )
@@ -123,7 +123,7 @@ add_executable(test_eqfile_empty_boundaries.x source/test_eqfile_empty_boundarie
 target_link_libraries(test_eqfile_empty_boundaries.x ${MAIN_LIB} ${MAGFIE_LIB})
 
 if(LIBNEO_TESTING_ENABLED)
-  set(TEST_OUTPUT_DIR ${CMAKE_BINARY_DIR}/test)
+  set(TEST_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
   file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR})
   # Create subdirectories for different test types
   file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR}/source)
@@ -377,7 +377,7 @@ add_test(NAME test_ripple_field COMMAND test_ripple_field.x)
 if(LIBNEO_TESTING_ENABLED)
   add_test(
     NAME test_geoflux
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/run_geoflux_test.py
+    COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/run_geoflux_test.py
             --exe $<TARGET_FILE:test_geoflux.x>
             --data-dir ${TEST_OUTPUT_DIR}/scripts
   )
@@ -385,7 +385,7 @@ if(LIBNEO_TESTING_ENABLED)
 
   add_test(
     NAME test_geqdsk_plot
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geqdsk_plot.py
+    COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/geqdsk_plot.py
             --data-dir ${TEST_OUTPUT_DIR}/scripts
             --output-dir ${TEST_OUTPUT_DIR}/scripts
             --basename geqdsk
@@ -394,7 +394,7 @@ if(LIBNEO_TESTING_ENABLED)
 
   add_test(
     NAME test_geoflux_plot
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/geoflux_plot.py
+    COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/geoflux_plot.py
             --exe $<TARGET_FILE:geoflux_coord_dump.x>
             --data-dir ${TEST_OUTPUT_DIR}/scripts
             --output-dir ${TEST_OUTPUT_DIR}/scripts
@@ -404,7 +404,7 @@ if(LIBNEO_TESTING_ENABLED)
 
   add_test(
     NAME test_geoflux_coordinate_system
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/run_geoflux_test.py
+    COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/run_geoflux_test.py
             --exe $<TARGET_FILE:test_geoflux_coordinate_system.x>
             --data-dir ${TEST_OUTPUT_DIR}/scripts
   )
@@ -421,21 +421,21 @@ set_tests_properties(test_system_utility PROPERTIES  FAIL_REGULAR_EXPRESSION "WA
 
 add_test(
   NAME setup_chartmap_volume
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_chartmap_volume.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/setup_chartmap_volume.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(setup_chartmap_volume PROPERTIES FIXTURES_SETUP chartmap_volume)
 
 add_test(
   NAME setup_vmec_wout
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(setup_vmec_wout PROPERTIES FIXTURES_SETUP vmec_wout)
 
 add_test(
   NAME setup_vmec_chartmap_python
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_chartmap_python.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/setup_vmec_chartmap_python.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(setup_vmec_chartmap_python PROPERTIES
@@ -447,7 +447,7 @@ set_tests_properties(setup_vmec_chartmap_python PROPERTIES
 
 add_test(
   NAME validate_vmec_rho_lcfs_auto
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_rho_lcfs_auto.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/validate_vmec_rho_lcfs_auto.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(validate_vmec_rho_lcfs_auto PROPERTIES
@@ -457,7 +457,7 @@ set_tests_properties(validate_vmec_rho_lcfs_auto PROPERTIES
 
 add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_python
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python.chartmap.nc
 )
@@ -469,7 +469,7 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python PROPERTIES
 
 add_test(
   NAME plot_vmec_map2disc_chartmap_boundary_python
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python.chartmap.nc
           --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python.chartmap_boundary.png
@@ -482,7 +482,7 @@ set_tests_properties(plot_vmec_map2disc_chartmap_boundary_python PROPERTIES
 
 add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_cli
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap.nc
 )
@@ -494,7 +494,7 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_cli PROPERTIES
 
 add_test(
   NAME plot_vmec_map2disc_chartmap_boundary_cli
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap.nc
           --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_cli.chartmap_boundary.png
@@ -507,7 +507,7 @@ set_tests_properties(plot_vmec_map2disc_chartmap_boundary_cli PROPERTIES
 
 add_test(
   NAME validate_vmec_map2disc_chartmap_boundary_python_padded
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/validate_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap.nc
           --boundary-offset 0.5
@@ -520,7 +520,7 @@ set_tests_properties(validate_vmec_map2disc_chartmap_boundary_python_padded PROP
 
 add_test(
   NAME plot_vmec_map2disc_chartmap_boundary_python_padded
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/plot_vmec_map2disc_chartmap_boundary.py
           --wout ${CMAKE_CURRENT_BINARY_DIR}/wout.nc
           --chartmap ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap.nc
           --out ${CMAKE_CURRENT_BINARY_DIR}/wout_vmec_python_padded.chartmap_boundary.png
@@ -729,7 +729,7 @@ set_tests_properties(test_boozer_hybrid_resample PROPERTIES
 
 add_test(
   NAME setup_vmec_wout_qh
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case qh
 )
 
@@ -775,14 +775,14 @@ set_tests_properties(test_boozer_axis_ad PROPERTIES
 
 add_test(
   NAME setup_vmec_wout_li383
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case li383
 )
 set_tests_properties(setup_vmec_wout_li383 PROPERTIES FIXTURES_SETUP vmec_wout_li383)
 
 add_test(
   NAME setup_vmec_wout_circular_tokamak
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case circular_tokamak
 )
 set_tests_properties(setup_vmec_wout_circular_tokamak PROPERTIES
@@ -819,7 +819,7 @@ set_tests_properties(test_boozer_vmec_ad PROPERTIES
 
 add_test(
   NAME setup_vmec_wout_updown_tokamak
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/setup_vmec_wout.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR} --case updown_tokamak
 )
 set_tests_properties(setup_vmec_wout_updown_tokamak PROPERTIES
@@ -940,11 +940,11 @@ add_subdirectory(jorek)
 
 # Exercise the production projection with an analytic map and independent field weight.
 add_executable(test_efit_boozer_projection.x
-  ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_to_boozer_mod.f90
-  ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_sfl.f90
+  ${PROJECT_SOURCE_DIR}/src/efit_to_boozer/efit_to_boozer_mod.f90
+  ${PROJECT_SOURCE_DIR}/src/efit_to_boozer/efit_sfl.f90
   source/boozer_projection_fixture.f90
-  ${CMAKE_SOURCE_DIR}/src/efit_to_boozer/efit_sfl_magdata.f90
-  ${CMAKE_SOURCE_DIR}/app/efit_to_boozer.f90)
+  ${PROJECT_SOURCE_DIR}/src/efit_to_boozer/efit_sfl_magdata.f90
+  ${PROJECT_SOURCE_DIR}/app/efit_to_boozer.f90)
 target_link_libraries(test_efit_boozer_projection.x geqdsk interpolate)
 set_target_properties(test_efit_boozer_projection.x PROPERTIES
   Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/projection_modules)
@@ -952,7 +952,7 @@ target_include_directories(test_efit_boozer_projection.x BEFORE PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}/projection_modules)
 add_test(NAME test_efit_boozer_projection
   COMMAND ${Python_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_projection.py
+    ${PROJECT_SOURCE_DIR}/test/scripts/test_efit_boozer_projection.py
     $<TARGET_FILE:test_efit_boozer_projection.x>)
 set_tests_properties(test_efit_boozer_projection PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -960,7 +960,7 @@ set_tests_properties(test_efit_boozer_projection PROPERTIES
 # hamada_to_boozer.x on the public EFIT file in test/resources.
 add_test(NAME test_hamada_to_boozer_legacy
   COMMAND ${Python_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_legacy.py
+    ${PROJECT_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_legacy.py
     $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x>)
 set_tests_properties(test_hamada_to_boozer_legacy PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -981,7 +981,7 @@ set_tests_properties(test_sfl_routes PROPERTIES
 
 add_test(
   NAME test_sfl_route_error
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/check_sfl_route_error.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/check_sfl_route_error.py
           $<TARGET_FILE:boozer_spectrum_ad.x> ${CMAKE_CURRENT_BINARY_DIR}/wout.nc)
 set_tests_properties(test_sfl_route_error PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"
@@ -997,7 +997,7 @@ set_tests_properties(test_efit_sfl PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_
 # Field-line turn detection on a public FreeGS MAST case (q near 0.5).
 add_test(NAME test_efit_boozer_low_q_turn
   COMMAND ${Python_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/test/scripts/test_efit_boozer_low_q_turn.py
+    ${PROJECT_SOURCE_DIR}/test/scripts/test_efit_boozer_low_q_turn.py
     $<TARGET_FILE:efit_to_boozer.x>)
 set_tests_properties(test_efit_boozer_low_q_turn PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -1005,13 +1005,13 @@ set_tests_properties(test_efit_boozer_low_q_turn PROPERTIES
 # hamada_to_boozer.x with the contour construction (public FreeGS MAST case).
 add_test(NAME test_hamada_to_boozer_contour
   COMMAND ${Python_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_contour.py
+    ${PROJECT_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_contour.py
     $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x>)
 set_tests_properties(test_hamada_to_boozer_contour PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME test_hamada_to_boozer_legacy_low_q
   COMMAND ${Python_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_contour.py
+    ${PROJECT_SOURCE_DIR}/test/scripts/test_hamada_to_boozer_contour.py
     $<TARGET_FILE:efit_to_boozer.x> $<TARGET_FILE:hamada_to_boozer.x> 2)
 set_tests_properties(test_hamada_to_boozer_legacy_low_q PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -1027,7 +1027,7 @@ set_tests_properties(test_sfl_quality PROPERTIES
 
 add_test(
   NAME test_sfl_quality_cli
-  COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/scripts/check_sfl_quality_cli.py
+  COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/scripts/check_sfl_quality_cli.py
           $<TARGET_FILE:boozer_spectrum_ad.x> ${CMAKE_CURRENT_BINARY_DIR}/wout_li383.nc)
 set_tests_properties(test_sfl_quality_cli PROPERTIES
   FAIL_REGULAR_EXPRESSION "FAIL"

@@ -6,28 +6,27 @@ cmake_minimum_required(VERSION 3.22)
 # Basic project settings.
 project(libneo)
 
-# Detect if libneo is standalone or a subproject
-set(LIBNEO_IS_STANDALONE OFF)
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    set(LIBNEO_IS_STANDALONE ON)
+# Loaded first, so a consumer's copy (if any) stays the active one.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ItpDeps.cmake)
+
+# Consumers get libneo's tests only on request: -DLIBNEO_BUILD_TESTING=ON plus
+# include(CTest) in the consumer.
+option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${PROJECT_IS_TOP_LEVEL})
+if(PROJECT_IS_TOP_LEVEL)
+    include(CTest)
 endif()
-
-option(LIBNEO_BUILD_TESTING "Build tests for libneo" ${LIBNEO_IS_STANDALONE})
-
-# A top-level BUILD_TESTING setting controls standalone libneo, but must not
-# implicitly inject libneo's tests into a consuming project's target namespace.
-if(LIBNEO_IS_STANDALONE AND DEFINED BUILD_TESTING)
-    set(LIBNEO_BUILD_TESTING ${BUILD_TESTING})
-elseif(NOT LIBNEO_IS_STANDALONE)
-    # A consumer may reuse a build tree previously configured with an older
-    # standalone libneo, leaving this cache entry enabled. Never inject
-    # libneo's test targets into the consumer's target namespace.
+if(LIBNEO_BUILD_TESTING AND NOT BUILD_TESTING)
+    message(STATUS "LIBNEO_BUILD_TESTING is ON, but BUILD_TESTING is OFF; "
+        "libneo tests will not be built.")
     set(LIBNEO_BUILD_TESTING OFF)
+endif()
+if(LIBNEO_BUILD_TESTING)
+    enable_testing()
 endif()
 
 # Standalone builds run libneo's own Python tests and f2py; resolve Python from
 # the uv-managed project venv so their dependencies are available.
-if(LIBNEO_IS_STANDALONE AND NOT SKBUILD)
+if(PROJECT_IS_TOP_LEVEL AND NOT SKBUILD)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UvPython.cmake)
 endif()
 
@@ -45,7 +44,7 @@ if(LIBNEO_DETERMINISTIC_FP)
 endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
 # Define available build types
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
@@ -66,8 +65,6 @@ message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
 # This is a confirmed gfortran LTO bug affecting finite difference calculations
 # set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 
-include(Util)
-
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -87,10 +84,6 @@ if(LIBNEO_DETERMINISTIC_FP AND NOT CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     message(FATAL_ERROR
         "LIBNEO_DETERMINISTIC_FP currently supports only the GNU Fortran compiler")
 endif()
-if(LIBNEO_BUILD_TESTING)
-    include(CTest)
-endif()
-
 option(ENABLE_OPENMP "Enable OpenMP compiler flags." ON)
 set(_enable_openacc_default OFF)
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
@@ -228,74 +221,31 @@ elseif(${CMAKE_Fortran_COMPILER_ID} STREQUAL "NVHPC")
     endif()
 endif()
 
-include(FetchContent)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DependencyPins.cmake)
-if(NOT TARGET fortio)
-    FetchContent_Declare(
-        fortio
-        GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-        GIT_TAG ${FORTIO_REF}
-    )
-    FetchContent_MakeAvailable(fortio)
-endif()
+itp_add_dependency(fortio REF ${LIBNEO_FORTIO_REF}
+    GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
+    TARGET fortio)
 
-# fortnum: numerical core (special functions, quadrature, FFT, ODE). Guarded so
-# a repo that also pulls fortnum transitively via libneo does not double-declare
-# the target.
-if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortnum)
-    if(DEFINED FORTNUM_SOURCE_DIR)
-        get_filename_component(_fortnum_source "${FORTNUM_SOURCE_DIR}" ABSOLUTE
-            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-        if(NOT IS_DIRECTORY "${_fortnum_source}")
-            message(FATAL_ERROR
-                "FORTNUM_SOURCE_DIR='${_fortnum_source}' is not a directory")
-        endif()
-        add_subdirectory("${_fortnum_source}" "${CMAKE_CURRENT_BINARY_DIR}/fortnum"
-            EXCLUDE_FROM_ALL)
-    else()
-        FetchContent_Declare(
-            fortnum
-            GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-            GIT_TAG ${FORTNUM_REF}
-        )
-        FetchContent_MakeAvailable(fortnum)
-    endif()
+# fortnum: numerical core (special functions, quadrature, FFT, ODE).
+if(LIBNEO_BUILD_NUMERICS)
+    itp_add_dependency(fortnum REF ${LIBNEO_FORTNUM_REF}
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+        TARGET fortnum)
 endif()
 
 # fortfem: B-spline curl complex with FEM-BEM exterior coupling for the
-# frozen-current vector potential. Declared after fortnum so it reuses that
+# frozen-current vector potential. Added after fortnum so it reuses that
 # target; fortfem fetches its own fortsparse pin. Without plotting, fortfem
 # leaves fortplot, and with it the fortplot pins of libneo consumers, alone.
 # libneo's directory options (-fno-realloc-lhs, OpenACC) do not apply to that
 # subtree.
-if(LIBNEO_BUILD_NUMERICS AND NOT TARGET fortfem_api)
+if(LIBNEO_BUILD_NUMERICS)
     get_directory_property(_libneo_compile_options COMPILE_OPTIONS)
     set_directory_properties(PROPERTIES COMPILE_OPTIONS "-fPIC")
-    set(FORTFEM_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-    set(FORTFEM_WITH_PLOT OFF CACHE BOOL "" FORCE)
-    if(DEFINED FORTFEM_SOURCE_DIR)
-        get_filename_component(_fortfem_source "${FORTFEM_SOURCE_DIR}" ABSOLUTE
-            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-        if(NOT IS_DIRECTORY "${_fortfem_source}")
-            message(FATAL_ERROR
-                "FORTFEM_SOURCE_DIR='${_fortfem_source}' is not a directory")
-        endif()
-        add_subdirectory("${_fortfem_source}" "${CMAKE_CURRENT_BINARY_DIR}/fortfem"
-            EXCLUDE_FROM_ALL)
-    else()
-        # Only the targets libneo links get built.
-        set(_fortfem_exclude)
-        if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-            set(_fortfem_exclude EXCLUDE_FROM_ALL)
-        endif()
-        FetchContent_Declare(
-            fortfem
-            GIT_REPOSITORY https://github.com/lazy-fortran/fortfem.git
-            GIT_TAG ${FORTFEM_REF}
-            ${_fortfem_exclude}
-        )
-        FetchContent_MakeAvailable(fortfem)
-    endif()
+    itp_add_dependency(fortfem REF ${LIBNEO_FORTFEM_REF}
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortfem.git
+        TARGET fortfem_api
+        OPTIONS "FORTFEM_BUILD_TESTING OFF" "FORTFEM_WITH_PLOT OFF")
     set_directory_properties(PROPERTIES COMPILE_OPTIONS "${_libneo_compile_options}")
 endif()
 
@@ -431,11 +381,11 @@ if(LIBNEO_FORTSYM_BUILD)
         message(FATAL_ERROR "Regeneration requires FortSym ${LIBNEO_FORTSYM_REVISION}")
     endif()
     configure_file(gen/libneo_fortsym_revision.inc.in
-        ${CMAKE_BINARY_DIR}/gen_include/libneo_fortsym_revision.inc @ONLY)
+        ${PROJECT_BINARY_DIR}/gen_include/libneo_fortsym_revision.inc @ONLY)
     add_library(libneo_gen_support STATIC gen/libneo_gen_support.f90)
     target_include_directories(libneo_gen_support PUBLIC
         ${LIBNEO_FORTSYM_BUILD}/include ${LIBNEO_FORTSYM_BUILD}/_deps/fortgen-build/include
-        ${CMAKE_BINARY_DIR}/gen_include)
+        ${PROJECT_BINARY_DIR}/gen_include)
     target_link_libraries(libneo_gen_support PUBLIC
         ${LIBNEO_FORTSYM_BUILD}/lib/libfortsym${CMAKE_SHARED_LIBRARY_SUFFIX}
         ${LIBNEO_FORTSYM_BUILD}/lib/libfortgen${CMAKE_SHARED_LIBRARY_SUFFIX})
@@ -452,15 +402,15 @@ if(LIBNEO_FORTSYM_BUILD)
         target_link_libraries(gen_${generator} PRIVATE libneo_gen_support)
         add_custom_target(regenerate_gen_${generator}
             COMMAND gen_${generator}
-                ${CMAKE_SOURCE_DIR}/src/generated/${generator}_leaves.inc
+                ${PROJECT_SOURCE_DIR}/src/generated/${generator}_leaves.inc
             DEPENDS gen_${generator})
         if(LIBNEO_BUILD_TESTING)
             add_test(NAME generated_${generator}_leaves_current
                 COMMAND ${CMAKE_COMMAND}
                     -DGENERATOR=$<TARGET_FILE:gen_${generator}>
-                    -DOUTPUT=${CMAKE_BINARY_DIR}/gen_check/${generator}_leaves.inc
-                    -DREFERENCE=${CMAKE_SOURCE_DIR}/src/generated/${generator}_leaves.inc
-                    -P ${CMAKE_SOURCE_DIR}/cmake/CheckGenerated.cmake)
+                    -DOUTPUT=${PROJECT_BINARY_DIR}/gen_check/${generator}_leaves.inc
+                    -DREFERENCE=${PROJECT_SOURCE_DIR}/src/generated/${generator}_leaves.inc
+                    -P ${PROJECT_SOURCE_DIR}/cmake/CheckGenerated.cmake)
         endif()
     endforeach()
 endif()
@@ -517,7 +467,7 @@ add_executable(vacfield.x src/magfie/vacfield.f90)
 add_executable(coil_convert.x src/magfie/coil_convert.f90)
 
 # Assumes previous include of hdf5_tools/CMakeLists.txt for find_package
-set(hdf5_tools_include_dir ${CMAKE_BINARY_DIR})
+set(hdf5_tools_include_dir ${PROJECT_BINARY_DIR})
 
 target_link_libraries(vacfield.x magfie hdf5_tools)
 target_link_libraries(coil_convert.x magfie)

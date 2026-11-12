@@ -1,4 +1,4 @@
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/magfie)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/test/magfie)
 
 # Test executable for Biot-Savart Fourier routines
 add_executable(test_coil_tools_biot_savart.x test_coil_tools_biot_savart.f90)

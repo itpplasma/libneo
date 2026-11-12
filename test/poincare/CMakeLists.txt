@@ -1,4 +1,4 @@
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/poincare)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/test/poincare)
 
 add_executable(test_poincare.x test_poincare.f90)
 target_link_libraries(test_poincare.x PRIVATE neo

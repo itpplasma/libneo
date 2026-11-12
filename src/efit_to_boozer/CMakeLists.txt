@@ -136,13 +136,13 @@ add_custom_command(
   COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
   --f2cmap "${CMAKE_CURRENT_SOURCE_DIR}/../../.f2py_f2cmap"
   "${CMAKE_CURRENT_SOURCE_DIR}/f2py_interfaces/f2py_efit_to_boozer.f90"
-  "${CMAKE_SOURCE_DIR}/src/magfie/field_divB0.f90"
-  "${CMAKE_SOURCE_DIR}/src/magfie/field_eq_mod.f90"
+  "${libneo_SOURCE_DIR}/src/magfie/field_divB0.f90"
+  "${libneo_SOURCE_DIR}/src/magfie/field_eq_mod.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/efit_to_boozer_mod.f90"
-  "${CMAKE_SOURCE_DIR}/src/spl_three_to_five.f90"
+  "${libneo_SOURCE_DIR}/src/spl_three_to_five.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/field_line_integration_for_Boozer.f90"
-  "${CMAKE_SOURCE_DIR}/src/util/plag_coeff.f90"
-  "${CMAKE_SOURCE_DIR}/src/util/binsrc.f90"
+  "${libneo_SOURCE_DIR}/src/util/plag_coeff.f90"
+  "${libneo_SOURCE_DIR}/src/util/binsrc.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/rhs.f90"
   "${CMAKE_CURRENT_SOURCE_DIR}/spline_and_interpolate_magdata.f90"
   -m _efit_to_boozer --lower skip: python_error init_legacy init_contour contour_transform_worker oddorderspline polleg binomial odeint_allroutines', alloc_odeint odeint rkck rkqs :

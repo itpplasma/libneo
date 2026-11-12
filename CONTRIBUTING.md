@@ -6,12 +6,20 @@ and architectural notes in [DESIGN.md](DESIGN.md).
 ## Dependency pins
 
 Fortio, Fortnum and FortFEM revisions are defined in `fpm.toml`; both the main
-CMake build and the standalone `h5merge` tool read them. To test another
-revision, configure with `-DFORTIO_REF=<ref>`, `-DFORTNUM_REF=<ref>` or
-`-DFORTFEM_REF=<ref>`; local source overrides remain available through CMake's
-FetchContent options or `-DFORTNUM_SOURCE_DIR=<dir>` and
-`-DFORTFEM_SOURCE_DIR=<dir>`. FortFEM uses libneo's Fortnum and fetches its own
-FortSparse pin; libneo builds it without plotting, so it does not fetch FortPlot.
+CMake build and the standalone `h5merge` tool read them and add the
+dependencies through [ItpDeps](https://github.com/itpplasma/cmake-deps)
+(`cmake/ItpDeps.cmake`, copied unchanged from a release). To test another
+revision, configure with `-DITP_FORTIO_REF=<ref>`, `-DITP_FORTNUM_REF=<ref>` or
+`-DITP_FORTFEM_REF=<ref>`; to use a local checkout, with
+`-DFETCHCONTENT_SOURCE_DIR_FORTNUM=<dir>` and the like. FortFEM uses libneo's
+Fortnum and fetches its own FortSparse pin; libneo builds it without plotting,
+so it does not fetch FortPlot.
+
+libneo's tests are built only when libneo is the top-level project, unless a
+consumer that adds it with `add_subdirectory` or `FetchContent` and calls
+`include(CTest)` sets `-DLIBNEO_BUILD_TESTING=ON`. The Python-driven tests then
+use the consumer's Python, which needs libneo's Python test dependencies.
+ItpDeps always adds libneo without its tests.
 
 After changing a revision in `fpm.toml`, run
 `python3 ci/sync_dependency_pins.py` to regenerate the Nix inputs and lockfile.

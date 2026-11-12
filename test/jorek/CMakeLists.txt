@@ -1,4 +1,4 @@
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/jorek)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/test/jorek)
 
 add_executable(test_jorek_restart.x test_jorek_restart.f90)
 target_link_libraries(test_jorek_restart.x PRIVATE jorek_support
