@@ -1,5 +1,7 @@
 program gen_spline3d_horner
-    ! Quintic 3D batch spline cell kernels for nq = 1..5 and a runtime nq.
+    ! Quintic and cubic 3D batch spline cell kernels for nq = 1..5 and a
+    ! runtime nq. Cubic charts (libneo_coordinates_chartmap) are evaluated with
+    ! second derivatives at every orbit step.
     use libneo_gen_support, only: fortsym_revision, write_spline_leaf
     implicit none
     character(256) :: path
@@ -17,6 +19,11 @@ program gen_spline3d_horner
             call write_spline_leaf(unit, 3, 5, nq, order, .false.)
         end do
         call write_spline_leaf(unit, 3, 5, nq, 2, .true.)
+    end do
+    do nq = 0, 5
+        do order = 0, 2
+            call write_spline_leaf(unit, 3, 3, nq, order, .false.)
+        end do
     end do
     close (unit)
 end program gen_spline3d_horner
