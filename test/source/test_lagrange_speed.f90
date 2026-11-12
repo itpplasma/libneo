@@ -11,6 +11,7 @@ program test_lagrange_speed
     real(dp) :: fp(mp, mp, mp), xp(mp), yp(mp), zp(mp), r(4), d(4), s1, s2
     real(dp) :: t0, t1, t_gen, t_dense, x, worst
     integer :: i, j, rep
+    character(16) :: arg
 
     xp = 0.3_dp + 0.25_dp*[0, 1, 2, 3]
     yp = 2.0_dp + 0.1_dp*[0, 1, 2, 3]
@@ -56,6 +57,9 @@ program test_lagrange_speed
     end do
     print '(a,2f8.1,a,es12.4)', 'ns per call generated, dense', t_gen/ncall*1e9_dp, &
         t_dense/ncall*1e9_dp, '  checksum', s1 - s2
+    ! Without optimisation the ratio says nothing about the kernel schedule.
+    call get_command_argument(1, arg)
+    if (arg == '--no-speed') stop
     if (t_dense < 2*t_gen) error stop 'generated kernel not twice as fast as dense'
 contains
     subroutine dense(x, y, z, out)
