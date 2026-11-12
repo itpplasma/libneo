@@ -174,6 +174,9 @@ target_link_libraries(test_plag_coeff.x ${COMMON_LIBS})
 add_executable(test_spl_three_to_five.x source/test_spl_three_to_five.f90)
 target_link_libraries(test_spl_three_to_five.x ${COMMON_LIBS})
 
+add_executable(test_spline_continuity.x source/test_spline_continuity.f90)
+target_link_libraries(test_spline_continuity.x ${COMMON_LIBS} ${MAGFIE_LIB})
+
 add_executable(test_spline_build_lines.x source/test_spline_build_lines.f90)
 target_link_libraries(test_spline_build_lines.x ${COMMON_LIBS})
 
@@ -324,6 +327,7 @@ add_test(NAME test_util COMMAND test_util.x)
 add_test(NAME test_cgls_dense COMMAND test_cgls_dense.x)
 add_test(NAME test_plag_coeff COMMAND test_plag_coeff.x)
 add_test(NAME test_spl_three_to_five COMMAND test_spl_three_to_five.x)
+add_test(NAME test_spline_continuity COMMAND test_spline_continuity.x)
 add_test(NAME test_spline_build_lines COMMAND test_spline_build_lines.x)
 add_test(NAME test_species COMMAND test_species.x)
 add_test(NAME test_rng COMMAND test_rng.x)
