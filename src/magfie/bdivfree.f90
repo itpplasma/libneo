@@ -569,168 +569,6 @@ subroutine invert_mono_per(nx,arry_in,xmin,xmax,ny,arrx,ymin,ymax)
 
 end subroutine invert_mono_per
 
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine spl_five_per_bdivfree(n,h,a,b,c,d,e,f)
-  ! Periodic spline of the 5-th order. First and last values of function must
-  ! be the same.
-
-  use libneo_kinds, only : dp
-
-  implicit none
-
-  integer, intent(in) :: n
-  real(dp), intent(in) :: h
-  real(dp), dimension(n), intent(in) :: a
-  real(dp), dimension(n), intent(out) :: b, c, d, e, f
-
-  integer :: i,ip1
-  real(dp) :: rhop,rhom,fac,xplu,xmin,gammao_m,gammao_p
-  real(dp) :: c_gammao_m,c_gammao_p
-
-  real(dp), dimension(:), allocatable :: alp,bet,gam
-
-  rhop=13.d0+sqrt(105.d0)
-  rhom=13.d0-sqrt(105.d0)
-
-  allocate(alp(n),bet(n),gam(n))
-
-  alp(1)=0.0d0
-  bet(1)=0.0d0
-
-  do i=1,n-4
-    ip1=i+1
-    alp(ip1)=-1.d0/(rhop+alp(i))
-    bet(ip1)=alp(ip1)*(bet(i)- &
-             5.d0*(a(i+4)-4.d0*a(i+3)+6.d0*a(i+2)-4.d0*a(ip1)+a(i)))
-  end do
-  alp(n-2)=-1.d0/(rhop+alp(n-3))
-  bet(n-2)=alp(n-2)*(bet(n-3)- &
-           5.d0*(a(2)-4.d0*a(1)+6.d0*a(n-1)-4.d0*a(n-2)+a(n-3)))
-  alp(n-1)=-1.d0/(rhop+alp(n-2))
-  bet(n-1)=alp(n-1)*(bet(n-2)- &
-           5.d0*(a(3)-4.d0*a(2)+6.d0*a(1)-4.d0*a(n-1)+a(n-2)))
-  alp(n)=-1.d0/(rhop+alp(n-1))
-  bet(n)=alp(n)*(bet(n-1)- &
-           5.d0*(a(4)-4.d0*a(3)+6.d0*a(2)-4.d0*a(1)+a(n-1)))
-
-  gam(n)=bet(n)
-  do i=n-1,1,-1
-    gam(i)=gam(i+1)*alp(i)+bet(i)
-  end do
-
-  xplu=sqrt(0.25d0*rhop**2-1.d0)-0.5d0*rhop
-  xmin=-sqrt(0.25d0*rhop**2-1.d0)-0.5d0*rhop
-  gammao_m=(gam(2)+xplu*gam(n))/(xmin-xplu)
-  gammao_p=(gam(2)+xmin*gam(n))/(xplu-xmin)
-  if(abs(xmin).lt.1) then
-    c_gammao_m=gammao_m/(xmin**(n-1)-1.d0)
-  else
-    c_gammao_m=gammao_m*(1.d0/xmin)**(n-1)/(1.d0-(1.d0/xmin)**(n-1))
-  end if
-  if(abs(xplu).lt.1) then
-    c_gammao_p=gammao_p/(xplu**(n-1)-1.d0)
-  else
-    c_gammao_p=gammao_p*(1.d0/xplu)**(n-1)/(1.d0-(1.d0/xplu)**(n-1))
-  end if
-  gam(1)=gam(1)+c_gammao_m+c_gammao_p
-  do i=2,n
-    if(abs(xmin).lt.1) then
-      c_gammao_m=gammao_m*xmin**(i-1)/(xmin**(n-1)-1.d0)
-    else
-      c_gammao_m=gammao_m*(1.d0/xmin)**(n-i)/(1.d0-(1.d0/xmin)**(n-1))
-    end if
-    if(abs(xplu).lt.1) then
-      c_gammao_p=gammao_p*xplu**(i-1)/(xplu**(n-1)-1.d0)
-    else
-      c_gammao_p=gammao_p*(1.d0/xplu)**(n-i)/(1.d0-(1.d0/xplu)**(n-1))
-    end if
-    gam(i)=gam(i)+c_gammao_m+c_gammao_p
-  end do
-
-  alp(1)=0.0d0
-  bet(1)=0.d0
-
-  do i=1,n-1
-    ip1=i+1
-    alp(ip1)=-1.d0/(rhom+alp(i))
-    bet(ip1)=alp(ip1)*(bet(i)-gam(i))
-  end do
-
-  e(n)=bet(n)
-  do i=n-1,1,-1
-    e(i)=e(i+1)*alp(i)+bet(i)
-  end do
-
-  xplu=sqrt(0.25d0*rhom**2-1.d0)-0.5d0*rhom
-  xmin=-sqrt(0.25d0*rhom**2-1.d0)-0.5d0*rhom
-  gammao_m=(e(2)+xplu*e(n))/(xmin-xplu)
-  gammao_p=(e(2)+xmin*e(n))/(xplu-xmin)
-  if(abs(xmin).lt.1) then
-    c_gammao_m=gammao_m/(xmin**(n-1)-1.d0)
-  else
-    c_gammao_m=gammao_m*(1.d0/xmin)**(n-1)/(1.d0-(1.d0/xmin)**(n-1))
-  end if
-  if(abs(xplu).lt.1) then
-    c_gammao_p=gammao_p/(xplu**(n-1)-1.d0)
-  else
-    c_gammao_p=gammao_p*(1.d0/xplu)**(n-1)/(1.d0-(1.d0/xplu)**(n-1))
-  end if
-  e(1)=e(1)+c_gammao_m+c_gammao_p
-  do i=2,n
-    if(abs(xmin).lt.1) then
-      c_gammao_m=gammao_m*xmin**(i-1)/(xmin**(n-1)-1.d0)
-    else
-      c_gammao_m=gammao_m*(1.d0/xmin)**(n-i)/(1.d0-(1.d0/xmin)**(n-1))
-    end if
-    if(abs(xplu).lt.1) then
-      c_gammao_p=gammao_p*xplu**(i-1)/(xplu**(n-1)-1.d0)
-    else
-      c_gammao_p=gammao_p*(1.d0/xplu)**(n-i)/(1.d0-(1.d0/xplu)**(n-1))
-    end if
-    e(i)=e(i)+c_gammao_m+c_gammao_p
-  end do
-
-  do i=n-1,1,-1
-    f(i)=(e(i+1)-e(i))/5.d0
-  end do
-  f(n)=f(1)
-
-  d(n-1)=(a(3)-3.d0*a(2)+3.d0*a(1)-a(n-1))/6.d0 &
-      -(e(3)+27.d0*e(2)+93.d0*e(1)+59.d0*e(n-1))/30.d0
-  d(n-2)=(a(2)-3.d0*a(1)+3.d0*a(n-1)-a(n-2))/6.d0 &
-      -(e(2)+27.d0*e(1)+93.d0*e(n-1)+59.d0*e(n-2))/30.d0
-  do i=n-3,1,-1
-    d(i)=(a(i+3)-3.d0*a(i+2)+3.d0*a(i+1)-a(i))/6.d0 &
-        -(e(i+3)+27.d0*e(i+2)+93.d0*e(i+1)+59.d0*e(i))/30.d0
-  end do
-  d(n)=d(1)
-  c(n-1)=0.5d0*(a(2)+a(n-1))-a(1)-0.5d0*d(1)-2.5d0*d(n-1) &
-      -0.1d0*(e(2)+18.d0*e(1)+31.d0*e(n-1))
-  b(n-1)=a(1)-a(n-1)-c(n-1)-d(n-1)-0.2d0*(4.d0*e(n-1)+e(1))
-
-  do i=n-2,1,-1
-    c(i)=0.5d0*(a(i+2)+a(i))-a(i+1)-0.5d0*d(i+1)-2.5d0*d(i) &
-        -0.1d0*(e(i+2)+18.d0*e(i+1)+31.d0*e(i))
-    b(i)=a(i+1)-a(i)-c(i)-d(i)-0.2d0*(4.d0*e(i)+e(i+1))
-  end do
-  b(n)=b(1)
-  c(n)=c(1)
-
-  fac=1.d0/h
-  b=b*fac
-  fac=fac/h
-  c=c*fac
-  fac=fac/h
-  d=d*fac
-  fac=fac/h
-  e=e*fac
-  fac=fac/h
-  f=f*fac
-
-  deallocate(alp,bet,gam)
-
-end subroutine spl_five_per_bdivfree
-
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
   ! Calculates coefficients of a 2D spline for a ring domain
@@ -759,7 +597,7 @@ subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
   !                                   and y (~ dx**(l-1)*dy**(m-1) ))
   !                                   ipoint(i,j) contains the pointer to k
 
-  use spl_three_to_five_sub, only: spl_five_reg
+  use spl_three_to_five_sub, only: spl_five_reg, spl_five_per
 
   implicit double precision (a-h,o-z)
 
@@ -790,7 +628,7 @@ subroutine s2dring(nx,ny,hx,hy,f,icount,spl,ipoint)
       do j=jmi(i),jma(i)
         ai(j-jmi(i)+1)=f(i,j)
       end do
-      call spl_five_per_bdivfree(nsi,hy,ai,bi,ci,di,ei,fi)
+      call spl_five_per(nsi, hy, ai, bi, ci, di, ei, fi)
       do j=jmi(i),jma(i)
         jj=j-jmi(i)+1
         ic = ic+1
@@ -989,7 +827,10 @@ end subroutine psithet_rz
 
 ! ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
+  ! The recurrence is real and linear, so real and imaginary parts are splined
+  ! separately.
   use libneo_kinds, only : cdp, dp
+  use spl_three_to_five_sub, only: spl_five_reg
 
   implicit none
 
@@ -998,137 +839,15 @@ subroutine cspl_five_reg(n,h,a,b,c,d,e,f)
   complex(cdp), dimension(n), intent(in) :: a
   complex(cdp), dimension(n), intent(out) :: b, c, d, e, f
 
-  integer :: i,ip1
-  real(dp) :: rhop,rhom,fac
-  real(dp) :: a11,a12,a13,a21,a22,a23,a31,a32,a33,det
-  complex(cdp) :: abeg,bbeg,cbeg,dbeg,ebeg,fbeg
-  complex(cdp) :: aend,bend,cend,dend,eend,fend
-  complex(cdp) :: b1,b2,b3
-  complex(cdp), dimension(:), allocatable :: alp,bet,gam
+  real(dp), dimension(n) :: br, cr, dr, er, fr, bi, ci, di, ei, fi
 
-  rhop=13.d0+sqrt(105.d0)
-  rhom=13.d0-sqrt(105.d0)
-
-  a11=1.d0
-  a12=1.d0/4.d0
-  a13=1.d0/16.d0
-  a21=3.d0
-  a22=27.d0/4.d0
-  a23=9.d0*27.d0/16.d0
-  a31=5.d0
-  a32=125.d0/4.d0
-  a33=5.d0**5/16.d0
-  det=a11*a22*a33+a12*a23*a31+a13*a21*a32-a12*a21*a33-a13*a22*a31-a11*a23*a32
-  b1=a(4)-a(3)
-  b2=a(5)-a(2)
-  b3=a(6)-a(1)
-  bbeg=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  bbeg=bbeg/det
-  dbeg=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  dbeg=dbeg/det
-  fbeg=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  fbeg=fbeg/det
-  b1=a(n-2)-a(n-3)
-  b2=a(n-1)-a(n-4)
-  b3=a(n)-a(n-5)
-  bend=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  bend=bend/det
-  dend=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  dend=dend/det
-  fend=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  fend=fend/det
-  a11=2.d0
-  a12=1.d0/2.d0
-  a13=1.d0/8.d0
-  a21=2.d0
-  a22=9.d0/2.d0
-  a23=81.d0/8.d0
-  a31=2.d0
-  a32=25.d0/2.d0
-  a33=625.d0/8.d0
-  det=a11*a22*a33+a12*a23*a31+a13*a21*a32-a12*a21*a33-a13*a22*a31-a11*a23*a32
-  b1=a(4)+a(3)
-  b2=a(5)+a(2)
-  b3=a(6)+a(1)
-  abeg=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  abeg=abeg/det
-  cbeg=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  cbeg=cbeg/det
-  ebeg=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  ebeg=ebeg/det
-  b1=a(n-2)+a(n-3)
-  b2=a(n-1)+a(n-4)
-  b3=a(n)+a(n-5)
-  aend=b1*a22*a33+a12*a23*b3+a13*b2*a32-a12*b2*a33-a13*a22*b3-b1*a23*a32
-  aend=aend/det
-  cend=a11*b2*a33+b1*a23*a31+a13*a21*b3-b1*a21*a33-a13*b2*a31-a11*a23*b3
-  cend=cend/det
-  eend=a11*a22*b3+a12*b2*a31+b1*a21*a32-a12*a21*b3-b1*a22*a31-a11*b2*a32
-  eend=eend/det
-
-  allocate(alp(n),bet(n),gam(n))
-
-  alp(1)=0.0d0
-  bet(1)=ebeg*(2.d0+rhom)-5.d0*fbeg*(3.d0+1.5d0*rhom) !gamma1
-
-  do i=1,n-4
-    ip1=i+1
-    alp(ip1)=-1.d0/(rhop+alp(i))
-    bet(ip1)=alp(ip1)*(bet(i)- &
-             5.d0*(a(i+4)-4.d0*a(i+3)+6.d0*a(i+2)-4.d0*a(ip1)+a(i)))
-  end do
-
-  gam(n-2)=eend*(2.d0+rhom)+5.d0*fend*(3.d0+1.5d0*rhom) !gamma
-  do i=n-3,1,-1
-    gam(i)=gam(i+1)*alp(i)+bet(i)
-  end do
-
-  alp(1)=0.0d0
-  bet(1)=ebeg-2.5d0*5.d0*fbeg !e1
-
-  do i=1,n-2
-    ip1=i+1
-    alp(ip1)=-1.d0/(rhom+alp(i))
-    bet(ip1)=alp(ip1)*(bet(i)-gam(i))
-  end do
-
-  e(n)=eend+2.5d0*5.d0*fend
-  e(n-1)=e(n)*alp(n-1)+bet(n-1)
-  f(n-1)=(e(n)-e(n-1))/5.d0
-  e(n-2)=e(n-1)*alp(n-2)+bet(n-2)
-  f(n-2)=(e(n-1)-e(n-2))/5.d0
-  d(n-2)=dend+1.5d0*4.d0*eend+1.5d0**2*10.d0*fend
-
-  do i=n-3,1,-1
-    e(i)=e(i+1)*alp(i)+bet(i)
-    f(i)=(e(i+1)-e(i))/5.d0
-    d(i)=(a(i+3)-3.d0*a(i+2)+3.d0*a(i+1)-a(i))/6.d0 &
-        -(e(i+3)+27.d0*e(i+2)+93.d0*e(i+1)+59.d0*e(i))/30.d0
-    c(i)=0.5d0*(a(i+2)+a(i))-a(i+1)-0.5d0*d(i+1)-2.5d0*d(i) &
-        -0.1d0*(e(i+2)+18.d0*e(i+1)+31.d0*e(i))
-    b(i)=a(i+1)-a(i)-c(i)-d(i)-0.2d0*(4.d0*e(i)+e(i+1))
-  end do
-
-  do i=n-3,n
-    b(i)=b(i-1)+2.d0*c(i-1)+3.d0*d(i-1)+4.d0*e(i-1)+5.d0*f(i-1)
-    c(i)=c(i-1)+3.d0*d(i-1)+6.d0*e(i-1)+10.d0*f(i-1)
-    d(i)=d(i-1)+4.d0*e(i-1)+10.d0*f(i-1)
-    if(i.ne.n) f(i)= a(i+1)-a(i)-b(i)-c(i)-d(i)-e(i)
-  end do
-  f(n)=f(n-1)
-
-  fac=1.d0/h
-  b=b*fac
-  fac=fac/h
-  c=c*fac
-  fac=fac/h
-  d=d*fac
-  fac=fac/h
-  e=e*fac
-  fac=fac/h
-  f=f*fac
-
-  deallocate(alp,bet,gam)
+  call spl_five_reg(n, h, real(a, dp), br, cr, dr, er, fr)
+  call spl_five_reg(n, h, aimag(a), bi, ci, di, ei, fi)
+  b = cmplx(br, bi, cdp)
+  c = cmplx(cr, ci, cdp)
+  d = cmplx(dr, di, cdp)
+  e = cmplx(er, ei, cdp)
+  f = cmplx(fr, fi, cdp)
 
 end subroutine cspl_five_reg
 
