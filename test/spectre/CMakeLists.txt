@@ -1,4 +1,4 @@
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/spectre)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/test/spectre)
 
 add_executable(test_spectre_reader.x test_spectre_reader.f90)
 target_link_libraries(test_spectre_reader.x PRIVATE spectre_support

@@ -1,15 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
 project(hdf5_file_merging_tool LANGUAGES C Fortran)
 
-include(FetchContent)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ItpDeps.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/DependencyPins.cmake)
-set(BUILD_TESTING OFF CACHE BOOL "Do not build dependency tests" FORCE)
-FetchContent_Declare(
-  fortio
+itp_add_dependency(fortio REF ${LIBNEO_FORTIO_REF}
   GIT_REPOSITORY https://github.com/lazy-fortran/fortio.git
-  GIT_TAG ${FORTIO_REF}
-)
-FetchContent_MakeAvailable(fortio)
+  TARGET fortio)
 
 add_executable(h5merge.x src/h5merge.f90)
 target_link_libraries(h5merge.x PRIVATE fortio::fortio)

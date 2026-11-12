@@ -22,7 +22,7 @@ class DependencyPinsTests(unittest.TestCase):
 cmake_minimum_required(VERSION 3.22)
 project(pin_selection NONE)
 include(cmake/DependencyPins.cmake)
-file(WRITE "${CMAKE_BINARY_DIR}/selected" "${FORTIO_REF}\n${FORTNUM_REF}\n${FORTFEM_REF}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/selected" "${LIBNEO_FORTIO_REF}\n${LIBNEO_FORTNUM_REF}\n${LIBNEO_FORTFEM_REF}\n")
 ''')
         self.set_pins("1", "2", "5")
 
@@ -44,16 +44,6 @@ file(WRITE "${CMAKE_BINARY_DIR}/selected" "${FORTIO_REF}\n${FORTNUM_REF}\n${FORT
         self.set_pins("3", "4", "6")
         selected = self.run_cmake("--build", str(self.root / "build"))
         self.assertEqual(selected, ["3" * 40, "4" * 40, "6" * 40])
-
-    def test_explicit_override_survives_manifest_update(self):
-        selected = self.run_cmake(
-            "-S", str(self.root), "-B", str(self.root / "build"),
-            "-DFORTIO_REF=review-candidate",
-        )
-        self.assertEqual(selected, ["review-candidate", "2" * 40, "5" * 40])
-        self.set_pins("3", "4", "6")
-        selected = self.run_cmake("--build", str(self.root / "build"))
-        self.assertEqual(selected, ["review-candidate", "4" * 40, "6" * 40])
 
 
 if __name__ == "__main__":

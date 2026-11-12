@@ -1,4 +1,4 @@
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test/field)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/test/field)
 
 add_executable(test_biotsavart.x test_biotsavart.f90)
 target_link_libraries(test_biotsavart.x PRIVATE neo
@@ -126,6 +126,6 @@ add_test(NAME test_makegrid_coils_python_oracle
          COMMAND ${Python_EXECUTABLE}
                  ${PROJECT_SOURCE_DIR}/test/scripts/compare_makegrid_coils.py
                  --exe $<TARGET_FILE:makegrid_coils_oracle.x>
-                 --work-dir ${CMAKE_BINARY_DIR}/test/field/makegrid_oracle)
+                 --work-dir ${PROJECT_BINARY_DIR}/test/field/makegrid_oracle)
 set_tests_properties(test_makegrid_coils test_makegrid_coils_python_oracle
                      PROPERTIES LABELS "field")

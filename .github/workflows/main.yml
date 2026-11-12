@@ -22,6 +22,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  itpdeps-copy:
+    uses: itpplasma/cmake-deps/.github/workflows/check-copy.yml@v1
+
   GNU_release:
     runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build"]') }}
     env:
