@@ -25,13 +25,13 @@
         "narHash": "sha256-P2772Mkz5/1KSBhj0v9/tC5l8417k/G0pIbd3WMZHco=",
         "owner": "lazy-fortran",
         "repo": "fortfem",
-        "rev": "e871b6c5ab14158e5a482cf93c8c17e855621a52",
+        "rev": "449f409fa628e6561f2270dc2c0b2001b41876c4",
         "type": "github"
       },
       "original": {
         "owner": "lazy-fortran",
         "repo": "fortfem",
-        "rev": "e871b6c5ab14158e5a482cf93c8c17e855621a52",
+        "rev": "449f409fa628e6561f2270dc2c0b2001b41876c4",
         "type": "github"
       }
     },
@@ -59,13 +59,13 @@
         "narHash": "sha256-zaDVJxvjm75jir39TbBWKRURNfCtKiZT9hdHeE4madk=",
         "owner": "lazy-fortran",
         "repo": "fortnum",
-        "rev": "30c14fe2b4674655a3cac9b2525c60aa7bc31738",
+        "rev": "23e36f8f7572d0104124073c349a1e0ea661749a",
         "type": "github"
       },
       "original": {
         "owner": "lazy-fortran",
         "repo": "fortnum",
-        "rev": "30c14fe2b4674655a3cac9b2525c60aa7bc31738",
+        "rev": "23e36f8f7572d0104124073c349a1e0ea661749a",
         "type": "github"
       }
     },
@@ -76,13 +76,13 @@
         "narHash": "sha256-stz4vED36CymZpI1YNqYGafuk83d3Gwa8Y9LGLKn/J0=",
         "owner": "lazy-fortran",
         "repo": "fortsparse",
-        "rev": "d2d912b95139871b9c8b2fdd695574496bc98810",
+        "rev": "2d7c43ee633e42c6044a5225e3a506609d7c4d41",
         "type": "github"
       },
       "original": {
         "owner": "lazy-fortran",
         "repo": "fortsparse",
-        "rev": "d2d912b95139871b9c8b2fdd695574496bc98810",
+        "rev": "2d7c43ee633e42c6044a5225e3a506609d7c4d41",
         "type": "github"
       }
     },

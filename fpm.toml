@@ -7,8 +7,8 @@ copyright = "Copyright 2025, Plasma Physics at TU Graz"
 
 [dependencies]
 fortio = { git = "https://github.com/lazy-fortran/fortio.git", rev = "6929247e03cc8657cc3f6aabf210525f16237fd7" }
-fortnum = { git = "https://github.com/lazy-fortran/fortnum.git", rev = "30c14fe2b4674655a3cac9b2525c60aa7bc31738" }
-fortfem = { git = "https://github.com/lazy-fortran/fortfem.git", rev = "e871b6c5ab14158e5a482cf93c8c17e855621a52" }
+fortnum = { git = "https://github.com/lazy-fortran/fortnum.git", rev = "23e36f8f7572d0104124073c349a1e0ea661749a" }
+fortfem = { git = "https://github.com/lazy-fortran/fortfem.git", rev = "449f409fa628e6561f2270dc2c0b2001b41876c4" }
 
 [build]
 external-modules = [
