@@ -22,7 +22,7 @@
       "flake": false,
       "locked": {
         "lastModified": 1794172997,
-        "narHash": "sha256-P2772Mkz5/1KSBhj0v9/tC5l8417k/G0pIbd3WMZHco=",
+        "narHash": "sha256-+iqi1DbRVbc/jVMcHpIlVeUMEy0vg1/s0b+wbpBoHBE=",
         "owner": "lazy-fortran",
         "repo": "fortfem",
         "rev": "449f409fa628e6561f2270dc2c0b2001b41876c4",
@@ -56,7 +56,7 @@
       "flake": false,
       "locked": {
         "lastModified": 1793957700,
-        "narHash": "sha256-zaDVJxvjm75jir39TbBWKRURNfCtKiZT9hdHeE4madk=",
+        "narHash": "sha256-ocyni9DHXki16wXtL7fKeX9KeR+XLixLBViokNYkPoc=",
         "owner": "lazy-fortran",
         "repo": "fortnum",
         "rev": "23e36f8f7572d0104124073c349a1e0ea661749a",
@@ -73,7 +73,7 @@
       "flake": false,
       "locked": {
         "lastModified": 1793956876,
-        "narHash": "sha256-stz4vED36CymZpI1YNqYGafuk83d3Gwa8Y9LGLKn/J0=",
+        "narHash": "sha256-oJZe8AssQBKUfJX7YYeqkAyNZ1Il/NXzSI87UPpCV6o=",
         "owner": "lazy-fortran",
         "repo": "fortsparse",
         "rev": "2d7c43ee633e42c6044a5225e3a506609d7c4d41",
