@@ -367,7 +367,7 @@ target_link_libraries(boozer PUBLIC
 # output is the build input; regeneration needs a FortSym build tree at the
 # pinned revision (configure with -DLIBNEO_FORTSYM_BUILD=<fortsym build>).
 set(LIBNEO_FORTSYM_BUILD "" CACHE PATH "Optional FortSym build tree for regeneration")
-set(LIBNEO_FORTSYM_REVISION "2d6f7d15d3d0fce1738b68d0f5d9a9ffdd1418f7")
+set(LIBNEO_FORTSYM_REVISION "f7d51909b9311a796aa3572f7e98820a8d577ff6")
 if(LIBNEO_FORTSYM_BUILD)
     file(STRINGS "${LIBNEO_FORTSYM_BUILD}/CMakeCache.txt" fortsym_source
         REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL=")
