@@ -17,10 +17,6 @@ set (efit_to_boozer_VERSION_PATCH 3)
 
 enable_language(C Fortran)
 
-if(LIBNEO_ENABLE_TESTS)
-    enable_testing()
-endif()
-
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
