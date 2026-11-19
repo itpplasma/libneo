@@ -223,7 +223,8 @@ contains
     ! ignore a few possibly unreliable values on both ends of the interval
     mask = .false.
     mask(ignore+1:geqdsk%nw-ignore-1) = .true.
-    factor = sum(deriv_eqd / geqdsk%pprime, mask = mask) / dble(count(mask))
+    ! a zero profile (beta = 0, or FF' = 0) carries no scale or sign to check
+    factor = mean_ratio(deriv_eqd, geqdsk%pprime, mask)
     if (abs(factor) >= sqrt(2.0d0 * pi)) then
        write (*, unscaled_fmt) 'PPRIME'
        write (*, rescale_fmt) 'PPRIME'
@@ -236,7 +237,7 @@ contains
     end if
     call resample1d(geqdsk%psi_eqd, geqdsk%fpol, geqdsk%psi_eqd, deriv_eqd, 3, .true.)
     deriv_eqd(:) = deriv_eqd * geqdsk%fpol
-    factor = sum(deriv_eqd / geqdsk%ffprim, mask = mask) / dble(count(mask))
+    factor = mean_ratio(deriv_eqd, geqdsk%ffprim, mask)
     if (abs(factor) >= sqrt(2.0d0 * pi)) then
        write (*, unscaled_fmt) 'FFPRIM'
        write (*, rescale_fmt) 'FFPRIM'
@@ -249,6 +250,24 @@ contains
     end if
     if (allocated(geqdsk%fprime)) geqdsk%fprime(:) = geqdsk%ffprim / geqdsk%fpol
   end subroutine geqdsk_check_consistency
+
+  !> Mean of num/den over mask where den is nonzero; 1 (consistent) if den vanishes there.
+  pure function mean_ratio(num, den, mask) result(factor)
+      real(dp), intent(in) :: num(:), den(:)
+      logical, intent(in) :: mask(:)
+      real(dp) :: factor
+      real(dp) :: ratio(size(num))
+      logical :: sel(size(num))
+
+      sel = mask .and. den /= 0.0d0
+      if (count(sel) == 0) then
+          factor = 1.0d0
+          return
+      end if
+      ratio = 0.0d0
+      where (sel) ratio = num/den
+      factor = sum(ratio, mask=sel)/dble(count(sel))
+  end function mean_ratio
 
   !> Estimates terms of Grad-Shafranov equation to determine cocos_t::exp_bpol.
   function geqdsk_GS_prefactor(geqdsk)

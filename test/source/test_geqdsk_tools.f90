@@ -23,6 +23,9 @@ program test_geqdsk_tools
   call test_consistency_idempotent(sucess)
   sucess_all = sucess_all .and. sucess
 
+  call test_consistency_zero_pressure(sucess)
+  sucess_all = sucess_all .and. sucess
+
   if (.not. sucess_all) then
     error stop "ERROR At least one test of geqdsk_tools failed."
   end if
@@ -231,5 +234,39 @@ contains
     end if
 
   end subroutine test_consistency_idempotent
+
+  !> A beta = 0 equilibrium (pres = pprime = 0) passes the consistency check without an
+  !> invalid operation and keeps its profiles.
+  subroutine test_consistency_zero_pressure(sucess)
+      use geqdsk_tools, only: geqdsk_t
+      use geqdsk_tools, only: geqdsk_read, geqdsk_check_consistency
+      use, intrinsic :: iso_fortran_env, only: dp => real64
+      use, intrinsic :: ieee_exceptions, only: ieee_get_flag, ieee_set_flag, &
+                                                       ieee_invalid, ieee_divide_by_zero
+
+      implicit none
+
+      logical, intent(out) :: sucess
+      type(geqdsk_t) :: geqdsk
+    character(len=*), parameter :: infilename = '../../test/resources/input_efit_file.dat'
+      real(dp), allocatable :: ffprim(:)
+      logical :: invalid, divzero
+
+      call geqdsk_read(geqdsk, infilename)
+      call geqdsk_check_consistency(geqdsk)
+      geqdsk%pres = 0.0d0
+      geqdsk%pprime = 0.0d0
+      ffprim = geqdsk%ffprim
+      call ieee_set_flag(ieee_invalid, .false.)
+      call ieee_set_flag(ieee_divide_by_zero, .false.)
+      call geqdsk_check_consistency(geqdsk)
+      call ieee_get_flag(ieee_invalid, invalid)
+      call ieee_get_flag(ieee_divide_by_zero, divzero)
+
+    sucess = .not. invalid .and. .not. divzero .and. all(geqdsk%pprime == 0.0d0) .and. &
+               maxval(abs(geqdsk%ffprim - ffprim)) <= 1.0d-12*maxval(abs(ffprim))
+if (.not. sucess) write (*, *) 'ERROR geqdsk_check_consistency fails for zero pressure.'
+
+  end subroutine test_consistency_zero_pressure
 
 end program test_geqdsk_tools
