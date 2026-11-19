@@ -256,7 +256,7 @@ contains
       call geqdsk_check_consistency(geqdsk)
       geqdsk%pres = 0.0d0
       geqdsk%pprime = 0.0d0
-      ffprim = geqdsk%ffprim
+      allocate (ffprim, source=geqdsk%ffprim)
       call ieee_set_flag(ieee_invalid, .false.)
       call ieee_set_flag(ieee_divide_by_zero, .false.)
       call geqdsk_check_consistency(geqdsk)
