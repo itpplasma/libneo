@@ -161,6 +161,13 @@ class VMECGeometry:
 
         w0 = 1.0 - alpha
         w1 = alpha
+        if i0 == 0:
+            # Harmonic m grows like rho**m = (s/s_1)**(m/2) off the axis. Linear
+            # interpolation in s makes R - R_axis grow like s, and a chart
+            # spline-fitted through such points folds near the axis.
+            m = np.abs(self.xm.astype(float))
+            w1 = np.where(m == 0.0, alpha, alpha ** (0.5 * m))
+            w0 = np.where(m == 0.0, 1.0 - alpha, 0.0)
         rmnc_s = (w0 * self.rmnc[:, i0] + w1 * self.rmnc[:, i1])[:, None]
         zmns_s = (w0 * self.zmns[:, i0] + w1 * self.zmns[:, i1])[:, None]
 
