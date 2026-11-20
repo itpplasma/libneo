@@ -456,3 +456,28 @@ def test_chartmap_vmec_to_wall_c1_continuity(tmp_path: Path) -> None:
                 f"dZ/drho discontinuity at iz={iz}, ith={ith}: jump={dZ_jump:.4f}, "
                 f"scale={dZ_scale:.4f}, ratio={dZ_jump/dZ_scale:.2f}"
             )
+
+
+def test_vmec_harmonics_scale_as_rho_m_inside_first_surface() -> None:
+    from libneo.vmec import VMECGeometry
+
+    r0, a, b, ns = 1.5, 0.5, 0.1, 11
+    s_grid = np.linspace(0.0, 1.0, ns)
+    rho = np.sqrt(s_grid)
+    geom = VMECGeometry(
+        xm=np.array([0.0, 1.0, 2.0]),
+        xn=np.array([0.0, 0.0, 0.0]),
+        phi=s_grid.copy(),
+        rmnc=np.vstack([np.full(ns, r0), a * rho, b * rho**2]),
+        zmns=np.vstack([np.zeros(ns), a * rho, b * rho**2]),
+    )
+    theta = np.linspace(0.0, 2.0 * np.pi, 16, endpoint=False)
+    for s in np.array([0.01, 0.25, 0.5, 0.9]) * s_grid[1]:
+        R, Z, _ = geom.coords_s(s, theta, 0.0)
+        r = np.sqrt(s)
+        np.testing.assert_allclose(
+            R, r0 + a * r * np.cos(theta) + b * s * np.cos(2 * theta), rtol=1e-12
+        )
+        np.testing.assert_allclose(
+            Z, a * r * np.sin(theta) + b * s * np.sin(2 * theta), atol=1e-12
+        )
