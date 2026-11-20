@@ -978,6 +978,7 @@ def write_chartmap_from_vmec_and_stl(
     stl_scale: float = 1.0,
     num_field_periods: int | None = None,
     use_asym: bool = True,
+    wall_match: str = "vmec_derivative",
 ) -> None:
     """
     Generate a chartmap from VMEC extended to STL wall boundaries.
@@ -999,6 +1000,7 @@ def write_chartmap_from_vmec_and_stl(
     stitch_tol : tolerance for stitching open contours
     num_field_periods : override nfp from wout file
     use_asym : include asymmetric Fourier terms if available
+    wall_match : LCFS-to-wall matching, see write_chartmap_from_vmec_to_wall
     """
     from netCDF4 import Dataset
 
@@ -1046,6 +1048,7 @@ def write_chartmap_from_vmec_and_stl(
         rho_lcfs=rho_lcfs,
         num_field_periods=nfp,
         use_asym=use_asym,
+        wall_match=wall_match,
     )
 
 

@@ -481,3 +481,30 @@ def test_vmec_harmonics_scale_as_rho_m_inside_first_surface() -> None:
         np.testing.assert_allclose(
             Z, a * r * np.sin(theta) + b * s * np.sin(2 * theta), atol=1e-12
         )
+
+
+def test_cli_from_vmec_to_wall_forwards_wall_match(tmp_path: Path, monkeypatch) -> None:
+    import types
+
+    import libneo.chartmap as chartmap
+    import libneo.stl_boundary as stl_boundary
+    from libneo.chartmap_cli import main
+
+    wall = np.array([[2.0, 0.0], [1.5, 0.5], [1.0, 0.0], [1.5, -0.5], [2.0, 0.0]])
+    monkeypatch.setattr(
+        stl_boundary,
+        "extract_boundary_slices",
+        lambda *args, **kwargs: [types.SimpleNamespace(outer_filled=wall, phi=0.0)],
+    )
+    seen = {}
+    monkeypatch.setattr(
+        chartmap,
+        "write_chartmap_from_vmec_to_wall",
+        lambda *args, **kwargs: seen.update(kwargs),
+    )
+    argv = ["from-vmec-to-wall", "wout.nc", "wall.stl", str(tmp_path / "chart.nc"),
+            "--nzeta", "1", "--num-field-periods", "1"]
+    assert main(argv) == 0
+    assert seen["wall_match"] == "vmec_derivative"
+    assert main(argv + ["--wall-match", "poloidal_normal"]) == 0
+    assert seen["wall_match"] == "poloidal_normal"
