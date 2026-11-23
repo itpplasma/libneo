@@ -145,6 +145,9 @@ def combine_boozer_data(axis, perturbation=None, *, scale=1.0,
     )
     for name in _PROFILE_NAMES:
         setattr(combined, name, np.asarray(getattr(profile_source, name)).copy())
+    period_scale = profile_source.nper / output_nper
+    combined.Jpol_divided_by_nper *= period_scale
+    combined.sqrt_g_00 *= period_scale
 
     combined.m = []
     combined.n = []
