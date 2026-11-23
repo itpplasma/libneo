@@ -34,7 +34,7 @@ def _write_bc(path: Path, *, perturbation: bool, surfaces=SURFACES) -> None:
             )
             stream.write(
                 f" {surface:.8e}  4.0e-1  {5.0e5 / nper:.8e}  2.0e4"
-                "  0.0  1.0\n"
+                f"  0.0  {1.0 / nper:.8e}\n"
             )
             stream.write(
                 "    m    n      rmnc [m]         rmns [m]         zmnc [m]"
@@ -76,13 +76,15 @@ def _minus_phase_sum(m, n, cos_coeff, sin_coeff, theta, zeta, nper):
     )
 
 
-def test_composition_matches_direct_fourier_oracle(manufactured_bc):
+@pytest.mark.parametrize("resample", [False, True])
+def test_composition_matches_direct_fourier_oracle(manufactured_bc, resample):
     from libneo.neo2bc_to_chartmap import combine_neo2_boozer_files
 
     axis, perturbation = manufactured_bc
-    combined = combine_neo2_boozer_files(axis, perturbation, scale=0.25)
+    combined = combine_neo2_boozer_files(axis, perturbation, scale=0.25, resample=resample)
 
     assert combined.nper == 2
+    np.testing.assert_allclose(combined.sqrt_g_00 * combined.nper, 1.0)
     np.testing.assert_array_equal(combined.m[0], [0, 1, -1, 1])
     np.testing.assert_array_equal(combined.n[0], [0, 0, -1, -1])
 
@@ -175,6 +177,9 @@ def test_converter_writes_units_sign_and_hash_provenance(
         assert len(dataset.neo2bc_axis_sha256) == 64
         assert len(dataset.neo2bc_perturbation_sha256) == 64
         assert int(dataset.variables["num_field_periods"][:]) == 2
+        # G = mu0 J_pol / (2 pi) must be independent of the output field period.
+        np.testing.assert_allclose(dataset["B_phi"][:], 2e-7 * 5e5 * 1e6)
+        np.testing.assert_allclose(dataset["rk_B_phi"][:], 2e-7 * 5e5 * 1e6)
 
         theta = np.asarray(dataset.variables["theta"][:])
         zeta = np.asarray(dataset.variables["zeta"][:])
