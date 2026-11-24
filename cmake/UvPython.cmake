@@ -22,8 +22,15 @@ if(UV_EXECUTABLE)
         OUTPUT_VARIABLE _uv_out
         ERROR_VARIABLE _uv_out)
     if(NOT _uv_rc EQUAL 0)
-        message(WARNING "uv sync failed; Python tests may not run:\n${_uv_out}")
+        # The Python tests need this venv; without it they fail later with
+        # ModuleNotFoundError, which hides the actual cause.
+        if(LIBNEO_BUILD_TESTING)
+            message(FATAL_ERROR "uv sync failed, so the Python tests cannot run:\n${_uv_out}")
+        endif()
+        message(WARNING "uv sync failed; the chartmap Python tools are unavailable:\n${_uv_out}")
     endif()
+elseif(LIBNEO_BUILD_TESTING)
+    message(FATAL_ERROR "uv not found; the Python tests need the uv project venv")
 else()
     message(STATUS "uv not found; install uv or sync the required project extra")
 endif()
