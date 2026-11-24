@@ -52,7 +52,8 @@ contains
         !> get_boozer_coordinates() and while VMEC splines are still active
         !> (needed for X, Y, Z geometry evaluation).
         use vector_potentail_mod, only: torflux
-        use new_vmec_stuff_mod, only: nper, raxis_cc, zaxis_cs, ntor_axis
+        use new_vmec_stuff_mod, only: nper, raxis_cc, raxis_cs, &
+                                      zaxis_cc, zaxis_cs, ntor_axis
         use boozer_coordinates_mod, only: ns_B, n_theta_B, n_phi_B, &
                                           h_theta_B, h_phi_B
         use spline_vmec_sub, only: splint_vmec_data
@@ -78,7 +79,7 @@ contains
         real(dp) :: R_axis, Z_axis, phi_V0, axis_geom_err, bmod_axis, axis_pos_scale
         ! Chartmap now reaches the exact magnetic axis (rho=0, s=0). The axis is
         ! the m=0 limit: theta-independent geometry from the exact VMEC axis
-        ! curve raxis_cc/zaxis_cs (no flux surface exists at s=0). boozer_to_vmec
+        ! curve (no flux surface exists at s=0). boozer_to_vmec
         ! and splint_boozer_coord are singular at s=0, so the toroidal angle and
         ! the field profiles are taken at the regular limit s_axis_eval (the
         ! Boozer-data spline floor), while the axis position is exact.
@@ -356,9 +357,6 @@ contains
         end subroutine nc_assert
 
         !> Exact VMEC magnetic axis (m=0) at the VMEC toroidal angle phi_V.
-        !> Stellarator-symmetric: R = sum_n raxis_cc(n) cos(n nfp phi_V),
-        !> Z = sum_n zaxis_cs(n) sin(n nfp phi_V). Sign convention is checked
-        !> against the s=0 limit of splint_vmec_data (axis_geom_err).
         subroutine eval_vmec_axis(phi_V, R_axis_out, Z_axis_out)
             real(dp), intent(in) :: phi_V
             real(dp), intent(out) :: R_axis_out, Z_axis_out
@@ -368,12 +366,10 @@ contains
                 error stop 'eval_vmec_axis: raxis_cc not allocated for ntor_axis >= 0'
             R_axis_out = 0.0_dp
             Z_axis_out = 0.0_dp
-            ! VMEC convention R = sum rmnc cos(m u - n v), Z = sum zmns sin(m u - n v).
-            ! At m=0: cos(-n v) = cos(n v), sin(-n v) = -sin(n v), hence the Z sign.
             do nm = 0, ntor_axis
-                ang = real(nm, dp)*real(nper, dp)*phi_V
-                R_axis_out = R_axis_out + raxis_cc(nm)*cos(ang)
-                Z_axis_out = Z_axis_out - zaxis_cs(nm)*sin(ang)
+                ang = -real(nm, dp)*real(nper, dp)*phi_V
+                R_axis_out = R_axis_out + raxis_cc(nm)*cos(ang) + raxis_cs(nm)*sin(ang)
+                Z_axis_out = Z_axis_out + zaxis_cc(nm)*cos(ang) + zaxis_cs(nm)*sin(ang)
             end do
         end subroutine eval_vmec_axis
 
