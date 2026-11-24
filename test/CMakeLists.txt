@@ -868,6 +868,15 @@ set_tests_properties(test_boozer_chartmap_roundtrip PROPERTIES
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   FIXTURES_REQUIRED vmec_wout)
 
+add_executable(test_boozer_chartmap_asymmetric_axis.x
+  source/test_boozer_chartmap_asymmetric_axis.f90)
+target_link_libraries(test_boozer_chartmap_asymmetric_axis.x neo)
+add_test(NAME test_boozer_chartmap_asymmetric_axis
+  COMMAND test_boozer_chartmap_asymmetric_axis.x)
+set_tests_properties(test_boozer_chartmap_asymmetric_axis PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  FIXTURES_REQUIRED vmec_wout_updown_tokamak)
+
 add_executable(test_boozmn_reader.x source/test_boozmn_reader.f90)
 target_link_libraries(test_boozmn_reader.x neo)
 add_test(NAME test_boozmn_reader
